@@ -69,6 +69,8 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGE
 #   - copy default config files
 COPY datadog*.yaml etc/datadog-agent/
 
+# Installation information
+COPY install_info etc/datadog-agent/
 
 ######################################
 #  Actual docker image construction  #
@@ -162,7 +164,7 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 
-HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
+HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag

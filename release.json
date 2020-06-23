@@ -3,15 +3,29 @@
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-        "JMXFETCH_VERSION": "0.36.1",
-        "JMXFETCH_HASH": "41a8b4c977d87d23c01cf37da9687b0ba117158ec543692fe93f325542f39e99"
+        "JMXFETCH_VERSION": "0.37.0",
+        "JMXFETCH_HASH": "468f104a052ae078fd7fca43195a1a1f40f0c553fa163b339b72064e0dd310ad"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-        "JMXFETCH_VERSION": "0.36.1",
-        "JMXFETCH_HASH": "41a8b4c977d87d23c01cf37da9687b0ba117158ec543692fe93f325542f39e99"
+        "JMXFETCH_VERSION": "0.37.0",
+        "JMXFETCH_HASH": "468f104a052ae078fd7fca43195a1a1f40f0c553fa163b339b72064e0dd310ad"
+    },
+    "6.20.0": {
+        "INTEGRATIONS_CORE_VERSION": "7.20.0",
+        "OMNIBUS_SOFTWARE_VERSION": "7.20.0",
+        "OMNIBUS_RUBY_VERSION": "7.20.0",
+        "JMXFETCH_VERSION": "0.36.2",
+        "JMXFETCH_HASH": "f782b9a5e9dffbce3463245562858fd8fed1508269222e8bebeefd3f865d10d8"
+    },
+    "7.20.0": {
+        "INTEGRATIONS_CORE_VERSION": "7.20.0",
+        "OMNIBUS_SOFTWARE_VERSION": "7.20.0",
+        "OMNIBUS_RUBY_VERSION": "7.20.0",
+        "JMXFETCH_VERSION": "0.36.2",
+        "JMXFETCH_HASH": "f782b9a5e9dffbce3463245562858fd8fed1508269222e8bebeefd3f865d10d8"
     },
     "6.19.0": {
         "INTEGRATIONS_CORE_VERSION": "7.19.0",

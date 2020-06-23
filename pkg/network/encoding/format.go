@@ -3,7 +3,6 @@ package encoding
 import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -44,6 +43,23 @@ func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
 	}
 
 	return ipToNames
+}
+
+// FormatTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
+	if tel == nil {
+		return nil
+	}
+
+	return &model.ConnectionsTelemetry{
+		MonotonicKprobesTriggered:          tel.MonotonicKprobesTriggered,
+		MonotonicKprobesMissed:             tel.MonotonicKprobesMissed,
+		MonotonicConntrackRegisters:        tel.MonotonicConntrackRegisters,
+		MonotonicConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped,
+		MonotonicDnsPacketsProcessed:       tel.MonotonicDNSPacketsProcessed,
+		MonotonicConnsClosed:               tel.MonotonicConnsClosed,
+		ConnsBpfMapSize:                    tel.ConnsBpfMapSize,
+	}
 }
 
 func formatAddr(addr util.Address, port uint16) *model.Addr {
@@ -91,7 +107,7 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	}
 }
 
-func formatIPTranslation(ct *netlink.IPTranslation) *model.IPTranslation {
+func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 	if ct == nil {
 		return nil
 	}

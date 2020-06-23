@@ -81,6 +81,20 @@ struct bpf_map_def SEC("maps/tcp_close_events") tcp_close_event = {
     .namespace = "",
 };
 
+/* We use this map as a container for batching closed tcp connections
+ * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
+ * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
+ * some of the Kernels we support (4.4 ~ 4.6)
+ */
+struct bpf_map_def SEC("maps/tcp_close_batch") tcp_close_batch = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(batch_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
@@ -501,8 +515,48 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
         conn.conn_stats = *cst;
     }
 
-    // Send the connection data to the perf buffer
-    bpf_perf_event_output(ctx, &tcp_close_event, cpu, &conn, sizeof(conn));
+    // Batch TCP closed connections before generating a perf event
+    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    if (batch_ptr == NULL) {
+        return;
+    }
+
+    // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
+    switch (batch_ptr->pos) {
+    case 0:
+        batch_ptr->c0 = conn;
+        batch_ptr->pos++;
+        return;
+    case 1:
+        batch_ptr->c1 = conn;
+        batch_ptr->pos++;
+        return;
+    case 2:
+        batch_ptr->c2 = conn;
+        batch_ptr->pos++;
+        return;
+    case 3:
+        batch_ptr->c3 = conn;
+        batch_ptr->pos++;
+        return;
+    case 4:
+        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
+        // in order to cope with the eBPF stack limitation of 512 bytes.
+        batch_ptr->c4 = conn;
+        batch_ptr->pos++;
+        return;
+    }
+
+    // If we hit this section it means we had one or more interleaved tcp_close calls.
+    // This could result in a missed tcp_close event, so we track it using our telemetry map.
+    u64 key = 0;
+    telemetry_t empty = {};
+    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+
+    telemetry_t* val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val != NULL) {
+        __sync_fetch_and_add(&val->missed_tcp_close, 1);
+    }
 }
 
 __attribute__((always_inline))
@@ -708,6 +762,27 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     }
 
     cleanup_tcp_conn(ctx, &t);
+    return 0;
+}
+
+SEC("kretprobe/tcp_close")
+int kretprobe__tcp_close(struct pt_regs* ctx) {
+    u32 cpu = bpf_get_smp_processor_id();
+    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    if (batch_ptr == NULL) {
+        return 0;
+    }
+
+    if (batch_ptr->pos >= TCP_CLOSED_BATCH_SIZE) {
+        // Here we copy the batch data to a variable allocated in the eBPF stack
+        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
+        // since you can't directly write a map entry to the perf buffer.
+        batch_t batch_copy = {};
+        __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
+        bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(batch_copy));
+        batch_ptr->pos = 0;
+    }
+
     return 0;
 }
 

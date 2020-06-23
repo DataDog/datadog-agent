@@ -38,6 +38,7 @@ type CloudFoundryListener struct {
 }
 
 type CloudFoundryService struct {
+	tags           []string
 	adIdentifier   cloudfoundry.ADIdentifier
 	containerIPs   map[string]string
 	containerPorts []ContainerPort
@@ -131,11 +132,16 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 		// non-container service
 		// NOTE: non-container services intentionally have no IPs or ports, everything is supposed to be configured
 		// through the "variables" section in the AD configuration
+		dLRP := adID.GetDesiredLRP()
 		svc = &CloudFoundryService{
 			adIdentifier:   adID,
 			containerIPs:   map[string]string{},
 			containerPorts: []ContainerPort{},
 			creationTime:   crTime,
+			tags: []string{
+				fmt.Sprintf("%s:%s", cloudfoundry.AppNameTagKey, dLRP.AppName),
+				fmt.Sprintf("%s:%s", cloudfoundry.AppGUIDTagKey, dLRP.AppGUID),
+			},
 		}
 	} else {
 		if aLRP.State != cloudfoundry.ActualLrpStateRunning {
@@ -151,7 +157,16 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 				Port: int(p),
 			})
 		}
+		nodeTags, err := l.bbsCache.GetTagsForNode(aLRP.CellID)
+		if err != nil {
+			log.Errorf("Error getting node tags: %v", err)
+		}
+		tags, ok := nodeTags[aLRP.InstanceGUID]
+		if !ok {
+			log.Errorf("Could not find tags for instance %s", aLRP.InstanceGUID)
+		}
 		svc = &CloudFoundryService{
+			tags:           tags,
 			adIdentifier:   adID,
 			containerIPs:   ips,
 			containerPorts: ports,
@@ -171,7 +186,7 @@ func (l *CloudFoundryListener) getAllADIdentifiers(desiredLRPs map[string]*cloud
 				ret = append(ret, cloudfoundry.NewADNonContainerIdentifier(*dLRP, adName))
 			} else {
 				// if it's not in VCAP_SERVICES, it's a container service and we want one instance per container
-				aLRPs, ok := actualLRPs[dLRP.AppGUID]
+				aLRPs, ok := actualLRPs[dLRP.ProcessGUID]
 				if !ok {
 					aLRPs = []*cloudfoundry.ActualLRP{}
 				}
@@ -214,9 +229,9 @@ func (s *CloudFoundryService) GetPorts() ([]ContainerPort, error) {
 	return s.containerPorts, nil
 }
 
-// GetTags returns the list of container tags - currently always empty
+// GetTags returns the list of container tags
 func (s *CloudFoundryService) GetTags() ([]string, error) {
-	return []string{}, nil
+	return s.tags, nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF
@@ -247,4 +262,9 @@ func (s *CloudFoundryService) GetCheckNames() []string {
 // HasFilter returns false on CF
 func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
 	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *CloudFoundryService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

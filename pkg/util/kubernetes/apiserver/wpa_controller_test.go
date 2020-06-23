@@ -8,15 +8,21 @@
 package apiserver
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+
 	"github.com/cenkalti/backoff"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -150,8 +156,8 @@ func TestUpdateWPA(t *testing.T) {
 
 }
 
+// newFakeWPAController creates an AutoscalersController. Use enableWPA(wpa_informers.SharedInformerFactory) to add the event handlers to it. Use Run() to add the event handlers and start processing the events.
 func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client wpa_client.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.SharedInformerFactory) {
-
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(t.Logf)
 
@@ -163,8 +169,6 @@ func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client 
 		isLeaderFunc,
 		dcl,
 	)
-
-	autoscalerController.enableWPA(inf)
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
@@ -196,6 +200,9 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid string, metricName strin
 
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestWPAController(t *testing.T) {
+	logFlush := configureLoggerForTest(t)
+	defer logFlush()
+
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "default", name, nil)
@@ -233,6 +240,7 @@ func TestWPAController(t *testing.T) {
 
 	stop := make(chan struct{})
 	defer close(stop)
+	inf.WaitForCacheSync(stop)
 	inf.Start(stop)
 
 	go hctrl.RunWPA(stop, wpaClient, inf)
@@ -243,7 +251,7 @@ func TestWPAController(t *testing.T) {
 	require.NotNil(t, c)
 
 	mockedWPA := newFakeWatermarkPodAutoscaler(
-		"hpa_1",
+		"wpa_1",
 		"default",
 		"1",
 		"foo",
@@ -253,41 +261,39 @@ func TestWPAController(t *testing.T) {
 
 	_, err := c.WatermarkPodAutoscalers("default").Create(mockedWPA)
 	require.NoError(t, err)
-	timeout := time.NewTimer(5 * time.Second)
-	ticker := time.NewTicker(500 * time.Millisecond)
-	select {
-	case <-hctrl.autoscalers:
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for HPAs to update")
-	}
+
+	timeout := 5 * time.Second
+	frequency := 500 * time.Millisecond
+
+	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
+		key := <-hctrl.autoscalers
+		t.Logf("hctrl process key:%s", key)
+		return true
+	})
 	// Check local cache store is 1:1 with expectations
 	storedWPA, err := hctrl.wpaLister.WatermarkPodAutoscalers(mockedWPA.Namespace).Get(mockedWPA.Name)
 	require.NoError(t, err)
 	require.Equal(t, storedWPA, mockedWPA)
-	select {
-	case <-ticker.C:
+	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
 		hctrl.toStore.m.Lock()
 		st := hctrl.toStore.data
 		hctrl.toStore.m.Unlock()
-		require.NotEmpty(t, st)
-		require.Len(t, st, 1)
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for HPAs to update")
-	}
+		return len(st) == 1
+	})
 
 	hctrl.updateExternalMetrics()
 
 	// Test that the Global store contains the correct data
-	select {
-	case <-ticker.C:
+	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		require.NotZero(t, len(storedExternal.External))
+		if len(storedExternal.External) == 0 {
+			return false
+		}
 		require.Equal(t, storedExternal.External[0].Value, float64(14.123))
 		require.Equal(t, storedExternal.External[0].Labels, map[string]string{"foo": "bar"})
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for HPAs to update")
-	}
+		return true
+	})
 
 	// Update the Metrics
 	mockedWPA.Spec.Metrics = []v1alpha1.MetricSpec{
@@ -303,14 +309,25 @@ func TestWPAController(t *testing.T) {
 			},
 		},
 	}
+	ddSeries = []datadog.Series{
+		{
+			Metric: &metricName,
+			Points: []datadog.DataPoint{
+				makePoints(1531492452000, 12.34),
+				makePoints(penTime, 1.01),
+				makePoints(0, 0.902),
+			},
+			Scope: makePtr("dcos_version:2.1.9"),
+		},
+	}
 	mockedWPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
 	_, err = c.WatermarkPodAutoscalers(mockedWPA.Namespace).Update(mockedWPA)
 	require.NoError(t, err)
-	select {
-	case <-hctrl.autoscalers:
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for HPAs to update")
-	}
+	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
+		key := <-hctrl.autoscalers
+		t.Logf("hctrl process key:%s", key)
+		return true
+	})
 
 	storedWPA, err = hctrl.wpaLister.WatermarkPodAutoscalers(mockedWPA.Namespace).Get(mockedWPA.Name)
 	require.NoError(t, err)
@@ -320,50 +337,48 @@ func TestWPAController(t *testing.T) {
 	key := custommetrics.ExternalMetricValueKeyFunc(ExtVal[0])
 
 	// Process and submit to the Global Store
-	select {
-	case <-ticker.C:
+	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
 		hctrl.toStore.m.Lock()
+		defer hctrl.toStore.m.Unlock()
 		st := hctrl.toStore.data
-		hctrl.toStore.m.Unlock()
-		require.NotEmpty(t, st)
+		if len(st) == 0 {
+			return false
+		}
 		require.Len(t, st, 1)
 		// Not comparing timestamps to avoid flakyness.
 		require.Equal(t, ExtVal[0].Ref, st[key].Ref)
 		require.Equal(t, ExtVal[0].MetricName, st[key].MetricName)
 		require.Equal(t, ExtVal[0].Labels, st[key].Labels)
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for HPAs to update")
-	}
+		return true
+	})
 
 	hctrl.updateExternalMetrics()
 
-	select {
-	case <-ticker.C:
+	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		require.NotZero(t, len(storedExternal.External))
+		if len(storedExternal.External) == 0 {
+			return false
+		}
 		require.Equal(t, storedExternal.External[0].Value, float64(1.01))
 		require.Equal(t, storedExternal.External[0].Labels, map[string]string{"dcos_version": "2.1.9"})
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for WPAs to update")
-	}
+		return true
+	})
 
 	// Verify that a Delete removes the Data from the Global Store
 	err = c.WatermarkPodAutoscalers("default").Delete(mockedWPA.Name, &v1.DeleteOptions{})
 	require.NoError(t, err)
-	select {
-	case <-ticker.C:
+	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		require.Len(t, storedExternal.External, 0)
+		if len(storedExternal.External) != 0 {
+			return false
+		}
 		hctrl.toStore.m.Lock()
-		st := hctrl.toStore.data
-		hctrl.toStore.m.Unlock()
-		require.Len(t, st, 0)
-
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for HPAs to update")
-	}
+		defer hctrl.toStore.m.Unlock()
+		require.Len(t, hctrl.toStore.data, 0)
+		return true
+	})
 }
 
 func TestWPASync(t *testing.T) {
@@ -371,7 +386,7 @@ func TestWPASync(t *testing.T) {
 	wpaClient := fake.NewSimpleClientset()
 	d := &fakeDatadogClient{}
 	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, d)
-
+	hctrl.enableWPA(inf)
 	obj := newFakeWatermarkPodAutoscaler(
 		"wpa_1",
 		"default",
@@ -502,6 +517,9 @@ func TestWPAGC(t *testing.T) {
 			hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, d)
 			hctrl.wpaEnabled = true
 			inf := wpa_informers.NewSharedInformerFactory(wpaCl, 0)
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			inf.WaitForCacheSync(ctx.Done())
 			hctrl.enableWPA(inf)
 
 			hctrl.store = store
@@ -555,4 +573,25 @@ func TestWPACRDCheck(t *testing.T) {
 			require.Equal(t, testCase.expectedError, actualError)
 		})
 	}
+}
+
+func configureLoggerForTest(t *testing.T) func() {
+	logger, err := seelog.LoggerFromWriterWithMinLevel(testWriter{t}, seelog.TraceLvl)
+	if err != nil {
+		t.Fatalf("unable to configure logger, err: %v", err)
+	}
+	seelog.ReplaceLogger(logger) //nolint:errcheck
+	log.SetupDatadogLogger(logger, "trace")
+	return log.Flush
+}
+
+type testWriter struct {
+	t *testing.T
+}
+
+func (tw testWriter) Write(p []byte) (n int, err error) {
+	line := string(p)
+	strings.TrimRight(line, "\r\n")
+	tw.t.Log(line)
+	return len(p), nil
 }

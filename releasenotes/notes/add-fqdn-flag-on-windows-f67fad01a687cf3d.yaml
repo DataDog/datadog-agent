@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Windows installer can use the command line key `HOSTNAME_FQDN_ENABLED` to set the config value of `hostname_fqdn`.
+    Windows installer can use the command line key ``HOSTNAME_FQDN_ENABLED`` to set the config value of ``hostname_fqdn``.

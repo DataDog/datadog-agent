@@ -2,26 +2,21 @@
 Android namespaced tasks
 """
 from __future__ import print_function
-import glob
 import yaml
 import os
 import shutil
 import sys
-from distutils.dir_util import copy_tree
 
-import invoke
 from invoke import task
-from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, load_release_versions, get_version
+from .utils import bin_name, get_build_flags, get_version
 from .utils import REPO_PATH
 from .build_tags import get_default_build_tags
-from .go import deps, generate
+from .go import generate
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
-from .agent import DEFAULT_BUILD_TAGS
 
 ANDROID_CORECHECKS = [
     "cpu",
@@ -64,7 +59,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("ddagent", android=True)),
         "gcflags": gcflags,
@@ -133,11 +128,7 @@ def clean(ctx):
 @task
 def assetconfigs(ctx):
     # move the core check config
-    try:
-        shutil.rmtree(CORECHECK_CONFS_DIR)
-    except:
-        ## it's ok if the dir is not there
-        pass
+    shutil.rmtree(CORECHECK_CONFS_DIR, ignore_errors=True)
 
     files = {}
     files_list = []

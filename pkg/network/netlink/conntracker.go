@@ -4,18 +4,16 @@
 package netlink
 
 import (
-	"context"
 	"fmt"
-	stdlog "log"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
-	"github.com/mdlayher/netlink"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -25,25 +23,12 @@ const (
 
 	// generationLength must be greater than compactInterval to ensure we have multiple compactions per generation
 	generationLength = compactInterval + 30*time.Second
-
-	// stale conntrack TTL
-	staleConntrackTTL = time.Minute
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(
-		srcIP util.Address,
-		srcPort uint16,
-		dstIP util.Address,
-		dstPort uint16,
-		transport process.ConnectionType) *IPTranslation
-	DeleteTranslation(
-		srcIP util.Address,
-		srcPort uint16,
-		dstIP util.Address,
-		dstPort uint16,
-		transport process.ConnectionType)
+	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
+	DeleteTranslation(network.ConnectionStats)
 	GetStats() map[string]int64
 	Close()
 }
@@ -56,26 +41,22 @@ type connKey struct {
 	dstPort uint16
 
 	// the transport protocol of the connection, using the same values as specified in the agent payload.
-	transport process.ConnectionType
+	transport network.ConnectionType
 }
 
 type connValue struct {
-	*IPTranslation
+	*network.IPTranslation
 	expGeneration uint8
 }
 
 type realConntracker struct {
 	sync.Mutex
-
-	// we need two nfct handles because we can only register one callback per connection at a time
-	nfct *ct.Nfct
-
-	state map[connKey]*connValue
+	consumer *Consumer
+	state    map[connKey]*connValue
 
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
 
-	statsTicker   *time.Ticker
 	compactTicker *time.Ticker
 	stats         struct {
 		gets                 int64
@@ -87,14 +68,11 @@ type realConntracker struct {
 		unregistersTotalTime int64
 		expiresTotal         int64
 	}
-	exceededSizeLogLimit   *util.LogLimit
-	staleConntrackLogLimit *util.LogLimit
-
-	lastRegister time.Time
+	exceededSizeLogLimit *util.LogLimit
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(procRoot string, maxStateSize int, ignoreENOBUFS bool) (Conntracker, error) {
+func NewConntracker(procRoot string, maxStateSize, targetRateLimit int) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -103,7 +81,7 @@ func NewConntracker(procRoot string, maxStateSize int, ignoreENOBUFS bool) (Conn
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, ignoreENOBUFS)
+		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, targetRateLimit)
 		done <- struct{}{}
 	}()
 
@@ -115,70 +93,40 @@ func NewConntracker(procRoot string, maxStateSize int, ignoreENOBUFS bool) (Conn
 	}
 }
 
-func newConntrackerOnce(procRoot string, maxStateSize int, ignoreENOBUFS bool) (Conntracker, error) {
-	netns := getGlobalNetNSFD(procRoot)
-	logger := getLogger()
-
-	nfct, err := createNetlinkSocket("register", netns, logger, ignoreENOBUFS)
+func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int) (Conntracker, error) {
+	consumer, err := NewConsumer(procRoot, targetRateLimit)
 	if err != nil {
 		return nil, err
 	}
 
 	ctr := &realConntracker{
-		nfct:                   nfct,
-		compactTicker:          time.NewTicker(compactInterval),
-		state:                  make(map[connKey]*connValue),
-		maxStateSize:           maxStateSize,
-		exceededSizeLogLimit:   util.NewLogLimit(10, time.Minute*10),
-		staleConntrackLogLimit: util.NewLogLimit(1, time.Minute*10),
+		consumer:             consumer,
+		compactTicker:        time.NewTicker(compactInterval),
+		state:                make(map[connKey]*connValue),
+		maxStateSize:         maxStateSize,
+		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
-	// seed the state
-	sessions, err := nfct.Dump(ct.Conntrack, ct.IPv4)
-	if err != nil {
-		return nil, err
-	}
-	ctr.loadInitialState(sessions)
-	log.Debugf("seeded IPv4 state")
-
-	sessions, err = nfct.Dump(ct.Conntrack, ct.IPv6)
-	if err != nil {
-		// this is not fatal because we've already seeded with IPv4
-		log.Errorf("Failed to dump IPv6")
-	}
-	ctr.loadInitialState(sessions)
-	log.Debugf("seeded IPv6 state")
-
-	go ctr.run()
-
-	nfct.Register(context.Background(), ct.Conntrack, ct.NetlinkCtNew, ctr.register)
-	log.Debugf("initialized register hook")
-
-	log.Infof("initialized conntrack with ignoreENOBUFS=%v", ignoreENOBUFS)
-
+	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
+	ctr.run()
+	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
 }
 
-func (ctr *realConntracker) GetTranslationForConn(
-	srcIP util.Address,
-	srcPort uint16,
-	dstIP util.Address,
-	dstPort uint16,
-	transport process.ConnectionType,
-) *IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	then := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	k := connKey{
-		srcIP:     srcIP,
-		srcPort:   srcPort,
-		dstIP:     dstIP,
-		dstPort:   dstPort,
-		transport: transport,
+		srcIP:     c.Source,
+		srcPort:   c.SPort,
+		dstIP:     c.Dest,
+		dstPort:   c.DPort,
+		transport: c.Type,
 	}
-	var result *IPTranslation
+	var result *network.IPTranslation
 	value, ok := ctr.state[k]
 	if ok {
 		value.expGeneration = getNthGeneration(generationLength, then, 3)
@@ -199,7 +147,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 
 	m := map[string]int64{
 		"state_size": int64(size),
-		"expires":    int64(ctr.stats.expiresTotal),
+		"expires":    ctr.stats.expiresTotal,
 	}
 
 	if ctr.stats.gets != 0 {
@@ -216,37 +164,36 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		m["nanoseconds_per_unregister"] = ctr.stats.unregistersTotalTime / ctr.stats.unregisters
 	}
 
+	// Merge telemetry from the consumer
+	for k, v := range ctr.consumer.GetStats() {
+		m[k] = v
+	}
+
 	return m
 }
 
-func (ctr *realConntracker) DeleteTranslation(
-	srcIP util.Address,
-	srcPort uint16,
-	dstIP util.Address,
-	dstPort uint16,
-	transport process.ConnectionType,
-) {
+func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now().UnixNano()
 	ctr.Lock()
 	defer ctr.Unlock()
 	delete(
 		ctr.state,
 		connKey{
-			srcIP:     srcIP,
-			srcPort:   srcPort,
-			dstIP:     dstIP,
-			dstPort:   dstPort,
-			transport: transport,
+			srcIP:     c.Source,
+			srcPort:   c.SPort,
+			dstIP:     c.Dest,
+			dstPort:   c.DPort,
+			transport: c.Type,
 		},
 	)
 	delete(
 		ctr.state,
 		connKey{
-			srcIP:     dstIP,
-			srcPort:   dstPort,
-			dstIP:     srcIP,
-			dstPort:   srcPort,
-			transport: transport,
+			srcIP:     c.Dest,
+			srcPort:   c.DPort,
+			dstIP:     c.Source,
+			dstPort:   c.SPort,
+			transport: c.Type,
 		},
 	)
 	now := time.Now().UnixNano()
@@ -255,19 +202,24 @@ func (ctr *realConntracker) DeleteTranslation(
 }
 
 func (ctr *realConntracker) Close() {
+	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
 	ctr.exceededSizeLogLimit.Close()
 }
 
-func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
+func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
-	for _, c := range sessions {
-		if isNAT(c) {
-			if k, ok := formatKey(c.Origin); ok {
-				ctr.state[k] = formatIPTranslation(c.Reply, gen)
-			}
-			if k, ok := formatKey(c.Reply); ok {
-				ctr.state[k] = formatIPTranslation(c.Origin, gen)
+
+	for e := range events {
+		conns := DecodeAndReleaseEvent(e)
+		for _, c := range conns {
+			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
+				if k, ok := formatKey(c.Origin); ok {
+					ctr.state[k] = formatIPTranslation(c.Reply, gen)
+				}
+				if k, ok := formatKey(c.Reply); ok {
+					ctr.state[k] = formatIPTranslation(c.Origin, gen)
+				}
 			}
 		}
 	}
@@ -303,34 +255,34 @@ func (ctr *realConntracker) register(c ct.Con) int {
 	registerTuple(c.Origin, c.Reply)
 	registerTuple(c.Reply, c.Origin)
 	then := time.Now()
-	ctr.lastRegister = then
 	atomic.AddInt64(&ctr.stats.registers, 1)
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then.UnixNano()-now)
 
-	log.Tracef("registered %s", conDebug(c))
 	return 0
 }
 
 func (ctr *realConntracker) logExceededSize() {
 	if ctr.exceededSizeLogLimit.ShouldLog() {
-		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.max_tracked_connections (will log first ten times, and then once every 10 minutes)", ctr.maxStateSize)
+		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.conntrack_max_state_size (will log first ten times, and then once every 10 minutes)", ctr.maxStateSize)
 	}
 }
 
 func (ctr *realConntracker) run() {
-	for range ctr.compactTicker.C {
-		ctr.compact()
-
-		// Log a message when we detect that conntrack hasn't seen recent events.
-		// This is likely caused by an unhandled ENOBUF error in the netlink socket
-		ctr.Lock()
-		stale := !ctr.lastRegister.IsZero() && time.Now().Sub(ctr.lastRegister) > staleConntrackTTL
-		ctr.Unlock()
-
-		if stale && ctr.staleConntrackLogLimit.ShouldLog() {
-			log.Warnf("no NAT conntrack events were detected over the past %s. (will log once every 10 minutes)", staleConntrackTTL)
+	go func() {
+		events := ctr.consumer.Events()
+		for e := range events {
+			conns := DecodeAndReleaseEvent(e)
+			for _, c := range conns {
+				ctr.register(c)
+			}
 		}
-	}
+	}()
+
+	go func() {
+		for range ctr.compactTicker.C {
+			ctr.compact()
+		}
+	}()
 }
 
 func (ctr *realConntracker) compact() {
@@ -377,7 +329,7 @@ func formatIPTranslation(tuple *ct.IPTuple, generation uint8) *connValue {
 	dstPort := *tuple.Proto.DstPort
 
 	return &connValue{
-		IPTranslation: &IPTranslation{
+		IPTranslation: &network.IPTranslation{
 			ReplSrcIP:   util.AddressFromNetIP(srcIP),
 			ReplDstIP:   util.AddressFromNetIP(dstIP),
 			ReplSrcPort: srcPort,
@@ -397,49 +349,13 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 	proto := *tuple.Proto.Number
 	switch proto {
 	case 6:
-		k.transport = process.ConnectionType_tcp
+		k.transport = network.TCP
 	case 17:
-		k.transport = process.ConnectionType_udp
+		k.transport = network.UDP
 
 	default:
 		ok = false
 	}
 
 	return
-}
-
-func conDebug(c ct.Con) string {
-	proto := "tcp"
-	if *c.Origin.Proto.Number == 17 {
-		proto = "udp"
-	}
-
-	return fmt.Sprintf(
-		"orig_src=%s:%d orig_dst=%s:%d reply_src=%s:%d reply_dst=%s:%d proto=%s",
-		c.Origin.Src, *c.Origin.Proto.SrcPort,
-		c.Origin.Dst, *c.Origin.Proto.DstPort,
-		c.Reply.Src, *c.Reply.Proto.SrcPort,
-		c.Reply.Dst, *c.Reply.Proto.DstPort,
-		proto,
-	)
-}
-
-func createNetlinkSocket(name string, netns int, logger *stdlog.Logger, ignoreENOBUFS bool) (*ct.Nfct, error) {
-	nfct, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
-	if err != nil {
-		return nil, err
-	}
-
-	if ignoreENOBUFS {
-		// Sometimes the conntrack flushes are larger than the socket recv buffer capacity.
-		// This ensures that in case of buffer overrun the `recvmsg` call will *not*
-		// receive an ENOBUF which is currently not handled properly by go-conntrack library.
-		nfct.Con.SetOption(netlink.NoENOBUFS, true)
-	}
-
-	if size, err := getSocketBufferSize(nfct.Con); err == nil {
-		log.Debugf("rcv buffer size for %s netlink socket is %d bytes", name, size)
-	}
-
-	return nfct, nil
 }

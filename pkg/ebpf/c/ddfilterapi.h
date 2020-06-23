@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_FILTER_VERSION       0x03
+#define DD_FILTER_VERSION       0x04
 #define DD_FILTER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_FILTER_VERSION)
 
 // for more information on defining control codes, see
@@ -176,6 +176,7 @@ typedef struct _tcpFlowData {
     uint32_t        lastSeqReceived;
     uint32_t        lastAck;        // last ack we sent
 
+    uint64_t        retransmitCount;
 } TCP_FLOW_DATA;
 typedef struct _perFlowData {
     uint64_t          flowHandle;
@@ -204,6 +205,21 @@ typedef struct _perFlowData {
         UDP_FLOW_DATA     udp;
     } protocol_u;
 } PER_FLOW_DATA;
+
+#define FLOW_DIRECTION_UNKNOWN  0x00
+#define FLOW_DIRECTION_INBOUND  0x01
+#define FLOW_DIRECTION_OUTBOUND 0x02
+#define FLOW_DIRECTION_MASK     0x300
+#define FLOW_DIRECTION_BITS     8
+
+#define SET_FLOW_DIRECTION(f, d)         { (f)->flags |= (((d) << FLOW_DIRECTION_BITS) & FLOW_DIRECTION_MASK) ;}
+#define IS_FLOW_DIRECTION_UNKNOWN(f)     ( (((f)->flags & FLOW_DIRECTION_MASK) >> FLOW_DIRECTION_BITS) == FLOW_DIRECTION_UNKNOWN)
+#define IS_FLOW_DIRECTION_INBOUND(f)     ( (((f)->flags & FLOW_DIRECTION_MASK) >> FLOW_DIRECTION_BITS) == FLOW_DIRECTION_INBOUND)
+#define IS_FLOW_DIRECTION_OUTBOUND(f)    ( (((f)->flags & FLOW_DIRECTION_MASK) >> FLOW_DIRECTION_BITS) == FLOW_DIRECTION_OUTBOUND)
+
+#define FLOW_CLOSED_MASK 0x10
+
+#define IS_FLOW_CLOSED(f) ( (((f)->flags) & FLOW_CLOSED_MASK) == FLOW_CLOSED_MASK )
 
 /*!
  * PACKET_HEADER structure

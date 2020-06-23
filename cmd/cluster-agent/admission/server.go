@@ -16,35 +16,63 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 const jsonContentType = "application/json"
 
-// RunServer creates and start a k8s admission webhook server
-func RunServer(mainCtx context.Context) error {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/mutate", mutateHandler)
+type admissionFunc func(*admiv1beta1.AdmissionRequest, dynamic.Interface) (*admiv1beta1.AdmissionResponse, error)
+
+type Server struct {
+	mux *http.ServeMux
+}
+
+// NewServer creates an admission webhook server.
+func NewServer() *Server {
+	return &Server{
+		mux: http.NewServeMux(),
+	}
+}
+
+// Register adds an admission webhook handler.
+// Register must be called to register the desired webhook handlers before calling Run.
+func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface) {
+	s.mux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
+		mutateHandler(w, r, f, dc)
+	})
+}
+
+// Run starts the kubernetes admission webhook server.
+func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error {
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
-		Handler: mux,
+		Handler: s.mux,
 		TLSConfig: &tls.Config{
 			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				// TODO: implement me
-				return &tls.Certificate{}, nil
+				secretNs := common.GetResourcesNamespace()
+				secretName := config.Datadog.GetString("admission_controller.certificate.secret_name")
+				cert, err := certificate.GetCertificateFromSecret(secretNs, secretName, client)
+				if err != nil {
+					log.Errorf("Couldn't fetch certificate: %v", err)
+				}
+				return cert, nil
 			},
 		},
 	}
 	go func() error {
 		return log.Error(server.ListenAndServeTLS("", ""))
-	}()
+	}() //nolint:errcheck
 
 	<-mainCtx.Done()
 
@@ -53,7 +81,8 @@ func RunServer(mainCtx context.Context) error {
 	return server.Shutdown(shutdownCtx)
 }
 
-func mutateHandler(w http.ResponseWriter, r *http.Request) {
+func mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface) {
+	metrics.WebhooksReceived.Inc()
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		log.Warnf("Invalid method %s, only POST requests are allowed", r.Method)
@@ -87,7 +116,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var admissionReviewResp admiv1beta1.AdmissionReview
-	resp, err := admission.Mutate(admissionReviewReq.Request)
+	resp, err := mutateFunc(admissionReviewReq.Request, dc)
 	if err != nil {
 		log.Warnf("Failed to mutate: %v", err)
 		admissionReviewResp = admiv1beta1.AdmissionReview{
@@ -95,7 +124,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
-				Allowed: false,
+				Allowed: true, // do not block resources creation in case of mutation failure
 			},
 		}
 	} else {

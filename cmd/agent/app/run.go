@@ -19,6 +19,7 @@ import (
 	"os/signal"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -178,12 +179,17 @@ func StartAgent() error {
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
+	// init settings that can be changed at runtime
+	if err := settings.InitRuntimeSettings(); err != nil {
+		log.Warnf("Can't initiliaze the runtime settings: %v", err)
+	}
+
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	if config.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -249,7 +255,7 @@ func StartAgent() error {
 	}
 	common.Forwarder = forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	log.Debugf("Starting forwarder")
-	common.Forwarder.Start()
+	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
 
 	agentName := "agent"
@@ -285,6 +291,10 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
+	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
+		log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
+	}
+
 	// Detect Cloud Provider
 	go util.DetectCloudProvider()
 
@@ -313,8 +323,8 @@ func StartAgent() error {
 // StopAgent Tears down the agent process
 func StopAgent() {
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {

@@ -58,7 +58,7 @@ func (cf CloudFoundryConfigProvider) Collect() ([]integration.Config, error) {
 	allActualLRPs, desiredLRPs := cf.bbsCache.GetAllLRPs()
 	allConfigs := []integration.Config{}
 	for _, desiredLRP := range desiredLRPs {
-		actualLRPs, ok := allActualLRPs[desiredLRP.AppGUID]
+		actualLRPs, ok := allActualLRPs[desiredLRP.ProcessGUID]
 		if !ok {
 			actualLRPs = []*cloudfoundry.ActualLRP{}
 		}

@@ -28,7 +28,6 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 	if meta.KnownStatus != "RUNNING" {
 		return output, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
 	}
-	globalTags := config.Datadog.GetStringSlice("tags")
 
 	c.doOnceOrchScope.Do(func() {
 		tags := utils.NewTagList()
@@ -48,16 +47,12 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 		if c.expire.Update(ctr.DockerID, now) || parseAll {
 			tags := utils.NewTagList()
 
-			// global tags
-			for _, value := range globalTags {
-				if strings.Contains(value, ":") {
-					tag := strings.SplitN(value, ":", 2)
-					tags.AddLow(tag[0], tag[1])
-				}
-			}
-
 			// cluster
-			tags.AddLow("cluster_name", parseECSClusterName(meta.ClusterName))
+			clusterName := parseECSClusterName(meta.ClusterName)
+			if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+				tags.AddLow("cluster_name", clusterName)
+			}
+			tags.AddLow("ecs_cluster_name", clusterName)
 
 			// aws region from cluster arn
 			region := parseFargateRegion(meta.ClusterName)

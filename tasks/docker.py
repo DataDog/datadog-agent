@@ -9,13 +9,30 @@ import os
 import re
 import time
 import yaml
-import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from .dogstatsd import DOGSTATSD_TAG
 
+def retry_run(ctx, *args, **kwargs):
+    remaining_retries = 5
+    while True:
+        warn = True
+        if remaining_retries == 0:
+            warn = False
+
+        r = ctx.run(*args, warn=warn, **kwargs)
+
+        if r.ok:
+            return r
+
+        # Pause between retries. Hope it helps.
+        time.sleep(5)
+
+        remaining_retries -= 1
+
+    return r
 
 @task
 def test(ctx):
@@ -117,7 +134,7 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
     """
     if dst_tag == "auto":
         # Autogenerate tag
-        match = re.search('([^:\/\s]+):[v]?(.*)$', src_image)
+        match = re.search(r'([^:\/\s]+):[v]?(.*)$', src_image)
         if not match:
             print("Cannot guess destination tag for {}, please provide a --dst-tag option".format(src_image))
             raise Exit(code=1)
@@ -142,26 +159,9 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     push_env = {}
     if signed_push:
         push_env["DOCKER_CONTENT_TRUST"] = "1"
-    remaining_retries = 5
-    while True:
-        warn = True
-        if remaining_retries == 0:
-            warn = False
-
-        r = ctx.run(
-            "docker push {dst}".format(dst=dst),
-            env=push_env,
-            warn=warn
-        )
-
-        if r.ok:
-            break
-
-        # docker push might have failed because of a notary temporary error.
-        # Let give some time to the server to recover by itself before making a new attempt.
-        time.sleep(5)
-
-        remaining_retries -= 1
+    retry_run(ctx, "docker push {dst}".format(dst=dst),
+              env=push_env,
+    )
 
     ctx.run("docker rmi {src} {dst}".format(src=src, dst=dst))
 
@@ -227,7 +227,7 @@ def publish_manifest(ctx, name, tag, image, signed_push=False):
     ctx.run("cat {}".format(temp_file_path))
 
     try:
-        result = ctx.run("manifest-tool push from-spec {}".format(temp_file_path))
+        result = retry_run(ctx, "manifest-tool push from-spec {}".format(temp_file_path))
         if result.stdout:
             out = result.stdout.split('\n')[0]
             fields = out.split(" ")
@@ -251,7 +251,7 @@ def publish_manifest(ctx, name, tag, image, signed_push=False):
                 -p docker.io/{name} {tag} {length} --sha256 {sha256} \
                 -r targets/releases
             """
-            ctx.run(cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
+            retry_run(ctx, cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
     finally:
         os.remove(temp_file_path)
 

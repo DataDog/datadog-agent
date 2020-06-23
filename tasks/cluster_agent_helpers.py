@@ -23,7 +23,7 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
     build_tags = get_build_tags(build_include, build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca')
+    ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca', agent_flavor="cluster_agent")
 
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
@@ -33,7 +33,7 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "-i",
+        "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(
             bin_path, bin_name("datadog-cluster-agent{suffix}".format(suffix=bin_suffix))),

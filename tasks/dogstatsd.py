@@ -8,7 +8,6 @@ import sys
 import shutil
 from distutils.dir_util import copy_tree
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -40,7 +39,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version, agent_flavor="dogstatsd")
     bin_path = DOGSTATSD_BIN_PATH
 
     # generate windows resources

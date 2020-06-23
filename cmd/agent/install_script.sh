@@ -99,6 +99,11 @@ else
   echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
 fi
 
+agent_flavor="datadog-agent"
+if [ -n "$DD_AGENT_FLAVOR" ]; then
+    agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
+fi
+
 agent_dist_channel=stable
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
   if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
@@ -200,7 +205,7 @@ if [ "$OS" = "RedHat" ]; then
       dnf_flag="--best"
     fi
 
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag datadog-agent || $sudo_cmd yum -y install $dnf_flag datadog-agent
+    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
 
 elif [ "$OS" = "Debian" ]; then
 
@@ -233,7 +238,7 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
-    $sudo_cmd apt-get install -y --force-yes datadog-agent
+    $sudo_cmd apt-get install -y --force-yes "$agent_flavor"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
   UNAME_M=$(uname -m)
@@ -280,7 +285,7 @@ elif [ "$OS" = "SUSE" ]; then
   $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
 
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
-  $sudo_cmd zypper --non-interactive install datadog-agent
+  $sudo_cmd zypper --non-interactive install "$agent_flavor"
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.
@@ -357,6 +362,7 @@ $sudo_cmd sh -c "echo '$install_info_content' > $ETCDIR/install_info"
 # However, sudo /sbin/service datadog-agent does work.
 # Use which (from root user) to find the absolute path to service
 
+service_cmd="service"
 if [ "$SUSE11" == "yes" ]; then
   service_cmd=`$sudo_cmd which service`
 fi

@@ -27,8 +27,6 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultSystemProbeSocketPath is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultSystemProbeFilePath is the default logging file for the system probe
 	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
 
@@ -56,7 +54,9 @@ type AgentConfig struct {
 	LogFile               string
 	LogLevel              string
 	LogToConsole          bool
-	QueueSize             int
+	QueueSize             int // The number of items allowed in each delivery queue.
+	ProcessQueueBytes     int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
+	PodQueueBytes         int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	Blacklist             []*regexp.Regexp
 	Scrubber              *DataScrubber
 	MaxPerMessage         int
@@ -77,7 +77,7 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
-	SystemProbeSocketPath          string
+	SystemProbeAddress             string
 	SystemProbeLogFile             string
 	MaxTrackedConnections          uint
 	SysProbeBPFDebug               bool
@@ -85,8 +85,8 @@ type AgentConfig struct {
 	ExcludedSourceConnections      map[string][]string
 	ExcludedDestinationConnections map[string][]string
 	EnableConntrack                bool
-	ConntrackIgnoreENOBUFS         bool
 	ConntrackMaxStateSize          int
+	ConntrackRateLimit             int
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
@@ -174,32 +174,39 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		LogFile:               defaultLogFilePath,
 		LogLevel:              "info",
 		LogToConsole:          false,
-		QueueSize:             20,
-		MaxPerMessage:         100,
-		MaxConnsPerMessage:    600,
-		AllowRealTime:         true,
-		HostName:              "",
-		Transport:             NewDefaultTransport(),
-		ProcessExpVarPort:     6062,
-		ContainerHostType:     model.ContainerHostType_notSpecified,
+
+		// Allow buffering up to 75 megabytes of payload data in total
+		ProcessQueueBytes: 60 * 1000 * 1000,
+		PodQueueBytes:     15 * 1000 * 1000,
+		// This can be fairly high as the input should get throttled by queue bytes first.
+		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
+		QueueSize: 256,
+
+		MaxPerMessage:      100,
+		MaxConnsPerMessage: 600,
+		AllowRealTime:      true,
+		HostName:           "",
+		Transport:          NewDefaultTransport(),
+		ProcessExpVarPort:  6062,
+		ContainerHostType:  model.ContainerHostType_notSpecified,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:      false,
-		DisableTCPTracing:      false,
-		DisableUDPTracing:      false,
-		DisableIPv6Tracing:     false,
-		DisableDNSInspection:   false,
-		SystemProbeSocketPath:  defaultSystemProbeSocketPath,
-		SystemProbeLogFile:     defaultSystemProbeFilePath,
-		MaxTrackedConnections:  defaultMaxTrackedConnections,
-		EnableConntrack:        true,
-		ConntrackIgnoreENOBUFS: false,
-		ClosedChannelSize:      500,
-		ConntrackMaxStateSize:  defaultMaxTrackedConnections * 2,
+		EnableSystemProbe:     false,
+		DisableTCPTracing:     false,
+		DisableUDPTracing:     false,
+		DisableIPv6Tracing:    false,
+		DisableDNSInspection:  false,
+		SystemProbeAddress:    defaultSystemProbeAddress,
+		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		MaxTrackedConnections: defaultMaxTrackedConnections,
+		EnableConntrack:       true,
+		ClosedChannelSize:     500,
+		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
+		ConntrackRateLimit:    500,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -254,6 +261,23 @@ func loadConfigIfExists(path string) error {
 	return nil
 }
 
+func mergeConfigIfExists(path string) error {
+	if util.PathExists(path) {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		if err := config.Datadog.MergeConfig(file); err != nil {
+			return err
+		}
+	} else {
+		log.Infof("no config exists at %s, ignoring...", path)
+	}
+	return nil
+}
+
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
@@ -282,7 +306,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	loadConfigIfExists(netYamlPath)
+	mergeConfigIfExists(netYamlPath) //nolint:errcheck
 	if err = cfg.loadSysProbeYamlConfig(netYamlPath); err != nil {
 		return nil, err
 	}
@@ -345,7 +369,7 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 		return cfg, nil
 	}
 
-	loadConfigIfExists(yamlPath)
+	loadConfigIfExists(yamlPath) //nolint:errcheck
 	if err := cfg.loadSysProbeYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
@@ -379,17 +403,6 @@ func loadEnvVariables() {
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
-
-		// System probe specific configuration (Beta)
-		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
-		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
-		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
-		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
-		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
-		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
-		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
-		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
-
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
 		{"DD_BIND_HOST", "bind_host"},
@@ -407,6 +420,9 @@ func loadEnvVariables() {
 		}
 	}
 
+	// Load the System Probe environment variables
+	loadSysProbeEnvVariables()
+
 	// Support API_KEY and DD_API_KEY but prefer DD_API_KEY.
 	apiKey, envKey := os.Getenv("DD_API_KEY"), "DD_API_KEY"
 	if apiKey == "" {
@@ -415,7 +431,7 @@ func loadEnvVariables() {
 
 	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
 		log.Infof("overriding API key from env %s value", envKey)
-		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(apiKey, ",")[0]))
+		config.Datadog.Set("api_key", config.SanitizeAPIKey(strings.Split(apiKey, ",")[0]))
 	}
 
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
@@ -437,6 +453,24 @@ func loadEnvVariables() {
 			log.Errorf(`Could not parse DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
 		} else {
 			config.Datadog.Set("process_config.orchestrator_additional_endpoints", endpoints)
+		}
+	}
+}
+
+func loadSysProbeEnvVariables() {
+	for _, variable := range []struct{ env, cfg string }{
+		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
+		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
+		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
+		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
+		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
+		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
+		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
+		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
+	} {
+		if v, ok := os.LookupEnv(variable.env); ok {
+			config.Datadog.Set(variable.cfg, v)
+
 		}
 	}
 }

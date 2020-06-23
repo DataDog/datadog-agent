@@ -32,8 +32,8 @@ build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 
-description 'Datadog IOT Agent
- The Datadog IOT Agent is a lightweight process that monitors system
+description 'Datadog IoT Agent
+ The Datadog IoT Agent is a lightweight process that monitors system
  processes and services, and sends information back to your Datadog account.
  .
  This package installs and runs the advanced Agent daemon, which queues and
@@ -74,9 +74,16 @@ end
 
 # Linux
 if linux?
-  if debian?
+  # Upstart
+  if debian? || redhat? || suse?
     extra_package_file '/etc/init/datadog-agent.conf'
+  end
+
+  # Systemd
+  if debian?
     extra_package_file '/lib/systemd/system/datadog-agent.service'
+  else
+    extra_package_file '/usr/lib/systemd/system/datadog-agent.service'
   end
 
   # Example configuration files for the agent and the checks
@@ -109,6 +116,7 @@ package :msi do
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 
   additional_sign_files [
+      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"

@@ -62,7 +62,7 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
-		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value)
+		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate)
 	default:
 		// If it's a new bucket, initialize it
 		bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
@@ -221,7 +221,7 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 			}
 			// Add a zero value sample to the counter
 			// It is ok to add a 0 sample to a counter that was already sampled in the bucket, it won't change its value
-			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval)
+			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval) //nolint:errcheck
 
 			// Update the tracked context so that the contextResolver doesn't expire counter contexts too early
 			// i.e. while we are still sending zeros for them

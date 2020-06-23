@@ -5,7 +5,6 @@ package network
 import (
 	"fmt"
 	"reflect"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -15,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket/afpacket"
 	bpflib "github.com/iovisor/gobpf/elf"
-	"github.com/vishvananda/netns"
 )
 
 const (
@@ -63,7 +61,7 @@ func NewSocketFilterSnooper(
 	)
 
 	// Create the RAW_SOCKET inside the root network namespace
-	nsErr := WithRootNS(rootPath, func() {
+	nsErr := util.WithRootNS(rootPath, func() {
 		packetSrc, srcErr = newPacketSource(filter)
 	})
 	if nsErr != nil {
@@ -119,12 +117,12 @@ func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
 
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.cache.Stats()
-	stats["socket_polls"] = atomic.SwapInt64(&s.polls, 0)
-	stats["packets_processed"] = atomic.SwapInt64(&s.processed, 0)
-	stats["packets_captured"] = atomic.SwapInt64(&s.captured, 0)
-	stats["packets_dropped"] = atomic.SwapInt64(&s.dropped, 0)
-	stats["decoding_errors"] = atomic.SwapInt64(&s.decodingErrors, 0)
-	stats["truncated_packets"] = atomic.SwapInt64(&s.truncatedPkts, 0)
+	stats["socket_polls"] = atomic.LoadInt64(&s.polls)
+	stats["packets_processed"] = atomic.LoadInt64(&s.processed)
+	stats["packets_captured"] = atomic.LoadInt64(&s.captured)
+	stats["packets_dropped"] = atomic.LoadInt64(&s.dropped)
+	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
+	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
 
 	return stats
 }
@@ -151,7 +149,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 
 	if err := s.parser.ParseInto(data, t, &pktInfo); err != nil {
 		switch err {
-		case skippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
+		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
 			atomic.AddInt64(&s.truncatedPkts, 1)
 		default:
@@ -285,34 +283,4 @@ func (p *packetSource) Close() {
 	}
 
 	p.TPacket.Close()
-}
-
-// WithRootNS executes a function within root network namespace and then switch back
-// to the previous namespace. If the thread is already in the root network namespace,
-// the function is executed without calling SYS_SETNS.
-func WithRootNS(procRoot string, fn func()) error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	prevNS, err := netns.Get()
-	if err != nil {
-		return err
-	}
-
-	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", procRoot))
-	if err != nil {
-		return err
-	}
-
-	if rootNS.Equal(prevNS) {
-		fn()
-		return nil
-	}
-
-	if err := netns.Set(rootNS); err != nil {
-		return err
-	}
-
-	fn()
-	return netns.Set(prevNS)
 }

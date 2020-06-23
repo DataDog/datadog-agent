@@ -255,8 +255,8 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 }
 
 func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
-	// The container name is not available in Containerd, we only rely on image name based exclusion
-	return fil.IsExcluded("", ctn.Image, "")
+	// The container name is not available in Containerd, we only rely on image name and kube namespace based exclusion
+	return fil.IsExcluded("", ctn.Image, ctn.Labels["io.kubernetes.pod.namespace"])
 }
 
 func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*v1.Metrics, error) {
@@ -367,6 +367,7 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*v1
 		}
 
 		tags = append(tags, fmt.Sprintf("device:%s", m.Device))
+		tags = append(tags, fmt.Sprintf("device_name:%s", m.Device))
 		if m.Op != "" {
 			tags = append(tags, fmt.Sprintf("operation:%s", m.Op))
 		}

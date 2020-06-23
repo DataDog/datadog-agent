@@ -41,6 +41,7 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsSet("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
+	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba"}, config.GetStringSlice("cloud_provider_metadata"))
 }
 
 func TestDefaultSite(t *testing.T) {
@@ -424,6 +425,39 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	assert.Equal(t, "https://app.myproxy.com", newURL)
 }
 
+func TestIsCloudProviderEnabled(t *testing.T) {
+	holdValue := Datadog.Get("cloud_provider_metadata")
+	defer Datadog.Set("cloud_provider_metadata", holdValue)
+
+	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	assert.True(t, IsCloudProviderEnabled("AWS"))
+	assert.True(t, IsCloudProviderEnabled("GCP"))
+	assert.True(t, IsCloudProviderEnabled("Alibaba"))
+	assert.True(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{"aws"})
+	assert.True(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{})
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
+}
+
 func TestEnvNestedConfig(t *testing.T) {
 	config := setupConf()
 	config.BindEnv("foo.bar.nested")
@@ -621,23 +655,23 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
-func TestSanitizeAPIKey(t *testing.T) {
+func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := setupConf()
 
 	config.Set("api_key", "foo")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", " \n  foo   \n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
 

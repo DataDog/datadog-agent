@@ -12,7 +12,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -46,7 +45,8 @@ type Tracer struct {
 
 	reverseDNS network.ReverseDNS
 
-	perfMap *bpflib.PerfMap
+	perfMap      *bpflib.PerfMap
+	batchManager *PerfBatchManager
 
 	// Telemetry
 	perfReceived  int64
@@ -66,6 +66,7 @@ type Tracer struct {
 	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 	// to determine whether a connection is truly closed or not
 	expiredTCPConns int64
+	closedConns     int64
 
 	buffer     []network.ConnectionStats
 	bufferLock sync.Mutex
@@ -154,7 +155,9 @@ func NewTracer(config *Config) (*Tracer, error) {
 			if isSysCall(probeName) {
 				fixedName := fixSyscallName(prefix, probeName)
 				log.Debugf("attaching section %s to %s", string(probeName), fixedName)
-				m.SetKprobeForSection(string(probeName), fixedName)
+				if err = m.SetKprobeForSection(string(probeName), fixedName); err != nil {
+					return nil, fmt.Errorf("could not update kprobe \"%s\" to \"%s\" : %s", k.Name, fixedName, err)
+				}
 			}
 
 			if err = m.EnableKprobe(string(probeName), maxActive); err != nil {
@@ -171,7 +174,9 @@ func NewTracer(config *Config) (*Tracer, error) {
 			if mp == nil {
 				return nil, fmt.Errorf("error retrieving the bpf %s map: %s", configMap, err)
 			}
-			m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&zero), 0)
+			if err := m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&zero), 0); err != nil {
+				return nil, fmt.Errorf("error updating element of bpf %s map: %s", configMap, err)
+			}
 		}
 
 		filter := m.SocketFilter("socket/dns_filter")
@@ -188,7 +193,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		); err == nil {
 			reverseDNS = snooper
 		} else {
-			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
+			return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 		}
 	}
 
@@ -204,7 +209,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackIgnoreENOBUFS); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -231,6 +236,13 @@ func NewTracer(config *Config) (*Tracer, error) {
 		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
+
+	tcpCloseMap, _ := tr.getMap(tcpCloseBatchMap)
+	batchManager, err := NewPerfBatchManager(m, tcpCloseMap, config.TCPClosedTimeout)
+	if err != nil {
+		return nil, err
+	}
+	tr.batchManager = batchManager
 
 	tr.perfMap, err = tr.initPerfPolling()
 	if err != nil {
@@ -280,44 +292,31 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 	go func() {
 		// Stats about how much connections have been closed / lost
 		ticker := time.NewTicker(5 * time.Minute)
+		flushIdle := time.NewTicker(t.config.TCPClosedTimeout)
 
 		for {
 			select {
-			case conn, ok := <-closedChannel:
+			case batchData, ok := <-closedChannel:
 				if !ok {
-					log.Infof("Exiting closed connections polling")
 					return
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
-				cs := decodeRawTCPConn(conn)
-				cs.Direction = t.determineConnectionDirection(&cs)
-				if t.shouldSkipConnection(&cs) {
-					atomic.AddInt64(&t.skippedConns, 1)
-				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(
-						cs.Source,
-						cs.SPort,
-						cs.Dest,
-						cs.DPort,
-						process.ConnectionType(cs.Type),
-					)
 
-					t.state.StoreClosedConnection(cs)
-					if cs.IPTranslation != nil {
-						t.conntracker.DeleteTranslation(
-							cs.Source,
-							cs.SPort,
-							cs.Dest,
-							cs.DPort,
-							process.ConnectionType(cs.Type),
-						)
-					}
+				batch := toBatch(batchData)
+				conns := t.batchManager.Extract(batch, time.Now())
+				for _, c := range conns {
+					t.storeClosedConn(c)
 				}
 			case lostCount, ok := <-lostChannel:
 				if !ok {
 					return
 				}
 				atomic.AddInt64(&t.perfLost, int64(lostCount))
+			case now := <-flushIdle.C:
+				idleConns := t.batchManager.GetIdleConns(now)
+				for _, c := range idleConns {
+					t.storeClosedConn(c)
+				}
 			case <-ticker.C:
 				recv := atomic.SwapInt64(&t.perfReceived, 0)
 				lost := atomic.SwapInt64(&t.perfLost, 0)
@@ -345,6 +344,21 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 	return false
 }
 
+func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
+	cs.Direction = t.determineConnectionDirection(&cs)
+	if t.shouldSkipConnection(&cs) {
+		atomic.AddInt64(&t.skippedConns, 1)
+		return
+	}
+
+	atomic.AddInt64(&t.closedConns, 1)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
+	t.state.StoreClosedConnection(cs)
+	if cs.IPTranslation != nil {
+		t.conntracker.DeleteTranslation(cs)
+	}
+}
+
 func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
 	_ = t.m.Close()
@@ -370,8 +384,33 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
+	tm := t.getConnTelemetry(len(latestConns))
 
-	return &network.Connections{Conns: conns, DNS: names}, nil
+	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
+}
+
+func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
+	kprobeStats := getProbeTotals()
+	tm := &network.ConnectionsTelemetry{
+		MonotonicKprobesTriggered: kprobeStats.hits,
+		MonotonicKprobesMissed:    kprobeStats.miss,
+		ConnsBpfMapSize:           int64(mapSize),
+		MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
+	}
+
+	conntrackStats := t.conntracker.GetStats()
+	if rt, ok := conntrackStats["registers_total"]; ok {
+		tm.MonotonicConntrackRegisters = rt
+	}
+	if rtd, ok := conntrackStats["registers_dropped"]; ok {
+		tm.MonotonicConntrackRegistersDropped = rtd
+	}
+
+	dnsStats := t.reverseDNS.GetStats()
+	if pp, ok := dnsStats["packets_processed"]; ok {
+		tm.MonotonicDNSPacketsProcessed = pp
+	}
+	return tm
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -429,6 +468,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 			if nextKey.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
+			atomic.AddInt64(&t.closedConns, 1)
 		} else {
 			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
 			conn.Direction = t.determineConnectionDirection(&conn)
@@ -437,14 +477,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(
-					conn.Source,
-					conn.SPort,
-					conn.Dest,
-					conn.DPort,
-					process.ConnectionType(conn.Type),
-				)
-
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn)
 				active = append(active, conn)
 			}
 		}
@@ -495,8 +528,12 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 			continue
 		}
 
+		// Delete conntrack entry for this connection
+		connStats := connStats(entries[i], statsWithTs, tcpStats)
+		t.conntracker.DeleteTranslation(connStats)
+
 		// Append the connection key to the keys to remove from the userspace state
-		bk, err := connStats(entries[i], statsWithTs, tcpStats).ByteKey(t.buf)
+		bk, err := connStats.ByteKey(t.buf)
 		if err != nil {
 			log.Warnf("failed to create connection byte_key: %s", err)
 		} else {
@@ -576,6 +613,7 @@ func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 
 	return map[string]int64{
 		"tcp_sent_miscounts": int64(telemetry.tcp_sent_miscounts),
+		"missed_tcp_close":   int64(telemetry.missed_tcp_close),
 	}
 }
 

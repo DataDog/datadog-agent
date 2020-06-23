@@ -68,8 +68,8 @@ func (t *Tailer) readAvailable() (err error) {
 	}
 	f.Seek(t.GetReadOffset(), io.SeekStart)
 
-	inBuf := make([]byte, 4096)
 	for {
+		inBuf := make([]byte, 4096)
 		n, err := f.Read(inBuf)
 		if n == 0 || err != nil {
 			log.Debugf("Done reading")
@@ -84,13 +84,13 @@ func (t *Tailer) readAvailable() (err error) {
 // read lets the tailer tail the content of a file until it is closed. The
 // windows version open and close the file between each call to 'read'. This is
 // needed in order not to block the file and prevent the user from renaming it.
-func (t *Tailer) read() error {
+func (t *Tailer) read() (int, error) {
 	err := t.readAvailable()
 	if err == io.EOF || os.IsNotExist(err) {
-		return nil
+		return 0, nil
 	} else if err != nil {
 		t.source.Status.Error(err)
-		return log.Error("Err: ", err)
+		return 0, log.Error("Err: ", err)
 	}
-	return nil
+	return 0, nil
 }

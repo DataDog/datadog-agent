@@ -81,13 +81,13 @@ func (c *CRICheck) Run() error {
 
 	util, err := cri.GetUtil()
 	if err != nil {
-		c.Warnf("Error initialising check: %s", err)
+		c.Warnf("Error initialising check: %s", err) //nolint:errcheck
 		return err
 	}
 
 	containerStats, err := util.ListContainerStats()
 	if err != nil {
-		c.Warnf("Cannot get containers from the CRI: %s", err)
+		c.Warnf("Cannot get containers from the CRI: %s", err) //nolint:errcheck
 		return err
 	}
 	c.generateMetrics(sender, containerStats, util)

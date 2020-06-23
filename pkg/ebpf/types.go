@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 package ebpf
 
 import "fmt"
@@ -34,6 +36,8 @@ const (
 	TCPCleanupRBuf KProbeName = "kprobe/tcp_cleanup_rbuf"
 	// TCPClose traces the tcp_close() system call
 	TCPClose KProbeName = "kprobe/tcp_close"
+	// TCPCloseReturn traces the return of tcp_close() system call
+	TCPCloseReturn KProbeName = "kretprobe/tcp_close"
 
 	// UDPSendMsg traces the udp_sendmsg() system call
 	UDPSendMsg KProbeName = "kprobe/udp_sendmsg"
@@ -81,6 +85,7 @@ const (
 	udpPortBindingsMap bpfMapName = "udp_port_bindings"
 	telemetryMap       bpfMapName = "telemetry"
 	configMap          bpfMapName = "config"
+	tcpCloseBatchMap   bpfMapName = "tcp_close_batch"
 )
 
 // sectionName returns the sectionName for the given BPF map

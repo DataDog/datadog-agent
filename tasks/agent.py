@@ -99,9 +99,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
+    agent_flavor = "iot_agent" if iot else "agent"
+
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
             rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3,
-            major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+            major_version=major_version, python_runtimes=python_runtimes, arch=arch, agent_flavor=agent_flavor)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -160,7 +162,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android=False)),
         "gcflags": gcflags,
@@ -178,9 +180,15 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     # Render the Agent configuration file template
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
 
+    build_type = "agent-py3"
+    if iot:
+        build_type = "iot-agent"
+    elif has_both_python(python_runtimes):
+        build_type = "agent-py2py3"
+
     args = {
         "go_file": "./pkg/config/render_config.go",
-        "build_type": "agent-py2py3" if has_both_python(python_runtimes) else "agent-py3",
+        "build_type": build_type,
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": "./cmd/agent/dist/datadog.yaml",
     }
@@ -442,7 +450,7 @@ def omnibus_build(ctx, iot=False, agent_binaries=False, log_level="info", base_d
             omnibus_elapsed = omnibus_done - omnibus_start
 
 
-        except Exception as e:
+        except Exception:
             if pfxfile:
                 os.remove(pfxfile)
             raise

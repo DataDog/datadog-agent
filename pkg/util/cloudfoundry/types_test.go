@@ -35,7 +35,6 @@ var BBSModelA1 = models.ActualLRP{
 }
 
 var ExpectedA1 = ActualLRP{
-	AppGUID:      "012345678901234567890123456789012345",
 	CellID:       "cell123",
 	ContainerIP:  "1.2.3.4",
 	Index:        4,
@@ -65,7 +64,6 @@ var BBSModelA2 = models.ActualLRP{
 }
 
 var ExpectedA2 = ActualLRP{
-	AppGUID:      "012345678901234567890123456789012345",
 	CellID:       "cell1234",
 	ContainerIP:  "1.2.3.5",
 	Index:        3,
@@ -108,7 +106,7 @@ var BBSModelD1 = models.DesiredLRP{
 							},
 							{
 								Name:  "VCAP_APPLICATION",
-								Value: "{\"application_name\": \"name_of_the_app\"}",
+								Value: "{\"application_name\": \"name_of_the_app\", \"application_id\": \"random_app_guid\"}",
 							},
 						},
 					},
@@ -119,10 +117,11 @@ var BBSModelD1 = models.DesiredLRP{
 }
 
 var ExpectedD1 = DesiredLRP{
-	AppGUID:            "012345678901234567890123456789012345",
+	AppGUID:            "random_app_guid",
+	AppName:            "name_of_the_app",
 	EnvAD:              ADConfig{"xxx": {}},
 	EnvVcapServices:    map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
-	EnvVcapApplication: map[string]string{"application_name": "name_of_the_app"},
+	EnvVcapApplication: map[string]string{"application_name": "name_of_the_app", "application_id": "random_app_guid"},
 	ProcessGUID:        "0123456789012345678901234567890123456789",
 }
 
@@ -135,7 +134,8 @@ func TestADIdentifier(t *testing.T) {
 	}{
 		{
 			dLRP: DesiredLRP{
-				ProcessGUID: "1234",
+				AppGUID:     "1234",
+				ProcessGUID: "4321",
 			},
 			svcName:  "postgres",
 			aLRP:     nil,
@@ -143,13 +143,14 @@ func TestADIdentifier(t *testing.T) {
 		},
 		{
 			dLRP: DesiredLRP{
-				ProcessGUID: "1234",
+				AppGUID:     "1234",
+				ProcessGUID: "4321",
 			},
 			svcName: "flask-app",
 			aLRP: &ActualLRP{
 				Index: 2,
 			},
-			expected: "1234/flask-app/2",
+			expected: "4321/flask-app/2",
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {

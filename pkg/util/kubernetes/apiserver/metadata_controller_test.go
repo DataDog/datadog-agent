@@ -12,6 +12,7 @@ import (
 	"time"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -430,26 +431,42 @@ func TestMetadataController(t *testing.T) {
 	informerFactory.Start(stop)
 	go metaController.Run(stop)
 
-	for !metaController.endpointsListerSynced() && !metaController.nodeListerSynced() {
-		time.Sleep(150 * time.Millisecond)
-	}
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
+		if !metaController.endpointsListerSynced() && !metaController.nodeListerSynced() {
+			return false
+		}
+		return true
+	})
 
-	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
-	require.NoError(t, err)
-	assert.Len(t, metadataNames, 2)
-	assert.Contains(t, metadataNames, "kube_service:nginx-1")
-	assert.Contains(t, metadataNames, "kube_service:nginx-2")
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
+		metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
+		if err != nil {
+			return false
+		}
+		if len(metadataNames) != 2 {
+			return false
+		}
+		assert.Contains(t, metadataNames, "kube_service:nginx-1")
+		assert.Contains(t, metadataNames, "kube_service:nginx-2")
+		return true
+	})
 
 	cl := &APIClient{Cl: client, timeoutSeconds: 5}
 
-	fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
-	require.Nil(t, errList)
-	list := fullmapper.Nodes
-	assert.Contains(t, list, "ip-172-31-119-125")
-	bundle := metadataMapperBundle{Services: list["ip-172-31-119-125"].Services}
-	services, found := bundle.ServicesForPod(metav1.NamespaceDefault, "nginx")
-	assert.True(t, found)
-	assert.Contains(t, services, "nginx-1")
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
+		fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
+		require.Nil(t, errList)
+		list := fullmapper.Nodes
+		assert.Contains(t, list, "ip-172-31-119-125")
+		bundle := metadataMapperBundle{Services: list["ip-172-31-119-125"].Services}
+		services, found := bundle.ServicesForPod(metav1.NamespaceDefault, "nginx")
+		if !found {
+			return false
+		}
+		assert.Contains(t, services, "nginx-1")
+		return true
+	})
+
 }
 
 func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {

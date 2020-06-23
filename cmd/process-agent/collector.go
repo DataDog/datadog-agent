@@ -23,9 +23,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
+type checkResult struct {
+	name        string
+	payloads    []checkPayload
+	sizeInBytes int64
+}
+
+func (cr *checkResult) Weight() int64 {
+	return cr.sizeInBytes
+}
+
+func (cr *checkResult) Type() string {
+	return cr.name
+}
+
+var _ api.WeightedItem = &checkResult{}
+
 type checkPayload struct {
-	messages []model.MessageBody
-	name     string
+	body    []byte
+	headers http.Header
 }
 
 // Collector will collect metrics from the local system and ship to the backend.
@@ -79,38 +95,75 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Coll
 	}
 }
 
-func (l *Collector) runCheck(c checks.Check, payloads chan checkPayload) {
+func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	runCounter := int32(1)
 	if rc, ok := l.runCounters.Load(c.Name()); ok {
 		runCounter = rc.(int32) + 1
 	}
 	l.runCounters.Store(c.Name(), runCounter)
 
-	s := time.Now()
+	start := time.Now()
 	// update the last collected timestamp for info
-	updateLastCollectTime(time.Now())
+	updateLastCollectTime(start)
 	messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
-	} else {
-		payloads <- checkPayload{messages, c.Name()}
-		// update proc and container count for info
-		updateProcContainerCount(messages)
-		if !c.RealTime() {
-			d := time.Since(s)
-			switch {
-			case runCounter < 5:
-				log.Infof("Finished %s check #%d in %s", c.Name(), runCounter, d)
-			case runCounter == 5:
-				log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", c.Name(), runCounter, d)
-			case runCounter%20 == 0:
-				log.Infof("Finish %s check #%d in %s", c.Name(), runCounter, d)
-			}
+		return
+	}
+
+	payloads := make([]checkPayload, 0, len(messages))
+	sizeInBytes := 0
+
+	for _, m := range messages {
+		body, err := encodePayload(m)
+		if err != nil {
+			log.Errorf("Unable to encode message: %s", err)
+			continue
+		}
+
+		extraHeaders := make(http.Header)
+		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(start.Unix())))
+		extraHeaders.Set(api.HostHeader, l.cfg.HostName)
+		extraHeaders.Set(api.ProcessVersionHeader, Version)
+		extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+
+		if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+			extraHeaders.Set(api.ClusterIDHeader, cid)
+		}
+
+		payloads = append(payloads, checkPayload{
+			body:    body,
+			headers: extraHeaders,
+		})
+
+		sizeInBytes += len(body)
+	}
+
+	result := &checkResult{
+		name:        c.Name(),
+		payloads:    payloads,
+		sizeInBytes: int64(sizeInBytes),
+	}
+
+	results.Add(result)
+
+	// update proc and container count for info
+	updateProcContainerCount(messages)
+
+	if !c.RealTime() {
+		d := time.Since(start)
+		switch {
+		case runCounter < 5:
+			log.Infof("Finished %s check #%d in %s", c.Name(), runCounter, d)
+		case runCounter == 5:
+			log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", c.Name(), runCounter, d)
+		case runCounter%20 == 0:
+			log.Infof("Finish %s check #%d in %s", c.Name(), runCounter, d)
 		}
 	}
 }
 
-func (l *Collector) run(exit chan bool) error {
+func (l *Collector) run(exit chan struct{}) error {
 	eps := make([]string, 0, len(l.cfg.APIEndpoints))
 	for _, e := range l.cfg.APIEndpoints {
 		eps = append(eps, e.Endpoint.String())
@@ -123,8 +176,8 @@ func (l *Collector) run(exit chan bool) error {
 
 	go util.HandleSignals(exit)
 
-	processPayloads := make(chan checkPayload, l.cfg.QueueSize)
-	podPayloads := make(chan checkPayload, l.cfg.QueueSize)
+	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
+	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.PodQueueBytes))
 
 	var wg sync.WaitGroup
 
@@ -145,9 +198,10 @@ func (l *Collector) run(exit chan bool) error {
 		for {
 			select {
 			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
+				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueSize(len(processPayloads), len(podPayloads))
+				updateQueueBytes(processResults.Weight(), podResults.Weight())
+				updateQueueSize(processResults.Len(), podResults.Len())
 			case <-exit:
 				return
 			}
@@ -155,11 +209,13 @@ func (l *Collector) run(exit chan bool) error {
 	}()
 
 	processForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.APIEndpoints))
-	processForwarderOpts.EnableHealthChecking = false
+	processForwarderOpts.DisableAPIKeyChecking = true
+	processForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.OrchestratorEndpoints))
-	podForwarderOpts.EnableHealthChecking = false
+	podForwarderOpts.DisableAPIKeyChecking = true
+	podForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
 	if err := processForwarder.Start(); err != nil {
@@ -173,28 +229,28 @@ func (l *Collector) run(exit chan bool) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(processPayloads, processForwarder, exit)
+		l.consumePayloads(processResults, processForwarder, exit)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(podPayloads, podForwarder, exit)
+		l.consumePayloads(podResults, podForwarder, exit)
 	}()
 
 	for _, c := range l.enabledChecks {
-		payloads := processPayloads
+		results := processResults
 		if c.Name() == checks.Pod.Name() {
-			payloads = podPayloads
+			results = podResults
 		}
 
 		wg.Add(1)
-		go func(c checks.Check, payloads chan checkPayload) {
+		go func(c checks.Check, results *api.WeightedQueue) {
 			defer wg.Done()
 
 			// Run the check the first time to prime the caches.
 			if !c.RealTime() {
-				l.runCheck(c, payloads)
+				l.runCheck(c, results)
 			}
 
 			ticker := time.NewTicker(l.cfg.CheckInterval(c.Name()))
@@ -203,7 +259,7 @@ func (l *Collector) run(exit chan bool) error {
 				case <-ticker.C:
 					realTimeEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
 					if !c.RealTime() || realTimeEnabled {
-						l.runCheck(c, payloads)
+						l.runCheck(c, results)
 					}
 				case d := <-l.rtIntervalCh:
 					// Live-update the ticker.
@@ -217,7 +273,7 @@ func (l *Collector) run(exit chan bool) error {
 					}
 				}
 			}
-		}(c, payloads)
+		}(c, results)
 	}
 
 	<-exit
@@ -228,63 +284,44 @@ func (l *Collector) run(exit chan bool) error {
 	return nil
 }
 
-func (l *Collector) consumePayloads(payloads chan checkPayload, fwd forwarder.Forwarder, exit chan bool) {
+func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder, exit chan struct{}) {
 	for {
-		select {
-		case payload := <-payloads:
-			if len(payloads) >= l.cfg.QueueSize {
-				log.Info("Expiring payload from in-memory queue.")
-				// Limit number of items kept in memory while we wait.
-				<-payloads
-			}
-
-			for _, m := range payload.messages {
-				extraHeaders := make(http.Header)
-				extraHeaders.Set(api.HostHeader, l.cfg.HostName)
-				extraHeaders.Set(api.ProcessVersionHeader, Version)
-				extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
-
-				if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-					extraHeaders.Set(api.ClusterIDHeader, cid)
-				}
-
-				body, err := encodePayload(m)
-				if err != nil {
-					log.Errorf("Unable to encode message: %s", err)
-					continue
-				}
-
-				payloads := forwarder.Payloads{&body}
-				var responses chan forwarder.Response
-
-				switch payload.name {
-				case checks.Process.Name():
-					responses, err = fwd.SubmitProcessChecks(payloads, extraHeaders)
-				case checks.RTProcess.Name():
-					responses, err = fwd.SubmitRTProcessChecks(payloads, extraHeaders)
-				case checks.Container.Name():
-					responses, err = fwd.SubmitContainerChecks(payloads, extraHeaders)
-				case checks.RTContainer.Name():
-					responses, err = fwd.SubmitRTContainerChecks(payloads, extraHeaders)
-				case checks.Connections.Name():
-					responses, err = fwd.SubmitConnectionChecks(payloads, extraHeaders)
-				case checks.Pod.Name():
-					responses, err = fwd.SubmitPodChecks(payloads, extraHeaders)
-				default:
-					err = fmt.Errorf("unsupported payload type: %s", payload.name)
-				}
-
-				if err != nil {
-					log.Errorf("Unable to submit payload: %s", err)
-					continue
-				}
-
-				if statuses := readResponseStatuses(responses); len(statuses) > 0 {
-					l.updateStatus(statuses)
-				}
-			}
-		case <-exit:
+		// results.Poll() will block until either `exit` is closed, or an item is available on the queue (a check run occurs and adds data)
+		item, ok := results.Poll(exit)
+		if !ok {
 			return
+		}
+		result := item.(*checkResult)
+		for _, payload := range result.payloads {
+			forwarderPayload := forwarder.Payloads{&payload.body}
+			var responses chan forwarder.Response
+			var err error
+
+			switch result.name {
+			case checks.Process.Name():
+				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
+			case checks.RTProcess.Name():
+				responses, err = fwd.SubmitRTProcessChecks(forwarderPayload, payload.headers)
+			case checks.Container.Name():
+				responses, err = fwd.SubmitContainerChecks(forwarderPayload, payload.headers)
+			case checks.RTContainer.Name():
+				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
+			case checks.Connections.Name():
+				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
+			case checks.Pod.Name():
+				responses, err = fwd.SubmitPodChecks(forwarderPayload, payload.headers)
+			default:
+				err = fmt.Errorf("unsupported payload type: %s", result.name)
+			}
+
+			if err != nil {
+				log.Errorf("Unable to submit payload: %s", err)
+				continue
+			}
+
+			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
+				l.updateStatus(statuses)
+			}
 		}
 	}
 }
@@ -297,8 +334,12 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 	// only set if we're trying to limit load on the backend.
 	shouldEnableRT := false
 	maxInterval := 0 * time.Second
+	activeClients := int32(0)
 	for _, s := range statuses {
 		shouldEnableRT = shouldEnableRT || (s.ActiveClients > 0 && l.cfg.AllowRealTime)
+		if s.ActiveClients > 0 {
+			activeClients += s.ActiveClients
+		}
 		interval := time.Duration(s.Interval) * time.Second
 		if interval > maxInterval {
 			maxInterval = interval
@@ -309,7 +350,7 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 		log.Info("Detected 0 clients, disabling real-time mode")
 		atomic.StoreInt32(&l.realTimeEnabled, 0)
 	} else if !curEnabled && shouldEnableRT {
-		log.Info("Detected active clients, enabling real-time mode")
+		log.Infof("Detected %d active clients, enabling real-time mode", activeClients)
 		atomic.StoreInt32(&l.realTimeEnabled, 1)
 	}
 
@@ -344,23 +385,23 @@ func getContainerCount(mb model.MessageBody) int {
 	return 0
 }
 
-func readResponseStatuses(responses chan forwarder.Response) []*model.CollectorStatus {
+func readResponseStatuses(checkName string, responses <-chan forwarder.Response) []*model.CollectorStatus {
 	var statuses []*model.CollectorStatus
 
 	for response := range responses {
 		if response.Err != nil {
-			log.Errorf("Error from %s: %s", response.Domain, response.Err)
+			log.Errorf("[%s] Error from %s: %s", checkName, response.Domain, response.Err)
 			continue
 		}
 
 		if response.StatusCode >= 300 {
-			log.Errorf("Invalid response from %s: %d -> %s", response.Domain, response.StatusCode, response.Err)
+			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
 			continue
 		}
 
 		r, err := model.DecodeMessage(response.Body)
 		if err != nil {
-			log.Errorf("Could not decode response body: %s", err)
+			log.Errorf("[%s] Could not decode response body: %s", checkName, err)
 			continue
 		}
 
@@ -368,12 +409,12 @@ func readResponseStatuses(responses chan forwarder.Response) []*model.CollectorS
 		case model.TypeResCollector:
 			rm := r.Body.(*model.ResCollector)
 			if len(rm.Message) > 0 {
-				log.Errorf("Error in response from %s: %s", response.Domain, rm.Message)
+				log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
 			} else {
 				statuses = append(statuses, rm.Status)
 			}
 		default:
-			log.Errorf("Unexpected response type from %s: %d", response.Domain, r.Header.Type)
+			log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
 		}
 	}
 

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -99,7 +100,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	}
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomain)
-	podForwarderOpts.EnableHealthChecking = false
+	podForwarderOpts.DisableAPIKeyChecking = true
 
 	oc := &Controller{
 		unassignedPodLister:     podInformer.Lister(),
@@ -160,6 +161,7 @@ func (o *Controller) processPods() {
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(api.HostHeader, o.hostName)
 		extraHeaders.Set(api.ClusterIDHeader, o.clusterID)
+		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
 
 		body, err := encodePayload(m)
 		if err != nil {

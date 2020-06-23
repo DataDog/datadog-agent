@@ -19,20 +19,15 @@ const (
 	autoscalersController controllerName = "autoscalers"
 	servicesController    controllerName = "services"
 	endpointsController   controllerName = "endpoints"
-	secretsController     controllerName = "secrets"
 )
 
 // InformerName represents the kubernetes informer names
-// TODO: make it private
 type InformerName string
 
 const (
-	nodesInformer     InformerName = "nodes"
 	endpointsInformer InformerName = "endpoints"
-	wpaInformer       InformerName = "wpa"
-	hpaInformer       InformerName = "hpa"
 	servicesInformer  InformerName = "services"
-	secretsInformer   InformerName = "secrets"
-	// TODO: make it private
-	PodsInformer InformerName = "pods"
+	SecretsInformer   InformerName = "secrets"
+	WebhooksInformer  InformerName = "webhooks"
+	PodsInformer      InformerName = "pods"
 )

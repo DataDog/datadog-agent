@@ -26,8 +26,8 @@ func TestInsert(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sketchMap.insert(1, generateContextKey(&mSample1), 1)
+	sketchMap.insert(1, generateContextKey(&mSample1), 1, 1)
 	assert.Equal(t, 1, sketchMap.Len())
-	sketchMap.insert(2, generateContextKey(&mSample1), 2)
+	sketchMap.insert(2, generateContextKey(&mSample1), 2, 1)
 	assert.Equal(t, 2, sketchMap.Len())
 }

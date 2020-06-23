@@ -11,17 +11,20 @@ run:
     - pkg/trace
     # TODO metrics-aggregation
     - pkg/quantile
-    # TODO burrito
-    - pkg/ebpf
-    - pkg/network
 
 issues:
+  # Do not limit the number of issues per linter.
+  max-issues-per-linter: 0
+
+  # Do not limit the number of times a same issue is reported.
+  max-same-issues: 0
+
   exclude:
     - "`eventContext` is unused"
     - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
     - "`defaultRetryDuration` is unused" # used by APM and Process
     - "`defaultRetries` is unused"       # used by APM and Process
-    - "python._Ctype_char, which can be annoying to use" # ignore warning abour returning unexported field from CGO
+    - "python._Ctype_char, which can be annoying to use" # ignore warning about returning unexported field from CGO
 
     # [Golint] Ignore package name repetition for checks since it makes code easier to read/maintain
     - "type name will be used as jmx.JMXCheck by other packages, and that stutters"
@@ -34,7 +37,11 @@ issues:
     # ignore warning on linux about fields used only on windows
     - "`context` is unused"
     - "`id` is unused"
-
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters:
+        - errcheck
 
 linters:
   disable-all: true
@@ -47,3 +54,9 @@ linters:
     - misspell    # Finds commonly misspelled English words in comments
     - gofmt       # Gofmt checks whether code was gofmt-ed
     - golint      # Golint differs from gofmt. Gofmt reformats Go source code, whereas golint prints out style mistakes
+    - errcheck    # errcheck is a program for checking for unchecked errors in go programs.
+
+linters-settings:
+  errcheck:
+    # Disable warnings for `fmt` and `log` packages. Also ignore `Write` functions from `net/http` package.
+    ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*,net/http:Write

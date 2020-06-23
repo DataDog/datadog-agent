@@ -6,11 +6,12 @@ import datetime
 import os
 import shutil
 import sys
+import csv
 
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
-from .utils import get_build_flags, get_gopath
+from .utils import get_build_flags, get_gopath, load_release_versions
 from .bootstrap import get_deps, process_deps
 
 #We use `basestring` in the code for compat with python2 unicode strings.
@@ -118,7 +119,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, rtloader_root=None, build_tags=None):
+def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     """
     Run go vet on targets.
 
@@ -132,7 +133,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None):
 
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
-    tags = build_tags or get_default_build_tags()
+    tags = build_tags or get_default_build_tags(arch=arch)
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
@@ -177,6 +178,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         targets = targets.split(',')
 
     tags = build_tags or get_default_build_tags()
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
@@ -233,7 +235,7 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False, integrations_version="nightly"):
     """
     Setup Go dependencies
     """
@@ -311,7 +313,8 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
             core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
             checks_base = os.path.join(core_dir, 'datadog_checks_base')
             if not os.path.isdir(core_dir):
-                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
+                env = load_release_versions(ctx, integrations_version)
+                ctx.run('git clone -{} --branch {} --depth 1 https://github.com/DataDog/integrations-core {}'.format(verbosity, env["INTEGRATIONS_CORE_VERSION"], core_dir))
             ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
     checks_done = datetime.datetime.now()
 
@@ -326,37 +329,37 @@ def lint_licenses(ctx, verbose=False):
     """
     print("Verify licenses")
 
-    licences = []
+    licenses = []
     file='LICENSE-3rdparty.csv'
     with open(file, 'r') as f:
         next(f)
         for line in f:
-            licences.append(line.rstrip())
+            licenses.append(line.rstrip())
 
-    new_licences = get_licenses_list(ctx)
+    new_licenses = get_licenses_list(ctx)
 
     if sys.platform == 'win32':
-        # ignore some licences because we remove
+        # ignore some licenses because we remove
         # the deps in a hack for windows
-        ignore_licences = ['github.com/shirou/gopsutil']
+        ignore_licenses = ['github.com/shirou/gopsutil']
         to_removed = []
-        for ignore in ignore_licences:
-            for license in licences:
+        for ignore in ignore_licenses:
+            for license in licenses:
                 if ignore in license:
                     if verbose:
                         print("[hack-windows] ignore: {}".format(license))
                     to_removed.append(license)
-        licences = [x for x in licences if x not in to_removed]
+        licenses = [x for x in licenses if x not in to_removed]
 
-    removed_licences = [ele for ele in new_licences if ele not in licences]
-    for license in removed_licences:
+    removed_licenses = [ele for ele in new_licenses if ele not in licenses]
+    for license in removed_licenses:
         print("+ {}".format(license))
 
-    added_licences = [ele for ele in licences if ele not in new_licences]
-    for license in added_licences:
+    added_licenses = [ele for ele in licenses if ele not in new_licenses]
+    for license in added_licenses:
         print("- {}".format(license))
 
-    if len(removed_licences) + len(added_licences) > 0:
+    if len(removed_licenses) + len(added_licenses) > 0:
         print("licenses are not up-to-date")
         raise Exit(code=1)
 

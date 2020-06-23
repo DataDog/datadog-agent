@@ -47,6 +47,8 @@ var (
 const (
 	// AgentName is the default agent name
 	AgentName = "agent"
+	// DogStatsDStandAloneName stand-alone
+	DogStatsDStandAloneName = "dogstatsd"
 	// IotAgentName is the name for an IoT instance of the Agent
 	IotAgentName = "iot_agent"
 	// ClusterAgentName is the Cluster Agent name
@@ -247,7 +249,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 		hostnameUpdate:     make(chan string),
 		hostnameUpdateDone: make(chan struct{}),
 		stopChan:           make(chan struct{}),
-		health:             health.Register("aggregator"),
+		health:             health.RegisterLiveness("aggregator"),
 		agentName:          agentName,
 	}
 
