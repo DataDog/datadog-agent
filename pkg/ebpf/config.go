@@ -90,7 +90,7 @@ type Config struct {
 	// ExcludedDestinationConnections is a map of destination connections to blacklist
 	ExcludedDestinationConnections map[string][]string
 
-	// OffsetGuessThreshold is the size of the threshold we will iterate over when guessing offsets
+	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
 	OffsetGuessThreshold uint64
 }
 

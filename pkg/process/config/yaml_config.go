@@ -86,7 +86,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		if th < maxOffsetThreshold {
 			a.OffsetGuessThreshold = uint64(th)
 		} else {
-			log.Warn("Overriding the configured offset_guess_threshold because it exceeds maximum of 3000")
+			log.Warn("offset_guess_threshold exceeds maximum of 3000. Setting it to the default of 400")
 		}
 	}
 
