@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -245,4 +246,41 @@ func TestCleanDirectoryName(t *testing.T) {
 
 	assert.Len(t, cleanedHostname, directoryNameMaxSize)
 	assert.True(t, !directoryNameFilter.MatchString(cleanedHostname))
+}
+
+func TestZipTaggerList(t *testing.T) {
+	if _, err := os.Stat(security.GetAuthTokenFilepath()); err == nil && !os.IsNotExist(err) {
+		tagMap := make(map[string]response.TaggerListEntity)
+		tagMap["random_entity_name"] = response.TaggerListEntity{
+			Sources: []string{"docker_source_name"},
+			Tags:    []string{"docker_image:custom-agent:latest", "image_name:custom-agent"},
+		}
+		resp := response.TaggerListResponse{
+			Entities: tagMap,
+		}
+
+		s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			out, _ := json.Marshal(resp)
+			w.Write(out)
+		}))
+		defer s.Close()
+
+		dir, err := ioutil.TempDir("", "TestZipTaggerList")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer os.RemoveAll(dir)
+
+		taggerListURL = s.URL
+		zipTaggerList(dir, "")
+		content, err := ioutil.ReadFile(filepath.Join(dir, "tagger-list.log"))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		assert.Contains(t, string(content), "random_entity_name")
+		assert.Contains(t, string(content), "docker_source_name")
+		assert.Contains(t, string(content), "docker_image:custom-agent:latest")
+		assert.Contains(t, string(content), "image_name:custom-agent")
+	}
 }

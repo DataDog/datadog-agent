@@ -586,7 +586,17 @@ func zipTaggerList(tempDir, hostname string) error {
 		return err
 	}
 
-	_, err = w.Write(r)
+	// Pretty print JSON output
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+	err = json.Indent(&b, r, "", "\t")
+	if err != nil {
+		_, err = w.Write(r)
+		return err
+	}
+	writer.Flush()
+
+	_, err = w.Write(b.Bytes())
 	return err
 }
 
