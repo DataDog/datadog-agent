@@ -7,20 +7,21 @@ package checks
 
 import (
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
 )
 
 type processes map[int32]*process.FilledProcess
 
+const (
+	processCacheKey string = "compliance-processes"
+)
+
 var (
-	processCacheLock    sync.Mutex
-	cachedProcesses     processes
-	processesUpdateTime time.Time
-	processFetcherFunc  func() (map[int32]*process.FilledProcess, error) = process.AllProcesses
+	processFetcherFunc func() (map[int32]*process.FilledProcess, error) = process.AllProcesses
 )
 
 func (p processes) findProcessesByName(name string) []*process.FilledProcess {
@@ -41,21 +42,17 @@ func (p processes) findProcesses(matchFunc func(*process.FilledProcess) bool) []
 }
 
 func getProcesses(maxAge time.Duration) (processes, error) {
-	// Cache is too old, need to update
-	if processesUpdateTime.Before(time.Now().Add(-maxAge)) {
-		processCacheLock.Lock()
-		defer processCacheLock.Unlock()
-
-		log.Debug("Updating process cache")
-
-		var err error
-		cachedProcesses, err = processFetcherFunc()
-		if err != nil {
-			return nil, err
-		}
-		processesUpdateTime = time.Now()
+	if value, found := cache.Cache.Get(processCacheKey); found {
+		return value.(processes), nil
 	}
 
+	log.Debug("Updating process cache")
+	cachedProcesses, err := processFetcherFunc()
+	if err != nil {
+		return nil, err
+	}
+
+	cache.Cache.Set(processCacheKey, cachedProcesses, maxAge)
 	return cachedProcesses, nil
 }
 
