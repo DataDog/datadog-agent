@@ -45,7 +45,7 @@ type Tracer struct {
 
 	reverseDNS network.ReverseDNS
 
-	perfMap      *bpflib.PerfMap
+	perfMap      *perfMap
 	batchManager *PerfBatchManager
 
 	// Telemetry
@@ -274,7 +274,7 @@ func (t *Tracer) expvarStats() {
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
-func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
+func (t *Tracer) initPerfPolling() (*perfMap, error) {
 	closedChannelSize := defaultClosedChannelSize
 	if t.config.ClosedChannelSize > 0 {
 		closedChannelSize = t.config.ClosedChannelSize
@@ -282,7 +282,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 	closedChannel := make(chan []byte, closedChannelSize)
 	lostChannel := make(chan uint64, 10)
 
-	pm, err := bpflib.InitPerfMap(t.m, string(tcpCloseEventMap), closedChannel, lostChannel)
+	pm, err := initPerfMap(t.m, string(tcpCloseEventMap), closedChannel, lostChannel)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing perf map: %s", err)
 	}

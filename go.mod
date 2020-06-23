@@ -70,6 +70,7 @@ require (
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
+	github.com/cilium/ebpf v0.0.0-20200110133405-4032b1d8aae3
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/cgroups v0.0.0-20190919134610-bf292b21730f
 	github.com/containerd/containerd v1.3.2
