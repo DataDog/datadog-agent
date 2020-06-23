@@ -82,7 +82,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
-  DATADOG_AGENT_BUILDERS: v2448672-5304c3c
+  DATADOG_AGENT_BUILDERS: v2649088-3d6e4db
   DATADOG_AGENT_WINBUILDIMAGES: v2468030-cbaf3fe
   DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
   DATADOG_AGENT_ARMBUILDIMAGES: v2631088-1129f60
@@ -281,8 +281,8 @@ run_tests_windows-x86:
   needs: ["fail_on_non_triggered_tag"]
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - pip install wheel
-    - pip install -r requirements.txt
+    - python3 -m pip install wheel
+    - python3 -m pip install -r requirements.txt
     - GO111MODULE=off go get gopkg.in/yaml.v2
     - GO111MODULE=off go get github.com/stretchr/testify
     - inv -e rtloader.make --install-prefix=$SRC_PATH/dev --python-runtimes "$PYTHON_RUNTIMES"
@@ -355,7 +355,7 @@ run_tests_ebpf:
   before_script:
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
-    - pip3 install -r requirements.txt
+    - python3 -m pip install -r requirements.txt
     - inv -e deps --verbose --dep-vendor-only --no-checks
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
@@ -389,7 +389,7 @@ run_security_scan_test:
     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
-    - pip install -r requirements.txt
+    - python3 -m pip install -r requirements.txt
     - inv -e deps --dep-vendor-only
   script:
     - set +x     # don't print the api key to the logs
@@ -407,8 +407,8 @@ run_go_tidy_check:
   tags: [ "runner:main", "size:large" ]
   before_script:
     - cd $SRC_PATH
-    - pip install --upgrade --ignore-installed pip setuptools
-    - pip install -r requirements.txt
+    - python3 -m pip install --upgrade --ignore-installed pip setuptools
+    - python3 -m pip install -r requirements.txt
     - inv -e deps --no-dep-ensure --no-checks
   script:
     # Print a message and fail if "go mod tidy" modifies go.mod
@@ -1281,8 +1281,7 @@ agent_android_apk:
   before_script:
     - echo running android before_script
     - cd $SRC_PATH
-    - pip install -U pip
-    - pip install -r requirements.txt
+    - python3 -m pip install -r requirements.txt
     - inv -e deps --android --dep-vendor-only --no-checks
     # Some Android license has changed, we have to accept the new version.
     # But on top of that, there is a bug in sdkmanager not updating correctly
@@ -1491,8 +1490,6 @@ deploy_rpm_testing-a6:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "pipeline-$DD_PIPELINE_ID/6/x86_64/" $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm
 
 deploy_rpm_testing-a7:
@@ -1509,8 +1506,6 @@ deploy_rpm_testing-a7:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "pipeline-$DD_PIPELINE_ID/7/x86_64/" $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
 
 # deploy rpm packages to yum staging repo
@@ -1528,8 +1523,6 @@ deploy_suse_rpm_testing-a6:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/pipeline-$DD_PIPELINE_ID/6/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm
 
 deploy_suse_rpm_testing-a7:
@@ -1546,8 +1539,6 @@ deploy_suse_rpm_testing-a7:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/pipeline-$DD_PIPELINE_ID/7/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
 
 # deploy windows packages to our testing bucket
@@ -2412,7 +2403,8 @@ send_pkg_size-a7:
     - BUILD_ARG=${BUILD_ARG:-}
     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX-$ARCH
     # Pull base image(s) with content trust enabled
-    - pip install -r requirements.txt
+    # FIXME: Use Python 3 when python3-pip is available in docker image
+    - python2 -m pip install -r requirements.txt
     - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/$ARCH/Dockerfile
     # Build testing stage if provided
     - test "$TESTING_ARG" && docker build --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
@@ -2809,7 +2801,8 @@ twistlock_scan-7:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - pip install -r requirements.txt
+    # FIXME: Use Python 3 when python3-pip is available in docker image
+    - python2 -m pip install -r requirements.txt
     - if [[ -z "$DELEGATION_PASS_SSM_KEY" ]]; then echo "No signing key set"; exit 0; fi
     - echo "Importing delegation signing key"
     - export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_PASS_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -3472,8 +3465,6 @@ deploy_staging_rpm-6:
     - agent_rpm-x64-a6
     - agent_rpm-arm-a6
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/x86_64/" $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/aarch64/" $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm
 
@@ -3495,8 +3486,6 @@ deploy_staging_rpm-7:
     - iot_agent_rpm-arm64
     - dogstatsd_rpm-x64
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/x86_64/" $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/aarch64/" $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm
 
@@ -3516,8 +3505,6 @@ deploy_staging_suse_rpm-6:
   dependencies:
     - agent_suse-x64-a6
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/6/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/*-6.*x86_64.rpm
 
 deploy_staging_suse_rpm-7:
@@ -3536,8 +3523,6 @@ deploy_staging_suse_rpm-7:
     - dogstatsd_suse-x64
     - iot_agent_suse-x64
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/7/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm
 
 # deploy dsd binary to staging bucket
@@ -3850,7 +3835,8 @@ latest_release_7:
   before_script:
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - pip install -r requirements.txt
+    # FIXME: Use Python 3 when python3-pip is available in docker-notary image
+    - python2 -m pip install -r requirements.txt
     - |
       export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
   dependencies: [] # Don't download Gitlab artefacts
@@ -3933,8 +3919,7 @@ trigger_release_6:
   dependencies: []
   before_script:
   - cd $SRC_PATH
-  - pip install --upgrade --ignore-installed pip setuptools
-  - pip install -r requirements.txt
+  - python3 -m pip install -r requirements.txt
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
