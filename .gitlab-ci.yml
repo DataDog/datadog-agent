@@ -483,6 +483,37 @@ build_dogstatsd-deb_arm64:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
 
+# build iot agent for deb-x64, to make sure the build is not broken because of build flags
+build_iot_agent-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:large" ]
+  needs: ["run_tests_deb-x64-py3"]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only --no-checks
+  script:
+    - inv -e agent.build --iot --major-version 7
+    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
+
+# build iot agent for ARM, to make sure the build is not broken because of build targets
+build_iot_agent-deb_arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  needs: ["run_tests_deb-x64-py3"]
+  variables:
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only --no-checks
+  script:
+    - inv -e agent.build --iot --major-version 7
+
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
   needs: ["run_go_tidy_check"]
@@ -3573,6 +3604,21 @@ deploy_staging_dsd:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy iot-agent binary to staging bucket
+deploy_staging_iot_agent:
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_triggered
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:main", "size:large" ]
+  dependencies: []
+  script:
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy agent windows zip to the staging bucket, currently used for cloudfoundry bosh
 deploy_staging_datadog_agent_windows_zip:
