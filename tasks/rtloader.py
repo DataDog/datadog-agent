@@ -8,16 +8,20 @@ import errno
 from invoke import task
 from invoke.exceptions import Exit
 
+
 def get_rtloader_path():
     here = os.path.abspath(os.path.dirname(__file__))
     return os.path.abspath(os.path.join(here, '..', 'rtloader'))
 
+
 def get_rtloader_build_path():
     return os.path.join(get_rtloader_path(), 'build')
+
 
 def get_dev_path():
     here = os.path.abspath(os.path.dirname(__file__))
     return os.path.abspath(os.path.join(here, '..', 'dev'))
+
 
 def run_make_command(ctx, command=""):
     ctx.run("make -C {} {}".format(get_rtloader_build_path(), command))
@@ -25,6 +29,7 @@ def run_make_command(ctx, command=""):
 
 def get_cmake_cache_path(rtloader_path):
     return os.path.join(rtloader_path, "CMakeCache.txt")
+
 
 def clear_cmake_cache(rtloader_path, settings):
     """
@@ -46,6 +51,7 @@ def clear_cmake_cache(rtloader_path, settings):
     if settings_not_found:
         os.remove(cmake_cache)
 
+
 @task
 def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
     dev_path = get_dev_path()
@@ -53,14 +59,16 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
 
-    cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(install_prefix or dev_path)
+    cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(
+        install_prefix or dev_path
+    )
 
     python_runtimes = python_runtimes.split(',')
 
     settings = {
-            "DISABLE_PYTHON2:BOOL": "OFF",
-            "DISABLE_PYTHON3:BOOL": "OFF"
-            }
+        "DISABLE_PYTHON2:BOOL": "OFF",
+        "DISABLE_PYTHON3:BOOL": "OFF",
+    }
     if '2' not in python_runtimes:
         settings["DISABLE_PYTHON2:BOOL"] = "ON"
     if '3' not in python_runtimes:
@@ -89,6 +97,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
     ctx.run("cd {} && cmake {} {}".format(rtloader_build_path, cmake_args, get_rtloader_path()))
     run_make_command(ctx)
 
+
 @task
 def clean(ctx):
     """
@@ -107,13 +116,16 @@ def clean(ctx):
         except FileNotFoundError:
             print("Nothing to clean up '{}'".format(p))
 
+
 @task
 def install(ctx):
     run_make_command(ctx, "install")
 
+
 @task
 def test(ctx):
     ctx.run("make -C {}/test run".format(get_rtloader_build_path()))
+
 
 @task
 def format(ctx, raise_if_changed=False):
@@ -126,6 +138,7 @@ def format(ctx, raise_if_changed=False):
             for f in changed_files:
                 print("  - {}".format(f))
             raise Exit(code=1)
+
 
 @task
 def generate_doc(ctx):
@@ -163,13 +176,13 @@ def generate_doc(ctx):
     with open("{}/doxygen/errors.log".format(rtloader_path)) as errfile:
         currententry = ""
         for line in errfile.readlines():
-            if 'error:' in line or 'warning:' in line: # We get to a new entry, flush current one
+            if 'error:' in line or 'warning:' in line:  # We get to a new entry, flush current one
                 flushentry(currententry)
                 currententry = ""
 
             currententry += line
 
-        flushentry(currententry) # Flush last entry
+        flushentry(currententry)  # Flush last entry
 
         print("\033[93m{}\033[0m".format("\n".join(warnings)))
         print("\033[91m{}\033[0m".format("\n".join(errors)))

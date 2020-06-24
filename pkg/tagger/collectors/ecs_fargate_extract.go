@@ -60,6 +60,13 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 				tags.AddLow("region", region)
 			}
 
+			// the AvailabilityZone metadata is only available for
+			// Fargate tasks using platform version 1.4 or later
+			availabilityZone := meta.AvailabilityZone
+			if availabilityZone != "" {
+				tags.AddLow("availability_zone", availabilityZone)
+			}
+
 			// task
 			tags.AddLow("task_family", meta.Family)
 			tags.AddLow("task_version", meta.Version)

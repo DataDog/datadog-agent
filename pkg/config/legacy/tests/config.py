@@ -32,7 +32,7 @@ JMX_VERSION = "0.16.0"
 DATADOG_CONF = "datadog.conf"
 UNIX_CONFIG_PATH = '/etc/dd-agent'
 MAC_CONFIG_PATH = '/opt/datadog-agent/etc'
-DEFAULT_CHECK_FREQUENCY = 15   # seconds
+DEFAULT_CHECK_FREQUENCY = 15  # seconds
 LOGGING_MAX_BYTES = 10 * 1024 * 1024
 SDK_INTEGRATIONS_DIR = 'integrations'
 SD_PIPE_NAME = "dd-service_discovery"
@@ -61,7 +61,7 @@ OLD_STYLE_PARAMETERS = [
 
 NAGIOS_OLD_CONF_KEYS = [
     'nagios_log',
-    'nagios_perf_cfg'
+    'nagios_perf_cfg',
 ]
 
 LEGACY_DATADOG_URLS = [
@@ -75,7 +75,7 @@ JMX_SD_CONF_TEMPLATE = '.jmx.{}.yaml'
 # so keeping these as a list just in case we change add stuff.
 MANIFEST_VALIDATION = {
     'max': ['max_agent_version'],
-    'min': ['min_agent_version']
+    'min': ['min_agent_version'],
 }
 
 
@@ -103,10 +103,13 @@ def _windows_commondata_path():
     CSIDL_COMMON_APPDATA = 35
 
     _SHGetFolderPath = windll.shell32.SHGetFolderPathW
-    _SHGetFolderPath.argtypes = [wintypes.HWND,
-                                 ctypes.c_int,
-                                 wintypes.HANDLE,
-                                 wintypes.DWORD, wintypes.LPCWSTR]
+    _SHGetFolderPath.argtypes = [
+        wintypes.HWND,
+        ctypes.c_int,
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+    ]
 
     path_buf = wintypes.create_unicode_buffer(wintypes.MAX_PATH)
     _SHGetFolderPath(0, CSIDL_COMMON_APPDATA, 0, 0, path_buf)
@@ -214,12 +217,10 @@ def get_histogram_percentiles(configstr=None):
                 if floatval <= 0 or floatval >= 1:
                     raise ValueError
                 if len(val) > 4:
-                    log.warning("Histogram percentiles are rounded to 2 digits: {0} rounded"
-                                .format(floatval))
+                    log.warning("Histogram percentiles are rounded to 2 digits: {0} rounded".format(floatval))
                 result.append(float(val[0:4]))
             except ValueError:
-                log.warning("Bad histogram percentile value {0}, must be float in ]0;1[, skipping"
-                            .format(val))
+                log.warning("Bad histogram percentile value {0}, must be float in ]0;1[, skipping".format(val))
     except Exception:
         log.exception("Error when parsing histogram percentiles, skipping")
         return None
@@ -254,7 +255,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
         'additional_checksd': '/etc/dd-agent/checks.d/',
         'bind_host': get_default_bind_host(),
         'statsd_metric_namespace': None,
-        'utf8_decoding': False
+        'utf8_decoding': False,
     }
 
     if "darwin" in sys.platform:
@@ -285,7 +286,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
             agentConfig['developer_mode'] = True
 
         # Core config
-        #ap
+        # ap
         if not config.has_option('Main', 'api_key'):
             log.warning(u"No API key was found. Aborting.")
             sys.exit(2)
@@ -337,7 +338,6 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
         if config.has_option('Main', 'forwarder_timeout'):
             agentConfig['forwarder_timeout'] = int(config.get('Main', 'forwarder_timeout'))
 
-
         # Extra checks.d path
         # the linux directory is set by default
         if config.has_option('Main', 'additional_checksd'):
@@ -354,8 +354,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
                 additional_config = extract_agent_config(config)
                 agentConfig.update(additional_config)
             except Exception:
-                log.error('Failed to load the agent configuration related to '
-                          'service discovery. It will not be used.')
+                log.error('Failed to load the agent configuration related to service discovery. It will not be used.')
 
         # Concerns only Windows
         if config.has_option('Main', 'use_web_info_page'):
@@ -372,7 +371,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
         if config.has_option('Main', 'use_ec2_instance_id'):
             use_ec2_instance_id = config.get('Main', 'use_ec2_instance_id')
             # translate yes into True, the rest into False
-            agentConfig['use_ec2_instance_id'] = (use_ec2_instance_id.lower() == 'yes')
+            agentConfig['use_ec2_instance_id'] = use_ec2_instance_id.lower() == 'yes'
 
         if config.has_option('Main', 'check_freq'):
             try:
@@ -385,7 +384,9 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
             agentConfig['histogram_aggregates'] = get_histogram_aggregates(config.get('Main', 'histogram_aggregates'))
 
         if config.has_option('Main', 'histogram_percentiles'):
-            agentConfig['histogram_percentiles'] = get_histogram_percentiles(config.get('Main', 'histogram_percentiles'))
+            agentConfig['histogram_percentiles'] = get_histogram_percentiles(
+                config.get('Main', 'histogram_percentiles')
+            )
 
         # Disable Watchdog (optionally)
         if config.has_option('Main', 'watchdog'):
@@ -394,8 +395,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
 
         # Optional graphite listener
         if config.has_option('Main', 'graphite_listen_port'):
-            agentConfig['graphite_listen_port'] = \
-                int(config.get('Main', 'graphite_listen_port'))
+            agentConfig['graphite_listen_port'] = int(config.get('Main', 'graphite_listen_port'))
         else:
             agentConfig['graphite_listen_port'] = None
 
@@ -411,8 +411,9 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
                 agentConfig[key] = value
 
         # Create app:xxx tags based on monitored apps
-        agentConfig['create_dd_check_tags'] = config.has_option('Main', 'create_dd_check_tags') and \
-            _is_affirmative(config.get('Main', 'create_dd_check_tags'))
+        agentConfig['create_dd_check_tags'] = config.has_option('Main', 'create_dd_check_tags') and _is_affirmative(
+            config.get('Main', 'create_dd_check_tags')
+        )
 
         # Forwarding to external statsd server
         if config.has_option('Main', 'statsd_forward_host'):
@@ -477,7 +478,9 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
 
         agentConfig["proxy_forbid_method_switch"] = False
         if config.has_option("Main", "proxy_forbid_method_switch"):
-            agentConfig["proxy_forbid_method_switch"] = _is_affirmative(config.get("Main", "proxy_forbid_method_switch"))
+            agentConfig["proxy_forbid_method_switch"] = _is_affirmative(
+                config.get("Main", "proxy_forbid_method_switch")
+            )
 
         agentConfig["collect_ec2_tags"] = False
         if config.has_option("Main", "collect_ec2_tags"):
@@ -528,16 +531,15 @@ def extract_agent_config(config):
         conf_backend = config.get('Main', 'sd_config_backend')
 
     if backend not in SD_BACKENDS:
-        log.error("The backend {0} is not supported. "
-                  "Service discovery won't be enabled.".format(backend))
+        log.error("The backend {0} is not supported. Service discovery won't be enabled.".format(backend))
         agentConfig['service_discovery'] = False
 
     if conf_backend is None:
-        log.warning('No configuration backend provided for service discovery. '
-                    'Only auto config templates will be used.')
+        log.warning('No configuration backend provided for service discovery. Only auto config templates will be used.')
     elif conf_backend not in SD_CONFIG_BACKENDS:
-        log.error("The config backend {0} is not supported. "
-                  "Only auto config templates will be used.".format(conf_backend))
+        log.error(
+            "The config backend {0} is not supported. Only auto config templates will be used.".format(conf_backend)
+        )
         conf_backend = None
     agentConfig['sd_config_backend'] = conf_backend
 
@@ -554,19 +556,15 @@ def extract_sd_config(config):
     else:
         sd_config['sd_config_backend'] = None
     if config.has_option('Main', 'sd_template_dir'):
-        sd_config['sd_template_dir'] = config.get(
-            'Main', 'sd_template_dir')
+        sd_config['sd_template_dir'] = config.get('Main', 'sd_template_dir')
     else:
         sd_config['sd_template_dir'] = SD_TEMPLATE_DIR
     if config.has_option('Main', 'sd_backend_host'):
-        sd_config['sd_backend_host'] = config.get(
-            'Main', 'sd_backend_host')
+        sd_config['sd_backend_host'] = config.get('Main', 'sd_backend_host')
     if config.has_option('Main', 'sd_backend_port'):
-        sd_config['sd_backend_port'] = config.get(
-            'Main', 'sd_backend_port')
+        sd_config['sd_backend_port'] = config.get('Main', 'sd_backend_port')
     if config.has_option('Main', 'sd_jmx_enable'):
-        sd_config['sd_jmx_enable'] = config.get(
-            'Main', 'sd_jmx_enable')
+        sd_config['sd_jmx_enable'] = config.get('Main', 'sd_jmx_enable')
     return sd_config
 
 
@@ -585,8 +583,9 @@ def get_proxy(agentConfig):
 
         proxy_settings['user'] = agentConfig.get('proxy_user')
         proxy_settings['password'] = agentConfig.get('proxy_password')
-        log.debug("Proxy Settings: %s:*****@%s:%s", proxy_settings['user'],
-                  proxy_settings['host'], proxy_settings['port'])
+        log.debug(
+            "Proxy Settings: %s:*****@%s:%s", proxy_settings['user'], proxy_settings['host'], proxy_settings['port']
+        )
         return proxy_settings
 
     # If no proxy configuration was specified in datadog.conf
@@ -600,13 +599,13 @@ def get_proxy(agentConfig):
             proxy_settings['user'] = parse.username
             proxy_settings['password'] = parse.password
 
-            log.debug("Proxy Settings: %s:*****@%s:%s", proxy_settings['user'],
-                      proxy_settings['host'], proxy_settings['port'])
+            log.debug(
+                "Proxy Settings: %s:*****@%s:%s", proxy_settings['user'], proxy_settings['host'], proxy_settings['port']
+            )
             return proxy_settings
 
     except Exception as e:
-        log.debug("Error while trying to fetch proxy settings using urllib %s."
-                  "Proxy is probably not set", str(e))
+        log.debug("Error while trying to fetch proxy settings using urllib %s. Proxy is probably not set", str(e))
 
     return None
 
