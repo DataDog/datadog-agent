@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/util/json"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -121,7 +121,7 @@ func (c *kubeApiserverCheck) reportResource(p unstructured.Unstructured) error {
 	for _, field := range c.kubeResource.Report {
 		switch field.Kind {
 		case compliance.PropertyKindJSONQuery:
-			reportValue, valueFound, err := json.RunSingleOutput(field.Property, p.Object)
+			reportValue, valueFound, err := jsonquery.RunSingleOutput(field.Property, p.Object)
 			if err != nil {
 				return fmt.Errorf("unable to report field: '%s' for kubernetes object '%s / %s / %s' - json query error: %v", field.Property, p.GroupVersionKind().String(), p.GetNamespace(), p.GetName(), err)
 			}
@@ -158,7 +158,7 @@ func (c *kubeApiserverCheck) reportResource(p unstructured.Unstructured) error {
 
 func shouldReportResource(filters []compliance.Filter, object interface{}) (bool, error) {
 	applyCondition := func(c *compliance.Condition) (bool, error) {
-		value, _, err := json.RunSingleOutput(c.Property, object)
+		value, _, err := jsonquery.RunSingleOutput(c.Property, object)
 		if err != nil {
 			return false, err
 		}
