@@ -1302,7 +1302,7 @@ agent_android_apk:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Dogstastd package for deb-x64
+# build Dogstatsd package for deb-x64
 dogstatsd_deb-x64:
   rules:
     - <<: *if_version_7
@@ -1336,7 +1336,7 @@ dogstatsd_deb-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Dogstastd package for rpm-x64
+# build Dogstatsd package for rpm-x64
 dogstatsd_rpm-x64:
   rules:
     - <<: *if_version_7
@@ -1376,7 +1376,7 @@ dogstatsd_rpm-x64:
       - $OMNIBUS_PACKAGE_DIR
 
 
-# build Dogstastd package for rpm-x64
+# build Dogstatsd package for rpm-x64
 dogstatsd_suse-x64:
   rules:
     - <<: *if_version_7
