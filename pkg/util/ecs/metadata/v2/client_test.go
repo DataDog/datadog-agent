@@ -224,7 +224,7 @@ func TestGetContainerStats(t *testing.T) {
 	assert := assert.New(t)
 
 	containerID := "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d98"
-	handlerPath := "/v2/stats/" + containerID
+	handlerPath := "/v2/stats"
 
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption(handlerPath, "./testdata/container_stats.json"),

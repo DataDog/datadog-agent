@@ -22,9 +22,14 @@ if arm?
   dependency 'libxslt'
 end
 
+if osx?
+  dependency 'unixodbc'
+end
+
 if linux?
   # add nfsiostat script
   dependency 'unixodbc'
+  dependency 'freetds'  # needed for SQL Server integration
   dependency 'nfsiostat'
   # need kerberos for hdfs
   dependency 'libkrb5'
@@ -85,6 +90,10 @@ if arm?
   blacklist_folders.push('aerospike')
   blacklist_folders.push('ibm_mq')
   blacklist_packages.push(/^pymqi==/)
+end
+
+if arm? || !_64_bit?
+  blacklist_packages.push(/^orjson==/)
 end
 
 final_constraints_file = 'final_constraints-py2.txt'
@@ -249,12 +258,10 @@ build do
       end
 
       # We don't have auto_conf on windows yet
-      if os != 'windows'
-        auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
-        if File.exist? auto_conf_yaml
-          mkdir check_conf_dir
-          copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
-        end
+      auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
+      if File.exist? auto_conf_yaml
+        mkdir check_conf_dir
+        copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
       end
 
       # Copy SNMP profiles

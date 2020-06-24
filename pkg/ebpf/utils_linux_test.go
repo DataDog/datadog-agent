@@ -54,3 +54,11 @@ func TestExcludedKernelVersion(t *testing.T) {
 	assert.True(t, ok)
 	assert.Empty(t, msg)
 }
+
+func TestFixSyscallName(t *testing.T) {
+
+	assert.Equal(t, fixSyscallName("__sys_", "kprobe/sys_socket"), "kprobe/__sys_socket")
+	assert.Equal(t, fixSyscallName("__x64_sys_", "kprobe/sys_socket"), "kprobe/__x64_sys_socket")
+	assert.Equal(t, fixSyscallName("sys_", "kretprobe/sys_bind"), "kretprobe/sys_bind")
+
+}

@@ -2,4 +2,4 @@
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2016-2020 Datadog, Inc.
-from datadog_checks.base.utils.platform import Platform
+from datadog_checks.base.utils.platform import Platform # noqa: F401

@@ -48,15 +48,15 @@ func init() {
 // back packets ready to be processed.
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
-	conn            *net.UnixConn
-	packetsBuffer   *packetsBuffer
-	packetPool      *PacketPool
-	oobPool         *sync.Pool // For origin detection ancilary data
-	OriginDetection bool
+	conn             *net.UnixConn
+	packetsBuffer    *packetsBuffer
+	sharedPacketPool *PacketPool
+	oobPool          *sync.Pool // For origin detection ancilary data
+	OriginDetection  bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListener, error) {
+func NewUDSListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
 
@@ -105,10 +105,10 @@ func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListene
 
 	listener := &UDSListener{
 		OriginDetection: originDetection,
-		packetPool:      packetPool,
 		conn:            conn,
 		packetsBuffer: newPacketsBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
+		sharedPacketPool: sharedPacketPool,
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -130,7 +130,9 @@ func (l *UDSListener) Listen() {
 	for {
 		var n int
 		var err error
-		packet := l.packetPool.Get()
+		// retrieve an available packet from the packet pool,
+		// which will be pushed back by the server when processed.
+		packet := l.sharedPacketPool.Get()
 		udsPackets.Add(1)
 		if l.OriginDetection {
 			// Read datagram + credentials in ancilary data

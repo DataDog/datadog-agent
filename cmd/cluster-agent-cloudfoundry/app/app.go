@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// +build clusterchecks
+
 package app
 
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"os"
 	"os/signal"
 	"syscall"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -159,11 +161,11 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(keysPerDomain)
-	f.Start()
+	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
+	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname, "cluster_agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.ClusterAgentName)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -203,8 +205,8 @@ func run(cmd *cobra.Command, args []string) error {
 	<-signalCh
 
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Cluster Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
@@ -229,7 +231,7 @@ func initializeBBSCache(ctx context.Context) error {
 		config.Datadog.GetString("cloud_foundry_bbs.cert_file"),
 		config.Datadog.GetString("cloud_foundry_bbs.key_file"),
 		pollInterval,
-		false,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize BBS Cache: %s", err.Error())

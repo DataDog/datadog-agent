@@ -105,7 +105,7 @@ def get_series_from_query(q: dict):
     # group by
     # TODO
     last_open_brace, last_close_brace = query.rindex("{"), query.rindex("}")
-    group_by = query[last_open_brace + 1:last_close_brace].split(",")
+    group_by = query[last_open_brace + 1:last_close_brace].split(",")  # noqa: F841
 
     match_conditions = [
         {"metric": metric_name},
@@ -223,9 +223,18 @@ def logs():
     insert_logs(data)
     return Response(status=200)
 
+@app.route("/api/v1/orchestrator", methods=["POST"])
+def orchestrator():
+    # TODO
+    return Response(status=200)
 
 @app.before_request
 def logging():
+    # use only if you need to check headers
+    # mind where the logs of this container go since headers contain an API key
+    # app.logger.info(
+    #     "path: %s, method: %s, content-type: %s, content-encoding: %s, content-length: %s, headers: %s",
+    #     request.path, request.method, request.content_type, request.content_encoding, request.content_length, request.headers)
     app.logger.info(
         "path: %s, method: %s, content-type: %s, content-encoding: %s, content-length: %s",
         request.path, request.method, request.content_type, request.content_encoding, request.content_length)

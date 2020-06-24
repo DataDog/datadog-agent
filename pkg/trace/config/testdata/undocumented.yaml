@@ -5,6 +5,7 @@ apm_config:
   dd_agent_bin: /path/to/bin
   max_traces_per_second: 100.0
   max_events_per_second: 1000.0
+  connection_reset_interval: 120
   receiver_port: 25
   max_cpu_percent: 7
   max_connections: 50 # deprecated

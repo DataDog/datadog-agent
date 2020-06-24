@@ -38,6 +38,7 @@ type Agent struct {
 	Replacer           *filters.Replacer
 	ScoreSampler       *Sampler
 	ErrorsScoreSampler *Sampler
+	ExceptionSampler   *sampler.ExceptionSampler
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
 	TraceWriter        *writer.TraceWriter
@@ -71,12 +72,13 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
+		ExceptionSampler:   sampler.NewExceptionSampler(),
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
 		TraceWriter:        writer.NewTraceWriter(conf, out),
 		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
-		obfuscator:         newObfuscator(conf.Obfuscation),
+		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
 		Out:                out,
 		conf:               conf,
@@ -132,6 +134,7 @@ func (a *Agent) loop() {
 			a.TraceWriter.Stop()
 			a.StatsWriter.Stop()
 			a.ScoreSampler.Stop()
+			a.ExceptionSampler.Stop()
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
 			a.EventProcessor.Stop()
@@ -262,21 +265,35 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(pt ProcessedTrace) (sampled bool, rate float64) {
-	var sampledPriority, sampledScore bool
-	var ratePriority, rateScore float64
-
+func (a *Agent) runSamplers(pt ProcessedTrace) (bool, float64) {
 	if _, ok := pt.GetSamplingPriority(); ok {
-		sampledPriority, ratePriority = a.PrioritySampler.Add(pt)
+		return a.samplePriorityTrace(pt)
 	}
+	return a.sampleNoPriorityTrace(pt)
+}
 
+// samplePriorityTrace samples traces with priority set on them. PrioritySampler and
+// ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
+// or measured spans that are not caught by PrioritySampler and ErrorSampler.
+func (a *Agent) samplePriorityTrace(pt ProcessedTrace) (sampled bool, rate float64) {
+	sampledPriority, ratePriority := a.PrioritySampler.Add(pt)
 	if traceContainsError(pt.Trace) {
-		sampledScore, rateScore = a.ErrorsScoreSampler.Add(pt)
-	} else {
-		sampledScore, rateScore = a.ScoreSampler.Add(pt)
+		sampledError, rateError := a.ErrorsScoreSampler.Add(pt)
+		return sampledError || sampledPriority, sampler.CombineRates(ratePriority, rateError)
 	}
+	if sampled := a.ExceptionSampler.Add(pt.Env, pt.Root, pt.Trace); sampled {
+		return sampled, 1
+	}
+	return sampledPriority, ratePriority
+}
 
-	return sampledScore || sampledPriority, sampler.CombineRates(ratePriority, rateScore)
+// sampleNoPriorityTrace samples traces with no priority set on them. The traces
+// get sampled by either the score sampler or the error sampler if they have an error.
+func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) (sampled bool, rate float64) {
+	if traceContainsError(pt.Trace) {
+		return a.ErrorsScoreSampler.Add(pt)
+	}
+	return a.ScoreSampler.Add(pt)
 }
 
 func traceContainsError(trace pb.Trace) bool {
@@ -299,25 +316,4 @@ func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 	}
 
 	return event.NewProcessor(extractors, conf.MaxEPS)
-}
-
-func newObfuscator(cfg *config.ObfuscationConfig) *obfuscate.Obfuscator {
-	if cfg == nil {
-		return obfuscate.NewObfuscator(nil)
-	}
-	return obfuscate.NewObfuscator(&obfuscate.Config{
-		ES: obfuscate.JSONSettings{
-			Enabled:    cfg.ES.Enabled,
-			KeepValues: cfg.ES.KeepValues,
-		},
-		Mongo: obfuscate.JSONSettings{
-			Enabled:    cfg.Mongo.Enabled,
-			KeepValues: cfg.Mongo.KeepValues,
-		},
-		RemoveQueryString: cfg.HTTP.RemoveQueryString,
-		RemovePathDigits:  cfg.HTTP.RemovePathDigits,
-		RemoveStackTraces: cfg.RemoveStackTraces,
-		Redis:             cfg.Redis.Enabled,
-		Memcached:         cfg.Memcached.Enabled,
-	})
 }

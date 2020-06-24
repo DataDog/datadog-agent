@@ -64,8 +64,8 @@ func (f *RedactingWriter) WriteFromFile(filePath string) (int, error) {
 		return 0, err
 	}
 
-	f.Truncate(0)
-	f.target.Seek(0, 0) // offset, whence: 0 relative to start of file
+	f.Truncate(0)       //nolint:errcheck
+	f.target.Seek(0, 0) //nolint:errcheck // offset, whence: 0 relative to start of file
 	return f.Write(data)
 }
 

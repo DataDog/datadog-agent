@@ -22,30 +22,34 @@ func TestRandomizeMessages(t *testing.T) {
 	for i, tc := range []struct {
 		testName                                string
 		pCount, cCount, cProcs, maxSize, chunks int
+		containerHostType                       model.ContainerHostType
 	}{
 		{
-			testName: "no-containers",
-			pCount:   100,
-			cCount:   0,
-			cProcs:   0,
-			maxSize:  30,
-			chunks:   4,
+			testName:          "no-containers",
+			pCount:            100,
+			cCount:            0,
+			cProcs:            0,
+			maxSize:           30,
+			chunks:            4,
+			containerHostType: model.ContainerHostType_fargateECS,
 		},
 		{
-			testName: "no-processes",
-			pCount:   0,
-			cCount:   30,
-			cProcs:   0,
-			maxSize:  10,
-			chunks:   1,
+			testName:          "no-processes",
+			pCount:            0,
+			cCount:            30,
+			cProcs:            0,
+			maxSize:           10,
+			chunks:            1,
+			containerHostType: model.ContainerHostType_fargateEKS,
 		},
 		{
-			testName: "container-process-mixed-1",
-			pCount:   100,
-			cCount:   30,
-			cProcs:   60,
-			maxSize:  30,
-			chunks:   3,
+			testName:          "container-process-mixed-1",
+			pCount:            100,
+			cCount:            30,
+			cProcs:            60,
+			maxSize:           30,
+			chunks:            3,
+			containerHostType: model.ContainerHostType_notSpecified,
 		},
 		{
 			testName: "container-process-mixed-2",
@@ -84,13 +88,14 @@ func TestRandomizeMessages(t *testing.T) {
 			lastCtrRates := util.ExtractContainerRateMetric(ctrs)
 
 			cfg.MaxPerMessage = tc.maxSize
+			cfg.ContainerHostType = tc.containerHostType
 			processes := fmtProcesses(cfg, procsByPid, procsByPid, ctrs, syst2, syst1, lastRun)
 			containers := fmtContainers(ctrs, lastCtrRates, lastRun)
 			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, sysInfo, int32(i), "nid")
 
 			assert.Equal(t, totalProcs, tc.pCount)
 			assert.Equal(t, totalContainers, tc.cCount)
-			procMsgsVerification(t, messages, ctrs, procs, tc.maxSize)
+			procMsgsVerification(t, messages, ctrs, procs, tc.maxSize, cfg)
 		})
 	}
 }

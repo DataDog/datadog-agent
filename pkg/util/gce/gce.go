@@ -19,7 +19,6 @@ import (
 // declare these as vars not const to ease testing
 var (
 	metadataURL = "http://169.254.169.254/computeMetadata/v1"
-	timeout     = 300 * time.Millisecond
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "GCP"
@@ -35,6 +34,9 @@ func IsRunningOn() bool {
 
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	hostname, err := getResponseWithMaxLength(metadataURL+"/instance/hostname",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
@@ -45,10 +47,18 @@ func GetHostname() (string, error) {
 
 // GetHostAlias returns the host alias from GCE
 func GetHostAlias() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/name",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
-		return "", fmt.Errorf("unable to retrieve instance name from GCE: %s", err)
+		// If the endpoint is not reachable, fallback on the old way to get the alias
+		hostname, hostErr := GetHostname()
+		if hostErr != nil {
+			return "", fmt.Errorf("unable to retrieve instance name and hostname from GCE: %s", err)
+		}
+		instanceName = strings.SplitN(hostname, ".", 2)[0]
 	}
 
 	projectID, err := getResponseWithMaxLength(metadataURL+"/project/project-id",
@@ -61,6 +71,9 @@ func GetHostAlias() (string, error) {
 
 // GetClusterName returns the name of the cluster containing the current GCE instance
 func GetClusterName() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	clusterName, err := getResponseWithMaxLength(metadataURL+"/instance/attributes/cluster-name",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
@@ -73,6 +86,9 @@ func GetClusterName() (string, error) {
 // GCE instances, the the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
 func GetNetworkID() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	resp, err := getResponse(metadataURL + "/instance/network-interfaces/")
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve network-interfaces from GCE: %s", err)
@@ -117,7 +133,7 @@ func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
 
 func getResponse(url string) (string, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Timeout: time.Duration(config.Datadog.GetInt("gce_metadata_timeout")) * time.Millisecond,
 	}
 
 	req, err := http.NewRequest("GET", url, nil)

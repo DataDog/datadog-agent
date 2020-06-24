@@ -31,7 +31,7 @@ import (
 func main() {
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", telemetry.Handler())
-	go http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("metrics_port")), nil)
+	go http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("metrics_port")), nil) //nolint:errcheck
 
 	if err := app.ClusterAgentCmd.Execute(); err != nil {
 		log.Error(err)

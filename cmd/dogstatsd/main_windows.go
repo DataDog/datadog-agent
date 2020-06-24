@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows/registry"
@@ -94,12 +96,15 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 
 	log.Infof("Service control function")
 	importRegistryConfig()
-	mainCtx, mainCtxCancel, err := runAgent()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	err := runAgent(ctx)
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
+		stopAgent(cancel)
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
@@ -132,7 +137,7 @@ loop:
 	elog.Info(0x40000006, ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	stopAgent(mainCtx, mainCtxCancel)
+	stopAgent(cancel)
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }
@@ -307,6 +312,10 @@ func importRegistryConfig() error {
 	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
 		overrides["python_version"] = val
 		log.Debugf("Setting python version to %s", val)
+	}
+	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
+		overrides["hostname_fqdn"] = val
+		log.Debugf("Setting hostname_fqdn to %s", val)
 	}
 
 	// apply overrides to the config

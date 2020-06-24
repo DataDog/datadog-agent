@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/containerd/cgroups"
+	v1 "github.com/containerd/cgroups/stats/v1"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cio"
@@ -105,24 +105,24 @@ func TestImageSize(t *testing.T) {
 
 func TestTaskMetrics(t *testing.T) {
 	mockUtil := ContainerdUtil{}
-	typeurl.Register(&cgroups.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.
+	typeurl.Register(&v1.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.
 
 	tests := []struct {
 		name            string
 		typeURL         string
-		values          cgroups.Metrics
+		values          v1.Metrics
 		error           string
 		taskMetricError error
-		expected        *cgroups.Metrics
+		expected        *v1.Metrics
 	}{
 		{
 			"fully functional",
 			"io.containerd.cgroups.v1.Metrics",
-			cgroups.Metrics{Memory: &cgroups.MemoryStat{Cache: 100}},
+			v1.Metrics{Memory: &v1.MemoryStat{Cache: 100}},
 			"",
 			nil,
-			&cgroups.Metrics{
-				Memory: &cgroups.MemoryStat{
+			&v1.Metrics{
+				Memory: &v1.MemoryStat{
 					Cache: 100,
 				},
 			},
@@ -130,11 +130,11 @@ func TestTaskMetrics(t *testing.T) {
 		{
 			"type not registered",
 			"io.containerd.cgroups.v1.Doge",
-			cgroups.Metrics{Memory: &cgroups.MemoryStat{Cache: 10}},
+			v1.Metrics{Memory: &v1.MemoryStat{Cache: 10}},
 			"type with url io.containerd.cgroups.v1.Doge: not found",
 			nil,
-			&cgroups.Metrics{
-				Memory: &cgroups.MemoryStat{
+			&v1.Metrics{
+				Memory: &v1.MemoryStat{
 					Cache: 10,
 				},
 			},
@@ -142,18 +142,18 @@ func TestTaskMetrics(t *testing.T) {
 		{
 			"task does not exist",
 			"io.containerd.cgroups.v1.Metric",
-			cgroups.Metrics{},
+			v1.Metrics{},
 			"",
 			fmt.Errorf("no running task found"),
-			&cgroups.Metrics{},
+			&v1.Metrics{},
 		},
 		{
 			"task does not exist",
 			"io.containerd.cgroups.v1.Metric",
-			cgroups.Metrics{},
+			v1.Metrics{},
 			"",
 			fmt.Errorf("no metrics received"),
-			&cgroups.Metrics{},
+			&v1.Metrics{},
 		},
 	}
 	for _, test := range tests {
@@ -174,12 +174,12 @@ func TestTaskMetrics(t *testing.T) {
 				require.Equal(t, err.Error(), test.error)
 				return
 			}
-			require.Equal(t, test.expected, metricAny.(*cgroups.Metrics))
+			require.Equal(t, test.expected, metricAny.(*v1.Metrics))
 		})
 	}
 }
 
-func makeCtn(value cgroups.Metrics, typeURL string, taskMetricsError error) containerd.Container {
+func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {
 	taskStruct := &mockTaskStruct{
 		mockMectric: func(ctx context.Context) (*types.Metric, error) {
 			typeURL := typeURL

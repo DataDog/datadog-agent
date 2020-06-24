@@ -8,12 +8,31 @@ import sys
 import os
 import re
 import time
+import yaml
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from .dogstatsd import DOGSTATSD_TAG
 
+def retry_run(ctx, *args, **kwargs):
+    remaining_retries = 5
+    while True:
+        warn = True
+        if remaining_retries == 0:
+            warn = False
+
+        r = ctx.run(*args, warn=warn, **kwargs)
+
+        if r.ok:
+            return r
+
+        # Pause between retries. Hope it helps.
+        time.sleep(5)
+
+        remaining_retries -= 1
+
+    return r
 
 @task
 def test(ctx):
@@ -115,7 +134,7 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
     """
     if dst_tag == "auto":
         # Autogenerate tag
-        match = re.search('([^:\/\s]+):[v]?(.*)$', src_image)
+        match = re.search(r'([^:\/\s]+):[v]?(.*)$', src_image)
         if not match:
             print("Cannot guess destination tag for {}, please provide a --dst-tag option".format(src_image))
             raise Exit(code=1)
@@ -140,26 +159,12 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     push_env = {}
     if signed_push:
         push_env["DOCKER_CONTENT_TRUST"] = "1"
-    remaining_retries = 5
-    while True:
-        warn = True
-        if remaining_retries == 0:
-            warn = False
+    retry_run(ctx, "docker push {dst}".format(dst=dst),
+              env=push_env,
+    )
 
-        r = ctx.run(
-            "docker push {dst}".format(dst=dst),
-            env=push_env,
-            warn=warn
-        )
+    ctx.run("docker rmi {src} {dst}".format(src=src, dst=dst))
 
-        if r.ok:
-            break
-
-        # docker push might have failed because of a notary temporary error.
-        # Let give some time to the server to recover by itself before making a new attempt.
-        time.sleep(5)
-
-        remaining_retries -= 1
 
 @task(iterable=['platform'])
 def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
@@ -180,8 +185,8 @@ def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
 
         publish(ctx, evalTemplate(src_template), evalTemplate(dst_template), signed_push=signed_push)
 
-@task(iterable=['platform'])
-def publish_manifest(ctx, name, tag, template, platform, signed_push=False):
+@task(iterable=['image'])
+def publish_manifest(ctx, name, tag, image, signed_push=False):
     """
     Publish a manifest referencing image names matching the specified pattern.
     In that pattern, OS and ARCH strings are replaced, if found, by corresponding
@@ -189,36 +194,66 @@ def publish_manifest(ctx, name, tag, template, platform, signed_push=False):
     a set of image references more easily. See the manifest tool documentation for
     further details: https://github.com/estesp/manifest-tool.
     """
-    platforms = ",".join(platform)
-    print("Publishing {}:{} for platforms {}".format(name, tag, platforms))
+    manifest_spec = {
+        "image": "{}:{}".format(name, tag)
+    }
+    src_images = []
 
-    # Create the manifest referencing platform-specific images
-    cmd = "manifest-tool push from-args --template {} --platforms {} --target {}:{}"
-    result = ctx.run(cmd.format(template, platforms, name, tag))
-    if result.stdout:
-        out = result.stdout.split('\n')[0]
-        fields = out.split(" ")
-
-        if len(fields) != 3:
-            print("Unexpected output when invoking manifest-tool")
+    for img in image:
+        img_splitted = img.replace(' ', '').split(',')
+        if len(img_splitted) != 2:
+            print("Impossible to parse source format for: '{}'".format(img))
             raise Exit(code=1)
 
-        digest_fields = fields[1].split(":")
-
-        if len(digest_fields) != 2 or digest_fields[0] != "sha256":
-            print("Unexpected digest format in manifest-tool output")
+        platform_splitted = img_splitted[1].split('/')
+        if len(platform_splitted) != 2:
+            print("Impossible to parse platform format for: '{}'".format(img))
             raise Exit(code=1)
 
-        digest = digest_fields[1]
-        length = fields[2]
+        src_images.append({
+            "image": img_splitted[0],
+            "platform": {
+                "architecture": platform_splitted[1],
+                "os": platform_splitted[0]
+            }
+        })
+    manifest_spec["manifests"] = src_images
 
-    if signed_push:
-        cmd = """
-        notary -s https://notary.docker.io -d {home}/.docker/trust addhash \
-            -p docker.io/{name} {tag} {length} --sha256 {sha256} \
-            -r targets/releases
-        """
-        ctx.run(cmd.format(home=os.environ.get("HOME"), name=name, tag=tag, length=length, sha256=digest))
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        temp_file_path = f.name
+        yaml.dump(manifest_spec, f, default_flow_style=False)
+
+    print("Using temp file: {}".format(temp_file_path))
+    ctx.run("cat {}".format(temp_file_path))
+
+    try:
+        result = retry_run(ctx, "manifest-tool push from-spec {}".format(temp_file_path))
+        if result.stdout:
+            out = result.stdout.split('\n')[0]
+            fields = out.split(" ")
+
+            if len(fields) != 3:
+                print("Unexpected output when invoking manifest-tool")
+                raise Exit(code=1)
+
+            digest_fields = fields[1].split(":")
+
+            if len(digest_fields) != 2 or digest_fields[0] != "sha256":
+                print("Unexpected digest format in manifest-tool output")
+                raise Exit(code=1)
+
+            digest = digest_fields[1]
+            length = fields[2]
+
+        if signed_push:
+            cmd = """
+            notary -s https://notary.docker.io -d {home}/.docker/trust addhash \
+                -p docker.io/{name} {tag} {length} --sha256 {sha256} \
+                -r targets/releases
+            """
+            retry_run(ctx, cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
+    finally:
+        os.remove(temp_file_path)
 
 @task
 def delete(ctx, org, image, tag, token):

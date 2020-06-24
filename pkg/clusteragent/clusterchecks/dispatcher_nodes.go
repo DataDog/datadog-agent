@@ -131,6 +131,7 @@ func (d *dispatcher) expireNodes() {
 			nodeAgents.Dec()
 			dispatchedConfigs.Delete(name)
 			statsCollectionFails.Delete(name)
+			busyness.Delete(name)
 		}
 		node.RUnlock()
 	}
@@ -182,6 +183,7 @@ func (d *dispatcher) updateRunnersStats() {
 		log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, stats)
 		node.busyness = calculateBusyness(stats)
 		log.Debugf("Updated busyness on node: %s, node IP: %s, busyness value: %d", name, node.clientIP, node.busyness)
+		busyness.Set(float64(node.busyness), node.name)
 		node.Unlock()
 	}
 }

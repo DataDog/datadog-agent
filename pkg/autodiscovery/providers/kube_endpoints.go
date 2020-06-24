@@ -54,6 +54,7 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
@@ -74,6 +75,7 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
 	}
+
 	p.endpointsLister = endpointsInformer.Lister()
 
 	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

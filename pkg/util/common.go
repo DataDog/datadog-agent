@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -81,6 +82,41 @@ func CopyFileAll(src, dst string) error {
 	}
 
 	return CopyFile(src, dst)
+}
+
+// CopyDir copies directory recursively
+func CopyDir(src, dst string) error {
+	var (
+		err     error
+		fds     []os.FileInfo
+		srcinfo os.FileInfo
+	)
+
+	if srcinfo, err = os.Stat(src); err != nil {
+		return err
+	}
+
+	if err = os.MkdirAll(dst, srcinfo.Mode()); err != nil {
+		return err
+	}
+
+	if fds, err = ioutil.ReadDir(src); err != nil {
+		return err
+	}
+	for _, fd := range fds {
+		s := path.Join(src, fd.Name())
+		d := path.Join(dst, fd.Name())
+
+		if fd.IsDir() {
+			err = CopyDir(s, d)
+		} else {
+			err = CopyFile(s, d)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // EnsureParentDirsExist makes a path immediately available for

@@ -4,13 +4,10 @@ Miscellaneous functions, no tasks here
 from __future__ import print_function
 
 import os
-import platform
 import re
 import sys
 import json
 from subprocess import check_output
-
-import invoke
 
 
 # constants
@@ -61,7 +58,7 @@ def get_win_py_runtime_var(python_runtimes):
 
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
                     rtloader_root=None, python_home_2=None, python_home_3=None,
-                    major_version='7', python_runtimes='3', arch="x64"):
+                    major_version='7', python_runtimes='3', arch="x64", agent_flavor="agent"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -70,7 +67,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     """
     gcflags = ""
     ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
-    env = {}
+    env = {"GO111MODULE":"on"}
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
@@ -93,6 +90,8 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
         ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
 
     ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python(python_runtimes))
+
+    ldflags += "-X {}/pkg/config.AgentFlavor={} ".format(REPO_PATH, agent_flavor)
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -122,37 +121,25 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
 
 def get_payload_version():
     """
-    Return the Agent payload version found in the Gopkg.toml file.
+    Return the Agent payload version (`x.y.z`) found in the go.mod file.
     """
-    current = {}
-
-    # parse the TOML file line by line
-    with open("Gopkg.lock") as toml:
-        for line in toml.readlines():
-            # skip empty lines and comments
-            if not line or line[0] == "#":
+    with open('go.mod') as f:
+        for rawline in f:
+            line = rawline.strip()
+            whitespace_split = line.split(" ")
+            if len(whitespace_split) < 2:
                 continue
+            pkgname = whitespace_split[0]
+            if pkgname == "github.com/DataDog/agent-payload":
+                comment_split = line.split("//")
+                if len(comment_split) < 2:
+                    raise Exception("Versioning of agent-payload in go.mod has changed, the version logic needs to be updated")
+                version = comment_split[1].strip()
+                if not re.search(r"^\d+(\.\d+){2}$", version):
+                    raise Exception("Version of agent-payload in go.mod is invalid: '{}'".format(version))
+                return version
 
-            # change the parser "state" when we find a [[projects]] section
-            if "[[projects]]" in line:
-                # see if the current section is what we're searching for
-                if current.get("name") == "github.com/DataDog/agent-payload":
-                    return current.get("version")
-
-                # if not, reset the "state" and proceed with the next line
-                current = {}
-                continue
-
-            # search for an assignment, ignore subsequent `=` chars
-            toks = line.split('=', 2)
-            if len(toks) == 2:
-                # strip whitespaces
-                key = toks[0].strip()
-                # strip whitespaces and quotes
-                value = toks[-1].replace('"', '').strip()
-                current[key] = value
-
-    return ""
+    raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 def get_version_ldflags(ctx, prefix=None, major_version='7'):
     """
@@ -211,7 +198,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
         cmd += " --match \"{}-*\"".format(prefix)
     else:
         if major_version_hint:
-            cmd += " --match \"{}\.*\"".format(major_version_hint)
+            cmd += r' --match "{}\.*"'.format(major_version_hint)
         else:
             cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
@@ -280,16 +267,3 @@ def load_release_versions(ctx, target_version):
             # environment when running a subprocess.
             return {str(k):str(v) for k, v in versions[target_version].items()}
     raise Exception("Could not find '{}' version in release.json".format(target_version))
-
-def check_go111module_envvar(command):
-    """
-    Test if the GO111MODULE environment variable is set to on; if so, stop
-    the build because the Datadog Agent can't be built with go modules.
-    """
-
-    if os.environ.get("GO111MODULE") != None and os.environ.get("GO111MODULE") == "on":
-        print("The environment variable GO111MODULE is set to 'on' in your environment.")
-        print("The Datadog Agent is not using Go modules yet and can't be built with Go modules enabled.")
-        print("Please unset the environment variable or call the invoke task with GO111MODULE set to off. E.g.")
-        print("\tGO111MODULE=off invoke " + command)
-        raise invoke.exceptions.Exit(code=-1, message="The Datadog Agent is not compatible with Go modules yet, GO111MODULE should not be set to 'on'.")

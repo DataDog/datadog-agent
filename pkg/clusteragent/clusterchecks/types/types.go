@@ -66,4 +66,5 @@ type CLCRunnerStats struct {
 	AverageExecutionTime int  `json:"AverageExecutionTime"`
 	MetricSamples        int  `json:"MetricSamples"`
 	IsClusterCheck       bool `json:"IsClusterCheck"`
+	LastExecFailed       bool `json:"LastExecFailed"`
 }

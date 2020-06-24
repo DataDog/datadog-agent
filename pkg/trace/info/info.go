@@ -350,7 +350,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// these parameters. We display the port as a hint on where to
 		// debug further, this is where the expvar JSON should come from.
 		program, banner := getProgramBanner(Version)
-		_ = notRunningTmpl.Execute(w, struct {
+		notRunningTmpl.Execute(w, struct {
 			Banner       string
 			Program      string
 			ReceiverPort int
@@ -362,7 +362,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		return err
 	}
 
-	defer resp.Body.Close() // OK to defer, this is not on hot path
+	defer resp.Body.Close()
 
 	var info StatusInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
@@ -409,10 +409,9 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 
 	cleanInfo := CleanInfoExtraLines(buffer.String())
 
-	w.Write([]byte(cleanInfo))
-	// w.Write(buffer.Bytes())
+	_, err = w.Write([]byte(cleanInfo))
 
-	return nil
+	return err
 }
 
 // CleanInfoExtraLines removes empty lines from template code indentation.

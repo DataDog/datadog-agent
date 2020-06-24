@@ -32,6 +32,9 @@ monitoring and performance data.`,
 	// file, to allow overrides from the command line
 	confFilePath string
 	flagNoColor  bool
+	// sysProbeConfFilePath holds the path to the folder containing the system-probe
+	// configuration file, to allow overrides from the command line
+	sysProbeConfFilePath string
 )
 
 // loggerName is the name of the core agent logger
@@ -40,4 +43,5 @@ const loggerName config.LoggerName = "CORE"
 func init() {
 	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	AgentCmd.PersistentFlags().StringVarP(&sysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 }

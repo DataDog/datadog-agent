@@ -1,17 +1,16 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -20,12 +19,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
+type checkResult struct {
+	name        string
+	payloads    []checkPayload
+	sizeInBytes int64
+}
+
+func (cr *checkResult) Weight() int64 {
+	return cr.sizeInBytes
+}
+
+func (cr *checkResult) Type() string {
+	return cr.name
+}
+
+var _ api.WeightedItem = &checkResult{}
+
 type checkPayload struct {
-	messages []model.MessageBody
-	endpoint string
-	name     string
+	body    []byte
+	headers http.Header
 }
 
 // Collector will collect metrics from the local system and ship to the backend.
@@ -36,10 +52,8 @@ type Collector struct {
 
 	groupID int32
 
-	send         chan checkPayload
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
-	httpClient   http.Client
 
 	// counters for each type of check
 	runCounters   sync.Map
@@ -64,52 +78,92 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		}
 	}
 
+	return NewCollectorWithChecks(cfg, enabledChecks), nil
+}
+
+// NewCollectorWithChecks creates a new Collector
+func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Collector {
 	return Collector{
-		send:          make(chan checkPayload, cfg.QueueSize),
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
 		groupID:       rand.Int31(),
-		httpClient:    http.Client{Timeout: HTTPTimeout, Transport: cfg.Transport},
-		enabledChecks: enabledChecks,
+		enabledChecks: checks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  0,
-	}, nil
+	}
 }
 
-func (l *Collector) runCheck(c checks.Check) {
+func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	runCounter := int32(1)
 	if rc, ok := l.runCounters.Load(c.Name()); ok {
 		runCounter = rc.(int32) + 1
 	}
 	l.runCounters.Store(c.Name(), runCounter)
 
-	s := time.Now()
+	start := time.Now()
 	// update the last collected timestamp for info
-	updateLastCollectTime(time.Now())
+	updateLastCollectTime(start)
 	messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
-	} else {
-		l.send <- checkPayload{messages, c.Endpoint(), c.Name()}
-		// update proc and container count for info
-		updateProcContainerCount(messages)
-		if !c.RealTime() {
-			d := time.Since(s)
-			switch {
-			case runCounter < 5:
-				log.Infof("Finished %s check #%d in %s", c.Name(), runCounter, d)
-			case runCounter == 5:
-				log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", c.Name(), runCounter, d)
-			case runCounter%20 == 0:
-				log.Infof("Finish %s check #%d in %s", c.Name(), runCounter, d)
-			}
+		return
+	}
+
+	payloads := make([]checkPayload, 0, len(messages))
+	sizeInBytes := 0
+
+	for _, m := range messages {
+		body, err := encodePayload(m)
+		if err != nil {
+			log.Errorf("Unable to encode message: %s", err)
+			continue
+		}
+
+		extraHeaders := make(http.Header)
+		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(start.Unix())))
+		extraHeaders.Set(api.HostHeader, l.cfg.HostName)
+		extraHeaders.Set(api.ProcessVersionHeader, Version)
+		extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+
+		if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+			extraHeaders.Set(api.ClusterIDHeader, cid)
+		}
+
+		payloads = append(payloads, checkPayload{
+			body:    body,
+			headers: extraHeaders,
+		})
+
+		sizeInBytes += len(body)
+	}
+
+	result := &checkResult{
+		name:        c.Name(),
+		payloads:    payloads,
+		sizeInBytes: int64(sizeInBytes),
+	}
+
+	results.Add(result)
+
+	// update proc and container count for info
+	updateProcContainerCount(messages)
+
+	if !c.RealTime() {
+		d := time.Since(start)
+		switch {
+		case runCounter < 5:
+			log.Infof("Finished %s check #%d in %s", c.Name(), runCounter, d)
+		case runCounter == 5:
+			log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", c.Name(), runCounter, d)
+		case runCounter%20 == 0:
+			log.Infof("Finish %s check #%d in %s", c.Name(), runCounter, d)
 		}
 	}
 }
 
-func (l *Collector) run(exit chan bool) {
+func (l *Collector) run(exit chan struct{}) error {
 	eps := make([]string, 0, len(l.cfg.APIEndpoints))
 	for _, e := range l.cfg.APIEndpoints {
 		eps = append(eps, e.Endpoint.String())
@@ -121,39 +175,82 @@ func (l *Collector) run(exit chan bool) {
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
 	go util.HandleSignals(exit)
-	heartbeat := time.NewTicker(15 * time.Second)
-	queueSizeTicker := time.NewTicker(10 * time.Second)
+
+	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
+	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.PodQueueBytes))
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
+		heartbeat := time.NewTicker(15 * time.Second)
+		defer heartbeat.Stop()
+
+		queueSizeTicker := time.NewTicker(10 * time.Second)
+		defer queueSizeTicker.Stop()
+
 		tags := []string{
 			fmt.Sprintf("version:%s", Version),
 			fmt.Sprintf("revision:%s", GitCommit),
 		}
 		for {
 			select {
-			case payload := <-l.send:
-				if len(l.send) >= l.cfg.QueueSize {
-					log.Info("Expiring payload from in-memory queue.")
-					// Limit number of items kept in memory while we wait.
-					<-l.send
-				}
-				for _, m := range payload.messages {
-					l.postMessage(payload.endpoint, payload.name, m)
-				}
 			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
+				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueSize(l.send)
+				updateQueueBytes(processResults.Weight(), podResults.Weight())
+				updateQueueSize(processResults.Len(), podResults.Len())
 			case <-exit:
 				return
 			}
 		}
 	}()
 
+	processForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.APIEndpoints))
+	processForwarderOpts.DisableAPIKeyChecking = true
+	processForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
+	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+
+	podForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.OrchestratorEndpoints))
+	podForwarderOpts.DisableAPIKeyChecking = true
+	podForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
+	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
+
+	if err := processForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting forwarder: %s", err)
+	}
+
+	if err := podForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting pod forwarder: %s", err)
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.consumePayloads(processResults, processForwarder, exit)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.consumePayloads(podResults, podForwarder, exit)
+	}()
+
 	for _, c := range l.enabledChecks {
-		go func(c checks.Check) {
+		results := processResults
+		if c.Name() == checks.Pod.Name() {
+			results = podResults
+		}
+
+		wg.Add(1)
+		go func(c checks.Check, results *api.WeightedQueue) {
+			defer wg.Done()
+
 			// Run the check the first time to prime the caches.
 			if !c.RealTime() {
-				l.runCheck(c)
+				l.runCheck(c, results)
 			}
 
 			ticker := time.NewTicker(l.cfg.CheckInterval(c.Name()))
@@ -162,7 +259,7 @@ func (l *Collector) run(exit chan bool) {
 				case <-ticker.C:
 					realTimeEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
 					if !c.RealTime() || realTimeEnabled {
-						l.runCheck(c)
+						l.runCheck(c, results)
 					}
 				case d := <-l.rtIntervalCh:
 					// Live-update the ticker.
@@ -176,62 +273,56 @@ func (l *Collector) run(exit chan bool) {
 					}
 				}
 			}
-		}(c)
+		}(c, results)
 	}
+
 	<-exit
+	wg.Wait()
+
+	processForwarder.Stop()
+	podForwarder.Stop()
+	return nil
 }
 
-func (l *Collector) postMessage(checkPath string, checkName string, m model.MessageBody) {
-	msgType, err := model.DetectMessageType(m)
-	if err != nil {
-		log.Errorf("Unable to detect message type: %s", err)
-		return
-	}
-
-	body, err := model.EncodeMessage(model.Message{
-		Header: model.MessageHeader{
-			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingZstdPB,
-			Type:     msgType,
-		}, Body: m})
-	if err != nil {
-		log.Errorf("Unable to encode message: %s", err)
-	}
-
-	containerCount := getContainerCount(m)
-
-	responses := make(chan postResponse)
-	endpoints := l.endpointsForCheck(checkName)
-	for _, ep := range endpoints {
-		go l.postToAPI(ep, checkPath, body, responses, containerCount)
-	}
-
-	// Wait for all responses to come back before moving on.
-	statuses := make([]*model.CollectorStatus, 0, len(endpoints))
-	for i := 0; i < len(endpoints); i++ {
-		url := endpoints[i].Endpoint.String()
-		res := <-responses
-		if res.err != nil {
-			log.Error(res.err)
-			continue
+func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder, exit chan struct{}) {
+	for {
+		// results.Poll() will block until either `exit` is closed, or an item is available on the queue (a check run occurs and adds data)
+		item, ok := results.Poll(exit)
+		if !ok {
+			return
 		}
+		result := item.(*checkResult)
+		for _, payload := range result.payloads {
+			forwarderPayload := forwarder.Payloads{&payload.body}
+			var responses chan forwarder.Response
+			var err error
 
-		r := res.msg
-		switch r.Header.Type {
-		case model.TypeResCollector:
-			rm := r.Body.(*model.ResCollector)
-			if len(rm.Message) > 0 {
-				log.Errorf("error in response from %s: %s", url, rm.Message)
-			} else {
-				statuses = append(statuses, rm.Status)
+			switch result.name {
+			case checks.Process.Name():
+				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
+			case checks.RTProcess.Name():
+				responses, err = fwd.SubmitRTProcessChecks(forwarderPayload, payload.headers)
+			case checks.Container.Name():
+				responses, err = fwd.SubmitContainerChecks(forwarderPayload, payload.headers)
+			case checks.RTContainer.Name():
+				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
+			case checks.Connections.Name():
+				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
+			case checks.Pod.Name():
+				responses, err = fwd.SubmitPodChecks(forwarderPayload, payload.headers)
+			default:
+				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}
-		default:
-			log.Errorf("unexpected response type from %s: %d", url, r.Header.Type)
-		}
-	}
 
-	if len(statuses) > 0 {
-		l.updateStatus(statuses)
+			if err != nil {
+				log.Errorf("Unable to submit payload: %s", err)
+				continue
+			}
+
+			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
+				l.updateStatus(statuses)
+			}
+		}
 	}
 }
 
@@ -243,8 +334,12 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 	// only set if we're trying to limit load on the backend.
 	shouldEnableRT := false
 	maxInterval := 0 * time.Second
+	activeClients := int32(0)
 	for _, s := range statuses {
 		shouldEnableRT = shouldEnableRT || (s.ActiveClients > 0 && l.cfg.AllowRealTime)
+		if s.ActiveClients > 0 {
+			activeClients += s.ActiveClients
+		}
 		interval := time.Duration(s.Interval) * time.Second
 		if interval > maxInterval {
 			maxInterval = interval
@@ -255,7 +350,7 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 		log.Info("Detected 0 clients, disabling real-time mode")
 		atomic.StoreInt32(&l.realTimeEnabled, 0)
 	} else if !curEnabled && shouldEnableRT {
-		log.Info("Detected active clients, enabling real-time mode")
+		log.Infof("Detected %d active clients, enabling real-time mode", activeClients)
 		atomic.StoreInt32(&l.realTimeEnabled, 1)
 	}
 
@@ -273,86 +368,6 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 	}
 }
 
-type postResponse struct {
-	msg model.Message
-	err error
-}
-
-func errResponse(format string, a ...interface{}) postResponse {
-	return postResponse{err: fmt.Errorf(format, a...)}
-}
-
-func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, containerCount int) {
-	url := endpoint.GetCheckURL(checkPath)
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
-	if err != nil {
-		responses <- errResponse("could not create request to %s: %s", url, err)
-		return
-	}
-
-	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
-	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
-	req.Header.Add("X-Dd-Processagentversion", Version)
-	req.Header.Add("X-Dd-ContainerCount", strconv.Itoa(containerCount))
-
-	ctx, cancel := context.WithTimeout(context.Background(), ReqCtxTimeout)
-	defer cancel()
-	req.WithContext(ctx)
-
-	resp, err := l.httpClient.Do(req)
-	if err != nil {
-		if isHTTPTimeout(err) {
-			responses <- errResponse("Timeout detected on %s, %s", url, err)
-		} else {
-			responses <- errResponse("Error submitting payload to %s: %s", url, err)
-		}
-		return
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode > 300 {
-		responses <- errResponse("unexpected response from %s. Status: %s", url, resp.Status)
-		io.Copy(ioutil.Discard, resp.Body)
-		return
-	}
-
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		responses <- errResponse("could not decode response body from %s: %s", url, err)
-		return
-	}
-
-	r, err := model.DecodeMessage(body)
-	if err != nil {
-		responses <- errResponse("could not decode message from %s: %s", url, err)
-	}
-	responses <- postResponse{r, err}
-}
-
-func (l *Collector) endpointsForCheck(checkName string) []config.APIEndpoint {
-	if checkName == checks.Pod.Name() {
-		return l.cfg.OrchestratorEndpoints
-	}
-	return l.cfg.APIEndpoints
-}
-
-const (
-	// HTTPTimeout is the timeout in seconds for process-agent to send process payloads to DataDog
-	HTTPTimeout = 20 * time.Second
-	// ReqCtxTimeout is the timeout in seconds for process-agent to cancel POST request using context timeout
-	ReqCtxTimeout = 30 * time.Second
-)
-
-// IsTimeout returns true if the error is due to reaching the timeout limit on the http.client
-func isHTTPTimeout(err error) bool {
-	if netErr, ok := err.(interface {
-		Timeout() bool
-	}); ok && netErr.Timeout() {
-		return true
-	}
-	return false
-}
-
 // getContainerCount returns the number of containers in the message body
 func getContainerCount(mb model.MessageBody) int {
 	switch v := mb.(type) {
@@ -368,4 +383,70 @@ func getContainerCount(mb model.MessageBody) int {
 		return 0
 	}
 	return 0
+}
+
+func readResponseStatuses(checkName string, responses <-chan forwarder.Response) []*model.CollectorStatus {
+	var statuses []*model.CollectorStatus
+
+	for response := range responses {
+		if response.Err != nil {
+			log.Errorf("[%s] Error from %s: %s", checkName, response.Domain, response.Err)
+			continue
+		}
+
+		if response.StatusCode >= 300 {
+			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
+			continue
+		}
+
+		r, err := model.DecodeMessage(response.Body)
+		if err != nil {
+			log.Errorf("[%s] Could not decode response body: %s", checkName, err)
+			continue
+		}
+
+		switch r.Header.Type {
+		case model.TypeResCollector:
+			rm := r.Body.(*model.ResCollector)
+			if len(rm.Message) > 0 {
+				log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
+			} else {
+				statuses = append(statuses, rm.Status)
+			}
+		default:
+			log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
+		}
+	}
+
+	return statuses
+}
+
+func encodePayload(m model.MessageBody) ([]byte, error) {
+	msgType, err := model.DetectMessageType(m)
+	if err != nil {
+		return nil, fmt.Errorf("unable to detect message type: %s", err)
+	}
+
+	return model.EncodeMessage(model.Message{
+		Header: model.MessageHeader{
+			Version:  model.MessageV3,
+			Encoding: model.MessageEncodingZstdPB,
+			Type:     msgType,
+		}, Body: m})
+}
+
+func keysPerDomains(endpoints []api.Endpoint) map[string][]string {
+	keysPerDomains := make(map[string][]string)
+
+	for _, ep := range endpoints {
+		domain := removePathIfPresent(ep.Endpoint)
+		keysPerDomains[domain] = append(keysPerDomains[domain], ep.APIKey)
+	}
+
+	return keysPerDomains
+}
+
+// removePathIfPresent removes the path component from the URL if it is present
+func removePathIfPresent(url *url.URL) string {
+	return fmt.Sprintf("%s://%s", url.Scheme, url.Host)
 }

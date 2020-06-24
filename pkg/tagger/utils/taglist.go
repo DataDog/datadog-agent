@@ -74,8 +74,8 @@ func (l *TagList) AddAuto(name, value string) {
 	l.AddLow(name, value)
 }
 
-// Compute returns two string arrays in the format "tag:value"
-// first array is low cardinality tags, second is high card ones
+// Compute returns three string arrays in the format ["tag0:value0", "tag1:value1"]:
+// low cardinality, orchestrator cardinality, and high cardinality tags
 func (l *TagList) Compute() ([]string, []string, []string) {
 	low := make([]string, len(l.lowCardTags))
 	orchestrator := make([]string, len(l.orchestratorCardTags))

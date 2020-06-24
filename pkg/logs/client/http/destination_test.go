@@ -22,6 +22,7 @@ type HTTPServerTest struct {
 	httpServer  *httptest.Server
 	destCtx     *client.DestinationsContext
 	destination *Destination
+	endpoint    config.Endpoint
 }
 
 func NewHTTPServerTest(statusCode int) *HTTPServerTest {
@@ -32,16 +33,18 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 	port, _ := strconv.Atoi(url[2])
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
-	dest := NewDestination(config.Endpoint{
+	endpoint := config.Endpoint{
 		APIKey: "test",
 		Host:   strings.Replace(url[1], "/", "", -1),
 		Port:   port,
 		UseSSL: false,
-	}, JSONContentType, destCtx)
+	}
+	dest := NewDestination(endpoint, JSONContentType, destCtx)
 	return &HTTPServerTest{
 		httpServer:  ts,
 		destCtx:     destCtx,
 		destination: dest,
+		endpoint:    endpoint,
 	}
 }
 
@@ -102,5 +105,19 @@ func TestDestinationSend400(t *testing.T) {
 	_, ok := err.(*client.RetryableError)
 	assert.False(t, ok)
 	assert.Equal(t, "client error", err.Error())
+	server.stop()
+}
+
+func TestConnectivityCheck(t *testing.T) {
+	// Connectivity is ok when server return 200
+	server := NewHTTPServerTest(200)
+	connectivity := CheckConnectivity(server.endpoint)
+	assert.Equal(t, config.HTTPConnectivitySuccess, connectivity)
+	server.stop()
+
+	// Connectivity is ok when server return 500
+	server = NewHTTPServerTest(500)
+	connectivity = CheckConnectivity(server.endpoint)
+	assert.Equal(t, config.HTTPConnectivityFailure, connectivity)
 	server.stop()
 }

@@ -39,9 +39,9 @@ type Stats struct {
 	MetricSamples        int64
 	Events               int64
 	ServiceChecks        int64
-	TotalMetricSamples   int64
-	TotalEvents          int64
-	TotalServiceChecks   int64
+	TotalMetricSamples   uint64
+	TotalEvents          uint64
+	TotalServiceChecks   uint64
 	ExecutionTimes       [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
 	AverageExecutionTime int64     // average run duration
 	LastExecutionTime    int64     // most recent run duration, provided for convenience
@@ -113,29 +113,23 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 
 	if m, ok := metricStats["MetricSamples"]; ok {
 		cs.MetricSamples = m
-		if cs.TotalMetricSamples <= 1000001 {
-			cs.TotalMetricSamples += m
-			if cs.telemetry {
-				tlmMetricsSamples.Add(float64(m), cs.CheckName)
-			}
+		cs.TotalMetricSamples += uint64(m)
+		if cs.telemetry {
+			tlmMetricsSamples.Add(float64(m), cs.CheckName)
 		}
 	}
 	if ev, ok := metricStats["Events"]; ok {
 		cs.Events = ev
-		if cs.TotalEvents <= 1000001 {
-			cs.TotalEvents += ev
-			if cs.telemetry {
-				tlmEvents.Add(float64(ev), cs.CheckName)
-			}
+		cs.TotalEvents += uint64(ev)
+		if cs.telemetry {
+			tlmEvents.Add(float64(ev), cs.CheckName)
 		}
 	}
 	if sc, ok := metricStats["ServiceChecks"]; ok {
 		cs.ServiceChecks = sc
-		if cs.TotalServiceChecks <= 1000001 {
-			cs.TotalServiceChecks += sc
-			if cs.telemetry {
-				tlmServices.Add(float64(sc), cs.CheckName)
-			}
+		cs.TotalServiceChecks += uint64(sc)
+		if cs.telemetry {
+			tlmServices.Add(float64(sc), cs.CheckName)
 		}
 	}
 }

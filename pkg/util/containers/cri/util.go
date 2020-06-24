@@ -88,7 +88,7 @@ func GetUtil() (*CRIUtil, error) {
 			connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
 			socketPath:        config.Datadog.GetString("cri_socket_path"),
 		}
-		globalCRIUtil.initRetry.SetupRetrier(&retry.Config{
+		globalCRIUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "criutil",
 			AttemptMethod:     globalCRIUtil.init,
 			Strategy:          retry.Backoff,

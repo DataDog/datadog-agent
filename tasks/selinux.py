@@ -3,7 +3,6 @@ SELinux namespaced tasks
 """
 import os
 
-import invoke
 from invoke import task
 
 DEFAULT_SYSPROBE_POLICY_TE_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "cmd", "agent", "selinux", "system_probe_policy.te")

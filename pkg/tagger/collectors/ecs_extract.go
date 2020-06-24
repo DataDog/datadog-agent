@@ -10,6 +10,7 @@ package collectors
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
@@ -33,7 +34,10 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 				tags.AddLow("ecs_container_name", container.Name)
 
 				if c.clusterName != "" {
-					tags.AddLow("cluster_name", c.clusterName)
+					if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+						tags.AddLow("cluster_name", c.clusterName)
+					}
+					tags.AddLow("ecs_cluster_name", c.clusterName)
 				}
 
 				for _, fn := range containerHandlers {

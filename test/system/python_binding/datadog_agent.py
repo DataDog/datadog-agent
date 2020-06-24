@@ -3,8 +3,6 @@
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2016-2020 Datadog, Inc.
 import unittest
-import sys
-import socket
 import datadog_agent
 
 

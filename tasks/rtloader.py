@@ -3,7 +3,6 @@ RtLoader namespaced tasks
 """
 import os
 import shutil
-import os
 import errno
 
 from invoke import task

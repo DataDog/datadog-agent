@@ -25,7 +25,7 @@ func TestReportIOMetrics(t *testing.T) {
 	tags := []string{"constant:tags", "container_name:dummy"}
 
 	// Test fallback to sums when per-device is not available
-	ioSum := &cmetrics.CgroupIOStat{
+	ioSum := &cmetrics.ContainerIOStats{
 		ReadBytes:  uint64(38989367),
 		WriteBytes: uint64(671846455),
 	}
@@ -34,7 +34,7 @@ func TestReportIOMetrics(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(671846455), "", tags)
 
 	// Test per-device when available
-	ioPerDevice := &cmetrics.CgroupIOStat{
+	ioPerDevice := &cmetrics.ContainerIOStats{
 		ReadBytes:  uint64(38989367),
 		WriteBytes: uint64(671846455),
 		DeviceReadBytes: map[string]uint64{
@@ -46,8 +46,8 @@ func TestReportIOMetrics(t *testing.T) {
 			"sdb": 0,
 		},
 	}
-	sdaTags := append(tags, "device:sda")
-	sdbTags := append(tags, "device:sdb")
+	sdaTags := append(tags, "device:sda", "device_name:sda")
+	sdbTags := append(tags, "device:sdb", "device_name:sdb")
 	dockerCheck.reportIOMetrics(ioPerDevice, tags, mockSender)
 	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", float64(37858816), "", sdaTags)
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(671846400), "", sdaTags)
@@ -68,4 +68,58 @@ func TestReportUptime(t *testing.T) {
 	startTime := currentTime - 60
 	dockerCheck.reportUptime(startTime, currentTime, tags, mockSender)
 	mockSender.AssertMetric(t, "Gauge", "docker.uptime", 60.0, "", tags)
+}
+
+func TestReportCPUNoLimit(t *testing.T) {
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+	mockSender.SetupAcceptAll()
+
+	tags := []string{"constant:tags", "container_name:dummy"}
+	testTime := time.Now()
+	startTime := testTime.Add(-10 * time.Second)
+
+	cpu := cmetrics.ContainerCPUStats{
+		Timestsamp: testTime,
+		System:     10,
+		User:       10,
+		UsageTotal: 20.0,
+	}
+
+	// 100% is 1 CPU, 200% is 2 CPUs, etc.
+	// So no limit is # of host CPU
+	limits := cmetrics.ContainerLimits{
+		CPULimit: 100.0,
+	}
+
+	dockerCheck.reportCPUMetrics(&cpu, &limits, startTime.Unix(), tags, mockSender)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.limit", 1000, "", tags)
+}
+
+func TestReportCPULimit(t *testing.T) {
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+	mockSender.SetupAcceptAll()
+
+	tags := []string{"constant:tags", "container_name:dummy"}
+	testTime := time.Now()
+	startTime := testTime.Add(-10 * time.Second)
+
+	cpu := cmetrics.ContainerCPUStats{
+		Timestsamp: testTime,
+		System:     10,
+		User:       10,
+		UsageTotal: 20.0,
+	}
+
+	limits := cmetrics.ContainerLimits{
+		CPULimit: 50,
+	}
+
+	dockerCheck.reportCPUMetrics(&cpu, &limits, startTime.Unix(), tags, mockSender)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.limit", 500, "", tags)
 }

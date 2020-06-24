@@ -112,7 +112,6 @@ func TestUDPLocalOnly(t *testing.T) {
 
 func TestUDPReceive(t *testing.T) {
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
-
 	port, err := getAvailableUDPPort()
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)

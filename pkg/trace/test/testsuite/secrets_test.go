@@ -19,10 +19,13 @@ import (
 
 // TestSecrets ensures that secrets placed in environment variables get loaded.
 func TestSecrets(t *testing.T) {
-	tmpDir := os.TempDir()
+	tmpDir, err := ioutil.TempDir("", "trace-agent-test-*")
+	if err != nil {
+		t.Skip(err.Error())
+	}
 
 	// install trace-agent with -tags=secrets
-	binTraceAgent := filepath.Join(tmpDir, "/tmp/trace-agent.test")
+	binTraceAgent := filepath.Join(tmpDir, "trace-agent")
 	cmd := exec.Command("go", "build", "-o", binTraceAgent, "-tags=secrets", "github.com/DataDog/datadog-agent/cmd/trace-agent")
 	cmd.Stdout = ioutil.Discard
 	if err := cmd.Run(); err != nil {

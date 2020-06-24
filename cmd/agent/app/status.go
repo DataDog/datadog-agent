@@ -10,6 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -96,11 +100,19 @@ func requestStatus() error {
 	if err != nil {
 		return err
 	}
+	// attach trace-agent status, if obtainable
+	temp := make(map[string]interface{})
+	if err := json.Unmarshal(r, &temp); err == nil {
+		temp["apmStats"] = getAPMStatus()
+		if newr, err := json.Marshal(temp); err == nil {
+			r = newr
+		}
+	}
 
 	// The rendering is done in the client so that the agent has less work to do
 	if prettyPrintJSON {
 		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ")
+		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else if jsonStatus {
 		s = string(r)
@@ -113,12 +125,46 @@ func requestStatus() error {
 	}
 
 	if statusFilePath != "" {
-		ioutil.WriteFile(statusFilePath, []byte(s), 0644)
+		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
 
 	return nil
+}
+
+// getAPMStatus returns a set of key/value pairs summarizing the status of the trace-agent.
+// If the status can not be obtained for any reason, the returned map will contain an "error"
+// key with an explanation.
+func getAPMStatus() map[string]interface{} {
+	port := 8126
+	// TODO(gbbr): This should be handled by the shared config package once
+	// we migrate APM env. vars there.
+	if p, ok := os.LookupEnv("DD_APM_RECEIVER_PORT"); ok {
+		if v, err := strconv.Atoi(p); err == nil {
+			port = v
+		}
+	}
+	if config.Datadog.IsSet("apm_config.receiver_port") {
+		port = config.Datadog.GetInt("apm_config.receiver_port")
+	}
+	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Get(url)
+	if err != nil {
+		return map[string]interface{}{
+			"port":  port,
+			"error": err.Error(),
+		}
+	}
+	defer resp.Body.Close()
+	status := make(map[string]interface{})
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return map[string]interface{}{
+			"port":  port,
+			"error": err.Error(),
+		}
+	}
+	return status
 }
 
 func componentStatus(component string) error {
@@ -134,14 +180,14 @@ func componentStatus(component string) error {
 	// The rendering is done in the client so that the agent has less work to do
 	if prettyPrintJSON {
 		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ")
+		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else {
 		s = string(r)
 	}
 
 	if statusFilePath != "" {
-		ioutil.WriteFile(statusFilePath, []byte(s), 0644)
+		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
@@ -162,7 +208,7 @@ func makeRequest(url string) ([]byte, error) {
 	r, e := util.DoGet(c, url)
 	if e != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
 			e = fmt.Errorf(err)

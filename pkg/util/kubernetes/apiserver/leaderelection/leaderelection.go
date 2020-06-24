@@ -86,7 +86,7 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 		globalLeaderEngine = newLeaderEngine()
 		globalLeaderEngine.HolderIdentity = holderIdentity
 		globalLeaderEngine.LeaseDuration = ttl
-		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
+		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "leaderElection",
 			AttemptMethod:     globalLeaderEngine.init,
 			Strategy:          retry.Backoff,

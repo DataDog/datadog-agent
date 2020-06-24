@@ -94,7 +94,7 @@ loop:
 				break loop
 			default:
 				log.Warnf("unexpected control request #%d", c)
-				elog.Warning(0xc0000009, string(c.Cmd))
+				elog.Error(0xc0000009, string(c.Cmd))
 			}
 		case <-signals.Stopper:
 			elog.Info(0x4000000a, config.ServiceName)

@@ -228,6 +228,119 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedOrch: []string{},
 			expectedHigh: []string{},
 		},
+		{
+			testName: "Standard tags in labels",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Labels: map[string]string{
+						"com.datadoghq.tags.service": "redis",
+						"com.datadoghq.tags.env":     "dev",
+						"com.datadoghq.tags.version": "0.0.1",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
+			expectedOrch: []string{},
+			expectedHigh: []string{},
+		},
+		{
+			testName: "Standard tags in env variables",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{
+						"DD_SERVICE=redis",
+						"DD_ENV=dev",
+						"DD_VERSION=0.0.1",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
+			expectedOrch: []string{},
+			expectedHigh: []string{},
+		},
+		{
+			testName: "Same standard tags from labels and env variables => no duplicates",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{
+						"DD_SERVICE=redis",
+						"DD_ENV=dev",
+						"DD_VERSION=0.0.1",
+					},
+					Labels: map[string]string{
+						"com.datadoghq.tags.service": "redis",
+						"com.datadoghq.tags.env":     "dev",
+						"com.datadoghq.tags.version": "0.0.1",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
+			expectedOrch: []string{},
+			expectedHigh: []string{},
+		},
+		{
+			testName: "Different standard tags from labels and env variables => no override",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{
+						"DD_SERVICE=redis",
+						"DD_ENV=dev",
+						"DD_VERSION=0.0.1",
+					},
+					Labels: map[string]string{
+						"com.datadoghq.tags.service": "redis-db",
+						"com.datadoghq.tags.env":     "staging",
+						"com.datadoghq.tags.version": "0.0.2",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+				"service:redis-db",
+				"env:staging",
+				"version:0.0.2",
+			},
+			expectedOrch: []string{},
+			expectedHigh: []string{},
+		},
+		{
+			testName: "extractCustomLabels",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{"PATH=/bin"},
+					Labels: map[string]string{
+						"com.datadoghq.ad.tags": "[\"adTestKey:adTestVal1\", \"adTestKey:adTestVal2\"]",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow:          []string{},
+			expectedOrch:         []string{},
+			expectedHigh:         []string{"adTestKey:adTestVal1", "adTestKey:adTestVal2"},
+		},
 	}
 
 	dc := &DockerCollector{}
@@ -348,9 +461,29 @@ func TestDockerExtractImage(t *testing.T) {
 				"image_tag:latest",
 			},
 		},
+		{
+			testName: "Some Nomad Setup",
+			co: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					Image: "sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358",
+				},
+				Config: &container.Config{
+					Image: "quay.io/foo/bar:3451-be4c56f",
+				},
+			},
+			resolveMap: map[string]string{
+				"sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358": "sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358",
+			},
+			expectedTags: []string{
+				"docker_image:sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358",
+				"image_name:quay.io/foo/bar",
+				"short_image:bar",
+				"image_tag:3451-be4c56f",
+			},
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.testName), func(t *testing.T) {
-			resolve := func(image string) (string, error) { return tc.resolveMap[image], nil }
+			resolve := func(co types.ContainerJSON) (string, error) { return tc.resolveMap[co.Image], nil }
 			tags := utils.NewTagList()
 			dockerExtractImage(tags, tc.co, resolve)
 			low, _, _ := tags.Compute()

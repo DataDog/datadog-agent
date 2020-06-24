@@ -10,11 +10,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
@@ -31,6 +32,8 @@ type SystemProbe struct {
 
 	tracer *ebpf.Tracer
 	conn   net.Conn
+
+	tcpQueueLengthTracer *ebpf.TCPQueueLengthTracer
 }
 
 // CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
@@ -48,15 +51,28 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
+	var tqlt *ebpf.TCPQueueLengthTracer
+	if cfg.CheckIsEnabled("TCP queue length") {
+		log.Infof("Starting the TCP queue length tracer")
+		tqlt, err = ebpf.NewTCPQueueLengthTracer()
+		if err != nil {
+			log.Errorf("unable to start the TCP queue length tracer: %v", err)
+		}
+	} else {
+		log.Infof("TCP queue length tracer disabled")
+	}
+
+	// Setting up the unix socket
 	conn, err := net.NewListener(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &SystemProbe{
-		tracer: t,
-		cfg:    cfg,
-		conn:   conn,
+		tracer:               t,
+		tcpQueueLengthTracer: tqlt,
+		cfg:                  cfg,
+		conn:                 conn,
 	}, nil
 }
 
@@ -64,7 +80,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 func (nt *SystemProbe) Run() {
 	// if a debug port is specified, we expose the default handler to that port
 	if nt.cfg.SystemProbeDebugPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeDebugPort), http.DefaultServeMux)
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
 	}
 
 	var runCounter uint64
@@ -127,6 +143,17 @@ func (nt *SystemProbe) Run() {
 		writeAsJSON(w, stats)
 	})
 
+	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
+		if nt.tcpQueueLengthTracer == nil {
+			log.Errorf("TCP queue length tracer was not properly initialized")
+			w.WriteHeader(500)
+			return
+		}
+		stats := nt.tcpQueueLengthTracer.GetAndFlush()
+
+		writeAsJSON(w, stats)
+	})
+
 	go func() {
 		tags := []string{
 			fmt.Sprintf("version:%s", Version),
@@ -134,7 +161,7 @@ func (nt *SystemProbe) Run() {
 		}
 		heartbeat := time.NewTicker(15 * time.Second)
 		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1)
+			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1) //nolint:errcheck
 		}
 	}()
 
@@ -146,7 +173,7 @@ func (nt *SystemProbe) Run() {
 		}
 	})
 
-	http.Serve(nt.conn.GetListener(), httpMux)
+	http.Serve(nt.conn.GetListener(), httpMux) //nolint:errcheck
 }
 
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
@@ -161,14 +188,14 @@ func logRequests(client string, count uint64, connectionsCount int, start time.T
 }
 
 func getClientID(req *http.Request) string {
-	var clientID = ebpf.DEBUGCLIENT
+	var clientID = network.DEBUGCLIENT
 	if rawCID := req.URL.Query().Get("client_id"); rawCID != "" {
 		clientID = rawCID
 	}
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *ebpf.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
@@ -177,7 +204,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *e
 	}
 
 	w.Header().Set("Content-type", marshaler.ContentType())
-	w.Write(buf)
+	w.Write(buf) //nolint:errcheck
 	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 }
 
@@ -188,7 +215,7 @@ func writeAsJSON(w http.ResponseWriter, data interface{}) {
 		w.WriteHeader(500)
 		return
 	}
-	w.Write(buf)
+	w.Write(buf) //nolint:errcheck
 }
 
 // Close will stop all system probe activities

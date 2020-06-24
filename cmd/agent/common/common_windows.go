@@ -10,15 +10,17 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+
+	// Init packages
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
+
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
@@ -283,6 +285,10 @@ func ImportRegistryConfig() error {
 	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
 		overrides["python_version"] = val
 		log.Debugf("Setting python version to %s", val)
+	}
+	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
+		overrides["hostname_fqdn"] = val
+		log.Debugf("Setting hostname_fqdn to %s", val)
 	}
 
 	// apply overrides to the config

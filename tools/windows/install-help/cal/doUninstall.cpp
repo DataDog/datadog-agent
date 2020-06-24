@@ -98,6 +98,11 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             // don't actually fail on failure.  We're doing an uninstall,
             // and failing will just leave the system in a more confused state
             WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
+            er = 0;
+        }
+        else {
+            // delete the home directory that was left behind
+            DeleteHomeDirectory(installedUser, sid);
         }
     }
     // remove the auth token file altogether

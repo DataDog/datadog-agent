@@ -9,11 +9,15 @@ set(PKGS
 	"../../test/uutil/..."
 	"../../test/common/..."
 	"../../test/tagger/..."
-    "../../test/kubeutil/..."
-    "../../test/containers/..."
+	"../../test/kubeutil/..."
+	"../../test/containers/..."
 )
 
-set(LIBS_PATH "${PROJECT_BINARY_DIR}/rtloader/:${PROJECT_BINARY_DIR}/two/:${PROJECT_BINARY_DIR}/three/")
+if (WIN32)
+    set(LIBS_PATH \"${PROJECT_BINARY_DIR}/rtloader/\;${PROJECT_BINARY_DIR}/two/\;${PROJECT_BINARY_DIR}/three/\")
+else()
+    set(LIBS_PATH "${PROJECT_BINARY_DIR}/rtloader/:${PROJECT_BINARY_DIR}/two/:${PROJECT_BINARY_DIR}/three/")
+endif()
 
 set (CGO_CFLAGS \"-I${CMAKE_SOURCE_DIR}/include -I${CMAKE_SOURCE_DIR}/common -Wno-deprecated-declarations\")
 

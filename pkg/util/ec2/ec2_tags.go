@@ -13,6 +13,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -22,20 +25,18 @@ import (
 // declare these as vars not const to ease testing
 var (
 	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
+	tagsCacheKey        = cache.BuildAgentKey("ec2", "GetTags")
 )
 
-// GetTags grabs the host tags from the EC2 api
-func GetTags() ([]string, error) {
-	tags := []string{}
-
+func fetchEc2Tags() ([]string, error) {
 	instanceIdentity, err := getInstanceIdentity()
 	if err != nil {
-		return tags, err
+		return nil, err
 	}
 
 	iamParams, err := getSecurityCreds()
 	if err != nil {
-		return tags, err
+		return nil, err
 	}
 
 	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyID,
@@ -47,11 +48,11 @@ func GetTags() ([]string, error) {
 		Credentials: awsCreds,
 	})
 	if err != nil {
-		return tags, fmt.Errorf("unable to get aws session, %s", err)
+		return nil, fmt.Errorf("unable to get aws session, %s", err)
 	}
 
 	connection := ec2.New(awsSess)
-	grabbedTags, err := connection.DescribeTags(&ec2.DescribeTagsInput{
+	ec2Tags, err := connection.DescribeTags(&ec2.DescribeTagsInput{
 		Filters: []*ec2.Filter{{
 			Name: aws.String("resource-id"),
 			Values: []*string{
@@ -59,13 +60,38 @@ func GetTags() ([]string, error) {
 			},
 		}},
 	})
+
 	if err != nil {
-		return tags, fmt.Errorf("unable to get tags from aws, %s", err)
+		return nil, err
 	}
 
-	for _, tag := range grabbedTags.Tags {
+	tags := []string{}
+	for _, tag := range ec2Tags.Tags {
 		tags = append(tags, fmt.Sprintf("%s:%s", *tag.Key, *tag.Value))
 	}
+	return tags, nil
+}
+
+// for testing purposes
+var fetchTags = fetchEc2Tags
+
+// GetTags grabs the host tags from the EC2 api
+func GetTags() ([]string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
+	tags, err := fetchTags()
+	if err != nil {
+		if ec2Tags, found := cache.Cache.Get(tagsCacheKey); found {
+			log.Infof("unable to get tags from aws, returning cached tags: %s", err)
+			return ec2Tags.([]string), nil
+		}
+		return nil, log.Warnf("unable to get tags from aws and cache is empty: %s", err)
+	}
+
+	// save tags to the cache in case we exceed quotas later
+	cache.Cache.Set(tagsCacheKey, tags, cache.NoExpiration)
 
 	return tags, nil
 }

@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	osq "github.com/openshift/api/quota/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -84,7 +84,8 @@ func computeQuotaRemaining(used, limit v1.ResourceList) v1.ResourceList {
 	remaining := make(map[v1.ResourceName]*resource.Quantity)
 
 	for res, qty := range limit {
-		remaining[res] = qty.Copy()
+		newQuantity := qty.DeepCopy()
+		remaining[res] = &newQuantity
 	}
 	for res, qty := range used {
 		ptr := remaining[res]

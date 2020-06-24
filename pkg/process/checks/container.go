@@ -1,5 +1,3 @@
-// +build linux
-
 package checks
 
 import (
@@ -52,9 +50,6 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 // Name returns the name of the ProcessCheck.
 func (c *ContainerCheck) Name() string { return "container" }
 
-// Endpoint returns the endpoint where this check is submitted.
-func (c *ContainerCheck) Endpoint() string { return "/api/v1/container" }
-
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ContainerCheck) RealTime() bool { return false }
 
@@ -104,12 +99,13 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	for i := 0; i < groupSize; i++ {
 		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorContainer{
-			HostName:   cfg.HostName,
-			NetworkId:  c.networkID,
-			Info:       c.sysInfo,
-			Containers: chunked[i],
-			GroupId:    groupID,
-			GroupSize:  int32(groupSize),
+			HostName:          cfg.HostName,
+			NetworkId:         c.networkID,
+			Info:              c.sysInfo,
+			Containers:        chunked[i],
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 
@@ -117,7 +113,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	c.lastRun = time.Now()
 	c.lastCtrIDForPID = ctrIDForPID(ctrList)
 
-	statsd.Client.Gauge("datadog.process.containers.host_count", totalContainers, []string{}, 1)
+	statsd.Client.Gauge("datadog.process.containers.host_count", totalContainers, []string{}, 1) //nolint:errcheck
 	log.Debugf("collected %d containers in %s", int(totalContainers), time.Now().Sub(start))
 	return messages, nil
 }
@@ -164,11 +160,11 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 		containers = append(containers, &model.Container{
 			Id:          ctr.ID,
 			Type:        ctr.Type,
-			CpuLimit:    float32(ctr.CPULimit),
+			CpuLimit:    float32(ctr.Limits.CPULimit),
 			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
 			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
 			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			MemoryLimit: ctr.MemLimit,
+			MemoryLimit: ctr.Limits.MemLimit,
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
 			Created:     ctr.Created,
@@ -180,8 +176,8 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			NetSentPs:   calculateRate(ifStats.PacketsSent, lastCtr.NetworkSum.PacketsSent, lastRun),
 			NetRcvdBps:  calculateRate(ifStats.BytesRcvd, lastCtr.NetworkSum.BytesRcvd, lastRun),
 			NetSentBps:  calculateRate(ifStats.BytesSent, lastCtr.NetworkSum.BytesSent, lastRun),
-			ThreadCount: ctr.ThreadCount,
-			ThreadLimit: ctr.ThreadLimit,
+			ThreadCount: ctr.CPU.ThreadCount,
+			ThreadLimit: ctr.Limits.ThreadLimit,
 			Addresses:   convertAddressList(ctr),
 			Started:     ctr.StartedAt,
 			Tags:        tags,
@@ -238,7 +234,7 @@ func fillNilContainer(ctr *containers.Container) *containers.Container {
 		ctr.Network = util.NullContainerRates.Network
 	}
 	if ctr.Memory == nil {
-		ctr.Memory = &metrics.CgroupMemStat{}
+		ctr.Memory = &metrics.ContainerMemStats{}
 	}
 	return ctr
 }

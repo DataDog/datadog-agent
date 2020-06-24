@@ -34,7 +34,7 @@ def setUpModule():
 
     client = docker.from_env()
 
-    for name, env in ENVIRONMENTS.iteritems():
+    for name, env in ENVIRONMENTS.items():
         containers[name] = client.containers.run(
             os.environ.get('DOCKER_IMAGE'),
             detach=True,
@@ -47,12 +47,12 @@ def tearDownModule():
     global containers
     global client
 
-    for _, container in containers.iteritems():
+    for _, container in containers.items():
         container.stop()
 
 
 def waitUntilListening(container, retries=20):
-    for x in range(0, retries):
+    for _ in range(0, retries):
         out = container.exec_run(cmd="netstat -a").output
         if ":8125" in out or SOCKET_PATH in out:
             return True

@@ -6,11 +6,12 @@ import datetime
 import os
 import shutil
 import sys
+import csv
 
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
-from .utils import get_build_flags
+from .utils import get_build_flags, get_gopath, load_release_versions
 from .bootstrap import get_deps, process_deps
 
 #We use `basestring` in the code for compat with python2 unicode strings.
@@ -35,8 +36,11 @@ MODULE_WHITELIST = [
     "winsec.go",
     "allprocesses_windows.go",
     "allprocesses_windows_test.go",
+    "adapters.go",  # pkg/util/winutil/iphelper
+    "routes.go",    # pkg/util/winutil/iphelper
     # All
-    "agent.pb.go"
+    "agent.pb.go",
+    "bbscache_test.go",
 ]
 
 # List of paths to ignore in misspell's output
@@ -49,7 +53,8 @@ MISSPELL_IGNORED_TARGETS = [
 
 # Packages that need go:generate
 GO_GENERATE_TARGETS = [
-    "./pkg/status"
+    "./pkg/status",
+    "./cmd/agent/gui"
 ]
 
 @task
@@ -114,7 +119,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, rtloader_root=None, build_tags=None):
+def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     """
     Run go vet on targets.
 
@@ -128,7 +133,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None):
 
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
-    tags = build_tags or get_default_build_tags()
+    tags = build_tags or get_default_build_tags(arch=arch)
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
@@ -173,6 +178,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         targets = targets.split(',')
 
     tags = build_tags or get_default_build_tags()
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
@@ -229,7 +235,7 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False, integrations_version="nightly"):
     """
     Setup Go dependencies
     """
@@ -262,11 +268,12 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
 
     if not no_dep_ensure:
         # source level deps
-        print("calling dep ensure")
+        print("calling go mod vendor")
         start = datetime.datetime.now()
         verbosity = ' -v' if verbose else ''
-        vendor_only = ' --vendor-only' if dep_vendor_only else ''
-        ctx.run("dep ensure{}{}".format(verbosity, vendor_only))
+        ctx.run("go mod vendor{}".format(verbosity))
+        # use modvendor to copy missing files dependencies
+        ctx.run('{}/bin/modvendor -copy="**/*.c **/*.h **/*.proto"{}'.format(get_gopath(ctx), verbosity))
         dep_done = datetime.datetime.now()
 
         # If github.com/DataDog/datadog-agent gets vendored too - nuke it
@@ -281,7 +288,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
             print("Removing vendored github.com/DataDog/datadog-agent")
             shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
-        # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
+        # make sure PSUTIL is gone on windows; the go mod above will vendor it
         # in because it's necessary on other platforms
         if not android and sys.platform == 'win32':
             print("Removing PSUTIL on Windows")
@@ -306,38 +313,109 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
             core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
             checks_base = os.path.join(core_dir, 'datadog_checks_base')
             if not os.path.isdir(core_dir):
-                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
+                env = load_release_versions(ctx, integrations_version)
+                ctx.run('git clone -{} --branch {} --depth 1 https://github.com/DataDog/integrations-core {}'.format(verbosity, env["INTEGRATIONS_CORE_VERSION"], core_dir))
             ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
     checks_done = datetime.datetime.now()
 
     if not no_dep_ensure:
-        print("dep ensure, elapsed:    {}".format(dep_done - start))
+        print("go mod vendor, elapsed: {}".format(dep_done - start))
     print("checks install elapsed: {}".format(checks_done - checks_start))
 
 @task
-def lint_licenses(ctx):
+def lint_licenses(ctx, verbose=False):
     """
-    Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of Gopkg.lock
+    Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
     """
-    import csv
-    import toml
+    print("Verify licenses")
 
-    # non-go deps that should be listed in the license file, but not in Gopkg.lock
+    licenses = []
+    file='LICENSE-3rdparty.csv'
+    with open(file, 'r') as f:
+        next(f)
+        for line in f:
+            licenses.append(line.rstrip())
+
+    new_licenses = get_licenses_list(ctx)
+
+    if sys.platform == 'win32':
+        # ignore some licenses because we remove
+        # the deps in a hack for windows
+        ignore_licenses = ['github.com/shirou/gopsutil']
+        to_removed = []
+        for ignore in ignore_licenses:
+            for license in licenses:
+                if ignore in license:
+                    if verbose:
+                        print("[hack-windows] ignore: {}".format(license))
+                    to_removed.append(license)
+        licenses = [x for x in licenses if x not in to_removed]
+
+    removed_licenses = [ele for ele in new_licenses if ele not in licenses]
+    for license in removed_licenses:
+        print("+ {}".format(license))
+
+    added_licenses = [ele for ele in licenses if ele not in new_licenses]
+    for license in added_licenses:
+        print("- {}".format(license))
+
+    if len(removed_licenses) + len(added_licenses) > 0:
+        print("licenses are not up-to-date")
+        raise Exit(code=1)
+
+    print("licenses ok")
+
+
+@task
+def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
+    """
+    Generates that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
+    """
+    with open(filename, 'w') as f:
+        f.write("Component,Origin,License\n")
+        for license in get_licenses_list(ctx):
+            if verbose:
+                print(license)
+            f.write('{}\n'.format(license))
+    print("licenses files generated")
+
+def get_licenses_list(ctx):
+    result = ctx.run('{}/bin/wwhrd list --no-color'.format(get_gopath(ctx)), hide='err')
+    licenses=[]
+    licenses.append('core,"github.com/frapposelli/wwhrd",MIT')
+    if result.stderr:
+        for line in result.stderr.split("\n") :
+            index = line.find('msg="Found License"')
+            if index == -1:
+                continue
+            license = ""
+            package = ""
+            for val in line[index+len('msg="Found License"'):].split(" "):
+                if val.startswith('license='):
+                    license = val[len('license='):]
+                elif val.startswith('package='):
+                    package = val[len('package='):]
+                    licenses.append("core,{},{}".format(package,license))
+    licenses.sort()
+    return licenses
+
+@task
+def lint_licenses_old(ctx):
+    # non-go deps that should be listed in the license file, but not in go.sum
     NON_GO_DEPS = set([
         'github.com/codemirror/CodeMirror',
         'github.com/FortAwesome/Font-Awesome',
         'github.com/jquery/jquery',
     ])
 
-    # Read all dep names from Gopkg.lock
+    # Read all dep names from go.sum
     go_deps = set()
-    gopkg_lock = toml.load('Gopkg.lock')
-    for project in gopkg_lock['projects']:
-        # FIXME: this conditional is necessary because of the issue introduced by DEPPROJECTROOT
-        # (for some reason `datadog-agent` gets added to Gopkg.lock and vendored), see comment in `deps`
-        # task for details
-        if project['name'] != 'github.com/DataDog/datadog-agent':
-            go_deps.add(project['name'])
+    with open('go.sum') as f:
+        for line in f:
+            gopkg = line.split(" ")
+            if len(gopkg) != 3:
+                continue
+            go_deps.add(gopkg[0])
 
     deps = go_deps | NON_GO_DEPS
 
@@ -347,12 +425,15 @@ def lint_licenses(ctx):
     for entry in licenses:
         if len(entry['License']) == 0:
             raise Exit(message="LICENSE-3rdparty entry '{}' has an empty license".format(entry['Origin']), code=1)
-        license_deps.add(entry['Origin'])
+        entrysplit = entry['Origin'].split("/")
+        entrysplit = entrysplit[0:3]
+        print('/'.join(entrysplit))
+        license_deps.add('/'.join(entrysplit))
 
     if deps != license_deps:
-        raise Exit(message="LICENSE-3rdparty.csv is outdated compared to deps listed in Gopkg.lock:\n" +
+        raise Exit(message="LICENSE-3rdparty.csv is outdated compared to deps listed in go.sum:\n" +
                            "missing from LICENSE-3rdparty.csv: {}\n".format(deps - license_deps) +
-                           "listed in LICENSE-3rdparty.csv but not in Gopkg.lock: {}".format(license_deps - deps),
+                           "listed in LICENSE-3rdparty.csv but not in go.sum: {}".format(license_deps - deps),
                    code=1)
 
 @task
@@ -377,5 +458,5 @@ def generate(ctx):
     """
     Run go generate required package
     """
-    ctx.run("go generate " + " ".join(GO_GENERATE_TARGETS))
+    ctx.run("go generate -mod=vendor " + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")

@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,7 +44,7 @@ func getDockerHostIPsUncached() []string {
 	providers := []hostIPProvider{
 		{"config", getHostIPsFromConfig},
 		{"ec2 metadata endpoint", ec2.GetLocalIPv4},
-		{"/proc/net/route", containers.DefaultHostIPs},
+		{"container provider", providers.ContainerImpl().GetDefaultHostIPs},
 	}
 
 	return tryProviders(providers)

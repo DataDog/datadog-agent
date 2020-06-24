@@ -8,12 +8,11 @@ import sys
 import shutil
 from distutils.dir_util import copy_tree
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
-from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version, check_go111module_envvar
+from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version
 from .utils import REPO_PATH
 
 from .go import deps
@@ -33,18 +32,15 @@ DEFAULT_BUILD_TAGS = [
 
 @task
 def build(ctx, rebuild=False, race=False, static=False, build_include=None,
-          build_exclude=None, major_version='7', arch="x64"):
+          build_exclude=None, major_version='7', arch="x64", go_mod="vendor"):
     """
     Build Dogstatsd
     """
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version, agent_flavor="dogstatsd")
     bin_path = DOGSTATSD_BIN_PATH
-
-    # bail out if GO111MODULE is set to on
-    check_go111module_envvar("dogstatsd.build")
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -74,9 +70,10 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
         bin_path = STATIC_BIN_PATH
 
     # NOTE: consider stripping symbols to reduce binary size
-    cmd = "go build {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
+    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
@@ -95,8 +92,8 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
         "GOOS": "",
         "GOARCH": "",
     }
-    cmd = "go generate {}/cmd/dogstatsd"
-    ctx.run(cmd.format(REPO_PATH), env=env)
+    cmd = "go generate -mod={} {}/cmd/dogstatsd"
+    ctx.run(cmd.format(go_mod, REPO_PATH), env=env)
 
     if static and sys.platform.startswith("linux"):
         cmd = "file {bin_name} "
@@ -143,7 +140,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
 
 
 @task
-def system_tests(ctx, skip_build=False):
+def system_tests(ctx, skip_build=False, go_mod="vendor"):
     """
     Run the system testsuite.
     """
@@ -154,8 +151,9 @@ def system_tests(ctx, skip_build=False):
     env = {
         "DOGSTATSD_BIN": os.path.join(get_root(), DOGSTATSD_BIN_PATH, bin_name("dogstatsd")),
     }
-    cmd = "go test -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
+    cmd = "go test -mod={go_mod} -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
+        "go_mod": go_mod,
         "build_tags": " ".join(get_default_build_tags()),
         "REPO_PATH": REPO_PATH,
     }
@@ -226,7 +224,7 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
     """
     Run integration tests for dogstatsd
     """
@@ -234,15 +232,20 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         deps(ctx)
 
     test_args = {
+        "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags()),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
 
+    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
+    # to the call, we don't want them because while calling invoke below, invoke
+    # thinks that the parameters are for it to interpret.
+    # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
+        test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
 
-    go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
 
     prefixes = [
         "./test/integration/dogstatsd/...",

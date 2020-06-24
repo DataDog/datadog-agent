@@ -27,7 +27,7 @@ func TestGenerateContextKey(t *testing.T) {
 	}
 
 	contextKey := generateContextKey(&mSample)
-	assert.Equal(t, ckey.ContextKey{0xdd892472f57d5cf1, 0x62daaf0ccddbb629}, contextKey)
+	assert.Equal(t, ckey.ContextKey(0xdd892472f57d5cf1), contextKey)
 }
 
 func TestTrackContext(t *testing.T) {
@@ -83,7 +83,7 @@ func TestTrackContext(t *testing.T) {
 	context3 := contextResolver.contextsByKey[contextKey3]
 	assert.Equal(t, expectedContext3, *context3)
 
-	unknownContextKey := ckey.ContextKey{0xffffffffffffffff, 0xffffffffffffffff}
+	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 	_, ok := contextResolver.contextsByKey[unknownContextKey]
 	assert.False(t, ok)
 }

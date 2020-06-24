@@ -19,6 +19,7 @@ import (
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/oci"
 )
 
 const (
@@ -38,6 +39,7 @@ type ContainerdItf interface {
 	GetEvents() containerd.EventService
 	Info(ctn containerd.Container) (containers.Container, error)
 	ImageSize(ctn containerd.Container) (int64, error)
+	Spec(ctn containerd.Container) (*oci.Spec, error)
 	Metadata() (containerd.Version, error)
 	Namespace() string
 	TaskMetrics(ctn containerd.Container) (*types.Metric, error)
@@ -69,7 +71,7 @@ func GetContainerdUtil() (ContainerdItf, error) {
 			globalContainerdUtil.socketPath = containerdDefaultSocketPath
 		}
 		// Initialize the client in the connect method
-		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
+		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "containerdutil",
 			AttemptMethod:     globalContainerdUtil.connect,
 			Strategy:          retry.Backoff,
@@ -160,6 +162,15 @@ func (c *ContainerdUtil) Info(ctn containerd.Container) (containers.Container, e
 	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
 
 	return ctn.Info(ctxNamespace)
+}
+
+// Spec interfaces with the containerd api to get container OCI Spec
+func (c *ContainerdUtil) Spec(ctn containerd.Container) (*oci.Spec, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	return ctn.Spec(ctxNamespace)
 }
 
 // TaskMetrics interfaces with the containerd api to get the metrics from a container

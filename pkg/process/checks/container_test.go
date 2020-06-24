@@ -91,13 +91,15 @@ func TestContainerNils(t *testing.T) {
 	// Make sure we get values when we have nils in last.
 	cur = []*containers.Container{
 		{
-			ID:  "1",
-			CPU: &metrics.CgroupTimesStat{},
+			ID: "1",
+			ContainerMetrics: metrics.ContainerMetrics{
+				CPU: &metrics.ContainerCPUStats{},
+			},
 		},
 	}
 	last = map[string]util.ContainerRateMetrics{
 		"1": {
-			CPU: &metrics.CgroupTimesStat{},
+			CPU: &metrics.ContainerCPUStats{},
 		},
 	}
 	chunkContainers(cur, last, time.Now(), 10, 10)

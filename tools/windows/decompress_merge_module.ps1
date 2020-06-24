@@ -4,7 +4,7 @@ param(
     )
 
 
-[Reflection.Assembly]::LoadFrom("$($Env:WIX)\Microsoft.Deployment.WindowsInstaller.dll")
+[Reflection.Assembly]::LoadFrom("$($Env:WIX)\bin\Microsoft.Deployment.WindowsInstaller.dll")
 
 write-host "Extracting files from merge module: "$file
 

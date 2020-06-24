@@ -4,17 +4,15 @@ High level testing tasks
 from __future__ import print_function
 
 import os
-import fnmatch
 import re
 import operator
 import sys
 import yaml
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags, get_version
+from .utils import get_build_flags
 from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
@@ -46,7 +44,8 @@ DEFAULT_TEST_TARGETS = [
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     verbose=False, race=False, profile=False, fail_on_fmt=False,
     rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0, major_version='7',
-    python_runtimes='3', timeout=120, arch="x64", cache=True, skip_linters=False):
+    python_runtimes='3', timeout=120, arch="x64", cache=True, skip_linters=False,
+    go_mod="vendor"):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -64,7 +63,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags(process=True) if build_include is None else build_include.split(",")
+    build_include = get_default_build_tags(process=True, arch=arch) if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -75,19 +74,20 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     print("--- go generating:")
     generate(ctx)
 
+    print("--- Linting licenses:")
+    lint_licenses(ctx)
+
     if skip_linters:
         print("--- [skipping linters]")
     else:
         print("--- Linting filenames:")
         lint_filenames(ctx)
-        print("--- Linting licenses:")
-        lint_licenses(ctx)
 
         # Until all packages whitelisted in .golangci.yml are fixed and removed
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
         print("--- Vetting and linting (legacy):")
-        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
         fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
@@ -144,9 +144,10 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go test {verbose} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'go test {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
+        "go_mod": go_mod,
         "go_build_tags": " ".join(build_tags),
         "gcflags": gcflags,
         "ldflags": ldflags,
@@ -183,7 +184,7 @@ def lint_teamassignment(ctx):
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
         if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
-            print("Team Assignment: %s" % l['name'])
+            print("Team Assignment: %s" % l['name'])  # noqa: F821
             return
 
         print("PR %s requires team assignment" % pr_url)
@@ -346,7 +347,7 @@ def e2e_tests(ctx, target="gitlab", image=""):
 
 class TestProfiler:
     times = []
-    parser = re.compile("^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
+    parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
 
     def write(self, txt):
         # Output to stdout
@@ -378,16 +379,21 @@ def make_kitchen_gitlab_yml(ctx):
     with open('.gitlab-ci.yml') as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
-    data['stages'] = ['package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
+    data['stages'] = ['deps_build', 'binary_build', 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
     for k,v in data.items():
-        if isinstance(v, dict) and v.get('stage', None) not in [None, 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']:
+        if isinstance(v, dict) and v.get('stage', None) not in ([None] + data['stages']):
             del data[k]
+            continue
+        if isinstance(v, dict) and v.get('stage', None) == 'binary_build' and k != 'build_system-probe-arm64' and k != 'build_system-probe-x64' and k != 'build_system-probe_with-bcc-arm64' and k != 'build_system-probe_with-bcc-x64':
+            del data[k]
+            continue
         if 'except' in v:
             del v['except']
         if 'only' in v:
             del v['only']
         if len(v) == 0:
             del data[k]
+            continue
 
     for k,v in data.items():
         if 'extends' in v:
@@ -403,7 +409,7 @@ def make_kitchen_gitlab_yml(ctx):
             v['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
-        documents = yaml.dump(data, f, default_style='"')
+       yaml.dump(data, f, default_style='"')
 
 @task
 def check_gitlab_broken_dependencies(ctx):
@@ -425,3 +431,36 @@ def check_gitlab_broken_dependencies(ctx):
                 for need in needed:
                     if is_unwanted(data[need], version):
                         print("{} needs on {} but it won't be built for A{}".format(k, need, version))
+
+
+@task
+def lint_python(ctx):
+    """
+    Lints Python files.
+    See 'setup.cfg' file for configuration
+    """
+
+    ctx.run("flake8 .")
+
+    
+@task
+def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
+    """
+    Installs the requested version of shellcheck in the specified folder (by default /usr/local/bin).
+    Required to run the shellcheck pre-commit hook.
+    """
+
+    if sys.platform == 'win32':
+        print("shellcheck is not supported on Windows")
+        raise Exit(code=1)
+    if sys.platform.startswith('darwin'):
+        platform = "darwin"
+    if sys.platform.startswith('linux'):
+        platform = "linux"
+
+    ctx.run("wget -qO- \"https://storage.googleapis.com/shellcheck/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp"
+        .format(sc_version=version, platform=platform))
+    ctx.run("cp \"/tmp/shellcheck-v{sc_version}/shellcheck\" {destination}"
+        .format(sc_version=version, destination=destination))
+    ctx.run("rm -rf \"/tmp/shellcheck-v{sc_version}\""
+        .format(sc_version=version))

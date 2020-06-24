@@ -37,7 +37,7 @@ func resetAggregator() {
 
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "", "")
+	InitAggregator(nil, "", "")
 
 	s, err := GetDefaultSender()
 	assert.Nil(t, err)
@@ -53,7 +53,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "", "")
+	InitAggregator(nil, "", "")
 
 	s, err := GetSender(checkID1)
 	assert.Nil(t, err)
@@ -76,7 +76,7 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 
 func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "", "")
+	InitAggregator(nil, "", "")
 
 	sender1, err := GetSender(checkID1)
 	assert.Nil(t, err)
@@ -93,7 +93,7 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 
 func TestDestroySender(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "", "")
+	InitAggregator(nil, "", "")
 
 	_, err := GetSender(checkID1)
 	assert.Nil(t, err)
@@ -109,7 +109,7 @@ func TestDestroySender(t *testing.T) {
 
 func TestGetAndSetSender(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "", "")
+	InitAggregator(nil, "", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -127,7 +127,7 @@ func TestGetAndSetSender(t *testing.T) {
 
 func TestGetSenderDefaultHostname(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "testhostname", "")
+	InitAggregator(nil, "testhostname", "")
 
 	sender, err := GetSender(checkID1)
 	require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 
 func TestGetSenderServiceTagMetrics(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "testhostname", "")
+	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -168,7 +168,7 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 
 func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "testhostname", "")
+	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -195,7 +195,7 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 
 func TestGetSenderServiceTagEvent(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "testhostname", "")
+	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -230,7 +230,7 @@ func TestGetSenderServiceTagEvent(t *testing.T) {
 
 func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "testhostname", "")
+	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -267,7 +267,7 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 
 func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "testhostname", "")
+	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -304,7 +304,7 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 
 func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "testhostname", "")
+	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -352,7 +352,7 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 
 func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, nil, "testhostname", "")
+	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)

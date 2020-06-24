@@ -4,6 +4,8 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
+// +build linux
+// As we compare some paths, running the tests on Linux only
 
 package legacy
 

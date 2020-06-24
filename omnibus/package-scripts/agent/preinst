@@ -90,7 +90,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
 
             rm $INSTALL_DIR/embedded/.all-integrations.txt
-            cd $PREV_DIR
+            cd "$PREV_DIR"
         else
             PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
             PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
@@ -126,17 +126,17 @@ else
     exec > $LOG_FILE 2>&1
 
     # Determine current user if he is using the Graphical installer
+    # shellcheck disable=SC2009
     INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
 
     # Otherwise, we hope he is using the install script and try to use this user
     # If it fails, no choice but to use root :'(
     if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-        SCRIPT_INSTALL="yes"
-        INSTALL_USER=`cat /tmp/datadog-install-user || echo 'root'`
+        INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
     fi
     echo "INSTALL_USER: $INSTALL_USER"
 
-    USER_HOME=`sudo -Hu $INSTALL_USER sh -c 'echo $HOME'`
+    USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
 
     if [ -e "$CONF_DIR/datadog.conf" ] || [ -e "$CONF_DIR/datadog.yaml" ]; then
         echo "# State at the beginning"
@@ -152,12 +152,12 @@ else
         echo '## Trying to stop agent 5'
         $INSTALL_DIR/bin/datadog-agent stop || true
         echo '## Trying to stop agent 6'
-        sudo -Hu $INSTALL_USER launchctl stop com.datadoghq.agent || true
+        sudo -Hu "$INSTALL_USER" launchctl stop com.datadoghq.agent || true
         echo '## Trying to kill agent GUI'
-        kill `ps aux | grep 'Datadog Agent.app' | grep -v grep  | cut -d ' ' -f 4` || true
+        kill "$(pgrep -f 'Datadog Agent.app')"
 
         echo '## Trying to unload agent 6 launchd service'
-        sudo -Hu $INSTALL_USER launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist" || true
+        sudo -Hu "$INSTALL_USER" launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist" || true
 
         # Save old conf
         rm -rvf /tmp/{checks,conf}.d/* /tmp/datadog.conf /tmp/datadog.yaml
@@ -177,7 +177,7 @@ else
     rm -rf $INSTALL_DIR/checks.d || true
 
     echo "# Disabling the login launch of the app"
-    sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
+    sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
 
     # Debriefing time
     echo "# State at the end"

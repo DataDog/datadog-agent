@@ -53,7 +53,7 @@ func StartServer() error {
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
 
-	err = util.SetAuthToken()
+	err = util.CreateAndSetAuthToken()
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func StartServer() error {
 	}
 	tlsListener := tls.NewListener(listener, &tlsConfig)
 
-	go srv.Serve(tlsListener)
+	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
 }
 

@@ -81,7 +81,6 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	}
 
 	go wait.Until(m.worker, time.Second, stopCh)
-
 	<-stopCh
 }
 

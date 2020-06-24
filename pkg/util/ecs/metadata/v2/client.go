@@ -10,6 +10,7 @@ package v2
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -24,7 +25,7 @@ const (
 	// Metadata v2 API paths
 	taskMetadataPath         = "/metadata"
 	taskMetadataWithTagsPath = "/metadataWithTags"
-	containerStatsPath       = "/stats/"
+	containerStatsPath       = "/stats"
 
 	// Default client configuration
 	endpointTimeout = 500 * time.Millisecond
@@ -49,11 +50,18 @@ func NewDefaultClient() *Client {
 
 // GetContainerStats returns stastics for a container.
 func (c *Client) GetContainerStats(id string) (*ContainerStats, error) {
-	var s ContainerStats
-	if err := c.get(containerStatsPath+id, &s); err != nil {
+	var stats map[string]*ContainerStats
+	// There is a difference in reported JSON in v 1.4.0 vs v1.3.0 so we should
+	// avoid using /v2/stats/{container_id}
+	if err := c.get(containerStatsPath, &stats); err != nil {
 		return nil, err
 	}
-	return &s, nil
+
+	if s, ok := stats[id]; ok {
+		return s, nil
+	}
+
+	return nil, fmt.Errorf("Failed to retrieve container stats for id: %s", id)
 }
 
 // GetTask returns the current task.
@@ -81,7 +89,11 @@ func (c *Client) get(path string, v interface{}) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Unexpected HTTP status code in metadata v2 reply: %d", resp.StatusCode)
+		var msg string
+		if buf, err := ioutil.ReadAll(resp.Body); err == nil {
+			msg = string(buf)
+		}
+		return fmt.Errorf("Unexpected HTTP status code in metadata v2 reply: [%s]: %d - %s", url, resp.StatusCode, msg)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {

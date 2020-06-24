@@ -8,7 +8,7 @@ Forwarder
   Transactions
   ============
   {{- range $key, $value := .Transactions }}
-    {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode")}}
+    {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
     {{$key}}: {{humanize $value}}
     {{- end}}
   {{- end}}

@@ -9,12 +9,13 @@ WORKDIR /output
 COPY datadog-cluster-agent.amd64 opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
+COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh .
 
 RUN chmod 755 entrypoint.sh \
     && chown root:root readsecret.sh \
-    && chmod 500 readsecret.sh \
+    && chmod 555 readsecret.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent

@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,13 +28,21 @@ const (
 
 // IsECSInstance returns whether the agent is running in ECS.
 func IsECSInstance() bool {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return false
+	}
 	_, err := ecsmeta.V1()
 	return err == nil
 }
 
 // IsFargateInstance returns whether the agent is in an ECS fargate task.
 // It detects it by getting and unmarshalling the metadata API response.
+// This function identifies Fargate on ECS only. Make sure to use the Fargate pkg
+// to identify Fargate instances in other orchestrators (e.g EKS Fargate)
 func IsFargateInstance() bool {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return false
+	}
 	return queryCacheBool(isFargateInstanceCacheKey, func() (bool, time.Duration) {
 
 		// This envvar is set to AWS_ECS_EC2 on classic EC2 instances
@@ -63,6 +72,9 @@ func IsRunningOn() bool {
 // HasEC2ResourceTags returns whether the metadata endpoint in ECS exposes
 // resource tags.
 func HasEC2ResourceTags() bool {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return false
+	}
 	return queryCacheBool(hasEC2ResourceTagsCacheKey, func() (bool, time.Duration) {
 		client, err := ecsmeta.V3FromCurrentTask()
 		if err != nil {
@@ -83,6 +95,9 @@ func HasFargateResourceTags() bool {
 }
 
 func queryCacheBool(cacheKey string, cacheMissEvalFunc func() (bool, time.Duration)) bool {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return false
+	}
 	if cachedValue, found := cache.Cache.Get(cacheKey); found {
 		if v, ok := cachedValue.(bool); ok {
 			return v

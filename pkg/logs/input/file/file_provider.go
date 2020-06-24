@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,7 +66,7 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 		source := sources[i]
 		tailedFileCounter := 0
 		files, err := p.CollectFiles(source)
-		isWildcardPath := p.containsWildcard(source.Config.Path)
+		isWildcardPath := config.ContainsWildcard(source.Config.Path)
 		if err != nil {
 			source.Status.Error(err)
 			if isWildcardPath {
@@ -118,7 +117,7 @@ func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 		return []*File{
 			NewFile(path, source, false),
 		}, nil
-	case p.containsWildcard(path):
+	case config.ContainsWildcard(path):
 		pattern := path
 		return p.searchFiles(pattern, source)
 	default:
@@ -185,9 +184,4 @@ func (p *Provider) exists(filePath string) bool {
 		return false
 	}
 	return true
-}
-
-// containsWildcard returns true if the path contains any wildcard character
-func (p *Provider) containsWildcard(path string) bool {
-	return strings.ContainsAny(path, "*?[")
 }

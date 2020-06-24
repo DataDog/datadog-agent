@@ -155,13 +155,13 @@ func TestHandlerRun(t *testing.T) {
 		h.Run(ctx)
 		runReturned <- struct{}{}
 	}()
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// State is unknown
 		h.m.RLock()
 		defer h.m.RUnlock()
 		return h.state == unknown
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// API replys not ready
 		code, reason := h.ShouldHandle()
 		return code == http.StatusServiceUnavailable && reason == notReadyReason
@@ -172,13 +172,13 @@ func TestHandlerRun(t *testing.T) {
 	//
 
 	le.set("1.2.3.4", nil)
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Internal state change
 		h.m.RLock()
 		defer h.m.RUnlock()
 		return h.state == follower && h.leaderIP == "1.2.3.4"
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// API redirects to leader
 		code, reason := h.ShouldHandle()
 		return code == http.StatusFound && reason == "1.2.3.4:5005"
@@ -189,24 +189,24 @@ func TestHandlerRun(t *testing.T) {
 	//
 
 	le.set("", nil)
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Internal state change
 		h.m.RLock()
 		defer h.m.RUnlock()
 		return h.state == leader && h.leaderIP == ""
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// API serves requests
 		code, reason := h.ShouldHandle()
 		return code == http.StatusOK && reason == ""
 	})
 	ac.On("AddScheduler", schedulerName, mock.AnythingOfType("*clusterchecks.dispatcher"), true).Return()
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Keep node-agent caches even when timestamp is off (warmup)
 		response, err := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
 		return err == nil && response.IsUpToDate == true
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Test whether we're connected to the AD
 		return ac.AssertNumberOfCalls(dummyT, "AddScheduler", 1)
 	})
@@ -217,12 +217,12 @@ func TestHandlerRun(t *testing.T) {
 		ClusterCheck: true,
 	}
 	h.dispatcher.Schedule([]integration.Config{testConfig})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Found one configuration for node dummy
 		configs, err := h.GetConfigs("dummy")
 		return err == nil && len(configs.Configs) == 1
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Flush node-agent caches when timestamp is off
 		response, err := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
 		return err == nil && response.IsUpToDate == false
@@ -234,18 +234,18 @@ func TestHandlerRun(t *testing.T) {
 
 	ac.On("RemoveScheduler", schedulerName).Return()
 	le.set("1.2.3.6", nil)
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Internal state change
 		h.m.RLock()
 		defer h.m.RUnlock()
 		return h.state == follower && h.leaderIP == "1.2.3.6"
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// API redirects to leader again
 		code, reason := h.ShouldHandle()
 		return code == http.StatusFound && reason == "1.2.3.6:5005"
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// RemoveScheduler is called
 		return ac.AssertNumberOfCalls(dummyT, "RemoveScheduler", 1)
 	})
@@ -255,19 +255,19 @@ func TestHandlerRun(t *testing.T) {
 	//
 
 	le.set("", nil)
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// API serves requests
 		code, reason := h.ShouldHandle()
 		return code == http.StatusOK && reason == ""
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Dispatcher has been flushed, no config remain
 		state, err := h.GetState()
 		return err == nil && len(state.Nodes) == 0 && len(state.Dangling) == 0
 	})
 
 	h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Test whether we're connected to the AD
 		return ac.AssertNumberOfCalls(dummyT, "AddScheduler", 2)
 	})
@@ -285,7 +285,7 @@ func TestHandlerRun(t *testing.T) {
 		assert.Fail(t, "Timeout while waiting for Run method to end")
 	}
 
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// RemoveScheduler is called
 		return ac.AssertNumberOfCalls(dummyT, "RemoveScheduler", 2)
 	})

@@ -38,6 +38,7 @@ func loadEnv() {
 		{"DD_APM_ENV", "apm_config.env"},
 		{"DD_APM_NON_LOCAL_TRAFFIC", "apm_config.apm_non_local_traffic"},
 		{"DD_APM_DD_URL", "apm_config.apm_dd_url"},
+		{"DD_APM_CONNECTION_RESET_INTERVAL", "apm_config.connection_reset_interval"},
 		{"DD_RECEIVER_PORT", "apm_config.receiver_port"}, // deprecated
 		{"DD_APM_RECEIVER_PORT", "apm_config.receiver_port"},
 		{"DD_MAX_EPS", "apm_config.max_events_per_second"}, // deprecated
@@ -78,6 +79,14 @@ func loadEnv() {
 			config.Datadog.Set("apm_config.replace_tags", replaceTags)
 		} else {
 			log.Errorf("Bad format for %s it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "DD_APM_REPLACE_TAGS", err)
+		}
+	}
+	if v := os.Getenv("DD_APM_ADDITIONAL_ENDPOINTS"); v != "" {
+		ap := make(map[string][]string)
+		if err := json.Unmarshal([]byte(v), &ap); err != nil {
+			log.Errorf(`Could not parse DD_APM_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://trace.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
+		} else {
+			config.Datadog.Set("apm_config.additional_endpoints", ap)
 		}
 	}
 }

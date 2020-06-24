@@ -53,10 +53,10 @@ func StartServer(sc clusteragent.ServerContext) error {
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.SetAuthToken()
+	util.CreateAndSetAuthToken() //nolint:errcheck
 
 	// DCA client token
-	util.SetDCAAuthToken()
+	util.InitDCAAuthToken() //nolint:errcheck
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
@@ -90,7 +90,7 @@ func StartServer(sc clusteragent.ServerContext) error {
 
 	tlsListener := tls.NewListener(listener, &tlsConfig)
 
-	go srv.Serve(tlsListener)
+	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
 }
 
@@ -129,5 +129,6 @@ func isExternalPath(path string) bool {
 		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8) ||
 		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
-		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6
+		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7
 }
