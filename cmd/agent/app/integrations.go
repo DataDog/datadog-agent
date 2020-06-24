@@ -56,17 +56,12 @@ var (
 	useSysPython        bool
 	versionOnly         bool
 	localWheel          bool
-	integrationType     string
+	thirdParty          bool
 	rootDir             string
 	pythonMajorVersion  string
 	pythonMinorVersion  string
 	reqAgentReleasePath string
 	constraintsPath     string
-
-	rootLayoutTypeMap = map[string]string{
-		"core":    "core",
-		"contrib": "extras",
-	}
 )
 
 func init() {
@@ -87,8 +82,8 @@ func init() {
 	installCmd.Flags().BoolVarP(
 		&localWheel, "local-wheel", "w", false, fmt.Sprintf("install an agent check from a locally available wheel file. %s", disclaimer),
 	)
-	installCmd.Flags().StringVarP(
-		&integrationType, "type", "t", "core", "indicate the type of integration (default: core), among: core, contrib",
+	installCmd.Flags().BoolVarP(
+		&thirdParty, "third-party", "3p", false, "indicate acceptance of unofficial integrations",
 	)
 }
 
@@ -417,9 +412,9 @@ func install(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	rootLayoutType, exists := rootLayoutTypeMap[integrationType]
-	if !exists {
-		return fmt.Errorf("unknown integration type: %s", integrationType)
+	rootLayoutType := "core"
+	if thirdParty {
+		rootLayoutType = "extras"
 	}
 
 	// Download the wheel
