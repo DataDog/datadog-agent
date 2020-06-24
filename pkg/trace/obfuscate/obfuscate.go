@@ -11,41 +11,16 @@ import (
 	"bytes"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
-	opts  *Config
+	opts  *config.ObfuscationConfig
 	es    *jsonObfuscator // nil if disabled
 	mongo *jsonObfuscator // nil if disabled
-}
-
-// Config specifies the obfuscator configuration.
-type Config struct {
-	// ES holds the obfuscation configuration for ElasticSearch bodies.
-	ES JSONSettings
-
-	// Mongo holds the obfuscation configuration for MongoDB queries.
-	Mongo JSONSettings
-
-	// RemoveQueryStrings specifies whether query strings should be removed from HTTP URLs.
-	RemoveQueryString bool
-
-	// RemovePathDigits specifies whether digits in HTTP path segments to be removed.
-	RemovePathDigits bool
-
-	// RemoveStackTraces specifies whether stack traces should be removed. More specifically,
-	// the "error.stack" tag values will be cleared from spans.
-	RemoveStackTraces bool
-
-	// Redis enables obfuscatiion of the "redis.raw_command" tag for spans of type "redis".
-	Redis bool
-
-	// Redis enables obfuscatiion of the "memcached.command" tag for spans of type "memcached".
-	Memcached bool
-
 	// sqlLiteralEscapes reports whether we should treat escape characters literally or as escape characters.
 	// A non-zero value means 'yes'. Different SQL engines behave in different ways and the tokenizer needs
 	// to be generic.
@@ -56,21 +31,21 @@ type Config struct {
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
 func (o *Obfuscator) SetSQLLiteralEscapes(ok bool) {
 	if ok {
-		atomic.StoreInt32(&o.opts.sqlLiteralEscapes, 1)
+		atomic.StoreInt32(&o.sqlLiteralEscapes, 1)
 	} else {
-		atomic.StoreInt32(&o.opts.sqlLiteralEscapes, 0)
+		atomic.StoreInt32(&o.sqlLiteralEscapes, 0)
 	}
 }
 
 // SQLLiteralEscapes reports whether escape characters should be treated literally by the SQL obfuscator.
 func (o *Obfuscator) SQLLiteralEscapes() bool {
-	return atomic.LoadInt32(&o.opts.sqlLiteralEscapes) == 1
+	return atomic.LoadInt32(&o.sqlLiteralEscapes) == 1
 }
 
-// NewObfuscator creates a new Obfuscator.
-func NewObfuscator(cfg *Config) *Obfuscator {
+// NewObfuscator creates a new obfuscator from the provided config
+func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 	if cfg == nil {
-		cfg = new(Config)
+		cfg = new(config.ObfuscationConfig)
 	}
 	o := Obfuscator{opts: cfg}
 	if cfg.ES.Enabled {
@@ -90,11 +65,11 @@ func (o *Obfuscator) Obfuscate(span *pb.Span) {
 		o.obfuscateSQL(span)
 	case "redis":
 		o.quantizeRedis(span)
-		if o.opts.Redis {
+		if o.opts.Redis.Enabled {
 			o.obfuscateRedis(span)
 		}
 	case "memcached":
-		if o.opts.Memcached {
+		if o.opts.Memcached.Enabled {
 			o.obfuscateMemcached(span)
 		}
 	case "web", "http":

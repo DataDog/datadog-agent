@@ -174,6 +174,51 @@ func TestParsePods(t *testing.T) {
 			expectedInfo: nil,
 		},
 		{
+			desc: "pod + k8s recommended tags",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "dd-agent-rc-qd876",
+					Namespace: "default",
+					Labels: map[string]string{
+						"app.kubernetes.io/name":       "dd-agent",
+						"app.kubernetes.io/instance":   "dd-agent-rc",
+						"app.kubernetes.io/version":    "1.1.0",
+						"app.kubernetes.io/component":  "dd-agent",
+						"app.kubernetes.io/part-of":    "dd",
+						"app.kubernetes.io/managed-by": "spinnaker",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"kube_container_name:dd-agent",
+					"image_tag:latest5",
+					"kube_app_name:dd-agent",
+					"kube_app_instance:dd-agent-rc",
+					"kube_app_version:1.1.0",
+					"kube_app_component:dd-agent",
+					"kube_app_part_of:dd",
+					"kube_app_managed_by:spinnaker",
+					"image_name:datadog/docker-dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"pod_name:dd-agent-rc-qd876",
+				},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"display_container_name:dd-agent_dd-agent-rc-qd876",
+				},
+			}},
+		},
+		{
 			desc: "daemonset + common tags",
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
@@ -790,6 +835,7 @@ func TestParsePods(t *testing.T) {
 					"foo_k8s-app:kubernetes-dashboard",
 					"foo_pod-template-hash:490794276",
 					"foo_app.kubernetes.io/managed-by:spinnaker",
+					"kube_app_managed_by:spinnaker",
 					"image_name:datadog/docker-dd-agent",
 					"image_tag:latest5",
 					"kube_container_name:dd-agent",

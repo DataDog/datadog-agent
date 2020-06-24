@@ -56,8 +56,8 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 		// then support ecs stats natively
 		cm, memLimit := convertMetaV2ContainerStats(stats)
 		ctr.SetMetrics(&cm)
-		if ctr.MemLimit == 0 {
-			ctr.MemLimit = memLimit
+		if ctr.Limits.MemLimit == 0 {
+			ctr.Limits.MemLimit = memLimit
 		}
 	}
 	return nil
@@ -90,12 +90,12 @@ func convertMetaV2Container(c v2.Container) *containers.Container {
 	}
 
 	if l, found := c.Limits["cpu"]; found && l > 0 {
-		container.CPULimit = float64(l)
+		container.Limits.CPULimit = float64(l)
 	} else {
-		container.CPULimit = 100
+		container.Limits.CPULimit = 100
 	}
 	if l, found := c.Limits["memory"]; found && l > 0 {
-		container.MemLimit = l
+		container.Limits.MemLimit = l
 	}
 
 	return container

@@ -6,16 +6,17 @@
 package checks
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/bhmj/jsonslice"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -78,8 +79,10 @@ func (c *fileCheck) reportFile(filePath string) error {
 		switch field.Kind {
 		case compliance.PropertyKindAttribute:
 			v, err = c.getAttribute(filePath, fi, field.Property)
-		case compliance.PropertyKindJSONPath:
-			v, err = c.getJSONPathValue(filePath, field.Property)
+		case compliance.PropertyKindJSONQuery:
+			v, err = c.getPathValue(filePath, field.Property, jsonGetter)
+		case compliance.PropertyKindYAMLQuery:
+			v, err = c.getPathValue(filePath, field.Property, yamlGetter)
 		default:
 			return ErrPropertyKindNotSupported
 		}
@@ -113,7 +116,28 @@ func (c *fileCheck) getAttribute(filePath string, fi os.FileInfo, property strin
 	return "", ErrPropertyNotSupported
 }
 
-func (c *fileCheck) getJSONPathValue(filePath string, jsonPath string) (string, error) {
+// getter applies jq query to get string value from json or yaml raw data
+type getter func([]byte, string) (string, error)
+
+func jsonGetter(data []byte, query string) (string, error) {
+	var jsonContent interface{}
+	if err := json.Unmarshal(data, &jsonContent); err != nil {
+		return "", err
+	}
+	value, _, err := jsonquery.RunSingleOutput(query, jsonContent)
+	return value, err
+}
+
+func yamlGetter(data []byte, query string) (string, error) {
+	var yamlContent map[string]interface{}
+	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
+		return "", err
+	}
+	value, _, err := jsonquery.RunSingleOutput(query, yamlContent)
+	return value, err
+}
+
+func (c *fileCheck) getPathValue(filePath string, query string, get getter) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -125,13 +149,5 @@ func (c *fileCheck) getJSONPathValue(filePath string, jsonPath string) (string, 
 		return "", err
 	}
 
-	data, err = jsonslice.Get(data, jsonPath)
-	if err != nil {
-		return "", err
-	}
-	s := string(data)
-	if len(s) != 0 && s[0] == '"' {
-		return strconv.Unquote(string(data))
-	}
-	return s, nil
+	return get(data, query)
 }

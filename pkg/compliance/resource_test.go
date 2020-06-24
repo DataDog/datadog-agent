@@ -42,7 +42,7 @@ file:
   path: /etc/docker/daemon.json
   report:
   - property: tlsverify
-    kind: jsonpath
+    kind: jsonquery
 `
 const testResourceProcessReportingFlag = `
 process:
@@ -164,7 +164,7 @@ func TestResources(t *testing.T) {
 			},
 		},
 		{
-			name:  "file reporting jsonpath property",
+			name:  "file reporting jsonquery property",
 			input: testResourceFileReportingJSONPath,
 			expected: Resource{
 				File: &File{
@@ -172,7 +172,7 @@ func TestResources(t *testing.T) {
 					Report: Report{
 						{
 							Property: "tlsverify",
-							Kind:     PropertyKindJSONPath,
+							Kind:     PropertyKindJSONQuery,
 						},
 					},
 				},

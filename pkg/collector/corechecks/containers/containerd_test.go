@@ -9,6 +9,7 @@ package containers
 
 import (
 	"encoding/json"
+	"runtime"
 	"sort"
 	"testing"
 	"time"
@@ -18,15 +19,25 @@ import (
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
 	prototypes "github.com/gogo/protobuf/types"
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	containersutil "github.com/DataDog/datadog-agent/pkg/util/containers"
 )
+
+func int64Ptr(v int64) *int64 {
+	return &v
+}
+
+func uint64Ptr(v uint64) *uint64 {
+	return &v
+}
 
 // TestCollectTags checks the collectTags method
 func TestCollectTags(t *testing.T) {
@@ -80,6 +91,7 @@ func TestComputeEvents(t *testing.T) {
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
 	var err error
+	defer containersutil.ResetSharedFilter()
 	containerdCheck.filters, err = containersutil.GetSharedFilter()
 	require.NoError(t, err)
 
@@ -167,7 +179,80 @@ func TestComputeEvents(t *testing.T) {
 	}
 }
 
-// TestComputeMem checks the computeMem methos
+func TestComputeCPU(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked.SetupAcceptAll()
+	testTime := time.Now()
+
+	tests := []struct {
+		name        string
+		cpu         *v1.CPUStat
+		cpuLimit    *specs.LinuxCPU
+		startTime   time.Time
+		currentTime time.Time
+		expected    map[string]float64
+	}{
+		{
+			name: "CPU Usage, no limits, no throttling",
+			cpu: &v1.CPUStat{
+				Usage: &v1.CPUUsage{
+					Kernel: 10,
+					Total:  40,
+					User:   30,
+				},
+			},
+			startTime:   testTime.Add(-10 * time.Second),
+			currentTime: testTime,
+			expected: map[string]float64{
+				"containerd.cpu.system": 10,
+				"containerd.cpu.total":  40,
+				"containerd.cpu.user":   30,
+				"containerd.cpu.limit":  1e10 * float64(runtime.NumCPU()),
+			},
+		},
+		{
+			name: "CPU Usage, with limits, with throttling",
+			cpu: &v1.CPUStat{
+				Usage: &v1.CPUUsage{
+					Kernel: 10,
+					Total:  40,
+					User:   30,
+				},
+				Throttling: &v1.Throttle{
+					ThrottledPeriods: 1,
+					ThrottledTime:    2,
+				},
+			},
+			cpuLimit: &specs.LinuxCPU{
+				Period: uint64Ptr(100),
+				Quota:  int64Ptr(200),
+			},
+			startTime:   testTime.Add(-10 * time.Second),
+			currentTime: testTime,
+			expected: map[string]float64{
+				"containerd.cpu.system":            10,
+				"containerd.cpu.total":             40,
+				"containerd.cpu.user":              30,
+				"containerd.cpu.limit":             2e10,
+				"containerd.cpu.throttled.periods": 1,
+				"containerd.cpu.throttled.time":    2,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			computeCPU(mocked, test.cpu, test.cpuLimit, test.startTime, test.currentTime, []string{})
+			for name, val := range test.expected {
+				mocked.AssertMetric(t, "Rate", name, val, "", []string{})
+			}
+		})
+	}
+}
+
 func TestComputeMem(t *testing.T) {
 	containerdCheck := &ContainerdCheck{
 		instance:  &ContainerdConfig{},
@@ -369,6 +454,9 @@ func TestIsExcluded(t *testing.T) {
 	}
 	var err error
 	// GetShareFilter gives us the OOB exclusion of pause container images from most supported platforms
+	config.Datadog.Set("container_exclude", "kube_namespace:shouldexclude")
+	defer config.Datadog.SetDefault("container_exclude", "")
+	defer containersutil.ResetSharedFilter()
 	containerdCheck.filters, err = containersutil.GetSharedFilter()
 	require.NoError(t, err)
 	c := containers.Container{
@@ -384,4 +472,13 @@ func TestIsExcluded(t *testing.T) {
 	// kubernetes/pawz although not an available image (yet ?) is not ignored
 	isEc = isExcluded(c, containerdCheck.filters)
 	require.False(t, isEc)
+
+	// Namespace based filtering
+	c = containers.Container{
+		Image: "kubernetes/pawz",
+		Labels: map[string]string{
+			"io.kubernetes.pod.namespace": "shouldexclude",
+		},
+	}
+	require.True(t, isExcluded(c, containerdCheck.filters))
 }

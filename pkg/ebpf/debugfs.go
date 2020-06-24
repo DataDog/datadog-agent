@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 package ebpf
 
 import (
@@ -34,6 +36,22 @@ func GetProbeStats() map[string]int64 {
 	}
 
 	return res
+}
+
+// getProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file
+func getProbeTotals() kprobeStats {
+	stats := kprobeStats{}
+	m, err := readKprobeProfile(KprobeProfile)
+	if err != nil {
+		log.Debugf("error retrieving probe stats: %s", err)
+		return stats
+	}
+
+	for _, st := range m {
+		stats.hits += st.hits
+		stats.miss += st.miss
+	}
+	return stats
 }
 
 // readKprobeProfile reads a /sys/kernel/debug/tracing/kprobe_profile file and returns a map of probe -> stats
