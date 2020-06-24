@@ -83,7 +83,7 @@ func init() {
 		&localWheel, "local-wheel", "w", false, fmt.Sprintf("install an agent check from a locally available wheel file. %s", disclaimer),
 	)
 	installCmd.Flags().BoolVarP(
-		&thirdParty, "third-party", "3p", false, "indicate acceptance of unofficial integrations",
+		&thirdParty, "third-party", "t", false, "indicate acceptance of unofficial integrations",
 	)
 }
 
