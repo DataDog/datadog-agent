@@ -19,4 +19,6 @@ const (
 )
 
 // AgentFlavor is the running Agent flavor
+// it MUST NOT be accessed before the main package is initialized;
+// e.g. in init functions or to initialize package constants or variables.
 var AgentFlavor string = DefaultAgentFlavor

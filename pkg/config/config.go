@@ -19,7 +19,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -171,7 +170,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
-	config.BindEnvAndSetDefault("iot_host", flavor.AgentFlavor == flavor.IotAgentFlavor)
+
+	// overridden in IoT Agent main
+	config.BindEnvAndSetDefault("iot_host", false)
 
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
