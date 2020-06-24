@@ -97,6 +97,8 @@ github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a h1:BkU6uq4Ib7Kp1zP7M
 github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a/go.mod h1:cJ+uBTR3AWclJPX7R9nRwDQB5R2HXWTrb6L4Ts4wwcw=
 github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e h1:LuTXxCfAI9ntSpWg+5QnBJJ+ysWR7ED+/2ggNdxmKp8=
 github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e/go.mod h1:tGQp6XG4XpOyy67WG/YWXVxzOY6LejK35e8KcQhtRIQ=
+github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321 h1:OPAXA+r6yznoxWR5jQ2iTh5CvzIMrdw8AU0uFN2RwEw=
+github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321/go.mod h1:tGQp6XG4XpOyy67WG/YWXVxzOY6LejK35e8KcQhtRIQ=
 github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 h1:UcKqIrOowv2PjTkOC27Xm9TMZlPbRi3CK1OCoawdvl0=
 github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/viper v1.7.1 h1:yyn+WujSB5rnBXHm7VzilXK8gN7qB4TLN1KU90RZVd8=

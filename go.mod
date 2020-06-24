@@ -49,7 +49,7 @@ require (
 	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200527110245-7850164045c8
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
-	github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e
+	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/watermarkpodautoscaler v0.1.0
 	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
