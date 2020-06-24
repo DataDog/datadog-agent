@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -98,12 +99,15 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 
 	log.Infof("Service control function")
 	importRegistryConfig()
-	mainCtx, mainCtxCancel, err := runAgent()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	err := runAgent(ctx)
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
+		stopAgent(cancel)
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
@@ -136,7 +140,7 @@ loop:
 	elog.Info(0x40000006, ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	stopAgent(mainCtx, mainCtxCancel)
+	stopAgent(cancel)
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }

@@ -158,19 +158,6 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 	c.report(nil, kv, "%s[id=%s]", c.dockerResource.Kind, id)
 }
 
-func evalCondition(property string, condition *compliance.Condition) bool {
-	switch condition.Operation {
-	case compliance.OpExists, "":
-		return property != ""
-
-	case compliance.OpEqual:
-		return property == condition.Value
-	default:
-		log.Warnf("Unsupported operation in condition: %s", condition.Operation)
-		return false
-	}
-}
-
 func evalTemplate(s string, obj interface{}) string {
 	tmpl, err := template.New("tmpl").Funcs(sprig.TxtFuncMap()).Parse(s)
 	if err != nil {

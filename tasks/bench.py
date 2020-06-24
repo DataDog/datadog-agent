@@ -66,7 +66,7 @@ def build_dogstatsd(ctx):
 
 
 @task(pre=[build_dogstatsd])
-def dogstastd(ctx):
+def dogstatsd(ctx):
     """
     Run Dogstatsd Benchmarks.
     """
@@ -79,6 +79,11 @@ def dogstastd(ctx):
         options += " -api-key {}".format(key)
 
     ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {}".format(bin_path, options))
+
+# Temporarily keep compatibility after typo fix
+@task(pre=[build_dogstatsd])
+def dogstastd(ctx):
+    dogstatsd(ctx)
 
 
 @task(pre=[build_aggregator])

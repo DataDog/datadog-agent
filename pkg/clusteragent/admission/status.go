@@ -68,7 +68,15 @@ func getWebhookStatus(name string, apiCl kubernetes.Interface) (map[string]inter
 		webhooksConfig[w.Name] = make(map[string]interface{})
 		svc := w.ClientConfig.Service
 		if svc != nil {
-			webhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - Port: %d - Path: %s", svc.Namespace, svc.Name, *svc.Port, *svc.Path)
+			port := "Port: None (default 443)"
+			path := "Path: None"
+			if svc.Port != nil {
+				port = fmt.Sprintf("Port: %d", *svc.Port)
+			}
+			if svc.Path != nil {
+				path = fmt.Sprintf("Path: %s", *svc.Path)
+			}
+			webhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}
 		if w.ObjectSelector != nil {
 			webhooksConfig[w.Name]["Object selector"] = w.ObjectSelector.String()

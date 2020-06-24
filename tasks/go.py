@@ -11,7 +11,7 @@ import csv
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
-from .utils import get_build_flags, get_gopath
+from .utils import get_build_flags, get_gopath, load_release_versions
 from .bootstrap import get_deps, process_deps
 
 #We use `basestring` in the code for compat with python2 unicode strings.
@@ -235,7 +235,7 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False, integrations_version="nightly"):
     """
     Setup Go dependencies
     """
@@ -313,7 +313,8 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
             core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
             checks_base = os.path.join(core_dir, 'datadog_checks_base')
             if not os.path.isdir(core_dir):
-                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
+                env = load_release_versions(ctx, integrations_version)
+                ctx.run('git clone -{} --branch {} --depth 1 https://github.com/DataDog/integrations-core {}'.format(verbosity, env["INTEGRATIONS_CORE_VERSION"], core_dir))
             ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
     checks_done = datetime.datetime.now()
 

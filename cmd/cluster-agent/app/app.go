@@ -323,6 +323,18 @@ func start(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
+	// Compliance
+	if config.Datadog.GetBool("compliance_config.enabled") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			if err := runCompliance(mainCtx); err != nil {
+				log.Errorf("Error while running compliance agent: %v", err)
+			}
+		}()
+	}
+
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
