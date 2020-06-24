@@ -34,7 +34,7 @@ by the client.
 The UDP protocol does not ensure the deliverability of the packets: the packet
 could be either dropped during the transit (on the network) or any other step.
 We leverage this characteristic in the server to let the kernel decide when
-packets should be dropped: the Dogstasd server tries its best to read and process
+packets should be dropped: the Dogstatsd server tries its best to read and process
 all available packets on the socket, however, if there is too much packets to
 handle, the OS kernel will start dropping them and they will be lost.
 
