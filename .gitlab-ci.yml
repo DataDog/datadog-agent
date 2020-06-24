@@ -192,10 +192,16 @@ fail_on_non_triggered_tag:
   needs: ["fail_on_non_triggered_tag"]
   script:
     - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
+    # Patch libbcc to remove references to glibc symbols with a too recent version
+    - cd /tmp/bcc
+    - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
     - mkdir /tmp/bcc/build
     - cd /tmp/bcc/build
     - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib'
     - make -j 4 #"$(nproc)"
+    # Check that libbcc has no references to too recent glibc
+    - objdump -p src/cc/libbcc.so | grep GLIBC_2.29 && exit 1
+    - objdump -p src/cc/libbcc.so | grep GLIBC_2.26 && exit 1
     - make install
     - cd /opt/libbcc
     - chmod go-rwx lib/libbcc*
@@ -482,6 +488,37 @@ build_dogstatsd-deb_arm64:
   script:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
+
+# build iot agent for deb-x64, to make sure the build is not broken because of build flags
+build_iot_agent-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:large" ]
+  needs: ["run_tests_deb-x64-py3"]
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only --no-checks
+  script:
+    - inv -e agent.build --iot --major-version 7
+    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
+
+# build iot agent for ARM, to make sure the build is not broken because of build targets
+build_iot_agent-deb_arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  needs: ["run_tests_deb-x64-py3"]
+  variables:
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only --no-checks
+  script:
+    - inv -e agent.build --iot --major-version 7
 
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
@@ -1302,7 +1339,7 @@ agent_android_apk:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Dogstastd package for deb-x64
+# build Dogstatsd package for deb-x64
 dogstatsd_deb-x64:
   rules:
     - <<: *if_version_7
@@ -1336,7 +1373,7 @@ dogstatsd_deb-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Dogstastd package for rpm-x64
+# build Dogstatsd package for rpm-x64
 dogstatsd_rpm-x64:
   rules:
     - <<: *if_version_7
@@ -1376,7 +1413,7 @@ dogstatsd_rpm-x64:
       - $OMNIBUS_PACKAGE_DIR
 
 
-# build Dogstastd package for rpm-x64
+# build Dogstatsd package for rpm-x64
 dogstatsd_suse-x64:
   rules:
     - <<: *if_version_7
@@ -1698,7 +1735,7 @@ deploy_windows_testing-a7:
   script:
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
-# Kitchen: Agent flavor locations
+# Kitchen: Agent flavor
 # -------------------------------
 
 .kitchen_datadog_agent_flavor:
@@ -1771,6 +1808,12 @@ deploy_windows_testing-a7:
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+
+.kitchen_test_upgrade7_iot_agent:
+  extends:
+    - .kitchen_test_upgrade7
+    - .kitchen_datadog_iot_agent_flavor
     - .kitchen_azure_location_north_central_us
 
 .kitchen_test_windows_installer_agent:
@@ -1978,6 +2021,12 @@ kitchen_centos_upgrade7_agent-a7:
     - .kitchen_scenario_centos_a7
     - .kitchen_test_upgrade7_agent
 
+kitchen_centos_upgrade7_iot_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_upgrade7_iot_agent
+
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_ubuntu_chef_agent-a6:
@@ -2052,6 +2101,12 @@ kitchen_ubuntu_upgrade7_agent-a7:
     - .kitchen_scenario_ubuntu_a7
     - .kitchen_test_upgrade7_agent
 
+kitchen_ubuntu_upgrade7_iot_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_upgrade7_iot_agent
+
 # run dd-agent-testing on suse
 kitchen_suse_chef_agent-a6:
   allow_failure: false
@@ -2125,6 +2180,12 @@ kitchen_suse_upgrade7_agent-a7:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_upgrade7_agent
 
+kitchen_suse_upgrade7_iot_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade7_iot_agent
+
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_debian_chef_agent-a6:
@@ -2193,11 +2254,17 @@ kitchen_debian_upgrade6_agent-a7:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_upgrade6_agent
 
-kitchen_debian_upgrade7_agent_agent-a7:
+kitchen_debian_upgrade7_agent-a7:
   allow_failure: false
   extends:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_upgrade7_agent
+
+kitchen_debian_upgrade7_iot_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_upgrade7_iot_agent
 
 .kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
   stage: testkitchen_cleanup
@@ -3543,6 +3610,21 @@ deploy_staging_dsd:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy iot-agent binary to staging bucket
+deploy_staging_iot_agent:
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_triggered
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:main", "size:large" ]
+  dependencies: []
+  script:
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy agent windows zip to the staging bucket, currently used for cloudfoundry bosh
 deploy_staging_datadog_agent_windows_zip:

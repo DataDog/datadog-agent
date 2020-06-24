@@ -99,13 +99,13 @@ def get_series_from_query(q: dict):
     from_ts, to_ts = int(q["from"]), int(q["to"])
 
     # tags
-    all_tags = query[first_open_brace + 1:first_close_brace]
+    all_tags = query[first_open_brace + 1 : first_close_brace]
     all_tags = all_tags.split(",") if all_tags else []
 
     # group by
     # TODO
     last_open_brace, last_close_brace = query.rindex("{"), query.rindex("}")
-    group_by = query[last_open_brace + 1:last_close_brace].split(",")  # noqa: F841
+    group_by = query[last_open_brace + 1 : last_close_brace].split(",")  # noqa: F841
 
     match_conditions = [
         {"metric": metric_name},
@@ -118,7 +118,8 @@ def get_series_from_query(q: dict):
     c = get_collection("series")
     aggregate = [
         {"$match": {"$and": match_conditions}},
-        {"$unwind": "$points"}, {"$group": {"_id": "$metric", "points": {"$push": "$points"}}},
+        {"$unwind": "$points"},
+        {"$group": {"_id": "$metric", "points": {"$push": "$points"}}},
         {"$sort": {"points.0": 1}},
     ]
     app.logger.info("Mongodb aggregate is %s", aggregate)
@@ -138,22 +139,20 @@ def get_series_from_query(q: dict):
                 "display_name": metric_name,
                 "unit": None,
                 "pointlist": points_list,
-                "end": points_list[-1][0] if points_list else 0.,
+                "end": points_list[-1][0] if points_list else 0.0,
                 "interval": 600,
-                "start": points_list[0][0] if points_list else 0.,
+                "start": points_list[0][0] if points_list else 0.0,
                 "length": len(points_list),
                 "aggr": None,
-                "scope": "host:vagrant-ubuntu-trusty-64", # TODO
+                "scope": "host:vagrant-ubuntu-trusty-64",  # TODO
                 "expression": query,
             }
         ],
         "from_date": from_ts,
-        "group_by": [
-            "host"
-        ],
+        "group_by": ["host"],
         "to_date": to_ts,
         "query": q["query"],
-        "message": ""
+        "message": "",
     }
     return result
 
@@ -182,7 +181,7 @@ def series():
         filename="series",
         content_type=request.content_type,
         content_encoding=request.content_encoding,
-        content=request.data
+        content=request.data,
     )
     insert_series(data)
     return Response(status=200)
@@ -194,7 +193,7 @@ def check_run():
         filename="check_run",
         content_type=request.content_type,
         content_encoding=request.content_encoding,
-        content=request.data
+        content=request.data,
     )
     insert_check_run(data)
     return Response(status=200)
@@ -206,7 +205,7 @@ def intake():
         filename="intake",
         content_type=request.content_type,
         content_encoding=request.content_encoding,
-        content=request.data
+        content=request.data,
     )
     insert_intake(data)
     return Response(status=200)
@@ -218,15 +217,17 @@ def logs():
         filename="logs",
         content_type=request.content_type,
         content_encoding=request.content_encoding,
-        content=request.data
+        content=request.data,
     )
     insert_logs(data)
     return Response(status=200)
+
 
 @app.route("/api/v1/orchestrator", methods=["POST"])
 def orchestrator():
     # TODO
     return Response(status=200)
+
 
 @app.before_request
 def logging():
@@ -237,7 +238,12 @@ def logging():
     #     request.path, request.method, request.content_type, request.content_encoding, request.content_length, request.headers)
     app.logger.info(
         "path: %s, method: %s, content-type: %s, content-encoding: %s, content-length: %s",
-        request.path, request.method, request.content_type, request.content_encoding, request.content_length)
+        request.path,
+        request.method,
+        request.content_type,
+        request.content_encoding,
+        request.content_length,
+    )
 
 
 def stat_records():
