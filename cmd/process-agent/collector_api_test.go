@@ -11,13 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-
 	"github.com/DataDog/agent-payload/process"
-
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -295,13 +292,48 @@ func TestQueueSpaceReleased(t *testing.T) {
 	})
 }
 
+func TestMultipleAPIKeys(t *testing.T) {
+	m := &process.CollectorConnections{
+		HostName: testHostName,
+		GroupId:  1,
+	}
+
+	check := &testCheck{
+		name: checks.Connections.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
+
+	cfg := config.NewDefaultAgentConfig(false)
+	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
+	orchKeys := []string{"orchKey"}
+
+	runCollectorTestWithAPIKeys(t, check, cfg, &endpointConfig{}, apiKeys, orchKeys, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+		for _, expectedAPIKey := range apiKeys {
+			request := <-ep.Requests
+			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
+		}
+	})
+}
+
 func runCollectorTest(t *testing.T, check checks.Check, cfg *config.AgentConfig, epConfig *endpointConfig, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
+	runCollectorTestWithAPIKeys(t, check, cfg, epConfig, []string{"apiKey"}, []string{"orchestratorApiKey"}, tc)
+}
+
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.AgentConfig, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
 
-	cfg.APIEndpoints = []api.Endpoint{{APIKey: "apiKey", Endpoint: collectorAddr}}
-	cfg.OrchestratorEndpoints = []api.Endpoint{{APIKey: "orchestratorApiKey", Endpoint: orchestratorAddr}}
+	cfg.APIEndpoints = make([]api.Endpoint, len(apiKeys))
+	for index, key := range apiKeys {
+		cfg.APIEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: collectorAddr}
+	}
+
+	cfg.OrchestratorEndpoints = make([]api.Endpoint, len(orchAPIKeys))
+	for index, key := range orchAPIKeys {
+		cfg.OrchestratorEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: orchestratorAddr}
+	}
+
 	cfg.HostName = testHostName
 	cfg.CheckIntervals[check.Name()] = 500 * time.Millisecond
 

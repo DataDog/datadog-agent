@@ -13,7 +13,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	jsonutil "github.com/DataDog/datadog-agent/pkg/util/json"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
@@ -124,7 +124,7 @@ func jsonGetter(data []byte, query string) (string, error) {
 	if err := json.Unmarshal(data, &jsonContent); err != nil {
 		return "", err
 	}
-	value, _, err := jsonutil.RunSingleOutput(query, jsonContent)
+	value, _, err := jsonquery.RunSingleOutput(query, jsonContent)
 	return value, err
 }
 
@@ -133,7 +133,7 @@ func yamlGetter(data []byte, query string) (string, error) {
 	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
 		return "", err
 	}
-	value, _, err := jsonutil.RunSingleOutput(query, yamlContent)
+	value, _, err := jsonquery.RunSingleOutput(query, yamlContent)
 	return value, err
 }
 

@@ -16,6 +16,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 CUSTOM_ACTION_ROOT_DIR = "tools\\windows\\install-help"
 
+
 @task
 def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     """
@@ -29,10 +30,8 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     ver = get_version_numeric_only(ctx, env=os.environ, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
     verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
-            build_maj=build_maj,
-            build_min=build_min,
-            build_patch=build_patch
-        )
+        build_maj=build_maj, build_min=build_min, build_patch=build_patch
+    )
     print("arch is {}".format(arch))
     cmd = ""
     configuration = "Release"
@@ -51,10 +50,12 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
             batchfile = "vcvars32.bat"
         vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
         cmd = 'call \"{}\" && msbuild {}\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform={}'.format(
-            vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch)
+            vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
+        )
     else:
         cmd = 'msbuild {}\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform={}'.format(
-            CUSTOM_ACTION_ROOT_DIR, configuration, arch)
+            CUSTOM_ACTION_ROOT_DIR, configuration, arch
+        )
 
     cmd += verprops
     print("Build Command: %s" % cmd)
@@ -67,6 +68,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         srcdll = "{}\\cal\\x64\\{}\\customaction.dll".format(CUSTOM_ACTION_ROOT_DIR, configuration)
     shutil.copy2(srcdll, BIN_PATH)
 
+
 @task
 def clean(ctx, arch="x64", debug=False):
     configuration = "Release"
@@ -78,4 +80,3 @@ def clean(ctx, arch="x64", debug=False):
     else:
         srcdll = "{}\\cal\\x64\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration)
     shutil.rmtree(srcdll, BIN_PATH)
-

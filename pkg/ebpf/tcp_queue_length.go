@@ -31,7 +31,7 @@ type TCPQueueLengthTracer struct {
 func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 	source_raw, err := bytecode.Asset("pkg/ebpf/c/tcp-queue-length-kern.c")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn’t find asset “tcp-queue-length-kern.c”: %v", err)
+		return nil, fmt.Errorf("Couldn’t find asset “pkg/ebpf/c/tcp-queue-length-kern.c”: %v", err)
 	}
 
 	// Process the `#include` of embedded headers.
