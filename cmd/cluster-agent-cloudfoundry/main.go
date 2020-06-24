@@ -22,7 +22,7 @@ import (
 )
 
 func main() {
-	flavor.AgentFlavor = flavor.ClusterAgentFlavor
+	flavor.SetFlavor(flavor.ClusterAgent)
 
 	var returnCode int
 	if err := app.ClusterAgentCmd.Execute(); err != nil {

@@ -233,7 +233,7 @@ func getCommonStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
-	stats["flavor"] = flavor.AgentFlavor
+	stats["flavor"] = flavor.GetFlavor()
 	hostnameData, err := util.GetHostnameData()
 
 	if err != nil {

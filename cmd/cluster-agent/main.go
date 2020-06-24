@@ -31,7 +31,7 @@ import (
 
 func main() {
 	// set the Agent flavor
-	flavor.AgentFlavor = flavor.ClusterAgentFlavor
+	flavor.SetFlavor(flavor.ClusterAgent)
 
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", telemetry.Handler())

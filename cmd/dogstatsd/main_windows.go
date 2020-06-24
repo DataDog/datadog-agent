@@ -64,7 +64,7 @@ const ServiceName = "dogstatsd"
 
 func main() {
 	// set the Agent flavor
-	flavor.AgentFlavor = flavor.DogstatsdFlavor
+	flavor.SetFlavor(flavor.Dogstatsd)
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
 	// go_expvar server

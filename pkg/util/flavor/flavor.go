@@ -5,20 +5,35 @@
 
 package flavor
 
+import "github.com/DataDog/datadog-agent/pkg/config"
+
 const (
-	// DefaultAgentFlavor is the default Agent flavor
-	DefaultAgentFlavor = "agent"
-	// IotAgentFlavor is the IoT Agent flavor
-	IotAgentFlavor = "iot_agent"
-	// ClusterAgentFlavor is the Cluster Agent flavor
-	ClusterAgentFlavor = "cluster_agent"
-	// DogstatsdFlavor is the DogStatsD flavor
-	DogstatsdFlavor = "dogstatsd"
-	// SecurityAgentFlavor is the Security Agent flavor
-	SecurityAgentFlavor = "security_agent"
+	// DefaultAgent is the default Agent flavor
+	DefaultAgent = "agent"
+	// IotAgent is the IoT Agent flavor
+	IotAgent = "iot_agent"
+	// ClusterAgent is the Cluster Agent flavor
+	ClusterAgent = "cluster_agent"
+	// Dogstatsd is the DogStatsD flavor
+	Dogstatsd = "dogstatsd"
+	// SecurityAgent is the Security Agent flavor
+	SecurityAgent = "security_agent"
 )
 
-// AgentFlavor is the running Agent flavor
-// it MUST NOT be accessed before the main package is initialized;
+var agentFlavor string = DefaultAgent
+
+// SetFlavor sets the Agent flavor
+func SetFlavor(flavor string) {
+	agentFlavor = flavor
+
+	if agentFlavor == IotAgent {
+		config.Datadog.Set("iot_host", true)
+	}
+}
+
+// GetFlavor gets the running Agent flavor
+// it MUST NOT be called before the main package is initialized;
 // e.g. in init functions or to initialize package constants or variables.
-var AgentFlavor string = DefaultAgentFlavor
+func GetFlavor() string {
+	return agentFlavor
+}

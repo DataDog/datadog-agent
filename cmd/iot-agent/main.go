@@ -11,15 +11,13 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func main() {
 	// Set the flavor
-	flavor.AgentFlavor = flavor.IotAgentFlavor
-	config.Datadog.Set("iot_host", true)
+	flavor.SetFlavor(flavor.IotAgent)
 
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {

@@ -23,7 +23,7 @@ import (
 
 func main() {
 	// set the Agent flavor
-	flavor.AgentFlavor = flavor.SecurityAgentFlavor
+	flavor.SetFlavor(flavor.SecurityAgent)
 
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", telemetry.Handler())

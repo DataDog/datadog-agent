@@ -162,14 +162,14 @@ func TestDefaultData(t *testing.T) {
 	}}).Return(nil).Times(1)
 
 	series := metrics.Series{&metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", flavor.AgentFlavor),
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.AgentFlavor),
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
@@ -228,14 +228,14 @@ func TestRecurentSeries(t *testing.T) {
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "non default SourceTypeName",
 	}, &metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", flavor.AgentFlavor),
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.AgentFlavor),
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,

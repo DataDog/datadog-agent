@@ -21,7 +21,7 @@ import (
 const defaultLogFile = "/var/log/datadog/dogstatsd.log"
 
 func main() {
-	flavor.AgentFlavor = flavor.DogstatsdFlavor
+	flavor.SetFlavor(flavor.Dogstatsd)
 
 	// go_expvar server
 	go http.ListenAndServe( //nolint:errcheck

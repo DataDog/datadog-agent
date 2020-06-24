@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc"
@@ -24,8 +23,7 @@ import (
 
 func main() {
 	// set the Agent flavor
-	flavor.AgentFlavor = flavor.IotAgentFlavor
-	config.Datadog.Set("iot_host", true)
+	flavor.SetFlavor(flavor.IotAgent)
 
 	common.EnableLoggingToFile()
 	// if command line arguments are supplied, even in a non interactive session,

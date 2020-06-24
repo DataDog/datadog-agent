@@ -22,9 +22,10 @@ import (
 
 var elog debug.Log
 
-type myservice struct{}
+type agentWindowsService struct{}
 
-func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
+// Execute sets up the configuration and runs the Agent as a Windows service
+func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
@@ -97,7 +98,7 @@ func RunService(isDebug bool) {
 	elog.Info(0x40000007, config.ServiceName)
 	run := svc.Run
 
-	err = run(config.ServiceName, &myservice{})
+	err = run(config.ServiceName, &agentWindowsService{})
 	if err != nil {
 		elog.Error(0xc0000008, err.Error())
 		return
