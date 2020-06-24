@@ -4,9 +4,12 @@ package ebpf
 
 import (
 	"fmt"
+	"os"
+
 	cbpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
 	bpflib "github.com/iovisor/gobpf/elf"
+	"golang.org/x/sys/unix"
 )
 
 type perfMap struct {
@@ -18,15 +21,20 @@ type perfMap struct {
 func initPerfMap(mod *bpflib.Module, mapName string, receiverChan chan []byte, lostChan chan uint64) (*perfMap, error) {
 	mp := mod.Map(mapName)
 
-	// cbpf will assume ownership of the map FD at this point, but gobpf does not have a way to "forget" about it.
-	// In practice this is not an issue, because it will only result in the close(2) syscall being called on the FD twice.
-	// This does result in an error returned from the syscall, but those errors are currently ignored by our code.
-	cmap, err := cbpf.NewMapFromFD(mp.Fd())
+	// we must duplicate the FD using fcntl(2) because gobpf will not forget the FD.
+	fd, err := dupFd(mp.Fd())
+	if err != nil {
+		return nil, fmt.Errorf("unable to duplicate fd: %s", err)
+	}
+	cmap, err := cbpf.NewMapFromFD(fd)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cilium map from fd: %s", err)
 	}
+	// map will be cloned by perf.Reader, so we can close this one
+	defer cmap.Close()
 
-	rdr, err := perf.NewReader(cmap, 4096)
+	bufSize := os.Getpagesize() * 8
+	rdr, err := perf.NewReader(cmap, bufSize)
 	if err != nil {
 		return nil, fmt.Errorf("error creating perf map reader: %s", err)
 	}
@@ -36,6 +44,14 @@ func initPerfMap(mod *bpflib.Module, mapName string, receiverChan chan []byte, l
 		receiveChan: receiverChan,
 		lostChan:    lostChan,
 	}, nil
+}
+
+func dupFd(fd int) (int, error) {
+	dup, err := unix.FcntlInt(uintptr(fd), unix.F_DUPFD_CLOEXEC, 0)
+	if err != nil {
+		return 0, fmt.Errorf("can't dup fd: %s", err)
+	}
+	return dup, nil
 }
 
 func (pm *perfMap) PollStart() {
