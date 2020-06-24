@@ -124,5 +124,4 @@ func TestAddParentPerms(t *testing.T) {
 		"/": {0, "", ""}, "/a.b": {0, "", ""},
 	}
 	assert.EqualValues(permsInfos, expectedParentPerms)
-
 }
