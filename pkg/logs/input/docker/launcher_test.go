@@ -63,7 +63,7 @@ func TestOverrideSourceServiceNameOrder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := &Launcher{
-				serviceFunc: tt.sFunc,
+				serviceNameFunc: tt.sFunc,
 			}
 			if got := l.overrideSource(tt.container, tt.source); !reflect.DeepEqual(got.Config.Service, tt.wantServiceName) {
 				t.Errorf("Launcher.overrideSource() = %v, want %v", got.Config.Service, tt.wantServiceName)

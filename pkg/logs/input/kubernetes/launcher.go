@@ -37,7 +37,7 @@ type Launcher struct {
 	addedServices      chan *service.Service
 	removedServices    chan *service.Service
 	collectAll         bool
-	serviceFunc        func(string, string) string // serviceFunc gets the service name from the tagger, it is in a separate field for testing purpose
+	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
 // NewLauncher returns a new launcher.
@@ -55,7 +55,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		stopped:            make(chan struct{}),
 		kubeutil:           kubeutil,
 		collectAll:         collectAll,
-		serviceFunc:        input.ServiceFromTags,
+		serviceNameFunc:    input.ServiceNameFromTags,
 	}
 	launcher.addedServices = services.GetAllAddedServices()
 	launcher.removedServices = services.GetAllRemovedServices()
@@ -152,7 +152,7 @@ const kubernetesIntegration = "kubernetes"
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
-	standardService := l.serviceFunc(container.Name, getTaggerEntityID(container.ID))
+	standardService := l.serviceNameFunc(container.Name, getTaggerEntityID(container.ID))
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {

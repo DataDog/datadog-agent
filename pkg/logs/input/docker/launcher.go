@@ -42,7 +42,7 @@ type Launcher struct {
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
 	readTimeout        time.Duration               // client read timeout to set on the created tailer
-	serviceFunc        func(string, string) string // serviceFunc gets the service name from the tagger, it is in a separate field for testing purpose
+	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
 // NewLauncher returns a new launcher
@@ -61,7 +61,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		erroredContainerID: make(chan string),
 		lock:               &sync.Mutex{},
 		readTimeout:        readTimeout,
-		serviceFunc:        input.ServiceFromTags,
+		serviceNameFunc:    input.ServiceNameFromTags,
 	}
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
@@ -165,7 +165,7 @@ func (l *Launcher) run() {
 
 // overrideSource create a new source with the image short name if the source is ContainerCollectAll
 func (l *Launcher) overrideSource(container *Container, source *config.LogSource) *config.LogSource {
-	standardService := l.serviceFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(container.container.ID))
+	standardService := l.serviceNameFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(container.container.ID))
 	if source.Name != config.ContainerCollectAll {
 		if source.Config.Service == "" && standardService != "" {
 			source.Config.Service = standardService

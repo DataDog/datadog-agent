@@ -269,8 +269,8 @@ func contains(list []string, items ...string) bool {
 
 func getLauncher(collectAll bool) *Launcher {
 	return &Launcher{
-		collectAll:  collectAll,
-		serviceFunc: func(string, string) string { return "" },
+		collectAll:      collectAll,
+		serviceNameFunc: func(string, string) string { return "" },
 	}
 }
 
@@ -368,8 +368,8 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := &Launcher{
-				collectAll:  true,
-				serviceFunc: tt.sFunc,
+				collectAll:      true,
+				serviceNameFunc: tt.sFunc,
 			}
 			got, err := l.getSource(tt.pod, tt.container)
 			if (err != nil) != tt.wantErr {

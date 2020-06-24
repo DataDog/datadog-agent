@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestServiceFromTags(t *testing.T) {
+func TestServiceNameFromTags(t *testing.T) {
 	tests := []struct {
 		name         string
 		tFunc        func(string) ([]string, error)
@@ -49,8 +49,8 @@ func TestServiceFromTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			taggerFunc = tt.tFunc
-			if got := ServiceFromTags(tt.ctrName, tt.taggerEntity); got != tt.want {
-				t.Errorf("ServiceFromTags() = %v, want %v", got, tt.want)
+			if got := ServiceNameFromTags(tt.ctrName, tt.taggerEntity); got != tt.want {
+				t.Errorf("ServiceNameFromTags() = %v, want %v", got, tt.want)
 			}
 		})
 	}
