@@ -53,7 +53,12 @@ func GetHostAlias() (string, error) {
 	instanceName, err := getResponseWithMaxLength(metadataURL+"/instance/name",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
-		return "", fmt.Errorf("unable to retrieve instance name from GCE: %s", err)
+		// If the endpoint is not reachable, fallback on the old way to get the alias
+		hostname, hostErr := GetHostname()
+		if hostErr != nil {
+			return "", fmt.Errorf("unable to retrieve instance name and hostname from GCE: %s", err)
+		}
+		instanceName = strings.SplitN(hostname, ".", 2)[0]
 	}
 
 	projectID, err := getResponseWithMaxLength(metadataURL+"/project/project-id",
