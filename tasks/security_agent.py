@@ -3,7 +3,16 @@ import os
 import sys
 from invoke import task
 
-from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
+from .utils import (
+    bin_name,
+    get_gopath,
+    get_build_flags,
+    REPO_PATH,
+    get_version,
+    get_git_branch_name,
+    get_go_version,
+    get_git_commit,
+)
 from .build_tags import get_build_tags, LINUX_ONLY_TAGS
 from .go import generate
 
@@ -19,14 +28,13 @@ DEFAULT_BUILD_TAGS = [
     "kubelet",
 ]
 
+
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False,
-          major_version='7', arch="x64", go_mod="vendor"):
+def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7', arch="x64", go_mod="vendor"):
     """
     Build the security agent
     """
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes='3')
-
 
     # TODO use pkg/version for this
     main = "main."
@@ -44,7 +52,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
-                    goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
+                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
     # Generating go source from templates by running go generate on ./pkg/status
@@ -55,7 +63,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
+    ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
 
     build_exclude = []
     if not sys.platform.startswith('linux'):
@@ -79,6 +87,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     }
 
     ctx.run(cmd.format(**args), env=env)
+
 
 @task()
 def gen_mocks(ctx):

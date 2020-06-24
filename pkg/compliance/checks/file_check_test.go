@@ -96,13 +96,14 @@ func TestFileCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "jsonpath log-driver",
+			name: "jsonquery log-driver",
 			setup: setupFile(&compliance.File{
 				Path: "./testdata/file/daemon.json",
 				Report: compliance.Report{
 					{
-						Property: "$['log-driver']",
-						Kind:     compliance.PropertyKindJSONPath,
+						// Need to use .[] syntax when attributes have - in their name
+						Property: `.["log-driver"]`,
+						Kind:     compliance.PropertyKindJSONQuery,
 						As:       "log_driver",
 					},
 				},
@@ -114,13 +115,13 @@ func TestFileCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "jsonpath experimental",
+			name: "jsonquery experimental",
 			setup: setupFile(&compliance.File{
 				Path: "./testdata/file/daemon.json",
 				Report: compliance.Report{
 					{
-						Property: "$.experimental",
-						Kind:     "jsonpath",
+						Property: ".experimental",
+						Kind:     "jsonquery",
 						As:       "experimental",
 					},
 				},
@@ -132,13 +133,13 @@ func TestFileCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "jsonpath ulimits",
+			name: "jsonquery ulimits",
 			setup: setupFile(&compliance.File{
 				Path: "./testdata/file/daemon.json",
 				Report: compliance.Report{
 					{
-						Property: "$['default-ulimits'].nofile.Hard",
-						Kind:     "jsonpath",
+						Property: `.["default-ulimits"].nofile.Hard`,
+						Kind:     "jsonquery",
 						As:       "nofile_hard",
 					},
 				},
@@ -146,6 +147,24 @@ func TestFileCheck(t *testing.T) {
 			validate: func(t *testing.T, kv compliance.KVMap) {
 				assert.Equal(t, compliance.KVMap{
 					"nofile_hard": "64000",
+				}, kv)
+			},
+		},
+		{
+			name: "yamlquery pod",
+			setup: setupFile(&compliance.File{
+				Path: "./testdata/file/pod.yaml",
+				Report: compliance.Report{
+					{
+						Property: ".apiVersion",
+						Kind:     "yamlquery",
+						As:       "apiVersion",
+					},
+				},
+			}),
+			validate: func(t *testing.T, kv compliance.KVMap) {
+				assert.Equal(t, compliance.KVMap{
+					"apiVersion": "v1",
 				}, kv)
 			},
 		},

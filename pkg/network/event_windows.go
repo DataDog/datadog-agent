@@ -16,10 +16,10 @@ import (
 
 const (
 	// TCPProtocol represents the IANA protocol number for TCP
-	TCPProtocol = 17
+	TCPProtocol = 6
 
 	// UDPProtocol represents the IANA protocol number for UDP
-	UDPProtocol = 6
+	UDPProtocol = 17
 )
 
 func connFamily(addressFamily C.uint16_t) ConnectionFamily {
