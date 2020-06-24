@@ -18,9 +18,10 @@ import (
 )
 
 type commandFixture struct {
-	test            *testing.T
-	name            string
-	check           commandCheck
+	name string
+
+	command *compliance.Command
+
 	commandExitCode int
 	commandOutput   string
 	commandError    error
@@ -30,21 +31,26 @@ type commandFixture struct {
 	expError        error
 }
 
-func (f *commandFixture) mockRunCommand(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
-	assert.Equal(f.test, f.expCommandName, name)
-	assert.ElementsMatch(f.test, f.expCommandArgs, args)
-	return f.commandExitCode, []byte(f.commandOutput), f.commandError
+func (f *commandFixture) mockRunCommand(t *testing.T) commandRunnerFunc {
+	return func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
+		assert.Equal(t, f.expCommandName, name)
+		assert.ElementsMatch(t, f.expCommandArgs, args)
+		return f.commandExitCode, []byte(f.commandOutput), f.commandError
+	}
 }
 
 func (f *commandFixture) run(t *testing.T) {
 	t.Helper()
 
-	f.test = t
-	reporter := f.check.reporter.(*mocks.Reporter)
-	commandRunnerFunc = f.mockRunCommand
+	commandRunner = f.mockRunCommand(t)
 
-	expectedCalls := 0
+	reporter := &mocks.Reporter{}
+	defer reporter.AssertExpectations(t)
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+
 	if f.expKV != nil {
+		env.On("Reporter").Return(reporter)
 		reporter.On(
 			"Report",
 			newTestRuleEvent(
@@ -52,25 +58,20 @@ func (f *commandFixture) run(t *testing.T) {
 				f.expKV,
 			),
 		).Once()
-		expectedCalls = 1
 	}
 
-	err := f.check.Run()
-	reporter.AssertNumberOfCalls(t, "Report", expectedCalls)
-	assert.Equal(t, f.expError, err)
-}
-
-func newFakeCommandCheck(t *testing.T, command *compliance.Command) commandCheck {
-	check, err := newCommandCheck(newTestBaseCheck(&mocks.Reporter{}, checkKindCommand), command)
+	check, err := newCommandCheck(newTestBaseCheck(env, checkKindCommand), f.command)
 	assert.NoError(t, err)
-	return *check
+
+	err = check.Run()
+	assert.Equal(t, f.expError, err)
 }
 
 func TestCommandCheck(t *testing.T) {
 	tests := []commandFixture{
 		{
 			name: "Test binary run",
-			check: newFakeCommandCheck(t, &compliance.Command{
+			command: &compliance.Command{
 				BinaryCmd: &compliance.BinaryCmd{
 					Name: "myCommand",
 					Args: []string{"--foo=bar", "--baz"},
@@ -80,7 +81,7 @@ func TestCommandCheck(t *testing.T) {
 						As: "myCommandOutput",
 					},
 				},
-			}),
+			},
 			commandExitCode: 0,
 			commandOutput:   "output",
 			commandError:    nil,
@@ -93,7 +94,7 @@ func TestCommandCheck(t *testing.T) {
 		},
 		{
 			name: "Test shell run",
-			check: newFakeCommandCheck(t, &compliance.Command{
+			command: &compliance.Command{
 				ShellCmd: &compliance.ShellCmd{
 					Run: "my command --foo=bar --baz",
 				},
@@ -102,7 +103,7 @@ func TestCommandCheck(t *testing.T) {
 						As: "myCommandOutput",
 					},
 				},
-			}),
+			},
 			commandExitCode: 0,
 			commandOutput:   "output",
 			commandError:    nil,
@@ -115,7 +116,7 @@ func TestCommandCheck(t *testing.T) {
 		},
 		{
 			name: "Test custom shell run",
-			check: newFakeCommandCheck(t, &compliance.Command{
+			command: &compliance.Command{
 				ShellCmd: &compliance.ShellCmd{
 					Run: "my command --foo=bar --baz",
 					Shell: &compliance.BinaryCmd{
@@ -128,7 +129,7 @@ func TestCommandCheck(t *testing.T) {
 						As: "myCommandOutput",
 					},
 				},
-			}),
+			},
 			commandExitCode: 0,
 			commandOutput:   "output",
 			commandError:    nil,
@@ -141,7 +142,7 @@ func TestCommandCheck(t *testing.T) {
 		},
 		{
 			name: "Test execution failure",
-			check: newFakeCommandCheck(t, &compliance.Command{
+			command: &compliance.Command{
 				BinaryCmd: &compliance.BinaryCmd{
 					Name: "myCommand",
 					Args: []string{"--foo=bar", "--baz"},
@@ -151,7 +152,7 @@ func TestCommandCheck(t *testing.T) {
 						As: "myCommandOutput",
 					},
 				},
-			}),
+			},
 			commandExitCode: -1,
 			commandError:    fmt.Errorf("some failure"),
 			expCommandName:  "myCommand",
@@ -161,7 +162,7 @@ func TestCommandCheck(t *testing.T) {
 		},
 		{
 			name: "Test non-zero return code (no filter)",
-			check: newFakeCommandCheck(t, &compliance.Command{
+			command: &compliance.Command{
 				BinaryCmd: &compliance.BinaryCmd{
 					Name: "myCommand",
 					Args: []string{"--foo=bar", "--baz"},
@@ -171,7 +172,7 @@ func TestCommandCheck(t *testing.T) {
 						As: "myCommandOutput",
 					},
 				},
-			}),
+			},
 			commandExitCode: 2,
 			commandOutput:   "output",
 			commandError:    nil,
@@ -184,7 +185,7 @@ func TestCommandCheck(t *testing.T) {
 		},
 		{
 			name: "Test allowed non-zero return code",
-			check: newFakeCommandCheck(t, &compliance.Command{
+			command: &compliance.Command{
 				BinaryCmd: &compliance.BinaryCmd{
 					Name: "myCommand",
 					Args: []string{"--foo=bar", "--baz"},
@@ -201,7 +202,7 @@ func TestCommandCheck(t *testing.T) {
 						},
 					},
 				},
-			}),
+			},
 			commandExitCode: 2,
 			commandOutput:   "output",
 			commandError:    nil,
@@ -214,7 +215,7 @@ func TestCommandCheck(t *testing.T) {
 		},
 		{
 			name: "Test not allowed non-zero return code",
-			check: newFakeCommandCheck(t, &compliance.Command{
+			command: &compliance.Command{
 				BinaryCmd: &compliance.BinaryCmd{
 					Name: "myCommand",
 					Args: []string{"--foo=bar", "--baz"},
@@ -231,7 +232,7 @@ func TestCommandCheck(t *testing.T) {
 						},
 					},
 				},
-			}),
+			},
 			commandExitCode: 3,
 			commandOutput:   "output",
 			commandError:    fmt.Errorf("some failure"),
@@ -242,7 +243,7 @@ func TestCommandCheck(t *testing.T) {
 		},
 		{
 			name: "Test output is too large",
-			check: newFakeCommandCheck(t, &compliance.Command{
+			command: &compliance.Command{
 				BinaryCmd: &compliance.BinaryCmd{
 					Name: "myCommand",
 					Args: []string{"--foo=bar", "--baz"},
@@ -253,7 +254,7 @@ func TestCommandCheck(t *testing.T) {
 					},
 				},
 				MaxOutputSize: 50,
-			}),
+			},
 			commandExitCode: 0,
 			commandOutput:   "outputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutput",
 			expCommandName:  "myCommand",

@@ -21,8 +21,7 @@ import (
 
 type kubeApiserverCheck struct {
 	baseCheck
-	kubeClient   kubeDynamic.Interface
-	kubeResource compliance.KubernetesResource
+	kubeResource *compliance.KubernetesResource
 }
 
 const (
@@ -33,11 +32,10 @@ const (
 	kubeResourceKindKey      string = "kube_resource_kind"
 )
 
-func newKubeapiserverCheck(baseCheck baseCheck, kubeResource *compliance.KubernetesResource, kubeClient kubeDynamic.Interface) (*kubeApiserverCheck, error) {
+func newKubeapiserverCheck(baseCheck baseCheck, kubeResource *compliance.KubernetesResource) (*kubeApiserverCheck, error) {
 	check := &kubeApiserverCheck{
 		baseCheck:    baseCheck,
-		kubeClient:   kubeClient,
-		kubeResource: *kubeResource,
+		kubeResource: kubeResource,
 	}
 
 	if len(check.kubeResource.Kind) == 0 {
@@ -63,7 +61,7 @@ func (c *kubeApiserverCheck) Run() error {
 		Resource: c.kubeResource.Kind,
 		Version:  c.kubeResource.Version,
 	}
-	resourceDef := c.kubeClient.Resource(resourceSchema)
+	resourceDef := c.KubeClient().Resource(resourceSchema)
 
 	var resourceAPI kubeDynamic.ResourceInterface
 	if len(c.kubeResource.Namespace) > 0 {

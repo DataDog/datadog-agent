@@ -16,8 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 )
 
+type commandRunnerFunc func(context.Context, string, []string, bool) (int, []byte, error)
+
 var (
-	commandRunnerFunc func(context.Context, string, []string, bool) (int, []byte, error) = runCommand
+	commandRunner commandRunnerFunc = runCommand
 )
 
 func getDefaultShell() compliance.BinaryCmd {
@@ -33,6 +35,18 @@ func getDefaultShell() compliance.BinaryCmd {
 			Args: []string{"-c"},
 		}
 	}
+}
+
+func shellCmdToBinaryCmd(shellCmd *compliance.ShellCmd) compliance.BinaryCmd {
+	var execCmd compliance.BinaryCmd
+	if shellCmd.Shell != nil {
+		execCmd = *shellCmd.Shell
+	} else {
+		execCmd = getDefaultShell()
+	}
+
+	execCmd.Args = append(execCmd.Args, shellCmd.Run)
+	return execCmd
 }
 
 func runCommand(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {

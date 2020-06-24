@@ -58,8 +58,12 @@ func TestGroupCheck(t *testing.T) {
 			reporter := &mocks.Reporter{}
 			defer reporter.AssertExpectations(t)
 
-			base := newTestBaseCheck(reporter, checkKindAudit)
-			check, err := newGroupCheck(base, test.etcGroupFile, test.group)
+			env := &mocks.Env{}
+			env.On("Reporter").Return(reporter)
+			env.On("EtcGroupPath").Return(test.etcGroupFile)
+
+			base := newTestBaseCheck(env, checkKindAudit)
+			check, err := newGroupCheck(base, test.group)
 			assert.NoError(err)
 
 			reporter.On(

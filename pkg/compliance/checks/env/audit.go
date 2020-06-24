@@ -3,16 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !linux
-
-package checks
+package env
 
 import (
-	"errors"
-
-	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/elastic/go-libaudit/rule"
 )
 
-func newAuditClient() (env.AuditClient, error) {
-	return nil, errors.New("audit client requires linux build flag")
+// AuditClient defines the interface for interacting with the auditd client
+type AuditClient interface {
+	GetFileWatchRules() ([]*rule.FileWatchRule, error)
+	Close() error
 }

@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultTimeoutSeconds  int = 30
+	defaultTimeout             = 30 * time.Second
 	defaultOutputSizeLimit int = 2 * 1024
 )
 
@@ -43,19 +43,13 @@ func newCommandCheck(baseCheck baseCheck, command *compliance.Command) (*command
 	if command.BinaryCmd != nil {
 		commandCheck.execCommand = *command.BinaryCmd
 	} else {
-		if command.ShellCmd.Shell != nil {
-			commandCheck.execCommand = *command.ShellCmd.Shell
-		} else {
-			commandCheck.execCommand = getDefaultShell()
-		}
-
-		commandCheck.execCommand.Args = append(commandCheck.execCommand.Args, command.ShellCmd.Run)
+		commandCheck.execCommand = shellCmdToBinaryCmd(command.ShellCmd)
 	}
 
 	if command.TimeoutSeconds != 0 {
 		commandCheck.commandTimeout = time.Duration(command.TimeoutSeconds) * time.Second
 	} else {
-		commandCheck.commandTimeout = time.Duration(defaultTimeoutSeconds) * time.Second
+		commandCheck.commandTimeout = defaultTimeout
 	}
 
 	if command.MaxOutputSize != 0 {
@@ -74,7 +68,7 @@ func (c *commandCheck) Run() error {
 	defer cancel()
 
 	// TODO: Capture stdout only when necessary
-	exitCode, stdout, err := commandRunnerFunc(context, c.execCommand.Name, c.execCommand.Args, true)
+	exitCode, stdout, err := commandRunner(context, c.execCommand.Name, c.execCommand.Args, true)
 	if exitCode == -1 && err != nil {
 		return log.Warnf("%s: command '%v' execution failed, error: %v", c.id, c.command, err)
 	}
