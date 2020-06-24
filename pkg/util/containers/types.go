@@ -75,8 +75,8 @@ type Container struct {
 	AddressList []NetworkAddress
 	StartedAt   int64
 
-	metrics.ContainerLimits
 	metrics.ContainerMetrics
+	Limits  metrics.ContainerLimits
 	Network metrics.ContainerNetStats
 }
 

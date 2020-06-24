@@ -41,7 +41,7 @@ func TestConvertMetaV2Container(t *testing.T) {
 		Type:        "ECS",
 		AddressList: []containers.NetworkAddress{},
 	}
-	expected.CPULimit = 100
+	expected.Limits.CPULimit = 100
 
 	assert.Equal(t, expected, convertMetaV2Container(container))
 }
