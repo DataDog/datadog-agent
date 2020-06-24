@@ -46,24 +46,24 @@ func (f *testHandler) EventDiscarderFound(event Event, field string) {
 	values[field] = discarders
 }
 
-func addRuleExpr(t *testing.T, rs *RuleSet, expr string) {
+func addRuleExpr(t *testing.T, rs *RuleSet, id, expr string) {
 	ruleDef := &policy.RuleDefinition{
-		ID:         "rule_test",
+		ID:         id,
 		Expression: expr,
 		Tags:       make(map[string]string),
 	}
 	if _, err := rs.AddRule(ruleDef); err != nil {
 		t.Fatal(err)
 	}
-	if err := rs.GeneratePartials(); err != nil {
+	if err := rs.generatePartials(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRuleBuckets(t *testing.T) {
 	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
-	addRuleExpr(t, rs, `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
-	addRuleExpr(t, rs, `(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`)
+	addRuleExpr(t, rs, "id1", `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
+	addRuleExpr(t, rs, "id1", `(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`)
 
 	if bucket, ok := rs.eventRuleBuckets["open"]; !ok || len(bucket.rules) != 1 {
 		t.Fatal("unable to find `open` rules or incorrect number of rules")
@@ -90,10 +90,10 @@ func TestRuleSetDiscarders(t *testing.T) {
 	rs := NewRuleSet(model, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 	rs.AddListener(handler)
 
-	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.uid != 0`)
-	addRuleExpr(t, rs, `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
-	addRuleExpr(t, rs, `(open.filename =~ "/var/run/*") && open.flags & O_CREAT > 0 && process.uid != 0`)
-	addRuleExpr(t, rs, `(mkdir.filename =~ "/var/run/*") && process.uid != 0`)
+	addRuleExpr(t, rs, "id1", `open.filename == "/etc/passwd" && process.uid != 0`)
+	addRuleExpr(t, rs, "id2", `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
+	addRuleExpr(t, rs, "id3", `(open.filename =~ "/var/run/*") && open.flags & O_CREAT > 0 && process.uid != 0`)
+	addRuleExpr(t, rs, "id4", `(mkdir.filename =~ "/var/run/*") && process.uid != 0`)
 
 	event := &testEvent{
 		process: testProcess{
@@ -142,79 +142,83 @@ func TestRuleSetDiscarders(t *testing.T) {
 	}
 }
 
-func TestRuleSetScalarFilters(t *testing.T) {
+func TestRuleSetFilters1(t *testing.T) {
 	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
-	addRuleExpr(t, rs, `(open.filename == "/etc/passwd" || open.filename == "/etc/shadow") && process.uid != 0`)
-	addRuleExpr(t, rs, `open.flags & O_CREAT > 0 && process.uid != 0`)
+	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 || process.gid == 0)`)
 
-	capabilities := []FilteringCapability{
-		{
-			Field: "open.filename",
-			Types: ScalarValueType,
-		},
-		{
-			Field: "open.flags",
-			Types: ScalarValueType,
-		},
+	caps := FieldCapabilities{
 		{
 			Field: "process.uid",
 			Types: ScalarValueType,
 		},
+		{
+			Field: "process.gid",
+			Types: ScalarValueType,
+		},
 	}
 
-	approvers, err := rs.GetEventFilters("open", capabilities...)
+	approvers, err := rs.GetApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(approvers["open.filename"]) != 2 {
-		t.Fatalf("wrong number of approver: %+v", approvers)
+	if _, exists := approvers["process.uid"]; !exists {
+		t.Fatal("expected approver not found")
 	}
-	if len(approvers["process.uid"]) != 1 {
-		t.Fatalf("wrong number of approver: %+v", approvers)
+
+	if _, exists := approvers["process.gid"]; !exists {
+		t.Fatal("expected approver not found")
 	}
-}
 
-func TestRuleSetFilteringCapabilities(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
-
-	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.uid != 0`)
-
-	capabilities := []FilteringCapability{
+	caps = FieldCapabilities{
 		{
 			Field: "open.filename",
 			Types: ScalarValueType,
 		},
+	}
+
+	approvers, err = rs.GetApprovers("open", caps)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.filename"]; !exists || len(values) != 2 {
+		t.Fatal("expected approver not found")
+	}
+
+	caps = FieldCapabilities{
 		{
 			Field: "process.uid",
-			Types: PatternValueType,
+			Types: ScalarValueType,
 		},
 	}
 
-	_, err := rs.GetEventFilters("open", capabilities...)
+	approvers, err = rs.GetApprovers("open", caps)
 	if err == nil {
-		t.Fatal("should return an error because of capabilities mismatch")
-	}
-
-	if _, ok := err.(*CapabilityMismatch); !ok {
-		t.Fatal("incorrect error type")
-	}
-
-	// add missing capability
-	capabilities[1].Types |= ScalarValueType
-
-	if _, err := rs.GetEventFilters("open", capabilities...); err != nil {
-		t.Fatalf("should return approvers: %s", err)
+		t.Fatal("shouldn't get any approver")
 	}
 }
 
-func TestRuleSetTwoFieldFilter(t *testing.T) {
+func TestRuleSetFilters2(t *testing.T) {
 	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
-	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.uid == process.gid`)
+	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && process.uid == 0`)
+	addRuleExpr(t, rs, "id2", `open.flags & O_CREAT > 0 && (process.uid == 0 || process.gid == 0)`)
 
-	capabilities := []FilteringCapability{
+	caps := FieldCapabilities{
+		{
+			Field: "open.filename",
+			Types: ScalarValueType,
+		},
+	}
+
+	approvers, err := rs.GetApprovers("open", caps)
+	if err == nil {
+		t.Fatal("shouldn't get any approver")
+	}
+
+	caps = FieldCapabilities{
 		{
 			Field: "open.filename",
 			Types: ScalarValueType,
@@ -229,168 +233,72 @@ func TestRuleSetTwoFieldFilter(t *testing.T) {
 		},
 	}
 
-	_, err := rs.GetEventFilters("open", capabilities...)
-	if err == nil {
-		t.Fatal("should return an error because of comparison of 2 field")
+	approvers, err = rs.GetApprovers("open", caps)
+
+	if values, exists := approvers["open.filename"]; !exists || len(values) != 2 {
+		t.Fatal("expected approver not found")
 	}
 
-	if _, ok := err.(*NoValue); !ok {
-		t.Fatal("incorrect error type")
+	if _, exists := approvers["process.uid"]; !exists {
+		t.Fatal("expected approver not found")
+	}
+
+	if _, exists := approvers["process.gid"]; !exists {
+		t.Fatal("expected approver not found")
+	}
+
+}
+
+func TestRuleSetFilters3(t *testing.T) {
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+
+	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
+
+	caps := FieldCapabilities{
+		{
+			Field: "open.filename",
+			Types: ScalarValueType,
+		},
+	}
+
+	approvers, err := rs.GetApprovers("open", caps)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.filename"]; !exists || len(values) != 2 {
+		t.Fatal("expected approver not found")
+	}
+
+	if len(approvers) != 1 {
+		t.Fatal("should get only one approver")
 	}
 }
 
-func TestRuleSetPatternFilter(t *testing.T) {
+func TestRuleSetFilters4(t *testing.T) {
 	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
-	addRuleExpr(t, rs, `open.filename =~ "/etc/*" && process.uid != 0`)
+	addRuleExpr(t, rs, "id1", `open.filename =~ "/etc/passwd" && process.uid == 0`)
 
-	capabilities := []FilteringCapability{
+	caps := FieldCapabilities{
+		{
+			Field: "open.filename",
+			Types: ScalarValueType,
+		},
+	}
+
+	if _, err := rs.GetApprovers("open", caps); err == nil {
+		t.Fatal("shouldn't get any approver")
+	}
+
+	caps = FieldCapabilities{
 		{
 			Field: "open.filename",
 			Types: ScalarValueType | PatternValueType,
 		},
-		{
-			Field: "process.uid",
-			Types: ScalarValueType,
-		},
 	}
 
-	if _, err := rs.GetEventFilters("open", capabilities...); err != nil {
-		t.Fatalf("should return approvers: %s", err)
-	}
-}
-
-func TestRuleSetNotFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
-
-	addRuleExpr(t, rs, `open.filename !~ "/etc/*" && process.uid != 0`)
-
-	capabilities := []FilteringCapability{
-		{
-			Field: "open.filename",
-			Types: ScalarValueType | PatternValueType,
-		},
-		{
-			Field: "process.uid",
-			Types: ScalarValueType,
-		},
-	}
-
-	filters, err := rs.GetEventFilters("open", capabilities...)
-	if err != nil {
-		t.Fatalf("should return filters: %s", err)
-	}
-
-	if !filters["open.filename"][0].Not {
-		t.Fatal("filename should be a not filters")
-	}
-
-	if !filters["process.uid"][0].Not {
-		t.Fatal("filename should be a not filter")
-	}
-}
-
-func TestRuleSetInFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
-
-	addRuleExpr(t, rs, `open.filename in ["/etc/passwd", "/etc/shadow"]`)
-
-	capabilities := []FilteringCapability{
-		{
-			Field: "open.filename",
-			Types: ScalarValueType | PatternValueType,
-		},
-		{
-			Field: "process.uid",
-			Types: ScalarValueType,
-		},
-	}
-
-	filters, err := rs.GetEventFilters("open", capabilities...)
-	if err != nil {
-		t.Fatalf("should return filters: %s", err)
-	}
-
-	if len(filters["open.filename"]) != 2 {
-		t.Fatalf("wrong number of filter: %+v", filters)
-	}
-}
-
-func TestRuleSetNotInFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
-
-	addRuleExpr(t, rs, `open.filename not in ["/etc/passwd", "/etc/shadow"]`)
-
-	capabilities := []FilteringCapability{
-		{
-			Field: "open.filename",
-			Types: ScalarValueType | PatternValueType,
-		},
-		{
-			Field: "process.uid",
-			Types: ScalarValueType,
-		},
-	}
-
-	filters, err := rs.GetEventFilters("open", capabilities...)
-	if err != nil {
-		t.Fatalf("should return filter: %s", err)
-	}
-
-	if len(filters["open.filename"]) != 2 {
-		t.Fatalf("wrong number of filter: %+v", filters)
-	}
-
-	if !filters["open.filename"][0].Not || !filters["open.filename"][1].Not {
-		t.Fatal("filename should be a not filter")
-	}
-}
-
-func TestRuleSetBitOpFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
-
-	addRuleExpr(t, rs, `open.flags & O_CREAT > 0`)
-
-	capabilities := []FilteringCapability{
-		{
-			Field: "open.flags",
-			Types: ScalarValueType,
-		},
-	}
-
-	filters, err := rs.GetEventFilters("open", capabilities...)
-	if err != nil {
-		t.Fatalf("should return filters: %s", err)
-	}
-
-	if len(filters["open.flags"]) != 1 {
-		t.Fatalf("wrong number of filter: %+v", filters)
-	}
-
-	if filters["open.flags"][0].Value.(int) != syscall.O_CREAT {
-		t.Fatal("wrong value for open.flags")
-	}
-}
-
-func TestRuleSetOppositeFilters(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
-
-	addRuleExpr(t, rs, `open.filename == "/etc/passwd"`)
-	addRuleExpr(t, rs, `open.filename != "/etc/passwd" && open.flags & O_CREAT > 0`)
-
-	capabilities := []FilteringCapability{
-		{
-			Field: "open.filename",
-			Types: ScalarValueType,
-		},
-		{
-			Field: "open.flags",
-			Types: ScalarValueType,
-		},
-	}
-
-	_, err := rs.GetEventFilters("open", capabilities...)
-	if _, ok := err.(*OppositeRule); !ok {
-		t.Fatal("incorrect error type")
+	if _, err := rs.GetApprovers("open", caps); err != nil {
+		t.Fatal("expected approver not found")
 	}
 }

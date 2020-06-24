@@ -321,6 +321,8 @@ func main() {
 package {{.Name}}
 
 import (
+	"reflect"
+
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -375,8 +377,7 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 		{{else if eq $Field.ReturnType "int"}}
 			return int({{$Return}}), nil
 		{{else if eq $Field.ReturnType "bool"}}
-			return &eval.BoolEvaluator{
-				return {{$Return}}, nil
+			return {{$Return}}, nil
 		{{end}}
 		{{end}}
 		}
@@ -404,6 +405,24 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 	}
 
 	return "", errors.Wrap(ErrFieldNotFound, key)
+}
+
+func (e *Event) GetFieldType(key string) (reflect.Kind, error) {
+	switch key {
+		{{range $Name, $Field := .Fields}}
+
+		case "{{$Name}}":
+		{{if eq $Field.ReturnType "string"}}
+			return reflect.String, nil
+		{{else if eq $Field.ReturnType "int"}}
+			return reflect.Int, nil
+		{{else if eq $Field.ReturnType "bool"}}
+			return reflect.Bool, nil
+		{{end}}
+		{{end}}
+		}
+
+		return reflect.Invalid, errors.Wrap(ErrFieldNotFound, key)
 }
 
 func (e *Event) SetFieldValue(key string, value interface{}) error {

@@ -15,13 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	ErrEvaluatorNotFound     = errors.New("evaluator not found")
-	ErrTagsNotFound          = errors.New("tags not found")
-	ErrEventTypeNotFound     = errors.New("event type not found")
-	ErrSetEventValueNotFound = errors.New("set event value error field not found")
-)
-
 type Model interface {
 	GetEvaluator(key string) (interface{}, error)
 	SetEvent(event interface{})

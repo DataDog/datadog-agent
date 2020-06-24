@@ -113,7 +113,7 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenBasenameLiveDiscarderFilter(t *testing.T) {
+func TestOpenBasenameDiscarderFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
 		Expression: `open.basename == "test-obd-1"`,
@@ -139,43 +139,6 @@ func TestOpenBasenameLiveDiscarderFilter(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer syscall.Close(fd2)
-	defer os.Remove(testFile2)
-
-	if event, err := waitForOpenEvent(test, testFile2); err == nil {
-		t.Fatalf("shouldn't get an event: %+v", event)
-	}
-}
-
-func TestOpenBasenameRuleDiscarderFilter(t *testing.T) {
-	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
-		Expression: `open.basename != "test-obd-3"`,
-	}
-
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	fd1, testFile1, err := openTestFile(test, "test-obd-4", syscall.O_CREAT)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer syscall.Close(fd1)
-	defer os.Remove(testFile1)
-
-	if _, err := waitForOpenEvent(test, testFile1); err != nil {
-		t.Fatal(err)
-	}
-
-	time.Sleep(3 * time.Second)
-
-	fd2, testFile2, err := openTestFile(test, "test-obd-3", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +197,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 func TestOpenProcessInodeApproverFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `open.filename == "{{.Root}}/test-oba-1" && process.filename == "/bin/cat"`,
+		Expression: `open.filename =~ "{{.Root}}/test-oba-1" && process.filename == "/bin/cat"`,
 	}
 
 	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
@@ -250,18 +213,7 @@ func TestOpenProcessInodeApproverFilter(t *testing.T) {
 	defer syscall.Close(fd1)
 	defer os.Remove(testFile1)
 
-	if _, err := waitForOpenEvent(test, testFile1); err != nil {
-		t.Fatal(err)
-	}
-
-	fd2, testFile2, err := openTestFile(test, "test-oba-2", syscall.O_CREAT)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer syscall.Close(fd2)
-	defer os.Remove(testFile2)
-
-	if event, err := waitForOpenEvent(test, testFile2); err == nil {
+	if event, err := waitForOpenEvent(test, testFile1); err == nil {
 		t.Fatalf("shouldn't get an event: %+v", event)
 	}
 }

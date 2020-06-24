@@ -1,5 +1,7 @@
 package eval
 
+import "reflect"
+
 type Event interface {
 	GetID() string
 	GetType() string
@@ -7,6 +9,7 @@ type Event interface {
 	GetFieldEventType(key string) (string, error)
 	SetFieldValue(key string, value interface{}) error
 	GetFieldValue(key string) (interface{}, error)
+	GetFieldType(key string) (reflect.Kind, error)
 }
 
 // RuleEvent - Rule event wrapper used to send an event to the backend

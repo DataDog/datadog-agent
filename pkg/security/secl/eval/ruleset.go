@@ -13,11 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type Filter struct {
+type FilterValue struct {
 	Field string
 	Value interface{}
 	Type  FieldValueType
 	Not   bool
+
+	ignore bool
 }
 
 type RuleSetListener interface {
@@ -30,7 +32,13 @@ type RuleBucket struct {
 	fields []string
 }
 
-func (rl *RuleBucket) AddRule(rule *Rule) {
+func (rl *RuleBucket) AddRule(rule *Rule) error {
+	for _, r := range rl.rules {
+		if r.ID == rule.ID {
+			return DuplicateRuleID{ID: r.ID}
+		}
+	}
+
 	for _, field := range rule.evaluator.GetFields() {
 		index := sort.SearchStrings(rl.fields, field)
 		if index < len(rl.fields) && rl.fields[index] == field {
@@ -42,6 +50,8 @@ func (rl *RuleBucket) AddRule(rule *Rule) {
 	}
 
 	rl.rules = append(rl.rules, rule)
+
+	return nil
 }
 
 func (rl *RuleBucket) GetRules() []*Rule {
@@ -59,9 +69,9 @@ type RuleSet struct {
 	fields []string
 }
 
-// GenerateMacroEvaluators - Generates the macros evaluators for the list of macros of the ruleset. If a field is provided,
+// generateMacroEvaluators - Generates the macros evaluators for the list of macros of the ruleset. If a field is provided,
 // the function will compute the macro partials.
-func (rs *RuleSet) GenerateMacroEvaluators(field string) error {
+func (rs *RuleSet) generateMacroEvaluators(field string) error {
 	macroEvaluators := make(map[string]*MacroEvaluator)
 	for name, macro := range rs.macros {
 		eval, err := MacroToEvaluator(macro.ast, rs.model, &rs.opts, field)
@@ -79,7 +89,7 @@ func (rs *RuleSet) GenerateMacroEvaluators(field string) error {
 	return nil
 }
 
-// AddMacro - Parse the macros AST and add them to the list of macros of the ruleset
+// AddMacros - Parse the macros AST and add them to the list of macros of the ruleset
 func (rs *RuleSet) AddMacros(macros map[string]*policy.MacroDefinition) error {
 	// Build the list of macros for the ruleset
 	for id, m := range macros {
@@ -93,8 +103,9 @@ func (rs *RuleSet) AddMacros(macros map[string]*policy.MacroDefinition) error {
 		}
 		rs.macros[id] = macro
 	}
+
 	// Generate macro evaluators. The input "field" is therefore empty, we are not generating partials yet.
-	if err := rs.GenerateMacroEvaluators(""); err != nil {
+	if err := rs.generateMacroEvaluators(""); err != nil {
 		return errors.Wrap(err, "couldn't generate macros evaluators")
 	}
 	return nil
@@ -103,17 +114,17 @@ func (rs *RuleSet) AddMacros(macros map[string]*policy.MacroDefinition) error {
 // AddRules - Adds rules to the ruleset and generate their partials
 func (rs *RuleSet) AddRules(rules map[string]*policy.RuleDefinition) error {
 	for _, ruleDef := range rules {
-		_, err := rs.AddRule(ruleDef)
-		if err != nil {
+		if _, err := rs.AddRule(ruleDef); err != nil {
 			return errors.Wrapf(err, "couldn't add rule %s to the ruleset", ruleDef.ID)
 		}
 	}
-	// Generate partials
-	if err := rs.GeneratePartials(); err != nil {
+
+	if err := rs.generatePartials(); err != nil {
 		return errors.Wrap(err, "couldn't generate partials")
 	}
 	return nil
 }
+
 // AddRule - Creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*Rule, error) {
 	rule := &Rule{
@@ -143,7 +154,10 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*Rule, error) {
 			bucket = &RuleBucket{}
 			rs.eventRuleBuckets[event] = bucket
 		}
-		bucket.AddRule(rule)
+
+		if err := bucket.AddRule(rule); err != nil {
+			return nil, err
+		}
 	}
 
 	if len(rule.GetEventTypes()) == 0 {
@@ -153,6 +167,7 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*Rule, error) {
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
 	rs.AddFields(evaluator.GetFields())
+
 	return rule, nil
 }
 
@@ -172,24 +187,24 @@ func (rs *RuleSet) AddListener(listener RuleSetListener) {
 	rs.listeners = append(rs.listeners, listener)
 }
 
-func (rs *RuleSet) HasRulesForEventType(kind string) bool {
-	bucket, found := rs.eventRuleBuckets[kind]
+// HasRulesForEventType returns if there is at least one rule for the given event type
+func (rs *RuleSet) HasRulesForEventType(eventType string) bool {
+	bucket, found := rs.eventRuleBuckets[eventType]
 	if !found {
 		return false
 	}
 	return len(bucket.rules) > 0
 }
 
-type EventFilters map[string][]Filter
+// FilterValues - list of FilterValue
+type FilterValues []FilterValue
 
-type FilteringCapability struct {
-	Field string
-	Types FieldValueType
-}
+// Approvers associates field names with their Filter values
+type Approvers map[string]FilterValues
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-func RandStringRunes(n int) string {
+func randStringRunes(n int) string {
 	b := make([]rune, n)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
@@ -202,7 +217,7 @@ func notOfValue(value interface{}) (interface{}, error) {
 	case int:
 		return ^v, nil
 	case string:
-		return RandStringRunes(256), nil
+		return randStringRunes(256), nil
 	case bool:
 		return !v, nil
 	}
@@ -210,138 +225,253 @@ func notOfValue(value interface{}) (interface{}, error) {
 	return nil, errors.New("value type unknown")
 }
 
-// check is there is no opposite rule invalidating the current value
-func isFilterValid(ctx *Context, bucket *RuleBucket, field string) bool {
-	for _, rule := range bucket.rules {
-		// do not evaluate rule not having the same field
-		if _, ok := rule.evaluator.FieldValues[field]; !ok {
+// FieldCombinations - array all the combinations of field
+type FieldCombinations [][]string
+
+func (a FieldCombinations) Len() int           { return len(a) }
+func (a FieldCombinations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a FieldCombinations) Less(i, j int) bool { return len(a[i]) < len(a[j]) }
+
+func fieldCombinations(fields []string) FieldCombinations {
+	var result FieldCombinations
+
+	for i := 1; i < (1 << len(fields)); i++ {
+		var subResult []string
+		for j, field := range fields {
+			if (i & (1 << j)) > 0 {
+				subResult = append(subResult, field)
+			}
+		}
+		result = append(result, subResult)
+	}
+
+	// order the list with the single field first
+	sort.Sort(result)
+
+	return result
+}
+
+// Merge merges to FilterValues ensuring there is no duplicate value
+func (fv FilterValues) Merge(n FilterValues) FilterValues {
+LOOP:
+	for _, v1 := range n {
+		for _, v2 := range fv {
+			if v1.Value == v2.Value {
+				continue LOOP
+			}
+		}
+		fv = append(fv, v1)
+	}
+
+	return fv
+}
+
+type FieldCapabilities []FieldCapability
+
+type FieldCapability struct {
+	Field string
+	Types FieldValueType
+}
+
+func (fcs FieldCapabilities) GetFields() []string {
+	var fields []string
+	for _, fc := range fcs {
+		fields = append(fields, fc.Field)
+	}
+	return fields
+}
+
+func (fcs FieldCapabilities) Validate(approvers map[string]FilterValues) bool {
+	for _, fc := range fcs {
+		values, exists := approvers[fc.Field]
+		if !exists {
 			continue
 		}
 
-		if result, _ := rule.evaluator.PartialEval(ctx, field); !result {
-			return false
+		for _, value := range values {
+			if value.Type&fc.Types == 0 {
+				return false
+			}
 		}
 	}
 
 	return true
 }
 
-func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, bucket *RuleBucket, isValidEventTypeFnc func(eventType string) bool) ([]Filter, error) {
-	var ctx Context
+// GetApprovers returns Approvers for the given event type and the fields
+func (rs *RuleSet) GetApprovers(eventType string, fieldCaps FieldCapabilities) (Approvers, error) {
+	bucket, exists := rs.eventRuleBuckets[eventType]
+	if !exists {
+		return nil, NoEventTypeBucket{EventType: eventType}
+	}
 
-	event := rs.model.GetEvent()
+	fcs := fieldCombinations(fieldCaps.GetFields())
 
-	var filters []Filter
-	for field, fValues := range evaluator.FieldValues {
-		if eventType, _ := event.GetFieldEventType(field); !isValidEventTypeFnc(eventType) {
+	approvers := make(Approvers)
+	for _, rule := range bucket.rules {
+		truthTable, err := rs.genTruthTable(rule)
+		if err != nil {
+			return nil, err
+		}
+
+		var ruleApprovers map[string]FilterValues
+		for _, fields := range fcs {
+			ruleApprovers = truthTable.getApprovers(fields...)
+			if ruleApprovers != nil && len(ruleApprovers) > 0 && fieldCaps.Validate(ruleApprovers) {
+				break
+			}
+		}
+
+		if ruleApprovers == nil || len(ruleApprovers) == 0 || !fieldCaps.Validate(ruleApprovers) {
+			return nil, &NoApprover{Fields: fieldCaps.GetFields()}
+		}
+		for field, values := range ruleApprovers {
+			approvers[field] = approvers[field].Merge(values)
+		}
+	}
+
+	return approvers, nil
+}
+
+type truthEntry struct {
+	Values FilterValues
+	Result bool
+}
+
+type truthTable struct {
+	Entries []truthEntry
+}
+
+func (tt *truthTable) getApprovers(fields ...string) map[string]FilterValues {
+	filterValues := make(map[string]FilterValues)
+
+	for _, entry := range tt.Entries {
+		if !entry.Result {
 			continue
 		}
 
+		// in order to have approvers we need to ensure that for a "true" result
+		// we always have all the given field set to true. If we find a "true" result
+		// with a field set to false we can exclude the given fields as approvers.
+		allFalse := true
+		for _, field := range fields {
+			for _, value := range entry.Values {
+				if value.Field == field && !value.Not {
+					allFalse = false
+					break
+				}
+			}
+		}
+
+		if allFalse {
+			return nil
+		}
+
+		for _, field := range fields {
+		LOOP:
+			for _, value := range entry.Values {
+				if !value.ignore && field == value.Field {
+					fvs := filterValues[value.Field]
+					for _, fv := range fvs {
+						// do not append twice the same value
+						if fv.Value == value.Value {
+							continue LOOP
+						}
+					}
+					fvs = append(fvs, value)
+					filterValues[value.Field] = fvs
+				}
+			}
+		}
+	}
+
+	return filterValues
+}
+
+func (rs *RuleSet) genTruthTable(rule *Rule) (*truthTable, error) {
+	var ctx Context
+
+	event := rs.eventCtor()
+	rs.model.SetEvent(event)
+
+	var filterValues []*FilterValue
+	for field, fValues := range rule.evaluator.FieldValues {
+		// case where there is no static value, ex: process.gid == process.uid
+		// so generate fake value in order to be able to get the truth table
 		if len(fValues) == 0 {
-			return nil, &NoValue{Field: field}
+			var value interface{}
+
+			kind, err := event.GetFieldType(field)
+			if err != nil {
+				return nil, err
+			}
+			switch kind {
+			case reflect.String:
+				value = ""
+			case reflect.Int:
+				value = 0
+			case reflect.Bool:
+				value = false
+			default:
+				return nil, &FieldTypeUnknown{Field: field}
+			}
+
+			filterValues = append(filterValues, &FilterValue{
+				Field:  field,
+				Value:  value,
+				Type:   ScalarValueType,
+				ignore: true,
+			})
+
+			continue
 		}
 
 		for _, fValue := range fValues {
-			event.SetFieldValue(field, fValue.Value)
-			if result, _ := evaluator.PartialEval(&ctx, field); result {
-				if !isFilterValid(&ctx, bucket, field) {
-					return nil, &OppositeRule{Field: field}
-				}
-				filters = append(filters, Filter{
-					Field: field,
-					Value: fValue.Value,
-					Type:  fValue.Type,
-					Not:   false,
-				})
-			}
-
-			value, err := notOfValue(fValue.Value)
-			if err != nil {
-				return nil, &ValueTypeUnknown{Field: field}
-			}
-
-			event.SetFieldValue(field, value)
-			if result, _ := evaluator.PartialEval(&ctx, field); result {
-				if !isFilterValid(&ctx, bucket, field) {
-					return nil, &OppositeRule{Field: field}
-				}
-				filters = append(filters, Filter{
-					Field: field,
-					Value: fValue.Value,
-					Type:  fValue.Type,
-					Not:   true,
-				})
-			}
+			filterValues = append(filterValues, &FilterValue{
+				Field: field,
+				Value: fValue.Value,
+				Type:  fValue.Type,
+			})
 		}
 	}
 
-	return filters, nil
-}
-
-func (rs *RuleSet) GetEventFilters(eventType string, capabilities ...FilteringCapability) (EventFilters, error) {
-	rs.model.SetEvent(rs.eventCtor())
-
-	capsMap := make(map[string]FilteringCapability)
-	for _, cap := range capabilities {
-		capsMap[cap.Field] = cap
+	if len(filterValues) == 0 {
+		return nil, nil
 	}
 
-	eventFilters := make(EventFilters)
-
-	updateEventFilters := func(filter Filter) error {
-		approvers := eventFilters[filter.Field]
-
-		cap, ok := capsMap[filter.Field]
-		if !ok {
-			return &CapabilityNotFound{Field: filter.Field}
-		}
-
-		if filter.Type&cap.Types == 0 {
-			return &CapabilityMismatch{Field: filter.Field}
-		}
-
-		found := false
-		for _, a := range approvers {
-			if a == filter {
-				found = true
-			}
-		}
-
-		if !found {
-			approvers = append(approvers, filter)
-		}
-		eventFilters[filter.Field] = approvers
-
-		return nil
+	if len(filterValues) >= 64 {
+		return nil, errors.New("limit of field values reached")
 	}
 
-	if bucket, ok := rs.eventRuleBuckets[eventType]; ok {
-		for _, rule := range bucket.rules {
-			wildcardFilters, err := rs.getFilters(rule.evaluator, bucket, func(kind string) bool { return kind == "*" })
-			if err != nil {
-				return nil, err
-			}
+	var truthTable truthTable
+	for i := 0; i < (1 << len(filterValues)); i++ {
+		var entry truthEntry
 
-			for _, approver := range wildcardFilters {
-				if err := updateEventFilters(approver); err != nil {
-					return nil, err
+		for j, value := range filterValues {
+			value.Not = (i & (1 << j)) > 0
+			if value.Not {
+				notValue, err := notOfValue(value.Value)
+				if err != nil {
+					return nil, &ValueTypeUnknown{Field: value.Field}
 				}
+				event.SetFieldValue(value.Field, notValue)
+			} else {
+				event.SetFieldValue(value.Field, value.Value)
 			}
 
-			approvers, err := rs.getFilters(rule.evaluator, bucket, func(kind string) bool { return kind == eventType })
-			if err != nil {
-				return nil, err
-			}
-
-			for _, approver := range approvers {
-				if err := updateEventFilters(approver); err != nil {
-					return nil, err
-				}
-			}
+			entry.Values = append(entry.Values, FilterValue{
+				Field: value.Field,
+				Value: value.Value,
+				Type:  value.Type,
+				Not:   value.Not,
+			})
 		}
+		entry.Result = rule.evaluator.Eval(&ctx)
+
+		truthTable.Entries = append(truthTable.Entries, entry)
 	}
 
-	return eventFilters, nil
+	return &truthTable, nil
 }
 
 func (rs *RuleSet) Evaluate(event Event) bool {
@@ -418,13 +548,13 @@ NewFields:
 	}
 }
 
-// GeneratePartials - Generate the partials of the ruleset. A partial is a boolean evalution function that only depends
+// generatePartials - Generate the partials of the ruleset. A partial is a boolean evalution function that only depends
 // on one field. The goal of partial is to determine if a rule depends on a specific field, so that we can decide if
 // we should create an in-kernel filter for that field.
-func (rs *RuleSet) GeneratePartials() error {
+func (rs *RuleSet) generatePartials() error {
 	// Compute the macros partials for each fields of the ruleset first.
 	for _, field := range rs.fields {
-		if err := rs.GenerateMacroEvaluators(field); err != nil {
+		if err := rs.generateMacroEvaluators(field); err != nil {
 			return err
 		}
 	}

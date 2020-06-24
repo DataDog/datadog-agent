@@ -3,6 +3,7 @@ package probe
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strings"
 	"sync/atomic"
 
@@ -33,29 +34,37 @@ type KTable struct {
 	LRUSize int // set if table handled by userspace LRU
 }
 
-type filterCb func(probe *Probe, field string, filters ...eval.Filter) error
+type Discarder struct {
+	Field string
+	Value interface{}
+}
+
+type onApproversFnc func(probe *Probe, approvers eval.Approvers) error
+type onDiscarderFnc func(probe *Probe, discarder Discarder) error
 
 type Probe struct {
 	*eprobe.Probe
-	handler       EventHandler
-	resolvers     *Resolvers
-	stats         Stats
-	eventFilterCb map[string][]filterCb
-	enableFilters bool
-	tables        map[string]eprobe.Table
+	handler          EventHandler
+	resolvers        *Resolvers
+	stats            Stats
+	onDiscardersFncs map[string][]onDiscarderFnc
+	enableFilters    bool
+	tables           map[string]eprobe.Table
 }
 
-// Capabilities associates eval capabilities with kernel policy flags
-type Capabilities struct {
-	EvalCapabilities []eval.FilteringCapability
-	PolicyFlags      PolicyFlag
+type Capability struct {
+	PolicyFlags     PolicyFlag
+	FieldValueTypes eval.FieldValueType
 }
+
+type Capabilities map[string]Capability
 
 type KProbe struct {
-	KProbe      *eprobe.KProbe
-	EventTypes  map[string]Capabilities
-	OnNewFilter filterCb
-	PolicyTable string
+	KProbe          *eprobe.KProbe
+	EventTypes      map[string]Capabilities
+	OnNewApprovers  onApproversFnc
+	OnNewDiscarders onDiscarderFnc
+	PolicyTable     string
 }
 
 // cache of the syscall prefix depending on kernel version
@@ -255,6 +264,37 @@ var AllKProbes = []*KProbe{
 	},
 }
 
+func (caps Capabilities) GetFlags() PolicyFlag {
+	var flags PolicyFlag
+	for _, cap := range caps {
+		flags |= cap.PolicyFlags
+	}
+	return flags
+}
+
+func (caps Capabilities) GetField() []string {
+	var fields []string
+
+	for field := range caps {
+		fields = append(fields, field)
+	}
+
+	return fields
+}
+
+func (caps Capabilities) GetFieldCapabilities() eval.FieldCapabilities {
+	var fcs eval.FieldCapabilities
+
+	for field, cap := range caps {
+		fcs = append(fcs, eval.FieldCapability{
+			Field: field,
+			Types: cap.FieldValueTypes,
+		})
+	}
+
+	return fcs
+}
+
 func (p *Probe) NewRuleSet(opts eval.Opts) *eval.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers)
@@ -332,9 +372,9 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	log.Infof("Loaded security agent eBPF module: %+v", module)
 
 	p := &Probe{
-		eventFilterCb: make(map[string][]filterCb),
-		enableFilters: config.EnableKernelFilters,
-		tables:        make(map[string]eprobe.Table),
+		onDiscardersFncs: make(map[string][]onDiscarderFnc),
+		enableFilters:    config.EnableKernelFilters,
+		tables:           make(map[string]eprobe.Table),
 	}
 
 	ebpfProbe := &eprobe.Probe{
@@ -349,10 +389,10 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		}
 
 		for eventType := range kprobe.EventTypes {
-			if kprobe.OnNewFilter != nil {
-				cbs := p.eventFilterCb[eventType]
-				cbs = append(cbs, kprobe.OnNewFilter)
-				p.eventFilterCb[eventType] = cbs
+			if kprobe.OnNewDiscarders != nil {
+				fncs := p.onDiscardersFncs[eventType]
+				fncs = append(fncs, kprobe.OnNewDiscarders)
+				p.onDiscardersFncs[eventType] = fncs
 			}
 		}
 	}
@@ -479,22 +519,18 @@ func (p *Probe) OnNewDiscarder(event *Event, field string) error {
 		return err
 	}
 
-	filtersCb := p.eventFilterCb[eventType]
-	for _, filtersCb := range filtersCb {
+	for _, fnc := range p.onDiscardersFncs[eventType] {
 		value, err := event.GetFieldValue(field)
 		if err != nil {
 			return err
 		}
 
-		filter := eval.Filter{
+		discarder := Discarder{
 			Field: field,
-			Type:  eval.ScalarValueType,
 			Value: value,
-			Not:   true,
 		}
 
-		err = filtersCb(p, field, filter)
-		if err != nil {
+		if err = fnc(p, discarder); err != nil {
 			return err
 		}
 	}
@@ -547,53 +583,33 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 					continue
 				}
 
-				flags := capabilities.PolicyFlags
-
 				if !p.enableFilters {
-					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
+					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
 						return err
 					}
 					continue
 				}
 
-				eventFilters, err := rs.GetEventFilters(eventType, capabilities.EvalCapabilities...)
-				if err != nil || len(eventFilters) == 0 {
-					log.Infof("Setting in-kernel filter policy to `pass` for `%s`: no filters", eventType)
-					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
+				approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
+				if err != nil {
+					log.Infof("Setting in-kernel filter policy to `pass` for `%s`: no approver", eventType)
+					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
 						return err
 					}
 					continue
 				}
 
-				log.Infof("Setting in-kernel filter policy to `deny` for `%s`", eventType)
-				if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_DENY, flags); err != nil {
+				if err := kprobe.OnNewApprovers(p, approvers); err != nil {
+					log.Errorf("Error while adding approvers set in-kernel policy to `pass` for `%s`: %s", eventType, err)
+					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+						return err
+					}
+
+					continue
+				}
+
+				if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_DENY, capabilities.GetFlags()); err != nil {
 					return err
-				}
-
-				for field, filters := range eventFilters {
-					if kprobe.OnNewFilter == nil {
-						continue
-					}
-
-					// if there is one not filter set the policy to ACCEPT, further filtering will
-					// relies only on discarders.
-					for _, filter := range filters {
-						if filter.Not {
-							log.Infof("Setting in-kernel filter policy fallback to `accept` for `%s`: discarders present", eventType)
-							if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
-								return err
-							}
-							break
-						}
-					}
-
-					if err := kprobe.OnNewFilter(p, field, filters...); err != nil {
-						if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
-							return err
-						}
-
-						return err
-					}
 				}
 			}
 		}

@@ -129,71 +129,111 @@ SYSCALL_KPROBE(openat) {
     return trace__sys_openat(flags, mode);
 }
 
+int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *syscall) {
+    struct open_basename_t basename = {};
+    get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
+    
+    struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
+    if (filter) {
+#ifdef DEBUG
+        printk("kprobe/vfs_open basename %s approved\n", basename.value);
+#endif
+        return 1;
+    }
+    return 0;
+}
+
+int __attribute__((always_inline)) discard_by_basename(struct syscall_cache_t *syscall) {
+    struct open_basename_t basename = {};
+    get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
+    
+    struct filter_t *filter = bpf_map_lookup_elem(&open_basename_discarders, &basename);
+    if (filter) {
+#ifdef DEBUG
+        printk("kprobe/vfs_open %s discarded\n", basename.value);
+#endif
+        return 1;
+    }
+    return 0;
+}
+
+int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
+    if (flags != NULL && (syscall->open.flags & *flags) > 0) {
+#ifdef DEBUG
+        printk("kprobe/vfs_open flags %d approved\n", syscall->open.flags);
+#endif
+        return 1;
+    }
+    return 0;
+}
+
+int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &key);
+    if (flags != NULL && (syscall->open.flags & *flags) > 0) {
+#ifdef DEBUG
+        printk("kprobe/vfs_open flags %d discarded\n", syscall->open.flags);
+#endif
+        return 1;
+    }
+    return 0;
+}
+
+int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache_t *syscall) {
+    u64 inode = pid_inode(syscall->pid);
+    struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_approvers, &inode);
+    if (filter) {
+#ifdef DEBUG
+        printk("kprobe/vfs_open pid %d with inode %d approved\n", syscall->pid, inode);
+#endif
+        return 1;
+    }
+    return 0;
+}
+
+int __attribute__((always_inline)) discard_by_process_inode(struct syscall_cache_t *syscall) {
+    u64 inode = pid_inode(syscall->pid);
+    struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_discarders, &inode);
+    if (filter) {
+#ifdef DEBUG
+        printk("kprobe/vfs_open pid %d with inode %d discarded\n", syscall->pid, inode);
+#endif
+        return 1;
+    }
+    return 0;
+}
+
 int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
     // NOTE(safchain) could be move only if pass_to_userspace == 1
     syscall->open.dentry = get_path_dentry((struct path *)PT_REGS_PARM1(ctx));
 
-    struct open_basename_t basename = {};
-    if ((syscall->policy.flags & BASENAME) > 0) {
-        get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
-    }
-
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
-    u32 key = 0;
 
     if (syscall->policy.mode == DENY) {
         if ((syscall->policy.flags & BASENAME) > 0) {
-            struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
-            if (filter != NULL) {
-                pass_to_userspace = 1;
-#ifdef DEBUG
-                printk("kprobe/vfs_open %s approved\n", basename.value);
-#endif
-            }
+            pass_to_userspace = approve_by_basename(syscall);
+        }
+
+        if (!pass_to_userspace && ((syscall->policy.flags & PROCESS_INODE))) {
+            pass_to_userspace = approve_by_process_inode(syscall);
         }
 
         if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
-            u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
-            if (flags != NULL && (syscall->open.flags & *flags) > 0) {
-                pass_to_userspace = 1;
-#ifdef DEBUG
-                printk("kprobe/vfs_open %s approved by flags\n", basename.value);
-#endif
-            }
+           pass_to_userspace = approve_by_flags(syscall);
         }
-    }
-
-    // only check discarders if policy is ACCEPT
-    if (syscall->policy.mode == ACCEPT) {
+    } else {
         if ((syscall->policy.flags & BASENAME) > 0) {
-            struct filter_t *filter = bpf_map_lookup_elem(&open_basename_discarders, &basename);
-            if (filter) {
-                pass_to_userspace = 0;
-#ifdef DEBUG
-                printk("kprobe/vfs_open %s discarded\n", basename.value);
-#endif
-            }
+            pass_to_userspace = !discard_by_basename(syscall);
         }
 
         if (pass_to_userspace && ((syscall->policy.flags & PROCESS_INODE))) {
-            u64 inode = pid_inode(syscall->pid);
-            struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_discarders, &inode);
-            if (filter) {
-                pass_to_userspace = 0;
-#ifdef DEBUG
-                printk("kprobe/vfs_open %d discarded by pid inode\n", inode);
-#endif
-            }
+            pass_to_userspace = !discard_by_process_inode(syscall);
         }
 
         if (pass_to_userspace && ((syscall->policy.flags & FLAGS))) {
-            u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &key);
-            if (flags != NULL && (syscall->open.flags & *flags) > 0) {
-                pass_to_userspace = 0;
-#ifdef DEBUG
-                printk("kprobe/vfs_open %s discarded by flags\n", basename.value);
-#endif
-            }
+            pass_to_userspace = !discard_by_flags(syscall);
         }
     }
 
@@ -230,7 +270,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 
     struct open_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
-        .event.type = syscall->type,
+        .event.type = EVENT_MAY_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
