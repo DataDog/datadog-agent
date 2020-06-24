@@ -33,6 +33,14 @@ func (t *Table) Set(key, value []byte) error {
 	return t.module.UpdateElement(t.Map, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), 0)
 }
 
+func (t *Table) GetNext(key []byte) (bool, []byte, []byte, error) {
+	var value [1024]byte
+	pKey := unsafe.Pointer(&key[0])
+	nextKey := make([]byte, len(key))
+	more, err := t.module.LookupNextElement(t.Map, pKey, unsafe.Pointer(&nextKey[0]), unsafe.Pointer(&value[0]))
+	return more, nextKey, value[:], err
+}
+
 func (t *Table) Delete(key []byte) error {
 	return t.module.DeleteElement(t.Map, unsafe.Pointer(&key[0]))
 }

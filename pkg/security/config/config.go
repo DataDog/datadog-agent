@@ -22,6 +22,7 @@ type Config struct {
 	Policies            []Policy
 	EnableKernelFilters bool
 	SocketPath          string
+	SyscallMonitor      bool
 }
 
 func NewConfig() (*Config, error) {
@@ -29,6 +30,7 @@ func NewConfig() (*Config, error) {
 		Debug:               aconfig.Datadog.GetBool("runtime_security_config.debug"),
 		EnableKernelFilters: aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		SocketPath:          aconfig.Datadog.GetString("runtime_security_config.socket"),
+		SyscallMonitor:      aconfig.Datadog.GetBool("runtime_security_config.syscall_monitor.enabled"),
 	}
 
 	policies, ok := aconfig.Datadog.Get("runtime_security_config.policies").([]interface{})

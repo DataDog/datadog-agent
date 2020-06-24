@@ -1,8 +1,11 @@
 package module
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -16,15 +19,17 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/statsd"
 )
 
 type Module struct {
-	probe       *sprobe.Probe
-	config      *config.Config
-	ruleSet     *eval.RuleSet
-	eventServer *EventServer
-	grpcServer  *grpc.Server
-	listener    net.Listener
+	probe        *sprobe.Probe
+	config       *config.Config
+	ruleSet      *eval.RuleSet
+	eventServer  *EventServer
+	grpcServer   *grpc.Server
+	listener     net.Listener
+	statsdClient *statsd.Client
 	rateLimiter *RateLimiter
 }
 
@@ -43,6 +48,8 @@ func (m *Module) Register(server *grpc.Server) error {
 
 	m.probe.SetEventHandler(m)
 	m.ruleSet.AddListener(m)
+
+	go m.statsMonitor(context.Background())
 
 	if err := m.probe.Start(); err != nil {
 		return err
@@ -128,8 +135,32 @@ func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, er
 	return ruleSet, result.ErrorOrNil()
 }
 
+func (m *Module) statsMonitor(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			m.probe.SendStats(m.statsdClient)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func (m *Module) GetStats() map[string]interface{} {
-	return nil
+	probeStats, err := m.probe.GetStats()
+	if err != nil {
+		return nil
+	}
+
+	return map[string]interface{}{
+		"probe": probeStats,
+	}
 }
 
 func (m *Module) GetRuleSet() *eval.RuleSet {
@@ -143,6 +174,13 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		return nil, err
 	}
 
+	var statsdClient *statsd.Client
+	if cfg != nil {
+		if statsdClient, err = statsd.New(fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)); err != nil {
+			return nil, err
+		}
+	}
+
 	probe, err := sprobe.NewProbe(config)
 	if err != nil {
 		return nil, err
@@ -154,12 +192,21 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 	}
 
 	m := &Module{
+<<<<<<< HEAD
 		config:      config,
 		probe:       probe,
 		ruleSet:     ruleSet,
 		eventServer: NewEventServer(),
 		grpcServer:  grpc.NewServer(),
 		rateLimiter: NewRateLimiter(ruleSet.ListRuleIDs()),
+=======
+		config:       config,
+		probe:        probe,
+		ruleSet:      ruleSet,
+		eventServer:  NewEventServer(),
+		grpcServer:   grpc.NewServer(),
+		statsdClient: statsdClient,
+>>>>>>> Allow sending syscall metrics using statsd
 	}
 
 	api.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)

@@ -79,14 +79,11 @@ func StringToKey(str string, size int) ([]byte, error) {
 	return rep, nil
 }
 
-func Int32ToKey(i int32) []byte {
-	b := make([]byte, 4)
-	byteOrder.PutUint32(b, uint32(i))
-	return b
-}
-
 func Int64ToKey(i int64) []byte {
 	b := make([]byte, 8)
 	byteOrder.PutUint64(b, uint64(i))
 	return b
 }
+
+var zeroInt32 = []byte{0, 0, 0, 0}
+var zeroInt8 = []byte{0}

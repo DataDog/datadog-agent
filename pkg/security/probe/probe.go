@@ -17,17 +17,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/statsd"
 )
+
+const MetricPrefix = "datadog.agent.runtime_security"
 
 type EventHandler interface {
 	HandleEvent(event *Event)
 }
 
+type EventsStats struct {
+	Lost         uint64
+	Received     uint64
+	PerEventType map[ProbeEventType]uint64
+}
+
 type Stats struct {
-	Events struct {
-		Lost     uint64
-		Received uint64
-	}
+	Events   EventsStats
+	Syscalls *SyscallStats
 }
 
 type KTable struct {
@@ -44,12 +51,14 @@ type onDiscarderFnc func(probe *Probe, discarder Discarder) error
 
 type Probe struct {
 	*eprobe.Probe
+	config           *config.Config
 	handler          EventHandler
 	resolvers        *Resolvers
-	stats            Stats
 	onDiscardersFncs map[string][]onDiscarderFnc
 	enableFilters    bool
 	tables           map[string]eprobe.Table
+	stats            EventsStats
+	syscallMonitor   *SyscallMonitor
 }
 
 type Capability struct {
@@ -350,6 +359,15 @@ func (p *Probe) getTableNames() []*types.Table {
 		{
 			Name: "pathnames",
 		},
+		{
+			Name: "noisy_processes_buffer",
+		},
+		{
+			Name: "noisy_processes_fb",
+		},
+		{
+			Name: "noisy_processes_bb",
+		},
 	}
 
 	kTables := OpenTables
@@ -385,12 +403,25 @@ func (p *Probe) getPerfMaps() []*types.PerfMap {
 }
 
 func (p *Probe) Start() error {
-	if err := p.Load(); err != nil {
+	err := p.Load()
+	if err != nil {
 		return err
 	}
 
 	if err := p.resolvers.Start(); err != nil {
 		return err
+	}
+
+	if p.config.SyscallMonitor {
+		p.syscallMonitor, err = NewSyscallMonitor(
+			p.Module,
+			p.Table("noisy_processes_buffer"),
+			p.Table("noisy_processes_fb"),
+			p.Table("noisy_processes_bb"),
+		)
+		if err != nil {
+			return err
+		}
 	}
 
 	for _, hookpoint := range AllHookPoints {
@@ -439,22 +470,51 @@ func (p *Probe) DispatchEvent(event *Event) {
 	}
 }
 
-func (p *Probe) GetStats() Stats {
-	return p.stats
+func (p *Probe) SendStats(statsdClient *statsd.Client) error {
+	if p.syscallMonitor != nil {
+		if err := p.syscallMonitor.SendStats(statsdClient); err != nil {
+			return err
+		}
+	}
+
+	if err := statsdClient.Count(MetricPrefix+".events.lost", int64(p.stats.Lost), nil, 1.0); err != nil {
+		return err
+	}
+
+	if err := statsdClient.Count(MetricPrefix+".events.received", int64(p.stats.Received), nil, 1.0); err != nil {
+		return err
+	}
+
+	for eventType, count := range p.stats.PerEventType {
+		if err := statsdClient.Count(MetricPrefix+".events."+eventType.String(), int64(count), nil, 1.0); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *Probe) GetStats() (stats Stats, err error) {
+	stats.Events = p.stats
+	if p.syscallMonitor != nil {
+		stats.Syscalls, err = p.syscallMonitor.GetStats()
+	}
+
+	return stats, err
 }
 
 func (p *Probe) ResetStats() {
-	p.stats = Stats{}
+	p.stats = EventsStats{}
 }
 
 func (p *Probe) handleLostEvents(count uint64) {
 	log.Warnf("Lost %d events\n", count)
-	atomic.AddUint64(&p.stats.Events.Lost, count)
+	atomic.AddUint64(&p.stats.Lost, count)
 }
 
 func (p *Probe) handleEvent(data []byte) {
 	log.Debugf("Handling dentry event (len %d)", len(data))
-	atomic.AddUint64(&p.stats.Events.Received, 1)
+	atomic.AddUint64(&p.stats.Received, 1)
 
 	offset := 0
 	event := NewEvent(p.resolvers)
@@ -473,7 +533,8 @@ func (p *Probe) handleEvent(data []byte) {
 	}
 	offset += read
 
-	switch ProbeEventType(event.Event.Type) {
+	eventType := ProbeEventType(event.Event.Type)
+	switch eventType {
 	case FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
@@ -534,8 +595,10 @@ func (p *Probe) handleEvent(data []byte) {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
 		}
 	default:
-		log.Errorf("Unsupported event type %d\n", event.Event.Type)
+		log.Errorf("Unsupported event type %d\n", eventType)
 	}
+
+	p.stats.PerEventType[eventType]++
 
 	log.Debugf("Dispatching event %+v\n", event)
 	p.DispatchEvent(event)
@@ -574,13 +637,11 @@ func (p *Probe) SetFilterPolicy(tableName string, mode PolicyMode, flags PolicyF
 		return fmt.Errorf("unable to find policy table `%s`", tableName)
 	}
 
-	key := Int32ToKey(0)
-
 	policy := FilterPolicy{
 		Mode:  mode,
 		Flags: flags,
 	}
-	return table.Set(key, policy.Bytes())
+	return table.Set(zeroInt32, policy.Bytes())
 }
 
 func (p *Probe) setKProbePolicy(hook *HookPoint, rs *eval.RuleSet, eventType string, capabilities Capabilities) error {
@@ -686,9 +747,13 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 
 func NewProbe(config *config.Config) (*Probe, error) {
 	p := &Probe{
+		config:           config,
 		onDiscardersFncs: make(map[string][]onDiscarderFnc),
 		enableFilters:    config.EnableKernelFilters,
 		tables:           make(map[string]eprobe.Table),
+		stats: EventsStats{
+			PerEventType: make(map[ProbeEventType]uint64),
+		},
 	}
 
 	asset := "pkg/security/ebpf/probe"
