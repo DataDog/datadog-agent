@@ -4044,7 +4044,6 @@ notify-on-success:
 
     AUTHOR=$(git show -s --format="%an" HEAD)
 
-    # Only ping on pushes to master (== merged PRs)
     if [ "$CI_PIPELINE_SOURCE" = "push" ]; then
       MESSAGE_TEXT=":host-green: :merged: Merge pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
@@ -4068,18 +4067,11 @@ notify-on-failure:
     COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
 
     AUTHOR=$(git show -s --format="%an" HEAD)
-    EMAIL=$(git show -s --format="%ae" HEAD)
-
-    echo AUTHOR=$AUTHOR EMAIL=$EMAIL
-
-    SLACK_AUTHOR=$(echo $EMAIL | email2slack | slackuser2id | slackignore)
-
-    echo SLACK_AUTHOR=$SLACK_AUTHOR
 
     # Only ping on pushes to master (== merged PRs)
-    if [ "$CI_PIPELINE_SOURCE" = "push" ] && [ -n "$SLACK_AUTHOR" ]; then
+    if [ "$CI_PIPELINE_SOURCE" = "push" ]; then
       MESSAGE_TEXT=":host-red: :merged: Merge pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
-      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by <@$SLACK_AUTHOR>: please check the pipeline failures."
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     else
       MESSAGE_TEXT=":host-red: :angryjenkins: Triggered pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
