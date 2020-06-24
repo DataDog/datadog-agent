@@ -292,7 +292,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	})
 }
 
-func TestMultipleApiKeys(t *testing.T) {
+func TestMultipleAPIKeys(t *testing.T) {
 	m := &process.CollectorConnections{
 		HostName: testHostName,
 		GroupId:  1,
@@ -307,19 +307,19 @@ func TestMultipleApiKeys(t *testing.T) {
 	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
 	orchKeys := []string{"orchKey"}
 
-	runCollectorTestWithApiKeys(t, check, cfg, &endpointConfig{}, apiKeys, orchKeys, func(cfg *config.AgentConfig, ep *mockEndpoint) {
-		for _, expectedApiKey := range apiKeys {
+	runCollectorTestWithAPIKeys(t, check, cfg, &endpointConfig{}, apiKeys, orchKeys, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+		for _, expectedAPIKey := range apiKeys {
 			request := <-ep.Requests
-			assert.Equal(t, expectedApiKey, request.headers.Get("DD-Api-Key"))
+			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
 		}
 	})
 }
 
 func runCollectorTest(t *testing.T, check checks.Check, cfg *config.AgentConfig, epConfig *endpointConfig, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
-	runCollectorTestWithApiKeys(t, check, cfg, epConfig, []string{"apiKey"}, []string{"orchestratorApiKey"}, tc)
+	runCollectorTestWithAPIKeys(t, check, cfg, epConfig, []string{"apiKey"}, []string{"orchestratorApiKey"}, tc)
 }
 
-func runCollectorTestWithApiKeys(t *testing.T, check checks.Check, cfg *config.AgentConfig, epConfig *endpointConfig, apiKeys, orchApiKeys []string, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.AgentConfig, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
@@ -329,8 +329,8 @@ func runCollectorTestWithApiKeys(t *testing.T, check checks.Check, cfg *config.A
 		cfg.APIEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: collectorAddr}
 	}
 
-	cfg.OrchestratorEndpoints = make([]api.Endpoint, len(orchApiKeys))
-	for index, key := range orchApiKeys {
+	cfg.OrchestratorEndpoints = make([]api.Endpoint, len(orchAPIKeys))
+	for index, key := range orchAPIKeys {
 		cfg.OrchestratorEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: orchestratorAddr}
 	}
 
