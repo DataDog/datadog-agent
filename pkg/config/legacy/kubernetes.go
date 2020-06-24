@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -128,6 +129,11 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 		} else {
 			return deprecations, fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
+	}
+	// Create necessary destination dir
+	err = os.MkdirAll(filepath.Dir(dst), 0750)
+	if err != nil {
+		return deprecations, err
 	}
 	if err := ioutil.WriteFile(dst, data, 0640); err != nil {
 		return deprecations, fmt.Errorf("Could not write new kubelet configuration to %s: %s", dst, err)

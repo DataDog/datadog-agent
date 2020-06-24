@@ -22,7 +22,7 @@ func FromAgentConfig(agentConfig Config) error {
 		return err
 	}
 
-	if proxy, err := buildProxySettings(agentConfig); err == nil {
+	if proxy, err := BuildProxySettings(agentConfig); err == nil {
 		if u, ok := proxy["http"]; ok {
 			config.Datadog.Set("proxy.http", u)
 		}
@@ -263,7 +263,8 @@ func extractURLAPIKeys(agentConfig Config) error {
 	return nil
 }
 
-func buildProxySettings(agentConfig Config) (map[string]string, error) {
+// BuildProxySettings returns a map with http/https proxies based on old config
+func BuildProxySettings(agentConfig Config) (map[string]string, error) {
 	proxyHost := agentConfig["proxy_host"]
 
 	proxyMap := make(map[string]string)

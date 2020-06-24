@@ -119,6 +119,11 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 			return fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
+	// Create necessary destination dir
+	err = os.MkdirAll(filepath.Dir(dst), 0750)
+	if err != nil {
+		return err
+	}
 
 	if err := ioutil.WriteFile(dst, data, 0640); err != nil {
 		return fmt.Errorf("Could not write new docker configuration to %s: %s", dst, err)

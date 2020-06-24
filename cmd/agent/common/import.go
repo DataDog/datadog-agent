@@ -95,7 +95,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
 
 		if f.Name() == "docker_daemon.yaml" {
-			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.yaml"), force)
+			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.d", "conf.yaml"), force)
 			if err != nil {
 				return err
 			}
@@ -108,7 +108,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			)
 			continue
 		} else if f.Name() == "kubernetes.yaml" {
-			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.yaml"), force)
+			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.d", "conf.yaml"), force)
 			if err != nil {
 				return err
 			}

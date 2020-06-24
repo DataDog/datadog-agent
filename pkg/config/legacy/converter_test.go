@@ -59,43 +59,43 @@ func TestBuildProxySettings(t *testing.T) {
 		"https": "http://myuser:mypass@foobar.baz:8080",
 	}
 
-	value, err := buildProxySettings(agentConfig)
+	value, err := BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Empty(t, value)
 
 	// malformed url
 	agentConfig["proxy_host"] = "http://notanurl{}"
-	_, err = buildProxySettings(agentConfig)
+	_, err = BuildProxySettings(agentConfig)
 	assert.NotNil(t, err)
 
 	agentConfig["proxy_host"] = "foobar.baz"
 
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyHost, value)
 
 	agentConfig["proxy_port"] = "8080"
 
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyNoUser, value)
 
 	// the password alone should not be considered without an user
 	agentConfig["proxy_password"] = "mypass"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyPass, value)
 
 	// the user alone is ok
 	agentConfig["proxy_password"] = ""
 	agentConfig["proxy_user"] = "myuser"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyUser, value)
 
 	agentConfig["proxy_password"] = "mypass"
 	agentConfig["proxy_user"] = "myuser"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyWithUser, value)
 }
