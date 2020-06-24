@@ -1,5 +1,9 @@
 package types
 
+type Tracepoint struct {
+	Name string
+}
+
 type KProbe struct {
 	Name       string
 	EntryFunc  string

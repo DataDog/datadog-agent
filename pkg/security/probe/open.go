@@ -163,16 +163,14 @@ func handleFlagsFilters(probe *Probe, approve bool, values ...int) error {
 		kFilter.value |= uint32(value)
 	}
 
-	key := Int32ToKey(0)
-
 	var err error
 	if kFilter.value != 0 {
 		if approve {
 			table := probe.Table("open_flags_approvers")
-			err = table.Set(key, kFilter.Bytes())
+			err = table.Set(zeroInt32, kFilter.Bytes())
 		} else {
 			table := probe.Table("open_flags_discarders")
-			err = table.Set(key, kFilter.Bytes())
+			err = table.Set(zeroInt32, kFilter.Bytes())
 		}
 	}
 
@@ -185,14 +183,12 @@ func handleBasenameFilter(probe *Probe, approver bool, basename string) error {
 		return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
 	}
 
-	var kFilter Uint8KFilter
-
 	if approver {
 		table := probe.Table("open_basename_approvers")
-		err = table.Set(key, kFilter.Bytes())
+		err = table.Set(key, zeroInt8)
 	} else {
 		table := probe.Table("open_basename_discarders")
-		err = table.Set(key, kFilter.Bytes())
+		err = table.Set(key, zeroInt8)
 	}
 
 	return err

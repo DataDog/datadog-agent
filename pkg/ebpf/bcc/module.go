@@ -62,22 +62,39 @@ func (m *Module) RegisterKprobe(k *types.KProbe) error {
 	if k.EntryFunc != "" {
 		entryFd, err := m.LoadKprobe(k.EntryFunc)
 		if err != nil {
-			return fmt.Errorf("failed to load Kprobe %v: %s", k.EntryFunc, err)
+			return fmt.Errorf("failed to load Kprobe %s: %s", k.EntryFunc, err)
 		}
 		if err = m.AttachKprobe(k.EntryEvent, entryFd, -1); err != nil {
-			return fmt.Errorf("failed to attach Kprobe %v: %s", k.EntryEvent, err)
+			return fmt.Errorf("failed to attach Kprobe %s: %s", k.EntryEvent, err)
 		}
 	}
 	if k.ExitFunc != "" {
 		exitFd, err := m.LoadKprobe(k.ExitFunc)
 		if err != nil {
-			return fmt.Errorf("failed to load Kprobe %v: %s", k.ExitFunc, err)
+			return fmt.Errorf("failed to load Kprobe %s: %s", k.ExitFunc, err)
 		}
 		if err = m.AttachKretprobe(k.ExitEvent, exitFd, -1); err != nil {
-			return fmt.Errorf("failed to attach Kretprobe %v: %s", k.ExitEvent, err)
+			return fmt.Errorf("failed to attach Kretprobe %s: %s", k.ExitEvent, err)
 		}
 	}
 
+	return nil
+}
+
+func (m *Module) RegisterTracepoint(tp *types.Tracepoint) error {
+	tpFd, err := m.LoadRawTracepoint(tp.Name)
+	if err != nil {
+		return fmt.Errorf("failed to load tracepoint %s: %s", tp.Name, err)
+	}
+
+	if err = m.AttachRawTracepoint(tp.Name, tpFd); err != nil {
+		return fmt.Errorf("failed to attach tracepoint %s: %s", tp.Name, err)
+	}
+
+	return nil
+}
+
+func (m *Module) UnregisterTracepoint(tp *types.Tracepoint) error {
 	return nil
 }
 

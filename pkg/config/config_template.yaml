@@ -886,6 +886,8 @@ api_key:
   #  - name: default-policies
   #    files:
   #        - /etc/datadog-agent/security_agent.d/runtime-policies.yaml
+  # syscall_monitor:
+  #   enabled: false
 {{ end -}}
 {{ end -}}
 {{- if .Dogstatsd }}

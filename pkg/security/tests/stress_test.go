@@ -59,7 +59,11 @@ func BenchmarkE2EOpen(b *testing.B) {
 		}
 	}
 
-	stats := test.probe.GetStats()
+	stats, err := test.probe.GetStats()
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	b.ReportMetric(float64(stats.Events.Lost), "lost")
 	b.ReportMetric(float64(handler.count), "events")
 	b.ReportMetric(100*float64(handler.count)/float64(b.N), "%seen")
