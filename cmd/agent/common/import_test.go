@@ -175,9 +175,6 @@ func assertYAMLEquality(t *testing.T, f1, f2 string) {
 	expectedContent := make(map[string]interface{})
 	yaml.Unmarshal(f2Bytes, expectedContent)
 
-	// f1YAML, err := yaml.Marshal(migratedContent)
-	// f2YAML, err := yaml.Marshal(expectedContent)
-
 	assert.Equal(t, expectedContent, migratedContent)
 }
 
