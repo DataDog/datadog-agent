@@ -19,7 +19,7 @@ func main() {
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 
 	opts.checkCmd = flag.NewFlagSet("check", flag.ExitOnError)
-	flag.StringVar(&opts.checkType, "type", "", "The type of check to run. Choose from: conections, network_maps, network_state, stags")
+	flag.StringVar(&opts.checkType, "type", "", "The type of check to run. Choose from: connections, network_maps, network_state, stats")
 	flag.StringVar(&opts.checkClient, "client", "", "The client ID that the check will use to run")
 	flag.Parse()
 

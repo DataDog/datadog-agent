@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
@@ -117,4 +117,58 @@ func TestRemovePathIfPresent(t *testing.T) {
 
 		assert.Equal(t, tt.expected, removePathIfPresent(u))
 	}
+}
+
+func TestKeysPerDomain(t *testing.T) {
+	for _, tt := range []struct {
+		input    []api.Endpoint
+		expected map[string][]string
+	}{
+		{
+			input: []api.Endpoint{
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com")},
+			},
+			expected: map[string][]string{
+				"http://foo.com": {"key1"},
+			},
+		},
+		{
+			input: []api.Endpoint{
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com")},
+				{APIKey: "key2", Endpoint: getEndpoint(t, "http://foo.com")},
+			},
+			expected: map[string][]string{
+				"http://foo.com": {"key1", "key2"},
+			},
+		},
+		{
+			input: []api.Endpoint{
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com")},
+				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com")},
+			},
+			expected: map[string][]string{
+				"http://foo.com": {"key1"},
+				"http://bar.com": {"key2"},
+			},
+		},
+		{
+			input: []api.Endpoint{
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com")},
+				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com")},
+				{APIKey: "key3", Endpoint: getEndpoint(t, "http://foo.com")},
+			},
+			expected: map[string][]string{
+				"http://foo.com": {"key1", "key3"},
+				"http://bar.com": {"key2"},
+			},
+		},
+	} {
+		assert.Equal(t, tt.expected, keysPerDomains(tt.input))
+	}
+}
+
+func getEndpoint(t *testing.T, u string) *url.URL {
+	e, err := url.Parse(u)
+	assert.NoError(t, err)
+	return e
 }

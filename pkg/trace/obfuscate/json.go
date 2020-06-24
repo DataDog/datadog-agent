@@ -8,17 +8,9 @@ package obfuscate
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
-
-// JSONSettings specifies the behaviour of the JSON obfuscator.
-type JSONSettings struct {
-	// Enabled will specify whether obfuscation should be enabled.
-	Enabled bool
-
-	// KeepValues specifies a set of keys for which their values will not be obfuscated.
-	KeepValues []string
-}
 
 // obfuscateJSON obfuscates the given span's tag using the given obfuscator. If the obfuscator is
 // nil it is considered disabled.
@@ -45,7 +37,7 @@ type jsonObfuscator struct {
 	keepDepth int  // the depth at which we've stopped obfuscating
 }
 
-func newJSONObfuscator(cfg *JSONSettings) *jsonObfuscator {
+func newJSONObfuscator(cfg *config.JSONObfuscationConfig) *jsonObfuscator {
 	keepValue := make(map[string]bool, len(cfg.KeepValues))
 	for _, v := range cfg.KeepValues {
 		keepValue[v] = true

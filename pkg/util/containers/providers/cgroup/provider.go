@@ -90,9 +90,9 @@ func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 	if err != nil {
 		return nil, fmt.Errorf("cpu: %s", err)
 	}
-	metrics.CPU.NrThrottled, err = cg.CPUNrThrottled()
+	metrics.CPU.NrThrottled, metrics.CPU.ThrottledTime, err = cg.CPUPeriods()
 	if err != nil {
-		return nil, fmt.Errorf("cpuNrThrottled: %s", err)
+		return nil, fmt.Errorf("cpu nr: %s", err)
 	}
 	metrics.CPU.ThreadCount, err = cg.ThreadCount()
 	if err != nil {

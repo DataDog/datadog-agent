@@ -779,7 +779,7 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
         // since you can't directly write a map entry to the perf buffer.
         batch_t batch_copy = {};
         __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
-        bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(tcp_conn_t)*TCP_CLOSED_BATCH_SIZE);
+        bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(batch_copy));
         batch_ptr->pos = 0;
     }
 
