@@ -289,12 +289,14 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 	parent := filepath.Dir(dirPath)
+	prev := ""
 	for parent != "." {
-		if parent == "/" {
+		if parent == prev {
 			permsInfos.add(parent)
 			break
 		}
 		permsInfos.add(parent)
+		prev = parent
 		parent = filepath.Dir(parent)
 	}
 }
