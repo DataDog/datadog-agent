@@ -67,81 +67,77 @@ var OpenKProbes = []*KProbe{
 		},
 		EventTypes: map[string]Capabilities{
 			"open": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{
-					{Field: "open.basename", Types: eval.ScalarValueType},
-					{Field: "open.filename", Types: eval.ScalarValueType},
-					{Field: "open.flags", Types: eval.ScalarValueType},
-					{Field: "process.filename", Types: eval.ScalarValueType},
+				"open.filename": {
+					PolicyFlags:     BASENAME_FLAG,
+					FieldValueTypes: eval.ScalarValueType,
 				},
-				PolicyFlags: BASENAME_FLAG | FLAGS_FLAG | PROCESS_INODE,
+				"open.basename": {
+					PolicyFlags:     BASENAME_FLAG,
+					FieldValueTypes: eval.ScalarValueType,
+				},
+				"open.flags": {
+					PolicyFlags:     FLAGS_FLAG,
+					FieldValueTypes: eval.ScalarValueType,
+				},
+				"process.filename": {
+					PolicyFlags:     PROCESS_INODE,
+					FieldValueTypes: eval.ScalarValueType,
+				},
 			},
 		},
 		PolicyTable: "open_policy",
-		OnNewFilter: func(probe *Probe, field string, filters ...eval.Filter) error {
-			switch field {
-			case "process.filename":
-				for _, filter := range filters {
-					fileinfo, err := os.Stat(filter.Value.(string))
-					if err != nil {
-						return err
-					}
-					stat, _ := fileinfo.Sys().(*syscall.Stat_t)
-					key, err := Int64ToKey(int64(stat.Ino))
-					if err != nil {
-						return errors.New("unable to set policy")
-					}
-
-					var kFilter Uint8KFilter
-
-					if filter.Not {
-						table := probe.Table("open_process_inode_discarders")
-						table.Set(key, kFilter.Bytes())
-					} else {
-						table := probe.Table("open_process_inode_approvers")
-						table.Set(key, kFilter.Bytes())
-					}
+		OnNewApprovers: func(probe *Probe, approvers eval.Approvers) error {
+			stringValues := func(fvs eval.FilterValues) []string {
+				var values []string
+				for _, v := range fvs {
+					values = append(values, v.Value.(string))
 				}
+				return values
+			}
+
+			intValues := func(fvs eval.FilterValues) []int {
+				var values []int
+				for _, v := range fvs {
+					values = append(values, v.Value.(int))
+				}
+				return values
+			}
+
+			for field, values := range approvers {
+				switch field {
+				case "process.filename":
+					return handleProcessFilename(probe, true, stringValues(values)...)
+
+				case "open.basename":
+					return handleBasenameFilters(probe, true, stringValues(values)...)
+
+				case "open.filename":
+					return handleFilenameFilters(probe, true, stringValues(values)...)
+
+				case "open.flags":
+					return handleFlagsFilters(probe, true, intValues(values)...)
+
+				default:
+					return errors.New("field unknown")
+				}
+			}
+
+			return nil
+		},
+		OnNewDiscarders: func(probe *Probe, discarder Discarder) error {
+			switch discarder.Field {
+			case "process.filename":
+				return handleProcessFilename(probe, false, discarder.Value.(string))
 
 			case "open.basename":
-				for _, filter := range filters {
-					handleBasenameFilter(probe, filter.Value.(string), filter.Not)
-				}
+				return handleBasenameFilters(probe, false, discarder.Value.(string))
 
 			case "open.filename":
-				for _, filter := range filters {
-					if filter.Not {
-						return errors.New("open.filename discarder not supported")
-					}
-				}
+				return errors.New("open.filename discarders not supported")
 
-				for _, filter := range filters {
-					basename := path.Base(filter.Value.(string))
-					handleBasenameFilter(probe, basename, filter.Not)
-				}
 			case "open.flags":
-				var kFilter, kNotFilter Uint32KFilter
+				return handleFlagsFilters(probe, false, discarder.Value.(int))
 
-				for _, filter := range filters {
-					if filter.Not {
-						kNotFilter.value |= uint32(filter.Value.(int))
-					} else {
-						kFilter.value |= uint32(filter.Value.(int))
-					}
-				}
-
-				key, err := Int32ToKey(0)
-				if err != nil {
-					return errors.New("unable to set policy")
-				}
-
-				if kFilter.value != 0 {
-					table := probe.Table("open_flags_approvers")
-					table.Set(key, kFilter.Bytes())
-				}
-				if kNotFilter.value != 0 {
-					table := probe.Table("open_flags_discarders")
-					table.Set(key, kFilter.Bytes())
-				}
 			default:
 				return errors.New("field unknown")
 			}
@@ -151,7 +147,57 @@ var OpenKProbes = []*KProbe{
 	},
 }
 
-func handleBasenameFilter(probe *Probe, basename string, not bool) error {
+func handleProcessFilename(probe *Probe, approve bool, values ...string) error {
+	for _, value := range values {
+		fileinfo, err := os.Stat(value)
+		if err != nil {
+			return err
+		}
+		stat, _ := fileinfo.Sys().(*syscall.Stat_t)
+		key, err := Int64ToKey(int64(stat.Ino))
+		if err != nil {
+			return errors.New("unable to set policy")
+		}
+
+		var kFilter Uint8KFilter
+		if approve {
+			table := probe.Table("open_process_inode_approvers")
+			table.Set(key, kFilter.Bytes())
+		} else {
+			table := probe.Table("open_process_inode_discarders")
+			table.Set(key, kFilter.Bytes())
+		}
+	}
+
+	return nil
+}
+
+func handleFlagsFilters(probe *Probe, approve bool, values ...int) error {
+	var kFilter Uint32KFilter
+
+	for _, value := range values {
+		kFilter.value |= uint32(value)
+	}
+
+	key, err := Int32ToKey(0)
+	if err != nil {
+		return errors.New("unable to set policy")
+	}
+
+	if kFilter.value != 0 {
+		if approve {
+			table := probe.Table("open_flags_approvers")
+			table.Set(key, kFilter.Bytes())
+		} else {
+			table := probe.Table("open_flags_discarders")
+			table.Set(key, kFilter.Bytes())
+		}
+	}
+
+	return nil
+}
+
+func handleBasenameFilter(probe *Probe, approver bool, basename string) error {
 	key, err := StringToKey(basename, BASENAME_FILTER_SIZE)
 	if err != nil {
 		return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
@@ -159,13 +205,32 @@ func handleBasenameFilter(probe *Probe, basename string, not bool) error {
 
 	var kFilter Uint8KFilter
 
-	if not {
-		table := probe.Table("open_basename_discarders")
+	if approver {
+		table := probe.Table("open_basename_approvers")
 		table.Set(key, kFilter.Bytes())
 	} else {
-		table := probe.Table("open_basename_approvers")
+		table := probe.Table("open_basename_discarders")
 		table.Set(key, kFilter.Bytes())
 	}
 
+	return nil
+}
+
+func handleBasenameFilters(probe *Probe, approve bool, values ...string) error {
+	for _, value := range values {
+		if err := handleBasenameFilter(probe, approve, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func handleFilenameFilters(probe *Probe, approve bool, values ...string) error {
+	for _, value := range values {
+		basename := path.Base(value)
+		if err := handleBasenameFilter(probe, approve, basename); err != nil {
+			return err
+		}
+	}
 	return nil
 }

@@ -2,26 +2,19 @@ package eval
 
 import (
 	"fmt"
-	
+	"strings"
+
 	"github.com/pkg/errors"
 )
 
 var RuleWithoutEventErr = errors.New("rule without event")
 
-type CapabilityNotFound struct {
-	Field string
+type NoApprover struct {
+	Fields []string
 }
 
-func (e *CapabilityNotFound) Error() string {
-	return fmt.Sprintf("capability not found for `%s`", e.Field)
-}
-
-type CapabilityMismatch struct {
-	Field string
-}
-
-func (e *CapabilityMismatch) Error() string {
-	return fmt.Sprintf("capability mismatch for `%s`", e.Field)
+func (e NoApprover) Error() string {
+	return fmt.Sprintf("no approver for fields `%s`", strings.Join(e.Fields, ", "))
 }
 
 type ValueTypeUnknown struct {
@@ -32,18 +25,26 @@ func (e *ValueTypeUnknown) Error() string {
 	return fmt.Sprintf("value type unknown for `%s`", e.Field)
 }
 
-type NoValue struct {
+type FieldTypeUnknown struct {
 	Field string
 }
 
-func (e *NoValue) Error() string {
-	return fmt.Sprintf("no value for `%s`", e.Field)
+func (e *FieldTypeUnknown) Error() string {
+	return fmt.Sprintf("field type unknown for `%s`", e.Field)
 }
 
-type OppositeRule struct {
-	Field string
+type DuplicateRuleID struct {
+	ID string
 }
 
-func (e *OppositeRule) Error() string {
-	return fmt.Sprintf("opposite rules for `%s`", e.Field)
+func (e DuplicateRuleID) Error() string {
+	return fmt.Sprintf("duplicate rule ID `%s`", e.ID)
+}
+
+type NoEventTypeBucket struct {
+	EventType string
+}
+
+func (e NoEventTypeBucket) Error() string {
+	return fmt.Sprintf("no bucket for event type `%s`", e.EventType)
 }

@@ -2,11 +2,12 @@ package eval
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"reflect"
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )

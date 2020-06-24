@@ -8,7 +8,7 @@ type Rule struct {
 	Tags       []string
 
 	evaluator *RuleEvaluator
-	ast *ast.Rule
+	ast       *ast.Rule
 }
 
 func (r *Rule) GetEventTypes() []string {

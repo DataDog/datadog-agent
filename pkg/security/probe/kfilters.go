@@ -79,21 +79,13 @@ func StringToKey(str string, size int) ([]byte, error) {
 }
 
 func Int32ToKey(i int32) ([]byte, error) {
-	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, byteOrder, i); err != nil {
-		return nil, err
-	}
-	rep := make([]byte, binary.MaxVarintLen32)
-	copy(rep, buffer.Bytes())
-	return rep, nil
+	b := make([]byte, 4)
+	byteOrder.PutUint32(b, uint32(i))
+	return b
 }
 
 func Int64ToKey(i int64) ([]byte, error) {
-	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, byteOrder, i); err != nil {
-		return nil, err
-	}
-	rep := make([]byte, binary.MaxVarintLen64)
-	copy(rep, buffer.Bytes())
-	return rep, nil
+	b := make([]byte, 8)
+	byteOrder.PutUint64(b, uint64(i))
+	return b
 }

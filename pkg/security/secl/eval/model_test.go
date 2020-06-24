@@ -1,9 +1,18 @@
 package eval
 
 import (
+	"reflect"
 	"syscall"
 
 	"github.com/pkg/errors"
+)
+
+var (
+	ErrEvaluatorNotFound     = errors.New("evaluator not found")
+	ErrTagsNotFound          = errors.New("tags not found")
+	ErrEventTypeNotFound     = errors.New("event type not found")
+	ErrSetEventValueNotFound = errors.New("set event value error field not found")
+	ErrFieldTypeNotFound     = errors.New("field type not found")
 )
 
 type testProcess struct {
@@ -316,6 +325,50 @@ func (e *testEvent) SetFieldValue(key string, value interface{}) error {
 	}
 
 	return errors.Wrap(ErrSetEventValueNotFound, key)
+}
+
+func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
+	switch key {
+
+	case "process.name":
+
+		return reflect.String, nil
+
+	case "process.uid":
+
+		return reflect.Int, nil
+
+	case "process.gid":
+
+		return reflect.Int, nil
+
+	case "process.is_root":
+
+		return reflect.Bool, nil
+
+	case "open.filename":
+
+		return reflect.String, nil
+
+	case "open.flags":
+
+		return reflect.Int, nil
+
+	case "open.mode":
+
+		return reflect.Int, nil
+
+	case "mkdir.filename":
+
+		return reflect.String, nil
+
+	case "mkdir.mode":
+
+		return reflect.Int, nil
+
+	}
+
+	return reflect.Invalid, errors.Wrap(ErrFieldTypeNotFound, key)
 }
 
 var testConstants = map[string]interface{}{

@@ -3,6 +3,8 @@
 package probe
 
 import (
+	"reflect"
+
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -181,8 +183,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "process.filename":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.PathnameStr },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.PathnameStr },
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveInode(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveInode(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -440,7 +442,7 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 
 	case "process.filename":
 
-		return e.Process.PathnameStr, nil
+		return e.Process.ResolveInode(e.resolvers), nil
 
 	case "process.gid":
 
@@ -765,6 +767,166 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 	}
 
 	return "", errors.Wrap(ErrFieldNotFound, key)
+}
+
+func (e *Event) GetFieldType(key string) (reflect.Kind, error) {
+	switch key {
+
+	case "chmod.filename":
+
+		return reflect.String, nil
+
+	case "chmod.inode":
+
+		return reflect.Int, nil
+
+	case "chmod.mode":
+
+		return reflect.Int, nil
+
+	case "chown.filename":
+
+		return reflect.String, nil
+
+	case "chown.gid":
+
+		return reflect.Int, nil
+
+	case "chown.inode":
+
+		return reflect.Int, nil
+
+	case "chown.uid":
+
+		return reflect.Int, nil
+
+	case "container.id":
+
+		return reflect.String, nil
+
+	case "event.retval":
+
+		return reflect.Int, nil
+
+	case "event.type":
+
+		return reflect.String, nil
+
+	case "mkdir.filename":
+
+		return reflect.String, nil
+
+	case "mkdir.inode":
+
+		return reflect.Int, nil
+
+	case "mkdir.mode":
+
+		return reflect.Int, nil
+
+	case "open.basename":
+
+		return reflect.String, nil
+
+	case "open.filename":
+
+		return reflect.String, nil
+
+	case "open.flags":
+
+		return reflect.Int, nil
+
+	case "open.inode":
+
+		return reflect.Int, nil
+
+	case "open.mode":
+
+		return reflect.Int, nil
+
+	case "process.filename":
+
+		return reflect.String, nil
+
+	case "process.gid":
+
+		return reflect.Int, nil
+
+	case "process.group":
+
+		return reflect.String, nil
+
+	case "process.name":
+
+		return reflect.String, nil
+
+	case "process.pid":
+
+		return reflect.Int, nil
+
+	case "process.pidns":
+
+		return reflect.Int, nil
+
+	case "process.tid":
+
+		return reflect.Int, nil
+
+	case "process.tty_name":
+
+		return reflect.String, nil
+
+	case "process.uid":
+
+		return reflect.Int, nil
+
+	case "process.user":
+
+		return reflect.String, nil
+
+	case "rename.new_filename":
+
+		return reflect.String, nil
+
+	case "rename.new_inode":
+
+		return reflect.Int, nil
+
+	case "rename.old_filename":
+
+		return reflect.String, nil
+
+	case "rename.old_inode":
+
+		return reflect.Int, nil
+
+	case "rmdir.filename":
+
+		return reflect.String, nil
+
+	case "rmdir.inode":
+
+		return reflect.Int, nil
+
+	case "unlink.filename":
+
+		return reflect.String, nil
+
+	case "unlink.inode":
+
+		return reflect.Int, nil
+
+	case "utimes.filename":
+
+		return reflect.String, nil
+
+	case "utimes.inode":
+
+		return reflect.Int, nil
+
+	}
+
+	return reflect.Invalid, errors.Wrap(ErrFieldNotFound, key)
 }
 
 func (e *Event) SetFieldValue(key string, value interface{}) error {
