@@ -192,10 +192,16 @@ fail_on_non_triggered_tag:
   needs: ["fail_on_non_triggered_tag"]
   script:
     - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
+    # Patch libbcc to remove references to glibc symbols with a too recent version
+    - cd /tmp/bcc
+    - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
     - mkdir /tmp/bcc/build
     - cd /tmp/bcc/build
     - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib'
     - make -j 4 #"$(nproc)"
+    # Check that libbcc has no references to too recent glibc
+    - objdump -p src/cc/libbcc.so | grep GLIBC_2.29 && exit 1
+    - objdump -p src/cc/libbcc.so | grep GLIBC_2.26 && exit 1
     - make install
     - cd /opt/libbcc
     - chmod go-rwx lib/libbcc*
