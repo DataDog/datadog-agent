@@ -289,13 +289,17 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 	parent := filepath.Dir(dirPath)
-	for parent != "." {
-		if parent == string(filepath.Separator) {
-			permsInfos.add(parent)
-			break
-		}
+
+	// Don't enter loop on root, we don't want to add anything if root is passed as `dirPath`
+	for parent != "." && parent != string(filepath.Separator) {
 		permsInfos.add(parent)
 		parent = filepath.Dir(parent)
+
+		// To add root in cases where root is not passed as `dirPath`
+		if parent == string(filepath.Separator) {
+			permsInfos.add(parent)
+			return
+		}
 	}
 }
 
@@ -303,7 +307,12 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 	logFileDir := filepath.Dir(logFilePath)
 
 	if permsInfos != nil {
-		addParentPerms(logFileDir, permsInfos)
+		// Force path to be absolute for getting parent permissions.
+		absPath, err := filepath.Abs(logFileDir)
+		if err != nil {
+			log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+		}
+		addParentPerms(absPath, permsInfos)
 	}
 
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
@@ -676,7 +685,11 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 				if permsInfos != nil {
 					permsInfos.add(src)
-					addParentPerms(filePath, permsInfos)
+					absPath, err := filepath.Abs(filePath)
+					if err != nil {
+						log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+					}
+					addParentPerms(absPath, permsInfos)
 				}
 			}
 

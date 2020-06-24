@@ -79,3 +79,50 @@ func TestAddPermsInfo(t *testing.T) {
 	os.Remove(f1.Name())
 	os.Remove(f2.Name())
 }
+
+func TestAddParentPerms(t *testing.T) {
+	assert := assert.New(t)
+
+	permsInfos := make(permissionsInfos)
+
+	// Basic Case
+	path := "/a/b/c/d"
+	addParentPerms(path, permsInfos)
+	expectedParentPerms := map[string]filePermsInfo{
+		"/": {0, "", ""}, "/a": {0, "", ""}, "/a/b": {0, "", ""}, "/a/b/c": {0, "", ""},
+	}
+	assert.EqualValues(permsInfos, expectedParentPerms)
+
+	// Empty Case
+	permsInfos = make(permissionsInfos)
+	path = ""
+	addParentPerms(path, permsInfos)
+	expectedParentPerms = map[string]filePermsInfo{}
+	assert.EqualValues(permsInfos, expectedParentPerms)
+
+	// Only root
+	permsInfos = make(permissionsInfos)
+	path = "/"
+	addParentPerms(path, permsInfos)
+	expectedParentPerms = map[string]filePermsInfo{}
+	assert.EqualValues(permsInfos, expectedParentPerms)
+
+	// Space in path
+	permsInfos = make(permissionsInfos)
+	path = "/a b/c"
+	addParentPerms(path, permsInfos)
+	expectedParentPerms = map[string]filePermsInfo{
+		"/": {0, "", ""}, "/a b": {0, "", ""},
+	}
+	assert.EqualValues(permsInfos, expectedParentPerms)
+
+	// Dot in path
+	permsInfos = make(permissionsInfos)
+	path = "/a.b/c"
+	addParentPerms(path, permsInfos)
+	expectedParentPerms = map[string]filePermsInfo{
+		"/": {0, "", ""}, "/a.b": {0, "", ""},
+	}
+	assert.EqualValues(permsInfos, expectedParentPerms)
+
+}
