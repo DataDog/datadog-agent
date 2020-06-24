@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
+	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
 var (
@@ -742,6 +744,12 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
 func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.SectionParams {
+	nCPUs := runtime.NumCPU()
+	cpus, err := cpuonline.Get()
+	if err == nil {
+		nCPUs = len(cpus)
+	}
+
 	return map[string]bpflib.SectionParams{
 		connMap.sectionName(): {
 			MapMaxEntries: int(c.MaxTrackedConnections),
@@ -756,7 +764,8 @@ func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.Se
 			MapMaxEntries: int(c.MaxTrackedConnections),
 		},
 		tcpCloseEventMap.sectionName(): {
-			MapMaxEntries: 1024,
+			SkipPerfMapInitialization: true,
+			MapMaxEntries:             nCPUs,
 		},
 		"socket/dns_filter": {
 			Disabled: !enableSocketFilter,
