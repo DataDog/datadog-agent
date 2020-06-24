@@ -160,6 +160,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		if err != nil {
 			log.Errorf("Could not zip config check: %s", err)
 		}
+
+		err = zipTaggerList(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip tagger list: %s", err)
+		}
 	}
 
 	// auth token permissions info (only if existing)
@@ -197,11 +202,6 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	err = zipEnvvars(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip env vars: %s", err)
-	}
-
-	err = zipTaggerList(tempDir, hostname)
-	if err != nil {
-		log.Errorf("Could not zip tagger list: %s", err)
 	}
 
 	err = zipHealth(tempDir, hostname)
@@ -554,7 +554,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 var taggerListURL string
 
 func zipTaggerList(tempDir, hostname string) error {
-	f := filepath.Join(tempDir, hostname, "tagger-list.log")
+	f := filepath.Join(tempDir, hostname, "tagger-list.json")
 	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
@@ -566,13 +566,6 @@ func zipTaggerList(tempDir, hostname string) error {
 	}
 	defer w.Close()
 
-	c := api_util.GetClient(false) // FIX: get certificates right then make this true
-
-	err = api_util.SetAuthToken()
-	if err != nil {
-		return err
-	}
-
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return err
@@ -581,6 +574,9 @@ func zipTaggerList(tempDir, hostname string) error {
 	if taggerListURL == "" {
 		taggerListURL = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
+
+	c := api_util.GetClient(false) // FIX: get certificates right then make this true
+
 	r, err := api_util.DoGet(c, taggerListURL)
 	if err != nil {
 		return err
