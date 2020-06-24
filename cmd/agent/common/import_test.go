@@ -177,11 +177,3 @@ func assertYAMLEquality(t *testing.T, f1, f2 string) {
 
 	assert.Equal(t, expectedContent, migratedContent)
 }
-
-func assertSameFile(t *testing.T, f1, f2 string) {
-	f1content, err := ioutil.ReadFile(f1)
-	require.NoError(t, err, "Failed to read"+f1)
-	f2content, err := ioutil.ReadFile(f2)
-	require.NoError(t, err, "Failed to read"+f1)
-	assert.Equal(t, string(f1content), string(f2content))
-}
