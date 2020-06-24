@@ -8,17 +8,16 @@
       "cpus":               "2",
       "memory":             "2048",
       "disk_size":          "262144",
-      
-      "iso_checksum":       "<%= builder.checksum %>",
-      "iso_checksum_type":  "sha256",
+
+      "iso_checksum":       "sha256:<%= builder.checksum %>",
       "iso_url":            "<%= builder.isourl %>",
-      
+
       "shutdown_command":   "shutdown /s /t 10 /f /d p:4:1 /c \"Packer Shutdown\"",
-      
+
       "winrm_username":     "dogdev",
       "winrm_password":     "dogdev",
       "winrm_timeout":      "15m",
-      
+
       "floppy_files": [
         "<%= builder.autounattend %>",
         "./scripts/Enable-WinRM.ps1"
