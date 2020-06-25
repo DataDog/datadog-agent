@@ -14,7 +14,7 @@ import (
 type packetManager struct {
 	packetsBuffer   *packetsBuffer
 	packetAssembler *packetAssembler
-	buffer          []byte
+	bufferSize      int
 }
 
 func newPacketManagerFromConfig(packetOut chan Packets, sharedPacketPool *PacketPool) *packetManager {
@@ -35,10 +35,14 @@ func newPacketManager(
 	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
 
 	return &packetManager{
-		buffer:          make([]byte, bufferSize),
+		bufferSize:      bufferSize,
 		packetsBuffer:   packetsBuffer,
 		packetAssembler: newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool),
 	}
+}
+
+func (l *packetManager) createBuffer() []byte {
+	return make([]byte, l.bufferSize)
 }
 
 func (l *packetManager) close() {

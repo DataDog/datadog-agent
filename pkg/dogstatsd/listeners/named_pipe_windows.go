@@ -78,7 +78,8 @@ func (l *NamedPipeListener) Listen() {
 			l.mux.Lock()
 			l.connections[conn] = struct{}{}
 			l.mux.Unlock()
-			go l.listenConnection(conn)
+			buffer := l.packetManager.createBuffer()
+			go l.listenConnection(conn, buffer)
 
 		case err.Error() == "use of closed network connection":
 			{
@@ -92,10 +93,10 @@ func (l *NamedPipeListener) Listen() {
 	}
 }
 
-func (l *NamedPipeListener) listenConnection(conn net.Conn) {
+func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 	log.Infof("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
 	for {
-		n, err := conn.Read(l.packetManager.buffer)
+		n, err := conn.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
 				log.Infof("dogstatsd-named-pipes: client disconnected from %s", conn.LocalAddr())
@@ -113,7 +114,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn) {
 			namedPipeTelemetry.onReadSuccess(n)
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
-			l.packetManager.packetAssembler.addMessage(l.packetManager.buffer[:n])
+			l.packetManager.packetAssembler.addMessage(buffer[:n])
 		}
 	}
 	conn.Close()

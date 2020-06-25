@@ -64,9 +64,11 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDPListener) Listen() {
+	buffer := l.packetManager.createBuffer()
+
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		n, _, err := l.conn.ReadFrom(l.packetManager.buffer)
+		n, _, err := l.conn.ReadFrom(buffer)
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
@@ -80,7 +82,7 @@ func (l *UDPListener) Listen() {
 		udpTelemetry.onReadSuccess(n)
 
 		// packetAssembler merges multiple packets together and sends them when its buffer is full
-		l.packetManager.packetAssembler.addMessage(l.packetManager.buffer[:n])
+		l.packetManager.packetAssembler.addMessage(buffer[:n])
 	}
 }
 
