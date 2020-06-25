@@ -16,7 +16,7 @@ type PerfMap interface {
 
 type Table interface {
 	Get(key []byte) ([]byte, error)
-	Set(key, value []byte)
+	Set(key, value []byte) error
 	Delete(key []byte) error
 }
 
