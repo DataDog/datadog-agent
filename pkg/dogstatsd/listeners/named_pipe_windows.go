@@ -65,7 +65,7 @@ func newNamedPipeListener(
 		connections:   make(map[net.Conn]struct{}),
 	}
 
-	log.Debugf("dogstatsd-named-pipe: %s successfully initialized", pipe.Addr())
+	log.Debugf("dogstatsd-named-pipes: %s successfully initialized", pipe.Addr())
 	return listener, nil
 }
 
@@ -108,7 +108,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 				log.Infof("dogstatsd-named-pipes: stop listening a named pipe client on %s", conn.LocalAddr())
 				break
 			}
-			log.Errorf("dogstatsd-named-pipe: error reading packet: %v", err.Error())
+			log.Errorf("dogstatsd-named-pipes: error reading packet: %v", err.Error())
 			namedPipeTelemetry.onReadError()
 		} else {
 			namedPipeTelemetry.onReadSuccess(n)
