@@ -185,3 +185,6 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.0.0-20191016113814-3b1a734dba6e
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
 )
+
+// Pinned so it includes fix for Windows Nano
+replace k8s.io/klog => k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4
