@@ -200,13 +200,15 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 }
 
 func TestDefaultValues(t *testing.T) {
+	configConverter := config.NewConfigConverter()
 	agentConfig := make(Config)
-	FromAgentConfig(agentConfig)
+	FromAgentConfig(agentConfig, configConverter)
 	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
 }
 
 func TestTraceIgnoreResources(t *testing.T) {
 	require := require.New(t)
+	configConverter := config.NewConfigConverter()
 
 	cases := []struct {
 		config   string
@@ -221,7 +223,7 @@ func TestTraceIgnoreResources(t *testing.T) {
 	for _, c := range cases {
 		cfg := make(Config)
 		cfg["trace.ignore.resource"] = c.config
-		err := FromAgentConfig(cfg)
+		err := FromAgentConfig(cfg, configConverter)
 		require.NoError(err)
 		require.Equal(c.expected, config.Datadog.GetStringSlice("apm_config.ignore_resources"))
 
@@ -230,9 +232,10 @@ func TestTraceIgnoreResources(t *testing.T) {
 
 func TestConverter(t *testing.T) {
 	require := require.New(t)
+	configConverter := config.NewConfigConverter()
 	cfg, err := GetAgentConfig("./tests/datadog.conf")
 	require.NoError(err)
-	err = FromAgentConfig(cfg)
+	err = FromAgentConfig(cfg, configConverter)
 	require.NoError(err)
 	c := config.Datadog
 
@@ -315,17 +318,18 @@ func TestConverter(t *testing.T) {
 }
 
 func TestExtractURLAPIKeys(t *testing.T) {
+	configConverter := config.NewConfigConverter()
 	defer func() {
-		config.Datadog.Set("dd_url", "")
-		config.Datadog.Set("api_key", "")
-		config.Datadog.Set("additional_endpoints", nil)
+		configConverter.Set("dd_url", "")
+		configConverter.Set("api_key", "")
+		configConverter.Set("additional_endpoints", nil)
 	}()
 	agentConfig := make(Config)
 
 	// empty
 	agentConfig["dd_url"] = ""
 	agentConfig["api_key"] = ""
-	err := extractURLAPIKeys(agentConfig)
+	err := extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "", config.Datadog.GetString("dd_url"))
 	assert.Equal(t, "", config.Datadog.GetString("api_key"))
@@ -334,7 +338,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// one url and one key
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
@@ -343,7 +347,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// multiple dd_url and api_key
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
@@ -356,6 +360,6 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// config error
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,hhttps://datadoghq.com,ttps://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.NotNil(t, err)
 }

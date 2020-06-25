@@ -3,8 +3,8 @@ init_config:
 instances:
    - server: 127.0.0.1
      user: mysql_user
-     pass: mysql_password 
-     port: 3306 
+     pass: mysql_password
+     port: 3306
      options:
        replication: false
        galera_cluster: true

@@ -17,143 +17,143 @@ import (
 
 // FromAgentConfig reads the old agentConfig configuration, converts and merges
 // the values into the current configuration object
-func FromAgentConfig(agentConfig Config) error {
-	if err := extractURLAPIKeys(agentConfig); err != nil {
+func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter) error {
+	if err := extractURLAPIKeys(agentConfig, converter); err != nil {
 		return err
 	}
 
 	if proxy, err := BuildProxySettings(agentConfig); err == nil {
 		if u, ok := proxy["http"]; ok {
-			config.Datadog.Set("proxy.http", u)
+			converter.Set("proxy.http", u)
 		}
 		if u, ok := proxy["https"]; ok {
-			config.Datadog.Set("proxy.https", u)
+			converter.Set("proxy.https", u)
 		}
 	}
 
 	if enabled, err := isAffirmative(agentConfig["skip_ssl_validation"]); err == nil {
-		config.Datadog.Set("skip_ssl_validation", enabled)
+		converter.Set("skip_ssl_validation", enabled)
 	}
 
-	config.Datadog.Set("hostname", agentConfig["hostname"])
+	converter.Set("hostname", agentConfig["hostname"])
 
 	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); enabled {
 		// process agent is explicitly enabled
-		config.Datadog.Set("process_config.enabled", "true")
+		converter.Set("process_config.enabled", "true")
 	} else if err == nil && !enabled {
 		// process agent is explicitly disabled
-		config.Datadog.Set("process_config.enabled", "disabled")
+		converter.Set("process_config.enabled", "disabled")
 	}
 
-	config.Datadog.Set("tags", strings.Split(agentConfig["tags"], ","))
+	converter.Set("tags", strings.Split(agentConfig["tags"], ","))
 
 	if value, err := strconv.Atoi(agentConfig["forwarder_timeout"]); err == nil {
-		config.Datadog.Set("forwarder_timeout", value)
+		converter.Set("forwarder_timeout", value)
 	}
 
 	if value, err := strconv.Atoi(agentConfig["default_integration_http_timeout"]); err == nil {
-		config.Datadog.Set("default_integration_http_timeout", value)
+		converter.Set("default_integration_http_timeout", value)
 	}
 
 	if enabled, err := isAffirmative(agentConfig["collect_ec2_tags"]); err == nil {
-		config.Datadog.Set("collect_ec2_tags", enabled)
+		converter.Set("collect_ec2_tags", enabled)
 	}
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["additional_checksd"] != "" {
-		config.Datadog.Set("additional_checksd", agentConfig["additional_checksd"])
+		converter.Set("additional_checksd", agentConfig["additional_checksd"])
 	}
 
 	// TODO: exclude_process_args
 
 	histogramAggregates := buildHistogramAggregates(agentConfig)
 	if histogramAggregates != nil && len(histogramAggregates) != 0 {
-		config.Datadog.Set("histogram_aggregates", histogramAggregates)
+		converter.Set("histogram_aggregates", histogramAggregates)
 	}
 
 	histogramPercentiles := buildHistogramPercentiles(agentConfig)
 	if histogramPercentiles != nil && len(histogramPercentiles) != 0 {
-		config.Datadog.Set("histogram_percentiles", histogramPercentiles)
+		converter.Set("histogram_percentiles", histogramPercentiles)
 	}
 
 	if agentConfig["service_discovery_backend"] == "docker" {
 		// `docker` is the only possible value also on the Agent v5
 		dockerListener := config.Listeners{Name: "docker"}
-		config.Datadog.Set("listeners", []config.Listeners{dockerListener})
+		converter.Set("listeners", []config.Listeners{dockerListener})
 	}
 
 	if providers, err := buildConfigProviders(agentConfig); err == nil {
-		config.Datadog.Set("config_providers", providers)
+		converter.Set("config_providers", providers)
 	}
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["sd_template_dir"] != "" {
-		config.Datadog.Set("autoconf_template_dir", agentConfig["sd_template_dir"])
+		converter.Set("autoconf_template_dir", agentConfig["sd_template_dir"])
 	}
 
 	if enabled, err := isAffirmative(agentConfig["use_dogstatsd"]); err == nil {
-		config.Datadog.Set("use_dogstatsd", enabled)
+		converter.Set("use_dogstatsd", enabled)
 	}
 
 	if value, err := strconv.Atoi(agentConfig["dogstatsd_port"]); err == nil {
-		config.Datadog.Set("dogstatsd_port", value)
+		converter.Set("dogstatsd_port", value)
 	}
 
-	config.Datadog.Set("statsd_metric_namespace", agentConfig["statsd_metric_namespace"])
+	converter.Set("statsd_metric_namespace", agentConfig["statsd_metric_namespace"])
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["log_level"] != "" {
-		config.Datadog.Set("log_level", agentConfig["log_level"])
+		converter.Set("log_level", agentConfig["log_level"])
 	}
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["collector_log_file"] != "" {
-		config.Datadog.Set("log_file", agentConfig["collector_log_file"])
+		converter.Set("log_file", agentConfig["collector_log_file"])
 	}
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["disable_file_logging"] != "" {
-		config.Datadog.Set("disable_file_logging", agentConfig["disable_file_logging"])
+		converter.Set("disable_file_logging", agentConfig["disable_file_logging"])
 	}
 
 	if enabled, err := isAffirmative(agentConfig["log_to_syslog"]); err == nil {
-		config.Datadog.Set("log_to_syslog", enabled)
+		converter.Set("log_to_syslog", enabled)
 	}
-	config.Datadog.Set("syslog_uri", buildSyslogURI(agentConfig))
+	converter.Set("syslog_uri", buildSyslogURI(agentConfig))
 
 	if enabled, err := isAffirmative(agentConfig["collect_instance_metadata"]); err == nil {
-		config.Datadog.Set("enable_metadata_collection", enabled)
+		converter.Set("enable_metadata_collection", enabled)
 	}
 
 	if enabled, err := isAffirmative(agentConfig["enable_gohai"]); err == nil {
-		config.Datadog.Set("enable_gohai", enabled)
+		converter.Set("enable_gohai", enabled)
 	}
 
 	if agentConfig["bind_host"] != "" {
-		config.Datadog.Set("bind_host", agentConfig["bind_host"])
+		converter.Set("bind_host", agentConfig["bind_host"])
 	}
 
 	//Trace APM based configurations
 
 	if agentConfig["apm_enabled"] != "" {
 		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
-			config.Datadog.Set("apm_config.enabled", enabled)
+			converter.Set("apm_config.enabled", enabled)
 		}
 	}
 
 	if agentConfig["non_local_traffic"] != "" {
 		if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil {
 			// trace-agent listen locally by default, convert the config only if configured to listen to more
-			config.Datadog.Set("apm_config.apm_non_local_traffic", enabled)
+			converter.Set("apm_config.apm_non_local_traffic", enabled)
 		}
 	}
 
-	config.Datadog.Set("hostname_fqdn", true)
+	converter.Set("hostname_fqdn", true)
 
-	return extractTraceAgentConfig(agentConfig)
+	return extractTraceAgentConfig(agentConfig, converter)
 }
 
-func extractTraceAgentConfig(agentConfig Config) error {
+func extractTraceAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter) error {
 	for iniKey, yamlKey := range map[string]string{
 		"trace.api.api_key":                      "apm_config.api_key",
 		"trace.api.endpoint":                     "apm_config.apm_dd_url",
@@ -179,7 +179,7 @@ func extractTraceAgentConfig(agentConfig Config) error {
 		"trace.writer.traces.queue_size":         "apm_config.trace_writer.queue_size",
 	} {
 		if v, ok := agentConfig[iniKey]; ok {
-			config.Datadog.Set(yamlKey, v)
+			converter.Set(yamlKey, v)
 		}
 	}
 
@@ -199,17 +199,17 @@ func extractTraceAgentConfig(agentConfig Config) error {
 		}
 	}
 	if len(set1) > 0 {
-		config.Datadog.Set("apm_config.analyzed_rate_by_service", set1)
+		converter.Set("apm_config.analyzed_rate_by_service", set1)
 	}
 	if len(set2) > 0 {
-		config.Datadog.Set("apm_config.analyzed_spans", set2)
+		converter.Set("apm_config.analyzed_spans", set2)
 	}
 
 	// ignored resources
 	if v, ok := agentConfig["trace.ignore.resource"]; ok {
 		r, err := splitString(v, ',')
 		if err == nil {
-			config.Datadog.Set("apm_config.ignore_resources", r)
+			converter.Set("apm_config.ignore_resources", r)
 		} else {
 			fmt.Println("Ignoring value provided trace.ignore.resource because of parsing error")
 		}
@@ -227,7 +227,7 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-func extractURLAPIKeys(agentConfig Config) error {
+func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConverter) error {
 	urls := strings.Split(agentConfig["dd_url"], ",")
 	keys := strings.Split(agentConfig["api_key"], ",")
 
@@ -237,10 +237,10 @@ func extractURLAPIKeys(agentConfig Config) error {
 
 	if urls[0] != "https://app.datadoghq.com" {
 		// 'dd_url' is optional in v6, so only set it if it's set to a non-default value in datadog.conf
-		config.Datadog.Set("dd_url", urls[0])
+		converter.Set("dd_url", urls[0])
 	}
 
-	config.Datadog.Set("api_key", keys[0])
+	converter.Set("api_key", keys[0])
 	if len(urls) == 1 {
 		return nil
 	}
@@ -259,7 +259,7 @@ func extractURLAPIKeys(agentConfig Config) error {
 			additionalEndpoints[url] = []string{keys[idx]}
 		}
 	}
-	config.Datadog.Set("additional_endpoints", additionalEndpoints)
+	converter.Set("additional_endpoints", additionalEndpoints)
 	return nil
 }
 
