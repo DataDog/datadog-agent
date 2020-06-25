@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
+// +build windows
 
 package listeners
 
@@ -18,6 +19,8 @@ import (
 )
 
 var namedPipeTelemetry = newListenerTelemetry("named_pipe", "Named Pipe")
+
+const pipeNamePrefix = `\\.\pipe\`
 
 // NamedPipeListener implements the StatsdListener interface for named pipe protocol.
 // It listens to a given pipe name and sends back packets ready to be processed.
@@ -49,7 +52,7 @@ func newNamedPipeListener(
 		InputBufferSize:  int32(bufferSize),
 		OutputBufferSize: 0,
 	}
-	pipePath := `\\.\pipe\` + pipeName
+	pipePath := pipeNamePrefix + pipeName
 	pipe, err := winio.ListenPipe(pipePath, &config)
 
 	if err != nil {

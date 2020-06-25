@@ -25,10 +25,10 @@ type udsListenerTelemetry struct {
 	tlmUDSOriginDetectionError telemetry.Counter
 }
 
-var udsTelemetry udsListenerTelemetry
+var udsTelemetry *udsListenerTelemetry
 
 func init() {
-	udsTelemetry = udsListenerTelemetry{
+	udsTelemetry = &udsListenerTelemetry{
 		listenerTelemetry:        newListenerTelemetry("uds", "UDS"),
 		udsOriginDetectionErrors: expvar.Int{},
 		tlmUDSOriginDetectionError: telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",

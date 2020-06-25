@@ -24,7 +24,7 @@ func TestNamedPipeListen(t *testing.T) {
 	client := createNamedPipeClient(t)
 	defer client.Close()
 
-	res := sendAndGetNamePipedMessage(t, listener, client, "data")
+	res := sendAndGetNamedPipeMessage(t, listener, client, "data")
 	assert.Equal(t, "data", res)
 
 }
@@ -56,7 +56,7 @@ func TestNamedPipeReconnection(t *testing.T) {
 	client := createNamedPipeClient(t)
 	defer client.Close()
 
-	res := sendAndGetNamePipedMessage(t, listener, client, "data")
+	res := sendAndGetNamedPipeMessage(t, listener, client, "data")
 	assert.Equal(t, "data", res)
 }
 
@@ -64,7 +64,7 @@ func TestNamedPipeStop(t *testing.T) {
 	listener := newNamedPipeListenerTest(t)
 	client := createNamedPipeClient(t)
 
-	res := sendAndGetNamePipedMessage(t, listener, client, "data")
+	res := sendAndGetNamedPipeMessage(t, listener, client, "data")
 	assert.Equal(t, "data", res)
 	assert.Equal(t, 1, listener.GetActiveConnectionsCount())
 	client.Close()
@@ -109,7 +109,7 @@ func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
 	return listenerTest
 }
 
-func sendAndGetNamePipedMessage(t *testing.T, listener namedPipeListenerTest, client net.Conn, str string) string {
+func sendAndGetNamedPipeMessage(t *testing.T, listener namedPipeListenerTest, client net.Conn, str string) string {
 	_, err := client.Write([]byte(str))
 	assert.NoError(t, err)
 	return getNamedPipeMessage(t, listener)
@@ -133,7 +133,7 @@ func getNamedPipeMessages(t *testing.T, listener namedPipeListenerTest, nbMessag
 }
 
 func createNamedPipeClient(t *testing.T) net.Conn {
-	client, err := winio.DialPipe(`\\.\pipe\`+pipeName, nil)
+	client, err := winio.DialPipe(pipeNamePrefix+pipeName, nil)
 	assert.NoError(t, err)
 	return client
 }
