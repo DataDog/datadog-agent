@@ -4035,9 +4035,9 @@ pupernetes-tags-7:
 
 notify-on-success:
   extends: .slack-notifier-base
-  only:
-    - master
-    - triggers
+  rules:
+    - <<: *if_master_branch
+    - <<: *if_triggered
   script: |
     BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
     COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
@@ -4052,7 +4052,6 @@ notify-on-success:
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     fi
     postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
-  when: on_success
 
 notify-on-failure:
   extends: .slack-notifier-base
@@ -4068,7 +4067,6 @@ notify-on-failure:
 
     AUTHOR=$(git show -s --format="%an" HEAD)
 
-    # Only ping on pushes to master (== merged PRs)
     if [ "$CI_PIPELINE_SOURCE" = "push" ]; then
       MESSAGE_TEXT=":host-red: :merged: Merge pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
