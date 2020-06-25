@@ -269,7 +269,13 @@ def deps(
             if tool.get('install', True):
                 print("processing get tool {}".format(dependency))
                 process_deps(
-                    ctx, dependency, tool.get('version'), tool.get('type'), 'install', cmd=tool.get('cmd'), verbose=verbose
+                    ctx,
+                    dependency,
+                    tool.get('version'),
+                    tool.get('type'),
+                    'install',
+                    cmd=tool.get('cmd'),
+                    verbose=verbose,
                 )
 
     if android:
