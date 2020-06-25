@@ -395,6 +395,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"id":"%s",`, e.ID)
+	fmt.Fprintf(&buf, `"type":"%s",`, e.GetType())
 
 	entries := []struct {
 		field      string
@@ -409,23 +410,23 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			marshalFnc: e.Process.marshalJSON,
 		},
 		{
-			field:      "open",
+			field:      "file",
 			marshalFnc: e.Open.marshalJSON,
 		},
 		{
-			field:      "mkdir",
+			field:      "file",
 			marshalFnc: e.Mkdir.marshalJSON,
 		},
 		{
-			field:      "rmdir",
+			field:      "file",
 			marshalFnc: e.Rmdir.marshalJSON,
 		},
 		{
-			field:      "unlink",
+			field:      "file",
 			marshalFnc: e.Unlink.marshalJSON,
 		},
 		{
-			field:      "rename",
+			field:      "file",
 			marshalFnc: e.Rename.marshalJSON,
 		},
 	}

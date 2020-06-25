@@ -8,3 +8,9 @@ type Event interface {
 	SetFieldValue(key string, value interface{}) error
 	GetFieldValue(key string) (interface{}, error)
 }
+
+// RuleEvent - Rule event wrapper used to send an event to the backend
+type RuleEvent struct {
+	RuleID string `json:"rule_id"`
+	Event  Event  `json:"event"`
+}

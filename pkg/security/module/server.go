@@ -34,7 +34,7 @@ LOOP:
 }
 
 func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
-	data, err := json.Marshal(event)
+	data, err := json.Marshal(eval.RuleEvent{Event: event, RuleID: rule.ID})
 	if err != nil {
 		return
 	}
@@ -43,7 +43,7 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.ID,
 		Type:   event.GetType(),
-		Tags:   rule.Tags,
+		Tags:   append(rule.Tags, "type:"+event.GetType(), "rule_id:"+rule.ID),
 		Data:   data,
 	}
 

@@ -2,8 +2,6 @@ package agent
 
 import (
 	"context"
-	"sync"
-
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
