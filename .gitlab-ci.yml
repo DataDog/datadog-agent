@@ -10,7 +10,7 @@ default:
       - api_failure
 
 stages:
-  # - fail_on_tag
+  - fail_on_tag
   # - deps_build
   - source_test
   # - binary_build
