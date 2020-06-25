@@ -44,7 +44,7 @@ func TestConntracker6(t *testing.T) {
 		t.Errorf("setup command output: %s", string(out))
 	}
 
-	testConntracker(t, net.ParseIP("fd::1"), net.ParseIP("fd::2"))
+	testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"))
 }
 
 func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
@@ -137,7 +137,7 @@ func TestMessageDump6(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	testMessageDump(t, f, net.ParseIP("fd::1"), net.ParseIP("fd::2"))
+	testMessageDump(t, f, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"))
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
