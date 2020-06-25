@@ -88,3 +88,25 @@ func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
 	}
 	return response, err
 }
+
+func (h *Handler) RebalanceClusterChecks() ([]types.RebalanceResponse, error) {
+	if !h.dispatcher.advancedDispatching {
+		return nil, fmt.Errorf("no checks to rebalance: advanced dispatching is not enabled")
+	}
+
+	rebalancingDecisions := h.dispatcher.rebalance()
+	response := []types.RebalanceResponse{}
+
+	for _, decision := range rebalancingDecisions {
+		response = append(response, types.RebalanceResponse{
+			CheckID:        decision.CheckID,
+			CheckWeight:    decision.CheckWeight,
+			SourceNodeName: decision.SourceNodeName,
+			SourceDiff:     decision.SourceDiff,
+			DestNodeName:   decision.DestNodeName,
+			DestDiff:       decision.DestDiff,
+		})
+	}
+
+	return response, nil
+}
