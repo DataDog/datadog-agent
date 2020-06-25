@@ -19,9 +19,13 @@ func (l *LRUKTable) Get(key []byte) ([]byte, error) {
 	return l.table.Get(key)
 }
 
-func (l *LRUKTable) Set(key []byte, value []byte) {
-	l.table.Set(key, value)
+func (l *LRUKTable) Set(key []byte, value []byte) error {
+	if err := l.table.Set(key, value); err != nil {
+		return err
+	}
 	l.lru.Add(string(key), value)
+
+	return nil
 }
 
 func (l *LRUKTable) Delete(key []byte) error {

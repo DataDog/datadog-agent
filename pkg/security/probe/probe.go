@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 
 	"github.com/iovisor/gobpf/elf"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/gobpf"
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
@@ -544,18 +543,13 @@ func (p *Probe) SetFilterPolicy(tableName string, mode PolicyMode, flags PolicyF
 		return fmt.Errorf("unable to find policy table `%s`", tableName)
 	}
 
-	key, err := Int32ToKey(0)
-	if err != nil {
-		return errors.New("unable to set policy")
-	}
+	key := Int32ToKey(0)
 
 	policy := FilterPolicy{
 		Mode:  mode,
 		Flags: flags,
 	}
-	table.Set(key, policy.Bytes())
-
-	return nil
+	return table.Set(key, policy.Bytes())
 }
 
 func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {

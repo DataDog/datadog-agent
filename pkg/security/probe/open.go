@@ -154,18 +154,19 @@ func handleProcessFilename(probe *Probe, approve bool, values ...string) error {
 			return err
 		}
 		stat, _ := fileinfo.Sys().(*syscall.Stat_t)
-		key, err := Int64ToKey(int64(stat.Ino))
-		if err != nil {
-			return errors.New("unable to set policy")
-		}
+		key := Int64ToKey(int64(stat.Ino))
 
 		var kFilter Uint8KFilter
 		if approve {
 			table := probe.Table("open_process_inode_approvers")
-			table.Set(key, kFilter.Bytes())
+			err = table.Set(key, kFilter.Bytes())
 		} else {
 			table := probe.Table("open_process_inode_discarders")
-			table.Set(key, kFilter.Bytes())
+			err = table.Set(key, kFilter.Bytes())
+		}
+
+		if err != nil {
+			return err
 		}
 	}
 
@@ -179,22 +180,20 @@ func handleFlagsFilters(probe *Probe, approve bool, values ...int) error {
 		kFilter.value |= uint32(value)
 	}
 
-	key, err := Int32ToKey(0)
-	if err != nil {
-		return errors.New("unable to set policy")
-	}
+	key := Int32ToKey(0)
 
+	var err error
 	if kFilter.value != 0 {
 		if approve {
 			table := probe.Table("open_flags_approvers")
-			table.Set(key, kFilter.Bytes())
+			err = table.Set(key, kFilter.Bytes())
 		} else {
 			table := probe.Table("open_flags_discarders")
-			table.Set(key, kFilter.Bytes())
+			err = table.Set(key, kFilter.Bytes())
 		}
 	}
 
-	return nil
+	return err
 }
 
 func handleBasenameFilter(probe *Probe, approver bool, basename string) error {
@@ -207,13 +206,13 @@ func handleBasenameFilter(probe *Probe, approver bool, basename string) error {
 
 	if approver {
 		table := probe.Table("open_basename_approvers")
-		table.Set(key, kFilter.Bytes())
+		err = table.Set(key, kFilter.Bytes())
 	} else {
 		table := probe.Table("open_basename_discarders")
-		table.Set(key, kFilter.Bytes())
+		err = table.Set(key, kFilter.Bytes())
 	}
 
-	return nil
+	return err
 }
 
 func handleBasenameFilters(probe *Probe, approve bool, values ...string) error {

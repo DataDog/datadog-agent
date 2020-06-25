@@ -29,8 +29,8 @@ func (t *Table) Get(key []byte) ([]byte, error) {
 	return value[:], err
 }
 
-func (t *Table) Set(key, value []byte) {
-	t.module.UpdateElement(t.Map, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), 0)
+func (t *Table) Set(key, value []byte) error {
+	return t.module.UpdateElement(t.Map, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), 0)
 }
 
 func (t *Table) Delete(key []byte) error {
