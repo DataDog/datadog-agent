@@ -99,8 +99,6 @@ def build(
         rtloader_make(ctx, python_runtimes=python_runtimes)
         rtloader_install(ctx)
 
-    agent_flavor = "iot_agent" if iot else "agent"
-
     ldflags, gcflags, env = get_build_flags(
         ctx,
         embedded_path=embedded_path,
@@ -110,7 +108,6 @@ def build(
         major_version=major_version,
         python_runtimes=python_runtimes,
         arch=arch,
-        agent_flavor=agent_flavor,
     )
 
     if sys.platform == 'win32':
@@ -162,7 +159,7 @@ def build(
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
+    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
@@ -172,6 +169,7 @@ def build(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
+        "flavor": "iot-agent" if iot else "agent",
     }
     ctx.run(cmd.format(**args), env=env)
 

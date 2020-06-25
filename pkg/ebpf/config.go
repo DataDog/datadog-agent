@@ -89,6 +89,9 @@ type Config struct {
 
 	// ExcludedDestinationConnections is a map of destination connections to blacklist
 	ExcludedDestinationConnections map[string][]string
+
+	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
+	OffsetGuessThreshold uint64
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -115,7 +118,8 @@ func NewDefaultConfig() *Config {
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
-		CollectDNSStats: false,
-		DNSTimeout:      15 * time.Second,
+		CollectDNSStats:      false,
+		DNSTimeout:           15 * time.Second,
+		OffsetGuessThreshold: 400,
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -123,15 +124,15 @@ func (d *dispatcher) expireNodes() {
 				delete(d.store.digestToNode, digest)
 				log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
 				d.store.danglingConfigs[digest] = config
-				danglingConfigs.Inc()
+				danglingConfigs.Inc(le.JoinLeaderValue)
 			}
 			delete(d.store.nodes, name)
 
 			// Remove metrics linked to this node
-			nodeAgents.Dec()
-			dispatchedConfigs.Delete(name)
-			statsCollectionFails.Delete(name)
-			busyness.Delete(name)
+			nodeAgents.Dec(le.JoinLeaderValue)
+			dispatchedConfigs.Delete(name, le.JoinLeaderValue)
+			statsCollectionFails.Delete(name, le.JoinLeaderValue)
+			busyness.Delete(name, le.JoinLeaderValue)
 		}
 		node.RUnlock()
 	}
@@ -151,7 +152,7 @@ func (d *dispatcher) updateRunnersStats() {
 
 	start := time.Now()
 	defer func() {
-		updateStatsDuration.Set(time.Since(start).Seconds())
+		updateStatsDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
 	}()
 
 	d.store.Lock()
@@ -164,7 +165,7 @@ func (d *dispatcher) updateRunnersStats() {
 		stats, err := d.clcRunnersClient.GetRunnerStats(ip)
 		if err != nil {
 			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
-			statsCollectionFails.Inc(name)
+			statsCollectionFails.Inc(name, le.JoinLeaderValue)
 			continue
 		}
 		node.Lock()
@@ -183,7 +184,7 @@ func (d *dispatcher) updateRunnersStats() {
 		log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, stats)
 		node.busyness = calculateBusyness(stats)
 		log.Debugf("Updated busyness on node: %s, node IP: %s, busyness value: %d", name, node.clientIP, node.busyness)
-		busyness.Set(float64(node.busyness), node.name)
+		busyness.Set(float64(node.busyness), node.name, le.JoinLeaderValue)
 		node.Unlock()
 	}
 }
