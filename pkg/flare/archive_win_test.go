@@ -38,7 +38,9 @@ func TestAddParentPermsWindows(t *testing.T) {
 	permsInfos = make(permissionsInfos)
 	path = `C:\`
 	addParentPerms(path, permsInfos)
-	expectedParentPerms = map[string]filePermsInfo{}
+	expectedParentPerms = map[string]filePermsInfo{
+		`C:\`: {0, "", ""},
+	}
 	assert.EqualValues(permsInfos, expectedParentPerms)
 
 	// Space in path
@@ -46,7 +48,7 @@ func TestAddParentPermsWindows(t *testing.T) {
 	path = `D:\a b\c`
 	addParentPerms(path, permsInfos)
 	expectedParentPerms = map[string]filePermsInfo{
-		`\`: {0, "", ""}, `\a b`: {0, "", ""},
+		`D:\`: {0, "", ""}, `\a b`: {0, "", ""},
 	}
 	assert.EqualValues(permsInfos, expectedParentPerms)
 

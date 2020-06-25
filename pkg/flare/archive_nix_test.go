@@ -91,21 +91,23 @@ func TestAddParentPerms(t *testing.T) {
 	expectedParentPerms := map[string]filePermsInfo{
 		"/": {0, "", ""}, "/a": {0, "", ""}, "/a/b": {0, "", ""}, "/a/b/c": {0, "", ""},
 	}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 	// Empty Case
 	permsInfos = make(permissionsInfos)
 	path = ""
 	addParentPerms(path, permsInfos)
 	expectedParentPerms = map[string]filePermsInfo{}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 	// Only root
 	permsInfos = make(permissionsInfos)
 	path = "/"
 	addParentPerms(path, permsInfos)
-	expectedParentPerms = map[string]filePermsInfo{}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	expectedParentPerms = map[string]filePermsInfo{
+		"/": {0, "", ""},
+	}
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 	// Space in path
 	permsInfos = make(permissionsInfos)
@@ -114,7 +116,7 @@ func TestAddParentPerms(t *testing.T) {
 	expectedParentPerms = map[string]filePermsInfo{
 		"/": {0, "", ""}, "/a b": {0, "", ""},
 	}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 	// Dot in path
 	permsInfos = make(permissionsInfos)
@@ -123,5 +125,5 @@ func TestAddParentPerms(t *testing.T) {
 	expectedParentPerms = map[string]filePermsInfo{
 		"/": {0, "", ""}, "/a.b": {0, "", ""},
 	}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 }
