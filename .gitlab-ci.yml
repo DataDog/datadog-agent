@@ -297,129 +297,129 @@ run_tests_windows-x86:
     - inv -e rtloader.test
     - inv -e deps --verbose --dep-vendor-only --integrations-version "$INTEGRATIONS_VERSION"
 
-# run tests for deb-x64
-run_tests_deb-x64-py2:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    PYTHON_RUNTIMES: '2'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
-    CONDA_ENV: ddpy2
-  <<: *run_tests_preparation
-  script:
-    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
+# # run tests for deb-x64
+# run_tests_deb-x64-py2:
+#   stage: source_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:2xlarge" ]
+#   variables:
+#     PYTHON_RUNTIMES: '2'
+#     INTEGRATIONS_VERSION: $RELEASE_VERSION_6
+#     CONDA_ENV: ddpy2
+#   <<: *run_tests_preparation
+#   script:
+#     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
 
-run_tests_deb-x64-py3:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    PYTHON_RUNTIMES: '3'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
-    CONDA_ENV: ddpy3
-  <<: *run_tests_preparation
-  script:
-    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
+# run_tests_deb-x64-py3:
+#   stage: source_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:2xlarge" ]
+#   variables:
+#     PYTHON_RUNTIMES: '3'
+#     INTEGRATIONS_VERSION: $RELEASE_VERSION_7
+#     CONDA_ENV: ddpy3
+#   <<: *run_tests_preparation
+#   script:
+#     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
 
-# run tests for rpm-x64
-run_tests_rpm-x64-py2:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    PYTHON_RUNTIMES: '2'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
-    CONDA_ENV: ddpy2
-  <<: *run_tests_preparation
-  script:
-    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
-    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
-    # This is OK because the test on systemd still runs on the debian image above
-    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
+# # run tests for rpm-x64
+# run_tests_rpm-x64-py2:
+#   stage: source_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:2xlarge" ]
+#   variables:
+#     PYTHON_RUNTIMES: '2'
+#     INTEGRATIONS_VERSION: $RELEASE_VERSION_6
+#     CONDA_ENV: ddpy2
+#   <<: *run_tests_preparation
+#   script:
+#     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+#     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+#     # This is OK because the test on systemd still runs on the debian image above
+#     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
 
-run_tests_rpm-x64-py3:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    PYTHON_RUNTIMES: '3'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
-    CONDA_ENV: ddpy3
-  <<: *run_tests_preparation
-  script:
-    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
-    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
-    # This is OK because the test on systemd still runs on the debian image above
-    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
+# run_tests_rpm-x64-py3:
+#   stage: source_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:2xlarge" ]
+#   variables:
+#     PYTHON_RUNTIMES: '3'
+#     INTEGRATIONS_VERSION: $RELEASE_VERSION_7
+#     CONDA_ENV: ddpy3
+#   <<: *run_tests_preparation
+#   script:
+#     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+#     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+#     # This is OK because the test on systemd still runs on the debian image above
+#     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
 
-# run tests for eBPF code
-run_tests_ebpf:
-  stage: source_test
-  needs: ["build_libbcc_x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  before_script:
-    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
-    - cd $SRC_PATH
-    - python3 -m pip install -r requirements.txt
-    - inv -e deps --verbose --dep-vendor-only --no-checks
-    # Retrieve libbcc from S3
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
-    - mkdir /opt/libbcc
-    - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
-  after_script:
-    - cd $SRC_PATH
-    - cp ./pkg/ebpf/c/tracer-ebpf.o  $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
-    - cp ./pkg/ebpf/c/tracer-ebpf-debug.o  $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
-  tags: [ "runner:main", "size:large" ]
-  script:
-    # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
-    - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
+# # run tests for eBPF code
+# run_tests_ebpf:
+#   stage: source_test
+#   needs: ["build_libbcc_x64"]
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+#   before_script:
+#     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
+#     - cd $SRC_PATH
+#     - python3 -m pip install -r requirements.txt
+#     - inv -e deps --verbose --dep-vendor-only --no-checks
+#     # Retrieve libbcc from S3
+#     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
+#     - mkdir /opt/libbcc
+#     - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
+#   after_script:
+#     - cd $SRC_PATH
+#     - cp ./pkg/ebpf/c/tracer-ebpf.o  $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
+#     - cp ./pkg/ebpf/c/tracer-ebpf-debug.o  $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
+#     - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
 
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/.tmp/binary-ebpf
+#   artifacts:
+#     when: always
+#     paths:
+#       - $CI_PROJECT_DIR/.tmp/binary-ebpf
 
-# scan the dependencies for security vulnerabilities with snyk
-run_security_scan_test:
-  rules:
-    - <<: *if_master_branch
-  stage: source_test
-  needs: ["fail_on_non_triggered_tag"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
-  tags: ["runner:main", "size:large"]
-  before_script:
-    # this image isn't built in the datadog-agent-builders repo
-    # it doesn't have invoke so we install the dependencies without invoke
-    - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
-    - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
-    - cd $GOPATH/src/github.com/DataDog/datadog-agent
-    - python3 -m pip install -r requirements.txt
-    - inv -e deps --dep-vendor-only
-  script:
-    - set +x     # don't print the api key to the logs
-    # send the list of the dependencies to snyk
-    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor --command=python3 --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
-    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor --project-name=datadog-agent-go.sum --file=go.mod
+# # scan the dependencies for security vulnerabilities with snyk
+# run_security_scan_test:
+#   rules:
+#     - <<: *if_master_branch
+#   stage: source_test
+#   needs: ["fail_on_non_triggered_tag"]
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
+#   tags: ["runner:main", "size:large"]
+#   before_script:
+#     # this image isn't built in the datadog-agent-builders repo
+#     # it doesn't have invoke so we install the dependencies without invoke
+#     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
+#     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
+#     - cd $GOPATH/src/github.com/DataDog/datadog-agent
+#     - python3 -m pip install -r requirements.txt
+#     - inv -e deps --dep-vendor-only
+#   script:
+#     - set +x     # don't print the api key to the logs
+#     # send the list of the dependencies to snyk
+#     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+#       snyk monitor --command=python3 --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
+#     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+#       snyk monitor --project-name=datadog-agent-go.sum --file=go.mod
 
-# check consistency of go.mod file with project imports
-run_go_tidy_check:
-  stage: source_test
-  needs: ["fail_on_non_triggered_tag"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  before_script:
-    - cd $SRC_PATH
-    - python3 -m pip install --upgrade --ignore-installed pip setuptools
-    - python3 -m pip install -r requirements.txt
-    - inv -e deps --no-dep-ensure --no-checks
-  script:
-    # Print a message and fail if "go mod tidy" modifies go.mod
-    - go mod tidy
-    - git diff-files --exit-code go.mod || (echo "go.mod is out of sync with project imports. Please run 'inv deps' and commit the changes on go.mod/go.sum." && false)
+# # check consistency of go.mod file with project imports
+# run_go_tidy_check:
+#   stage: source_test
+#   needs: ["fail_on_non_triggered_tag"]
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+#   tags: [ "runner:main", "size:large" ]
+#   before_script:
+#     - cd $SRC_PATH
+#     - python3 -m pip install --upgrade --ignore-installed pip setuptools
+#     - python3 -m pip install -r requirements.txt
+#     - inv -e deps --no-dep-ensure --no-checks
+#   script:
+#     # Print a message and fail if "go mod tidy" modifies go.mod
+#     - go mod tidy
+#     - git diff-files --exit-code go.mod || (echo "go.mod is out of sync with project imports. Please run 'inv deps' and commit the changes on go.mod/go.sum." && false)
 
 # #
 # # binary_build
