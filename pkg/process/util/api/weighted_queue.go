@@ -8,6 +8,8 @@ package api
 import (
 	"container/list"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WeightedItem is an item that has a type and weight that can be added to a WeightedQueue
@@ -121,6 +123,7 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 	q.currentWeight += item.Weight()
 
 	if q.currentWeight > q.maxWeight {
+		log.Infof("%s queue reached max size, starting to drop older checks", q.id)
 		// Try to find an item of the same type that we can expire
 		for iter := q.iterator(); iter.hasNext(); iter.next() {
 			if v := iter.value(); v.Type() == item.Type() {
@@ -148,6 +151,7 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 
 	// If the queue is full, expire a single item to make room
 	if q.queue.Len() == q.maxSize {
+		log.Infof("%s queue can't hold more checks, starting to drop older ones", q.id)
 		// Try to find an item of the same type that we can expire
 		removed := false
 		for iter := q.iterator(); iter.hasNext(); iter.next() {
@@ -169,6 +173,9 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 	}
 
 	q.queue.PushBack(item)
+	if q.queue.Len()%20 == 0 {
+		log.Infof("%s queue has %d checks", q.id, q.queue.Len())
+	}
 
 	// Send a signal on the dataAvailable channel if needed
 	select {
