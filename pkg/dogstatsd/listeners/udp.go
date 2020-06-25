@@ -22,8 +22,8 @@ var udpTelemetry = newListenerTelemetry("udp", "UDP")
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn   *net.UDPConn
-	packet *listenerPacket
+	conn          *net.UDPConn
+	packetManager *packetManager
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -55,8 +55,8 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 	}
 
 	listener := &UDPListener{
-		conn:   conn,
-		packet: newListenerPacketFromConfig(packetOut, sharedPacketPool),
+		conn:          conn,
+		packetManager: newPacketManagerFromConfig(packetOut, sharedPacketPool),
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -66,7 +66,7 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		n, _, err := l.conn.ReadFrom(l.packet.buffer)
+		n, _, err := l.conn.ReadFrom(l.packetManager.buffer)
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
@@ -80,12 +80,12 @@ func (l *UDPListener) Listen() {
 		udpTelemetry.onReadSuccess(n)
 
 		// packetAssembler merges multiple packets together and sends them when its buffer is full
-		l.packet.packetAssembler.addMessage(l.packet.buffer[:n])
+		l.packetManager.packetAssembler.addMessage(l.packetManager.buffer[:n])
 	}
 }
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.packet.close()
+	l.packetManager.close()
 	l.conn.Close()
 }

@@ -11,37 +11,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-type listenerPacket struct {
+type packetManager struct {
 	packetsBuffer   *packetsBuffer
 	packetAssembler *packetAssembler
 	buffer          []byte
 }
 
-func newListenerPacketFromConfig(packetOut chan Packets, sharedPacketPool *PacketPool) *listenerPacket {
+func newPacketManagerFromConfig(packetOut chan Packets, sharedPacketPool *PacketPool) *packetManager {
 	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
 	packetsBufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
 	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
-	return newListenerPacket(bufferSize, packetsBufferSize, flushTimeout, packetOut, sharedPacketPool)
+	return newPacketManager(bufferSize, packetsBufferSize, flushTimeout, packetOut, sharedPacketPool)
 }
 
-func newListenerPacket(
+func newPacketManager(
 	bufferSize int,
 	packetsBufferSize int,
 	flushTimeout time.Duration,
 	packetOut chan Packets,
-	sharedPacketPool *PacketPool) *listenerPacket {
+	sharedPacketPool *PacketPool) *packetManager {
 
 	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
 
-	return &listenerPacket{
+	return &packetManager{
 		buffer:          make([]byte, bufferSize),
 		packetsBuffer:   packetsBuffer,
 		packetAssembler: newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool),
 	}
 }
 
-func (l *listenerPacket) close() {
+func (l *packetManager) close() {
 	l.packetAssembler.close()
 	l.packetsBuffer.close()
 }

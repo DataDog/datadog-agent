@@ -87,12 +87,12 @@ type namedPipeListenerTest struct {
 func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
 	pool := NewPacketPool(10)
 	packetOut := make(chan Packets)
-	listenerPacket := newListenerPacket(100, 1, 10*time.Millisecond, packetOut, pool)
+	packetManager := newPacketManager(100, 1, 10*time.Millisecond, packetOut, pool)
 
 	listener, err := newNamedPipeListener(
 		pipeName,
 		100,
-		listenerPacket)
+		packetManager)
 	assert.NoError(t, err)
 
 	listenStop := make(chan bool)

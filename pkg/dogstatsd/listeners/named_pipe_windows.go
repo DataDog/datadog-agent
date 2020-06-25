@@ -26,10 +26,10 @@ const pipeNamePrefix = `\\.\pipe\`
 // It listens to a given pipe name and sends back packets ready to be processed.
 // Origin detection is not implemented for named pipe.
 type NamedPipeListener struct {
-	pipe        net.Listener
-	packet      *listenerPacket
-	connections map[net.Conn]struct{}
-	mux         sync.Mutex
+	pipe          net.Listener
+	packetManager *packetManager
+	connections   map[net.Conn]struct{}
+	mux           sync.Mutex
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
@@ -38,7 +38,7 @@ func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketP
 	return newNamedPipeListener(
 		pipeName,
 		bufferSize,
-		newListenerPacketFromConfig(
+		newPacketManagerFromConfig(
 			packetOut,
 			sharedPacketPool))
 }
@@ -46,7 +46,7 @@ func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketP
 func newNamedPipeListener(
 	pipeName string,
 	bufferSize int,
-	listenerPacket *listenerPacket) (*NamedPipeListener, error) {
+	packetManager *packetManager) (*NamedPipeListener, error) {
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -60,9 +60,9 @@ func newNamedPipeListener(
 	}
 
 	listener := &NamedPipeListener{
-		pipe:        pipe,
-		packet:      listenerPacket,
-		connections: make(map[net.Conn]struct{}),
+		pipe:          pipe,
+		packetManager: packetManager,
+		connections:   make(map[net.Conn]struct{}),
 	}
 
 	log.Debugf("dogstatsd-named-pipe: %s successfully initialized", pipe.Addr())
@@ -95,7 +95,7 @@ func (l *NamedPipeListener) Listen() {
 func (l *NamedPipeListener) listenConnection(conn net.Conn) {
 	log.Infof("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
 	for {
-		n, err := conn.Read(l.packet.buffer)
+		n, err := conn.Read(l.packetManager.buffer)
 		if err != nil {
 			if err == io.EOF {
 				log.Infof("dogstatsd-named-pipes: client disconnected from %s", conn.LocalAddr())
@@ -113,7 +113,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn) {
 			namedPipeTelemetry.onReadSuccess(n)
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
-			l.packet.packetAssembler.addMessage(l.packet.buffer[:n])
+			l.packetManager.packetAssembler.addMessage(l.packetManager.buffer[:n])
 		}
 	}
 	conn.Close()
@@ -131,7 +131,7 @@ func (l *NamedPipeListener) Stop() {
 		conn.SetReadDeadline(time.Now())
 	}
 
-	l.packet.close()
+	l.packetManager.close()
 	l.pipe.Close()
 }
 
