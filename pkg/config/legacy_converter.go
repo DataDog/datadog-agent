@@ -10,19 +10,19 @@ import "strings"
 // LegacyConfigConverter is used in the legacy package
 // to convert A5 config to A6
 type LegacyConfigConverter struct {
-        Config
+	Config
 }
 
 // Set is used for setting configuration from A5 config
 func (c *LegacyConfigConverter) Set(key string, value interface{}) {
-        c.Config.Set(key, value)
+	c.Config.Set(key, value)
 }
 
 // NewConfigConverter is creating and returning a config converter
 func NewConfigConverter() *LegacyConfigConverter {
-        // Configure Datadog global configuration
-        Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-        // Configuration defaults
-        initConfig(Datadog)
-        return &LegacyConfigConverter{Datadog}
+	// Configure Datadog global configuration
+	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	// Configuration defaults
+	initConfig(Datadog)
+	return &LegacyConfigConverter{Datadog}
 }
