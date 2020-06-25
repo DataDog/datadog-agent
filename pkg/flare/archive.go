@@ -314,11 +314,11 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 
 	if permsInfos != nil {
 		// Force path to be absolute for getting parent permissions.
-		// absPath, err := filepath.Abs(logFileDir)
-		// if err != nil {
-		// 	log.Errorf("Error while getting absolute file path for parent directory: %v", err)
-		// }
-		addParentPerms(logFileDir, permsInfos)
+		absPath, err := filepath.Abs(logFileDir)
+		if err != nil {
+			log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+		}
+		addParentPerms(absPath, permsInfos)
 	}
 
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
@@ -737,11 +737,11 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 				if permsInfos != nil {
 					permsInfos.add(src)
-					// absPath, err := filepath.Abs(filePath)
-					// if err != nil {
-					// 	log.Errorf("Error while getting absolute file path for parent directory: %v", err)
-					// }
-					addParentPerms(filePath, permsInfos)
+					absPath, err := filepath.Abs(filePath)
+					if err != nil {
+						log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+					}
+					addParentPerms(absPath, permsInfos)
 				}
 			}
 
