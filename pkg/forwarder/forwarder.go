@@ -501,6 +501,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 		for {
 			select {
 			case r := <-internalResults:
+				log.Info("FORWARDER received response from worker")
 				results <- r
 				receivedResponses++
 				if receivedResponses == expectedResponses {

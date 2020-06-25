@@ -173,7 +173,7 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 	}
 
 	q.queue.PushBack(item)
-	if q.queue.Len()%20 == 0 {
+	if q.queue.Len()%1 == 0 {
 		log.Infof("%s queue has %d checks", q.id, q.queue.Len())
 	}
 

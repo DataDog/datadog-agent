@@ -180,7 +180,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		PodQueueBytes:     15 * 1000 * 1000,
 		// This can be fairly high as the input should get throttled by queue bytes first.
 		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
-		QueueSize: 256,
+		QueueSize: 20,
 
 		MaxPerMessage:      100,
 		MaxConnsPerMessage: 600,

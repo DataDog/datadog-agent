@@ -145,6 +145,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		sizeInBytes: int64(sizeInBytes),
 	}
 
+	log.Infof("adding %s CHECK", c.Name())
 	results.Add(result)
 
 	// update proc and container count for info
@@ -292,11 +293,12 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			return
 		}
 		result := item.(*checkResult)
-		for _, payload := range result.payloads {
+		log.Infof("STARTING TO CONSUME CHECK WITH %d PAYLOADS", len(result.payloads))
+		for i, payload := range result.payloads {
 			forwarderPayload := forwarder.Payloads{&payload.body}
 			var responses chan forwarder.Response
 			var err error
-
+			log.Infof("STARTING TO SUBMIT PAYLOAD %d/%d CHECK", i, len(result.payloads))
 			switch result.name {
 			case checks.Process.Name():
 				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
@@ -314,6 +316,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}
 
+			log.Infof("SUBMITED PAYLOAD %d/%d CHECK", i, len(result.payloads))
 			if err != nil {
 				log.Errorf("Unable to submit payload: %s", err)
 				continue
@@ -323,6 +326,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				l.updateStatus(statuses)
 			}
 		}
+		log.Info("SUBMITED CHECK")
 	}
 }
 
