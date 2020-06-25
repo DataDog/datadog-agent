@@ -20,3 +20,8 @@ func init() {
 func Handler() http.Handler {
 	return promhttp.HandlerFor(telemetryRegistry, promhttp.HandlerOpts{})
 }
+
+// Reset can be needed for testing other packages
+func Reset() {
+	telemetryRegistry = prometheus.NewRegistry()
+}
