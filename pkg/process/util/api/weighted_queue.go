@@ -32,6 +32,7 @@ type WeightedQueue struct {
 	// on dataAvailable.  When Add is invoked, it will perform a non-blocking send on dataAvailable to notify the caller
 	// blocked on Poll
 	dataAvailable chan struct{}
+	id            string
 
 	// Guards the mutable internal state for the queue
 	mu sync.Mutex
@@ -45,8 +46,9 @@ type WeightedQueue struct {
 }
 
 // NewWeightedQueue returns a new WeightedQueue with the given maximum size & weight
-func NewWeightedQueue(maxSize int, maxWeight int64) *WeightedQueue {
+func NewWeightedQueue(maxSize int, maxWeight int64, id string) *WeightedQueue {
 	return &WeightedQueue{
+		id:            id,
 		dataAvailable: make(chan struct{}),
 		queue:         list.New(),
 		maxSize:       maxSize,

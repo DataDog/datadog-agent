@@ -176,8 +176,8 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	go util.HandleSignals(exit)
 
-	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
-	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.PodQueueBytes))
+	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes), "process")
+	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.PodQueueBytes), "pod")
 
 	var wg sync.WaitGroup
 
