@@ -409,7 +409,7 @@ def omnibus_build(
     omnibus_elapsed = None
     if not skip_deps:
         deps_start = datetime.datetime.now()
-        deps(ctx, no_checks=True)  # no_checks since the omnibus build installs checks with a dedicated software def
+        deps(ctx)
         deps_end = datetime.datetime.now()
         deps_elapsed = deps_end - deps_start
 

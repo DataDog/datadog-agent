@@ -295,7 +295,7 @@ run_tests_windows-x86:
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
-    - inv -e deps --verbose --dep-vendor-only --integrations-version "$INTEGRATIONS_VERSION"
+    - inv -e deps --verbose --dep-vendor-only
 
 # run tests for deb-x64
 run_tests_deb-x64-py2:
@@ -362,7 +362,7 @@ run_tests_ebpf:
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
     - python3 -m pip install -r requirements.txt
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
     - mkdir /opt/libbcc
@@ -415,7 +415,7 @@ run_go_tidy_check:
     - cd $SRC_PATH
     - python3 -m pip install --upgrade --ignore-installed pip setuptools
     - python3 -m pip install -r requirements.txt
-    - inv -e deps --no-dep-ensure --no-checks
+    - inv -e deps --no-dep-ensure
   script:
     # Print a message and fail if "go mod tidy" modifies go.mod
     - go mod tidy
@@ -433,7 +433,7 @@ build_dogstatsd_static-deb_x64:
   needs: ["run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --static --major-version 7
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
@@ -446,7 +446,7 @@ build_dogstatsd-deb_x64:
   needs: ["run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
@@ -465,7 +465,7 @@ build_dogstatsd_static-deb_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --static --major-version 7
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
@@ -484,7 +484,7 @@ build_dogstatsd-deb_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
@@ -497,7 +497,7 @@ build_iot_agent-deb_x64:
   needs: ["run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e agent.build --iot --major-version 7
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
@@ -516,7 +516,7 @@ build_iot_agent-deb_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e agent.build --iot --major-version 7
 
@@ -537,7 +537,7 @@ cluster_agent-build_amd64:
     ARCH: amd64
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
 
 cluster_agent-build_arm64:
   <<: *cluster_agent-build_common
@@ -551,7 +551,7 @@ cluster_agent-build_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
 
 # build cluster-agent-cloudfoundry bin
 cluster_agent_cloudfoundry-build_amd64:
@@ -569,7 +569,7 @@ cluster_agent_cloudfoundry-build_amd64:
     ARCH: amd64
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e cluster-agent-cloudfoundry.build
     - cd $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
@@ -640,7 +640,7 @@ run_dogstatsd_arm_size_test:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
     - cd $SRC_PATH
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
     - mkdir -p /opt/datadog-agent/embedded
@@ -717,7 +717,7 @@ agent_deb-x64-a6:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *agent_build_common_deb
 
@@ -738,7 +738,7 @@ agent_deb-x64-a7:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *agent_build_common_deb
 
@@ -757,7 +757,7 @@ agent_deb-arm64-a6:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_arm64.deb'
   before_script:
     - source /root/.bashrc
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *agent_build_common_deb
 
@@ -776,7 +776,7 @@ agent_deb-arm64-a7:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
   before_script:
     - source /root/.bashrc
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *agent_build_common_deb
 
@@ -821,7 +821,7 @@ iot_agent_deb-x64:
   before_script:
     # This is done inside entrypoint.sh
     # - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   <<: *iot_agent_build_common_deb
 
 iot_agent_deb-arm64:
@@ -833,7 +833,7 @@ iot_agent_deb-arm64:
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-iot-agent_7_arm64.deb'
   before_script:
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   <<: *iot_agent_build_common_deb
 
 iot_agent_deb-armhf:
@@ -846,7 +846,7 @@ iot_agent_deb-armhf:
     PACKAGE_ARCH: armhf
     DESTINATION_DEB: 'datadog-iot-agent_7_armhf.deb'
   before_script:
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   <<: *iot_agent_build_common_deb
 
 .agent_build_common_rpm: &agent_build_common_rpm
@@ -897,7 +897,7 @@ agent_rpm-x64-a6:
     CONDA_ENV: ddpy3
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *agent_build_common_rpm
 
@@ -917,7 +917,7 @@ agent_rpm-x64-a7:
     CONDA_ENV: ddpy3
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *agent_build_common_rpm
 
@@ -935,7 +935,7 @@ agent_rpm-arm64-a6:
     PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *agent_build_common_rpm
 
@@ -953,7 +953,7 @@ agent_rpm-arm64-a7:
     PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *agent_build_common_rpm
 
@@ -991,7 +991,7 @@ iot_agent_rpm-x64:
   before_script:
     # This is done inside entrypoint.sh
     # - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   <<: *iot_agent_build_common_rpm
 
 iot_agent_rpm-arm64:
@@ -1000,7 +1000,7 @@ iot_agent_rpm-arm64:
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "fail_on_non_triggered_tag"]
   before_script:
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   <<: *iot_agent_build_common_rpm
 
 iot_agent_rpm-armhf:
@@ -1012,7 +1012,7 @@ iot_agent_rpm-armhf:
   before_script:
     # Ensures uname -m reports armv7l
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   <<: *iot_agent_build_common_rpm
 
 .agent_build_common_suse_rpm: &agent_build_common_suse_rpm
@@ -1064,7 +1064,7 @@ agent_suse-x64-a6:
     PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   <<: *agent_build_common_suse_rpm
 
 # build Agent package for suse-x64
@@ -1082,7 +1082,7 @@ agent_suse-x64-a7:
     PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   <<: *agent_build_common_suse_rpm
 
 iot_agent_suse-x64:
@@ -1095,7 +1095,7 @@ iot_agent_suse-x64:
   before_script:
     # This is done inside entrypoint.sh
     # - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - echo "Detected host architecture $(uname -m)"
@@ -1319,7 +1319,7 @@ agent_android_apk:
     - echo running android before_script
     - cd $SRC_PATH
     - python3 -m pip install -r requirements.txt
-    - inv -e deps --android --dep-vendor-only --no-checks
+    - inv -e deps --android --dep-vendor-only
     # Some Android license has changed, we have to accept the new version.
     # But on top of that, there is a bug in sdkmanager not updating correctly
     # the existing license, so, we have to manually accept the new license.
@@ -1351,7 +1351,7 @@ dogstatsd_deb-x64:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -1385,7 +1385,7 @@ dogstatsd_rpm-x64:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -1424,7 +1424,7 @@ dogstatsd_suse-x64:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
-    - inv -e deps --no-checks --dep-vendor-only
+    - inv -e deps --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
