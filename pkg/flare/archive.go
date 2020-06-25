@@ -297,12 +297,12 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 	parent := filepath.Dir(dirPath)
 
 	// Don't enter loop on root, we don't want to add anything if root is passed as `dirPath`
-	for parent != "." && parent != string(os.PathSeparator) {
+	for parent != "." && parent != string(filepath.Separator) {
 		permsInfos.add(parent)
 		parent = filepath.Dir(parent)
 
 		// To add root in cases where root is not passed as `dirPath`
-		if parent == string(os.PathSeparator) {
+		if parent == string(filepath.Separator) {
 			permsInfos.add(parent)
 			return
 		}
