@@ -8,13 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/module"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	_ "net/http/pprof"
@@ -97,20 +95,6 @@ func runAgent() {
 		cleanupAndExit(1)
 	}
 	defer sysprobe.Close()
-
-	factories := []module.Factory{
-		module.Factory{
-			Name: "runtime-security-module",
-			Fn:   secmodule.NewModule,
-		},
-	}
-
-	loader := module.NewLoader()
-	if err := loader.Register(cfg, nil, factories); err != nil {
-		log.Criticalf("failed to register modules: %s", err)
-		return
-	}
-	defer loader.Close()
 
 	go sysprobe.Run()
 	log.Infof("system probe successfully started")
