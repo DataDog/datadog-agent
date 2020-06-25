@@ -3334,7 +3334,7 @@ promote_install_script:
       when: manual
       allow_failure: true
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - kitchen_centos_install_script_agent-a6
