@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+enhancements:
   - |
-    All Agents binaries are now compiled with Go ``1.13.11``.
+    Enabled the collection of the init-containers by bumping the agent-payload dep. and collecting the init-containers.

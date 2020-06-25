@@ -26,16 +26,26 @@ DEFAULT_BUILD_TAGS = [
 
 
 @task
-def build(ctx, rebuild=False, build_include=None, build_exclude=None,
-          race=False, development=True, skip_assets=False):
+def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False, development=True, skip_assets=False):
     """
     Build Cluster Agent
 
      Example invokation:
         inv cluster-agent.build
     """
-    build_common(ctx, "cluster-agent.build", BIN_PATH, DEFAULT_BUILD_TAGS, "", rebuild, build_include,
-                 build_exclude, race, development, skip_assets)
+    build_common(
+        ctx,
+        "cluster-agent.build",
+        BIN_PATH,
+        DEFAULT_BUILD_TAGS,
+        "",
+        rebuild,
+        build_include,
+        build_exclude,
+        race,
+        development,
+        skip_assets,
+    )
 
 
 @task
@@ -43,12 +53,7 @@ def refresh_assets(ctx, development=True):
     """
     Clean up and refresh cluster agent's assets and config files
     """
-    refresh_assets_common(
-        ctx,
-        BIN_PATH,
-        [os.path.join("./Dockerfiles/cluster-agent", "dist")],
-        development
-    )
+    refresh_assets_common(ctx, BIN_PATH, [os.path.join("./Dockerfiles/cluster-agent", "dist")], development)
 
 
 @task
@@ -111,7 +116,7 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
     ctx.run("chmod +x {}".format(latest_file))
 
     build_context = "Dockerfiles/cluster-agent"
-    exec_path = "{}/datadog-cluster-agent.{}".format(build_context,arch)
+    exec_path = "{}/datadog-cluster-agent.{}".format(build_context, arch)
     dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
 
     shutil.copy2(latest_file, exec_path)
@@ -120,7 +125,6 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
 
     if push:
         ctx.run("docker push {}".format(tag))
-
 
 
 @task

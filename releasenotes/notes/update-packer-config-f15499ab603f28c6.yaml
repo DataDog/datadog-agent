@@ -6,6 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+enhancements:
   - |
-    All Agents binaries are now compiled with Go ``1.13.11``.
+    Added the checksum type to the checksum key itself, as it is deprecated to have a separate
+    checksum_type key.
