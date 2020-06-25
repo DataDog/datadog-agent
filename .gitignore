@@ -123,6 +123,7 @@ Vagrantfile
 packer.json
 *.box
 devenv/iso
+devenv/output-virtualbox-iso/
 devenv/packer_cache
 
 # doxygen doc & error log
