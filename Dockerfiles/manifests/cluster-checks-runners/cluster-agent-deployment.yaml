@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: datadog-agent-cluster-agent
+  name: datadog-cluster-agent
   labels: {}
 spec:
   replicas: 1
@@ -13,12 +13,12 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      app: datadog-agent-cluster-agent
+      app: datadog-cluster-agent
   template:
     metadata:
       labels:
-        app: datadog-agent-cluster-agent
-      name: datadog-agent-cluster-agent
+        app: datadog-cluster-agent
+      name: datadog-cluster-agent
       annotations:
         ad.datadoghq.com/cluster-agent.check_names: '["prometheus"]'
         ad.datadoghq.com/cluster-agent.init_configs: '[{}]'
@@ -29,62 +29,86 @@ spec:
             "metrics": [
               "go_goroutines", "go_memstats_*", "process_*",
               "api_requests",
-              "datadog_requests", "external_metrics",
+              "datadog_requests", "external_metrics", "rate_limit_queries_*",
               "cluster_checks_*"
             ]
           }]
     spec:
-      serviceAccountName: datadog-agent-cluster-agent
+      serviceAccountName: datadog-cluster-agent
       imagePullSecrets: null
       containers:
-      - name: cluster-agent
-        image: "datadog/cluster-agent:1.5.2"
-        imagePullPolicy: IfNotPresent
-        resources: {}
-        ports:
-        - containerPort: 5005
-          name: agentport
-          protocol: TCP
-        env:
-        - name: DD_HEALTH_PORT
-          value: "8080"
-        - name: DD_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: "datadog-agent"
-              key: api-key
-              optional: true
-        - name: DD_CLUSTER_CHECKS_ENABLED
-          value: "true"
-        - name: DD_EXTRA_CONFIG_PROVIDERS
-          value: "kube_endpoints kube_services"
-        - name: DD_EXTRA_LISTENERS
-          value: "kube_endpoints kube_services"
-        - name: DD_LOG_LEVEL
-          value: "INFO"
-        - name: DD_LEADER_ELECTION
-          value: "true"
-        - name: DD_LEADER_LEASE_DURATION
-          value: "15"
-        - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
-          value: datadog-agent-cluster-agent
-        - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: datadog-agent-cluster-agent
-              key: token
-        - name: DD_KUBE_RESOURCES_NAMESPACE
-          value: default
-        livenessProbe:
-          httpGet:
-            path: /metrics
-            port: 5000
-            scheme: HTTP
-        readinessProbe:
-          httpGet:
-            path: /metrics
-            port: 5000
-            scheme: HTTP
-        volumeMounts:
+        - name: cluster-agent
+          image: "datadog/cluster-agent:1.6.0"
+          imagePullPolicy: IfNotPresent
+          resources: {}
+          ports:
+            - containerPort: 5005
+              name: agentport
+              protocol: TCP
+            - containerPort: 443
+              name: metricsapi
+              protocol: TCP
+          env:
+            - name: DD_HEALTH_PORT
+              value: "5555"
+            - name: DD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "datadog"
+                  key: api-key
+                  optional: true
+            - name: DD_APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "datadog-appkey"
+                  key: app-key
+            - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
+              value: "true"
+            - name: DD_EXTERNAL_METRICS_PROVIDER_PORT
+              value: "443"
+            - name: DD_EXTERNAL_METRICS_PROVIDER_WPA_CONTROLLER
+              value: "false"
+            - name: DD_CLUSTER_CHECKS_ENABLED
+              value: "true"
+            - name: DD_EXTRA_CONFIG_PROVIDERS
+              value: "kube_endpoints kube_services"
+            - name: DD_EXTRA_LISTENERS
+              value: "kube_endpoints kube_services"
+            - name: DD_LOG_LEVEL
+              value: "INFO"
+            - name: DD_LEADER_ELECTION
+              value: "true"
+            - name: DD_LEADER_LEASE_DURATION
+              value: "15"
+            - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
+              value: datadog-cluster-agent
+            - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: datadog-cluster-agent
+                  key: token
+            - name: DD_KUBE_RESOURCES_NAMESPACE
+              value: default
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /live
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /ready
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          volumeMounts:
       volumes:
       nodeSelector: null

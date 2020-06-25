@@ -27,6 +27,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 		expectedLow          []string
 		expectedOrch         []string
 		expectedHigh         []string
+		expectedStandard     []string
 	}{
 		{
 			testName: "emptyExtract",
@@ -41,6 +42,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedLow:          []string{},
 			expectedOrch:         []string{},
 			expectedHigh:         []string{},
+			expectedStandard:     []string{},
 		},
 		{
 			testName: "extractOneLowEnv",
@@ -55,6 +57,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedLow:          []string{"becomeK:v"},
 			expectedOrch:         []string{},
 			expectedHigh:         []string{},
+			expectedStandard:     []string{},
 		},
 		{
 			testName: "extractTwoLowOneHigh",
@@ -69,6 +72,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedLow:          []string{"expectedLow:t", "labelKey:labelValue"},
 			expectedOrch:         []string{},
 			expectedHigh:         []string{"becomeK:v"},
+			expectedStandard:     []string{},
 		},
 		{
 			testName: "extractOneLowTwoHigh",
@@ -83,6 +87,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedLow:          []string{"expectedLow:t"},
 			expectedOrch:         []string{},
 			expectedHigh:         []string{"becomeK:v", "labelKey:labelValue"},
+			expectedStandard:     []string{},
 		},
 		{
 			testName: "extractMesosDCOS",
@@ -107,7 +112,8 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedOrch: []string{
 				"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
 			},
-			expectedHigh: []string{},
+			expectedHigh:     []string{},
+			expectedStandard: []string{},
 		},
 		{
 			testName: "NoValue",
@@ -125,6 +131,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedLow:          []string{"v:value"},
 			expectedOrch:         []string{},
 			expectedHigh:         []string{},
+			expectedStandard:     []string{},
 		},
 		{
 			testName: "extractSwarmLabels",
@@ -146,6 +153,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedLow:          []string{"swarm_service:helloworld"},
 			expectedOrch:         []string{},
 			expectedHigh:         []string{},
+			expectedStandard:     []string{},
 		},
 		{
 			testName: "extractSwarmLabelsWithCustomLabelsAdds",
@@ -168,9 +176,10 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"com.docker.swarm.node.id":   "custom_add_swarm_node",
 				"com.docker.swarm.task.name": "+custom_add_task_name",
 			},
-			expectedLow:  []string{"custom_add_swarm_node:zdtab51ei97djzrpa1y2tz8li", "swarm_service:helloworld"},
-			expectedOrch: []string{},
-			expectedHigh: []string{"custom_add_task_name:helloworld.1.knk1rz1szius7pvyznn9zolld"},
+			expectedLow:      []string{"custom_add_swarm_node:zdtab51ei97djzrpa1y2tz8li", "swarm_service:helloworld"},
+			expectedOrch:     []string{},
+			expectedHigh:     []string{"custom_add_task_name:helloworld.1.knk1rz1szius7pvyznn9zolld"},
+			expectedStandard: []string{},
 		},
 		{
 			testName: "extractRancherLabels",
@@ -205,6 +214,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedHigh: []string{
 				"rancher_container:testAD-redis-1",
 			},
+			expectedStandard: []string{},
 		},
 		{
 			testName: "extractNomad",
@@ -225,8 +235,9 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"nomad_job:test-job",
 				"nomad_group:test-group",
 			},
-			expectedOrch: []string{},
-			expectedHigh: []string{},
+			expectedOrch:     []string{},
+			expectedHigh:     []string{},
+			expectedStandard: []string{},
 		},
 		{
 			testName: "Standard tags in labels",
@@ -248,6 +259,11 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			expectedOrch: []string{},
 			expectedHigh: []string{},
+			expectedStandard: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
 		},
 		{
 			testName: "Standard tags in env variables",
@@ -269,6 +285,11 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			expectedOrch: []string{},
 			expectedHigh: []string{},
+			expectedStandard: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
 		},
 		{
 			testName: "Same standard tags from labels and env variables => no duplicates",
@@ -295,6 +316,11 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			expectedOrch: []string{},
 			expectedHigh: []string{},
+			expectedStandard: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
 		},
 		{
 			testName: "Different standard tags from labels and env variables => no override",
@@ -324,6 +350,14 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			expectedOrch: []string{},
 			expectedHigh: []string{},
+			expectedStandard: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+				"service:redis-db",
+				"env:staging",
+				"version:0.0.2",
+			},
 		},
 		{
 			testName: "extractCustomLabels",
@@ -340,6 +374,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedLow:          []string{},
 			expectedOrch:         []string{},
 			expectedHigh:         []string{"adTestKey:adTestVal1", "adTestKey:adTestVal2"},
+			expectedStandard:     []string{},
 		},
 	}
 
@@ -351,7 +386,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			tags := utils.NewTagList()
 			dockerExtractEnvironmentVariables(tags, test.co.Config.Env, test.toRecordEnvAsTags)
 			dockerExtractLabels(tags, test.co.Config.Labels, test.toRecordLabelsAsTags)
-			low, orchestrator, high := tags.Compute()
+			low, orchestrator, high, standard := tags.Compute()
 
 			// Low card tags
 			assert.Equal(t, len(test.expectedLow), len(low), "test case %d", i)
@@ -369,6 +404,12 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			assert.True(t, len(test.expectedHigh) == len(high))
 			for _, ht := range test.expectedHigh {
 				assert.Contains(t, high, ht, "test case %d", i)
+			}
+
+			// Standard  tags
+			assert.True(t, len(test.expectedStandard) == len(standard))
+			for _, st := range test.expectedStandard {
+				assert.Contains(t, standard, st, "test case %d", i)
 			}
 		})
 	}
@@ -486,7 +527,7 @@ func TestDockerExtractImage(t *testing.T) {
 			resolve := func(co types.ContainerJSON) (string, error) { return tc.resolveMap[co.Image], nil }
 			tags := utils.NewTagList()
 			dockerExtractImage(tags, tc.co, resolve)
-			low, _, _ := tags.Compute()
+			low, _, _, _ := tags.Compute()
 
 			assert.Equal(t, len(tc.expectedTags), len(low))
 			for _, lt := range tc.expectedTags {

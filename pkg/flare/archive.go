@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	api_util "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -158,6 +159,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		err = zipConfigCheck(tempDir, hostname)
 		if err != nil {
 			log.Errorf("Could not zip config check: %s", err)
+		}
+
+		err = zipTaggerList(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip tagger list: %s", err)
 		}
 	}
 
@@ -541,6 +547,52 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 	defer w.Close()
 
 	_, err = w.Write(data)
+	return err
+}
+
+// Used for testing mock HTTP server
+var taggerListURL string
+
+func zipTaggerList(tempDir, hostname string) error {
+	f := filepath.Join(tempDir, hostname, "tagger-list.json")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	if taggerListURL == "" {
+		taggerListURL = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	}
+
+	c := api_util.GetClient(false) // FIX: get certificates right then make this true
+
+	r, err := api_util.DoGet(c, taggerListURL)
+	if err != nil {
+		return err
+	}
+
+	// Pretty print JSON output
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+	err = json.Indent(&b, r, "", "\t")
+	if err != nil {
+		_, err = w.Write(r)
+		return err
+	}
+	writer.Flush()
+
+	_, err = w.Write(b.Bytes())
 	return err
 }
 

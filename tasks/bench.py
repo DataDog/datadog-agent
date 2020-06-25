@@ -43,7 +43,7 @@ def build_aggregator(ctx, rebuild=False):
         "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("aggregator")),
         "ldflags": ldflags,
         "gcflags": gcflags,
-        "REPO_PATH": REPO_PATH
+        "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args))
 
@@ -80,6 +80,7 @@ def dogstatsd(ctx):
 
     ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {}".format(bin_path, options))
 
+
 # Temporarily keep compatibility after typo fix
 @task(pre=[build_dogstatsd])
 def dogstastd(ctx):
@@ -100,4 +101,8 @@ def aggregator(ctx):
         options += " -api-key {}".format(key)
 
     ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json {}".format(bin_path, options))
-    ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -memory -duration 10 {}".format(bin_path, options))
+    ctx.run(
+        "{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -memory -duration 10 {}".format(
+            bin_path, options
+        )
+    )
