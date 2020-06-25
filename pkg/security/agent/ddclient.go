@@ -2,7 +2,8 @@ package agent
 
 import (
 	"context"
-	"fmt"
+	"sync"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -106,12 +107,5 @@ func (ddc *DDClient) SendLogWithStatusAndTags(buf []byte, status string, tags []
 
 // SendSecurityEvent - Sends a security event with the provided status
 func (ddc *DDClient) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
-	// TODO: we should set the rule_id and event type as a tag in the system-probe module,
-	// or simply put them in the Data field of the event to avoid rebuilding the tags here.
-	// TODO: the status of the message should follow the severity of the security alert
-	tags := append(
-		evt.GetTags(),
-		fmt.Sprintf("type:%s", evt.GetType()),
-		fmt.Sprintf("rule_id:%s", evt.GetRuleID()))
-	ddc.SendLogWithStatusAndTags(evt.GetData(), status, tags)
+	ddc.SendLogWithStatusAndTags(evt.GetData(), status, evt.GetTags())
 }
