@@ -47,6 +47,14 @@ func (l *Loader) Close() {
 	}
 }
 
+func (l *Loader) GetStats() map[string]interface{} {
+	stats := make(map[string]interface{}, len(l.modules))
+	for name, module := range l.modules {
+		stats[name] = module.GetStats()
+	}
+	return stats
+}
+
 func NewLoader() *Loader {
 	return &Loader{
 		modules: make(map[string]Module),
