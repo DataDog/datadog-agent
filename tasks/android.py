@@ -28,9 +28,19 @@ ANDROID_CORECHECKS = [
     "uptime",
 ]
 CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
+
+
 @task
-def build(ctx, rebuild=False, race=False, development=True, precompile_only=False,
-        skip_assets=False, major_version='7', python_runtimes='3'):
+def build(
+    ctx,
+    rebuild=False,
+    race=False,
+    development=True,
+    precompile_only=False,
+    skip_assets=False,
+    major_version='7',
+    python_runtimes='3',
+):
     """
     Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -122,6 +132,7 @@ def clean(ctx):
 
     shutil.rmtree(CORECHECK_CONFS_DIR)
 
+
 @task
 def assetconfigs(ctx):
     # move the core check config
@@ -140,6 +151,7 @@ def assetconfigs(ctx):
     with open("{}/directory_manifest.yaml".format(CORECHECK_CONFS_DIR), 'w') as outfile:
         yaml.dump(files, outfile, default_flow_style=False)
 
+
 @task
 def launchservice(ctx, api_key, hostname=None, tags=None):
     if api_key is None:
@@ -148,14 +160,17 @@ def launchservice(ctx, api_key, hostname=None, tags=None):
 
     if hostname is None:
         print("Setting hostname to android-tablet")
-        hostname="android-tablet"
+        hostname = "android-tablet"
 
     if tags is None:
         print("Setting tags to owner:db,env:local,role:windows")
-        tags="owner:db,env:local,role:windows"
+        tags = "owner:db,env:local,role:windows"
 
-    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(api_key, hostname, tags)
+    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(
+        api_key, hostname, tags
+    )
     ctx.run(cmd)
+
 
 @task
 def stopservice(ctx):

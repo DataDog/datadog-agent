@@ -11,9 +11,9 @@ import (
 
 // ReadBPFModule from the asset file
 func ReadBPFModule(debug bool) (*bpflib.Module, error) {
-	file := "tracer-ebpf.o"
+	file := "pkg/ebpf/c/tracer-ebpf.o"
 	if debug {
-		file = "tracer-ebpf-debug.o"
+		file = "pkg/ebpf/c/tracer-ebpf-debug.o"
 	}
 
 	buf, err := Asset(file)

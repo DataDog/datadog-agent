@@ -17,8 +17,18 @@ AGENT_TAG = "datadog/agent:master"
 
 
 @task
-def build(ctx, rebuild=False, race=False, development=True, precompile_only=False,
-          skip_assets=False, major_version='7', arch="x64", go_mod="vendor"):
+def build(
+    ctx,
+    rebuild=False,
+    race=False,
+    iot=False,
+    development=True,
+    precompile_only=False,
+    skip_assets=False,
+    major_version='7',
+    arch="x64",
+    go_mod="vendor",
+):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -43,10 +53,7 @@ def build(ctx, rebuild=False, race=False, development=True, precompile_only=Fals
         windres_target = "pe-i386"
 
     command = "windres -v  --target {target_arch} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
-        build_maj=build_maj,
-        build_min=build_min,
-        build_patch=build_patch,
-        target_arch=windres_target
+        build_maj=build_maj, build_min=build_min, build_patch=build_patch, target_arch=windres_target
     )
     command += "-i cmd/systray/systray.rc -O coff -o cmd/systray/rsrc.syso"
     ctx.run(command)
