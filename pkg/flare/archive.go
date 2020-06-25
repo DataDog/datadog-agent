@@ -188,9 +188,9 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip diagnose: %s", err)
 	}
 
-	err = zipRegistryJson(tempDir, hostname)
+	err = zipRegistryJSON(tempDir, hostname)
 	if err != nil {
-		log.Errorf("Could not zip registry.json: %s", err)
+		log.Warnf("Could not zip registry.json: %s", err)
 	}
 
 	err = zipSecrets(tempDir, hostname)
@@ -522,7 +522,7 @@ func zipDiagnose(tempDir, hostname string) error {
 	return err
 }
 
-func zipRegistryJson(tempDir, hostname string) error {
+func zipRegistryJSON(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
 	original, err := os.Open(originalPath)
 	if err != nil {
