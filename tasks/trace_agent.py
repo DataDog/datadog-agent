@@ -55,7 +55,9 @@ def build(
         )
 
     build_include = (
-        get_default_build_tags(build="trace-agent")
+        get_default_build_tags(
+            build="trace-agent"
+        )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
         if build_include is None
         else filter_incompatible_tags(build_include.split(","), arch=arch)
     )
