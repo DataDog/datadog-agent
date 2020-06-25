@@ -53,6 +53,7 @@ func (t *listenerTelemetry) onReadSuccess(n int) {
 }
 
 func (t *listenerTelemetry) onReadError() {
+	t.packets.Add(1)
 	t.packetReadingErrors.Add(1)
 	t.tlmPackets.Inc("error")
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// packetManager gathers everything required to create and assemble packets.
 type packetManager struct {
 	packetsBuffer   *packetsBuffer
 	packetAssembler *packetAssembler
