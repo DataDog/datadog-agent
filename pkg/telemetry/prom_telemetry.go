@@ -21,7 +21,8 @@ func Handler() http.Handler {
 	return promhttp.HandlerFor(telemetryRegistry, promhttp.HandlerOpts{})
 }
 
-// Reset can be needed for testing other packages
+// Reset resets the global telemetry registry, stopping the collection of every previously registered metrics.
+// Mainly used for unit tests and integration tests.
 func Reset() {
 	telemetryRegistry = prometheus.NewRegistry()
 }
