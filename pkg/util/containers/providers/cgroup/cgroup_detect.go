@@ -74,6 +74,16 @@ func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 	return filepath.Join(mount, targetPath, file)
 }
 
+// target = cpu, file = cpu.cfs_quota_us
+func (c ContainerCgroup) cgroupParentFilePath(target, file string) string {
+	folderPath := c.cgroupFilePath(target, "")
+	if len(folderPath) == 0 {
+		return folderPath
+	}
+
+	return filepath.Join(folderPath, "..", file)
+}
+
 // function to get the mount point of all cgroup. by default it should be under /sys/fs/cgroup but
 // it could be mounted anywhere else if manually defined. Example cgroup entries in /proc/mounts would be
 //	 cgroup /sys/fs/cgroup/cpuset cgroup rw,relatime,cpuset 0 0

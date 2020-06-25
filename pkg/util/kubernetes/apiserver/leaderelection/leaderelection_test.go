@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -72,8 +72,8 @@ func TestNewLeaseAcquiring(t *testing.T) {
 		LeaseName:       leaseName,
 		LeaderNamespace: "default",
 		LeaseDuration:   1 * time.Second,
-
-		coreClient: client.CoreV1(),
+		coreClient:      client.CoreV1(),
+		leaderMetric:    &dummyGauge{},
 	}
 	_, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
 	require.True(t, errors.IsNotFound(err))
@@ -110,6 +110,7 @@ func TestGetLeaderIPFollower(t *testing.T) {
 		LeaderNamespace: "default",
 		LeaseDuration:   120 * time.Second,
 		coreClient:      client.CoreV1(),
+		leaderMetric:    &dummyGauge{},
 	}
 
 	// Create leader-election configmap with current node as follower
@@ -173,3 +174,12 @@ func TestGetLeaderIPFollower(t *testing.T) {
 	assert.Equal(t, "", ip)
 	assert.True(t, dderrors.IsNotFound(err))
 }
+
+type dummyGauge struct{}
+
+func (g *dummyGauge) Set(value float64, tagsValue ...string) {}
+func (g *dummyGauge) Inc(tagsValue ...string)                {}
+func (g *dummyGauge) Dec(tagsValue ...string)                {}
+func (g *dummyGauge) Add(value float64, tagsValue ...string) {}
+func (g *dummyGauge) Sub(value float64, tagsValue ...string) {}
+func (g *dummyGauge) Delete(tagsValue ...string)             {}

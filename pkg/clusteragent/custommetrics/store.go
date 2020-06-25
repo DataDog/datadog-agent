@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 
 var (
 	externalTotal = telemetry.NewGaugeWithOpts("", "external_metrics",
-		[]string{"valid"}, "Number of external metrics tagged.",
+		[]string{"valid", le.JoinLeaderLabel}, "Number of external metrics tagged.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 

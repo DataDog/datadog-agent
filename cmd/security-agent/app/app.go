@@ -169,7 +169,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.SecurityAgentName)
+	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
 	stopper := restart.NewSerialStopper()

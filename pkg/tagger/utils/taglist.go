@@ -18,6 +18,7 @@ type TagList struct {
 	lowCardTags          map[string]bool
 	orchestratorCardTags map[string]bool
 	highCardTags         map[string]bool
+	standardTags         map[string]bool
 	splitList            map[string]string
 }
 
@@ -27,6 +28,7 @@ func NewTagList() *TagList {
 		lowCardTags:          make(map[string]bool),
 		orchestratorCardTags: make(map[string]bool),
 		highCardTags:         make(map[string]bool),
+		standardTags:         make(map[string]bool),
 		splitList:            config.Datadog.GetStringMapString("tag_value_split_separator"),
 	}
 }
@@ -64,6 +66,14 @@ func (l *TagList) AddLow(name string, value string) {
 	addTags(l.lowCardTags, name, value, l.splitList)
 }
 
+// AddStandard adds a new standard tag to the list, or replace if already exists.
+// It adds the standard tag to the low cardinality tag list as well.
+// It will skip empty values/names, so it's safe to use without verifying the value is not empty.
+func (l *TagList) AddStandard(name string, value string) {
+	l.AddLow(name, value)
+	addTags(l.standardTags, name, value, l.splitList)
+}
+
 // AddAuto determine the tag cardinality and will call the proper method AddLow or AddHigh
 // if the name value starts with '+' character
 func (l *TagList) AddAuto(name, value string) {
@@ -74,29 +84,23 @@ func (l *TagList) AddAuto(name, value string) {
 	l.AddLow(name, value)
 }
 
-// Compute returns three string arrays in the format ["tag0:value0", "tag1:value1"]:
-// low cardinality, orchestrator cardinality, and high cardinality tags
-func (l *TagList) Compute() ([]string, []string, []string) {
-	low := make([]string, len(l.lowCardTags))
-	orchestrator := make([]string, len(l.orchestratorCardTags))
-	high := make([]string, len(l.highCardTags))
+// Compute returns four string arrays in the format "tag:value"
+// - low cardinality
+// - orchestrator cardinality
+// - high cardinality
+// - standard tags
+func (l *TagList) Compute() ([]string, []string, []string, []string) {
+	return toSlice(l.lowCardTags), toSlice(l.orchestratorCardTags), toSlice(l.highCardTags), toSlice(l.standardTags)
+}
 
+func toSlice(m map[string]bool) []string {
+	s := make([]string, len(m))
 	index := 0
-	for tag := range l.lowCardTags {
-		low[index] = tag
+	for tag := range m {
+		s[index] = tag
 		index++
 	}
-	index = 0
-	for tag := range l.orchestratorCardTags {
-		orchestrator[index] = tag
-		index++
-	}
-	index = 0
-	for tag := range l.highCardTags {
-		high[index] = tag
-		index++
-	}
-	return low, orchestrator, high
+	return s
 }
 
 // Copy creates a deep copy of the taglist object for reuse
@@ -105,6 +109,7 @@ func (l *TagList) Copy() *TagList {
 		lowCardTags:          deepCopyMap(l.lowCardTags),
 		orchestratorCardTags: deepCopyMap(l.orchestratorCardTags),
 		highCardTags:         deepCopyMap(l.highCardTags),
+		standardTags:         deepCopyMap(l.standardTags),
 		splitList:            l.splitList, // constant, can be shared
 	}
 }

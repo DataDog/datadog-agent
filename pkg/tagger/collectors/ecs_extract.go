@@ -48,7 +48,7 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 
 				tags.AddOrchestrator("task_arn", task.Arn)
 
-				low, orch, high := tags.Compute()
+				low, orch, high, _ := tags.Compute()
 
 				info := &TagInfo{
 					Source:               ecsCollectorName,

@@ -114,17 +114,9 @@ var checkCmd = &cobra.Command{
 			return err
 		}
 
-		// is this instance running as an iot agent
-		var iotAgent bool = config.Datadog.GetBool("iot_host")
-
-		agentName := aggregator.AgentName
-		if iotAgent {
-			agentName = aggregator.IotAgentName
-		}
-
 		s := serializer.NewSerializer(common.Forwarder)
 		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, agentName, 0)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {
