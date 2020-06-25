@@ -6,12 +6,13 @@ package checks
 
 import (
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/DataDog/gopsutil/process"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,7 +28,7 @@ func (f *processFixture) run(t *testing.T) {
 	t.Helper()
 
 	reporter := f.check.reporter.(*mocks.Reporter)
-	processesUpdateTime = time.Time{}
+	cache.Cache.Delete(processCacheKey)
 	processFetcherFunc = func() (map[int32]*process.FilledProcess, error) {
 		return f.processes, nil
 	}

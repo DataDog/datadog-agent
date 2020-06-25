@@ -79,6 +79,7 @@ func newLeaderEngine() *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
+	telemetry.Reset()
 }
 
 // GetLeaderEngine returns a leader engine client with default parameters.

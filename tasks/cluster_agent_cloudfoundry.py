@@ -17,16 +17,26 @@ DEFAULT_BUILD_TAGS = [
 
 
 @task
-def build(ctx, rebuild=False, build_include=None, build_exclude=None,
-          race=False, development=True, skip_assets=False):
+def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False, development=True, skip_assets=False):
     """
     Build Cluster Agent for Cloud Foundry
 
      Example invokation:
         inv cluster-agent-cloudfoundry.build
     """
-    build_common(ctx, "cluster-agent-cloudfoundry.build", BIN_PATH, DEFAULT_BUILD_TAGS, "-cloudfoundry",
-                 rebuild, build_include, build_exclude, race, development, skip_assets)
+    build_common(
+        ctx,
+        "cluster-agent-cloudfoundry.build",
+        BIN_PATH,
+        DEFAULT_BUILD_TAGS,
+        "-cloudfoundry",
+        rebuild,
+        build_include,
+        build_exclude,
+        race,
+        development,
+        skip_assets,
+    )
 
 
 @task
