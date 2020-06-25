@@ -46,13 +46,13 @@ func (t *Tailer) run() {
 	}()
 
 	for packet := range t.inputChan {
-		content, err := FormatPacketJSON(packet)
+		content, err := traps.FormatJSON(packet)
 		if err != nil {
 			log.Errorf("failed to format packet: %s", err)
 			continue
 		}
 		origin := message.NewOrigin(t.source)
-		origin.SetTags(FormatPacketTags(packet))
+		origin.SetTags(traps.GetTags(packet))
 		t.outputChan <- message.NewMessage(content, origin, message.StatusInfo)
 	}
 }

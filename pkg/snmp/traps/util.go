@@ -7,21 +7,9 @@ package traps
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/soniah/gosnmp"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
 func IsEnabled() bool {
 	return config.Datadog.GetBool("snmp_traps_enabled")
-}
-
-// VersionAsString converts a version value to a human-readable string.
-func VersionAsString(value gosnmp.SnmpVersion) string {
-	switch value {
-	case gosnmp.Version2c:
-		return "2c"
-	default:
-		return ""
-	}
 }

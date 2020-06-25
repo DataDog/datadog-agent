@@ -49,16 +49,18 @@ func NewTrapListener(bindHost string, c TrapListenerConfig, output OutputChannel
 }
 
 func validateCredentials(p *gosnmp.SnmpPacket, config TrapListenerConfig) bool {
-	if p.Version == gosnmp.Version2c {
-		// Enforce that one of the known community strings match.
-		for _, community := range config.Community {
-			if community == p.Community {
-				return true
-			}
-		}
+	if p.Version != gosnmp.Version2c {
+		// Unsupported.
 		return false
 	}
-	// Other versions are unsupported for now.
+
+	// Enforce that one of the known community strings matches.
+	for _, community := range config.Community {
+		if community == p.Community {
+			return true
+		}
+	}
+
 	return false
 }
 

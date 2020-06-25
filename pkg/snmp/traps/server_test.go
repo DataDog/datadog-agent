@@ -71,7 +71,7 @@ func receivePacket(t *testing.T, s *TrapServer) *SnmpPacket {
 
 /* Assertion helpers */
 
-func assertV2c(t *testing.T, p *SnmpPacket, config TrapListenerConfig) {
+func assertV2(t *testing.T, p *SnmpPacket, config TrapListenerConfig) {
 	require.Equal(t, gosnmp.Version2c, p.Content.Version)
 	communityValid := false
 	for _, community := range config.Community {
@@ -188,8 +188,20 @@ func TestServerV2(t *testing.T) {
 	sendTestV2Trap(t, config, "public")
 	p := receivePacket(t, s)
 	require.NotNil(t, p)
-	assertV2c(t, p, config)
+	assertV2(t, p, config)
 	assertV2Variables(t, p)
+}
+
+func TestServerV2BadCredentials(t *testing.T) {
+	b := NewBuilder(t)
+	config := b.Add(TrapListenerConfig{Community: []string{"public"}})
+	b.Configure()
+
+	s := b.StartServer()
+	defer s.Stop()
+
+	sendTestV2Trap(t, config, "wrong")
+	assertNoPacketReceived(t, s)
 }
 
 func TestConcurrency(t *testing.T) {
@@ -245,18 +257,4 @@ func TestPortConflict(t *testing.T) {
 	s, err := NewTrapServer()
 	require.Error(t, err)
 	assert.Nil(t, s)
-}
-
-func TestBadCredentials(t *testing.T) {
-	t.Run("v2-wrong-community", func(t *testing.T) {
-		b := NewBuilder(t)
-		config := b.Add(TrapListenerConfig{Community: []string{"public"}})
-		b.Configure()
-
-		s := b.StartServer()
-		defer s.Stop()
-
-		sendTestV2Trap(t, config, "wrong")
-		assertNoPacketReceived(t, s)
-	})
 }

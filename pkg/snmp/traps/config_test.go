@@ -42,59 +42,6 @@ func TestConfigPort(t *testing.T) {
 	})
 }
 
-func TestConfigVersion(t *testing.T) {
-	t.Run("default-v2", func(t *testing.T) {
-		config := TrapListenerConfig{
-			Port:      162,
-			Community: []string{"public"},
-		}
-		params, err := config.BuildParams()
-		assert.NoError(t, err)
-		assert.Equal(t, gosnmp.Version2c, params.Version)
-	})
-
-	t.Run("v2c-alias", func(t *testing.T) {
-		config := TrapListenerConfig{
-			Version:   "2c",
-			Port:      162,
-			Community: []string{"public"},
-		}
-		params, err := config.BuildParams()
-		assert.NoError(t, err)
-		assert.Equal(t, gosnmp.Version2c, params.Version)
-	})
-
-	t.Run("err-invalid-version", func(t *testing.T) {
-		config := TrapListenerConfig{
-			Version:   "42",
-			Port:      162,
-			Community: []string{"public"},
-		}
-		_, err := config.BuildParams()
-		assert.Error(t, err)
-	})
-
-	t.Run("err-v1-not-supported", func(t *testing.T) {
-		config := TrapListenerConfig{
-			Version:   "1",
-			Port:      162,
-			Community: []string{"public"},
-		}
-		_, err := config.BuildParams()
-		assert.Error(t, err)
-	})
-
-	t.Run("err-v3-not-supported", func(t *testing.T) {
-		config := TrapListenerConfig{
-			Version:   "3",
-			Port:      162,
-			Community: []string{"public"},
-		}
-		_, err := config.BuildParams()
-		assert.Error(t, err)
-	})
-}
-
 func TestConfigV2(t *testing.T) {
 	t.Run("community", func(t *testing.T) {
 		config := TrapListenerConfig{

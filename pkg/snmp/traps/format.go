@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/soniah/gosnmp"
 )
 
@@ -19,65 +18,62 @@ const (
 	snmpTrapOID       = ".1.3.6.1.6.3.1.1.4.1.0"
 )
 
-// FormatPacketJSON converts an SNMP trap packet to a binary JSON log message content.
-func FormatPacketJSON(p *traps.SnmpPacket) ([]byte, error) {
-	trap, err := parseV2Trap(p)
+// NOTE: This module is used by the traps logs input.
+
+// FormatJSON converts an SNMP trap packet to a JSON bytestring.
+func FormatJSON(p *SnmpPacket) ([]byte, error) {
+	data, err := formatV2(p.Content.Variables)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(trap)
+	return json.Marshal(data)
 }
 
-// FormatPacketTags returns a list of tags associated to an SNMP trap packet.
-func FormatPacketTags(p *traps.SnmpPacket) []string {
-	tags := []string{
-		fmt.Sprintf("device_port:%d", p.Addr.Port),
+// GetTags returns a list of tags associated to an SNMP trap packet.
+func GetTags(p *SnmpPacket) []string {
+	return []string{
 		fmt.Sprintf("device_ip:%s", p.Addr.IP.String()),
-		fmt.Sprintf("snmp_version:%s", traps.VersionAsString(p.Content.Version)),
+		fmt.Sprintf("device_port:%d", p.Addr.Port),
+		fmt.Sprintf("snmp_version:2"),
+		fmt.Sprintf("community:%s", p.Content.Community),
 	}
-	if p.Content.Community != "" {
-		tags = append(tags, fmt.Sprintf("community:%s", p.Content.Community))
-	}
-	return tags
 }
 
 func normalizeOID(value string) string {
 	return strings.TrimLeft(value, ".")
 }
 
-func parseV2Trap(p *traps.SnmpPacket) (map[string]interface{}, error) {
-	// An SNMPv2 trap PDU is composed of a list of variables with the following contents:
-	// [sysUpTime.0, snmpTrapOID.0, additionalVariables...]
-	// See: https://tools.ietf.org/html/rfc3416#section-4.2.6
-	// Note that the SNMPv1 format is slightly different, but we don't support SNMPv1 yet.
-	// See: http://www.tcpipguide.com/free/t_SNMPVersion1SNMPv1MessageFormat-3.htm
+func formatV2(vars []gosnmp.SnmpPDU) (map[string]interface{}, error) {
+	/*
+		An SNMPv2 trap PDU is composed of the following list of variables:
+		{sysUpTime.0, snmpTrapOID.0, additionalVariables...}
+		See: https://tools.ietf.org/html/rfc3416#section-4.2.6
+	*/
 
-	if len(p.Content.Variables) < 2 {
-		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(p.Content.Variables))
+	if len(vars) < 2 {
+		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(vars))
 	}
 
 	data := make(map[string]interface{})
 
-	uptime, err := parseSysUpTime(p.Content)
+	uptime, err := parseSysUpTimeV2(vars[0])
 	if err != nil {
 		return nil, err
 	}
 	data["uptime"] = uptime
 
-	trapOID, err := parseSnmpTrapOID(p.Content)
+	trapOID, err := parseSnmpTrapOIDV2(vars[1])
 	if err != nil {
 		return nil, err
 	}
 	data["oid"] = trapOID
 
-	data["variables"] = parseVariables(p.Content)
+	data["variables"] = parseVariables(vars[2:])
 
 	return data, nil
 }
 
-func parseSysUpTime(p *gosnmp.SnmpPacket) (uint32, error) {
-	v := p.Variables[0]
-
+func parseSysUpTimeV2(v gosnmp.SnmpPDU) (uint32, error) {
 	if v.Type != gosnmp.TimeTicks {
 		return 0, fmt.Errorf("expected %v, got %v", gosnmp.TimeTicks, v.Type)
 	}
@@ -91,13 +87,13 @@ func parseSysUpTime(p *gosnmp.SnmpPacket) (uint32, error) {
 		return 0, fmt.Errorf("expected uptime to be uint32 (got %T)", v.Value)
 	}
 
-	// sysUpTimeInstance is given in hundreds of a second.
-	return value * 100, nil
+	// sysUpTimeInstance is given in hundreds of a second, convert it to seconds.
+	value = value / 100
+
+	return value, nil
 }
 
-func parseSnmpTrapOID(p *gosnmp.SnmpPacket) (string, error) {
-	v := p.Variables[1]
-
+func parseSnmpTrapOIDV2(v gosnmp.SnmpPDU) (string, error) {
 	if v.Type != gosnmp.ObjectIdentifier {
 		return "", fmt.Errorf("expected %v, got %v", gosnmp.ObjectIdentifier, v.Type)
 	}
@@ -114,12 +110,12 @@ func parseSnmpTrapOID(p *gosnmp.SnmpPacket) (string, error) {
 	return normalizeOID(value), nil
 }
 
-func parseVariables(p *gosnmp.SnmpPacket) []map[string]interface{} {
+func parseVariables(vars []gosnmp.SnmpPDU) []map[string]interface{} {
 	var variables []map[string]interface{}
 
-	for _, v := range p.Variables[2:] {
+	for _, v := range vars {
 		variable := make(map[string]interface{})
-		variable["name"] = normalizeOID(v.Name)
+		variable["oid"] = normalizeOID(v.Name)
 		variable["type"] = formatType(v)
 		variable["value"] = formatValue(v)
 		variables = append(variables, variable)
