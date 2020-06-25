@@ -1488,7 +1488,7 @@ deploy_deb_testing-a7:
       when: never
     - <<: *if_test_kitchen_triggered
   stage: testkitchen_deploy
-  needs: ["agent_deb-x64-a7", "iot_agent_deb-x64"]
+  needs: ["agent_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1535,7 +1535,7 @@ deploy_rpm_testing-a7:
       when: never
     - <<: *if_test_kitchen_triggered
   stage: testkitchen_deploy
-  needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64"]
+  needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64", "dogstatsd_rpm-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1568,7 +1568,7 @@ deploy_suse_rpm_testing-a7:
       when: never
     - <<: *if_test_kitchen_triggered
   stage: testkitchen_deploy
-  needs: ["agent_suse-x64-a7", "iot_agent_suse-x64"]
+  needs: ["agent_suse-x64-a7", "iot_agent_suse-x64", "dogstatsd_suse-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1746,6 +1746,10 @@ deploy_windows_testing-a7:
   variables:
     AGENT_FLAVOR: "datadog-iot-agent"
 
+.kitchen_datadog_dogstatsd_flavor:
+  variables:
+    AGENT_FLAVOR: "datadog-dogstatsd"
+
 # Kitchen: Azure locations
 # -------------------------------
 
@@ -1790,6 +1794,12 @@ deploy_windows_testing-a7:
   extends:
     - .kitchen_test_install_script
     - .kitchen_datadog_iot_agent_flavor
+    - .kitchen_azure_location_west_central_us
+
+.kitchen_test_install_script_dogstatsd:
+  extends:
+    - .kitchen_test_install_script
+    - .kitchen_datadog_dogstatsd_flavor
     - .kitchen_azure_location_west_central_us
 
 .kitchen_test_upgrade5_agent:
@@ -1979,6 +1989,12 @@ kitchen_centos_install_script_iot_agent-a7:
     - .kitchen_scenario_centos_a7
     - .kitchen_test_install_script_iot_agent
 
+kitchen_centos_install_script_dogstatsd-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_install_script_dogstatsd
+
 kitchen_centos_step_by_step_agent-a6:
   allow_failure: false
   extends:
@@ -2059,6 +2075,12 @@ kitchen_ubuntu_install_script_iot_agent-a7:
     - .kitchen_scenario_ubuntu_a7
     - .kitchen_test_install_script_iot_agent
 
+kitchen_ubuntu_install_script_dogstatsd-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_install_script_dogstatsd
+
 kitchen_ubuntu_step_by_step_agent-a6:
   allow_failure: false
   extends:
@@ -2137,6 +2159,12 @@ kitchen_suse_install_script_iot_agent-a7:
   extends:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_install_script_iot_agent
+
+kitchen_suse_install_script_dogstatsd-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_install_script_dogstatsd
 
 kitchen_suse_step_by_step_agent-a6:
   allow_failure: false
@@ -2217,6 +2245,12 @@ kitchen_debian_install_script_iot_agent-a7:
   extends:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_install_script_iot_agent
+
+kitchen_debian_install_script_dogstatsd-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_install_script_dogstatsd
 
 kitchen_debian_step_by_step_agent-a6:
   allow_failure: false
