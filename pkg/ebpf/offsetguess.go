@@ -30,10 +30,6 @@ import "C"
 type tracerStatus C.tracer_status_t
 
 const (
-	// When reading kernel structs at different offsets, don't go over that
-	// limit. This is an arbitrary choice to avoid infinite loops.
-	threshold = 400
-
 	// The source port is much further away in the inet sock.
 	thresholdInetSock = 2000
 
@@ -80,7 +76,18 @@ var whatString = map[C.__u64]string{
 	guessSport:     "source port",
 	guessDport:     "destination port",
 	guessNetns:     "network namespace",
+	guessRTT:       "Round Trip Time",
 	guessDaddrIPv6: "destination address IPv6",
+}
+
+const (
+	tcpInfoKProbeNotCalled C.__u64 = 0
+	tcpInfoKProbeCalled            = 1
+)
+
+var tcpKprobeCalledString = map[C.__u64]string{
+	tcpInfoKProbeNotCalled: "tcp_get_info kprobe not executed",
+	tcpInfoKProbeCalled:    "tcp_get_info kprobe executed",
 }
 
 const listenIP = "127.0.0.2"
@@ -224,7 +231,7 @@ func generateRandomIPv6Address() (addr [4]uint32) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracerStatus, expected *fieldValues, maxRetries *int) error {
+func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracerStatus, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
 	if err := module.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
@@ -233,8 +240,8 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 
 	if status.state != stateChecked {
 		if *maxRetries == 0 {
-			return fmt.Errorf("invalid guessing state while guessing %v, got %v expected %v",
-				whatString[status.what], stateString[status.state], stateString[stateChecked])
+			return fmt.Errorf("invalid guessing state while guessing %v, got %v expected %v. %v",
+				whatString[status.what], stateString[status.state], stateString[stateChecked], tcpKprobeCalledString[status.tcp_info_kprobe_status])
 		}
 		*maxRetries--
 		time.Sleep(10 * time.Millisecond)
@@ -245,6 +252,8 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 	case guessSaddr:
 		if status.saddr == C.__u32(expected.saddr) {
 			status.what = guessDaddr
+			logSuccessfulGuess(guessSaddr, status.offset_saddr)
+			logStartGuess(guessDaddr)
 			break
 		}
 		status.offset_saddr++
@@ -252,6 +261,8 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 	case guessDaddr:
 		if status.daddr == C.__u32(expected.daddr) {
 			status.what = guessFamily
+			logSuccessfulGuess(guessDaddr, status.offset_daddr)
+			logStartGuess(guessFamily)
 			break
 		}
 		status.offset_daddr++
@@ -262,29 +273,37 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			// we know the sport ((struct inet_sock)->inet_sport) is
 			// after the family field, so we start from there
 			status.offset_sport = status.offset_family
+			logSuccessfulGuess(guessFamily, status.offset_family)
+			logStartGuess(guessSport)
 			break
 		}
 		status.offset_family++
 	case guessSport:
 		if status.sport == C.__u16(htons(expected.sport)) {
 			status.what = guessDport
+			logSuccessfulGuess(guessSport, status.offset_sport)
+			logStartGuess(guessDport)
 			break
 		}
 		status.offset_sport++
 	case guessDport:
 		if status.dport == C.__u16(htons(expected.dport)) {
 			status.what = guessNetns
+			logSuccessfulGuess(guessDport, status.offset_dport)
+			logStartGuess(guessNetns)
 			break
 		}
 		status.offset_dport++
 	case guessNetns:
 		if status.netns == C.__u32(expected.netns) {
 			status.what = guessRTT
+			logSuccessfulGuess(guessNetns, status.offset_netns)
+			logStartGuess(guessRTT)
 			break
 		}
 		status.offset_ino++
 		// go to the next offset_netns if we get an error
-		if status.err != 0 || status.offset_ino >= threshold {
+		if status.err != 0 || uint64(status.offset_ino) >= threshold {
 			status.offset_ino = 0
 			status.offset_netns++
 		}
@@ -293,6 +312,8 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
 		if status.rtt>>3 == C.__u32(expected.rtt) && status.rtt_var>>2 == C.__u32(expected.rttVar) {
 			status.what = guessDaddrIPv6
+			logSuccessfulGuess(guessRTT, status.offset_rtt)
+			logStartGuess(guessDaddrIPv6)
 			break
 		}
 		// We know that these two fields are always next to each other, 4 bytes apart:
@@ -308,10 +329,12 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			status.what = guessDaddrIPv6
 			status.offset_rtt = 0
 			status.offset_rtt_var = 0
+			logStartGuess(guessDaddrIPv6)
 			break
 		}
 	case guessDaddrIPv6:
 		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
+			logSuccessfulGuess(guessDaddrIPv6, status.offset_daddr_ipv6)
 			// at this point, we've guessed all the offsets we need,
 			// set the status to "stateReady"
 			return setReadyState(module, mp, status)
@@ -359,6 +382,10 @@ func setReadyState(m *elf.Module, mp *elf.Map, status *tracerStatus) error {
 // guess the next field.
 func guessOffsets(m *elf.Module, cfg *Config) error {
 	mp := m.Map(string(tracerStatusMap))
+
+	// When reading kernel structs at different offsets, don't go over the set threshold
+	// Defaults to 400, with a max of 3000. This is an arbitrary choice to avoid infinite loops.
+	threshold := cfg.OffsetGuessThreshold
 
 	// pid & tid must not change during the guessing work: the communication
 	// between ebpf and userspace relies on it
@@ -411,22 +438,23 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 		return errors.Wrap(err, "error retrieving expected value")
 	}
 
+	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for status.state != stateReady {
 		if err := eventGenerator.Generate(status, expected); err != nil {
 			return err
 		}
 
-		if err := checkAndUpdateCurrentOffset(m, mp, status, expected, &maxRetries); err != nil {
+		if err := checkAndUpdateCurrentOffset(m, mp, status, expected, &maxRetries, threshold); err != nil {
 			return err
 		}
 
 		// Stop at a reasonable offset so we don't run forever.
 		// Reading too far away in kernel memory is not a big deal:
 		// probe_kernel_read() handles faults gracefully.
-		if status.offset_saddr >= threshold || status.offset_daddr >= threshold ||
-			status.offset_sport >= thresholdInetSock || status.offset_dport >= threshold ||
-			status.offset_netns >= threshold || status.offset_family >= threshold ||
-			status.offset_daddr_ipv6 >= threshold {
+		if uint64(status.offset_saddr) >= threshold || uint64(status.offset_daddr) >= threshold ||
+			status.offset_sport >= thresholdInetSock || uint64(status.offset_dport) >= threshold ||
+			uint64(status.offset_netns) >= threshold || uint64(status.offset_family) >= threshold ||
+			uint64(status.offset_daddr_ipv6) >= threshold {
 			return fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
@@ -538,4 +566,12 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 	}
 
 	return &tcpInfo, nil
+}
+
+func logSuccessfulGuess(guess C.__u64, offset C.__u64) {
+	log.Debugf("Successfully guessed %v with offset of %d bytes", whatString[guess], offset)
+}
+
+func logStartGuess(guess C.__u64) {
+	log.Debugf("Started offset guessing for %v", whatString[guess])
 }
