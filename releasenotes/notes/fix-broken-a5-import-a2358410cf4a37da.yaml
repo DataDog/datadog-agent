@@ -9,3 +9,8 @@
 fixes:
   - |
     Agent 5 configuration import was missing critical parameters.
+    The configuration was reset to default settings in the middle
+    of the migration process. It was leading to many unimported
+    parameters including very important ones like ``api_key``.
+    Some Docker & Kubernetes configuration settings were also
+    imported in wrongly located files.
