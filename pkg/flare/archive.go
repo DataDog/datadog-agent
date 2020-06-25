@@ -96,18 +96,10 @@ func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (stri
 }
 
 func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
-	b := make([]byte, 10)
-	_, err := rand.Read(b)
+	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
 	}
-
-	dirName := hex.EncodeToString(b)
-	tempDir, err := ioutil.TempDir("", dirName)
-	if err != nil {
-		return "", err
-	}
-
 	defer os.RemoveAll(tempDir)
 
 	// Get hostname, if there's an error in getting the hostname,
@@ -122,24 +114,10 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	permsInfos := make(permissionsInfos)
 
 	if local {
-		f := filepath.Join(tempDir, hostname, "local")
-
-		err := ensureParentDirsExist(f)
+		err = writeLocal(tempDir, hostname)
 		if err != nil {
 			return "", err
 		}
-
-		w, err := newRedactingWriter(f, os.ModePerm, true)
-		if err != nil {
-			return "", err
-		}
-		defer w.Close()
-
-		_, err = w.Write([]byte{})
-		if err != nil {
-			return "", err
-		}
-
 		// Can't reach the agent, mention it in those two files
 		err = writeStatusFile(tempDir, hostname, []byte("unable to get the status of the agent, is it running?"))
 		if err != nil {
@@ -270,6 +248,17 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	}
 
 	return zipFilePath, nil
+}
+
+func createTempDir() (string, error) {
+	b := make([]byte, 10)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+
+	dirName := hex.EncodeToString(b)
+	return ioutil.TempDir("", dirName)
 }
 
 func zipStatusFile(tempDir, hostname string) error {
