@@ -68,7 +68,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	for rsa.running.Load() == true {
 		stream, err := apiClient.GetEvents(context.Background(), &api.GetParams{})
 		if err != nil {
-			log.Errorf("grpc stream connection error: %v", err)
+			log.Warnf("grpc stream connection error: %v", err)
 			// retry in 2 seconds
 			time.Sleep(2 * time.Second)
 			continue

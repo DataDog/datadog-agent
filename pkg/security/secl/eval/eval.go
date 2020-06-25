@@ -76,8 +76,8 @@ type FieldValue struct {
 }
 
 type Opts struct {
-	Debug           bool
-	Constants       map[string]interface{}
+	Debug     bool
+	Constants map[string]interface{}
 	// fieldMacroEvaluators - holds the list of macro evaluator for each field (first index) and each macro ID (second index).
 	fieldMacroEvaluators map[string]map[string]*MacroEvaluator
 }
@@ -85,8 +85,8 @@ type Opts struct {
 // NewOptsWithParams - Initializes a new Opts instance with Debug and Constants parameters
 func NewOptsWithParams(debug bool, constants map[string]interface{}) Opts {
 	return Opts{
-		Debug: debug,
-		Constants: constants,
+		Debug:                debug,
+		Constants:            constants,
 		fieldMacroEvaluators: make(map[string]map[string]*MacroEvaluator),
 	}
 }
@@ -498,9 +498,9 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 			sort.Ints(ints)
 			return &IntArray{Values: ints}, nil, obj.Pos, nil
 		} else if len(obj.Strings) != 0 {
-			strings := obj.Strings
-			sort.Strings(strings)
-			return &StringArray{Values: strings}, nil, obj.Pos, nil
+			strs := obj.Strings
+			sort.Strings(strs)
+			return &StringArray{Values: strs}, nil, obj.Pos, nil
 		} else if obj.Ident != nil {
 			if state.macros != nil {
 				if macro, ok := state.macros[*obj.Ident]; ok {
@@ -606,25 +606,25 @@ func RuleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 			Eval: func(ctx *Context) bool {
 				return evalBool.Value
 			},
-			EventTypes:   events,
-			Tags:         state.Tags(),
-			FieldValues:  state.fieldValues,
+			EventTypes:  events,
+			Tags:        state.Tags(),
+			FieldValues: state.fieldValues,
 		}, nil
 	}
 
 	if opts.Debug {
 		return &RuleEvaluator{
-			Eval:         evalBool.DebugEvalFnc,
-			EventTypes:   events,
-			Tags:         state.Tags(),
-			FieldValues:  state.fieldValues,
+			Eval:        evalBool.DebugEvalFnc,
+			EventTypes:  events,
+			Tags:        state.Tags(),
+			FieldValues: state.fieldValues,
 		}, nil
 	}
 
 	return &RuleEvaluator{
-		Eval:         evalBool.EvalFnc,
-		EventTypes:   events,
-		Tags:         state.Tags(),
-		FieldValues:  state.fieldValues,
+		Eval:        evalBool.EvalFnc,
+		EventTypes:  events,
+		Tags:        state.Tags(),
+		FieldValues: state.fieldValues,
 	}, nil
 }

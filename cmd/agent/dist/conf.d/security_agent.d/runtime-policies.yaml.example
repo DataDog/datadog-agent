@@ -1,5 +1,5 @@
 - rule:
-    id: CREDENTIAL_MODIFIED
+    id: credential_modified
     description: credential files modified using unknown tool
     expression: >-
       (open.filename == "/etc/shadow" || open.filename == "/etc/gshadow") &&
@@ -7,14 +7,14 @@
     tags:
       mitre: T1003
 - rule:
-    id: MEMORY_DUMP
+    id: memory_dump
     description: memory dump
     expression: >-
       open.filename =~ "/proc/*" && open.basename in ["maps", "mem"]
     tags:
       mitre: T1003
 - rule:
-    id: LOGS_REMOVED
+    id: logs_removed
     description: log entries removed
     expression: >-
       (open.filename =~ "/var/log/*" && open.flags ^ O_TRUNC > 0) ||
@@ -22,7 +22,7 @@
     tags:
       mitre: T1070
 #- rule:
-  #  id: PERMISSIONS_CHANGED
+  #  id: permissions_changed
   #  description: permissions change on sensible files
   #  expression: >-
   #    chattr.filename =~ "/etc/*" || chattr.filename =~ "/etc/*" ||
@@ -32,7 +32,7 @@
   # tags:
   #    mitre: T1099
 - rule:
-    id: FILE_CREATED
+    id: file_created
     description: file creation/modification in sensible location
     expression: >-
       (open.filename =~ "/etc/*" || open.filename =~ "/etc/*" ||
@@ -42,15 +42,15 @@
     tags:
       mitre: T1099
 # - rule:
-  #  id: BASH_HISTORY
+  #  id: bash_history
   #  description: command line history read by another user
   #  expression: >-
   #    open.basename == ".bash_history" &&
   #    (open.uid != process.uid || open.gid != process.gid)
   # tags:
-  #    mitre: T1139  
+  #    mitre: T1139
 # - rule:
-  #  id: SSH_KEYS
+  #  id: ssh_keys
   #  description: ssh private key read by another user
   #  expression: >-
   #    open.filename =~ "*/.ssh/*" &&
@@ -58,14 +58,14 @@
   # tags:
   #    mitre: T1139
 - rule:
-    id: HIDDEN_FILE
+    id: hidden_file
     description: hidden file creation
     expression: >-
       open.basename =~ ".*" && open.flags & O_CREAT > 0
     tags:
       mitre: T1158
 - rule:
-    id: SETUID_SETGID
+    id: setuid_setgid_bits
     description: setuid, setgid binary creation
     expression: >-
       (open.flags & S_ISUID > 0 || open.flags & S_ISGID > 0) &&
@@ -73,7 +73,7 @@
     tags:
       mitre: T1166
 - rule:
-    id: CRON_UPDATED
+    id: cron_updated
     description: new cron entry
     expression: >-
       (open.filename =~"/etc/crontab/*" || open.filename =~ "/etc/cron.d/*") &&
@@ -81,14 +81,14 @@
     tags:
       mitre: T1168
 - rule:
-    id: KERNEL_MODULE
+    id: kernel_module
     description: new file in kernel module location
     expression: >-
       open.filename =~ "/lib/modules/*" && open.flags & O_CREAT > 0
     tags:
       mitre: T1215
 - rule:
-    id: SYSTEMD_UPDATED
+    id: systemd_updated
     description: new file in common systemd location
     expression: >-
       (open.filename =~ "/etc/systemd/system/*" || open.filename =~ "/usr/lib/systemd/system/*") &&
@@ -96,14 +96,14 @@
     tags:
       mitre: T1501
 # - rule:
-  #  id: BINARY_MODIFIED
+  #  id: binary_modified
   #  description: a process is trying to modify its binary
   #  expression: >-
   #    open.inode == process.inode
   # tags:
-  #    mitre: T1036  
+  #    mitre: T1036
 - rule:
-    id: REMOTE_COPY
+    id: remote_copy
     description: remote copy
     expression: >-
       (open.filename =~ "/var/*" || open.filename =~"/etc/*") &&
@@ -111,24 +111,24 @@
     tags:
       mitre: T1105
 # - rule:
-  #  id: TIMESTAMP_TAMPERING
+  #  id: timestamp_tampering
   #  description: timestamp tampering attempt
   #  expression: >-
   #    chattr.mode & ATTR_TIMES_SET > 0 || chattr.mode & ATTR_ATIME_SET > 0 || chattr.mode & ATTR_MTIME_SET > 0
   # tags:
-  #    mitre: T1099  
+  #    mitre: T1099
 # - rule:
-  #  id: CONTAINER_BINARY_EXEC
+  #  id: container_binary_exec
   #  description: a binary that was not part of the original container image was executed
   #  expression: >-
   #    event.type == "exec" && process.filename =~ "*/diff/*" && process.ns.mount == "dedicated"
 # - rule:
-  #  id: CONTAINER_LIB_LOADED
+  #  id: container_lib_loaded
   #  description: a library that was not part of the original container image was loaded
   #  expression: >-
   #    open.filename =~ "*/diff/*/usr/lib/*" && process.ns.mount == "dedicated"
 - rule:
-    id: DATADOG_CONFIG
+    id: datadog_config
     description: datadog agent configuration modified
     expression: >-
       open.filename =~ "/opt/datadog-agent/*"
