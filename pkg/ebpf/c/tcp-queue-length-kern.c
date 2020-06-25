@@ -5,7 +5,7 @@
 #include <net/inet_sock.h>
 #include <linux/tcp.h>
 
-#include "bpf-common.h"
+#include "pkg/ebpf/c/bpf-common.h"
 #include "pkg/ebpf/c/tcp-queue-length-kern-user.h"
 
 /*

@@ -323,9 +323,12 @@ def build_object_files(ctx, install=True):
     if install:
         assets_cmd = (
             os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' '{bpf_common_h_file}'"
+            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
+            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' "
+            + "'{bpf_common_h_file}' '{test_asset_file}' '{test_h_file}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
+        test_dir = os.path.join(bpf_dir, "testdata")
         commands.append(
             assets_cmd.format(
                 c_dir=c_dir,
@@ -337,6 +340,8 @@ def build_object_files(ctx, install=True):
                 oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
                 oom_kill_kern_user_h_file=os.path.join(c_dir, "oom-kill-kern-user.h"),
                 bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
+                test_asset_file=os.path.join(test_dir, "test-asset.c"),
+                test_h_file=os.path.join(test_dir, "test-header.h"),
             )
         )
 

@@ -3,13 +3,9 @@
 package ebpf
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"regexp"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
@@ -27,28 +23,9 @@ type OOMKillProbe struct {
 }
 
 func NewOOMKillProbe() (*OOMKillProbe, error) {
-	source_raw, err := bytecode.Asset("oom-kill-kern.c")
+	source, err := processHeaders("pkg/ebpf/c/oom-kill-kern.c")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn’t find asset “oom-kill-kern.c”: %v", err)
-	}
-
-	// Process the `#include` of embedded headers.
-	// Note that embedded headers including other embedded headers is not managed because
-	// this would also require to properly handle inclusion guards.
-	includeRegexp := regexp.MustCompile(`^\s*#\s*include\s+"(.*)"$`)
-	var source bytes.Buffer
-	scanner := bufio.NewScanner(bytes.NewBuffer(source_raw))
-	for scanner.Scan() {
-		match := includeRegexp.FindSubmatch(scanner.Bytes())
-		if len(match) == 2 {
-			header, err := bytecode.Asset(string(match[1]))
-			if err == nil {
-				source.Write(header)
-				continue
-			}
-		}
-		source.Write(scanner.Bytes())
-		source.WriteByte('\n')
+		return nil, fmt.Errorf("Couldn’t process headers for asset “pkg/ebpf/c/oom-kill-kern.c”: %v", err)
 	}
 
 	m := bpflib.NewModule(source.String(), []string{})

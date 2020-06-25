@@ -2,7 +2,7 @@
 #define BPF_COMMON_H
 
 #include <linux/bpf.h>
-#include <linux/tcp.h>
+#include <linux/cgroup.h>
 
 static inline __attribute__((always_inline))
 int get_cgroup_name(char *buf, size_t sz) {

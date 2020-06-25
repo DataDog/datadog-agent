@@ -2,10 +2,13 @@ package ebpf
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
@@ -107,4 +110,31 @@ func snakeToCapInitialCamel(s string) string {
 		}
 	}
 	return n
+}
+
+// processHeaders processes the `#include` of embedded headers.
+func processHeaders(fileName string) (bytes.Buffer, error) {
+	sourceRaw, err := bytecode.Asset(fileName)
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+
+	// Note that embedded headers including other embedded headers is not managed because
+	// this would also require to properly handle inclusion guards.
+	includeRegexp := regexp.MustCompile(`^\s*#\s*include\s+"(.*)"$`)
+	var source bytes.Buffer
+	scanner := bufio.NewScanner(bytes.NewBuffer(sourceRaw))
+	for scanner.Scan() {
+		match := includeRegexp.FindSubmatch(scanner.Bytes())
+		if len(match) == 2 {
+			header, err := bytecode.Asset(string(match[1]))
+			if err == nil {
+				source.Write(header)
+				continue
+			}
+		}
+		source.Write(scanner.Bytes())
+		source.WriteByte('\n')
+	}
+	return source, nil
 }
