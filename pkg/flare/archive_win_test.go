@@ -17,47 +17,34 @@ func TestAddParentPermsWindows(t *testing.T) {
 	assert := assert.New(t)
 
 	permsInfos := make(permissionsInfos)
+	expectedParentPerms := map[string]filePermsInfo{}
 
 	// Basic Case
 	path := "C:\\a\\b\\c\\d"
 	addParentPerms(path, permsInfos)
-	expectedParentPerms := map[string]filePermsInfo{
-		"C:\\": {0, "", ""}, "\\a": {0, "", ""}, "\\a\\b": {0, "", ""}, "\\a\\b\\c": {0, "", ""},
-	}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 	// Empty Case
-	permsInfos = make(permissionsInfos)
 	path = ""
 	addParentPerms(path, permsInfos)
-	expectedParentPerms = map[string]filePermsInfo{}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 	// Only root
 	permsInfos = make(permissionsInfos)
 	path = "C:\\"
 	addParentPerms(path, permsInfos)
-	expectedParentPerms = map[string]filePermsInfo{
-		"C:\\": {0, "", ""},
-	}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 	// Space in path
 	permsInfos = make(permissionsInfos)
 	path = "D:\\a b\\c"
 	addParentPerms(path, permsInfos)
-	expectedParentPerms = map[string]filePermsInfo{
-		"D:\\": {0, "", ""}, "\\a b": {0, "", ""},
-	}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 	// Dot in path
 	permsInfos = make(permissionsInfos)
 	path = "E:\\a.b\\c"
 	addParentPerms(path, permsInfos)
-	expectedParentPerms = map[string]filePermsInfo{
-		"\\": {0, "", ""}, "\\a.b": {0, "", ""},
-	}
-	assert.EqualValues(permsInfos, expectedParentPerms)
+	assert.EqualValues(expectedParentPerms, permsInfos)
 
 }

@@ -298,7 +298,6 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 
 	// Don't enter loop on root, we don't want to add anything if root is passed as `dirPath`
 	for parent != "." {
-		log.Info(parent)
 		if len(filepath.Dir(parent)) == len(parent) {
 			permsInfos.add(parent)
 			break
@@ -312,7 +311,7 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
 
-	if permsInfos != nil {
+	if len(permsInfos) != 0 {
 		// Force path to be absolute for getting parent permissions.
 		absPath, err := filepath.Abs(logFileDir)
 		if err != nil {
@@ -735,7 +734,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					return err
 				}
 
-				if permsInfos != nil {
+				if len(permsInfos) != 0 {
 					permsInfos.add(src)
 					absPath, err := filepath.Abs(filePath)
 					if err != nil {
