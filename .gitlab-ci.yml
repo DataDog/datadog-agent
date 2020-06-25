@@ -10,26 +10,26 @@ default:
       - api_failure
 
 stages:
-  - fail_on_tag
-  - deps_build
+  # - fail_on_tag
+  # - deps_build
   - source_test
-  - binary_build
-  - integration_test
-  - package_build
-  - internal_deploy
-  - check_deploy
-  - testkitchen_deploy
-  - testkitchen_testing
-  - pkg_metrics
-  - image_build
-  - image_deploy
-  - deploy6
-  - deploy7
-  - deploy_invalidate
-  - trigger_release
-  - e2e
-  - testkitchen_cleanup
-  - notify
+  # - binary_build
+  # - integration_test
+  # - package_build
+  # - internal_deploy
+  # - check_deploy
+  # - testkitchen_deploy
+  # - testkitchen_testing
+  # - pkg_metrics
+  # - image_build
+  # - image_deploy
+  # - deploy6
+  # - deploy7
+  # - deploy_invalidate
+  # - trigger_release
+  # - e2e
+  # - testkitchen_cleanup
+  # - notify
 
 variables:
   # The SRC_PATH is in the GOPATH of the builders which
