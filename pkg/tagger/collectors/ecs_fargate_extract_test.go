@@ -88,6 +88,7 @@ func TestParseMetadata(t *testing.T) {
 				"task_version:3",
 				"ecs_container_name:datadog-agent",
 				"region:eu-central-1",
+				"availability_zone:eu-central-1a",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
@@ -113,6 +114,7 @@ func TestParseMetadata(t *testing.T) {
 				"ecs_container_name:redis",
 				"lowtag:myvalue",
 				"region:eu-central-1",
+				"availability_zone:eu-central-1a",
 				"service:redis",
 				"env:prod",
 				"version:1.0",

@@ -6,6 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
-    Refactor & simplify APM trace obfuscator config
+    APM : Fix parsing of non-ASCII numerals in the SQL obfuscator. Previously
+    unicode characters for which unicode.IsDigit returns true could cause a
+    hang in the SQL obfuscator

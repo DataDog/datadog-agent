@@ -1068,3 +1068,9 @@ func TestCassQuantizer(t *testing.T) {
 		assert.Equal(testCase.expected, s.Resource)
 	}
 }
+
+func TestUnicodeDigit(t *testing.T) {
+	hangStr := "٩"
+	o := NewObfuscator(nil)
+	o.ObfuscateSQLString(hangStr)
+}

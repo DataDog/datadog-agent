@@ -51,7 +51,7 @@ cinst -y cmake
     [System.EnvironmentVariableTarget]::Machine)
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Golang'
-cinst -y golang --version 1.13.8
+cinst -y golang --version 1.13.11
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 2'
 cinst -y python2

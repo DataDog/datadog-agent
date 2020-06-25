@@ -5,7 +5,7 @@
 #include <net/inet_sock.h>
 #include <linux/tcp.h>
 
-#include "tcp-queue-length-kern-user.h"
+#include "pkg/ebpf/c/tcp-queue-length-kern-user.h"
 
 /*
  * The `queue` map is used to share with the userland program system-probe
