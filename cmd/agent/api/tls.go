@@ -16,7 +16,7 @@ var (
 
 func buildSelfSignedKeyPair() ([]byte, []byte) {
 
-	hosts := []string{"127.0.0.1", "localhost"}
+	hosts := []string{"127.0.0.1", "localhost", "::1"}
 	ipcAddr, err := getIPCAddressPort()
 	if err == nil {
 		hosts = append(hosts, ipcAddr)
