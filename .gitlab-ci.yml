@@ -4037,10 +4037,8 @@ trigger_release_6:
   dependencies: []
   before_script:
   - cd $SRC_PATH
-  - python3 -m pip install -r requirements.txt
-  script:
-  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
-  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
+  - export PATH="$HOME/.local/bin:$PATH"
+  - python3.5 -m pip install --user -r requirements.txt
 
 pupernetes-dev:
   rules:
@@ -4051,6 +4049,9 @@ pupernetes-dev:
     - when: manual
       allow_failure: true
   <<: *pupernetes_template
+  script:
+  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
+  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
 
 pupernetes-master:
   <<: *pupernetes_template
