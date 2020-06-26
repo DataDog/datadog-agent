@@ -16,8 +16,10 @@ int get_cgroup_name(char *buf, size_t sz) {
         if (!bpf_probe_read(&cgrp, sizeof(cgrp), &css->cgroup)) {
           struct kernfs_node *kn;
           if (!bpf_probe_read(&kn, sizeof(kn), &cgrp->kn)) {
-            if (!bpf_probe_read_str(buf, sz, &kn->name)) {
-              return 0;
+            const char *name;
+            if (!bpf_probe_read(&name, sizeof(name), &kn->name)) {
+              if (!bpf_probe_read_str(buf, sz, name))
+                return 0;
             }
           }
         }
