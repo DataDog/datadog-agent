@@ -37,7 +37,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
@@ -57,6 +57,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
+
+	return r
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
