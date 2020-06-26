@@ -118,6 +118,11 @@ type MetricMapping struct {
 	Tags      map[string]string `mapstructure:"tags"`
 }
 
+// Warnings represent the warnings in the config
+type Warnings struct {
+	TraceMallocEnabledWithPy2 bool
+}
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -597,6 +602,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
+	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -813,12 +819,12 @@ func loadProxyFromEnv(config Config) {
 }
 
 // Load reads configs files and initializes the config module
-func Load() error {
+func Load() (*Warnings, error) {
 	return load(Datadog, "datadog.yaml", true)
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret() error {
+func LoadWithoutSecret() (*Warnings, error) {
 	return load(Datadog, "datadog.yaml", false)
 }
 
@@ -845,10 +851,12 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
-func load(config Config, origin string, loadSecret bool) error {
+func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
+	warnings := Warnings{}
+
 	if err := config.ReadInConfig(); err != nil {
 		log.Warnf("Error loading config: %v", err)
-		return err
+		return &warnings, err
 	}
 
 	for _, key := range findUnknownKeys(config) {
@@ -857,7 +865,7 @@ func load(config Config, origin string, loadSecret bool) error {
 
 	if loadSecret {
 		if err := ResolveSecrets(config, origin); err != nil {
-			return err
+			return &warnings, err
 		}
 	}
 
@@ -879,9 +887,9 @@ func load(config Config, origin string, loadSecret bool) error {
 	SanitizeAPIKeyConfig(config, "api_key")
 	applyOverrides(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
-	setTracemallocEnabled(config)
+	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
-	return nil
+	return &warnings, nil
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -1150,16 +1158,19 @@ func applyOverrides(config Config) {
 
 // setTracemallocEnabled is a helper to get the effective tracemalloc
 // configuration.
-func setTracemallocEnabled(config Config) {
+func setTracemallocEnabled(config Config) bool {
 	pyVersion := config.GetString("python_version")
 	wTracemalloc := config.GetBool("tracemalloc_debug")
+	traceMallocEnabledWithPy2 := false
 	if pyVersion == "2" && wTracemalloc {
 		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
 		wTracemalloc = false
+		traceMallocEnabledWithPy2 = true
 	}
 
 	// update config with the actual effective tracemalloc
 	config.Set("tracemalloc_debug", wTracemalloc)
+	return traceMallocEnabledWithPy2
 }
 
 // setNumWorkers is a helper to set the effective number of workers for

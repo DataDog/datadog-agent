@@ -184,6 +184,26 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 	return []byte(st), nil
 }
 
+// GetAndFormatSecurityAgentStatus gets and formats the security agent status
+func GetAndFormatSecurityAgentStatus() ([]byte, error) {
+	s, err := GetStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := FormatSecurityAgentStatus(statusJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(st), nil
+}
+
 // getDCAPartialConfig returns config parameters of interest for the status page.
 func getDCAPartialConfig() map[string]string {
 	conf := make(map[string]string)
