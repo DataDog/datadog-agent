@@ -5,6 +5,8 @@ import os
 # The DOCKER_IMAGE envvar is needed to specify what
 # image to test
 
+# The `docker` library gives all output from containers as raw bytes, so
+# we need to use byte string literals for comparison/membership tests
 SOCKET_PATH = b"/tmp/statsd.socket"
 
 COMMON_ENVIRONMENT = [
