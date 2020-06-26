@@ -209,11 +209,13 @@ def lint_teamassignment(ctx):
 
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
-        if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
-            print("Team Assignment: %s" % l['name'])  # noqa: F821
-            return
 
-        print("PR %s requires team assignment" % pr_url)
+        for label in issue.get('labels', {}):
+            if re.match('team/', label['name']):
+                print("Team Assignment: {}".format(label['name']))
+                return
+
+        print("PR {} requires team assignment".format(pr_url))
         raise Exit(code=1)
 
     # The PR has not been created yet
