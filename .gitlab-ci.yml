@@ -4079,6 +4079,36 @@ pupernetes-tags-7:
   - VERSION=$(inv -e agent.version --major-version 7)
   - inv -e e2e-tests --image=datadog/agent:${VERSION}
 
+notify-on-success:
+  extends: .slack-notifier-base
+  rules:
+    - <<: *if_master_branch
+    - <<: *if_triggered
+  script: |
+    COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+
+    AUTHOR=$(git show -s --format="%an" HEAD)
+
+    if [ "$CI_PIPELINE_SOURCE" = "push" ]; then
+      MESSAGE_TEXT=":host-green: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    else
+      MESSAGE_TEXT=":host-green: :jenkinsparty: Triggered pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    fi
+    postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
+
+notify-on-tagged-success:
+  extends: .slack-notifier-base
+  rules:
+    - <<: *if_triggered_on_tag_6
+    - <<: *if_triggered_on_tag_7
+  script: |
+    MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
+    *$CI_COMMIT_REF_NAME* is available in the staging repositories.
+    Don't forget to run the `tag_release_*` jobs to publish the docker images."
+    postmessage "#agent-release-sync" "$MESSAGE_TEXT"
+
 notify-on-failure:
   extends: .slack-notifier-base
   rules:
@@ -4088,11 +4118,15 @@ notify-on-failure:
       when: on_failure
   dependencies: []
   script: |
-    BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
     COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
 
-    COMMIT_AUTHOR=$(git show -s --format="%an" HEAD)
+    AUTHOR=$(git show -s --format="%an" HEAD)
 
-    MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME: Pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
-    $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $COMMIT_AUTHOR"
+    if [ "$CI_PIPELINE_SOURCE" = "push" ]; then
+      MESSAGE_TEXT=":host-red: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    else
+      MESSAGE_TEXT=":host-red: :angryjenkins: Triggered pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    fi
     postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
