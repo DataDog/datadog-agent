@@ -304,8 +304,8 @@ func initConfig(config Config) {
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_windows_pipe_name", "")
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125)            // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_windows_pipe_name", "") // experimental and not officially supported for now.
 
 	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
 	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
