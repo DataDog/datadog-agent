@@ -135,3 +135,6 @@ integrations-core/
 # file generated for templates
 pkg/status/templates.go
 cmd/agent/gui/templates.go
+
+# netlink message dump test files
+pkg/network/netlink/testdata/message_dump*
