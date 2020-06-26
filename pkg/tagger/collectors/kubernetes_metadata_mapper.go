@@ -83,7 +83,7 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 			}
 		}
 
-		low, orchestrator, high := tagList.Compute()
+		low, orchestrator, high, _ := tagList.Compute()
 		// Register the tags for the pod itself
 		if po.Metadata.UID != "" {
 			podInfo := &TagInfo{

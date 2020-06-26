@@ -102,6 +102,9 @@ typedef struct {
 
 typedef struct {
     __u64 state;
+    // tcp_info_kprobe_status records if the tcp_info kprobe has been triggered.
+    // 0 - not triggered 1 - triggered
+    __u64 tcp_info_kprobe_status;
 
     /* checking */
     proc_t proc;

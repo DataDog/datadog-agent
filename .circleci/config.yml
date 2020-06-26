@@ -67,7 +67,7 @@ jobs:
       - run:
           name: grab go deps
           command: |
-            inv deps --verbose --dep-vendor-only --no-checks
+            inv deps --verbose --dep-vendor-only
       - run:
           name: build rtloader
           command: |
