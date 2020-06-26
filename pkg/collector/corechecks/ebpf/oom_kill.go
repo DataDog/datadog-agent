@@ -14,6 +14,7 @@ package ebpf
 
 import (
 	"fmt"
+	"strings"
 
 	yaml "gopkg.in/yaml.v2"
 
@@ -106,9 +107,11 @@ func (m *OOMKillCheck) Run() error {
 
 	triggerType := ""
 	triggerTypeText := ""
-	mainText := ""
 	for _, lineRaw := range data {
-		line := lineRaw.(oomkill.Stats)
+		line, ok := lineRaw.(oomkill.Stats)
+		if !ok {
+			continue
+		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
 		tags, err := tagger.Tag(entityID, collectors.OrchestratorCardinality)
 		if err != nil {
@@ -138,13 +141,19 @@ func (m *OOMKillCheck) Run() error {
 			Title:          fmt.Sprintf("Process OOM Killed: oom_kill_process called on %s (pid: %d)", line.TComm, line.TPid),
 			Tags:           tags,
 		}
-		if line.Pid == line.TPid {
-			mainText = "%%% \n" + fmt.Sprintf("Process `%s` (pid: %d) triggered an OOM kill on itself.", line.FComm, line.Pid)
-		} else {
-			mainText = "%%% \n" + fmt.Sprintf("Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d).", line.FComm, line.Pid, line.TComm, line.TPid)
-		}
 
-		event.Text = mainText + fmt.Sprintf("\n The process had reached %d pages in size. \n\n", line.Pages) + triggerTypeText + "\n %%%"
+		var b strings.Builder
+		b.WriteString("%%% \n")
+		if line.Pid == line.TPid {
+			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on itself.", line.FComm, line.Pid)
+		} else {
+			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d).", line.FComm, line.Pid, line.TComm, line.TPid)
+		}
+		fmt.Fprintf(&b, "\n The process had reached %d pages in size. \n\n", line.Pages)
+		b.WriteString(triggerTypeText)
+		b.WriteString("\n %%%")
+
+		event.Text = b.String()
 		sender.Event(event)
 	}
 

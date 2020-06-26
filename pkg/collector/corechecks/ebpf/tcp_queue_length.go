@@ -109,7 +109,10 @@ func (t *TCPQueueLengthCheck) Run() error {
 	}
 
 	for _, lineRaw := range data {
-		line := lineRaw.(tcpqueuelength.Stats)
+		line, ok := lineRaw.(tcpqueuelength.Stats)
+		if !ok {
+			continue
+		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
 		tags, err := tagger.Tag(entityID, collectors.OrchestratorCardinality)
 		if err != nil {

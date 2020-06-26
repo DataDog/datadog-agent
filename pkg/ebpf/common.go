@@ -29,6 +29,9 @@ var requiredKernelFuncs = []string{
 var (
 	// ErrNotImplemented will be returned on non-linux environments like Windows and Mac OSX
 	ErrNotImplemented = errors.New("BPF-based system probe not implemented on non-linux systems")
+
+	// CIncludePattern is the regex for #include headers of C files
+	CIncludePattern = `^\s*#\s*include\s+"(.*)"$`
 )
 
 // IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
@@ -121,7 +124,7 @@ func processHeaders(fileName string) (bytes.Buffer, error) {
 
 	// Note that embedded headers including other embedded headers is not managed because
 	// this would also require to properly handle inclusion guards.
-	includeRegexp := regexp.MustCompile(`^\s*#\s*include\s+"(.*)"$`)
+	includeRegexp := regexp.MustCompile(CIncludePattern)
 	var source bytes.Buffer
 	scanner := bufio.NewScanner(bytes.NewBuffer(sourceRaw))
 	for scanner.Scan() {
