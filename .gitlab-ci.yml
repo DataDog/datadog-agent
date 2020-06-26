@@ -235,7 +235,7 @@ build_libbcc_arm64:
   stage: deps_fetch
   needs: ["fail_on_non_triggered_tag"]
   script:
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
@@ -1106,7 +1106,6 @@ agent_suse-x64-a7:
   before_script:
     - *retrieve_linux_go_deps
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - inv -e deps --verbose --dep-vendor-only
   <<: *agent_build_common_suse_rpm
 
 iot_agent_suse-x64:
