@@ -69,6 +69,7 @@ AGENT_CORECHECKS = [
     "load",
     "memory",
     "ntp",
+    "oom_kill",
     "systemd",
     "tcp_queue_length",
     "uptime",

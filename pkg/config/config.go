@@ -670,6 +670,8 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.dns_timeout_in_s")
 	config.SetKnown("system_probe_config.collect_dns_stats")
 	config.SetKnown("system_probe_config.offset_guess_threshold")
+	config.SetKnown("system_probe_config.enable_tcp_queue_length")
+	config.SetKnown("system_probe_config.enable_oom_kill")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
