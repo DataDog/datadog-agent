@@ -296,7 +296,7 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 	parent := filepath.Dir(dirPath)
 
-	// Don't enter loop on root, we don't want to add anything if root is passed as `dirPath`
+	// We do not enter the loop when `filepath.Dir` returns ".", meaning an empty directory was passed.
 	for parent != "." {
 		if len(filepath.Dir(parent)) == len(parent) {
 			permsInfos.add(parent)
@@ -311,6 +311,7 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
 
+	// If the permsInfos map is empty we are on windows and don't need to add parent perms.
 	if len(permsInfos) != 0 {
 		// Force path to be absolute for getting parent permissions.
 		absPath, err := filepath.Abs(logFileDir)
