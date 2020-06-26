@@ -36,13 +36,13 @@ func Active() bool {
 
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
-func Start(api, site, env, service string, tags ...string) error {
+func Start(apiKey, site, env, service string, tags ...string) error {
 	if Active() {
 		return nil
 	}
 
 	err := profiler.Start(
-		profiler.WithAPIKey(api),
+		profiler.WithAPIKey(apiKey),
 		profiler.WithEnv(env),
 		profiler.WithService(service),
 		profiler.WithURL(site),
