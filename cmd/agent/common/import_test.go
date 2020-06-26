@@ -70,10 +70,10 @@ func assertRelocation(t *testing.T, input, expectedOutput string) {
 
 func TestImport(t *testing.T) {
 	integrations := []string{"cassandra", "kubelet", "mysql"}
-	testImport(t, integrations)
+	RunImport(t, integrations)
 }
 
-func testImport(t *testing.T, integrations []string) {
+func RunImport(t *testing.T, integrations []string) {
 	a6ConfDir, err := ioutil.TempDir("", "test_configuration_import")
 	require.NoError(t, err, "Could not create temp dir")
 	defer func() {

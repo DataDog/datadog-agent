@@ -13,5 +13,5 @@ import (
 
 func TestImportWithDockerSettings(t *testing.T) {
 	integrations := []string{"cassandra", "docker", "kubelet", "mysql"}
-	testImport(t, integrations)
+	RunImport(t, integrations)
 }
