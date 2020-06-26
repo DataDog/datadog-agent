@@ -8,8 +8,6 @@ package flare
 import (
 	"bufio"
 	"bytes"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -38,18 +36,10 @@ func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) 
 }
 
 func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
-	b := make([]byte, 10)
-	_, err := rand.Read(b)
+	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
 	}
-
-	dirName := hex.EncodeToString(b)
-	tempDir, err := ioutil.TempDir("", dirName)
-	if err != nil {
-		return "", err
-	}
-
 	defer os.RemoveAll(tempDir)
 
 	// Get hostname, if there's an error in getting the hostname,
@@ -61,13 +51,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 
 	// If the request against the API does not go through we don't collect the status log.
 	if local {
-		f := filepath.Join(tempDir, hostname, "local")
-		err = ensureParentDirsExist(f)
-		if err != nil {
-			return "", err
-		}
-
-		err = ioutil.WriteFile(f, []byte{}, os.ModePerm)
+		err = writeLocal(tempDir, hostname)
 		if err != nil {
 			return "", err
 		}
@@ -146,6 +130,15 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	}
 
 	return zipFilePath, nil
+}
+
+func writeLocal(tempDir, hostname string) error {
+	f := filepath.Join(tempDir, hostname, "local")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(f, []byte{}, os.ModePerm)
 }
 
 func zipDCAStatusFile(tempDir, hostname string) error {

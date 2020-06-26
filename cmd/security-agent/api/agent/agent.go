@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -25,6 +27,7 @@ import (
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
+	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
@@ -96,4 +99,23 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(jsonHealth)
+}
+
+func makeFlare(w http.ResponseWriter, r *http.Request) {
+	log.Infof("Making a flare")
+	w.Header().Set("Content-Type", "application/json")
+	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = common.DefaultLogFile
+	}
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile)
+	if err != nil || filePath == "" {
+		if err != nil {
+			log.Errorf("The flare failed to be created: %s", err)
+		} else {
+			log.Warnf("The flare failed to be created")
+		}
+		http.Error(w, err.Error(), 500)
+	}
+	w.Write([]byte(filePath))
 }

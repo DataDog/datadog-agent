@@ -7,6 +7,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -91,7 +92,7 @@ var checkCmd = &cobra.Command{
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		resolvedLogLevel, err := standalone.SetupCLI(loggerName, confFilePath, logLevel, "off")
+		resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, confFilePath, logLevel, "off")
 		if err != nil {
 			fmt.Printf("Cannot initialize command: %v\n", err)
 			return err
@@ -383,6 +384,9 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
+		if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
+			return errors.New("tracemalloc is enabled but unavailable with python version 2")
+		}
 		return nil
 	},
 }
