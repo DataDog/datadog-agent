@@ -41,6 +41,9 @@ core,"github.com/DataDog/gopsutil/mem",NewBSD
 core,"github.com/DataDog/gopsutil/net",NewBSD
 core,"github.com/DataDog/gopsutil/process",NewBSD
 core,"github.com/DataDog/zstd",NewBSD
+core,"github.com/Masterminds/goutils",Apache-2.0
+core,"github.com/Masterminds/semver",MIT
+core,"github.com/Masterminds/sprig",MIT
 core,"github.com/Microsoft/go-winio",MIT
 core,"github.com/Microsoft/go-winio/pkg/guid",MIT
 core,"github.com/Microsoft/hcsshim",MIT
@@ -65,6 +68,8 @@ core,"github.com/NYTimes/gziphandler",Apache-2.0
 core,"github.com/PuerkitoBio/purell",NewBSD
 core,"github.com/PuerkitoBio/urlesc",NewBSD
 core,"github.com/StackExchange/wmi",MIT
+core,"github.com/alecthomas/participle",MIT
+core,"github.com/alecthomas/participle/lexer",MIT
 core,"github.com/armon/go-metrics",MIT
 core,"github.com/aws/aws-sdk-go/aws",Apache-2.0
 core,"github.com/aws/aws-sdk-go/aws/awserr",Apache-2.0
@@ -231,6 +236,10 @@ core,"github.com/dsnet/compress/internal",FreeBSD
 core,"github.com/dsnet/compress/internal/errors",FreeBSD
 core,"github.com/dsnet/compress/internal/prefix",FreeBSD
 core,"github.com/dustin/go-humanize",MIT
+core,"github.com/elastic/go-libaudit",Apache-2.0
+core,"github.com/elastic/go-libaudit/auparse",Apache-2.0
+core,"github.com/elastic/go-libaudit/rule",Apache-2.0
+core,"github.com/elastic/go-libaudit/rule/flags",Apache-2.0
 core,"github.com/emicklei/go-restful",MIT
 core,"github.com/emicklei/go-restful-swagger12",MIT
 core,"github.com/emicklei/go-restful/log",MIT
@@ -305,6 +314,7 @@ core,"github.com/hashicorp/hcl/json/token",MPL-2.0
 core,"github.com/hashicorp/serf/coordinate",MPL-2.0
 core,"github.com/hectane/go-acl",MIT
 core,"github.com/hectane/go-acl/api",MIT
+core,"github.com/huandu/xstrings",MIT
 core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
@@ -312,6 +322,8 @@ core,"github.com/iovisor/gobpf/bcc",Apache-2.0
 core,"github.com/iovisor/gobpf/elf",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/bpffs",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
+core,"github.com/itchyny/astgen-go",MIT
+core,"github.com/itchyny/gojq",MIT
 core,"github.com/jmespath/go-jmespath",Apache-2.0
 core,"github.com/json-iterator/go",MIT
 core,"github.com/kardianos/osext",NewBSD
@@ -326,6 +338,7 @@ core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/registry/custom_metrics",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/registry/external_metrics",Apache-2.0
+core,"github.com/lestrrat-go/strftime",MIT
 core,"github.com/lxn/walk",FreeBSD
 core,"github.com/lxn/win",FreeBSD
 core,"github.com/magiconair/properties",FreeBSD
@@ -339,8 +352,10 @@ core,"github.com/mdlayher/netlink",MIT
 core,"github.com/mdlayher/netlink/nlenc",MIT
 core,"github.com/mholt/archiver",MIT
 core,"github.com/miekg/dns",NewBSD
+core,"github.com/mitchellh/copystructure",MIT
 core,"github.com/mitchellh/go-homedir",MIT
 core,"github.com/mitchellh/mapstructure",MIT
+core,"github.com/mitchellh/reflectwalk",MIT
 core,"github.com/modern-go/concurrent",Apache-2.0
 core,"github.com/modern-go/reflect2",Apache-2.0
 core,"github.com/munnerz/goautoneg",NewBSD
@@ -426,8 +441,10 @@ core,"golang.org/x/crypto/ed25519",NewBSD
 core,"golang.org/x/crypto/ed25519/internal/edwards25519",NewBSD
 core,"golang.org/x/crypto/internal/subtle",NewBSD
 core,"golang.org/x/crypto/nacl/secretbox",NewBSD
+core,"golang.org/x/crypto/pbkdf2",NewBSD
 core,"golang.org/x/crypto/poly1305",NewBSD
 core,"golang.org/x/crypto/salsa20/salsa",NewBSD
+core,"golang.org/x/crypto/scrypt",NewBSD
 core,"golang.org/x/crypto/ssh/terminal",NewBSD
 core,"golang.org/x/net/bpf",NewBSD
 core,"golang.org/x/net/context",NewBSD
@@ -718,6 +735,7 @@ core,"k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/t
 core,"k8s.io/client-go/discovery",Apache-2.0
 core,"k8s.io/client-go/discovery/fake",Apache-2.0
 core,"k8s.io/client-go/dynamic",Apache-2.0
+core,"k8s.io/client-go/dynamic/fake",Apache-2.0
 core,"k8s.io/client-go/informers",Apache-2.0
 core,"k8s.io/client-go/informers/admissionregistration",Apache-2.0
 core,"k8s.io/client-go/informers/admissionregistration/v1",Apache-2.0

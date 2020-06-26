@@ -439,7 +439,8 @@ func keysPerDomains(endpoints []api.Endpoint) map[string][]string {
 	keysPerDomains := make(map[string][]string)
 
 	for _, ep := range endpoints {
-		keysPerDomains[removePathIfPresent(ep.Endpoint)] = []string{ep.APIKey}
+		domain := removePathIfPresent(ep.Endpoint)
+		keysPerDomains[domain] = append(keysPerDomains[domain], ep.APIKey)
 	}
 
 	return keysPerDomains

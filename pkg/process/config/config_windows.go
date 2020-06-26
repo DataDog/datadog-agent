@@ -10,6 +10,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+const (
+	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
+	defaultSystemProbeAddress = "localhost:3333"
+)
+
 var (
 	defaultLogFilePath = "c:\\programdata\\datadog\\logs\\process-agent.log"
 

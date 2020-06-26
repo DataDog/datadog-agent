@@ -67,6 +67,8 @@ typedef struct {
     tcp_stats_t tcp_stats;
 } tcp_conn_t;
 
+
+// Must match the number of tcp_conn_t objects embedded in the batch_t struct
 #ifndef TCP_CLOSED_BATCH_SIZE
 #define TCP_CLOSED_BATCH_SIZE 5
 #endif
@@ -80,7 +82,8 @@ typedef struct {
     tcp_conn_t c2;
     tcp_conn_t c3;
     tcp_conn_t c4;
-    __u8 pos;
+    __u16 pos;
+    __u16 cpu;
 } batch_t;
 
 static const __u8 TRACER_STATE_UNINITIALIZED = 0;
@@ -99,6 +102,9 @@ typedef struct {
 
 typedef struct {
     __u64 state;
+    // tcp_info_kprobe_status records if the tcp_info kprobe has been triggered.
+    // 0 - not triggered 1 - triggered
+    __u64 tcp_info_kprobe_status;
 
     /* checking */
     proc_t proc;

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"time"
 
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -165,7 +166,7 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 func (d *dispatcher) rebalance() {
 	start := time.Now()
 	defer func() {
-		rebalancingDuration.Set(time.Since(start).Seconds())
+		rebalancingDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
 	}()
 
 	log.Trace("Trying to rebalance cluster checks distribution if needed")
@@ -191,14 +192,14 @@ func (d *dispatcher) rebalance() {
 				// move a check to a new node only if it keeps the busyness of the new node
 				// lower than the original node's busyness multiplied by the tolerationMargin value
 				// the toleration margin is used to lean towards stability over perfectly optimal balance
-				rebalancingDecisions.Inc()
+				rebalancingDecisions.Inc(le.JoinLeaderValue)
 				err = d.moveCheck(sourceNodeName, pickedNodeName, checkID)
 				if err != nil {
 					log.Debugf("Cannot move check %s: %v", checkID, err)
 					continue
 				}
 
-				successfulRebalancing.Inc()
+				successfulRebalancing.Inc(le.JoinLeaderValue)
 				log.Tracef("Check %s with weight %d moved, total avg: %d, source diff: %d, dest diff: %d", checkID, checkWeight, totalAvg, diffMap[sourceNodeName], diffMap[pickedNodeName])
 
 				// diffMap needs to be updated on every check moved

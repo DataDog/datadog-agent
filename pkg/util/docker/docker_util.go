@@ -56,7 +56,7 @@ func (d *DockerUtil) init() error {
 	// Major failure risk is here, do that first
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	defer cancel()
-	cli, err := connectToDocker(ctx)
+	cli, err := ConnectToDocker(ctx)
 	if err != nil {
 		return err
 	}
@@ -82,8 +82,8 @@ func (d *DockerUtil) init() error {
 	return nil
 }
 
-// connectToDocker connects to docker and negotiates the API version
-func connectToDocker(ctx context.Context) (*client.Client, error) {
+// ConnectToDocker connects to docker and negotiates the API version
+func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err

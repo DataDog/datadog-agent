@@ -219,6 +219,96 @@ func TestExtractPodMessage(t *testing.T) {
 				},
 			},
 		},
+		"partial pod with init container": {
+			input: v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:   v1.PodReady,
+							Status: v1.ConditionTrue,
+						},
+					},
+					InitContainerStatuses: []v1.ContainerStatus{
+						{
+							State: v1.ContainerState{
+								Terminated: &v1.ContainerStateTerminated{
+									Reason:   "Completed",
+									ExitCode: 0,
+								},
+							},
+							RestartCount: 2,
+						},
+					},
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							Name:        "fooName",
+							Image:       "fooImage",
+							ContainerID: "docker://fooID",
+						},
+						{
+							Name:         "barName",
+							Image:        "barImage",
+							ContainerID:  "docker://barID",
+							RestartCount: 10,
+							State: v1.ContainerState{
+								Waiting: &v1.ContainerStateWaiting{
+									Reason:  "chillin",
+									Message: "testin",
+								},
+							},
+						},
+						{
+							Name: "bazName",
+						},
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pod",
+					Namespace: "namespace",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							UID: types.UID("1234567890"),
+						},
+					},
+				},
+			}, expected: model.Pod{
+				Metadata: &model.Metadata{
+					Name:      "pod",
+					Namespace: "namespace",
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Uid: "1234567890",
+						},
+					},
+				},
+				RestartCount: 12,
+				Status:       "chillin",
+				InitContainerStatuses: []*model.ContainerStatus{
+					{
+						Message:      "Completed  (exit: 0)",
+						State:        "Terminated",
+						Ready:        false,
+						RestartCount: 2,
+					},
+				},
+				ContainerStatuses: []*model.ContainerStatus{
+					{
+						Name:        "fooName",
+						ContainerID: "docker://fooID",
+					},
+					{
+						State:        "Waiting",
+						Message:      "chillin testin",
+						RestartCount: 10,
+						Name:         "barName",
+						ContainerID:  "docker://barID",
+					},
+					{
+						Name: "bazName",
+					},
+				},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

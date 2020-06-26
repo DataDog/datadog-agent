@@ -22,7 +22,6 @@ type Expire struct {
 }
 
 // NewExpire creates a new Expire object. Called when a Collector is started.
-// Only used for the ECS collector to start with.
 func NewExpire(expiryDuration time.Duration) (*Expire, error) {
 	if expiryDuration.Seconds() <= 0.0 {
 		return nil, errors.New("expiryDuration must be above 0")

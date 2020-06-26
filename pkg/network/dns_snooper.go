@@ -117,12 +117,12 @@ func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
 
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.cache.Stats()
-	stats["socket_polls"] = atomic.SwapInt64(&s.polls, 0)
-	stats["packets_processed"] = atomic.SwapInt64(&s.processed, 0)
-	stats["packets_captured"] = atomic.SwapInt64(&s.captured, 0)
-	stats["packets_dropped"] = atomic.SwapInt64(&s.dropped, 0)
-	stats["decoding_errors"] = atomic.SwapInt64(&s.decodingErrors, 0)
-	stats["truncated_packets"] = atomic.SwapInt64(&s.truncatedPkts, 0)
+	stats["socket_polls"] = atomic.LoadInt64(&s.polls)
+	stats["packets_processed"] = atomic.LoadInt64(&s.processed)
+	stats["packets_captured"] = atomic.LoadInt64(&s.captured)
+	stats["packets_dropped"] = atomic.LoadInt64(&s.dropped)
+	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
+	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
 
 	return stats
 }

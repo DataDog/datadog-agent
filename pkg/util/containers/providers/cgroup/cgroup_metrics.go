@@ -12,8 +12,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,6 +25,10 @@ import (
 // same unit as cpu.system (USER_HZ = 1/100)
 // TODO: get USER_HZ from gopsutil? Needs to patch it
 const NanoToUserHZDivisor float64 = 1e9 / 100
+
+var (
+	numCPU float64 = float64(runtime.NumCPU())
+)
 
 // Mem returns the memory statistics for a Cgroup. If the cgroup file is not
 // available then we return an empty stats file.
@@ -213,6 +219,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	}
 
 	usage, err := c.ParseSingleStat("cpuacct", "cpuacct.usage")
+	ret.Timestsamp = time.Now()
 	if err == nil {
 		ret.UsageTotal = float64(usage) / NanoToUserHZDivisor
 	} else {
@@ -229,32 +236,36 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	return ret, nil
 }
 
-// CPUNrThrottled returns the number of times the cgroup has been
+// CPUPeriods returns the number of times the cgroup has been
 // throttle/limited because of CPU quota / limit
 // If the cgroup file does not exist then we just log debug and return 0.
-func (c ContainerCgroup) CPUNrThrottled() (uint64, error) {
+func (c ContainerCgroup) CPUPeriods() (throttledNr uint64, throttledTime float64, err error) {
 	statfile := c.cgroupFilePath("cpu", "cpu.stat")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", statfile)
-		return 0, nil
+		return 0, 0, nil
 	} else if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), " ")
 		if fields[0] == "nr_throttled" {
-			value, err := strconv.ParseUint(fields[1], 10, 64)
+			throttledNr, err = strconv.ParseUint(fields[1], 10, 64)
 			if err != nil {
-				return 0, err
+				return 0, 0, err
 			}
-			return value, nil
+		}
+		if fields[0] == "throttled_time" {
+			throttledTime, err = strconv.ParseFloat(fields[1], 64)
+			if err != nil {
+				return 0, 0, err
+			}
 		}
 	}
-	log.Debugf("Missing nr_throttled line in %s", statfile)
-	return 0, nil
+	return throttledNr, throttledTime / NanoToUserHZDivisor, nil
 }
 
 // CPULimit would show CPU limit for this cgroup.
@@ -263,26 +274,36 @@ func (c ContainerCgroup) CPUNrThrottled() (uint64, error) {
 //
 //	docker run --cpus='0.5' ubuntu:latest
 //
-// we should return 50% for that container
+// we should return 50% for that container.
+//
+// However cfs_period_us is per CPU, which means that
+//
+// docker run --cpu='2' ubuntu:latest
+//
+// Will yield 200% (cfs_period_us = 100000, cfs_quota_us = 200000)
+//
 // If the limits files aren't available (on older version) then
-// we'll return the default value of 100.
+// we'll return the default value of numCPU * 100.
 func (c ContainerCgroup) CPULimit() (float64, error) {
+	limit := numCPU * 100.0
+
 	periodFile := c.cgroupFilePath("cpu", "cpu.cfs_period_us")
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")
 	plines, err := readLines(periodFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", periodFile)
-		return 100, nil
+		return limit, nil
 	} else if err != nil {
 		return 0, err
 	}
 	qlines, err := readLines(quotaFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", quotaFile)
-		return 100, nil
+		return limit, nil
 	} else if err != nil {
 		return 0, err
 	}
+
 	period, err := strconv.ParseFloat(plines[0], 64)
 	if err != nil {
 		return 0, err
@@ -291,10 +312,33 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// If we don't have limit check on current cgroup, check parent
+	// -1 means no limit
+	// We ignore failures as we already have current cgroup values
+	if quota == -1 {
+		periodFile = c.cgroupParentFilePath("cpu", "cpu.cfs_period_us")
+		quotaFile = c.cgroupParentFilePath("cpu", "cpu.cfs_quota_us")
+		plines, err = readLines(periodFile)
+		if err == nil {
+			parentPeriod, err := strconv.ParseFloat(plines[0], 64)
+			if err == nil {
+				period = parentPeriod
+			}
+		}
+
+		qlines, err := readLines(quotaFile)
+		if err == nil {
+			parentQuota, err := strconv.ParseFloat(qlines[0], 64)
+			if err == nil {
+				quota = parentQuota
+			}
+		}
+	}
+
 	// default cpu limit is 100%
-	limit := 100.0
 	if (period > 0) && (quota > 0) {
-		limit = (quota / period) * 100.0
+		limit = quota / period * 100.0
 	}
 	return limit, nil
 }

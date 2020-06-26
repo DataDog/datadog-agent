@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    JMXFetch upgraded to `0.37.0 <https://github.com/DataDog/jmxfetch/releases/0.37.0>`_

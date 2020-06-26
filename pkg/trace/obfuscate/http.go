@@ -18,7 +18,7 @@ func (o *Obfuscator) obfuscateHTTP(span *pb.Span) {
 	if span.Meta == nil {
 		return
 	}
-	if !o.opts.RemoveQueryString && !o.opts.RemovePathDigits {
+	if !o.opts.HTTP.RemoveQueryString && !o.opts.HTTP.RemovePathDigits {
 		// nothing to do
 		return
 	}
@@ -34,11 +34,11 @@ func (o *Obfuscator) obfuscateHTTP(span *pb.Span) {
 		span.Meta[k] = "?"
 		return
 	}
-	if o.opts.RemoveQueryString && u.RawQuery != "" {
+	if o.opts.HTTP.RemoveQueryString && u.RawQuery != "" {
 		u.ForceQuery = true // add the '?'
 		u.RawQuery = ""
 	}
-	if o.opts.RemovePathDigits {
+	if o.opts.HTTP.RemovePathDigits {
 		segs := strings.Split(u.Path, "/")
 		var changed bool
 		for i, seg := range segs {

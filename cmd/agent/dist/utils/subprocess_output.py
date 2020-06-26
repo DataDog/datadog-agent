@@ -3,4 +3,4 @@
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2016-2020 Datadog, Inc.
 
-from datadog_checks.base.utils.subprocess_output import get_subprocess_output
+from datadog_checks.base.utils.subprocess_output import get_subprocess_output  # noqa: F401

@@ -5,7 +5,6 @@ from __future__ import print_function
 import os
 import sys
 
-import invoke
 from invoke import task
 
 from .build_tags import get_default_build_tags
@@ -44,7 +43,7 @@ def build_aggregator(ctx, rebuild=False):
         "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("aggregator")),
         "ldflags": ldflags,
         "gcflags": gcflags,
-        "REPO_PATH": REPO_PATH
+        "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args))
 
@@ -67,7 +66,7 @@ def build_dogstatsd(ctx):
 
 
 @task(pre=[build_dogstatsd])
-def dogstastd(ctx):
+def dogstatsd(ctx):
     """
     Run Dogstatsd Benchmarks.
     """
@@ -80,6 +79,12 @@ def dogstastd(ctx):
         options += " -api-key {}".format(key)
 
     ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {}".format(bin_path, options))
+
+
+# Temporarily keep compatibility after typo fix
+@task(pre=[build_dogstatsd])
+def dogstastd(ctx):
+    dogstatsd(ctx)
 
 
 @task(pre=[build_aggregator])
@@ -96,4 +101,8 @@ def aggregator(ctx):
         options += " -api-key {}".format(key)
 
     ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json {}".format(bin_path, options))
-    ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -memory -duration 10 {}".format(bin_path, options))
+    ctx.run(
+        "{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -memory -duration 10 {}".format(
+            bin_path, options
+        )
+    )

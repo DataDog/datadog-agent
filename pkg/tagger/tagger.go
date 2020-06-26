@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -67,6 +68,11 @@ func newTagger() *Tagger {
 // for this host. It then starts the collection logic and is ready for
 // requests.
 func (t *Tagger) Init(catalog collectors.Catalog) {
+	if config.Datadog.GetBool("clc_runner_enabled") {
+		log.Infof("Tagger not started on CLC")
+		return
+	}
+
 	t.Lock()
 
 	// Only register the health check when the tagger is started
@@ -276,6 +282,21 @@ IterCollectors:
 	computedTags := utils.ConcatenateTags(tagArrays)
 
 	return copyArray(computedTags), nil
+}
+
+// Standard returns standard tags for a given entity
+// It triggers a tagger fetch if the no tags are found
+func (t *Tagger) Standard(entity string) ([]string, error) {
+	if entity == "" {
+		return nil, fmt.Errorf("empty entity ID")
+	}
+	if hash := t.GetEntityHash(entity); hash == "" {
+		// entity not found yet in the tagger
+		// trigger tagger fetch operations
+		log.Debugf("Entity '%s' not found in tagger cache, will try to fetch it", entity)
+		_, _ = t.Tag(entity, collectors.LowCardinality)
+	}
+	return t.tagStore.lookupStandard(entity)
 }
 
 // List the content of the tagger

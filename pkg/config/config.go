@@ -58,17 +58,9 @@ var (
 	proxies *Proxy
 )
 
-//Values for AgentFlavor below
-const (
-	DefaultAgentFlavor = "agent"
-	IotAgentFlavor     = "iot_agent"
-	DogstatsdFlavor    = "dogstatsd"
-)
-
 // Variables to initialize at build time
 var (
 	DefaultPython string
-	AgentFlavor   = DefaultAgentFlavor
 
 	// ForceDefaultPython has its value set to true at compile time if we should ignore
 	// the Python version set in the configuration and use `DefaultPython` instead.
@@ -183,7 +175,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
-	config.BindEnvAndSetDefault("iot_host", AgentFlavor == IotAgentFlavor)
+
+	// overridden in IoT Agent main
+	config.BindEnvAndSetDefault("iot_host", false)
 
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
@@ -246,6 +240,11 @@ func initConfig(config Config) {
 		if pathExists("/host/proc") {
 			config.SetDefault("procfs_path", "/host/proc")
 			config.SetDefault("container_proc_root", "/host/proc")
+
+			// Used by some librairies (like gopsutil)
+			if v := os.Getenv("HOST_PROC"); v == "" {
+				os.Setenv("HOST_PROC", "/host/proc")
+			}
 		} else {
 			config.SetDefault("procfs_path", "/proc")
 			config.SetDefault("container_proc_root", "/proc")
@@ -669,6 +668,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.closed_channel_size")
 	config.SetKnown("system_probe_config.dns_timeout_in_s")
 	config.SetKnown("system_probe_config.collect_dns_stats")
+	config.SetKnown("system_probe_config.offset_guess_threshold")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -721,8 +721,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
 	// Datadog security agent (compliance)
-	config.BindEnvAndSetDefault("compliance_config.enabled", true)
+	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
+	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
+	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

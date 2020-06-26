@@ -59,43 +59,43 @@ func TestBuildProxySettings(t *testing.T) {
 		"https": "http://myuser:mypass@foobar.baz:8080",
 	}
 
-	value, err := buildProxySettings(agentConfig)
+	value, err := BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Empty(t, value)
 
 	// malformed url
 	agentConfig["proxy_host"] = "http://notanurl{}"
-	_, err = buildProxySettings(agentConfig)
+	_, err = BuildProxySettings(agentConfig)
 	assert.NotNil(t, err)
 
 	agentConfig["proxy_host"] = "foobar.baz"
 
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyHost, value)
 
 	agentConfig["proxy_port"] = "8080"
 
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyNoUser, value)
 
 	// the password alone should not be considered without an user
 	agentConfig["proxy_password"] = "mypass"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyPass, value)
 
 	// the user alone is ok
 	agentConfig["proxy_password"] = ""
 	agentConfig["proxy_user"] = "myuser"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyUser, value)
 
 	agentConfig["proxy_password"] = "mypass"
 	agentConfig["proxy_user"] = "myuser"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyWithUser, value)
 }
@@ -200,13 +200,15 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 }
 
 func TestDefaultValues(t *testing.T) {
+	configConverter := config.NewConfigConverter()
 	agentConfig := make(Config)
-	FromAgentConfig(agentConfig)
+	FromAgentConfig(agentConfig, configConverter)
 	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
 }
 
 func TestTraceIgnoreResources(t *testing.T) {
 	require := require.New(t)
+	configConverter := config.NewConfigConverter()
 
 	cases := []struct {
 		config   string
@@ -221,7 +223,7 @@ func TestTraceIgnoreResources(t *testing.T) {
 	for _, c := range cases {
 		cfg := make(Config)
 		cfg["trace.ignore.resource"] = c.config
-		err := FromAgentConfig(cfg)
+		err := FromAgentConfig(cfg, configConverter)
 		require.NoError(err)
 		require.Equal(c.expected, config.Datadog.GetStringSlice("apm_config.ignore_resources"))
 
@@ -230,9 +232,10 @@ func TestTraceIgnoreResources(t *testing.T) {
 
 func TestConverter(t *testing.T) {
 	require := require.New(t)
+	configConverter := config.NewConfigConverter()
 	cfg, err := GetAgentConfig("./tests/datadog.conf")
 	require.NoError(err)
-	err = FromAgentConfig(cfg)
+	err = FromAgentConfig(cfg, configConverter)
 	require.NoError(err)
 	c := config.Datadog
 
@@ -316,11 +319,11 @@ func TestConverter(t *testing.T) {
 
 func TestExtractURLAPIKeys(t *testing.T) {
 	configConverter := config.NewConfigConverter()
-	defer func(*config.LegacyConfigConverter) {
+	defer func() {
 		configConverter.Set("dd_url", "")
 		configConverter.Set("api_key", "")
 		configConverter.Set("additional_endpoints", nil)
-	}(configConverter)
+	}()
 	agentConfig := make(Config)
 
 	// empty

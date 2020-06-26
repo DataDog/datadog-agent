@@ -49,7 +49,7 @@ class TestFiles(unittest.TestCase):
         def has_write_permissions(path):
             try:
                 return bool(os.stat(path).st_mode & stat.S_IWOTH)
-            except:
+            except Exception:
                 return False
 
         for root, dirs, files in os.walk("/etc"):
@@ -64,7 +64,7 @@ def correct_permissions(root):
     def correct_perm(path):
         try:
             mode = os.stat(path).st_mode
-        except:
+        except Exception:
             return
 
         if bool(mode & stat.S_IWOTH):

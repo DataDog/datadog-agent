@@ -9,12 +9,12 @@ import os
 import re
 import time
 import yaml
-import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from .dogstatsd import DOGSTATSD_TAG
+
 
 def retry_run(ctx, *args, **kwargs):
     remaining_retries = 5
@@ -35,6 +35,7 @@ def retry_run(ctx, *args, **kwargs):
 
     return r
 
+
 @task
 def test(ctx):
     """
@@ -52,6 +53,7 @@ def integration_tests(ctx, skip_image_build=False, skip_build=False):
         # postpone the import otherwise `image_build` will be added to the docker
         # namespace
         from .dogstatsd import image_build
+
         image_build(ctx, skip_build=skip_build)
 
     print("Starting docker integration tests")
@@ -73,7 +75,8 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
     ctx.run("cp %s %s/test.bin" % (binary, temp_folder))
 
     with open("%s/Dockerfile" % temp_folder, 'w') as stream:
-        stream.write("""FROM debian:stretch-slim
+        stream.write(
+            """FROM debian:stretch-slim
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 ADD https://github.com/docker/compose/releases/download/1.16.1/docker-compose-Linux-x86_64 /bin/docker-compose
@@ -82,7 +85,8 @@ RUN echo "1804b0ce6596efe707b9cab05d74b161833ed503f0535a937dd5d17bea8fc50a  /bin
     chmod +x /bin/docker-compose
 CMD /test.bin
 COPY test.bin /test.bin
-""")
+"""
+        )
         # Handle optional testdata folder
         if os.path.isdir("./testdata"):
             ctx.run("cp -R testdata %s" % temp_folder)
@@ -96,26 +100,20 @@ COPY test.bin /test.bin
         test_image.id,
         detach=True,
         pid_mode="host",  # For origin detection
-        environment=[
-            "SCRATCH_VOLUME_NAME=" + scratch_volume.name,
-            "SCRATCH_VOLUME_PATH=/tmp/scratch",
-        ],
-        volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
-                 '/proc': {'bind': '/host/proc', 'mode': 'ro'},
-                 '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
-                 scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'}})
+        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch",],
+        volumes={
+            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
+            '/proc': {'bind': '/host/proc', 'mode': 'ro'},
+            '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
+            scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'},
+        },
+    )
 
     exit_code = test_container.wait()['StatusCode']
 
-    print(test_container.logs(
-        stdout=True,
-        stderr=False,
-        stream=False))
+    print(test_container.logs(stdout=True, stderr=False, stream=False))
 
-    sys.stderr.write(test_container.logs(
-        stdout=False,
-        stderr=True,
-        stream=False))
+    sys.stderr.write(test_container.logs(stdout=False, stderr=True, stream=False))
 
     if not skip_cleanup:
         shutil.rmtree(temp_folder)
@@ -135,7 +133,7 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
     """
     if dst_tag == "auto":
         # Autogenerate tag
-        match = re.search('([^:\/\s]+):[v]?(.*)$', src_image)
+        match = re.search(r'([^:\/\s]+):[v]?(.*)$', src_image)
         if not match:
             print("Cannot guess destination tag for {}, please provide a --dst-tag option".format(src_image))
             raise Exit(code=1)
@@ -152,16 +150,13 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     pull_env = {}
     if signed_pull:
         pull_env["DOCKER_CONTENT_TRUST"] = "1"
-    ctx.run(
-        "docker pull {src} && docker tag {src} {dst}".format(src=src, dst=dst),
-        env=pull_env
-    )
+    ctx.run("docker pull {src} && docker tag {src} {dst}".format(src=src, dst=dst), env=pull_env)
 
     push_env = {}
     if signed_push:
         push_env["DOCKER_CONTENT_TRUST"] = "1"
-    retry_run(ctx, "docker push {dst}".format(dst=dst),
-              env=push_env,
+    retry_run(
+        ctx, "docker push {dst}".format(dst=dst), env=push_env,
     )
 
     ctx.run("docker rmi {src} {dst}".format(src=src, dst=dst))
@@ -186,6 +181,7 @@ def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
 
         publish(ctx, evalTemplate(src_template), evalTemplate(dst_template), signed_push=signed_push)
 
+
 @task(iterable=['image'])
 def publish_manifest(ctx, name, tag, image, signed_push=False):
     """
@@ -195,9 +191,7 @@ def publish_manifest(ctx, name, tag, image, signed_push=False):
     a set of image references more easily. See the manifest tool documentation for
     further details: https://github.com/estesp/manifest-tool.
     """
-    manifest_spec = {
-        "image": "{}:{}".format(name, tag)
-    }
+    manifest_spec = {"image": "{}:{}".format(name, tag)}
     src_images = []
 
     for img in image:
@@ -211,13 +205,9 @@ def publish_manifest(ctx, name, tag, image, signed_push=False):
             print("Impossible to parse platform format for: '{}'".format(img))
             raise Exit(code=1)
 
-        src_images.append({
-            "image": img_splitted[0],
-            "platform": {
-                "architecture": platform_splitted[1],
-                "os": platform_splitted[0]
-            }
-        })
+        src_images.append(
+            {"image": img_splitted[0], "platform": {"architecture": platform_splitted[1], "os": platform_splitted[0]}}
+        )
     manifest_spec["manifests"] = src_images
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
@@ -256,10 +246,16 @@ def publish_manifest(ctx, name, tag, image, signed_push=False):
     finally:
         os.remove(temp_file_path)
 
+
 @task
 def delete(ctx, org, image, tag, token):
     print("Deleting {org}/{image}:{tag}".format(org=org, image=image, tag=tag))
-    ctx.run("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT {token}' &>/dev/null".format(org=org, image=image, tag=tag, token=token))
+    ctx.run(
+        "curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT {token}' &>/dev/null".format(
+            org=org, image=image, tag=tag, token=token
+        )
+    )
+
 
 @task
 def pull_base_images(ctx, dockerfile, signed_pull=True):

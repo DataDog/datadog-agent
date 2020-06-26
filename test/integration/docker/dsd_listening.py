@@ -14,14 +14,8 @@ COMMON_ENVIRONMENT = [
 
 ENVIRONMENTS = {
     "udp": [],
-    "uds": [
-        "DD_DOGSTATSD_SOCKET=" + SOCKET_PATH,
-        "DD_DOGSTATSD_PORT=0"
-    ],
-    "both": [
-        "DD_DOGSTATSD_SOCKET=" + SOCKET_PATH,
-        "DD_DOGSTATSD_PORT=8125"
-    ]
+    "uds": ["DD_DOGSTATSD_SOCKET=" + SOCKET_PATH, "DD_DOGSTATSD_PORT=0"],
+    "both": ["DD_DOGSTATSD_SOCKET=" + SOCKET_PATH, "DD_DOGSTATSD_PORT=8125"],
 }
 
 containers = {}
@@ -34,12 +28,9 @@ def setUpModule():
 
     client = docker.from_env()
 
-    for name, env in ENVIRONMENTS.iteritems():
+    for name, env in ENVIRONMENTS.items():
         containers[name] = client.containers.run(
-            os.environ.get('DOCKER_IMAGE'),
-            detach=True,
-            environment=COMMON_ENVIRONMENT + env,
-            auto_remove=True
+            os.environ.get('DOCKER_IMAGE'), detach=True, environment=COMMON_ENVIRONMENT + env, auto_remove=True
         )
 
 
@@ -47,12 +38,12 @@ def tearDownModule():
     global containers
     global client
 
-    for _, container in containers.iteritems():
+    for _, container in containers.items():
         container.stop()
 
 
 def waitUntilListening(container, retries=20):
-    for x in range(0, retries):
+    for _ in range(0, retries):
         out = container.exec_run(cmd="netstat -a").output
         if ":8125" in out or SOCKET_PATH in out:
             return True
@@ -81,7 +72,7 @@ class DSDStaticTest(unittest.TestCase):
             environment=COMMON_ENVIRONMENT,
             auto_remove=True,
             stdout=True,
-            command='sh -c "apk add --no-cache file && file /dogstatsd"'
+            command='sh -c "apk add --no-cache file && file /dogstatsd"',
         )
         self.assertIn("statically linked", fileOutput)
 
