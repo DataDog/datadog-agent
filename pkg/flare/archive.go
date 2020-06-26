@@ -331,8 +331,8 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 		return nil
 	})
 
-	// If the permsInfos map is empty we are on windows and don't need to add parent perms.
-	if len(permsInfos) != 0 && permsInfos != nil {
+	// The permsInfos map is empty when we cannot read the auth token.
+	if len(permsInfos) != 0 {
 		// Force path to be absolute for getting parent permissions.
 		absPath, err := filepath.Abs(logFileDir)
 		if err != nil {
@@ -738,7 +738,6 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 				if permsInfos != nil {
 					permsInfos.add(src)
 
-					// If we are not on windows
 					if len(permsInfos) != 0 {
 						absPath, err := filepath.Abs(filePath)
 						if err != nil {

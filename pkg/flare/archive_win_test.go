@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Test that addParentPerms does not loop on Windows.
 func TestAddParentPermsWindows(t *testing.T) {
 	assert := assert.New(t)
 
