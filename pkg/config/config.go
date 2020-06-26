@@ -597,6 +597,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
+	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
