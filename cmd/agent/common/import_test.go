@@ -69,6 +69,11 @@ func assertRelocation(t *testing.T, input, expectedOutput string) {
 }
 
 func TestImport(t *testing.T) {
+	integrations := []string{"cassandra", "kubelet", "mysql"}
+	testImport(t, integrations)
+}
+
+func testImport(t *testing.T, integrations []string) {
 	a6ConfDir, err := ioutil.TempDir("", "test_configuration_import")
 	require.NoError(t, err, "Could not create temp dir")
 	defer func() {
@@ -82,7 +87,6 @@ func TestImport(t *testing.T) {
 	assert.FileExists(t, path.Join(a6ConfDir, "datadog.yaml"), "datadog.yaml is missing")
 	validateSelectedParameters(t, path.Join(a6ConfDir, "datadog.yaml"), path.Join(a5ConfDir, "datadog.conf"))
 
-	integrations := []string{"cassandra", "docker", "kubelet", "mysql"}
 	// Check integrations import are correct
 	for _, i := range integrations {
 		assert.FileExists(t, path.Join(a6ConfDir, "conf.d", i+".d", "conf.yaml"), i+".d/conf.yaml is missing")
@@ -166,12 +170,12 @@ func toInt(val interface{}) interface{} {
 
 func assertYAMLEquality(t *testing.T, f1, f2 string) {
 	f1Bytes, err := ioutil.ReadFile(f1)
-	require.NoError(t, err, "Failed to read"+f1)
+	require.NoError(t, err, "Failed to read "+f1)
 	migratedContent := make(map[string]interface{})
 	yaml.Unmarshal(f1Bytes, migratedContent)
 
 	f2Bytes, err := ioutil.ReadFile(f2)
-	require.NoError(t, err, "Failed to read"+f2)
+	require.NoError(t, err, "Failed to read "+f2)
 	expectedContent := make(map[string]interface{})
 	yaml.Unmarshal(f2Bytes, expectedContent)
 
