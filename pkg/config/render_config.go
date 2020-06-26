@@ -51,7 +51,7 @@ func mkContext(buildType string) context {
 		Agent:             true,
 		Python:            true,
 		Metadata:          true,
-		Profiling:         true,
+		Profiling:         false, // NOTE: hidden for now
 		Dogstatsd:         true,
 		LogsAgent:         true,
 		JMX:               true,
