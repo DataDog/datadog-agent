@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -42,19 +43,6 @@ type Stats struct {
 var (
 	stateOk    = "ok"
 	stateError = "error"
-)
-
-const (
-	// AgentName is the default agent name
-	AgentName = "agent"
-	// DogStatsDStandAloneName stand-alone
-	DogStatsDStandAloneName = "dogstatsd"
-	// IotAgentName is the name for an IoT instance of the Agent
-	IotAgentName = "iot_agent"
-	// ClusterAgentName is the Cluster Agent name
-	ClusterAgentName = "cluster_agent"
-	// SecurityAgentName is the Security Agent name
-	SecurityAgentName = "security_agent"
 )
 
 func (s *Stats) add(stat int64) {
@@ -160,14 +148,14 @@ func init() {
 }
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(s serializer.MetricSerializer, hostname, agentName string) *BufferedAggregator {
-	return InitAggregatorWithFlushInterval(s, hostname, agentName, DefaultFlushInterval)
+func InitAggregator(s serializer.MetricSerializer, hostname string) *BufferedAggregator {
+	return InitAggregatorWithFlushInterval(s, hostname, DefaultFlushInterval)
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = NewBufferedAggregator(s, hostname, agentName, flushInterval)
+		aggregatorInstance = NewBufferedAggregator(s, hostname, flushInterval)
 		go aggregatorInstance.run()
 	})
 
@@ -220,11 +208,10 @@ type BufferedAggregator struct {
 	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
 	stopChan           chan struct{}
 	health             *health.Handle
-	agentName          string // Name of the agent for telemetry metrics (agent / cluster-agent)
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 
 	aggregator := &BufferedAggregator{
@@ -250,7 +237,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 		hostnameUpdateDone: make(chan struct{}),
 		stopChan:           make(chan struct{}),
 		health:             health.RegisterLiveness("aggregator"),
-		agentName:          agentName,
 	}
 
 	return aggregator
@@ -292,7 +278,7 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 // AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
 func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
 	metric := &metrics.MetricSample{
-		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
+		Name:       fmt.Sprintf("datadog.%s.started", flavor.GetFlavor()),
 		Value:      1,
 		Tags:       []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:       agg.hostname,
@@ -460,7 +446,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
 	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
 	series = append(series, &metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
@@ -470,7 +456,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series = append(series, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,

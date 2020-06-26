@@ -194,6 +194,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip diagnose: %s", err)
 	}
 
+	err = zipRegistryJSON(tempDir, hostname)
+	if err != nil {
+		log.Warnf("Could not zip registry.json: %s", err)
+	}
+
 	err = zipSecrets(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip secrets: %s", err)
@@ -520,6 +525,30 @@ func zipDiagnose(tempDir, hostname string) error {
 	defer w.Close()
 
 	_, err = w.Write(b.Bytes())
+	return err
+}
+
+func zipRegistryJSON(tempDir, hostname string) error {
+	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
+	original, err := os.Open(originalPath)
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
+	err = ensureParentDirsExist(zippedPath)
+	if err != nil {
+		return err
+	}
+
+	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer zipped.Close()
+
+	_, err = io.Copy(zipped, original)
 	return err
 }
 
