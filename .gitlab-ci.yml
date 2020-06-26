@@ -2719,9 +2719,6 @@ docker_build_agent7_windows1809:
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-  after_script:
-    - docker image prune -f # Dangling images
-    - docker builder prune -a -f # Build cache
 
 docker_build_agent7_windows1809_jmx:
   rules:
@@ -2748,9 +2745,6 @@ docker_build_agent7_windows1809_jmx:
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-  after_script:
-    - docker image prune -f # Dangling images
-    - docker builder prune -a -f # Build cache
 
 # build agent7_windows image
 docker_build_agent7_windows1909:
@@ -2778,9 +2772,6 @@ docker_build_agent7_windows1909:
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-  after_script:
-    - docker image prune -f # Dangling images
-    - docker builder prune -a -f # Build cache
 
 docker_build_agent7_windows1909_jmx:
   rules:
@@ -2807,9 +2798,6 @@ docker_build_agent7_windows1909_jmx:
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-  after_script:
-    - docker image prune -f # Dangling images
-    - docker builder prune -a -f # Build cache
 
 # build the cluster-agent image
 build_cluster_agent_amd64:
