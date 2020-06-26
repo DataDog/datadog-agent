@@ -235,7 +235,7 @@ build_libbcc_arm64:
   stage: deps_fetch
   needs: ["fail_on_non_triggered_tag"]
   script:
-    - inv -e deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
@@ -334,7 +334,6 @@ run_tests_windows-x86:
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
-    - inv -e deps --verbose --no-dep-ensure --no-bootstrap --integrations-version "$INTEGRATIONS_VERSION"
 
 # run tests for deb-x64
 run_tests_deb-x64-py2:
@@ -678,7 +677,7 @@ run_dogstatsd_arm_size_test:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
     - cd $SRC_PATH
-    - inv -e deps --no-checks --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
     - mkdir -p /opt/datadog-agent/embedded
@@ -1107,7 +1106,6 @@ agent_suse-x64-a7:
   before_script:
     - *retrieve_linux_go_deps
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - inv -e deps --no-checks --verbose --dep-vendor-only
   <<: *agent_build_common_suse_rpm
 
 iot_agent_suse-x64:
@@ -1342,7 +1340,7 @@ agent_android_apk:
     - echo running android before_script
     - cd $SRC_PATH
     - python3 -m pip install -r requirements.txt
-    - inv -e deps --android --dep-vendor-only --no-checks
+    - inv -e deps --android --dep-vendor-only
     # Some Android license has changed, we have to accept the new version.
     # But on top of that, there is a bug in sdkmanager not updating correctly
     # the existing license, so, we have to manually accept the new license.
