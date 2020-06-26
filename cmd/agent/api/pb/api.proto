@@ -16,8 +16,7 @@ service Agent {
 
 message HostnameRequest {}
 
-// The response message containing the greetings
+// The response message containing the requested hostname
 message HostnameReply {
     string hostname = 1;
 }
-
