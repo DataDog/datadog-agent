@@ -135,7 +135,6 @@ func New() *AgentConfig {
 
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,
-		ConnectionLimit: 2000,
 		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
 		StatsWriter:             new(WriterConfig),
