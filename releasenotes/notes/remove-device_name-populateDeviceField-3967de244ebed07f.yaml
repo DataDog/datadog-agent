@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Removed consideration of the ``device_name`` tag from the populateDeviceField logic in series.
+    The ``device_name`` tag is not used anymore to populate the ``Device`` field of a series. Only the ``device`` tag is considered.
