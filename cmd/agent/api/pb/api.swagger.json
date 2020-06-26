@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "cmd/agent/api/pb/api.proto",
+    "title": "api.proto",
     "version": "version not set"
   },
   "consumes": [
@@ -27,32 +27,6 @@
           "Agent"
         ]
       }
-    },
-    "/v1/grpc/tags": {
-      "post": {
-        "operationId": "GetTags",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/pbTagReply"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/pbTagRequest"
-            }
-          }
-        ],
-        "tags": [
-          "Agent"
-        ]
-      }
     }
   },
   "definitions": {
@@ -64,27 +38,6 @@
         }
       },
       "title": "The response message containing the greetings"
-    },
-    "pbTagReply": {
-      "type": "object",
-      "properties": {
-        "tags": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "title": "The response message containing the greetings"
-    },
-    "pbTagRequest": {
-      "type": "object",
-      "properties": {
-        "entity": {
-          "type": "string"
-        }
-      },
-      "description": "The request message containing the user's name."
     }
   }
 }
