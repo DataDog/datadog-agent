@@ -6,9 +6,9 @@
 
 static inline __attribute__((always_inline))
 int get_cgroup_name(char *buf, size_t sz) {
-    struct task_struct *cur_tskd = (struct task_struct *)bpf_get_current_task();
+    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
     struct css_set *css_set;
-    if (!bpf_probe_read(&css_set, sizeof(css_set), &cur_tskd->cgroups)) {
+    if (!bpf_probe_read(&css_set, sizeof(css_set), &cur_tsk->cgroups)) {
       struct cgroup_subsys_state *css;
       // TODO: Do not arbitrarily pick the first subsystem
       if (!bpf_probe_read(&css, sizeof(css), &css_set->subsys[0])) {
