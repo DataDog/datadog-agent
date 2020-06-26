@@ -216,6 +216,7 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"display_container_name:dd-agent_dd-agent-rc-qd876",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -255,6 +256,7 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"display_container_name:dd-agent_dd-agent-rc-qd876",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -289,6 +291,7 @@ func TestParsePods(t *testing.T) {
 						"pod_name:dd-agent-rc-qd876",
 					},
 					HighCardTags: []string{},
+					StandardTags: []string{},
 				},
 				{
 					Source: "kubelet",
@@ -309,6 +312,7 @@ func TestParsePods(t *testing.T) {
 						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 						"display_container_name:dd-agent_dd-agent-rc-qd876",
 					},
+					StandardTags: []string{},
 				},
 				{
 					Source: "kubelet",
@@ -329,6 +333,7 @@ func TestParsePods(t *testing.T) {
 						"container_id:ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 						"display_container_name:filter_dd-agent-rc-qd876",
 					},
+					StandardTags: []string{},
 				},
 			},
 		},
@@ -362,6 +367,7 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -396,6 +402,7 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -430,6 +437,7 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -472,6 +480,7 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -523,6 +532,7 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -576,6 +586,11 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
 				},
+				StandardTags: []string{
+					"env:production",
+					"service:dd-agent",
+					"version:1.1.0",
+				},
 			}},
 		},
 		{
@@ -628,6 +643,11 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
+				},
+				StandardTags: []string{
+					"env:production",
+					"service:dd-agent",
+					"version:1.1.0",
 				},
 			}},
 		},
@@ -687,6 +707,13 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
 				},
+				StandardTags: []string{
+					"env:production",
+					"service:dd-agent",
+					"service:pod-service",
+					"version:1.1.0",
+					"version:1.2.0",
+				},
 			}},
 		},
 		{
@@ -737,6 +764,11 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
 				},
+				StandardTags: []string{
+					"env:production",
+					"service:dd-agent",
+					"version:1.1.0",
+				},
 			}},
 		},
 		{
@@ -766,6 +798,7 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -803,6 +836,7 @@ func TestParsePods(t *testing.T) {
 					"display_container_name:redis-master_redis-master-bpnn6",
 					"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -844,6 +878,7 @@ func TestParsePods(t *testing.T) {
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
+				StandardTags:         []string{},
 			}},
 		}, {
 			desc: "cronjob",
@@ -879,6 +914,7 @@ func TestParsePods(t *testing.T) {
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"display_container_name:dd-agent_hello-1562187720-xzbzh",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -916,6 +952,7 @@ func TestParsePods(t *testing.T) {
 					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
 					"display_container_name:cassandra_cassandra-0",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -954,6 +991,7 @@ func TestParsePods(t *testing.T) {
 					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
 					"display_container_name:cassandra_cassandra-0",
 				},
+				StandardTags: []string{},
 			}},
 		},
 		{
@@ -988,6 +1026,7 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
+				StandardTags: []string{},
 			}},
 		},
 	} {

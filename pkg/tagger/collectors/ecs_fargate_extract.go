@@ -32,13 +32,14 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 	c.doOnceOrchScope.Do(func() {
 		tags := utils.NewTagList()
 		tags.AddOrchestrator("task_arn", meta.TaskARN)
-		low, orch, high := tags.Compute()
+		low, orch, high, standard := tags.Compute()
 		info := &TagInfo{
 			Source:               ecsFargateCollectorName,
 			Entity:               OrchestratorScopeEntityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
+			StandardTags:         standard,
 		}
 		output = append(output, info)
 	})
@@ -94,11 +95,11 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			for labelName, labelValue := range ctr.Labels {
 				switch labelName {
 				case dockerLabelEnv:
-					tags.AddLow(tagKeyEnv, labelValue)
+					tags.AddStandard(tagKeyEnv, labelValue)
 				case dockerLabelVersion:
-					tags.AddLow(tagKeyVersion, labelValue)
+					tags.AddStandard(tagKeyVersion, labelValue)
 				case dockerLabelService:
-					tags.AddLow(tagKeyService, labelValue)
+					tags.AddStandard(tagKeyService, labelValue)
 				}
 
 				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
@@ -106,13 +107,14 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 				}
 			}
 
-			low, orch, high := tags.Compute()
+			low, orch, high, standard := tags.Compute()
 			info := &TagInfo{
 				Source:               ecsFargateCollectorName,
 				Entity:               containers.BuildTaggerEntityName(ctr.DockerID),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
+				StandardTags:         standard,
 			}
 			output = append(output, info)
 		}

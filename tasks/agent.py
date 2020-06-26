@@ -124,8 +124,6 @@ def build(
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    agent_flavor = "iot_agent" if iot else "agent"
-
     ldflags, gcflags, env = get_build_flags(
         ctx,
         embedded_path=embedded_path,
@@ -135,7 +133,6 @@ def build(
         major_version=major_version,
         python_runtimes=python_runtimes,
         arch=arch,
-        agent_flavor=agent_flavor,
     )
 
     if not sys.platform.startswith('linux'):
@@ -191,7 +188,7 @@ def build(
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
+    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
@@ -201,6 +198,7 @@ def build(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
+        "flavor": "iot-agent" if iot else "agent",
     }
     ctx.run(cmd.format(**args), env=env)
 

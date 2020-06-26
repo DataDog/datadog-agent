@@ -796,8 +796,8 @@ int kprobe__tcp_get_info(struct pt_regs* ctx) {
         return 0;
     }
 
+    status->tcp_info_kprobe_status = 1;
     guess_offsets(status, sk);
-
     return 0;
 }
 

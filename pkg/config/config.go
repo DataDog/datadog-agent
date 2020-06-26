@@ -58,18 +58,9 @@ var (
 	proxies *Proxy
 )
 
-//Values for AgentFlavor below
-const (
-	DefaultAgentFlavor = "agent"
-	IotAgentFlavor     = "iot_agent"
-	ClusterAgentFlavor = "cluster_agent"
-	DogstatsdFlavor    = "dogstatsd"
-)
-
 // Variables to initialize at build time
 var (
 	DefaultPython string
-	AgentFlavor   = DefaultAgentFlavor
 
 	// ForceDefaultPython has its value set to true at compile time if we should ignore
 	// the Python version set in the configuration and use `DefaultPython` instead.
@@ -179,7 +170,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
-	config.BindEnvAndSetDefault("iot_host", AgentFlavor == IotAgentFlavor)
+
+	// overridden in IoT Agent main
+	config.BindEnvAndSetDefault("iot_host", false)
 
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
@@ -670,6 +663,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.closed_channel_size")
 	config.SetKnown("system_probe_config.dns_timeout_in_s")
 	config.SetKnown("system_probe_config.collect_dns_stats")
+	config.SetKnown("system_probe_config.offset_guess_threshold")
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
 

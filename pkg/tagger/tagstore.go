@@ -19,6 +19,7 @@ type entityTags struct {
 	lowCardTags          map[string][]string
 	orchestratorCardTags map[string][]string
 	highCardTags         map[string][]string
+	standardTags         map[string][]string
 	cacheValid           bool
 	cachedSource         []string
 	cachedAll            []string // Low + orchestrator + high
@@ -69,6 +70,7 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 			lowCardTags:          make(map[string][]string),
 			orchestratorCardTags: make(map[string][]string),
 			highCardTags:         make(map[string][]string),
+			standardTags:         make(map[string][]string),
 		}
 		s.store[info.Entity] = storedTags
 	}
@@ -86,6 +88,7 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
 	storedTags.orchestratorCardTags[info.Source] = info.OrchestratorCardTags
 	storedTags.highCardTags[info.Source] = info.HighCardTags
+	storedTags.standardTags[info.Source] = info.StandardTags
 	storedTags.cacheValid = false
 
 	return nil
@@ -143,6 +146,27 @@ func (s *tagStore) lookup(entity string, cardinality collectors.TagCardinality) 
 		return nil, nil, ""
 	}
 	return storedTags.get(cardinality)
+}
+
+// lookupStandard returns the standard tags recorded for a given entity
+func (s *tagStore) lookupStandard(entity string) ([]string, error) {
+	s.storeMutex.RLock()
+	defer s.storeMutex.RUnlock()
+	storedTags, present := s.store[entity]
+	if present == false {
+		return nil, fmt.Errorf("entity %s not found", entity)
+	}
+	return storedTags.getStandard(), nil
+}
+
+func (e *entityTags) getStandard() []string {
+	e.RLock()
+	defer e.RUnlock()
+	tags := []string{}
+	for _, t := range e.standardTags {
+		tags = append(tags, t...)
+	}
+	return tags
 }
 
 type tagPriority struct {

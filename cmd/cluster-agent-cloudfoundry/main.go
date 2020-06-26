@@ -17,10 +17,13 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/app"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func main() {
+	flavor.SetFlavor(flavor.ClusterAgent)
+
 	var returnCode int
 	if err := app.ClusterAgentCmd.Execute(); err != nil {
 		log.Error(err)
