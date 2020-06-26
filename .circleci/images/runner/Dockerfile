@@ -5,8 +5,8 @@ RUN set -ex \
     && apt-get update && apt-get install -y --no-install-recommends \
         gnupg ca-certificates \
         gcc g++ make git ssh curl pkg-config file \
-        python-dev python3-setuptools \
-        python3.7-dev python3-distutils python3-pip python3-yaml \
+        python3-dev python3-setuptools \
+        python3-distutils python3-pip python3-yaml \
         libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev \
         doxygen graphviz
 
