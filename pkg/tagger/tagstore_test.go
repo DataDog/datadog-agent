@@ -93,6 +93,30 @@ func (s *StoreTestSuite) TestLookup() {
 	assert.Equal(s.T(), "a8db65bfc184cd6d", hashHigh)
 }
 
+func (s *StoreTestSuite) TestLookupStandard() {
+	s.store.processTagInfo(&collectors.TagInfo{
+		Source:       "source1",
+		Entity:       "test",
+		LowCardTags:  []string{"tag", "env:dev"},
+		StandardTags: []string{"env:dev"},
+	})
+	s.store.processTagInfo(&collectors.TagInfo{
+		Source:       "source2",
+		Entity:       "test",
+		LowCardTags:  []string{"tag", "service:foo"},
+		StandardTags: []string{"service:foo"},
+	})
+
+	standard, err := s.store.lookupStandard("test")
+	assert.Nil(s.T(), err)
+	assert.Len(s.T(), standard, 2)
+	assert.Contains(s.T(), standard, "env:dev")
+	assert.Contains(s.T(), standard, "service:foo")
+
+	_, err = s.store.lookupStandard("not found")
+	assert.NotNil(s.T(), err)
+}
+
 func (s *StoreTestSuite) TestLookupNotPresent() {
 	tags, sources, _ := s.store.lookup("test", collectors.LowCardinality)
 	assert.Nil(s.T(), tags)

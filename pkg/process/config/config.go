@@ -91,6 +91,7 @@ type AgentConfig struct {
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
+	OffsetGuessThreshold           uint64
 
 	// DNS stats configuration
 	CollectDNSStats bool
@@ -132,6 +133,7 @@ const (
 	maxMessageBatch              = 100
 	maxConnsMessageBatch         = 1000
 	defaultMaxTrackedConnections = 65536
+	maxOffsetThreshold           = 3000
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -207,6 +209,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ClosedChannelSize:     500,
 		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
 		ConntrackRateLimit:    500,
+		OffsetGuessThreshold:  400,
 
 		// Check config
 		EnabledChecks: enabledChecks,

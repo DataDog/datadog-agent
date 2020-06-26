@@ -245,30 +245,38 @@ def deps(
     verbose=False,
     android=False,
     dep_vendor_only=False,
+    no_bootstrap=False,
     no_dep_ensure=False,
     integrations_version="nightly",
 ):
     """
     Setup Go dependencies
     """
-    deps = get_deps('deps')
-    order = deps.get("order", deps.keys())
-    for dependency in order:
-        tool = deps.get(dependency)
-        if not tool:
-            print("Malformed bootstrap JSON, dependency {} not found".format(dependency))
-            raise Exit(code=1)
-        print("processing checkout tool {}".format(dependency))
-        process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
+    if not no_bootstrap:
+        deps = get_deps('deps')
+        order = deps.get("order", deps.keys())
+        for dependency in order:
+            tool = deps.get(dependency)
+            if not tool:
+                print("Malformed bootstrap JSON, dependency {} not found".format(dependency))
+                raise Exit(code=1)
+            print("processing checkout tool {}".format(dependency))
+            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
 
-    order = deps.get("order", deps.keys())
-    for dependency in order:
-        tool = deps.get(dependency)
-        if tool.get('install', True):
-            print("processing get tool {}".format(dependency))
-            process_deps(
-                ctx, dependency, tool.get('version'), tool.get('type'), 'install', cmd=tool.get('cmd'), verbose=verbose
-            )
+        order = deps.get("order", deps.keys())
+        for dependency in order:
+            tool = deps.get(dependency)
+            if tool.get('install', True):
+                print("processing get tool {}".format(dependency))
+                process_deps(
+                    ctx,
+                    dependency,
+                    tool.get('version'),
+                    tool.get('type'),
+                    'install',
+                    cmd=tool.get('cmd'),
+                    verbose=verbose,
+                )
 
     if android:
         ndkhome = os.environ.get('ANDROID_NDK_HOME')

@@ -13,8 +13,14 @@ directory wrk_dir do
   recursive true
 end
 
-remote_file "#{wrk_dir}/install-script" do
-  source node['dd-agent-install-script']['install_script_url']
+if node['dd-agent-install-script']['agent_flavor'] == "datadog-dogstatsd"
+  cookbook_file "#{wrk_dir}/install-script" do
+    source "dogstatsd_install_script.sh"
+  end
+else
+  remote_file "#{wrk_dir}/install-script" do
+    source node['dd-agent-install-script']['install_script_url']
+  end
 end
 
 # apt-get update fails a LOT on our droplets, so ignore these failures

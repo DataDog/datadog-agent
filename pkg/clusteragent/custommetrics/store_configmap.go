@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -223,6 +225,6 @@ func setStoreStats(store *configMapStore) {
 		}
 	}
 
-	externalTotal.Set(valid, "true")
-	externalTotal.Set(invalid, "false")
+	externalTotal.Set(valid, "true", le.JoinLeaderValue)
+	externalTotal.Set(invalid, "false", le.JoinLeaderValue)
 }

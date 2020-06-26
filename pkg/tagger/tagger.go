@@ -284,6 +284,21 @@ IterCollectors:
 	return copyArray(computedTags), nil
 }
 
+// Standard returns standard tags for a given entity
+// It triggers a tagger fetch if the no tags are found
+func (t *Tagger) Standard(entity string) ([]string, error) {
+	if entity == "" {
+		return nil, fmt.Errorf("empty entity ID")
+	}
+	if hash := t.GetEntityHash(entity); hash == "" {
+		// entity not found yet in the tagger
+		// trigger tagger fetch operations
+		log.Debugf("Entity '%s' not found in tagger cache, will try to fetch it", entity)
+		_, _ = t.Tag(entity, collectors.LowCardinality)
+	}
+	return t.tagStore.lookupStandard(entity)
+}
+
 // List the content of the tagger
 func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
 	r := response.TaggerListResponse{
