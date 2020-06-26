@@ -40,6 +40,10 @@ func (t *runtimeTestSetting) Set(v interface{}) error {
 	return nil
 }
 
+func (t *runtimeTestSetting) Hidden() bool {
+	return false
+}
+
 func setupConf() config.Config {
 	conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	config.InitConfig(conf)

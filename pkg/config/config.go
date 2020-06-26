@@ -475,7 +475,7 @@ func InitConfig(config Config) {
 
 	// Profiling
 	config.BindEnvAndSetDefault("profiling.enabled", false)
-	config.BindEnv("profiling.profile_dd_url")
+	config.BindEnv("profiling.profile_dd_url", "") //nolint:errcheck
 
 	// Trace agent
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
