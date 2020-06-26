@@ -23,7 +23,6 @@ func main() {
 	flag.BoolVar(&opts.console, "console", false, "Run as console application rather than service")
 	flag.Parse()
 
-	//runAgent()
 	if !opts.console {
 		isIntSess, err := svc.IsAnInteractiveSession()
 		if err != nil {
