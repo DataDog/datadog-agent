@@ -311,16 +311,6 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
 
-	// If the permsInfos map is empty we are on windows and don't need to add parent perms.
-	if len(permsInfos) != 0 {
-		// Force path to be absolute for getting parent permissions.
-		absPath, err := filepath.Abs(logFileDir)
-		if err != nil {
-			log.Errorf("Error while getting absolute file path for parent directory: %v", err)
-		}
-		addParentPerms(absPath, permsInfos)
-	}
-
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
@@ -340,6 +330,16 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 		}
 		return nil
 	})
+
+	// If the permsInfos map is empty we are on windows and don't need to add parent perms.
+	if len(permsInfos) != 0 && permsInfos != nil {
+		// Force path to be absolute for getting parent permissions.
+		absPath, err := filepath.Abs(logFileDir)
+		if err != nil {
+			log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+		}
+		addParentPerms(absPath, permsInfos)
+	}
 
 	return err
 }
@@ -735,13 +735,17 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					return err
 				}
 
-				if len(permsInfos) != 0 {
+				if permsInfos != nil {
 					permsInfos.add(src)
-					absPath, err := filepath.Abs(filePath)
-					if err != nil {
-						log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+
+					// If we are not on windows
+					if len(permsInfos) != 0 {
+						absPath, err := filepath.Abs(filePath)
+						if err != nil {
+							log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+						}
+						addParentPerms(absPath, permsInfos)
 					}
-					addParentPerms(absPath, permsInfos)
 				}
 			}
 
