@@ -546,7 +546,26 @@ api_key:
     #
     # ad_identifier: snmp
 
+{{- if .Profiling -}}
+## @param profiling - custom object - optional
+## Enter specific configurations for profiling.
+## Uncomment this parameter and the one below to enable profiling.
+## See https://docs.datadoghq.com/tracing/profiling/
+#
+## NOTE: If enabled this option may incur in billing charges or other
+##       unexpected side-effects (ie. agent profiles showing with your
+##       services).
+#
+# profiling:
+#
+  ## @param enabled - boolean - optional - default: false
+  ## Enable profiling for the Agent process.
+  #
+  # enabled: false
+
+{{ end }}
 {{ end -}}
+
 {{- if .LogsAgent }}
 
 ##################################
