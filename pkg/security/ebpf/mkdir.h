@@ -6,9 +6,11 @@
 struct mkdir_event_t {
     struct event_t event;
     struct process_data_t process;
-    int           mode;
-    dev_t         dev;
+    int mode;
+    int mount_id;
     unsigned long inode;
+    int overlay_numlower;
+    int padding;
 };
 
 int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t mode) {
@@ -46,15 +48,14 @@ SYSCALL_KPROBE(mkdirat) {
     return trace__sys_mkdir(ctx, mode);
 }
 
-SEC("kprobe/vfs_mkdir")
-int kprobe__vfs_mkdir(struct pt_regs *ctx) {
+SEC("kprobe/security_path_mkdir")
+int kprobe__security_path_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
 
-    syscall->mkdir.dir = (struct inode *)PT_REGS_PARM1(ctx);
+    syscall->mkdir.dir = (struct path *)PT_REGS_PARM1(ctx);
     syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-
     return 0;
 }
 
@@ -63,18 +64,15 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
-    struct path_key_t path_key = get_dentry_key(syscall->mkdir.dentry);
+    struct path_key_t path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.dir);
     struct mkdir_event_t event = {
         .event.retval = retval,
         .event.type = EVENT_VFS_MKDIR,
         .event.timestamp = bpf_ktime_get_ns(),
         .mode = syscall->mkdir.mode,
-        .dev = path_key.dev,
+        .mount_id = path_key.mount_id,
         .inode = path_key.ino,
+        .overlay_numlower = get_overlay_numlower(syscall->mkdir.dentry),
     };
 
     fill_process_data(&event.process);

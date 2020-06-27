@@ -21,27 +21,27 @@ type DentryResolver struct {
 }
 
 type PathKey struct {
-	inode uint64
-	dev   uint32
+	inode   uint64
+	mountID uint32
 }
 
 func (p *PathKey) Write(buffer []byte) {
 	byteOrder.PutUint64(buffer[0:8], p.inode)
-	byteOrder.PutUint32(buffer[8:12], p.dev)
+	byteOrder.PutUint32(buffer[8:12], p.mountID)
 	byteOrder.PutUint32(buffer[12:16], 0)
 }
 
 func (p *PathKey) Read(buffer []byte) {
 	p.inode = byteOrder.Uint64(buffer[0:8])
-	p.dev = byteOrder.Uint32(buffer[8:12])
+	p.mountID = byteOrder.Uint32(buffer[8:12])
 }
 
 func (p *PathKey) IsNull() bool {
-	return p.inode == 0 && p.dev == 0
+	return p.inode == 0 && p.mountID == 0
 }
 
 func (p *PathKey) String() string {
-	return fmt.Sprintf("%x/%x", p.dev, p.inode)
+	return fmt.Sprintf("%x/%x", p.mountID, p.inode)
 }
 
 type PathValue struct {
@@ -49,10 +49,10 @@ type PathValue struct {
 	name   [256]byte
 }
 
-func (dr *DentryResolver) getName(dev uint32, inode uint64) (name string, err error) {
-	key := PathKey{dev: dev, inode: inode}
+func (dr *DentryResolver) getName(mountID uint32, inode uint64) (name string, err error) {
+	key := PathKey{mountID: mountID, inode: inode}
 	if key.IsNull() {
-		return "", fmt.Errorf("invalid inode/dev couple: %s", key.String())
+		return "", fmt.Errorf("invalid inode/mountID couple: %s", key.String())
 	}
 
 	keyBuffer := make([]byte, 16)
@@ -61,7 +61,7 @@ func (dr *DentryResolver) getName(dev uint32, inode uint64) (name string, err er
 	var nameRaw [256]byte
 
 	if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
-		return "", fmt.Errorf("unable to get filename for dev `%d` and inode `%d`", dev, inode)
+		return "", fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`", mountID, inode)
 	}
 
 	if err = binary.Read(bytes.NewBuffer(pathRaw[16:]), byteOrder, &nameRaw); err != nil {
@@ -71,17 +71,17 @@ func (dr *DentryResolver) getName(dev uint32, inode uint64) (name string, err er
 	return C.GoString((*C.char)(unsafe.Pointer(&nameRaw))), nil
 }
 
-func (dr *DentryResolver) GetName(dev uint32, inode uint64) string {
-	name, _ := dr.getName(dev, inode)
+func (dr *DentryResolver) GetName(mountID uint32, inode uint64) string {
+	name, _ := dr.getName(mountID, inode)
 	return name
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) resolve(dev uint32, inode uint64) (filename string, err error) {
+func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (filename string, err error) {
 	// Don't resolve path if pathnameKey isn't valid
-	key := PathKey{dev: dev, inode: inode}
+	key := PathKey{mountID: mountID, inode: inode}
 	if key.IsNull() {
-		return "", fmt.Errorf("invalid inode/dev couple: %s", key.String())
+		return "", fmt.Errorf("invalid inode/mountID couple: %s", key.String())
 	}
 
 	keyBuffer := make([]byte, 16)
@@ -130,8 +130,8 @@ func (dr *DentryResolver) resolve(dev uint32, inode uint64) (filename string, er
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) Resolve(dev uint32, inode uint64) string {
-	path, _ := dr.resolve(dev, inode)
+func (dr *DentryResolver) Resolve(mountID uint32, inode uint64) string {
+	path, _ := dr.resolve(mountID, inode)
 	return path
 }
 

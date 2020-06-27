@@ -2,13 +2,10 @@ package probe
 
 import (
 	"fmt"
-	"os"
-	"path"
-	"syscall"
-
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/pkg/errors"
+	"path"
 )
 
 // OpenTables - eBPF tables used by open's kProbes

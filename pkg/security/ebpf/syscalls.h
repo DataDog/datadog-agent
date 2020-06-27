@@ -19,31 +19,36 @@ struct syscall_cache_t {
         struct {
             int flags;
             umode_t mode;
+            struct path *dir;
             struct dentry *dentry;
         } open;
 
         struct {
             umode_t mode;
-            struct inode *dir;
+            struct path *dir;
             struct dentry *dentry;
         } mkdir;
 
         struct {
             struct path_key_t path_key;
+            int overlay_numlower;
         } unlink;
 
         struct {
             struct path_key_t path_key;
+            int overlay_numlower;
         } rmdir;
 
         struct {
-            struct inode *src_dir;
+            struct path *src_dir;
             struct dentry *src_dentry;
             struct path_key_t random_key;
+            int src_overlay_numlower;
         } rename;
 
         struct {
             struct dentry *dentry;
+            struct path *path;
             union {
                 umode_t mode;
                 struct {

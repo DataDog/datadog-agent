@@ -101,6 +101,15 @@ var AllKProbes = []*KProbe{
 		},
 	},
 	{
+		KProbe: &eprobe.KProbe{
+			Name:      "chmod_common",
+			EntryFunc: "kprobe/chmod_common",
+		},
+		EventTypes: map[string]Capabilities{
+			"chmod": Capabilities{},
+		},
+	},
+	{
 		KProbe: syscallKprobe("chmod"),
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
@@ -116,6 +125,15 @@ var AllKProbes = []*KProbe{
 		KProbe: syscallKprobe("fchmodat"),
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
+		},
+	},
+	{
+		KProbe: &eprobe.KProbe{
+			Name:      "chown_common",
+			EntryFunc: "kprobe/chown_common",
+		},
+		EventTypes: map[string]Capabilities{
+			"chown": Capabilities{},
 		},
 	},
 	{
@@ -143,6 +161,15 @@ var AllKProbes = []*KProbe{
 		},
 	},
 	{
+		KProbe: &eprobe.KProbe{
+			Name:      "utimes_common",
+			EntryFunc: "kprobe/utimes_common",
+		},
+		EventTypes: map[string]Capabilities{
+			"utimes": Capabilities{},
+		},
+	},
+	{
 		KProbe: syscallKprobe("utime"),
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
@@ -166,7 +193,6 @@ var AllKProbes = []*KProbe{
 			"utimes": Capabilities{},
 		},
 	},
-	// VFS
 	{
 		KProbe: syscallKprobe("mkdir"),
 		EventTypes: map[string]Capabilities{
@@ -181,17 +207,8 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "vfs_mkdir",
-			EntryFunc: "kprobe/vfs_mkdir",
-		},
-		EventTypes: map[string]Capabilities{
-			"mkdir": Capabilities{},
-		},
-	},
-	{
-		KProbe: &eprobe.KProbe{
-			Name:      "vfs_mkdir",
-			EntryFunc: "kprobe/vfs_mkdir",
+			Name:      "security_path_mkdir",
+			EntryFunc: "kprobe/security_path_mkdir",
 		},
 		EventTypes: map[string]Capabilities{
 			"mkdir": Capabilities{},
@@ -205,8 +222,8 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "vfs_rmdir",
-			EntryFunc: "kprobe/vfs_rmdir",
+			Name:      "security_path_rmdir",
+			EntryFunc: "kprobe/security_path_rmdir",
 		},
 		EventTypes: map[string]Capabilities{
 			"rmdir": Capabilities{},
@@ -226,8 +243,8 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "vfs_unlink",
-			EntryFunc: "kprobe/vfs_unlink",
+			Name:      "security_path_unlink",
+			EntryFunc: "kprobe/security_path_unlink",
 		},
 		EventTypes: map[string]Capabilities{
 			"unlink": Capabilities{},
@@ -253,8 +270,8 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "vfs_rename",
-			EntryFunc: "kprobe/vfs_rename",
+			Name:      "security_path_rename",
+			EntryFunc: "kprobe/security_path_rename",
 		},
 		EventTypes: map[string]Capabilities{
 			"rename": Capabilities{},

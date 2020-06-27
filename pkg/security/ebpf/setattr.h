@@ -9,7 +9,6 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    syscall->setattr.dentry = (struct dentry *)PT_REGS_PARM1(ctx);
     struct iattr *iattr = (struct iattr *)PT_REGS_PARM2(ctx);
     if (iattr != NULL) {
         int valid;
