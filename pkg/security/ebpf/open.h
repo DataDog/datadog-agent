@@ -61,13 +61,13 @@ struct bpf_map_def SEC("maps/open_process_inode_approvers") open_process_inode_a
 };
 
 struct open_event_t {
-    struct   event_t event;
-    struct   process_data_t process;
-    int           flags;
-    int           mode;
+    struct event_t event;
+    struct process_data_t process;
+    int flags;
+    int mode;
     unsigned long inode;
-    dev_t         dev;
-    u32           padding;
+    int mount_id;
+    int overlay_numlower;
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
@@ -120,16 +120,23 @@ SYSCALL_KPROBE(openat) {
     return trace__sys_openat(flags, mode);
 }
 
-int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *syscall) {
-    struct open_basename_t basename = {};
-    get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
-    
-    struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
-    if (filter) {
-#ifdef DEBUG
-        printk("kprobe/vfs_open basename %s approved\n", basename.value);
-#endif
-        return 1;
+SEC("kprobe/vfs_open")
+int kprobe__vfs_open(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
+
+    // NOTE(safchain) could be move only if pass_to_userspace == 1
+    syscall->open.dir = (struct path *)PT_REGS_PARM1(ctx);
+    syscall->open.dentry = get_path_dentry(syscall->open.dir);
+
+    // array key index 0
+    u32 ak0 = 0;
+
+    struct policy_t zero = {.mode = ACCEPT};
+    struct policy_t *policy = bpf_map_lookup_elem(&open_policy, &ak0);
+    if (!policy) {
+        policy = &zero;
     }
     return 0;
 }
@@ -240,12 +247,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
-    struct dentry *f_dentry = syscall->open.dentry;
-    struct path_key_t path_key = get_dentry_key(f_dentry);
+    struct path_key_t path_key = get_key(syscall->open.dentry, syscall->open.dir);
 
     struct open_event_t event = {
         .event.retval = retval,
@@ -253,12 +255,13 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         .event.timestamp = bpf_ktime_get_ns(),
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
-        .dev = path_key.dev,
+        .mount_id = path_key.mount_id,
         .inode = path_key.ino,
+        .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(f_dentry, path_key);
+    resolve_dentry(syscall->open.dentry, path_key);
 
     send_event(ctx, event);
 

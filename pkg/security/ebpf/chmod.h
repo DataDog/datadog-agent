@@ -11,9 +11,11 @@
 struct chmod_event_t {
     struct event_t event;
     struct process_data_t process;
-    int           mode;
-    dev_t         dev;
+    int mode;
+    int mount_id;
     unsigned long inode;
+    int overlay_numlower;
+    u32 padding;
 };
 
 int __attribute__((always_inline)) trace__sys_chmod(struct pt_regs *ctx, umode_t mode) {
@@ -61,23 +63,31 @@ SYSCALL_KPROBE(fchmodat) {
     return trace__sys_chmod(ctx, mode);
 }
 
+SEC("kprobe/chmod_common")
+int kprobe__chmod_common(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
+
+    syscall->setattr.path = (struct path *)PT_REGS_PARM1(ctx);
+    syscall->setattr.dentry = get_path_dentry(syscall->setattr.path);
+    return 0;
+}
+
 int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = pop_syscall();
     if (!syscall)
         return 0;
 
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
-    struct path_key_t path_key = get_dentry_key(syscall->setattr.dentry);
+    struct path_key_t path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
     struct chmod_event_t event = {
         .event.retval = retval,
         .event.type = EVENT_VFS_CHMOD,
         .event.timestamp = bpf_ktime_get_ns(),
         .mode = syscall->setattr.mode,
-        .dev = path_key.dev,
+        .mount_id = path_key.mount_id,
         .inode = path_key.ino,
+        .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
     };
 
     fill_process_data(&event.process);

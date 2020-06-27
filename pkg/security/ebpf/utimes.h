@@ -18,8 +18,10 @@ struct utime_event_t {
         long tv_usec;
     } atime, mtime;
     u32 padding;
-    dev_t         dev;
+    int mount_id;
     unsigned long inode;
+    int overlay_numlower;
+    u32 padding2;
 };
 
 int __attribute__((always_inline)) trace__sys_utimes() {
@@ -45,16 +47,23 @@ SYSCALL_KPROBE(futimensat) {
     return trace__sys_utimes();
 }
 
+SEC("kprobe/utimes_common")
+int kprobe__utimes_common(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
+
+    syscall->setattr.path = (struct path *)PT_REGS_PARM1(ctx);
+    syscall->setattr.dentry = get_path_dentry(syscall->setattr.path);
+    return 0;
+}
+
 int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = pop_syscall();
     if (!syscall)
         return 0;
 
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
-    struct path_key_t path_key = get_dentry_key(syscall->setattr.dentry);
+    struct path_key_t path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
     struct utime_event_t event = {
         .event.retval = retval,
         .event.type = EVENT_VFS_UTIME,
@@ -67,8 +76,9 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
             .tv_sec = syscall->setattr.mtime.tv_sec,
             .tv_usec = syscall->setattr.mtime.tv_nsec,
         },
-        .dev = path_key.dev,
+        .mount_id = path_key.mount_id,
         .inode = path_key.ino,
+        .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
     };
 
     fill_process_data(&event.process);
