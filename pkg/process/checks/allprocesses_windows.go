@@ -126,7 +126,14 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 				continue
 			}
 			cachedProcesses[pid] = cp
+		} else {
+			if err := cp.openProcHandle(pe32.Th32ProcessID); err != nil {
+				log.Debugf(" Could not reopen process handle for pid %v %v", pid, err)
+				continue
+			}
 		}
+		defer cp.close()
+
 		procHandle := cp.procHandle
 
 		var CPU windows.Rusage
@@ -290,17 +297,9 @@ type cachedProcess struct {
 }
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
-	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
-	// 0x10   is PROCESS_VM_READ
-	// defined in x/sys/windows
-	cp.procHandle, err = windows.OpenProcess(0x1010, false, uint32(pe32.Th32ProcessID))
+	err = cp.openProcHandle(pe32.Th32ProcessID)
 	if err != nil {
-		log.Debugf("Couldn't open process with PROCESS_VM_READ %v %v", pe32.Th32ProcessID, err)
-		cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pe32.Th32ProcessID))
-		if err != nil {
-			log.Debugf("Couldn't open process %v %v", pe32.Th32ProcessID, err)
-			return err
-		}
+		return err;
 	}
 	var usererr error
 	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
@@ -319,6 +318,26 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	return
 }
 
+func (cp *cachedProcess) openProcHandle(pid uint32) (err error) {
+    // 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
+	// 0x10   is PROCESS_VM_READ
+	// defined in x/sys/windows
+
+	cp.procHandle, err = windows.OpenProcess(0x1010, false, uint32(pid))
+	if err != nil {
+		log.Debugf("Couldn't open process with PROCESS_VM_READ %v %v", pid, err)
+		cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pid))
+		if err != nil {
+			log.Debugf("Couldn't open process %v %v", pid, err)
+			return err
+		}
+	}
+	return
+}
 func (cp *cachedProcess) close() {
-	windows.CloseHandle(cp.procHandle)
+	if cp.procHandle != windows.Handle(0) {
+		windows.CloseHandle(cp.procHandle)
+		cp.procHandle = windows.Handle(0)
+	}
+	return
 }
