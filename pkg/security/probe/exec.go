@@ -21,7 +21,25 @@ var ExecKProbes = []*KProbe{
 	{
 		KProbe: &eprobe.KProbe{
 			Name:      "sys_execveat",
-			EntryFunc: "kprobe/" + getSyscallFnName("execve"),
+			EntryFunc: "kprobe/" + getSyscallFnName("execveat"),
+		},
+		EventTypes: map[string]Capabilities{
+			"*": Capabilities{},
+		},
+	},
+	{
+		KProbe: &eprobe.KProbe{
+			Name:     "sys_fork",
+			ExitFunc: "kretprobe/_do_fork",
+		},
+		EventTypes: map[string]Capabilities{
+			"*": Capabilities{},
+		},
+	},
+	{
+		KProbe: &eprobe.KProbe{
+			Name:     "sys_exit",
+			ExitFunc: "kprobe/do_exit",
 		},
 		EventTypes: map[string]Capabilities{
 			"*": Capabilities{},

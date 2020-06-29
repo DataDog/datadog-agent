@@ -552,6 +552,39 @@ func (p *Probe) SetFilterPolicy(tableName string, mode PolicyMode, flags PolicyF
 	return table.Set(key, policy.Bytes())
 }
 
+func (p *Probe) setKProbePolicy(kprobe *KProbe, rs *eval.RuleSet, eventType string, capabilities Capabilities) error {
+	if !p.enableFilters {
+		if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
+	if err != nil {
+		log.Infof("Setting in-kernel filter policy to `pass` for `%s`: no approver", eventType)
+		if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if err := kprobe.OnNewApprovers(p, approvers); err != nil {
+		log.Errorf("Error while adding approvers set in-kernel policy to `pass` for `%s`: %s", eventType, err)
+		if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	log.Infof("Setting in-kernel filter policy to `deny` for `%s`", eventType)
+	if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_DENY, capabilities.GetFlags()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 	already := make(map[*KProbe]bool)
 
@@ -565,8 +598,9 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 		}
 
 		for eventType, capabilities := range kprobe.EventTypes {
-			if rs.HasRulesForEventType(eventType) {
+			if eventType == "*" || rs.HasRulesForEventType(eventType) {
 				if _, ok := already[kprobe]; !ok {
+					log.Infof("Register kProbe `%s`", kprobe.KProbe.Name)
 					if err := p.Module.RegisterKprobe(kprobe.KProbe); err != nil {
 						return err
 					}
@@ -577,32 +611,7 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 					continue
 				}
 
-				if !p.enableFilters {
-					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
-						return err
-					}
-					continue
-				}
-
-				approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
-				if err != nil {
-					log.Infof("Setting in-kernel filter policy to `pass` for `%s`: no approver", eventType)
-					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
-						return err
-					}
-					continue
-				}
-
-				if err := kprobe.OnNewApprovers(p, approvers); err != nil {
-					log.Errorf("Error while adding approvers set in-kernel policy to `pass` for `%s`: %s", eventType, err)
-					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
-						return err
-					}
-
-					continue
-				}
-
-				if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_DENY, capabilities.GetFlags()); err != nil {
+				if err := p.setKProbePolicy(kprobe, rs, eventType, capabilities); err != nil {
 					return err
 				}
 			}
