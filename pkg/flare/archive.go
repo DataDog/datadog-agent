@@ -289,11 +289,14 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 	parent := filepath.Dir(dirPath)
+
+	// We do not enter the loop when `filepath.Dir` returns ".", meaning an empty directory was passed.
 	for parent != "." {
-		if parent == "/" {
+		if len(filepath.Dir(parent)) == len(parent) {
 			permsInfos.add(parent)
 			break
 		}
+
 		permsInfos.add(parent)
 		parent = filepath.Dir(parent)
 	}
@@ -301,10 +304,6 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
-
-	if permsInfos != nil {
-		addParentPerms(logFileDir, permsInfos)
-	}
 
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
@@ -325,6 +324,16 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 		}
 		return nil
 	})
+
+	// The permsInfos map is empty when we cannot read the auth token.
+	if len(permsInfos) != 0 {
+		// Force path to be absolute for getting parent permissions.
+		absPath, err := filepath.Abs(logFileDir)
+		if err != nil {
+			log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+		}
+		addParentPerms(absPath, permsInfos)
+	}
 
 	return err
 }
@@ -746,7 +755,14 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 				if permsInfos != nil {
 					permsInfos.add(src)
-					addParentPerms(filePath, permsInfos)
+
+					if len(permsInfos) != 0 {
+						absPath, err := filepath.Abs(filePath)
+						if err != nil {
+							log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+						}
+						addParentPerms(absPath, permsInfos)
+					}
 				}
 			}
 
