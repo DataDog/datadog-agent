@@ -243,7 +243,7 @@ jobs:
           name: Install python deps & clang-format
           command: |
             brew install clang-format
-            pip install -r requirements.txt
+            python3 -m pip install -r requirements.txt
       - run:
           name: Compile rtloader
           command: |
