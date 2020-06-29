@@ -17,12 +17,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestExtractPodMessage(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
+
+	parseRequests := resource.MustParse("250M")
+	parseLimits := resource.MustParse("550M")
 	tests := map[string]struct {
 		input    v1.Pod
 		expected model.Pod
@@ -305,6 +309,80 @@ func TestExtractPodMessage(t *testing.T) {
 					},
 					{
 						Name: "bazName",
+					},
+				},
+			},
+		},
+		"partial pod with resourceRequirements": {
+			input: v1.Pod{
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name: "aContainer",
+							Resources: v1.ResourceRequirements{
+								Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("550M")},
+								Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("150M")},
+							},
+						},
+					},
+				},
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:   v1.PodReady,
+							Status: v1.ConditionTrue,
+						},
+					},
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							Name:         "barName",
+							Image:        "barImage",
+							ContainerID:  "docker://barID",
+							RestartCount: 10,
+							State: v1.ContainerState{
+								Waiting: &v1.ContainerStateWaiting{
+									Reason:  "chillin",
+									Message: "testin",
+								},
+							},
+						},
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pod",
+					Namespace: "namespace",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							UID: types.UID("1234567890"),
+						},
+					},
+				},
+			}, expected: model.Pod{
+				Metadata: &model.Metadata{
+					Name:      "barName",
+					Namespace: "namespace",
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Uid: "1234567890",
+						},
+					},
+				},
+				RestartCount: 0,
+				Status:       "chillin",
+				ContainerStatuses: []*model.ContainerStatus{
+					{
+						State:        "Waiting",
+						Message:      "chillin testin",
+						RestartCount: 10,
+						Name:         "barName",
+						ContainerID:  "docker://barID",
+					},
+				},
+				ResourceRequirements: []*model.ResourceRequirements{
+					{
+						Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
+						Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
+						Name:     "aContainer",
 					},
 				},
 			},
