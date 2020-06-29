@@ -34,7 +34,7 @@ type Context struct {
 }
 
 func (c *Context) Logf(format string, v ...interface{}) {
-	log.Debugf(strings.Repeat("\t", c.evalDepth-1)+format, v...)
+	log.Tracef(strings.Repeat("\t", c.evalDepth-1)+format, v...)
 }
 
 var (
