@@ -64,6 +64,9 @@ const (
 	Into
 	Join
 
+	// Keyword indicates the token is a generic unspecified SQL keyword that is not an identifier
+	Keyword
+
 	// FilteredGroupable specifies that the given token has been discarded by one of the
 	// token filters and that it is groupable together with consecutive FilteredGroupable
 	// tokens.
@@ -108,21 +111,6 @@ func (tkn *SQLTokenizer) Reset(in string) {
 	tkn.pos = 0
 	tkn.lastChar = 0
 	tkn.err = nil
-}
-
-// keywords used to recognize string tokens
-var keywords = map[string]TokenKind{
-	"NULL":      Null,
-	"TRUE":      BooleanLiteral,
-	"FALSE":     BooleanLiteral,
-	"SAVEPOINT": Savepoint,
-	"LIMIT":     Limit,
-	"AS":        As,
-	"FROM":      From,
-	"UPDATE":    Update,
-	"INSERT":    Insert,
-	"INTO":      Into,
-	"JOIN":      Join,
 }
 
 // Err returns the last error that the tokenizer encountered, or nil.

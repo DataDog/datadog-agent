@@ -69,6 +69,10 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 			// and will continue to be discarded until we find the corresponding
 			// closing bracket counter-part. See GitHub issue DataDog/datadog-trace-agent#475.
 			return FilteredBracketedIdentifier, nil, nil
+		} else if token == '(' {
+			// This expression is a subquery and should not be filtered
+			// ex: WITH ids AS (SELECT id FROM mytable) ...
+			return token, buffer, nil
 		}
 		return Filtered, nil, nil
 	}
@@ -168,27 +172,6 @@ func (f *groupingFilter) Reset() {
 	f.groupMulti = 0
 }
 
-// ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
-// some elements such as comments and aliases and obfuscation attempts to hide sensitive information
-// in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	lesc := o.SQLLiteralEscapes()
-	tok := NewSQLTokenizer(in, lesc)
-	out, err := attemptObfuscation(tok)
-	if err != nil && tok.SeenEscape() {
-		// If the tokenizer failed, but saw an escape character in the process,
-		// try again treating escapes differently
-		tok = NewSQLTokenizer(in, !lesc)
-		if out, err2 := attemptObfuscation(tok); err2 == nil {
-			// If the second attempt succeeded, change the default behavior so that
-			// on the next run we get it right in the first run.
-			o.SetSQLLiteralEscapes(!lesc)
-			return out, nil
-		}
-	}
-	return out, err
-}
-
 // tableFinderFilter is a filter which attempts to identify the table name as it goes through each
 // token in a query.
 type tableFinderFilter struct {
@@ -245,6 +228,46 @@ func (f *tableFinderFilter) Reset() {
 	f.csv.Reset()
 }
 
+// normalizeFilter applies normalization rules to transform queries to the formatted form
+// ex: select * from foo; -> SELECT * FROM foo;
+type normalizeFilter struct{}
+
+func (f *normalizeFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
+	switch lastToken {
+	case '.':
+		// Pass through; this is a column or a digit and is nothing to be normalized
+		return token, buffer, nil
+	}
+	upper := bytes.ToUpper(buffer)
+	if keywordToken, isKeyword := keywords[string(upper)]; isKeyword {
+		return keywordToken, upper, nil
+	}
+	return token, buffer, nil
+}
+
+func (f *normalizeFilter) Reset() {}
+
+// ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
+// some elements such as comments and aliases and obfuscation attempts to hide sensitive information
+// in strings and numbers by redacting them.
+func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
+	lesc := o.SQLLiteralEscapes()
+	tok := NewSQLTokenizer(in, lesc)
+	out, err := attemptObfuscation(tok)
+	if err != nil && tok.SeenEscape() {
+		// If the tokenizer failed, but saw an escape character in the process,
+		// try again treating escapes differently
+		tok = NewSQLTokenizer(in, !lesc)
+		if out, err2 := attemptObfuscation(tok); err2 == nil {
+			// If the second attempt succeeded, change the default behavior so that
+			// on the next run we get it right in the first run.
+			o.SetSQLLiteralEscapes(!lesc)
+			return out, nil
+		}
+	}
+	return out, err
+}
+
 // ObfuscatedQuery specifies information about an obfuscated SQL query.
 type ObfuscatedQuery struct {
 	Query     string // the obfuscated SQL query
@@ -263,6 +286,8 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	if config.HasFeature("table_names") {
 		filters = append(filters, tableFinder)
 	}
+	// Apply normalization after collecting tables
+	filters = append(filters, &normalizeFilter{})
 	var (
 		out       bytes.Buffer
 		err       error
