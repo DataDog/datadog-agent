@@ -122,6 +122,12 @@ func (c *IOCheck) Run() error {
 			}
 			tagbuff.WriteString(inst)
 			tags := []string{tagbuff.String()}
+
+			if !driveLetterPattern.MatchString(inst) {
+				// if this is not a drive letter, add device_name to tags
+				tags = append(tags, "device_name:"+inst)
+			}
+
 			if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
 				val /= 1024
 			}
