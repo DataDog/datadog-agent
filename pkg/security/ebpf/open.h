@@ -60,15 +60,6 @@ struct bpf_map_def SEC("maps/open_process_inode_approvers") open_process_inode_a
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/open_process_inode_discarders") open_process_inode_discarders = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u64),
-    .value_size = sizeof(struct filter_t),
-    .max_entries = 256,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct open_event_t {
     struct   event_t event;
     struct   process_data_t process;
@@ -193,18 +184,6 @@ int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache
     return 0;
 }
 
-int __attribute__((always_inline)) discard_by_process_inode(struct syscall_cache_t *syscall) {
-    u64 inode = pid_inode(syscall->pid);
-    struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_discarders, &inode);
-    if (filter) {
-#ifdef DEBUG
-        printk("kprobe/vfs_open pid %d with inode %d discarded\n", syscall->pid, inode);
-#endif
-        return 1;
-    }
-    return 0;
-}
-
 int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
     // NOTE(safchain) could be move only if pass_to_userspace == 1
     syscall->open.dentry = get_path_dentry((struct path *)PT_REGS_PARM1(ctx));
@@ -226,10 +205,6 @@ int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, st
     } else {
         if ((syscall->policy.flags & BASENAME) > 0) {
             pass_to_userspace = !discard_by_basename(syscall);
-        }
-
-        if (pass_to_userspace && ((syscall->policy.flags & PROCESS_INODE))) {
-            pass_to_userspace = !discard_by_process_inode(syscall);
         }
 
         if (pass_to_userspace && ((syscall->policy.flags & FLAGS))) {

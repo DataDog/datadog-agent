@@ -17,6 +17,7 @@ const (
 	MODE_FLAG        PolicyFlag = 4
 	PARENT_NAME_FLAG PolicyFlag = 8
 	PROCESS_INODE    PolicyFlag = 16
+	PROCESS_NAME     PolicyFlag = 32
 
 	// need to be aligned with the kernel size
 	BASENAME_FILTER_SIZE = 32

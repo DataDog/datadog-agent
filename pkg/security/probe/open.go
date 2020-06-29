@@ -31,9 +31,6 @@ var OpenTables = []KTable{
 	{
 		Name: "open_process_inode_approvers",
 	},
-	{
-		Name: "open_process_inode_discarders",
-	},
 }
 
 // OpenKProbes - list of open's kProbes
@@ -131,7 +128,7 @@ var OpenKProbes = []*KProbe{
 				return handleBasenameFilters(probe, false, discarder.Value.(string))
 
 			case "open.filename":
-				return errors.New("open.filename discarders not supported")
+				return handleFilenameFilters(probe, false, discarder.Value.(string))
 
 			case "open.flags":
 				return handleFlagsFilters(probe, false, discarder.Value.(int))
@@ -146,6 +143,10 @@ var OpenKProbes = []*KProbe{
 }
 
 func handleProcessFilename(probe *Probe, approve bool, values ...string) error {
+	if !approve {
+		return errors.New("process.filename discarders not supported")
+	}
+
 	for _, value := range values {
 		fileinfo, err := os.Stat(value)
 		if err != nil {
@@ -155,15 +156,8 @@ func handleProcessFilename(probe *Probe, approve bool, values ...string) error {
 		key := Int64ToKey(int64(stat.Ino))
 
 		var kFilter Uint8KFilter
-		if approve {
-			table := probe.Table("open_process_inode_approvers")
-			err = table.Set(key, kFilter.Bytes())
-		} else {
-			table := probe.Table("open_process_inode_discarders")
-			err = table.Set(key, kFilter.Bytes())
-		}
-
-		if err != nil {
+		table := probe.Table("open_process_inode_approvers")
+		if err := table.Set(key, kFilter.Bytes()); err != nil {
 			return err
 		}
 	}
@@ -223,6 +217,10 @@ func handleBasenameFilters(probe *Probe, approve bool, values ...string) error {
 }
 
 func handleFilenameFilters(probe *Probe, approve bool, values ...string) error {
+	if !approve {
+		return errors.New("open.filename discarders not supported")
+	}
+
 	for _, value := range values {
 		basename := path.Base(value)
 		if err := handleBasenameFilter(probe, approve, basename); err != nil {
