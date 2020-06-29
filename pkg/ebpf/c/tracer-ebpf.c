@@ -52,7 +52,7 @@ struct bpf_map_def SEC("maps/conn_stats") conn_stats = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(conn_tuple_t),
     .value_size = sizeof(conn_stats_ts_t),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
+    .max_entries = 1024, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
     .namespace = "",
 };
@@ -64,7 +64,7 @@ struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(conn_tuple_t),
     .value_size = sizeof(tcp_stats_t),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
+    .max_entries = 1024, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
     .namespace = "",
 };
@@ -72,7 +72,7 @@ struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
 /* Will hold the tcp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
-struct bpf_map_def SEC("maps/tcp_close_events") tcp_close_event = {
+struct bpf_map_def SEC("maps/tcp_close_event") tcp_close_event = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
@@ -130,7 +130,7 @@ struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u16),
     .value_size = sizeof(__u8),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
+    .max_entries = 1024, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
     .namespace = "",
 };
@@ -143,7 +143,7 @@ struct bpf_map_def SEC("maps/udp_port_bindings") udp_port_bindings = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u16),
     .value_size = sizeof(__u8),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
+    .max_entries = 1024, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
     .namespace = "",
 };
@@ -649,6 +649,7 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
 
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
     if (status == NULL) {
+        log_debug("kprobe/tcp_sendmsg: no tracer status\n");
         return 0;
     }
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);

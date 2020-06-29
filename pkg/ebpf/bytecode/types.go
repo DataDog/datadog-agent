@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package ebpf
+package bytecode
 
 import "fmt"
 
@@ -70,33 +70,36 @@ const (
 
 	// SysBindRet is the kretprobe for bind().
 	SysBindRet KProbeName = "kretprobe/sys_bind"
+
+	// SocketDnsFilter is the socket probe for dns
+	SocketDnsFilter KProbeName = "socket/dns_filter"
 )
 
-// bpfMapName stores the name of the BPF maps storing statistics and other info
-type bpfMapName string
+// BPFMapName stores the name of the BPF maps storing statistics and other info
+type BPFMapName string
 
 const (
-	connMap            bpfMapName = "conn_stats"
-	tcpStatsMap        bpfMapName = "tcp_stats"
-	tcpCloseEventMap   bpfMapName = "tcp_close_events"
-	latestTimestampMap bpfMapName = "latest_ts"
-	tracerStatusMap    bpfMapName = "tracer_status"
-	portBindingsMap    bpfMapName = "port_bindings"
-	udpPortBindingsMap bpfMapName = "udp_port_bindings"
-	telemetryMap       bpfMapName = "telemetry"
-	configMap          bpfMapName = "config"
-	tcpCloseBatchMap   bpfMapName = "tcp_close_batch"
+	ConnMap            BPFMapName = "conn_stats"
+	TcpStatsMap        BPFMapName = "tcp_stats"
+	TcpCloseEventMap   BPFMapName = "tcp_close_event"
+	LatestTimestampMap BPFMapName = "latest_ts"
+	TracerStatusMap    BPFMapName = "tracer_status"
+	PortBindingsMap    BPFMapName = "port_bindings"
+	UdpPortBindingsMap BPFMapName = "udp_port_bindings"
+	TelemetryMap       BPFMapName = "telemetry"
+	ConfigMap          BPFMapName = "config"
+	TcpCloseBatchMap   BPFMapName = "tcp_close_batch"
 )
 
-// sectionName returns the sectionName for the given BPF map
-func (b bpfMapName) sectionName() string {
+// SectionName returns the SectionName for the given BPF map
+func (b BPFMapName) SectionName() string {
 	return fmt.Sprintf("maps/%s", b)
 }
 
 var (
-	// kprobeOverrides specifies a mapping between sections in our kprobe functions and
+	// KProbeOverrides specifies a mapping between sections in our kprobe functions and
 	// the actual eBPF function that it should bind to
-	kprobeOverrides = map[KProbeName]KProbeName{
+	KProbeOverrides = map[KProbeName]KProbeName{
 		TCPSendMsgPre410: TCPSendMsg,
 		UDPSendMsgPre410: UDPSendMsg,
 		UDPRecvMsgPre410: UDPRecvMsg,

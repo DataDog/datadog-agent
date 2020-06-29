@@ -25,8 +25,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/ebpf"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,42 +93,36 @@ func TestTracerExpvar(t *testing.T) {
 			"TruncatedPackets",
 		},
 		"kprobes": {
-			"PSysBindHits",
-			"PSysBindMisses",
-			"PSysSocketHits",
-			"PSysSocketMisses",
-			"PtcpCleanupRbufHits",
-			"PtcpCleanupRbufMisses",
-			"PtcpCloseHits",
-			"PtcpCloseMisses",
-			"PtcpGetInfoHits",
-			"PtcpGetInfoMisses",
-			"PtcpRetransmitSkbHits",
-			"PtcpRetransmitSkbMisses",
-			"PtcpSendmsgHits",
-			"PtcpSendmsgMisses",
-			"PtcpVConnectHits",
-			"PtcpVConnectMisses",
-			"PtcpVDestroySockHits",
-			"PtcpVDestroySockMisses",
-			"PudpDestroySockHits",
-			"PudpDestroySockMisses",
-			"PudpRecvmsgHits",
-			"PudpRecvmsgMisses",
-			"PudpSendmsgHits",
-			"PudpSendmsgMisses",
-			"RSysBindHits",
-			"RSysBindMisses",
-			"RSysSocketHits",
-			"RSysSocketMisses",
-			"RinetCskAcceptHits",
-			"RinetCskAcceptMisses",
-			"RtcpCloseHits",
-			"RtcpCloseMisses",
-			"RtcpVConnectHits",
-			"RtcpVConnectMisses",
-			"RudpRecvmsgHits",
-			"RudpRecvmsgMisses",
+			"PXSysBindHits",
+			"PXSysBindMisses",
+			"PXSysSocketHits",
+			"PXSysSocketMisses",
+			"PTcpCleanupRbufHits",
+			"PTcpCleanupRbufMisses",
+			"PTcpCloseHits",
+			"PTcpCloseMisses",
+			"PTcpRetransmitSkbHits",
+			"PTcpRetransmitSkbMisses",
+			"PTcpSendmsgHits",
+			"PTcpSendmsgMisses",
+			"PTcpVDestroySockHits",
+			"PTcpVDestroySockMisses",
+			"PUdpDestroySockHits",
+			"PUdpDestroySockMisses",
+			"PUdpRecvmsgHits",
+			"PUdpRecvmsgMisses",
+			"PUdpSendmsgHits",
+			"PUdpSendmsgMisses",
+			"RXSysBindHits",
+			"RXSysBindMisses",
+			"RXSysSocketHits",
+			"RXSysSocketMisses",
+			"RInetCskAcceptHits",
+			"RInetCskAcceptMisses",
+			"RTcpCloseHits",
+			"RTcpCloseMisses",
+			"RUdpRecvmsgHits",
+			"RUdpRecvmsgMisses",
 		},
 	}
 
@@ -190,6 +186,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
+	t.Logf("%+v\n", connections)
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
@@ -380,13 +377,12 @@ func TestTCPRemoveEntries(t *testing.T) {
 	assert.False(t, ok)
 
 	// Assert the TCP map is empty because of the clean up
-	key, nextKey, stats := &ConnTuple{}, &ConnTuple{}, &ConnStatsWithTimestamp{}
-	tcpMp, err := tr.getMap(tcpStatsMap)
+	key, nextKey := &ConnTuple{}, &ConnTuple{}
+	tcpMp, err := tr.getMap(bytecode.TcpStatsMap)
 	assert.Nil(t, err)
 	// This should return false and an error
-	hasNext, err := tr.m.LookupNextElement(tcpMp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
-	assert.False(t, hasNext)
-	assert.Error(t, err)
+	err = tcpMp.NextKey(unsafe.Pointer(key), unsafe.Pointer(nextKey))
+	assert.EqualError(t, err, ebpf.ErrKeyNotExist.Error())
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
 	require.True(t, ok)
@@ -1176,10 +1172,10 @@ func TestIsSyscall(t *testing.T) {
 }
 
 func removeConnection(t *testing.T, tr *Tracer, c *network.ConnectionStats) {
-	mp, err := tr.getMap(connMap)
+	mp, err := tr.getMap(bytecode.ConnMap)
 	require.NoError(t, err)
 
-	tcpMp, err := tr.getMap(tcpStatsMap)
+	tcpMp, err := tr.getMap(bytecode.TcpStatsMap)
 	require.NoError(t, err)
 
 	tuple := []*ConnTuple{

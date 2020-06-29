@@ -8,7 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	bpflib "github.com/iovisor/gobpf/elf"
+	"github.com/DataDog/ebpf"
 )
 
 const (
@@ -27,8 +27,7 @@ const (
 // event remains stored in the eBPF map before being processed by the NetworkAgent.
 type PerfBatchManager struct {
 	// eBPF
-	module   *bpflib.Module
-	batchMap *bpflib.Map
+	batchMap *ebpf.Map
 
 	// stateByCPU contains the state of each batch.
 	// The slice is indexed by the CPU core number.
@@ -41,10 +40,7 @@ type PerfBatchManager struct {
 
 // NewPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func NewPerfBatchManager(module *bpflib.Module, batchMap *bpflib.Map, maxIdleInterval time.Duration) (*PerfBatchManager, error) {
-	if module == nil {
-		return nil, fmt.Errorf("module is nil")
-	}
+func NewPerfBatchManager(batchMap *ebpf.Map, maxIdleInterval time.Duration) (*PerfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
@@ -52,11 +48,10 @@ func NewPerfBatchManager(module *bpflib.Module, batchMap *bpflib.Map, maxIdleInt
 	for i := 0; i < maxNumberBatches; i++ {
 		b := new(batch)
 		b.cpu = _Ctype_ushort(i)
-		module.UpdateElement(batchMap, unsafe.Pointer(&i), unsafe.Pointer(b), 0)
+		batchMap.Put(unsafe.Pointer(&i), unsafe.Pointer(b))
 	}
 
 	return &PerfBatchManager{
-		module:          module,
 		batchMap:        batchMap,
 		stateByCPU:      make([]batchState, maxNumberBatches),
 		maxIdleInterval: maxIdleInterval.Nanoseconds(),
@@ -93,7 +88,7 @@ func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats
 		}
 
 		// we have an idle batch, so let's retrieve its data from eBPF
-		err := p.module.LookupElement(p.batchMap, unsafe.Pointer(&i), unsafe.Pointer(batch))
+		err := p.batchMap.Lookup(unsafe.Pointer(&i), unsafe.Pointer(batch))
 		if err != nil {
 			continue
 		}

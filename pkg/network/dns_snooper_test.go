@@ -3,17 +3,16 @@
 package network
 
 import (
+	"bytes"
 	"math/rand"
 	"net"
 	"strings"
 	"testing"
 	"time"
-	"unsafe"
-
-	bpflib "github.com/iovisor/gobpf/elf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/ebpf/manager"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,30 +20,42 @@ import (
 
 func getSnooper(
 	t *testing.T,
-	m *bpflib.Module,
+	buf *bytes.Reader,
 	collectStats bool,
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
-) *SocketFilterSnooper {
-	// Load socket filter
-	params := map[string]bpflib.SectionParams{
-		"socket/dns_filter":      {},
-		"maps/conn_stats":        {MapMaxEntries: 1024},
-		"maps/tcp_stats":         {MapMaxEntries: 1024},
-		"maps/tcp_close_events":  {MapMaxEntries: 1024},
-		"maps/port_bindings":     {MapMaxEntries: 1024},
-		"maps/udp_port_bindings": {MapMaxEntries: 1024},
+) (*manager.Manager, *SocketFilterSnooper) {
+	mgr := &manager.Manager{
+		Probes: []*manager.Probe{
+			{Section: string(bytecode.SocketDnsFilter)},
+		},
+		Maps: []*manager.Map{
+			{Name: string(bytecode.ConnMap)},
+			{Name: string(bytecode.TcpStatsMap)},
+			{Name: string(bytecode.PortBindingsMap)},
+			{Name: string(bytecode.UdpPortBindingsMap)},
+			{Name: string(bytecode.ConfigMap)},
+		},
+		PerfMaps: []*manager.PerfMap{},
 	}
-	err := m.Load(params)
+	err := mgr.Init(buf)
 	require.NoError(t, err)
 
+	maxSizes := map[bytecode.BPFMapName]uint32{
+		bytecode.ConnMap:            1024,
+		bytecode.TcpStatsMap:        1024,
+		bytecode.PortBindingsMap:    1024,
+		bytecode.UdpPortBindingsMap: 1024,
+	}
+	bytecode.ConfigureMapMaxEntries(mgr, maxSizes)
+
 	if collectStats {
-		mp := m.Map("config")
+		mp, _, _ := mgr.GetMap(string(bytecode.ConfigMap))
 		require.NotNil(t, mp)
 		var zero uint64
-		m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&zero), 0)
+		mp.Put(zero, &zero)
 	}
-	filter := m.SocketFilter("socket/dns_filter")
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
 	require.NotNil(t, filter)
 
 	reverseDNS, err := NewSocketFilterSnooper(
@@ -55,7 +66,7 @@ func getSnooper(
 		dnsTimeout,
 	)
 	require.NoError(t, err)
-	return reverseDNS
+	return mgr, reverseDNS
 }
 
 func checkSnooping(t *testing.T, destIP string, reverseDNS *SocketFilterSnooper) {
@@ -90,11 +101,11 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	m, err := bytecode.ReadBPFModule(false)
+	buf, err := bytecode.ReadBPFModule(false)
 	require.NoError(t, err)
-	defer m.Close()
 
-	reverseDNS := getSnooper(t, m, false, false, 15*time.Second)
+	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)
+	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
 	// Connect to golang.org. This will result in a DNS lookup which will be captured by SocketFilterSnooper
@@ -122,11 +133,10 @@ const (
 	validDNSServerIP = "8.8.8.8"
 )
 
-func initDNSTests(t *testing.T) (*bpflib.Module, *SocketFilterSnooper) {
-	m, err := bytecode.ReadBPFModule(false)
+func initDNSTests(t *testing.T) (*manager.Manager, *SocketFilterSnooper) {
+	buf, err := bytecode.ReadBPFModule(false)
 	require.NoError(t, err)
-	reverseDNS := getSnooper(t, m, true, false, 1*time.Second)
-	return m, reverseDNS
+	return getSnooper(t, buf, true, false, 1*time.Second)
 }
 
 func sendDNSQuery(
@@ -199,7 +209,7 @@ Loop:
 
 func TestDNSOverTCPSnoopingWithSuccessfulResposne(t *testing.T) {
 	m, reverseDNS := initDNSTests(t)
-	defer m.Close()
+	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
 	queryIP, queryPort, rep := sendDNSQuery(t, "golang.org", validDNSServerIP, TCP)
@@ -226,7 +236,7 @@ func TestDNSOverTCPSnoopingWithSuccessfulResposne(t *testing.T) {
 
 func TestDNSOverTCPSnoopingWithFailedResponse(t *testing.T) {
 	m, reverseDNS := initDNSTests(t)
-	defer m.Close()
+	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
 	queryIP, queryPort, rep := sendDNSQuery(t, "agafsdfsdasdfsd", validDNSServerIP, TCP)
@@ -244,7 +254,7 @@ func TestDNSOverTCPSnoopingWithFailedResponse(t *testing.T) {
 
 func TestDNSOverUDPSnoopingWithTimedOutResponse(t *testing.T) {
 	m, reverseDNS := initDNSTests(t)
-	defer m.Close()
+	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
 	invalidServerIP := "8.8.8.90"
@@ -261,11 +271,11 @@ func TestDNSOverUDPSnoopingWithTimedOutResponse(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	m, err := bytecode.ReadBPFModule(false)
+	buf, err := bytecode.ReadBPFModule(false)
 	require.NoError(t, err)
-	defer m.Close()
 
-	reverseDNS := getSnooper(t, m, false, false, 15*time.Second)
+	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)
+	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
 	// Pass a byte array of size 1 which should result in parsing error

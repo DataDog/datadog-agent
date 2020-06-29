@@ -3,12 +3,12 @@
 package ebpf
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 	"unsafe"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPerfBatchManagerExtract(t *testing.T) {
@@ -72,12 +72,7 @@ func TestGetIdleConns(t *testing.T) {
 	batch.cpu = 0
 
 	updateBatch := func() {
-		manager.module.UpdateElement(
-			manager.batchMap,
-			unsafe.Pointer(&batch.cpu),
-			unsafe.Pointer(batch),
-			0,
-		)
+		manager.batchMap.Put(unsafe.Pointer(&batch.cpu), unsafe.Pointer(batch))
 	}
 	updateBatch()
 
@@ -106,8 +101,8 @@ func newTestBatchManager(t *testing.T, idleTime time.Duration) (manager *PerfBat
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
 
-	tcpCloseMap, _ := tr.getMap(tcpCloseBatchMap)
-	manager, err = NewPerfBatchManager(tr.m, tcpCloseMap, idleTime)
+	tcpCloseMap, _ := tr.getMap(bytecode.TcpCloseBatchMap)
+	manager, err = NewPerfBatchManager(tcpCloseMap, idleTime)
 	require.NoError(t, err)
 
 	doneFn = func() { tr.Stop() }

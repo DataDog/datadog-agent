@@ -5,6 +5,7 @@ package ebpf
 import (
 	"bufio"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"os"
 	"path"
 	"strings"
@@ -98,7 +99,7 @@ func getSyscallPrefix() (string, error) {
 // depending on which kernel/architecture we're running on.
 //
 // see get_syscall_fnname in bcc https://github.com/iovisor/bcc/blob/5e123df1dd33cdff5798560e4f0390c69cdba00f/src/python/bcc/__init__.py#L632-L634
-func fixSyscallName(prefix string, name KProbeName) string {
+func fixSyscallName(prefix string, name bytecode.KProbeName) string {
 	// see get_syscall_fname in bcc
 
 	parts := strings.Split(string(name), "/")
