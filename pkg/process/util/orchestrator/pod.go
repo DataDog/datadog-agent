@@ -186,7 +186,26 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.Status = ComputeStatus(p)
 	podModel.ConditionMessage = GetConditionMessage(p)
 
+	for _, c := range p.Spec.Containers {
+		modelReq := convertResourceRequirements(c.Resources, c.Name)
+		podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
+	}
+
 	return &podModel
+}
+
+func convertResourceRequirements(rq v1.ResourceRequirements, containerName string) *model.ResourceRequirements {
+	cpuLimit := rq.Limits.Cpu().Value()
+	memLimit := rq.Limits.Memory().Value()
+	cpuRequest := rq.Requests.Cpu().Value()
+	memRequest := rq.Requests.Memory().Value()
+	requests := map[string]int64{v1.ResourceCPU.String(): cpuRequest, v1.ResourceMemory.String(): memRequest}
+	limits := map[string]int64{v1.ResourceCPU.String(): cpuLimit, v1.ResourceMemory.String(): memLimit}
+	return &model.ResourceRequirements{
+		Limits:   requests,
+		Requests: limits,
+		Name:     containerName,
+	}
 }
 
 func convertContainerStatus(cs v1.ContainerStatus) model.ContainerStatus {
