@@ -576,7 +576,21 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 			continue
 		}
 
+		// first set policies
 		for eventType, capabilities := range kprobe.EventTypes {
+			if eventType == "*" || rs.HasRulesForEventType(eventType) {
+				if kprobe.PolicyTable == "" {
+					continue
+				}
+
+				if err := p.setKProbePolicy(kprobe, rs, eventType, capabilities); err != nil {
+					return err
+				}
+			}
+		}
+
+		// then register kprobes
+		for eventType := range kprobe.EventTypes {
 			if eventType == "*" || rs.HasRulesForEventType(eventType) {
 				if _, ok := already[kprobe]; !ok {
 					log.Infof("Register kProbe `%s`", kprobe.KProbe.Name)
@@ -584,14 +598,6 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 						return err
 					}
 					already[kprobe] = true
-				}
-
-				if kprobe.PolicyTable == "" {
-					continue
-				}
-
-				if err := p.setKProbePolicy(kprobe, rs, eventType, capabilities); err != nil {
-					return err
 				}
 			}
 		}
