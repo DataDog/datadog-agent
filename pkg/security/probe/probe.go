@@ -29,8 +29,7 @@ type Stats struct {
 }
 
 type KTable struct {
-	Name    string
-	LRUSize int // set if table handled by userspace LRU
+	Name string
 }
 
 type Discarder struct {
@@ -317,22 +316,6 @@ func (p *Probe) getTableNames() []*types.Table {
 	return tables
 }
 
-func (p *Probe) initLRUTables() error {
-	kTables := OpenTables
-	for _, ktable := range kTables {
-		if ktable.LRUSize != 0 {
-			table := p.Probe.Table(ktable.Name)
-			lt, err := NewLRUKTable(table, ktable.LRUSize)
-			if err != nil {
-				return err
-			}
-			p.tables[ktable.Name] = lt
-		}
-	}
-
-	return nil
-}
-
 // Table returns either an eprobe Table or a LRU based eprobe Table
 func (p *Probe) Table(name string) eprobe.Table {
 	if table, exists := p.tables[name]; exists {
@@ -400,10 +383,6 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		return nil, err
 	}
 	p.Probe = ebpfProbe
-
-	if err := p.initLRUTables(); err != nil {
-		return nil, err
-	}
 
 	dentryResolver, err := NewDentryResolver(ebpfProbe)
 	if err != nil {
