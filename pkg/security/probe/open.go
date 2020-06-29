@@ -20,8 +20,7 @@ var OpenTables = []KTable{
 		Name: "open_basename_approvers",
 	},
 	{
-		Name:    "open_basename_discarders",
-		LRUSize: 256,
+		Name: "open_basename_discarders",
 	},
 	{
 		Name: "open_flags_approvers",
@@ -33,8 +32,7 @@ var OpenTables = []KTable{
 		Name: "open_process_inode_approvers",
 	},
 	{
-		Name:    "open_process_inode_discarders",
-		LRUSize: 256,
+		Name: "open_process_inode_discarders",
 	},
 }
 

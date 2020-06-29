@@ -43,7 +43,7 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
 };
 
 struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
-    .type = BPF_MAP_TYPE_ARRAY,
+    .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
@@ -61,7 +61,7 @@ struct bpf_map_def SEC("maps/open_process_inode_approvers") open_process_inode_a
 };
 
 struct bpf_map_def SEC("maps/open_process_inode_discarders") open_process_inode_discarders = {
-    .type = BPF_MAP_TYPE_HASH,
+    .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u64),
     .value_size = sizeof(struct filter_t),
     .max_entries = 256,
