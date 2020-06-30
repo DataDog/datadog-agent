@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -45,6 +47,10 @@ func (s *Scheduler) Stop() {}
 func (s *Scheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
 		if !config.IsLogConfig() {
+			continue
+		}
+		if config.HasFilter(containers.LogsFilter) {
+			log.Debugf("Config %s is filtered out for logs collection, ignoring it", s.configName(config))
 			continue
 		}
 		switch {
@@ -85,7 +91,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 // Unschedule removes all the sources and services matching the integration configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsLogConfig() {
+		if !config.IsLogConfig() || config.HasFilter(containers.LogsFilter) {
 			continue
 		}
 		switch {
@@ -172,6 +178,15 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	}
 
 	var service *service.Service
+
+	commonGlobalOptions := integration.CommonGlobalConfig{}
+	err = yaml.Unmarshal(config.InitConfig, &commonGlobalOptions)
+	if err != nil {
+		return nil, fmt.Errorf("invalid init_config section for source %s: %s", config.Name, err)
+	}
+
+	globalServiceDefined := commonGlobalOptions.Service != ""
+
 	if config.Entity != "" {
 		// all configs attached to a docker label or a pod annotation contains an entity;
 		// this entity is used later on by an input to match a service with a source
@@ -186,6 +201,11 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	configName := s.configName(config)
 	var sources []*logsConfig.LogSource
 	for _, cfg := range configs {
+		// if no service is set fall back to the global one
+		if cfg.Service == "" && globalServiceDefined {
+			cfg.Service = commonGlobalOptions.Service
+		}
+
 		if service != nil {
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.

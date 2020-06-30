@@ -33,7 +33,7 @@ const (
 	// DefaultServiceName is the default name we assign a service if it's missing and we have no reasonable fallback
 	DefaultServiceName = "unnamed-service"
 	// DefaultSpanName is the default name we assign a span if it's missing and we have no reasonable fallback
-	DefaultSpanName = "unnamed-operation"
+	DefaultSpanName = "unnamed_operation"
 )
 
 var (

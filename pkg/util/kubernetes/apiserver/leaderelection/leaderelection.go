@@ -21,9 +21,12 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -58,6 +61,9 @@ type LeaderEngine struct {
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
+
+	// leaderMetric indicates whether this instance is leader
+	leaderMetric telemetry.Gauge
 }
 
 func newLeaderEngine() *LeaderEngine {
@@ -65,6 +71,7 @@ func newLeaderEngine() *LeaderEngine {
 		LeaseName:       defaultLeaseName,
 		LeaderNamespace: common.GetResourcesNamespace(),
 		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
+		leaderMetric:    metrics.NewLeaderMetric(),
 	}
 }
 
@@ -72,6 +79,7 @@ func newLeaderEngine() *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
+	telemetry.Reset()
 }
 
 // GetLeaderEngine returns a leader engine client with default parameters.
@@ -85,12 +93,12 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 		globalLeaderEngine = newLeaderEngine()
 		globalLeaderEngine.HolderIdentity = holderIdentity
 		globalLeaderEngine.LeaseDuration = ttl
-		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
-			Name:          "leaderElection",
-			AttemptMethod: globalLeaderEngine.init,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:              "leaderElection",
+			AttemptMethod:     globalLeaderEngine.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	err := globalLeaderEngine.initRetry.TriggerRetry()
@@ -189,7 +197,6 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 func (le *LeaderEngine) runLeaderElection() {
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
-
 		le.leaderElector.Run(context.Background())
 		log.Info("Leader election lost")
 	}

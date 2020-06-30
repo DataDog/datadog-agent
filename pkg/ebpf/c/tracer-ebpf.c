@@ -19,26 +19,18 @@
 #define asm_volatile_goto(x...) asm volatile("invalid use of asm_volatile_goto")
 #pragma clang diagnostic ignored "-Wunused-label"
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wgnu-variable-sized-type-not-at-end"
-#pragma clang diagnostic ignored "-Waddress-of-packed-member"
 #include <linux/ptrace.h>
-#pragma clang diagnostic pop
 #include "bpf_helpers.h"
 #include "tracer-ebpf.h"
 #include <linux/version.h>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wtautological-compare"
-#pragma clang diagnostic ignored "-Wgnu-variable-sized-type-not-at-end"
-#pragma clang diagnostic ignored "-Wenum-conversion"
 #include <net/sock.h>
-#pragma clang diagnostic pop
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/udp.h>
+#include <uapi/linux/tcp.h>
 
 /* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  */
@@ -89,6 +81,20 @@ struct bpf_map_def SEC("maps/tcp_close_events") tcp_close_event = {
     .namespace = "",
 };
 
+/* We use this map as a container for batching closed tcp connections
+ * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
+ * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
+ * some of the Kernels we support (4.4 ~ 4.6)
+ */
+struct bpf_map_def SEC("maps/tcp_close_batch") tcp_close_batch = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(batch_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
@@ -115,7 +121,7 @@ struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
     .namespace = "",
 };
 
-/* This maps tracks listening ports. Entries are added to the map via tracing the inet_csk_accept syscall.  The
+/* This maps tracks listening TCP ports. Entries are added to the map via tracing the inet_csk_accept syscall.  The
  * key in the map is the port and the value is a flag that indicates if the port is listening or not.
  * When the socket is destroyed (via tcp_v4_destroy_sock), we set the value to be "port closed" to indicate that the
  * port is no longer being listened on.  We leave the data in place for the userspace side to read and clean up
@@ -129,7 +135,68 @@ struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
     .namespace = "",
 };
 
-/* This maps is used for telemetry in kernelspace
+/* This behaves the same as port_bindings, except it tracks UDP ports.
+ * Key: a port
+ * Value: one of PORT_CLOSED, and PORT_OPEN
+ */
+struct bpf_map_def SEC("maps/udp_port_bindings") udp_port_bindings = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u16),
+    .value_size = sizeof(__u8),
+    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* This is used purely for capturing state between the call and return of the socket() system call.
+ * When a sys_socket kprobe fires, we only have access to the params, which can tell us if the socket is using
+ * SOCK_DGRAM or not. The kretprobe will only tell us the returned file descriptor.
+ *
+ * Keys: the PID returned by bpf_get_current_pid_tgid().
+ * Value: 1 if the PID is mid-call to socket() and the call is creating a UDP socket, else there will be no entry.
+ */
+struct bpf_map_def SEC("maps/pending_sockets") pending_sockets = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(__u8),
+    .max_entries = 8192,
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* Similar to pending_sockets this is used for capturing state between the call and return of the bind() system call.
+ *
+ * Keys: the PId returned by bpf_get_current_pid_tgid()
+ * Values: the args of the bind call  being instrumented.
+ */
+struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(bind_syscall_args_t),
+    .max_entries = 8192,
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* This is written to in the kretprobe for sys_socket to keep track of
+ * sockets that were created, but have not yet been bound to a port with
+ * sys_bind.
+ *
+ * Key: a __u64 where the upper 32 bits are the PID of the process which created the socket, and the lower
+ * 32 bits are the file descriptor as returned by socket().
+ * Value: the values are not relevant. It's only relevant that there is or isn't an entry.
+ *
+ */
+struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(__u8),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* This map is used for telemetry in kernelspace
  * only key 0 is used
  * value is a telemetry object
  */
@@ -140,6 +207,20 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
     .max_entries = 1,
     .pinning = 0,
     .namespace = "",
+};
+
+/* This map is used for passing config from userspace.
+ * Only key 0 is used. If it is present, it means DNS stat collection
+ * is enabled.
+ * Value does not matter.
+ */
+struct bpf_map_def SEC("maps/config") config = {
+      .type = BPF_MAP_TYPE_HASH,
+      .key_size = sizeof(__u16),
+      .value_size = sizeof(__u8),
+      .max_entries = 1,
+      .pinning = 0,
+      .namespace = "",
 };
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
@@ -269,7 +350,7 @@ static int guess_offsets(tracer_status_t* status, struct sock* skp) {
         if (!check_family(skp, status, AF_INET6))
             break;
 
-        bpf_probe_read(new_status.daddr_ipv6, sizeof(u32)*4, ((char*)skp) + status->offset_daddr_ipv6);
+        bpf_probe_read(new_status.daddr_ipv6, sizeof(u32) * 4, ((char*)skp) + status->offset_daddr_ipv6);
         break;
     default:
         // not for us
@@ -400,8 +481,8 @@ static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
     if (stats.rtt > 0) {
         // For more information on the bit shift operations see:
         // https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
-        val->rtt = stats.rtt>>3;
-        val->rtt_var = stats.rtt_var>>2;
+        val->rtt = stats.rtt >> 3;
+        val->rtt_var = stats.rtt_var >> 2;
     }
 }
 
@@ -434,8 +515,48 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
         conn.conn_stats = *cst;
     }
 
-    // Send the connection data to the perf buffer
-    bpf_perf_event_output(ctx, &tcp_close_event, cpu, &conn, sizeof(conn));
+    // Batch TCP closed connections before generating a perf event
+    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    if (batch_ptr == NULL) {
+        return;
+    }
+
+    // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
+    switch (batch_ptr->pos) {
+    case 0:
+        batch_ptr->c0 = conn;
+        batch_ptr->pos++;
+        return;
+    case 1:
+        batch_ptr->c1 = conn;
+        batch_ptr->pos++;
+        return;
+    case 2:
+        batch_ptr->c2 = conn;
+        batch_ptr->pos++;
+        return;
+    case 3:
+        batch_ptr->c3 = conn;
+        batch_ptr->pos++;
+        return;
+    case 4:
+        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
+        // in order to cope with the eBPF stack limitation of 512 bytes.
+        batch_ptr->c4 = conn;
+        batch_ptr->pos++;
+        return;
+    }
+
+    // If we hit this section it means we had one or more interleaved tcp_close calls.
+    // This could result in a missed tcp_close event, so we track it using our telemetry map.
+    u64 key = 0;
+    telemetry_t empty = {};
+    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+
+    telemetry_t* val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val != NULL) {
+        __sync_fetch_and_add(&val->missed_tcp_close, 1);
+    }
 }
 
 __attribute__((always_inline))
@@ -460,7 +581,7 @@ static int handle_retransmit(struct sock* sk, tracer_status_t* status) {
         return 0;
     }
 
-    tcp_stats_t stats = { .retransmits = 1, .rtt = 0, .rtt_var = 0 };
+    tcp_stats_t stats = {.retransmits = 1, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats);
 
     // Update latest timestamp that we've seen - for connection expiration tracking
@@ -474,7 +595,7 @@ static void handle_tcp_stats(conn_tuple_t* t, tracer_status_t* status, struct so
     bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + status->offset_rtt);
     bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + status->offset_rtt_var);
 
-    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = {.retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     update_tcp_stats(t, stats);
     return;
 }
@@ -644,6 +765,27 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
+SEC("kretprobe/tcp_close")
+int kretprobe__tcp_close(struct pt_regs* ctx) {
+    u32 cpu = bpf_get_smp_processor_id();
+    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    if (batch_ptr == NULL) {
+        return 0;
+    }
+
+    if (batch_ptr->pos >= TCP_CLOSED_BATCH_SIZE) {
+        // Here we copy the batch data to a variable allocated in the eBPF stack
+        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
+        // since you can't directly write a map entry to the perf buffer.
+        batch_t batch_copy = {};
+        __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
+        bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(batch_copy));
+        batch_ptr->pos = 0;
+    }
+
+    return 0;
+}
+
 /* Used exclusively for offset guessing */
 SEC("kprobe/tcp_get_info")
 int kprobe__tcp_get_info(struct pt_regs* ctx) {
@@ -654,8 +796,8 @@ int kprobe__tcp_get_info(struct pt_regs* ctx) {
         return 0;
     }
 
+    status->tcp_info_kprobe_status = 1;
     guess_offsets(status, sk);
-
     return 0;
 }
 
@@ -853,16 +995,194 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     return 0;
 }
 
+SEC("kprobe/udp_destroy_sock")
+int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+
+    if (sk == NULL) {
+        log_debug("ERR(udp_destroy_sock): socket is null \n");
+        return 0;
+    }
+
+    // get tracer status and return early if we are still offset-guessing
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    if (status == NULL) {
+        return 0;
+    }
+
+    // get the port for the current sock
+    __u16 lport = 0;
+    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_sport);
+    lport = ntohs(lport);
+
+    if (lport == 0) {
+        log_debug("ERR(udp_destroy_sock): lport is 0 \n");
+        return 0;
+    }
+
+    // decide if the port is bound, if not, do nothing
+    __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &lport);
+
+    if (state == NULL) {
+        log_debug("kprobe/udp_destroy_sock: sock was not listening, will drop event");
+        return 0;
+    }
+
+    // set the state to closed
+    __u8 new_state = PORT_CLOSED;
+    bpf_map_update_elem(&udp_port_bindings, &lport, &new_state, BPF_ANY);
+
+    log_debug("kprobe/udp_destroy_sock: port %d marked as closed", lport);
+
+    return 0;
+}
+
+SEC("kprobe/sys_bind")
+int kprobe__sys_bind(struct pt_regs* ctx) {
+
+    __s32 fd = PT_REGS_PARM1(ctx);
+    __u64 tid = bpf_get_current_pid_tgid();
+
+    // determine if the fd for this process is an unbound UDP socket
+    __u64 fd_and_tid = (tid << 32) | fd;
+    __u64* u = bpf_map_lookup_elem(&unbound_sockets, &fd_and_tid);
+
+    if (u == NULL) {
+        log_debug("kprobe/sys_bind: bind happened, but not on a UDP socket\n");
+        return 0;
+    }
+
+    struct sockaddr* addr = (struct sockaddr*)PT_REGS_PARM2(ctx);
+    if (addr == NULL) {
+      log_debug("kprobe/sys_bind: could not read sockaddr\n");
+        return 0;
+    }
+
+    // sockaddr is part of the syscall ABI, so we can hardcode the offset of 2 to find the port.
+    u16 sin_port = 0;
+    bpf_probe_read(&sin_port, sizeof(u16), (char*)addr + 2);
+    sin_port = ntohs(sin_port);
+
+    // write to pending_binds so the retprobe knows we can mark this as binding.
+    bind_syscall_args_t args = {};
+    args.fd = fd;
+    args.port = sin_port;
+
+    bpf_map_update_elem(&pending_bind, &tid, &args, BPF_ANY);
+    log_debug("kprobe/sys_bind: started a bind on UDP port=%d fd=%d tid=%d\n", sin_port, fd, tid);
+
+    return 0;
+}
+
+SEC("kretprobe/sys_bind")
+int kretprobe__sys_bind(struct pt_regs* ctx) {
+  __u64 tid = bpf_get_current_pid_tgid();
+  int ret = PT_REGS_RC(ctx);
+
+  // bail if this bind() is not the one we're instrumenting
+  bind_syscall_args_t *args;
+  args = bpf_map_lookup_elem(&pending_bind, &tid);
+
+  log_debug("kretprobe/bind: for tid %d and return value: %d\n", tid, ret);
+
+  if (args == NULL) {
+    log_debug("kretprobe/bind: was not a UDP bind, will not process\n");
+    return 0;
+  }
+
+  if (ret != 0) {
+    log_debug("kretprobe/bind: return %d for tid %d\n", tid, ret);
+    return 0;
+  }
+
+
+  __u16 sin_port = args->port;
+  __u8 port_state = PORT_LISTENING;
+  bpf_map_update_elem(&udp_port_bindings, &sin_port, &port_state, BPF_ANY);
+  log_debug("kretprobe/bind: bound UDP port  %d\n", sin_port);
+
+  return 0;
+}
+
+// used for capturing UDP sockets that are bound
+SEC("kprobe/sys_socket")
+int kprobe__sys_socket(struct pt_regs* ctx) {
+    int domain = PT_REGS_PARM1(ctx);
+    int type = PT_REGS_PARM2(ctx);
+    __u64 tid = bpf_get_current_pid_tgid();
+
+    // figuring out if the socket being constructed is UDP. We will call
+    // a socket UDP if it is in the AF_INET or AF_INET6 domain. And
+    // the type is SOCK_DGRAM.
+    __u8 pending_udp = 0;
+    if ((domain & (AF_INET | AF_INET6)) > 0 && (type & SOCK_DGRAM) > 0) {
+        pending_udp = 1;
+    }
+
+    if (pending_udp == 0) {
+        log_debug("kprobe sys_socket: got a socket() call, but was not for UDP with tid=%d", tid);
+        return 0;
+    }
+
+    log_debug("kprobe sys_socket: started a UDP socket for tid=%d", tid);
+    __u8 x = 1;
+    bpf_map_update_elem(&pending_sockets, &tid, &x, BPF_ANY);
+
+    return 0;
+}
+
+// used in combination with the kprobe for sys_socket to find file descriptors for UDP sockets that have not
+// yet been "binded".
+SEC("kretprobe/sys_socket")
+int kretprobe__sys_socket(struct pt_regs* ctx) {
+    __u64 tid = bpf_get_current_pid_tgid();
+    __u8* udp_pending = bpf_map_lookup_elem(&pending_sockets, &tid);
+
+    int fd = PT_REGS_RC(ctx);
+    // move the socket to "unbound"
+    __u64 fd_and_tid = (tid << 32) | fd;
+
+    if (udp_pending == NULL) {
+        // in most cases this will be a no-op, but
+        // in the case that this is a non-UDP soccket call,
+        // and an older process with the same TID created a UDP
+        // socket with the same FD, we want to prevent
+        // subsequent calls to bind() from having an effect.
+        bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
+        log_debug("kretprobe/sys_socket: socket() call finished but was not UDP\n");
+        return 0;
+    }
+
+    if (fd == -1) {
+        // if the socket() call has failed, don't keep track of the returned
+        // file descriptor (which will be negative one)
+        bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
+        log_debug("kretprobe/sys_socket: socket() call failed\n");
+    }
+
+
+    bpf_map_delete_elem(&pending_sockets, &tid);
+
+    log_debug("kretprobe/sys_socket: socket() call for UDP socket terminated, fd (%d) is now unbound tid=%d\n", fd, tid);
+
+    __u64 v = 1;
+    bpf_map_update_elem(&unbound_sockets, &fd_and_tid, &v, BPF_ANY);
+    return 0;
+}
+
 // This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
 // When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
 // All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
 SEC("socket/dns_filter")
-int socket__dns_filter(struct __sk_buff *skb) {
+int socket__dns_filter(struct __sk_buff* skb) {
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto;
     size_t ip_hdr_size;
+    size_t src_port_offset;
+    size_t dst_port_offset;
 
-    switch(l3_proto) {
+    switch (l3_proto) {
     case ETH_P_IP:
         ip_hdr_size = sizeof(struct iphdr);
         l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
@@ -875,11 +1195,25 @@ int socket__dns_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-    if (l4_proto != IPPROTO_UDP)
+    switch (l4_proto) {
+    case IPPROTO_UDP:
+        src_port_offset = offsetof(struct udphdr, source);
+        dst_port_offset = offsetof(struct udphdr, dest);
+        break;
+    case IPPROTO_TCP:
+        src_port_offset = offsetof(struct tcphdr, source);
+        dst_port_offset = offsetof(struct tcphdr, dest);
+        break;
+    default:
         return 0;
+    }
 
-    __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + offsetof(struct udphdr, source));
-    if (src_port != 53)
+    __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
+    __u16 dst_port = load_half(skb, ETH_HLEN + ip_hdr_size + dst_port_offset);
+    __u16 key = 0;
+    __u8* val = bpf_map_lookup_elem(&config, &key);
+
+    if (src_port != 53 && (val == NULL || dst_port != 53))
         return 0;
 
     return -1;

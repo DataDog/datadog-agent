@@ -66,7 +66,7 @@ Collector
       {{ $CheckName }}
       {{printDashes $CheckName "-"}}
       {{- range $idx, $warning := $warnings}}
-        {{ doNotEscape $warning }}
+        {{$warning}}
       {{- end }}
     {{end}}
   {{- end }}
@@ -81,7 +81,7 @@ Collector
 
       instance {{$idx}}:
 
-        {{ doNotEscape $err }}
+        {{$err}}
       {{- end }}
     {{- end}}
   {{- end }}
@@ -94,7 +94,7 @@ Collector
     {{- range $checkname, $error := .ConfigErrors }}
     {{$checkname}}
     {{printDashes $checkname "-"}}
-      {{ configError $error }}
+      {{$error}}
     {{- end }}
   {{- end}}
 {{- end }}
@@ -109,10 +109,10 @@ Collector
       {{- range $kind, $err := $errors -}}
         {{- if eq $kind "Python Check Loader" }}
       {{$kind}}:
-        {{ doNotEscape $err }}
+        {{$err}}
         {{ else }}
       {{$kind}}:
-        {{ doNotEscape $err }}
+        {{$err}}
         {{ end }}
       {{- end }}
     {{- end }}

@@ -9,10 +9,11 @@ package collectors
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -24,6 +25,7 @@ const (
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
 	podTagsAnnotation                = podAnnotationPrefix + "tags"
+	podStandardLabelPrefix           = "tags.datadoghq.com/"
 )
 
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
@@ -46,10 +48,37 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Pod labels
 		for name, value := range pod.Metadata.Labels {
+			// Standard pod labels
+			switch name {
+			case kubernetes.EnvTagLabelKey:
+				tags.AddStandard(tagKeyEnv, value)
+			case kubernetes.VersionTagLabelKey:
+				tags.AddStandard(tagKeyVersion, value)
+			case kubernetes.ServiceTagLabelKey:
+				tags.AddStandard(tagKeyService, value)
+			case kubernetes.KubeAppNameLabelKey:
+				tags.AddLow(tagKeyKubeAppName, value)
+			case kubernetes.KubeAppInstanceLabelKey:
+				tags.AddLow(tagKeyKubeAppInstance, value)
+			case kubernetes.KubeAppVersionLabelKey:
+				tags.AddLow(tagKeyKubeAppVersion, value)
+			case kubernetes.KubeAppComponentLabelKey:
+				tags.AddLow(tagKeyKubeAppComponent, value)
+			case kubernetes.KubeAppPartOfLabelKey:
+				tags.AddLow(tagKeyKubeAppPartOf, value)
+			case kubernetes.KubeAppManagedByLabelKey:
+				tags.AddLow(tagKeyKubeAppManagedBy, value)
+			}
 			for pattern, tmpl := range c.labelsAsTags {
-				if ok, _ := filepath.Match(pattern, strings.ToLower(name)); ok {
-					tags.AddAuto(resolveTag(tmpl, name), value)
+				n := strings.ToLower(name)
+				if g, ok := c.globMap[pattern]; ok {
+					if !g.Match(n) {
+						continue
+					}
+				} else if pattern != n {
+					continue
 				}
+				tags.AddAuto(resolveTag(tmpl, name), value)
 			}
 		}
 
@@ -60,8 +89,10 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 		}
 		if podTags, found := extractTagsFromMap(podTagsAnnotation, pod.Metadata.Annotations); found {
-			for tagName, value := range podTags {
-				tags.AddAuto(tagName, value)
+			for tagName, values := range podTags {
+				for _, val := range values {
+					tags.AddAuto(tagName, val)
+				}
 			}
 		}
 
@@ -117,7 +148,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 		}
 
-		low, orch, high := tags.Compute()
+		low, orch, high, standard := tags.Compute()
 		if pod.Metadata.UID != "" {
 			podInfo := &TagInfo{
 				Source:               kubeletCollectorName,
@@ -125,6 +156,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
+				StandardTags:         standard,
 			}
 			output = append(output, podInfo)
 		}
@@ -138,9 +170,46 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				cTags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", container.Name, pod.Metadata.Name))
 			}
 
-			// check image tag in spec
+			// Enrich with standard tags from labels for this container if present
+			labelTags := []string{
+				tagKeyEnv,
+				tagKeyVersion,
+				tagKeyService,
+			}
+
+			for _, tag := range labelTags {
+				label := fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tag)
+				if value, ok := pod.Metadata.Labels[label]; ok {
+					cTags.AddStandard(tag, value)
+				}
+			}
+
+			// container-specific tags provided through pod annotation
+			containerTags, found := extractTagsFromMap(
+				fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name),
+				pod.Metadata.Annotations,
+			)
+			if found {
+				for tagName, values := range containerTags {
+					for _, val := range values {
+						cTags.AddAuto(tagName, val)
+					}
+				}
+			}
+
+			// check env vars and image tag in spec
 			for _, containerSpec := range pod.Spec.Containers {
 				if containerSpec.Name == container.Name {
+					for _, env := range containerSpec.Env {
+						switch env.Name {
+						case envVarEnv:
+							cTags.AddStandard(tagKeyEnv, env.Value)
+						case envVarVersion:
+							cTags.AddStandard(tagKeyVersion, env.Value)
+						case envVarService:
+							cTags.AddStandard(tagKeyService, env.Value)
+						}
+					}
 					imageName, shortImage, imageTag, err := containers.SplitImageName(containerSpec.Image)
 					if err != nil {
 						log.Debugf("Cannot split %s: %s", containerSpec.Image, err)
@@ -157,18 +226,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				}
 			}
 
-			// container-specific tags provided through pod annotation
-			containerTags, found := extractTagsFromMap(
-				fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name),
-				pod.Metadata.Annotations,
-			)
-			if found {
-				for tagName, value := range containerTags {
-					cTags.AddAuto(tagName, value)
-				}
-			}
-
-			cLow, cOrch, cHigh := cTags.Compute()
+			cLow, cOrch, cHigh, standard := cTags.Compute()
 			entityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
 			if err != nil {
 				log.Warnf("Unable to parse container pName: %s / cName: %s / cId: %s / err: %s", pod.Metadata.Name, container.Name, container.ID, err)
@@ -180,6 +238,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				HighCardTags:         cHigh,
 				OrchestratorCardTags: cOrch,
 				LowCardTags:          cLow,
+				StandardTags:         standard,
 			}
 			output = append(output, info)
 		}
@@ -235,7 +294,8 @@ func parseCronJobForJob(name string) string {
 // extractTagsFromMap extracts tags contained in a JSON string stored at the
 // given key. If no valid tag definition is found at this key, it will return
 // false. Otherwise it returns a map containing extracted tags.
-func extractTagsFromMap(key string, input map[string]string) (map[string]string, bool) {
+// The map values are string slices to support tag keys with multiple values.
+func extractTagsFromMap(key string, input map[string]string) (map[string][]string, bool) {
 	jsonTags, found := input[key]
 	if !found {
 		return nil, false
@@ -251,17 +311,29 @@ func extractTagsFromMap(key string, input map[string]string) (map[string]string,
 }
 
 // parseJSONValue returns a map from the given JSON string.
-func parseJSONValue(value string) (map[string]string, error) {
+func parseJSONValue(value string) (map[string][]string, error) {
 	if value == "" {
-		return nil, fmt.Errorf("value is empty")
+		return nil, errors.New("value is empty")
 	}
 
-	var result map[string]string
-
-	err := json.Unmarshal([]byte(value), &result)
-	if err != nil {
+	result := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(value), &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %s", err)
 	}
 
-	return result, nil
+	tags := map[string][]string{}
+	for key, value := range result {
+		switch v := value.(type) {
+		case string:
+			tags[key] = append(tags[key], v)
+		case []interface{}:
+			for _, tag := range v {
+				tags[key] = append(tags[key], fmt.Sprint(tag))
+			}
+		default:
+			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
+		}
+	}
+
+	return tags, nil
 }

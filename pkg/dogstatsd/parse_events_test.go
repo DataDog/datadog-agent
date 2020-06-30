@@ -7,6 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func parseEvent(rawEvent []byte) (dogstatsdEvent, error) {
+	parser := newParser()
+	return parser.parseEvent(rawEvent)
+}
+
 func TestEventMinimal(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text"))
 

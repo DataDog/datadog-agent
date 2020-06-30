@@ -11,7 +11,7 @@ class CustomActionData
         bool init(const std::wstring &initstring);
 
         bool present(const std::wstring& key) const;
-        bool value( std::wstring& key, std::wstring &val) ;
+        bool value(const std::wstring& key, std::wstring &val) const;
 
         bool isUserDomainUser() const {
             return domainUser;

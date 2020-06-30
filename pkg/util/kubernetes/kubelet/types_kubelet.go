@@ -55,6 +55,7 @@ type ContainerSpec struct {
 	Image          string              `json:"image,omitempty"`
 	Ports          []ContainerPortSpec `json:"ports,omitempty"`
 	ReadinessProbe *ContainerProbe     `json:"readinessProbe,omitempty"`
+	Env            []EnvVar            `json:"env,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
@@ -68,6 +69,14 @@ type ContainerPortSpec struct {
 // ContainerProbe contains fields for unmarshalling a Pod.Spec.Containers.ReadinessProbe
 type ContainerProbe struct {
 	InitialDelaySeconds int `json:"initialDelaySeconds"`
+}
+
+// EnvVar represents an environment variable present in a Container.
+type EnvVar struct {
+	// Name of the environment variable. Must be a C_IDENTIFIER.
+	Name string `json:"name"`
+	// Value of the environment variable.
+	Value string `json:"value,omitempty"`
 }
 
 // VolumeSpec contains fields for unmarshalling a Pod.Spec.Volumes

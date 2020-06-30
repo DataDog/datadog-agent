@@ -50,7 +50,7 @@ func StartCLCRunnerServer() error {
 
 	// CLC Runner token
 	// Use the Cluster Agent token
-	err = util.SetDCAAuthToken()
+	err = util.InitDCAAuthToken()
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func StartCLCRunnerServer() error {
 	}
 	tlsListener := tls.NewListener(clcListener, &tlsConfig)
 
-	go srv.Serve(tlsListener)
+	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
 }
 

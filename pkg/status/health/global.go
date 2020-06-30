@@ -10,30 +10,48 @@ import (
 	"time"
 )
 
-var globalCatalog = newCatalog()
+var readinessAndLivenessCatalog = newCatalog()
+var readinessOnlyCatalog = newCatalog()
 
-// Register a component with the default 30 seconds timeout, returns a token
-func Register(name string) *Handle {
-	return globalCatalog.register(name)
+// RegisterReadiness registers a component for readiness check with the default 30 seconds timeout, returns a token
+func RegisterReadiness(name string) *Handle {
+	return readinessOnlyCatalog.register(name)
+}
+
+// RegisterLiveness registers a component fore liveness check with the default 30 seconds timeout, returns a token
+func RegisterLiveness(name string) *Handle {
+	return readinessAndLivenessCatalog.register(name)
 }
 
 // Deregister a component from the healthcheck
 func Deregister(handle *Handle) error {
-	return globalCatalog.deregister(handle)
+	if readinessAndLivenessCatalog.deregister(handle) == nil {
+		return nil
+	}
+	return readinessOnlyCatalog.deregister(handle)
 }
 
-// GetStatus allows to query the health status of the agent
-func GetStatus() Status {
-	return globalCatalog.getStatus()
+// GetLive returns health of all components registered for liveness
+func GetLive() Status {
+	return readinessAndLivenessCatalog.getStatus()
 }
 
-// GetStatusNonBlocking allows to query the health status of the agent
+// GetReady returns health of all components registered for both readiness and liveness
+func GetReady() (ret Status) {
+	liveStatus := readinessAndLivenessCatalog.getStatus()
+	readyStatus := readinessOnlyCatalog.getStatus()
+	ret.Healthy = append(liveStatus.Healthy, readyStatus.Healthy...)
+	ret.Unhealthy = append(liveStatus.Unhealthy, readyStatus.Unhealthy...)
+	return
+}
+
+// getStatusNonBlocking allows to query the health status of the agent
 // and is guaranteed to return under 500ms.
-func GetStatusNonBlocking() (Status, error) {
+func getStatusNonBlocking(getStatus func() Status) (Status, error) {
 	// Run the health status in a goroutine
 	ch := make(chan Status, 1)
 	go func() {
-		ch <- GetStatus()
+		ch <- getStatus()
 	}()
 
 	// Only wait 500ms before returning
@@ -43,4 +61,14 @@ func GetStatusNonBlocking() (Status, error) {
 	case <-time.After(500 * time.Millisecond):
 		return Status{}, errors.New("timeout when getting health status")
 	}
+}
+
+// GetLiveNonBlocking returns the health of all components registered for liveness with a 500ms timeout
+func GetLiveNonBlocking() (Status, error) {
+	return getStatusNonBlocking(GetLive)
+}
+
+// GetReadyNonBlocking returns the health of all components registered for both readiness and liveness with a 500ms timeout
+func GetReadyNonBlocking() (Status, error) {
+	return getStatusNonBlocking(GetReady)
 }

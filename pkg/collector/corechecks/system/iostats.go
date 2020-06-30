@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -41,6 +42,15 @@ func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.
 			c.blacklist, err = regexp.Compile(regex)
 		}
 	}
+
+	if lowercaseDeviceTagOption, ok := conf["lowercase_device_tag"]; ok {
+		if lowercaseDeviceTag, ok := lowercaseDeviceTagOption.(bool); ok {
+			c.lowercaseDeviceTag = lowercaseDeviceTag
+		} else {
+			log.Warn("Can't cast value of 'lowercase_device_tag' option to boolean: ", lowercaseDeviceTagOption)
+		}
+	}
+
 	return err
 }
 

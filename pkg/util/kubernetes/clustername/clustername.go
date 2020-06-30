@@ -6,15 +6,22 @@
 package clustername
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
 )
 
 var (
@@ -24,6 +31,7 @@ var (
 	// * Lowercase letters, numbers, dots and hyphens only.
 	// * Must start with a letter.
 	// * Must end with a number or a letter.
+	// * Must be a valid FQDN (without trailing period)
 	validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
 )
 
@@ -116,4 +124,26 @@ func resetClusterName(data *clusterNameData) {
 // ResetClusterName resets the clustername, which allows it to be detected again. Used for tests
 func ResetClusterName() {
 	resetClusterName(defaultClusterNameData)
+}
+
+// GetClusterID looks for an env variable which should contain the cluster ID.
+// This variable should come from a configmap, created by the cluster-agent.
+// This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
+func GetClusterID() (string, error) {
+	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
+	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
+		return cachedClusterID.(string), nil
+	}
+
+	clusterID, found := os.LookupEnv(clusterIDEnv)
+	if !found {
+		err := fmt.Errorf("Cluster ID env variable %s is missing, kubernetes cluster cannot be identified", clusterIDEnv)
+		return "", err
+	} else if len(clusterID) != 36 {
+		err := fmt.Errorf("Unexpected value %s for env variable %s, ignoring it", clusterID, clusterIDEnv)
+		return "", err
+	}
+
+	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
+	return clusterID, nil
 }

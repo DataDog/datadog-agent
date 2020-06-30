@@ -173,6 +173,22 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	// Generate check ID
 	c.id = check.Identify(c, data, initConfig)
 
+	commonGlobalOptions := integration.CommonGlobalConfig{}
+	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {
+		log.Errorf("invalid init_config section for check %s: %s", string(c.id), err)
+		return err
+	}
+
+	// Set service for this check
+	if len(commonGlobalOptions.Service) > 0 {
+		s, err := aggregator.GetSender(c.id)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
+		} else {
+			s.SetCheckService(commonGlobalOptions.Service)
+		}
+	}
+
 	commonOptions := integration.CommonInstanceConfig{}
 	if err := yaml.Unmarshal(data, &commonOptions); err != nil {
 		log.Errorf("invalid instance section for check %s: %s", string(c.id), err)
@@ -191,6 +207,16 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
 			s.DisableDefaultHostname(true)
+		}
+	}
+
+	// Set configured service for this check, overriding the one possibly defined globally
+	if len(commonOptions.Service) > 0 {
+		s, err := aggregator.GetSender(c.id)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
+		} else {
+			s.SetCheckService(commonOptions.Service)
 		}
 	}
 
@@ -231,6 +257,14 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	}
 	c.instance = check
 	c.source = source
+
+	// Add the possibly configured service as a tag for this check
+	s, err := aggregator.GetSender(c.id)
+	if err != nil {
+		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
+	} else {
+		s.FinalizeCheckServiceTag()
+	}
 
 	log.Debugf("python check configure done %s", c.ModuleName)
 	return nil

@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 )
 
 // getEndpointsConfigs provides configs templates of endpoints checks queried by node name.
@@ -60,6 +61,12 @@ func (d *dispatcher) removeEndpointConfig(config integration.Config, nodename st
 func (d *dispatcher) patchEndpointsConfiguration(in integration.Config) (integration.Config, error) {
 	out := in
 	out.ClusterCheck = false
+
+	if out.Provider == names.CloudFoundryBBS {
+		// Remove ADIdentifiers if the config comes from the cloudfoundry provider, so that they are ready
+		// to be scheduled on the node agent directly (config is already resolved by the DCA)
+		out.ADIdentifiers = nil
+	}
 
 	// Deep copy the instances to avoid modifying the original
 	out.Instances = make([]integration.Data, len(in.Instances))

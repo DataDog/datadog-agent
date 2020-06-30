@@ -4,6 +4,11 @@ metadata:
   name: datadog-agent
   namespace: default
 spec:
+  minReadySeconds: 0
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 15%
+    type: RollingUpdate
   selector:
     matchLabels:
       app: datadog-agent
@@ -29,6 +34,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+          - {name: DOCKER_HOST, value: unix:///host/var/run/docker.sock}
         resources:
           requests:
             memory: "256Mi"
@@ -37,7 +43,7 @@ spec:
             memory: "256Mi"
             cpu: "200m"
         volumeMounts:
-          - {name: dockersocket, mountPath: /var/run/docker.sock}
+          - {name: dockersocketdir, mountPath: /host/var/run}
           - {name: procdir, mountPath: /host/proc, readOnly: true}
           - {name: cgroups, mountPath: /host/sys/fs/cgroup, readOnly: true}
           - {name: s6-run, mountPath: /var/run/s6}
@@ -51,7 +57,7 @@ spec:
           successThreshold: 1
           failureThreshold: 3
       volumes:
-        - {name: dockersocket, hostPath: {path: /var/run/docker.sock}}
+        - {name: dockersocketdir, hostPath: {path: /var/run}}
         - {name: procdir, hostPath: {path: /proc}}
         - {name: cgroups, hostPath: {path: /sys/fs/cgroup}}
         - {name: s6-run, emptyDir: {}}

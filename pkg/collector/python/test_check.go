@@ -9,6 +9,7 @@ package python
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -175,7 +176,7 @@ void reset_check_mock() {
 import "C"
 
 func testRunCheck(t *testing.T) {
-	check := NewPythonCheck("fake_check", nil)
+	check := NewPythonFakeCheck()
 	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
@@ -196,7 +197,7 @@ func testRunCheck(t *testing.T) {
 }
 
 func testRunErrorNil(t *testing.T) {
-	check := NewPythonCheck("fake_check", nil)
+	check := NewPythonFakeCheck()
 	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
@@ -217,7 +218,7 @@ func testRunErrorNil(t *testing.T) {
 }
 
 func testRunErrorReturn(t *testing.T) {
-	check := NewPythonCheck("fake_check", nil)
+	check := NewPythonFakeCheck()
 	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
@@ -239,7 +240,8 @@ func testRun(t *testing.T) {
 	sender := mocksender.NewMockSender(check.ID("testID"))
 	sender.SetupAcceptAll()
 
-	c := NewPythonCheck("fake_check", nil)
+	c := NewPythonFakeCheck()
+
 	c.instance = &C.rtloader_pyobject_t{}
 	c.id = check.ID("testID")
 
@@ -265,7 +267,8 @@ func testRunSimple(t *testing.T) {
 	sender := mocksender.NewMockSender(check.ID("testID"))
 	sender.SetupAcceptAll()
 
-	c := NewPythonCheck("fake_check", nil)
+	c := NewPythonFakeCheck()
+
 	c.instance = &C.rtloader_pyobject_t{}
 	c.id = check.ID("testID")
 
@@ -288,18 +291,18 @@ func testRunSimple(t *testing.T) {
 }
 
 func testConfigure(t *testing.T) {
-	c := NewPythonCheck("fake_check", nil)
+	c := NewPythonFakeCheck()
 	c.class = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
 
 	C.get_check_return = 1
 	C.get_check_check = &C.rtloader_pyobject_t{}
-	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"), "test")
+	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
-	assert.Equal(t, "aaa", C.GoString(C.get_check_init_config))
+	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_init_config))
 	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_instance))
 	assert.Equal(t, string(c.id), C.GoString(C.get_check_check_id))
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_check_name))
@@ -315,7 +318,7 @@ func testConfigure(t *testing.T) {
 }
 
 func testConfigureDeprecated(t *testing.T) {
-	c := NewPythonCheck("fake_check", nil)
+	c := NewPythonFakeCheck()
 	c.class = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
@@ -323,22 +326,29 @@ func testConfigureDeprecated(t *testing.T) {
 	C.get_check_return = 0
 	C.get_check_deprecated_check = &C.rtloader_pyobject_t{}
 	C.get_check_deprecated_return = 1
-	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"), "test")
+	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
-	assert.Equal(t, "aaa", C.GoString(C.get_check_init_config))
+	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_init_config))
 	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_instance))
 	assert.Equal(t, string(c.id), C.GoString(C.get_check_check_id))
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_check_name))
 	assert.Nil(t, C.get_check_check)
 
 	assert.Equal(t, c.class, C.get_check_deprecated_py_class)
-	assert.Equal(t, "aaa", C.GoString(C.get_check_deprecated_init_config))
+	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_deprecated_init_config))
 	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_deprecated_instance))
 	assert.Equal(t, string(c.id), C.GoString(C.get_check_deprecated_check_id))
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_deprecated_check_name))
 	require.NotNil(t, C.get_check_deprecated_agent_config)
 	assert.NotEqual(t, "", C.GoString(C.get_check_deprecated_agent_config))
 	assert.Equal(t, c.instance, C.get_check_deprecated_check)
+}
+
+func NewPythonFakeCheck() *PythonCheck {
+	c := NewPythonCheck("fake_check", nil)
+	// Remove check finalizer that may trigger race condition while testing
+	runtime.SetFinalizer(c, nil)
+	return c
 }

@@ -7,6 +7,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -20,9 +21,11 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/app/standalone"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -41,6 +44,7 @@ var (
 	logLevel             string
 	formatJSON           bool
 	breakPoint           string
+	fullSketches         bool
 	profileMemory        bool
 	profileMemoryDir     string
 	profileMemoryFrames  string
@@ -54,9 +58,6 @@ var (
 	profileMemoryVerbose string
 )
 
-// Make the check cmd aggregator never flush by setting a very high interval
-const checkCmdFlushInterval = time.Hour
-
 func init() {
 	AgentCmd.AddCommand(checkCmd)
 
@@ -68,6 +69,8 @@ func init() {
 	checkCmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	checkCmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	checkCmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
+	checkCmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
+	config.Datadog.BindPFlag("cmd.check.fullsketches", checkCmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(&profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
@@ -89,35 +92,20 @@ var checkCmd = &cobra.Command{
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		if logLevel != "" {
-			// Honour the deprecated --log-level argument
-			overrides := make(map[string]interface{})
-			overrides["log_level"] = logLevel
-			config.AddOverrides(overrides)
-		} else {
-			logLevel = config.GetEnv("DD_LOG_LEVEL", "off")
+		resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, confFilePath, logLevel, "off")
+		if err != nil {
+			fmt.Printf("Cannot initialize command: %v\n", err)
+			return err
 		}
 
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-		}
-
-		err = config.SetupLogger(loggerName, logLevel, "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
-		}
-
 		if len(args) != 0 {
 			checkName = args[0]
 		} else {
-			cmd.Help()
+			cmd.Help() //nolint:errcheck
 			return nil
 		}
 
@@ -128,7 +116,8 @@ var checkCmd = &cobra.Command{
 		}
 
 		s := serializer.NewSerializer(common.Forwarder)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, nil, hostname, "agent", checkCmdFlushInterval)
+		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {
@@ -138,19 +127,43 @@ var checkCmd = &cobra.Command{
 		allConfigs := common.AC.GetAllConfigs()
 
 		// make sure the checks in cs are not JMX checks
-		for _, conf := range allConfigs {
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
 			if conf.Name != checkName {
 				continue
 			}
 
-			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
+			if check.IsJMXConfig(*conf) {
 				// we'll mimic the check command behavior with JMXFetch by running
 				// it with the JSON reporter and the list_with_metrics command.
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
-				if err := RunJmxListWithMetrics(); err != nil {
-					return fmt.Errorf("while running the jmx check: %v", err)
+				selectedChecks := []string{checkName}
+				if checkRate {
+					if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						return fmt.Errorf("while running the jmx check: %v", err)
+					}
+				} else {
+					if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						return fmt.Errorf("while running the jmx check: %v", err)
+					}
 				}
-				return nil
+
+				instances := []integration.Data{}
+
+				// Retain only non-JMX instances for later
+				for _, instance := range conf.Instances {
+					if check.IsJMXInstance(conf.Name, instance, conf.InitConfig) {
+						continue
+					}
+					instances = append(instances, instance)
+				}
+
+				if len(instances) == 0 {
+					fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", checkName)
+					return nil
+				}
+
+				conf.Instances = instances
 			}
 		}
 
@@ -356,7 +369,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		if runtime.GOOS == "windows" {
-			printWindowsUserWarning("check")
+			standalone.PrintWindowsUserWarning("check")
 		}
 
 		if formatJSON {
@@ -371,6 +384,9 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
+		if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
+			return errors.New("tracemalloc is enabled but unavailable with python version 2")
+		}
 		return nil
 	},
 }
@@ -440,7 +456,7 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
 		var data map[string]interface{}
 		sj, _ := json.Marshal(series)
-		json.Unmarshal(sj, &data)
+		json.Unmarshal(sj, &data) //nolint:errcheck
 
 		aggData["metrics"] = data["series"]
 	}
@@ -460,12 +476,6 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 
 	return aggData
 }
-func printWindowsUserWarning(op string) {
-	fmt.Printf("\nNOTE:\n")
-	fmt.Printf("The %s command runs in a different user context than the running service\n", op)
-	fmt.Printf("This could affect results if the command relies on specific permissions and/or user contexts\n")
-	fmt.Printf("\n")
-}
 
 func singleCheckRun() bool {
 	return checkRate == false && checkTimes < 2
@@ -473,7 +483,7 @@ func singleCheckRun() bool {
 
 func createHiddenStringFlag(p *string, name string, value string, usage string) {
 	checkCmd.Flags().StringVar(p, name, value, usage)
-	checkCmd.Flags().MarkHidden(name)
+	checkCmd.Flags().MarkHidden(name) //nolint:errcheck
 }
 
 func populateMemoryProfileConfig(initConfig map[string]interface{}) error {

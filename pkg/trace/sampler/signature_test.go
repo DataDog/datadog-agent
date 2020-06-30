@@ -73,6 +73,30 @@ func TestSignatureDifferentRoot(t *testing.T) {
 	assert.NotEqual(testComputeSignature(t1), testComputeSignature(t2))
 }
 
+func TestSignatureDifference(t *testing.T) {
+	type testCase struct {
+		name string
+		meta map[string]string
+	}
+	testCases := []testCase{
+		{"status-code", map[string]string{KeyHTTPStatusCode: "200"}},
+		{"error-type", map[string]string{KeyErrorType: "error: nil"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			t1 := pb.Trace{
+				&pb.Span{TraceID: 101, SpanID: 1011, Service: "x1", Name: "y1", Resource: "z1", Duration: 26965},
+			}
+			t2 := pb.Trace{
+				&pb.Span{TraceID: 103, SpanID: 1031, Service: "x1", Name: "y1", Resource: "z1", Duration: 19207, Meta: tc.meta},
+			}
+			assert.NotEqual(testComputeSignature(t1), testComputeSignature(t2))
+		})
+	}
+}
+
 func testComputeServiceSignature(trace pb.Trace) Signature {
 	root := traceutil.GetRoot(trace)
 	env := traceutil.GetEnv(trace)

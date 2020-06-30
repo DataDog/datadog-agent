@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build docker kunelet
-
 package collectors
 
 import (
@@ -13,6 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
+
+// OrchestratorScopeEntityID defines the orchestrator scope entity ID
+const OrchestratorScopeEntityID = "internal:orchestrator-scope-entity-id"
 
 var templateVariables = map[string]struct{}{
 	"label": {},

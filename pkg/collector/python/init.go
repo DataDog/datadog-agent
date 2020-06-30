@@ -86,6 +86,7 @@ void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
 bool TracemallocEnabled();
+char* ObfuscateSQL(char *, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -98,6 +99,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_write_persistent_cache_cb(rtloader, WritePersistentCache);
 	set_read_persistent_cache_cb(rtloader, ReadPersistentCache);
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
+	set_obfuscate_sql_cb(rtloader, ObfuscateSQL);
 }
 
 //
@@ -107,7 +109,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 void SubmitMetric(char *, metric_type_t, char *, float, char **, int, char *);
 void SubmitServiceCheck(char *, char *, int, char **, int, char *, char *);
 void SubmitEvent(char *, event_t *, int);
-void SubmitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
+void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);
 
 void initAggregatorModule(rtloader_t *rtloader) {
 	set_submit_metric_cb(rtloader, SubmitMetric);
@@ -195,7 +197,12 @@ func expvarPythonInitErrors() interface{} {
 	pyInitLock.RLock()
 	defer pyInitLock.RUnlock()
 
-	return pyInitErrors
+	pyInitErrorsCopy := []string{}
+	for i := range pyInitErrors {
+		pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors[i])
+	}
+
+	return pyInitErrorsCopy
 }
 
 func addExpvarPythonInitErrors(msg string) error {
@@ -228,9 +235,20 @@ func sendTelemetry(pythonVersion string) {
 func detectPythonLocation(pythonVersion string) {
 	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
-		_here, _ := executable.Folder()
+		_here, err := executable.Folder()
+		if err != nil {
+			log.Warnf("Error getting executable folder: %v", err)
+			log.Warnf("Trying again allowing symlink resolution to fail")
+			_here, err = executable.FolderAllowSymlinkFailure()
+			if err != nil {
+				log.Warnf("Error getting executable folder w/o symlinks: %v", err)
+			}
+		}
+		log.Debugf("Executable folder is %v", _here)
+
 		agentpythonHome2 := filepath.Join(_here, "..", "embedded2")
 		agentpythonHome3 := filepath.Join(_here, "..", "embedded3")
+
 		/*
 		 * want to use the path relative embedded2/3 directories above by default;
 		 * they'll be correct for normal installation (on windows).

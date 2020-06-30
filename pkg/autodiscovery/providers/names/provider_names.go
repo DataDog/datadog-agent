@@ -8,6 +8,7 @@ package names
 // User-facing names for the config providers
 const (
 	Consul          = "consul"
+	CloudFoundryBBS = "cloudfoundry-bbs"
 	ClusterChecks   = "cluster-checks"
 	Docker          = "docker"
 	ECS             = "ecs"
@@ -17,5 +18,6 @@ const (
 	Kubernetes      = "kubernetes"
 	KubeServices    = "kubernetes-services"
 	KubeEndpoints   = "kubernetes-endpoints"
+	SNMP            = "snmp"
 	Zookeeper       = "zookeeper"
 )

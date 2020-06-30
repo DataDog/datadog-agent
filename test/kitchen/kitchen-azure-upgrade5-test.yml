@@ -11,7 +11,7 @@ suites:
     - <%= p %>
     <% end %>
   run_list:
-    #- "recipe[datadog::dd-agent]" # Setup Agent 5
+    - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-5]"  # Setup agent 5
     - "recipe[dd-agent-upgrade]" # Upgrade to Agent 6
     - "recipe[dd-agent-import-conf]" # Import the configuration from 5 to 6

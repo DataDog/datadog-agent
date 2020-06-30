@@ -32,11 +32,13 @@ type Sender interface {
 	Histogram(metric string, value float64, hostname string, tags []string)
 	Historate(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
-	HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string)
+	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string)
 	Event(e metrics.Event)
 	GetMetricStats() map[string]int64
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
+	SetCheckService(service string)
+	FinalizeCheckServiceTag()
 }
 
 type metricStats struct {
@@ -66,6 +68,7 @@ type checkSender struct {
 	eventOut                chan<- metrics.Event
 	histogramBucketOut      chan<- senderHistogramBucket
 	checkTags               []string
+	service                 string
 }
 
 type senderMetricSample struct {
@@ -140,8 +143,8 @@ func GetDefaultSender() (Sender, error) {
 	}
 
 	senderInit.Do(func() {
-		var defaultCheckID check.ID // the default value is the zero value
-		aggregatorInstance.registerSender(defaultCheckID)
+		var defaultCheckID check.ID                       // the default value is the zero value
+		aggregatorInstance.registerSender(defaultCheckID) //nolint:errcheck
 		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn)
 	})
 
@@ -167,6 +170,19 @@ func (s *checkSender) DisableDefaultHostname(disable bool) {
 // They will be appended to each send (metric, event and service)
 func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
+}
+
+// SetCheckService appends the service as a tag for metrics, events, and service checks
+// This may be called any number of times, though the only the last call will have an effect
+func (s *checkSender) SetCheckService(service string) {
+	s.service = service
+}
+
+// FinalizeCheckServiceTag appends the service as a tag for metrics, events, and service checks
+func (s *checkSender) FinalizeCheckServiceTag() {
+	if s.service != "" {
+		s.checkTags = append(s.checkTags, fmt.Sprintf("service:%s", s.service))
+	}
 }
 
 // Commit commits the metric samples & histogram buckets that were added during a check run
@@ -271,7 +287,7 @@ func (s *checkSender) Histogram(metric string, value float64, hostname string, t
 }
 
 // HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics
-func (s *checkSender) HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
+func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
 	tags = append(tags, s.checkTags...)
 
 	log.Tracef(

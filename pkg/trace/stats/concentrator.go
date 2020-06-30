@@ -132,14 +132,13 @@ func (c *Concentrator) addNow(i *Input, now int64) {
 	c.mu.Lock()
 
 	for _, s := range i.Trace {
-		// We do not compute stats for non top level spans since this is not surfaced in the UI
-		if !s.TopLevel {
+		if !(s.TopLevel || s.Measured) {
 			continue
 		}
 		end := s.Start + s.Duration
 		btime := end - end%c.bsize
 
-		// // If too far in the past, count in the oldest-allowed time bucket instead.
+		// If too far in the past, count in the oldest-allowed time bucket instead.
 		if btime < c.oldestTs {
 			btime = c.oldestTs
 		}

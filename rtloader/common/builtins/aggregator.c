@@ -377,7 +377,7 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
     PyObject *py_tags = NULL; // borrowed
     char *check_id = NULL;
     char *name = NULL;
-    int value;
+    long long value;
     float lower_bound;
     float upper_bound;
     int monotonic;
@@ -385,7 +385,7 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
     char **tags = NULL;
 
     // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags)
-    if (!PyArg_ParseTuple(args, "OssiffisO", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags)) {
+    if (!PyArg_ParseTuple(args, "OssLffisO", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags)) {
         goto error;
     }
 

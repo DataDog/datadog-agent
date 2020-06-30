@@ -22,11 +22,13 @@ import (
 var (
 	initialTimeout     = timeout
 	initialMetadataURL = metadataURL
+	initialTokenURL    = tokenURL
 )
 
 func resetPackageVars() {
 	timeout = initialTimeout
 	metadataURL = initialMetadataURL
+	tokenURL = initialTokenURL
 }
 
 func TestIsDefaultHostname(t *testing.T) {
@@ -236,4 +238,96 @@ func TestGetLocalIPv4(t *testing.T) {
 	ips, err := GetLocalIPv4()
 	require.NoError(t, err)
 	assert.Equal(t, []string{ip}, ips)
+}
+
+func TestGetToken(t *testing.T) {
+	originalToken := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
+		if h != "" && r.Method == http.MethodPut {
+			io.WriteString(w, originalToken)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	tokenURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
+
+	token, err := getToken()
+	require.NoError(t, err)
+	assert.Equal(t, originalToken, token)
+}
+
+func TestMetedataRequestWithToken(t *testing.T) {
+	var requestWithoutToken *http.Request
+	var requestForToken *http.Request
+	var requestWithToken *http.Request
+	var seq int
+
+	ipv4 := "198.51.100.1"
+	token := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.Method {
+		case http.MethodPut:
+			// Should be a token request
+			h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
+			if h == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+			}
+			r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+			seq++
+			requestForToken = r
+			io.WriteString(w, token)
+		case http.MethodGet:
+			// Should be a metadata request
+			t := r.Header.Get("X-aws-ec2-metadata-token")
+			if t != token {
+				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+				seq++
+				requestWithoutToken = r
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			switch r.RequestURI {
+			case "/local-ipv4":
+				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+				seq++
+				requestWithToken = r
+				io.WriteString(w, ipv4)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		default:
+			fmt.Println("q")
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+	tokenURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
+
+	ips, err := GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ipv4}, ips)
+
+	assert.Equal(t, "0", requestWithoutToken.Header.Get("X-sequence"))
+	assert.Equal(t, "1", requestForToken.Header.Get("X-sequence"))
+	assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
+	assert.Equal(t, "", requestWithoutToken.Header.Get("X-aws-ec2-metadata-token"))
+	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
+	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
+	assert.Equal(t, "60", requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+	assert.Equal(t, http.MethodPut, requestForToken.Method)
+	assert.Equal(t, "/", requestForToken.RequestURI)
+	assert.Equal(t, token, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
+	assert.Equal(t, "/local-ipv4", requestWithToken.RequestURI)
+	assert.Equal(t, http.MethodGet, requestWithToken.Method)
 }

@@ -177,7 +177,7 @@ platforms:
   yumrepo = "http://yumtesting.datad0g.com/pipeline-#{ENV['DD_PIPELINE_ID']}/#{ENV['MAJOR_VERSION']}/x86_64/"
   yumrepo_suse = "http://yumtesting.datad0g.com/suse/pipeline-#{ENV['DD_PIPELINE_ID']}/#{ENV['MAJOR_VERSION']}/x86_64/"
   agent_major_version = "#{ENV['MAJOR_VERSION']}"
-  windows_agent_url = ENV['WINDOWS_AGENT_URL'] ? ENV['WINDOWS_AGENT_URL'] : "https://s3.amazonaws.com/#{ENV['WINDOWS_TESTING_S3_BUCKET']}/"
+  windows_agent_url = ENV['WINDOWS_AGENT_URL'] ? ENV['WINDOWS_AGENT_URL'] : "https://#{ENV['WIN_S3_BUCKET']}.s3.amazonaws.com/#{ENV['WINDOWS_TESTING_S3_BUCKET']}"
   dd_agent_config = {
     'agent_major_version': agent_major_version,
     'api_key': api_key,

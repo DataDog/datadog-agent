@@ -15,7 +15,7 @@ IGNITION_BASE64=$(cat ignition.json | base64 -w 0)
 # TODO remove the IamInstanceProfile
 tee specification.json << EOF
 {
-  "ImageId": "ami-7d316602",
+  "ImageId": "ami-07cce92cad14cc238",
   "InstanceType": "t2.medium",
   "Monitoring": {
     "Enabled": false

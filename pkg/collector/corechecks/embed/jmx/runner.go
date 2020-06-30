@@ -8,11 +8,12 @@
 package jmx
 
 import (
-	"runtime"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
 type runner struct {
@@ -28,12 +29,10 @@ func (r *runner) initRunner() {
 func (r *runner) startRunner() error {
 
 	lifecycleMgmt := true
-	if runtime.GOOS == "windows" {
-		lifecycleMgmt = false
-	}
-
 	err := r.jmxfetch.Start(lifecycleMgmt)
 	if err != nil {
+		s := status.JMXStartupError{LastError: err.Error(), Timestamp: time.Now().Unix()}
+		status.SetJMXStartupError(s)
 		return err
 	}
 	r.started = true

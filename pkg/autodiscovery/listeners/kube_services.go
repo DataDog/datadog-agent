@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -58,10 +59,12 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
+
 	return &KubeServiceListener{
 		services: make(map[types.UID]Service),
 		informer: servicesInformer,
@@ -140,8 +143,12 @@ func servicesDiffer(first, second *v1.Service) bool {
 	if first.ResourceVersion == second.ResourceVersion {
 		return false
 	}
-	// AD annotations
-	if isServiceAnnotated(first) != isServiceAnnotated(second) {
+	// AD annotations - check templates
+	if isServiceAnnotated(first, kubeServiceAnnotationFormat) != isServiceAnnotated(second, kubeServiceAnnotationFormat) {
+		return true
+	}
+	// AD labels - standard tags
+	if standardTagsDigest(first.GetLabels()) != standardTagsDigest(second.GetLabels()) {
 		return true
 	}
 	// Cluster IP
@@ -168,7 +175,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
-	if !isServiceAnnotated(ksvc) {
+	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) {
 		// Ignore services with no AD annotation
 		return
 	}
@@ -191,11 +198,14 @@ func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
 		svc.creationTime = integration.Before
 	}
 
-	// Tags, static for now
+	// Service tags
 	svc.tags = []string{
 		fmt.Sprintf("kube_service:%s", ksvc.Name),
 		fmt.Sprintf("kube_namespace:%s", ksvc.Namespace),
 	}
+
+	// Standard tags from the service's labels
+	svc.tags = append(svc.tags, getStandardTags(ksvc.GetLabels())...)
 
 	// Hosts, only use internal ClusterIP for now
 	svc.hosts = map[string]string{"cluster": ksvc.Spec.ClusterIP}
@@ -293,7 +303,13 @@ func (s *KubeServiceService) GetCheckNames() []string {
 	return nil
 }
 
-func isServiceAnnotated(ksvc *v1.Service) bool {
-	_, found := ksvc.Annotations[kubeServiceAnnotationFormat]
-	return found
+// HasFilter always return false
+// KubeServiceService doesn't implement this method
+func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
+	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

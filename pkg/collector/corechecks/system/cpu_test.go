@@ -27,7 +27,6 @@ var (
 			Steal:     0,
 			Guest:     0,
 			GuestNice: 0,
-			Stolen:    0,
 		},
 	}
 	secondSample = []cpu.TimesStat{
@@ -43,7 +42,6 @@ var (
 			Steal:     2,
 			Guest:     0,
 			GuestNice: 0,
-			Stolen:    0,
 		},
 	}
 )

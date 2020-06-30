@@ -112,7 +112,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 
 // SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
 //export SubmitHistogramBucket
-func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.int, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char) {
+func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char) {
 	goCheckID := C.GoString(checkID)
 	sender, err := aggregator.GetSender(chk.ID(goCheckID))
 	if err != nil || sender == nil {
@@ -121,7 +121,7 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.int, low
 	}
 
 	_name := C.GoString(metricName)
-	_value := int(value)
+	_value := int64(value)
 	_lowerBound := float64(lowerBound)
 	_upperBound := float64(upperBound)
 	_monotonic := (monotonic != 0)

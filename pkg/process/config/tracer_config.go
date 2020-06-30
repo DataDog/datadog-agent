@@ -46,12 +46,16 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 	}
 
 	tracerConfig.CollectLocalDNS = cfg.CollectLocalDNS
+	tracerConfig.CollectDNSStats = cfg.CollectDNSStats
+
+	if to := cfg.DNSTimeout; to > 0 {
+		tracerConfig.DNSTimeout = cfg.DNSTimeout
+	}
 
 	tracerConfig.MaxTrackedConnections = cfg.MaxTrackedConnections
 	tracerConfig.ProcRoot = util.GetProcRoot()
 	tracerConfig.BPFDebug = cfg.SysProbeBPFDebug
 	tracerConfig.EnableConntrack = cfg.EnableConntrack
-	tracerConfig.ConntrackShortTermBufferSize = cfg.ConntrackShortTermBufferSize
 	tracerConfig.ConntrackMaxStateSize = cfg.ConntrackMaxStateSize
 	tracerConfig.DebugPort = cfg.SystemProbeDebugPort
 
@@ -65,6 +69,10 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 
 	if ccs := cfg.ClosedChannelSize; ccs > 0 {
 		tracerConfig.ClosedChannelSize = ccs
+	}
+
+	if th := cfg.OffsetGuessThreshold; th > 0 {
+		tracerConfig.OffsetGuessThreshold = th
 	}
 
 	return tracerConfig

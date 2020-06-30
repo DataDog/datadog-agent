@@ -71,8 +71,8 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 	assert := assert.New(t)
 
 	conf := newTestReceiverConfig()
+	conf.MaxRequestBytes = 2
 	receiver := newTestReceiverFromConfig(conf)
-	receiver.maxRequestBodyLength = 2
 	go receiver.Start()
 
 	defer receiver.Stop()

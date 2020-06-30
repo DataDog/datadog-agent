@@ -1,14 +1,24 @@
 import datetime
 import glob
 import os
+import getpass
 import contextlib
 import shutil
 import tempfile
 
 from invoke import task
+from invoke.exceptions import Exit
 from subprocess import check_output, CalledProcessError
 
-from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
+from .utils import (
+    bin_name,
+    get_build_flags,
+    REPO_PATH,
+    get_version,
+    get_git_branch_name,
+    get_go_version,
+    get_git_commit,
+)
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -18,17 +28,29 @@ EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
+BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
-          python_runtimes='3'):
+def build(
+    ctx,
+    race=False,
+    go_version=None,
+    incremental_build=False,
+    major_version='7',
+    python_runtimes='3',
+    with_bcc=True,
+    go_mod="vendor",
+    windows=False,
+):
     """
     Build the system_probe
     """
 
-    build_object_files(ctx, install=True)
+    # Only build ebpf files on unix
+    if not windows:
+        build_object_files(ctx, install=True)
 
     # TODO use pkg/version for this
     main = "main."
@@ -41,13 +63,12 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     }
 
     goenv = {}
-    # TODO: this is a temporary workaround. system probe had issues when built with go 1.11 and 1.12
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
             for env_var in GIMME_ENV_VARS:
                 if env_var in line:
-                    goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
+                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
@@ -58,14 +79,22 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     env.update(goenv)
 
     # Add custom ld flags
-    ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags() + [BPF_TAG]
+    ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
+
+    if not windows:
+        build_tags = get_default_build_tags() + [BPF_TAG]
+    else:
+        build_tags = get_default_build_tags()
+
+    if with_bcc:
+        build_tags.append(BCC_TAG)
 
     # TODO static option
-    cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
@@ -119,36 +148,48 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     if not skip_object_files:
         build_object_files(ctx, install=False)
 
-    pkg = os.path.join(REPO_PATH, "pkg", "ebpf", "...")
+    pkg = "./pkg/ebpf/... ./pkg/network/..."
 
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
 
-    cmd = 'go test -v -tags "{bpf_tag}" {pkg}'
+    cmd = 'go test -mod={go_mod} -v -tags "{bpf_tag}" {pkg}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
     if only_check_bpf_bytes:
         cmd += " -run=TestEbpfBytesCorrect"
+    else:
+        if getpass.getuser() != "root":
+            print("system-probe tests must be run as root")
+            raise Exit(code=1)
+        if os.getenv("GOPATH") is None:
+            print(
+                "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
+            )
+            raise Exit(code=1)
 
-    ctx.run(cmd.format(path=path, bpf_tag=BPF_TAG, pkg=pkg))
+    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=BPF_TAG, pkg=pkg))
 
 
 @task
-def nettop(ctx, incremental_build=False):
+def nettop(ctx, incremental_build=False, go_mod="vendor"):
     """
     Build and run the `nettop` utility for testing
     """
     build_object_files(ctx, install=True)
 
-    cmd = 'go build {build_type} -tags "linux_bpf" -o {bin_path} {path}'
+    cmd = 'go build -mod={go_mod} {build_type} -tags "linux_bpf" -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
-    ctx.run(cmd.format(
-        path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
-        bin_path=bin_path,
-        build_type="-i" if incremental_build else "-a",
-    ))
+    ctx.run(
+        cmd.format(
+            path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
+            bin_path=bin_path,
+            go_mod=go_mod,
+            build_type="" if incremental_build else "-a",
+        )
+    )
 
     # Run
     if should_use_sudo(ctx):
@@ -205,16 +246,19 @@ def build_object_files(ctx, install=True):
     set install to False to disable replacing the assets
     """
 
+    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently, and result in us not building a
+    # new .o file
+    print("checking for clang executable...")
+    ctx.run("which clang")
+    print("found clang")
+
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
     if os.path.isdir(centos_headers_dir):
-        linux_headers = [
-            os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)
-        ]
+        linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
     else:
         linux_headers = [
-            os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir)
-            if d.startswith("linux-")
+            os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
         ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
@@ -237,13 +281,20 @@ def build_object_files(ctx, install=True):
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
-    arch = check_output('''uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
+    arch = (
+        check_output(
+            '''uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
                     -e s/sun4u/sparc64/ \
                     -e s/arm.*/arm/ -e s/sa110/arm/ \
                     -e s/s390x/s390/ -e s/parisc64/parisc/ \
                     -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
                     -e s/sh[234].*/sh/ -e s/aarch64.*/arm64/ \
-                    -e s/riscv.*/riscv/''', shell=True).decode('utf-8').strip()
+                    -e s/riscv.*/riscv/''',
+            shell=True,
+        )
+        .decode('utf-8')
+        .strip()
+    )
 
     subdirs = [
         "include",
@@ -256,7 +307,7 @@ def build_object_files(ctx, install=True):
 
     for d in linux_headers:
         for s in subdirs:
-            flags.extend(["-I", os.path.join(d, s)])
+            flags.extend(["-isystem", os.path.join(d, s)])
 
     cmd = "clang {flags} -o - | llc -march=bpf -filetype=obj -o '{file}'"
 
@@ -264,29 +315,35 @@ def build_object_files(ctx, install=True):
 
     # Build both the standard and debug version
     obj_file = os.path.join(c_dir, "tracer-ebpf.o")
-    commands.append(cmd.format(
-        flags=" ".join(flags),
-        file=obj_file
-    ))
+    commands.append(cmd.format(flags=" ".join(flags), file=obj_file))
 
     debug_obj_file = os.path.join(c_dir, "tracer-ebpf-debug.o")
-    commands.append(cmd.format(
-        flags=" ".join(flags + ["-DDEBUG=1"]),
-        file=debug_obj_file
-    ))
+    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_obj_file))
 
     if install:
-        # Now update the assets stored in the go code
-        commands.append("go get -u github.com/jteeuwen/go-bindata/...")
-
-        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}'"
-        go_file = os.path.join(bpf_dir, "tracer-ebpf.go")
-        commands.append(assets_cmd.format(
-            c_dir=c_dir,
-            go_file=go_file,
-            obj_file=obj_file,
-            debug_obj_file=debug_obj_file,
-        ))
+        assets_cmd = (
+            os.environ["GOPATH"]
+            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
+            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' "
+            + "'{bpf_common_h_file}' '{test_asset_file}' '{test_h_file}'"
+        )
+        go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
+        test_dir = os.path.join(bpf_dir, "testdata")
+        commands.append(
+            assets_cmd.format(
+                c_dir=c_dir,
+                go_file=go_file,
+                obj_file=obj_file,
+                debug_obj_file=debug_obj_file,
+                tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
+                tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
+                oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
+                oom_kill_kern_user_h_file=os.path.join(c_dir, "oom-kill-kern-user.h"),
+                bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
+                test_asset_file=os.path.join(test_dir, "test-asset.c"),
+                test_h_file=os.path.join(test_dir, "test-header.h"),
+            )
+        )
 
         commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
 
@@ -305,8 +362,10 @@ def build_ebpf_builder(ctx):
 
     ctx.run(cmd.format(image=EBPF_BUILDER_IMAGE, file=EBPF_BUILDER_FILE))
 
+
 def is_root():
     return os.getuid() == 0
+
 
 def should_use_sudo(ctx):
     # We are already root

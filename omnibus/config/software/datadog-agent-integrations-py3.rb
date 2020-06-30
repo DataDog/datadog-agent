@@ -22,12 +22,21 @@ if arm?
   dependency 'libxslt'
 end
 
+if osx?
+  dependency 'unixodbc'
+end
+
 if linux?
   # add nfsiostat script
   dependency 'unixodbc'
+  dependency 'freetds'  # needed for SQL Server integration
   dependency 'nfsiostat'
   # need kerberos for hdfs
   dependency 'libkrb5'
+
+  unless suse? || arm?
+    dependency 'aerospike-py3'
+  end
 end
 
 relative_path 'integrations-core'
@@ -58,17 +67,37 @@ blacklist_folders = [
 # package names of dependencies that won't be added to the Agent Python environment
 blacklist_packages = Array.new
 
+# We build these manually
+blacklist_packages.push(/^aerospike==/)
+
 if suse?
   blacklist_folders.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_packages.push(/^aerospike==/)  # Temporarily blacklist Aerospike until builder supports new dependency
+end
+
+if osx?
+  # Blacklist lxml as it fails MacOS notarization: the etree.cpython-37m-darwin.so and objectify.cpython-37m-darwin.so
+  # binaries were built with a MacOS SDK lower than 10.9.
+  # This can be removed once a new lxml version with binaries built with a newer SDK is available.
+  blacklist_packages.push(/^lxml==/)
+  # Blacklist ibm_was, which depends on lxml
+  blacklist_folders.push('ibm_was')
+
+  # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
+  blacklist_folders.push('aerospike')
 end
 
 if arm?
   # These two checks don't build on ARM
   blacklist_folders.push('aerospike')
-  blacklist_packages.push(/^aerospike==/)
   blacklist_folders.push('ibm_mq')
   blacklist_packages.push(/^pymqi==/)
+end
+
+# _64_bit checks the kernel arch.  On windows, the builder is 64 bit
+# even when doing a 32 bit build.  Do a specific check for the 32 bit
+# build
+if arm? || !_64_bit? || (windows? && windows_arch_i386?)
+  blacklist_packages.push(/^orjson==/)
 end
 
 final_constraints_file = 'final_constraints-py3.txt'
@@ -233,12 +262,10 @@ build do
       end
 
       # We don't have auto_conf on windows yet
-      if os != 'windows'
-        auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
-        if File.exist? auto_conf_yaml
-          mkdir check_conf_dir
-          copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
-        end
+      auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
+      if File.exist? auto_conf_yaml
+        mkdir check_conf_dir
+        copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
       end
 
       # Copy SNMP profiles

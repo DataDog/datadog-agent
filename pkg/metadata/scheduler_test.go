@@ -53,7 +53,7 @@ func TestNewScheduler(t *testing.T) {
 	enableFirstRunCollection = false
 	defer func() { enableFirstRunCollection = true }()
 
-	fwd := forwarder.NewDefaultForwarder(nil)
+	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
 	c := NewScheduler(s)
@@ -65,7 +65,7 @@ func TestStopScheduler(t *testing.T) {
 	enableFirstRunCollection = false
 	defer func() { enableFirstRunCollection = true }()
 
-	fwd := forwarder.NewDefaultForwarder(nil)
+	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
 	c := NewScheduler(s)
@@ -92,7 +92,7 @@ func TestAddCollector(t *testing.T) {
 		SendCalledC: make(chan bool),
 	}
 
-	fwd := forwarder.NewDefaultForwarder(nil)
+	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
 	c := NewScheduler(s)
@@ -127,7 +127,7 @@ func TestAddCollectorWithInit(t *testing.T) {
 		InitCalledC: make(chan bool, 1),
 	}
 
-	fwd := forwarder.NewDefaultForwarder(nil)
+	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
 	c := NewScheduler(s)
@@ -165,7 +165,7 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 		SendCalledC: make(chan bool),
 	}
 
-	fwd := forwarder.NewDefaultForwarder(nil)
+	fwd := forwarder.NewDefaultForwarder(forwarder.NewOptions(nil))
 	fwd.Start()
 	s := serializer.NewSerializer(fwd)
 	c := NewScheduler(s)

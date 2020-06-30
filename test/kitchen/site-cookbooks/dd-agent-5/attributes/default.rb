@@ -7,7 +7,7 @@ if node['platform_family'] == 'windows'
   default['dd-agent-5']['windows_agent_checksum'] = nil
   default['dd-agent-5']['windows_version'] = nil
   default['dd-agent-5']['windows_agent_filename'] = "ddagent-cli-latest"
-  default['dd-agent-5']['windows_agent_url'] = 'https://s3.amazonaws.com/ddagent-windows-stable/'
+  default['dd-agent-5']['windows_agent_url'] = 'https://ddagent-windows-stable.s3.amazonaws.com/'
   default['dd-agent-5']['agent_install_options'] = nil
   default['dd-agent-5']['config_dir'] = "#{ENV['ProgramData']}/Datadog"
   default['dd-agent-5']['agent_name'] = 'DatadogAgent'

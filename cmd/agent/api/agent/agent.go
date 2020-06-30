@@ -11,12 +11,14 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"sort"
 
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
@@ -35,7 +37,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
@@ -49,9 +51,14 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
-	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
+	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
+
+	return r
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +219,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
-	h := health.GetStatus()
+	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
 		log.Debugf("Healthcheck failed on: %v", h.Unhealthy)
@@ -267,7 +274,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
-func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+func getFullRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		log.Errorf("Unable to marshal runtime config response: %s", err)
@@ -275,7 +282,80 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(runtimeConfig)
+
+	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
+	if err != nil {
+		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(scrubbed)
+}
+
+func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+	log.Infof("Got a request to read a setting value: %s", setting)
+
+	val, err := settings.GetRuntimeSetting(setting)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		switch err.(type) {
+		case *settings.SettingNotFoundError:
+			http.Error(w, string(body), 400)
+		default:
+			http.Error(w, string(body), 500)
+		}
+		return
+	}
+	body, err := json.Marshal(map[string]interface{}{"value": val})
+	if err != nil {
+		log.Errorf("Unable to marshal runtime setting value response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(body)
+}
+
+func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+	log.Infof("Got a request to change a setting: %s", setting)
+	r.ParseForm() //nolint:errcheck
+	value := html.UnescapeString(r.Form.Get("value"))
+
+	if err := settings.SetRuntimeSetting(setting, value); err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		switch err.(type) {
+		case *settings.SettingNotFoundError:
+			http.Error(w, string(body), 400)
+		default:
+			http.Error(w, string(body), 500)
+		}
+		return
+	}
+}
+
+func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
+
+	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
+	for name, setting := range settings.RuntimeSettings() {
+		configurableSettings[name] = settings.RuntimeSettingResponse{
+			Description: setting.Description(),
+			Hidden:      setting.Hidden(),
+		}
+	}
+	body, err := json.Marshal(configurableSettings)
+	if err != nil {
+		log.Errorf("Unable to marshal runtime configurable settings list response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(body)
 }
 
 func getTaggerList(w http.ResponseWriter, r *http.Request) {

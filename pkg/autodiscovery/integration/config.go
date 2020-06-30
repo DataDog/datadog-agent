@@ -13,6 +13,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
@@ -39,8 +40,8 @@ const (
 // Config is a generic container for configuration files
 type Config struct {
 	Name                    string       `json:"check_name"`                // the name of the check
-	Instances               []Data       `json:"instances"`                 // array of Yaml configurations
-	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml (python check only)
+	Instances               []Data       `json:"instances"`                 // the list of instances in Yaml
+	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml
 	MetricConfig            Data         `json:"metric_config"`             // the metric config in Yaml (jmx check only)
 	LogsConfig              Data         `json:"logs"`                      // the logs config in Yaml (logs-agent only)
 	ADIdentifiers           []string     `json:"ad_identifiers"`            // the list of AutoDiscovery identifiers (optional)
@@ -51,7 +52,9 @@ type Config struct {
 	NodeName                string       `json:"node_name"`                 // node name in case of an endpoint check backed by a pod
 	CreationTime            CreationTime `json:"-"`                         // creation time of service
 	Source                  string       `json:"source"`                    // the source of the configuration
-	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
+	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // used to ignore tags coming from autodiscovery
+	MetricsExcluded         bool         `json:"-"`                         // whether metrics collection is disabled (set by container listeners only)
+	LogsExcluded            bool         `json:"-"`                         // whether logs collection is disabled (set by container listeners only)
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -59,8 +62,14 @@ type CommonInstanceConfig struct {
 	MinCollectionInterval int      `yaml:"min_collection_interval"`
 	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
 	Tags                  []string `yaml:"tags"`
+	Service               string   `yaml:"service"`
 	Name                  string   `yaml:"name"`
 	Namespace             string   `yaml:"namespace"`
+}
+
+// CommonGlobalConfig holds the reserved fields for the yaml init_config data
+type CommonGlobalConfig struct {
+	Service string `yaml:"service"`
 }
 
 // Equal determines whether the passed config is the same
@@ -81,17 +90,17 @@ func (c *Config) String() string {
 
 	rawConfig["check_name"] = c.Name
 
-	yaml.Unmarshal(c.InitConfig, &initConfig)
+	yaml.Unmarshal(c.InitConfig, &initConfig) //nolint:errcheck
 	rawConfig["init_config"] = initConfig
 
 	for _, i := range c.Instances {
 		var instance interface{}
-		yaml.Unmarshal(i, &instance)
+		yaml.Unmarshal(i, &instance) //nolint:errcheck
 		instances = append(instances, instance)
 	}
 	rawConfig["instances"] = instances
 
-	yaml.Unmarshal(c.LogsConfig, &logsConfig)
+	yaml.Unmarshal(c.LogsConfig, &logsConfig) //nolint:errcheck
 	rawConfig["logs_config"] = logsConfig
 
 	buffer, err := yaml.Marshal(&rawConfig)
@@ -115,6 +124,18 @@ func (c *Config) IsCheckConfig() bool {
 // IsLogConfig returns true if config contains a logs config.
 func (c *Config) IsLogConfig() bool {
 	return c.LogsConfig != nil
+}
+
+// HasFilter returns true if metrics or logs collection must be disabled for this config.
+// no containers.GlobalFilter case here because we don't create services that are globally excluded in AD
+func (c *Config) HasFilter(filter containers.FilterType) bool {
+	switch filter {
+	case containers.MetricsFilter:
+		return c.MetricsExcluded
+	case containers.LogsFilter:
+		return c.LogsExcluded
+	}
+	return false
 }
 
 // AddMetrics adds metrics to a check configuration
@@ -253,28 +274,43 @@ func (c *Data) SetField(key string, value interface{}) error {
 // between the cluster-agent and the node-agents
 func (c *Config) Digest() string {
 	h := fnv.New64()
-	h.Write([]byte(c.Name))
+	h.Write([]byte(c.Name)) //nolint:errcheck
 	for _, i := range c.Instances {
 		inst := RawMap{}
 		err := yaml.Unmarshal(i, &inst)
 		if err != nil {
+			log.Debugf("Error while calculating config digest for %s, skipping: %v", c.Name, err)
 			continue
 		}
-		tagList, _ := inst["tags"].([]string)
-		sort.Strings(tagList)
-		inst["tags"] = tagList
+		if val, found := inst["tags"]; found {
+			// sort the list of tags so the digest stays stable for
+			// identical configs with the same tags but with different order
+			tagsInterface, ok := val.([]interface{})
+			if !ok {
+				log.Debug("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
+				continue
+			}
+			tags := make([]string, len(tagsInterface))
+			for i, tag := range tagsInterface {
+				tags[i] = fmt.Sprint(tag)
+			}
+			sort.Strings(tags)
+			inst["tags"] = tags
+		}
 		out, err := yaml.Marshal(&inst)
 		if err != nil {
+			log.Debugf("Error while calculating config digest for %s, skipping: %v", c.Name, err)
 			continue
 		}
-		h.Write(out)
+		h.Write(out) //nolint:errcheck
 	}
-	h.Write([]byte(c.InitConfig))
+	h.Write([]byte(c.InitConfig)) //nolint:errcheck
 	for _, i := range c.ADIdentifiers {
-		h.Write([]byte(i))
+		h.Write([]byte(i)) //nolint:errcheck
 	}
-	h.Write([]byte(c.NodeName))
-	h.Write([]byte(c.LogsConfig))
+	h.Write([]byte(c.NodeName))   //nolint:errcheck
+	h.Write([]byte(c.LogsConfig)) //nolint:errcheck
+	h.Write([]byte(c.Entity))     //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

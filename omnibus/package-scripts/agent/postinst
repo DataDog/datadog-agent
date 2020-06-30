@@ -3,7 +3,7 @@
 # Perform necessary datadog-agent setup steps after package is installed.
 # NOTE: for .rpm, see posttrans instead
 #
-# .deb: STEP 2 of 5
+# .deb: STEP 5 of 5
 # .rpm: STEP 3 of 6
 
 INSTALL_DIR=/opt/datadog-agent
@@ -90,6 +90,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
         fi
 
+
         # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
         # and avoid restarting when a check conf is invalid
         if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
@@ -133,6 +134,7 @@ else
     ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
 
     # Determine current user if he is using the Graphical installer
+    # shellcheck disable=SC2009
     INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
 
     # Otherwise, we hope he is using the install script and try to use this user
@@ -145,7 +147,7 @@ else
     echo "INSTALL_USER: $INSTALL_USER"
 
     echo "# Preparing log dir"
-    chown -vR $INSTALL_USER:admin $LOG_DIR
+    chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
     chmod -v 755 $LOG_DIR
 
     echo "# Installing the app"
@@ -153,7 +155,7 @@ else
 
     # Set the run directory for the agent
     mkdir -vp "$RUN_DIR"
-    chown -vR $INSTALL_USER:admin "$RUN_DIR"
+    chown -vR "${INSTALL_USER}:admin" "$RUN_DIR"
     chmod -v 755 "$RUN_DIR"
 
     echo "# Copying conf"
@@ -171,19 +173,19 @@ else
     fi
 
     echo "# Setting correct rights on conf"
-    chown -vR $INSTALL_USER:admin $CONF_DIR
+    chown -vR "${INSTALL_USER}:admin" $CONF_DIR
 
     # `datadog-agent` command line
     mkdir -vp /usr/local/bin
     ln -vs $INSTALL_DIR/bin/agent/agent /usr/local/bin/datadog-agent
 
     # Link for conf files (let's ease the user's life)
-    USER_HOME=`sudo -Hu $INSTALL_USER sh -c 'echo $HOME'`
-    sudo -Hu $INSTALL_USER mkdir -vp "$USER_HOME/.datadog-agent"
+    USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+    sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.datadog-agent"
     rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.yaml" "$USER_HOME/.datadog-agent/checks.d"
-    sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
-    sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
-    sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
+    sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
+    sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
+    sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
 
     # Error if app not properly installed or root
     if [ "$INSTALL_USER" = "root" ]; then
@@ -193,9 +195,9 @@ else
     fi
 
     echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
-    sudo -Hu $INSTALL_USER mkdir -vp "$USER_HOME/Library/LaunchAgents"
-    sudo -Hu $INSTALL_USER cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-    sudo -Hu $INSTALL_USER launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+    sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
+    sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+    sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
     if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
         exit 1
@@ -205,12 +207,13 @@ else
     if [ -z "$SCRIPT_INSTALL" ]; then
         echo "# Starting the app"
         # -a for application, -F for fresh, do not restore old app
-        export TMPDIR=`sudo -u $INSTALL_USER getconf DARWIN_USER_TEMP_DIR`
-        sudo -u $INSTALL_USER open -Fa 'Datadog Agent'
+        TMPDIR=$(sudo -u "$INSTALL_USER" getconf DARWIN_USER_TEMP_DIR)
+        export TMPDIR
+        sudo -u "$INSTALL_USER" open -Fa 'Datadog Agent'
     fi
 
     echo "# Configuring the login launch of the app"
-    sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
+    sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
 
     # A little debriefing won't hurt
     echo "# State at the end"

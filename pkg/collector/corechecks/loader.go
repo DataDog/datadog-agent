@@ -7,7 +7,6 @@ package corechecks
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -53,37 +52,24 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 	return &GoCheckLoader{}, nil
 }
 
-// Load returns a list of checks, one for every configuration instance found in `config`
-func (gl *GoCheckLoader) Load(config integration.Config) ([]check.Check, error) {
-	checks := []check.Check{}
-
-	// If JMX check, just skip - coincidence
-	if check.IsJMXConfig(config.Name, config.InitConfig) {
-		return checks, fmt.Errorf("check %s appears to be a JMX check - skipping", config.Name)
-	}
+// Load returns a Go check
+func (gl *GoCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+	var c check.Check
 
 	factory, found := catalog[config.Name]
 	if !found {
 		msg := fmt.Sprintf("Check %s not found in Catalog", config.Name)
-		return checks, fmt.Errorf(msg)
+		return c, fmt.Errorf(msg)
 	}
 
-	errors := []string{}
-	for _, instance := range config.Instances {
-		newCheck := factory()
-		if err := newCheck.Configure(instance, config.InitConfig, config.Source); err != nil {
-			errors = append(errors, fmt.Sprintf("Could not configure check %s: %s", newCheck, err))
-			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
-			continue
-		}
-		checks = append(checks, newCheck)
+	c = factory()
+	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
+		log.Errorf("core.loader: could not configure check %s: %s", c, err)
+		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
+		return c, fmt.Errorf(msg)
 	}
 
-	if len(errors) != 0 {
-		return checks, fmt.Errorf(strings.Join(errors, "\n"))
-	}
-
-	return checks, nil
+	return c, nil
 }
 
 func (gl *GoCheckLoader) String() string {
@@ -95,5 +81,5 @@ func init() {
 		return NewGoCheckLoader()
 	}
 
-	loaders.RegisterLoader(20, factory)
+	loaders.RegisterLoader(30, factory)
 }

@@ -64,7 +64,7 @@
 
     <Property Id="APIKEY" Hidden="yes" />
     <Property Id="FinalizeInstall" Hidden="yes" />
-    
+    <Property Id="SITE" Value="datadoghq.com" />
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSERVICE" />
@@ -151,7 +151,10 @@
                          Type="string"
                          Value="[DD_URL]" />
 
-        </RegistryKey>
+          <RegistryValue Name="hostname_fqdn"
+                         Type="string"
+                         Value="[HOSTNAME_FQDN_ENABLED]" />
+         </RegistryKey>
 
       </Component>
     </DirectoryRef>
@@ -224,7 +227,18 @@
             Name="dogstatsd.yaml"
             Source="$(var.EtcFiles)\dogstatsd.yaml.example"/>
       </Component>
+
       
+      <Component Id="install_info"
+                 Guid="260CEE46-E9E9-4EEF-A065-969524970B68"
+                 Permanent="no">
+        <Condition>
+          <![CDATA[UILevel > 2]]>
+        </Condition>
+        <File Id="install_info"
+            Name="install_info"
+            Source="Resources\assets\install_info"/>
+      </Component>
 
 
       <Directory Id="EXAMPLECONFSLOCATION" Name= "conf.d">
@@ -264,6 +278,7 @@
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
       <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="install_info" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="DATADOGDSDSERVICE" />
@@ -300,6 +315,7 @@
 
 
       <?include Resources\assets\apikeydlg.wxi ?>
+      <?include Resources\assets\sitedlg.wxi ?>
       <DialogRef Id="ErrorDlg" />
       <DialogRef Id="FatalError" />
       <DialogRef Id="FilesInUse" />
@@ -310,6 +326,7 @@
       <DialogRef Id="UserExit" />
       <DialogRef Id="WelcomeDlg" />
       <DialogRef Id="ApiKeyDlg"/>
+      <DialogRef Id="SiteDlg"/>
       <DialogRef Id="LicenseAgreementDlg"/>
 
       <DialogRef Id="MaintenanceWelcomeDlg"/>
@@ -326,7 +343,8 @@
       <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">NOT Installed</Publish>
 
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="SiteDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="SiteDlg">NOT PREVIOUSFOUND</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">PREVIOUSFOUND</Publish>
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
@@ -334,7 +352,8 @@
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
-      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="SiteDlg">APIKEY AND (NOT SITE)</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY AND SITE</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
 

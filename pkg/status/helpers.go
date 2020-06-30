@@ -8,9 +8,10 @@ package status
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
+	htemplate "html/template"
 	"strconv"
 	"strings"
+	ttemplate "text/template"
 	"time"
 	"unicode"
 
@@ -20,13 +21,13 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// Fmap return a fresh copy of a map of utility functions for templating
-func Fmap() template.FuncMap {
-	return template.FuncMap{
+// Fmap return a fresh copy of a map of utility functions for HTML templating
+func Fmap() htemplate.FuncMap {
+	return htemplate.FuncMap{
 		"doNotEscape":        doNotEscape,
 		"lastError":          lastError,
-		"lastErrorTraceback": lastErrorTraceback,
-		"lastErrorMessage":   lastErrorMessage,
+		"lastErrorTraceback": func(s string) htemplate.HTML { return doNotEscape(lastErrorTraceback(s)) },
+		"lastErrorMessage":   func(s string) htemplate.HTML { return doNotEscape(lastErrorMessage(s)) },
 		"configError":        configError,
 		"printDashes":        printDashes,
 		"formatUnixTime":     formatUnixTime,
@@ -41,43 +42,66 @@ func Fmap() template.FuncMap {
 		"greenText":          greenText,
 		"ntpWarning":         ntpWarning,
 		"version":            getVersion,
+		"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 	}
 }
 
-func doNotEscape(value string) template.HTML {
-	return template.HTML(value)
+// Textfmap return a fresh copy of a map of utility functions for text templating
+func Textfmap() ttemplate.FuncMap {
+	return ttemplate.FuncMap{
+		"lastErrorTraceback": lastErrorTraceback,
+		"lastErrorMessage":   lastErrorMessage,
+		"printDashes":        printDashes,
+		"formatUnixTime":     formatUnixTime,
+		"humanize":           mkHuman,
+		"humanizeDuration":   mkHumanDuration,
+		"toUnsortedList":     toUnsortedList,
+		"formatTitle":        formatTitle,
+		"add":                add,
+		"status":             status,
+		"redText":            redText,
+		"yellowText":         yellowText,
+		"greenText":          greenText,
+		"ntpWarning":         ntpWarning,
+		"version":            getVersion,
+		"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
+	}
 }
 
-func configError(value string) template.HTML {
-	return template.HTML(value + "\n")
+func doNotEscape(value string) htemplate.HTML {
+	return htemplate.HTML(value)
 }
 
-func lastError(value string) template.HTML {
-	return template.HTML(value)
+func configError(value string) htemplate.HTML {
+	return htemplate.HTML(value + "\n")
 }
 
-func lastErrorTraceback(value string) template.HTML {
+func lastError(value string) htemplate.HTML {
+	return htemplate.HTML(value)
+}
+
+func lastErrorTraceback(value string) string {
 	var lastErrorArray []map[string]string
 
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err != nil || len(lastErrorArray) == 0 {
-		return template.HTML("No traceback")
+		return "No traceback"
 	}
 	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "\n      ", -1)
 	lastErrorArray[0]["traceback"] = strings.TrimRight(lastErrorArray[0]["traceback"], "\n\t ")
-	return template.HTML(lastErrorArray[0]["traceback"])
+	return lastErrorArray[0]["traceback"]
 }
 
 // lastErrorMessage converts the last error message to html
-func lastErrorMessage(value string) template.HTML {
+func lastErrorMessage(value string) string {
 	var lastErrorArray []map[string]string
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err == nil && len(lastErrorArray) > 0 {
 		if msg, ok := lastErrorArray[0]["message"]; ok {
-			return template.HTML(msg)
+			return msg
 		}
 	}
-	return template.HTML(value)
+	return value
 }
 
 // formatUnixTime formats the unix time to make it more readable

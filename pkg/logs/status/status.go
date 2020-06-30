@@ -42,6 +42,7 @@ type Status struct {
 	Integrations  []Integration    `json:"integrations"`
 	Errors        []string         `json:"errors"`
 	Warnings      []string         `json:"warnings"`
+	UseHTTP       bool             `json:"use_http"`
 }
 
 // Init instantiates the builder that builds the status on the fly.

@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,7 +66,7 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 		source := sources[i]
 		tailedFileCounter := 0
 		files, err := p.CollectFiles(source)
-		isWildcardPath := p.containsWildcard(source.Config.Path)
+		isWildcardPath := config.ContainsWildcard(source.Config.Path)
 		if err != nil {
 			source.Status.Error(err)
 			if isWildcardPath {
@@ -118,7 +117,7 @@ func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 		return []*File{
 			NewFile(path, source, false),
 		}, nil
-	case p.containsWildcard(path):
+	case config.ContainsWildcard(path):
 		pattern := path
 		return p.searchFiles(pattern, source)
 	default:
@@ -152,8 +151,27 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 	sort.SliceStable(paths, func(i, j int) bool {
 		return filepath.Base(paths[i]) > filepath.Base(paths[j])
 	})
+
+	// Resolve excluded path(s)
+	excludedPaths := make(map[string]int)
+	for _, excludePattern := range source.Config.ExcludePaths {
+		excludedGlob, err := filepath.Glob(excludePattern)
+		if err != nil {
+			return nil, fmt.Errorf("malformed exclusion pattern: %s, %s", excludePattern, err)
+		}
+		for _, excludedPath := range excludedGlob {
+			log.Debugf("Adding excluded path: %s", excludedPath)
+			excludedPaths[excludedPath]++
+			if excludedPaths[excludedPath] > 1 {
+				log.Debugf("Overlapping excluded path: %s", excludedPath)
+			}
+		}
+	}
+
 	for _, path := range paths {
-		files = append(files, NewFile(path, source, true))
+		if excludedPaths[path] == 0 {
+			files = append(files, NewFile(path, source, true))
+		}
 	}
 	return files, nil
 }
@@ -166,9 +184,4 @@ func (p *Provider) exists(filePath string) bool {
 		return false
 	}
 	return true
-}
-
-// containsWildcard returns true if the path contains any wildcard character
-func (p *Provider) containsWildcard(path string) bool {
-	return strings.ContainsAny(path, "*?[")
 }

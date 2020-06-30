@@ -99,7 +99,7 @@ typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, char *, 
 // (id, event)
 typedef void (*cb_submit_event_t)(char *, event_t *);
 // (id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags)
-typedef void (*cb_submit_histogram_bucket_t)(char *, char *, int, float, float, int, char *, char **);
+typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, float, int, char *, char **);
 
 // datadog_agent
 //
@@ -125,6 +125,8 @@ typedef void (*cb_set_external_tags_t)(char *, char *, char **);
 typedef void (*cb_write_persistent_cache_t)(char *, char *);
 // (value)
 typedef char *(*cb_read_persistent_cache_t)(char *);
+// (sql_query, error_message)
+typedef char *(*cb_obfuscate_sql_t)(char *, char **);
 
 // _util
 // (argv, argc, raise, stdout, stderr, ret_code, exception)
@@ -149,8 +151,8 @@ typedef void (*cb_get_connection_info_t)(char **);
 
 // containers
 //
-// (container_name, image_name, bool_result)
-typedef int (*cb_is_excluded_t)(char *, char *);
+// (container_name, image_name, namespace, bool_result)
+typedef int (*cb_is_excluded_t)(char *, char *, char *);
 
 #ifdef __cplusplus
 }

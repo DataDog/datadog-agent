@@ -7,6 +7,7 @@ if ohai["platform"] != "windows"
   dependency "ncurses"
   dependency "zlib"
   dependency "openssl"
+  dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
@@ -18,7 +19,8 @@ if ohai["platform"] != "windows"
   relative_path "Python-#{version}"
 
   python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded"]
+                      "--prefix=#{install_dir}/embedded",
+                      "--with-ssl=#{install_dir}/embedded"]
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",
@@ -43,6 +45,8 @@ if ohai["platform"] != "windows"
             {
               "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe",
               "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+              "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
+              "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
             }
           end
     command python_configure.join(" "), :env => env
@@ -60,20 +64,25 @@ if ohai["platform"] != "windows"
 
 else
   dependency "vc_redist_14"
-
+  #
+  # note for next version after 3.8.1, remove the `-withcrt` as the filename won't
+  # include that any more
+  #
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
-    source :url => "http://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
-            :sha256 => "44f4a665392912fe172223c42c62dd193670392fee5010bc9f89c5cd2722964c"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-withcrt-x86.zip",
+            :sha256 => "212a3a2112ef0ca2fd4baebe71c149f89fa5bda4b746c102b7b292fe6e1209ef"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "58563ca60891025923572107e02b8f07439928eb5222dd10466cc92089072c2a"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-withcrt-amd64.zip",
+         :sha256 => "1da0a5e43c24ed62a43c9f3a4d42e72abb4905b0e1fa4923f01c9ee5814ef9e7"
 
   end
+  vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
+    command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
   end
 end

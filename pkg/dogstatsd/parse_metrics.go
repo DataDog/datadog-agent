@@ -84,7 +84,7 @@ func parseMetricSampleSampleRate(rawSampleRate []byte) (float64, error) {
 	return parseFloat64(rawSampleRate)
 }
 
-func parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
+func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
 	// fast path to eliminate most of the gibberish
 	// especially important here since all the unidentified garbage gets
 	// identified as metrics
@@ -121,7 +121,7 @@ func parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
 	for message != nil {
 		optionalField, message = nextField(message)
 		if bytes.HasPrefix(optionalField, tagsFieldPrefix) {
-			tags = parseTags(optionalField[1:])
+			tags = p.parseTags(optionalField[1:])
 		} else if bytes.HasPrefix(optionalField, sampleRateFieldPrefix) {
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
 			if err != nil {
@@ -131,7 +131,7 @@ func parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
 	}
 
 	return dogstatsdMetricSample{
-		name:       string(name),
+		name:       p.interner.LoadOrStore(name),
 		value:      value,
 		setValue:   string(setValue),
 		metricType: metricType,

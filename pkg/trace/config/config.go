@@ -76,10 +76,12 @@ type AgentConfig struct {
 	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
 	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
+	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
-	StatsWriter *WriterConfig
-	TraceWriter *WriterConfig
+	StatsWriter             *WriterConfig
+	TraceWriter             *WriterConfig
+	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
 	StatsdHost string
@@ -125,7 +127,7 @@ func New() *AgentConfig {
 		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
 		BucketInterval:   time.Duration(10) * time.Second,
-		ExtraAggregators: []string{"http.status_code"},
+		ExtraAggregators: []string{"http.status_code", "version"},
 
 		ExtraSampleRate: 1.0,
 		MaxTPS:          10,
@@ -133,10 +135,11 @@ func New() *AgentConfig {
 
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,
-		ConnectionLimit: 2000,
+		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
-		StatsWriter: new(WriterConfig),
-		TraceWriter: new(WriterConfig),
+		StatsWriter:             new(WriterConfig),
+		TraceWriter:             new(WriterConfig),
+		ConnectionResetInterval: 0, // disabled
 
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
@@ -155,6 +158,14 @@ func New() *AgentConfig {
 
 		DDAgentBin: defaultDDAgentBin,
 	}
+}
+
+// APIKey returns the first (main) endpoint's API key.
+func (c *AgentConfig) APIKey() string {
+	if len(c.Endpoints) == 0 {
+		return ""
+	}
+	return c.Endpoints[0].APIKey
 }
 
 // Validate validates if the current configuration is good for the agent to start with.
@@ -249,7 +260,7 @@ func prepareConfig(path string) (*AgentConfig, error) {
 	// we'll resolve secrets later, after loading environment variable values too,
 	// in order to make sure that any potential secret references present in environment
 	// variables get counted.
-	if err := config.LoadWithoutSecret(); err != nil {
+	if _, err := config.LoadWithoutSecret(); err != nil {
 		return cfg, err
 	}
 	cfg.ConfigPath = path

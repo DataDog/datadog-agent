@@ -29,12 +29,12 @@ func GetDockerUtil() (*DockerUtil, error) {
 	defer globalDockerUtilMutex.Unlock()
 	if globalDockerUtil == nil {
 		globalDockerUtil = &DockerUtil{}
-		globalDockerUtil.initRetry.SetupRetrier(&retry.Config{
-			Name:          "dockerutil",
-			AttemptMethod: globalDockerUtil.init,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+		globalDockerUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:              "dockerutil",
+			AttemptMethod:     globalDockerUtil.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	if err := globalDockerUtil.initRetry.TriggerRetry(); err != nil {
@@ -51,7 +51,7 @@ func EnableTestingMode() {
 	globalDockerUtilMutex.Lock()
 	defer globalDockerUtilMutex.Unlock()
 	globalDockerUtil = &DockerUtil{}
-	globalDockerUtil.initRetry.SetupRetrier(&retry.Config{
+	globalDockerUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 		Name:     "dockerutil",
 		Strategy: retry.JustTesting,
 	})

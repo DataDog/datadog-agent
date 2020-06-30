@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -27,6 +28,8 @@ import (
 // DefaultFlushInterval aggregator default flush interval
 const DefaultFlushInterval = 15 * time.Second // flush interval
 const bucketSize = 10                         // fixed for now
+// MetricSamplePoolBatchSize is the batch size of the metric sample pool.
+const MetricSamplePoolBatchSize = 32
 
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
@@ -145,14 +148,14 @@ func init() {
 }
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string) *BufferedAggregator {
-	return InitAggregatorWithFlushInterval(s, metricPool, hostname, agentName, DefaultFlushInterval)
+func InitAggregator(s serializer.MetricSerializer, hostname string) *BufferedAggregator {
+	return InitAggregatorWithFlushInterval(s, hostname, DefaultFlushInterval)
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = NewBufferedAggregator(s, metricPool, hostname, agentName, flushInterval)
+		aggregatorInstance = NewBufferedAggregator(s, hostname, flushInterval)
 		go aggregatorInstance.run()
 	})
 
@@ -177,7 +180,6 @@ func StopDefaultAggregator() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	metricPool             *metrics.MetricSamplePool
 	bufferedMetricIn       chan []metrics.MetricSample
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
 	bufferedEventIn        chan []*metrics.Event
@@ -188,6 +190,10 @@ type BufferedAggregator struct {
 
 	checkMetricIn          chan senderMetricSample
 	checkHistogramBucketIn chan senderHistogramBucket
+
+	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
+	// Used by the Dogstatsd Batcher.
+	MetricSamplePool *metrics.MetricSamplePool
 
 	statsdSampler      TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
@@ -202,23 +208,25 @@ type BufferedAggregator struct {
 	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
 	stopChan           chan struct{}
 	health             *health.Handle
-	agentName          string // Name of the agent for telemetry metrics (agent / cluster-agent)
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
+	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
+
 	aggregator := &BufferedAggregator{
-		metricPool:             metricPool,
-		bufferedMetricIn:       make(chan []metrics.MetricSample, 100),  // TODO make buffer size configurable
-		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, 100), // TODO make buffer size configurable
-		bufferedEventIn:        make(chan []*metrics.Event, 100),        // TODO make buffer size configurable
+		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
+		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
+		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
 
-		metricIn:       make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
-		serviceCheckIn: make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
-		eventIn:        make(chan metrics.Event, 100),         // TODO make buffer size configurable
+		metricIn:       make(chan *metrics.MetricSample, bufferSize),
+		serviceCheckIn: make(chan metrics.ServiceCheck, bufferSize),
+		eventIn:        make(chan metrics.Event, bufferSize),
 
-		checkMetricIn:          make(chan senderMetricSample, 100),    // TODO make buffer size configurable
-		checkHistogramBucketIn: make(chan senderHistogramBucket, 100), // TODO make buffer size configurable
+		checkMetricIn:          make(chan senderMetricSample, bufferSize),
+		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
+
+		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
 		statsdSampler:      *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
@@ -228,8 +236,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, metricPool *metrics.Me
 		hostnameUpdate:     make(chan string),
 		hostnameUpdateDone: make(chan struct{}),
 		stopChan:           make(chan struct{}),
-		health:             health.Register("aggregator"),
-		agentName:          agentName,
+		health:             health.RegisterLiveness("aggregator"),
 	}
 
 	return aggregator
@@ -271,7 +278,7 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 // AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
 func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
 	metric := &metrics.MetricSample{
-		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
+		Name:       fmt.Sprintf("datadog.%s.started", flavor.GetFlavor()),
 		Value:      1,
 		Tags:       []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:       agg.hostname,
@@ -439,7 +446,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
 	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
 	series = append(series, &metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
@@ -449,7 +456,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series = append(series, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
@@ -618,9 +625,13 @@ func (agg *BufferedAggregator) Stop() {
 
 func (agg *BufferedAggregator) run() {
 	if agg.TickerChan == nil {
-		flushPeriod := agg.flushInterval
-		agg.TickerChan = time.NewTicker(flushPeriod).C
+		if agg.flushInterval != 0 {
+			agg.TickerChan = time.NewTicker(agg.flushInterval).C
+		} else {
+			log.Debugf("aggregator flushInterval set to 0: aggregator won't flush data")
+		}
 	}
+
 	for {
 		select {
 		case <-agg.stopChan:
@@ -652,13 +663,13 @@ func (agg *BufferedAggregator) run() {
 			aggregatorServiceCheck.Add(1)
 			tlmProcessed.Inc("service_checks")
 			agg.addServiceCheck(serviceCheck)
-		case metrics := <-agg.bufferedMetricIn:
-			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
-			tlmProcessed.Add(float64(len(metrics)), "dogstatsd_metrics")
-			for i := 0; i < len(metrics); i++ {
-				agg.addSample(&metrics[i], timeNowNano())
+		case ms := <-agg.bufferedMetricIn:
+			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
+			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			for i := 0; i < len(ms); i++ {
+				agg.addSample(&ms[i], timeNowNano())
 			}
-			agg.metricPool.PutBatch(metrics)
+			agg.MetricSamplePool.PutBatch(ms)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")

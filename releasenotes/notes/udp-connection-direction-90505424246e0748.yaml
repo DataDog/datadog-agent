@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The ``system-probe`` classifies UDP connections as incoming or outgoing.

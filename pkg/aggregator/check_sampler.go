@@ -18,29 +18,27 @@ const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
-	series                   []*metrics.Serie
-	sketches                 []metrics.SketchSeries
-	contextResolver          *ContextResolver
-	metrics                  metrics.ContextMetrics
-	sketchMap                sketchMap
-	lastBucketValue          map[ckey.ContextKey]int
-	lastSeenBucket           map[ckey.ContextKey]time.Time
-	bucketExpiry             time.Duration
-	interpolationGranularity int
+	series          []*metrics.Serie
+	sketches        []metrics.SketchSeries
+	contextResolver *ContextResolver
+	metrics         metrics.ContextMetrics
+	sketchMap       sketchMap
+	lastBucketValue map[ckey.ContextKey]int64
+	lastSeenBucket  map[ckey.ContextKey]time.Time
+	bucketExpiry    time.Duration
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
 func newCheckSampler() *CheckSampler {
 	return &CheckSampler{
-		series:                   make([]*metrics.Serie, 0),
-		sketches:                 make([]metrics.SketchSeries, 0),
-		contextResolver:          newContextResolver(),
-		metrics:                  metrics.MakeContextMetrics(),
-		sketchMap:                make(sketchMap),
-		lastBucketValue:          make(map[ckey.ContextKey]int),
-		lastSeenBucket:           make(map[ckey.ContextKey]time.Time),
-		bucketExpiry:             1 * time.Minute,
-		interpolationGranularity: 1000,
+		series:          make([]*metrics.Serie, 0),
+		sketches:        make([]metrics.SketchSeries, 0),
+		contextResolver: newContextResolver(),
+		metrics:         metrics.MakeContextMetrics(),
+		sketchMap:       make(sketchMap),
+		lastBucketValue: make(map[ckey.ContextKey]int64),
+		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
+		bucketExpiry:    1 * time.Minute,
 	}
 }
 
@@ -108,34 +106,17 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		return
 	}
 
-	// simple linear interpolation, TODO: optimize
-	var linearIncr float64
-	var incrCount int
-	var countPerIncr uint
-	if bucket.Value > cs.interpolationGranularity {
-		linearIncr = bucketRange / float64(cs.interpolationGranularity)
-		countPerIncr = uint(bucket.Value / cs.interpolationGranularity)
-		incrCount = cs.interpolationGranularity
-	} else {
-		linearIncr = bucketRange / float64(bucket.Value)
-		countPerIncr = 1
-		incrCount = bucket.Value
-	}
+	// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
 	if math.IsInf(bucket.UpperBound, 1) {
-		// We simulate the behavior of promQL for the infinity bucket:
-		// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
-		incrCount = 1
-		countPerIncr = uint(bucket.Value)
+		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
+		return
 	}
-	currentVal := bucket.LowerBound
+
 	log.Tracef(
-		"Interpolating %d values by group of %d over the [%f-%f] bucket with %f increment",
-		bucket.Value, countPerIncr, bucket.LowerBound, bucket.UpperBound, linearIncr,
+		"Interpolating %d values over the [%f-%f] bucket",
+		bucket.Value, bucket.LowerBound, bucket.UpperBound,
 	)
-	for i := 0; i < incrCount; i++ {
-		cs.sketchMap.insertN(int64(bucket.Timestamp), contextKey, currentVal, countPerIncr)
-		currentVal += linearIncr
-	}
+	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64) {

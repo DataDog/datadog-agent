@@ -72,17 +72,17 @@ to your datadog.yaml file.
 Exiting.`
 )
 
-func runAgent(exit chan bool) {
+func runAgent(exit chan struct{}) {
 	if opts.version {
 		fmt.Print(versionString("\n"))
-		os.Exit(0)
+		cleanupAndExit(0)
 	}
 
 	if opts.check == "" && !opts.info && opts.pidfilePath != "" {
 		err := pidfile.WritePID(opts.pidfilePath)
 		if err != nil {
 			log.Errorf("Error while writing PID file, exiting: %v", err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), opts.pidfilePath)
@@ -95,7 +95,7 @@ func runAgent(exit chan bool) {
 	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	// Now that the logger is configured log host info
@@ -110,16 +110,16 @@ func runAgent(exit chan bool) {
 
 	// Tagger must be initialized after agent config has been setup
 	tagger.Init()
-	defer tagger.Stop()
+	defer tagger.Stop() //nolint:errcheck
 
 	err = initInfo(cfg)
 	if err != nil {
 		log.Criticalf("Error initializing info: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 	if err := statsd.Configure(cfg); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	// Exit if agent is not enabled and we're not debugging a check.
@@ -147,9 +147,9 @@ func runAgent(exit chan bool) {
 		err := debugCheckResults(cfg, opts.check)
 		if err != nil {
 			fmt.Println(err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		} else {
-			os.Exit(0)
+			cleanupAndExit(0)
 		}
 		return
 	}
@@ -158,23 +158,27 @@ func runAgent(exit chan bool) {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", cfg.ProcessExpVarPort)
 		if err := Info(os.Stdout, cfg, url); err != nil {
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 		return
 	}
 
 	// Run a profile server.
 	go func() {
-		http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
+		http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil) //nolint:errcheck
 	}()
 
 	cl, err := NewCollector(cfg)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+	if err := cl.run(exit); err != nil {
+		log.Criticalf("Error starting collector: %s", err)
 		os.Exit(1)
 		return
 	}
-	cl.run(exit)
 	for range exit {
 
 	}
@@ -189,7 +193,7 @@ func debugCheckResults(cfg *config.AgentConfig, check string) error {
 	if check == checks.Connections.Name() {
 		// Connections check requires process-check to have occurred first (for process creation ts)
 		checks.Process.Init(cfg, sysInfo)
-		checks.Process.Run(cfg, 0)
+		checks.Process.Run(cfg, 0) //nolint:errcheck
 	}
 
 	names := make([]string, 0, len(checks.All))
@@ -228,4 +232,17 @@ func printResults(cfg *config.AgentConfig, ch checks.Check) error {
 		fmt.Println(string(b))
 	}
 	return nil
+}
+
+// cleanupAndExit cleans all resources allocated by the agent before calling
+// os.Exit
+func cleanupAndExit(status int) {
+	// remove pidfile if set
+	if opts.pidfilePath != "" {
+		if _, err := os.Stat(opts.pidfilePath); err == nil {
+			os.Remove(opts.pidfilePath)
+		}
+	}
+
+	os.Exit(status)
 }

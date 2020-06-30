@@ -139,6 +139,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 				continue
 			}
 			for _, key := range keys {
+				key = config.SanitizeAPIKey(key)
 				c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
 			}
 		}
@@ -175,6 +176,18 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	if config.Datadog.IsSet("apm_config.env") {
 		c.DefaultEnv = config.Datadog.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", c.DefaultEnv)
+	} else if config.Datadog.IsSet("env") {
+		c.DefaultEnv = config.Datadog.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", c.DefaultEnv)
+	} else if config.Datadog.IsSet("tags") {
+		for _, tag := range config.Datadog.GetStringSlice("tags") {
+			if strings.HasPrefix(tag, "env:") {
+				c.DefaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", c.DefaultEnv, tag)
+				break
+			}
+		}
 	}
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
@@ -196,6 +209,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	if config.Datadog.IsSet("apm_config.ignore_resources") {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice("apm_config.ignore_resources")
+	}
+	if k := "apm_config.max_payload_size"; config.Datadog.IsSet(k) {
+		c.MaxRequestBytes = config.Datadog.GetInt64(k)
 	}
 
 	if config.Datadog.IsSet("apm_config.replace_tags") {
@@ -248,6 +264,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		if err := config.Datadog.UnmarshalKey(key, cfg); err != nil {
 			log.Errorf("Error reading writer config %q: %v", key, err)
 		}
+	}
+	if config.Datadog.IsSet("apm_config.connection_reset_interval") {
+		c.ConnectionResetInterval = getDuration(config.Datadog.GetInt("apm_config.connection_reset_interval"))
 	}
 
 	// undocumented deprecated

@@ -13,8 +13,12 @@ else
          :target_filename => "Microsoft_VC141_CRT_x64.msm"
 end
 build do
-  # Install the vcruntime140.dll properly, using the merge module. Just place
-  # it in the bin/agent directory, so that the install source can find it and
-  # include it.
-  copy '*.msm', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+   # expand the MSM so that anyone that needs the individual components can find it
+   script_root = "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/tools/windows/decompress_merge_module.ps1"
+   if windows_arch_i386?
+     source_msm = "Microsoft_VC141_CRT_x86.msm"
+   else
+     source_msm = "Microsoft_VC141_CRT_x64.msm"
+   end
+   command "powershell -C \"#{windows_safe_path(script_root)} -file #{source_msm} -targetDir .\\expanded\""
 end

@@ -3,6 +3,7 @@ suites:
 # Installs the latest release candidate using the step-by-step instructions (on dogweb)
 - name: dd-agent-step-by-step
   run_list:
+    - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-step-by-step]"
   attributes:
     apt:

@@ -100,44 +100,34 @@ remove_py_compiled_files()
     fi
 }
 
-remove_downloader_data()
+remove_custom_integrations()
 {
-    # Remove all the data that was downloaded using the integration command
-    # This is purely for cleaning up after ourselves
-    DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
-    if [ -d $DOWNLOADER_DATA ]; then
-        rm -rf $DOWNLOADER_DATA
-    fi
+    # Since 6.18.0, a file containing all integrations files which have been installed by
+    # the package is available. We use it to remove only the datadog-related check files which
+    # have *NOT* been installed by the package (eg: installed using the `integration` command).
 
-    DOWNLOADER_DATA38="$INSTALL_DIR/embedded/lib/python3.8/site-packages/datadog_checks/downloader/data"
-    if [ -d $DOWNLOADER_DATA38 ]; then
-        rm -rf $DOWNLOADER_DATA38
-    fi
-}
+    if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
+        echo "Removing integrations installed with the 'agent integration' command"
 
-uninstall_integrations()
-{
-    # Uninstall every datadog integration
-    # Starting with 6.10, integrations are uninstalled on package removal
-    # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
-    PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
-    PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
-    if [ -x $PIP2_PATH ]; then
-        echo "Uninstalling Python 2 integrations..."
-        $PIP2_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP2_PATH uninstall -y -q --no-cache-dir || true
-    fi
-    if [ -x $PIP3_PATH ]; then
-        echo "Uninstalling Python 3 integrations..."
-        $PIP3_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP3_PATH uninstall -y -q --no-cache-dir || true
+        # List all files in the embedded dir of the datadog-agent install dir
+        PREV_DIR=$(pwd)
+        cd "$INSTALL_DIR" || return
+        find . -depth -path './embedded/lib/python*/site-packages/datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
+
+        # List all files in the embedded dir of the datadog-agent install dir
+        # which were not installed by the package and rm them.
+        grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
+
+        rm $INSTALL_DIR/embedded/.all-integrations.txt
+        cd "$PREV_DIR" || return
     fi
 }
 
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     stop_agent
     deregister_agent
-    uninstall_integrations
+    remove_custom_integrations
     remove_py_compiled_files
-    remove_downloader_data
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
     stop_agent
     deregister_agent
@@ -145,9 +135,8 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
     case "$*" in
         0)
             # We're uninstalling.
-            uninstall_integrations
+            remove_custom_integrations
             remove_py_compiled_files
-            remove_downloader_data
         ;;
         1)
             # We're upgrading.
@@ -157,12 +146,11 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         ;;
     esac
 else
-    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+    echo "[ FAILED ]\tYour system is currently not supported by this script.";
 fi
 
 # Delete all .pyc files in the `agent/` and the `bin/agent/dist` dirs
-find $INSTALL_DIR/embedded/lib/python* -name '*.py[co]' -type f -delete || true
-find $INSTALL_DIR/bin/agent/dist -name '*.py[co]' -type f -delete || true
-find $INSTALL_DIR/bin/agent/dist -name '__pycache__' -type d -delete || true
+find $INSTALL_DIR/bin/agent/dist -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/bin/agent/dist"
+find $INSTALL_DIR/bin/agent/dist -name '__pycache__' -type d -delete || echo "Unable to delete __pycache__ directories in $INSTALL_DIR/bin/agent/dist"
 
 exit 0

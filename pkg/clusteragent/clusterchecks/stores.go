@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -66,7 +67,7 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName, clientIP string) *nodeStor
 		return node
 	}
 	node = newNodeStore(nodeName, clientIP)
-	nodeAgents.Inc()
+	nodeAgents.Inc(le.JoinLeaderValue)
 	s.nodes[nodeName] = node
 	return node
 }
@@ -103,7 +104,7 @@ func newNodeStore(name, clientIP string) *nodeStore {
 func (s *nodeStore) addConfig(config integration.Config) {
 	s.lastConfigChange = timestampNow()
 	s.digestToConfig[config.Digest()] = config
-	dispatchedConfigs.Inc(s.name)
+	dispatchedConfigs.Inc(s.name, le.JoinLeaderValue)
 }
 
 func (s *nodeStore) removeConfig(digest string) {
@@ -114,7 +115,7 @@ func (s *nodeStore) removeConfig(digest string) {
 	}
 	s.lastConfigChange = timestampNow()
 	delete(s.digestToConfig, digest)
-	dispatchedConfigs.Dec(s.name)
+	dispatchedConfigs.Dec(s.name, le.JoinLeaderValue)
 }
 
 // AddRunnerStats stores runner stats for a check
@@ -152,19 +153,19 @@ func (s *nodeStore) GetRunnerStats(checkID string) (types.CLCRunnerStats, error)
 
 // GetBusyness calculates busyness of the node
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetBusyness(busynessFunc func(avgExecTime, mSamples int) int) int {
+func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) int) int {
 	s.RLock()
 	defer s.RUnlock()
 	busyness := 0
 	for _, stats := range s.clcRunnerStats {
-		busyness += busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
+		busyness += busynessFunc(stats)
 	}
 	return busyness
 }
 
 // GetMostWeightedClusterCheck returns the Cluster Check with the most weight on the node
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetMostWeightedClusterCheck(busynessFunc func(avgExecTime, mSamples int) int) (string, int, error) {
+func (s *nodeStore) GetMostWeightedClusterCheck(busynessFunc func(stats types.CLCRunnerStats) int) (string, int, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if len(s.clcRunnerStats) == 0 {
@@ -175,7 +176,7 @@ func (s *nodeStore) GetMostWeightedClusterCheck(busynessFunc func(avgExecTime, m
 	checkID := ""
 	checkWeight := 0
 	for id, stats := range s.clcRunnerStats {
-		busyness := busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
+		busyness := busynessFunc(stats)
 		if (busyness > checkWeight || firstItr) && stats.IsClusterCheck {
 			// Only consider Cluster Checks
 			checkWeight = busyness

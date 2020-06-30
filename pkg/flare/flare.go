@@ -41,7 +41,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 	bodyReader, bodyWriter := io.Pipe()
 
 	writer := multipart.NewWriter(bodyWriter)
-	writer.SetBoundary(multipartBoundary)
+	writer.SetBoundary(multipartBoundary) //nolint:errcheck
 
 	//Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
 	go func() {
@@ -50,32 +50,32 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		defer writer.Close()
 
 		if caseID != "" {
-			writer.WriteField("case_id", caseID)
+			writer.WriteField("case_id", caseID) //nolint:errcheck
 		}
 		if email != "" {
-			writer.WriteField("email", email)
+			writer.WriteField("email", email) //nolint:errcheck
 		}
 
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
 		if err != nil {
-			bodyWriter.CloseWithError(err)
+			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
 		file, err := os.Open(archivePath)
 		defer file.Close()
 		if err != nil {
-			bodyWriter.CloseWithError(err)
+			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
 		_, err = io.Copy(p, file)
 		if err != nil {
-			bodyWriter.CloseWithError(err)
+			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
 
 		agentFullVersion, _ := version.Agent()
-		writer.WriteField("agent_version", agentFullVersion.String())
-		writer.WriteField("hostname", hostname)
+		writer.WriteField("agent_version", agentFullVersion.String()) //nolint:errcheck
+		writer.WriteField("hostname", hostname)                       //nolint:errcheck
 
 	}()
 
@@ -127,12 +127,28 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 	if err != nil {
 		return response, err
 	}
+	if r.StatusCode == http.StatusForbidden {
+		apiKey := config.Datadog.GetString("api_key")
+		var errStr string
+
+		if len(apiKey) == 0 {
+			errStr = "API key is missing"
+		} else {
+			if len(apiKey) > 5 {
+				apiKey = apiKey[len(apiKey)-5:]
+			}
+			errStr = fmt.Sprintf("Make sure your API key is valid. API Key ending with: %v", apiKey)
+		}
+
+		return response, fmt.Errorf("HTTP 403 Forbidden: %s", errStr)
+	}
+
 	b, _ := ioutil.ReadAll(r.Body)
 	var res = flareResponse{}
 	err = json.Unmarshal(b, &res)
 	if err != nil {
-		response = fmt.Sprintf("An unknown error has occurred - Please contact support by email.")
-		return response, err
+		response = fmt.Sprintf("Error: could not deserialize response body -- Please contact support by email.")
+		return response, fmt.Errorf("%v\nServer returned:\n%s", err, string(b)[:150])
 	}
 
 	if res.Error != "" {

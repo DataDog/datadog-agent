@@ -281,4 +281,17 @@ func TestLoadEnv(t *testing.T) {
 			assert.Equal(7., cfg.MaxEPS)
 		})
 	}
+
+	env = "DD_APM_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		assert := assert.New(t)
+		err := os.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key1", Host: "url1"})
+		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key2", Host: "url1"})
+		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key3", Host: "url2"})
+	})
 }

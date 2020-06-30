@@ -20,6 +20,7 @@ static cb_set_check_metadata_t cb_set_check_metadata = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
 static cb_write_persistent_cache_t cb_write_persistent_cache = NULL;
 static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
+static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -33,6 +34,7 @@ static PyObject *set_check_metadata(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
 static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
+static PyObject *obfuscate_sql(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -46,6 +48,7 @@ static PyMethodDef methods[] = {
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
     { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
+    { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS, "Obfuscate & normalize a SQL string." },
     { NULL, NULL } // guards
 };
 
@@ -114,6 +117,11 @@ void _set_set_external_tags_cb(cb_set_external_tags_t cb)
 void _set_tracemalloc_enabled_cb(cb_tracemalloc_enabled_t cb)
 {
     cb_tracemalloc_enabled = cb;
+}
+
+void _set_obfuscate_sql_cb(cb_obfuscate_sql_t cb)
+{
+    cb_obfuscate_sql = cb;
 }
 
 /*! \fn PyObject *get_version(PyObject *self, PyObject *args)
@@ -652,4 +660,50 @@ done:
     }
     Py_RETURN_NONE;
 
+}
+
+/*! \fn PyObject *obfuscate_sql(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.obfuscate_sql` method, obfuscating
+    the provided sql string.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the key to retrieve.
+    \return A PyObject* pointer to the value.
+
+    This function is callable as the `datadog_agent.obfuscate_sql` Python method and
+    uses the `cb_obfuscate_sql()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *obfuscate_sql(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_obfuscate_sql == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *rawQuery;
+    if (!PyArg_ParseTuple(args, "s", &rawQuery)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *obfQuery = NULL;
+    char *error_message = NULL;
+    obfQuery = cb_obfuscate_sql(rawQuery, &error_message);
+
+    PyObject *retval = NULL;
+    if (error_message != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, error_message);
+    } else if (obfQuery == NULL) {
+        // no error message and a null response. this should never happen so the go code is misbehaving
+        PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_sql response");
+    } else {
+        retval = PyStringFromCString(obfQuery);
+    }
+
+    cgo_free(error_message);
+    cgo_free(obfQuery);
+    PyGILState_Release(gstate);
+    return retval;
 }

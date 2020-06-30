@@ -70,7 +70,37 @@ func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
 func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	return c.CommonConfigure(data, source)
+	commonGlobalOptions := integration.CommonGlobalConfig{}
+	err := yaml.Unmarshal(initConfig, &commonGlobalOptions)
+	if err != nil {
+		log.Errorf("invalid init_config section for check %s: %s", string(c.ID()), err)
+		return err
+	}
+
+	// Set service for this check
+	if len(commonGlobalOptions.Service) > 0 {
+		s, err := aggregator.GetSender(c.checkID)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+			return err
+		}
+		s.SetCheckService(commonGlobalOptions.Service)
+	}
+
+	err = c.CommonConfigure(data, source)
+	if err != nil {
+		return err
+	}
+
+	// Add the possibly configured service as a tag for this check
+	s, err := aggregator.GetSender(c.checkID)
+	if err != nil {
+		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+
+	return nil
 }
 
 // CommonConfigure is called when checks implement their own Configure method,
@@ -106,6 +136,16 @@ func (c *CheckBase) CommonConfigure(instance integration.Data, source string) er
 			return err
 		}
 		s.SetCheckCustomTags(commonOptions.Tags)
+	}
+
+	// Set configured service for this check, overriding the one possibly defined globally
+	if len(commonOptions.Service) > 0 {
+		s, err := aggregator.GetSender(c.checkID)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+			return err
+		}
+		s.SetCheckService(commonOptions.Service)
 	}
 
 	c.source = source

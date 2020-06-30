@@ -4,32 +4,37 @@ package util
 
 import (
 	"fmt"
-	"os"
-	"syscall"
+	"runtime"
+
+	"github.com/vishvananda/netns"
 )
 
-// IsRootNS determines whether the current thread is attached to the root network namespace
-func IsRootNS(procRoot string) bool {
-	rootPath := fmt.Sprintf("%s/1/ns/net", procRoot)
-	rootNS, err := os.Open(rootPath)
-	if err != nil {
-		return false
-	}
-	defer rootNS.Close()
+// WithRootNS executes a function within root network namespace and then switch back
+// to the previous namespace. If the thread is already in the root network namespace,
+// the function is executed without calling SYS_SETNS.
+func WithRootNS(procRoot string, fn func()) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 
-	currentPath := fmt.Sprintf("/proc/%d/task/%d/ns/net", os.Getpid(), syscall.Gettid())
-	currentNS, err := os.Open(currentPath)
+	prevNS, err := netns.Get()
 	if err != nil {
-		return false
+		return err
 	}
-	defer currentNS.Close()
 
-	var s1, s2 syscall.Stat_t
-	if err := syscall.Fstat(int(rootNS.Fd()), &s1); err != nil {
-		return false
+	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", procRoot))
+	if err != nil {
+		return err
 	}
-	if err := syscall.Fstat(int(currentNS.Fd()), &s2); err != nil {
-		return false
+
+	if rootNS.Equal(prevNS) {
+		fn()
+		return nil
 	}
-	return s1.Dev == s2.Dev && s1.Ino == s2.Ino
+
+	if err := netns.Set(rootNS); err != nil {
+		return err
+	}
+
+	fn()
+	return netns.Set(prevNS)
 }

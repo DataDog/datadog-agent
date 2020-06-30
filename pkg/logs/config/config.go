@@ -33,6 +33,16 @@ var logsEndpoints = map[string]int{
 	"agent-intake.logs.datad0g.eu":    443,
 }
 
+// HTTPConnectivity is the status of the HTTP connectivity
+type HTTPConnectivity bool
+
+var (
+	// HTTPConnectivitySuccess is the status for successful HTTP connectivity
+	HTTPConnectivitySuccess HTTPConnectivity = true
+	// HTTPConnectivityFailure is the status for failed HTTP connectivity
+	HTTPConnectivityFailure HTTPConnectivity = false
+)
+
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
 func DefaultSources() []*LogSource {
 	var sources []*LogSource
@@ -54,9 +64,12 @@ func DefaultSources() []*LogSource {
 func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
 	var err error
-	raw := coreConfig.Datadog.GetString("logs_config.processing_rules")
-	if raw != "" {
-		err = json.Unmarshal([]byte(raw), &rules)
+	raw := coreConfig.Datadog.Get("logs_config.processing_rules")
+	if raw == nil {
+		return rules, nil
+	}
+	if s, ok := raw.(string); ok && s != "" {
+		err = json.Unmarshal([]byte(s), &rules)
 	} else {
 		err = coreConfig.Datadog.UnmarshalKey("logs_config.processing_rules", &rules)
 	}
@@ -74,17 +87,35 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	return rules, nil
 }
 
-// BuildEndpoints returns the endpoints to send logs to.
-func BuildEndpoints() (*Endpoints, error) {
+// BuildEndpoints returns the endpoints to send logs.
+func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
+	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
 	if coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
-
-	if coreConfig.Datadog.GetBool("logs_config.use_http") {
-		return buildHTTPEndpoints()
+	if isForceHTTPUse() || (bool(httpConnectivity) && !(isForceTCPUse() || isSocks5ProxySet() || hasAdditionalEndpoints())) {
+		return BuildHTTPEndpoints()
 	}
-
+	log.Warn("You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed) " +
+		"To benefit from increased reliability and better network performances, " +
+		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.")
 	return buildTCPEndpoints()
+}
+
+func isSocks5ProxySet() bool {
+	return len(coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")) > 0
+}
+
+func isForceTCPUse() bool {
+	return coreConfig.Datadog.GetBool("logs_config.use_tcp")
+}
+
+func isForceHTTPUse() bool {
+	return coreConfig.Datadog.GetBool("logs_config.use_http")
+}
+
+func hasAdditionalEndpoints() bool {
+	return len(getAdditionalEndpoints()) > 0
 }
 
 func buildTCPEndpoints() (*Endpoints, error) {
@@ -122,24 +153,22 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 
-	var additionals []Endpoint
-	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
-	if err != nil {
-		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
-	}
+	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
+		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
-
 	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
 
-func buildHTTPEndpoints() (*Endpoints, error) {
+// BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
+func BuildHTTPEndpoints() (*Endpoints, error) {
 	main := Endpoint{
-		APIKey:           getLogsAPIKey(coreConfig.Datadog),
-		UseCompression:   coreConfig.Datadog.GetBool("logs_config.use_compression"),
-		CompressionLevel: coreConfig.Datadog.GetInt("logs_config.compression_level"),
+		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
+		UseCompression:          coreConfig.Datadog.GetBool("logs_config.use_compression"),
+		CompressionLevel:        coreConfig.Datadog.GetInt("logs_config.compression_level"),
+		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt("logs_config.connection_reset_interval")) * time.Second,
 	}
 
 	switch {
@@ -156,18 +185,33 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 
-	var additionals []Endpoint
-	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
-	if err != nil {
-		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
-	}
+	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
+		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
 
 	batchWait := batchWait(coreConfig.Datadog)
 
 	return NewEndpoints(main, additionals, false, true, batchWait), nil
+}
+
+func getAdditionalEndpoints() []Endpoint {
+	var endpoints []Endpoint
+	var err error
+	raw := coreConfig.Datadog.Get("logs_config.additional_endpoints")
+	if raw == nil {
+		return endpoints
+	}
+	if s, ok := raw.(string); ok && s != "" {
+		err = json.Unmarshal([]byte(s), &endpoints)
+	} else {
+		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &endpoints)
+	}
+	if err != nil {
+		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
+	}
+	return endpoints
 }
 
 func isSetAndNotEmpty(config coreConfig.Config, key string) bool {

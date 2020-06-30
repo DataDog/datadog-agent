@@ -16,8 +16,10 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
-## The host of the Datadog intake server to send Agent data to, only set this option
-## if you need the Agent to send data to a custom URL, it overrides the site setting defined in "site".
+## The host of the Datadog intake server to send metrics to, only set this option
+## if you need the Agent to send metrics to a custom URL, it overrides the site
+## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
+## own "*_dd_url" settings.
 #
 # dd_url: https://app.datadoghq.com
 
@@ -64,6 +66,12 @@ api_key:
 # tags:
 #   - environment:dev
 #   - <TAG_KEY>:<TAG_VALUE>
+
+## @param env - string - optional
+## The environment name where the agent is running. Attached in-app to every
+## metric, event, log, trace, and service check emitted by this Agent.
+#
+# env: <environment name>
 
 ## @param tag_value_split_separator - list of key:value elements - optional
 ## Split tag values according to a given separator. Only applies to host tags,
@@ -142,6 +150,13 @@ api_key:
 ## 'aggregator_stop_timeout' to 0.
 #
 # aggregator_stop_timeout: 2
+#
+# @param aggregator_buffer_size - integer - optional - default: 100
+# The default buffer size for the aggregator use a sane value for most of the
+# use cases, however, it could be useful to manually set it in order to trade
+# RSS usage with better performances.
+#
+# aggregator_buffer_size: 100
 
 ## @param forwarder_timeout - integer - optional - default: 20
 ## Forwarder timeout in seconds
@@ -171,6 +186,29 @@ api_key:
 ## 'forwarder_stop_timeout' to 0.
 #
 # forwarder_stop_timeout: 2
+
+## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
+## This option restricts which cloud provider endpoint will be used by the
+## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
+## and alibaba providers. Some cloud provider are not enabled by default to not
+## trigger security alert when querying unknown IP (for example, when enabling
+## Tencent on AWS).
+## Setting an empty list will disable querying any cloud metadata endpoints
+## (falling back on system metadata). Using this setting on a cloud provider
+## host may result in duplicated hosts in your account.
+##
+## Possible values are:
+## "aws"     AWS EC2, ECS/Fargate
+## "gcp"     Google Cloud Provider
+## "azure"   Azure
+## "alibaba" Alibaba
+## "tencent" Tencent
+#
+# cloud_provider_metadata:
+#   - "aws"
+#   - "gcp"
+#   - "azure"
+#   - "alibaba"
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
@@ -202,6 +240,11 @@ api_key:
 #   - "google-container-manifest"
 #   - "bosh_settings"
 
+## @param gce_metadata_timeout - integer - optional - default: 1000
+## Timeout in milliseconds on calls to the GCE metadata endpoints.
+#
+# gce_metadata_timeout: 1000
+
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
 ## including them in the flare.
@@ -214,6 +257,7 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
+{{- if .Python }}
 {{- if .BothPythonPresent -}}
 ## @param python_version - integer - optional - default: 2
 ## The major version of Python used to run integrations and custom checks.
@@ -222,6 +266,7 @@ api_key:
 #
 # python_version: 2
 
+{{ end -}}
 {{ end }}
 
 ############################
@@ -303,7 +348,7 @@ api_key:
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
 # procfs_path: <PROCFS_PATH>
-
+{{ if .Python }}
 ## @param disable_py3_validation - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
 #
@@ -339,6 +384,12 @@ api_key:
 #
 # tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
 
+## @param windows_use_pythonpath - boolean - optional
+## Whether to honour the value of the PYTHONPATH env var when set on Windows.
+## Disabled by default, so we only load Python libraries bundled with the Agent.
+#
+# windows_use_pythonpath: false
+{{ end }}
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
@@ -364,7 +415,157 @@ api_key:
 #
 # secret_backend_timeout: 5
 
+## @param snmp_listener - custom object - optional
+## Creates and schedules a listener to automatically discover your SNMP devices.
+## Discovered devices can then be monitored with the SNMP integration by using
+## the auto_conf.yaml file provided by default.
+#
+# snmp_listener:
+
+  ## @param workers - integer - optional - default: 2
+  ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
+  ## discovers devices faster but at the cost of increased resource consumption.
+  #
+  # workers: 2
+
+  ## @param discovery_interval - integer - optional - default: 3600
+  ## How often to discover new SNMP devices, in seconds. Decreasing this value
+  ## discovers devices faster (within the limit of the time taken to scan subnets)
+  ## but at the cost of increased resource consumption.
+  #
+  # discovery_interval: 3600
+
+  ## @param allowed_failures - integer - optional - default: 3
+  ## The number of failed requests to a given SNMP device before removing it from the list of monitored
+  ## devices.
+  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * allowed_failures` seconds.
+  #
+  # allowed_failures: 3
+
+  ## @param configs - list - required
+  ## The actual list of configurations used to discover SNMP devices in various subnets.
+  ## Example:
+  ## configs:
+  ##  - network: 10.0.0.0/24
+  ##    version: 1
+  ##    community: public
+  ##  - network: 10.0.1.0/28
+  ##    community: public
+  ##    ignored_ip_addresses:
+  ##      - 10.0.1.0
+  ##      - 10.0.1.1
+  #
+  # configs:
+    ## @param network - string - required
+    ## The subnet in CIDR format to scan for SNMP devices.
+    ## All unignored IP addresses in the CIDR range are scanned.
+    ## For optimal discovery time, be sure to use the smallest network mask
+    ## possible as is appropriate for your network topology.
+    ## Ex: 10.0.1.0/24
+    #
+    # - network: <NETWORK>
+
+    ## @param ignored_ip_addresses - list of strings - optional
+    ## A list of IP addresses to ignore when scanning the network.
+    #
+    # ignored_ip_addresses:
+    #   - <IP_ADDRESS_1>
+    #   - <IP_ADDRESS_2>
+
+    ## @param port - integer - optional - default: 161
+    ## The UDP port to use when connecting to SNMP devices.
+    #
+    # port: 161
+
+    ## @param version - integer - optional - default: <BEST_GUESS>
+    ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
+    ## If unset, the Agent tries to guess the correct version based on other configuration
+    ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
+    #
+    # version: <VERSION>
+
+    ## @param timeout - integer - optional - default: 5
+    ## The number of seconds before timing out.
+    #
+    # timeout: 5
+
+    ## @param retries - integer - optional - default: 3
+    ## The number of retries before failure.
+    #
+    # retries: 3
+
+    ## @param community - string - optional
+    ## Required for SNMP v1 & v2.
+    ## Ex: 'public'
+    #
+    # community: <COMMUNITY>
+
+    ## @param user - string - optional
+    ## The username to connect to your SNMP devices.
+    ## SNMPv3 only.
+    #
+    # user: <USERNAME>
+
+    ## @param authentication_key - string - optional
+    ## The passphrase to use with your Authentication type.
+    ## SNMPv3 only.
+    #
+    # authentication_key: <AUTHENTICATION_KEY>
+
+    ## @param authentication_protocol - string - optional
+    ## The authentication protocol to use when connecting to your SNMP devices.
+    ## Available options are: MD5, SHA.
+    ## Defaults to MD5 when `authentication_key` is specified.
+    ## SNMPv3 only.
+    #
+    # authentication_protocol: <AUTHENTICATION_PROTOCOL>
+
+    ## @param privacy_key - string - optional
+    ## The passphrase to use with your privacy protocol.
+    ## SNMPv3 only.
+    #
+    # privacy_key: <PRIVACY_KEY>
+
+    ## @param privacy_protocol - string - optional
+    ## The privacy protocol to use when connecting to your SNMP devices.
+    ## Available options are: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
+    ## Defaults to DES when `privacy_key` is specified.
+    ## SNMPv3 only.
+    #
+    # privacy_protocol: <PRIVACY_PROTOCOL>
+
+    ## @param context_name - string - optional
+    ## The name of your context (optional SNMP v3-only parameter).
+    #
+    # context_name: <CONTEXT_NAME>
+
+    ## @param ad_identifier - string - optional - default: snmp
+    ## A unique identifier to attach to devices from that subnetwork.
+    ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
+    ## specify the corresponding ad_identifier at the top of the file.
+    #
+    # ad_identifier: snmp
+
+{{- if .Profiling -}}
+## @param profiling - custom object - optional
+## Enter specific configurations for profiling.
+## Uncomment this parameter and the one below to enable profiling.
+## See https://docs.datadoghq.com/tracing/profiling/
+#
+## NOTE: If enabled this option may incur in billing charges or other
+##       unexpected side-effects (ie. agent profiles showing with your
+##       services).
+#
+# profiling:
+#
+  ## @param enabled - boolean - optional - default: false
+  ## Enable profiling for the Agent process.
+  #
+  # enabled: false
+
+{{ end }}
 {{ end -}}
+
 {{- if .LogsAgent }}
 
 ##################################
@@ -411,11 +612,29 @@ api_key:
   #     name: <RULE_NAME>
   #     pattern: <RULE_PATTERN>
 
-  ## @param use_port_443 - boolean - optional - default: false
-  ## By default, logs are sent to port 10516 *for the US site*, use this parameter
-  ## to force the Agent to send logs in TCP to port 443.
+  ## @param use_http - boolean - optional - default: false
+  ## By default, logs are sent through TCP, use this parameter
+  ## to send logs in HTTPS batches to port 443
   #
-  # use_port_443: false
+  # use_http: true
+
+  ## @param use_tcp - boolean - optional - default: false
+  ## By default, logs are sent through HTTP if possible, use this parameter
+  ## to send logs in TCP
+  #
+  # use_tcp: true
+
+  ## @param use_compression - boolean - optional - default: false
+  ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
+  ## compresses logs before sending them.
+  #
+  # use_compression: true
+
+  ## @param compression_level - integer - optional - default: 6
+  ## The compression_level parameter accepts values from 0 (no compression)
+  ## to 9 (maximum compression but higher resource usage).
+  #
+  # compression_level: 6
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -438,7 +657,9 @@ api_key:
 
   ## @param env - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
-  ## Inherits from "env" tag if "none" is applied here.
+  ## If not set the value will be inherited, in order, from the top level
+  ## "env" config option if set and then from the 'env:' tag if present in the
+  ## 'tags' top level config option.
   #
   # env: none
 
@@ -446,6 +667,12 @@ api_key:
   ## The port that the trace receiver should listen on.
   #
   # receiver_port: 8126
+
+  ## @param receiver_socket - string - optional
+  ## Accept traces through Unix Domain Sockets.
+  ## It is off by default. When set, it must point to a valid socket file.
+  #
+  # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
@@ -507,11 +734,7 @@ api_key:
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##
-  ## For instance to remove all query parameters from the http.url tag you would use:
-  ##
-  ##   - name: "http.url"
-  ##     pattern: "\?.*$"
-  ##     repl: "?"
+  ## See https://docs.datadoghq.com/tracing/guide/security/#replace-rules
   ##
   #
   # replace_tags:
@@ -653,9 +876,9 @@ api_key:
 {{ end -}}
 {{- if .Dogstatsd }}
 
-############################
+#############################
 ## DogStatsD Configuration ##
-############################
+#############################
 
 ## @param use_dogstatsd - boolean - optional - default: true
 ## Set this option to false to disable the Agent DogStatsD server.
@@ -702,6 +925,13 @@ api_key:
 ## Publish DogStatsD's internal stats as Go expvars.
 #
 # dogstatsd_stats_enable: false
+
+## @param dogstatsd_queue_size - integer - optional - default: 1024
+## Configure the internal queue size of the Dogstatsd server.
+## Reducing the size of this queue will reduce the maximum memory usage of the
+## Dogstatsd server but as a trade-off, it could increase the number of packet drops.
+#
+# dogstatsd_queue_size: 1024
 
 ## @param dogstatsd_stats_buffer - integer - optional - default: 10
 ## Set how many items should be in the DogStatsD's stats circular buffer.
@@ -777,6 +1007,11 @@ api_key:
 ## Size of the cache (max number of mapping results) used by Dogstatsd mapping feature.
 #
 # dogstatsd_mapper_cache_size: 1000
+
+## @param dogstatsd_entity_id_precedence - boolean - optional - default: false
+## Disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
+#
+# dogstatsd_entity_id_precedence: false
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
@@ -962,6 +1197,11 @@ api_key:
 #
 # syslog_tls_verify: true
 
+## @param log_format_rfc3339 - boolean - optional - default false
+## If enabled the Agent will log using the RFC3339 format for the log time.
+#
+# log_format_rfc3339: false
+
 {{ end -}}
 {{- if .Autoconfig }}
 
@@ -1092,6 +1332,21 @@ api_key:
 ## on all registered configuration providers.
 #
 # ad_config_poll_interval: 10
+
+## @param cloud_foundry_garden - custom object - optional
+## Settings for Cloudfoundry application container autodiscovery.
+#
+# cloud_foundry_garden:
+
+  ## @param listen_network - string - optional - default: unix
+  ## The network on which the garden API is listening. Possible values are `unix` or `tcp`
+  #
+  # listen_network: unix
+
+  ## @param listen_address - string - optional - default: /var/vcap/data/garden/garden.sock
+  ## The address on which the garden API is listening.
+  #
+  # listen_address: /var/vcap/data/garden/garden.sock
 
 {{ end -}}
 {{- if .ClusterChecks }}
@@ -1432,7 +1687,7 @@ api_key:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
 
-## @param clustername - string - optional
+## @param cluster_name - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
 ## * Lowercase letters, numbers, and hyphens only.
@@ -1443,5 +1698,50 @@ api_key:
 ## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
 # cluster_name: <CLUSTER_IDENTIFIER>
+
+## @param disable_cluster_name_tag_key - boolean - optional - default: false
+## Disable using the 'cluster_name' tag key to submit orchestrator cluster name tag.
+## The Agent will continue sending the cluster name tag with 'kube|ecs_cluster_name' key
+## regardless of the value of this parameter.
+#
+# disable_cluster_name_tag_key: false
+
+{{ end -}}
+{{- if .CloudFoundryBBS }}
+#######################################################
+## Cloud Foundry BBS Configuration for Autodiscovery ##
+#######################################################
+
+## @param cloud_foundry_bbs - custom object - optional
+## This section configures how the Cluster Agent accesses BBS API to gather information
+## necessary for autodiscovery on BBS-based Cloud Foundry deployments.
+#
+# cloud_foundry_bbs:
+
+  ## @param url - string - optional - default: https://bbs.service.cf.internal:8889
+  ## URL of the BBS API.
+  #
+  # url: https://bbs.service.cf.internal:8889
+
+  ## @param poll_interval - integer - optional - default: 15
+  ## Refresh rate of BBS API, in seconds. Values lower than 10 might influence
+  ## performance of other operations in the cluster.
+  #
+  # poll_interval: 15
+
+  ## @param ca_file - string - optional - default: ""
+  ## PEM-encoded CA certificate used when connecting to the BBS API.
+  #
+  # ca_file: ""
+
+  ## @param cert_file - string - optional - default: ""
+  ## PEM-encoded client certificate used when connecting to the BBS API.
+  #
+  # cert_file: ""
+
+  ## @param key_file - string - optional - default: ""
+  ## PEM-encoded client key used when connecting to the BBS API.
+  #
+  # key_file: ""
 
 {{ end -}}

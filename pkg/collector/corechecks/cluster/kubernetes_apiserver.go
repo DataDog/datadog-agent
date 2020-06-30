@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
+	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -37,6 +37,9 @@ const (
 	maxEventCardinality           = 300
 	defaultResyncPeriodInSecond   = 300
 	defaultTimeoutEventCollection = 2000
+
+	defaultCacheExpire = 2 * time.Minute
+	defaultCachePurge  = 10 * time.Minute
 )
 
 // KubeASConfig is the config of the API server.
@@ -59,12 +62,12 @@ type EventC struct {
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
-	instance              *KubeASConfig
-	KubeAPIServerHostname string
-	eventCollection       EventC
-	ignoredEvents         string
-	ac                    *apiserver.APIClient
-	oshiftAPILevel        apiserver.OpenShiftAPILevel
+	instance        *KubeASConfig
+	eventCollection EventC
+	ignoredEvents   string
+	ac              *apiserver.APIClient
+	oshiftAPILevel  apiserver.OpenShiftAPILevel
+	providerIDCache *cache.Cache
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -74,6 +77,19 @@ func (c *KubeASConfig) parse(data []byte) error {
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 
 	return yaml.Unmarshal(data, c)
+}
+
+func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
+	return &KubeASCheck{
+		CheckBase:       base,
+		instance:        instance,
+		providerIDCache: cache.New(defaultCacheExpire, defaultCachePurge),
+	}
+}
+
+// KubernetesASFactory is exported for integration testing.
+func KubernetesASFactory() check.Check {
+	return NewKubeASCheck(core.NewCheckBase(kubernetesAPIServerCheckName), &KubeASConfig{})
 }
 
 // Configure parses the check configuration and init the check.
@@ -97,6 +113,7 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 		k.instance.MaxEventCollection = maxEventCardinality
 	}
 	k.ignoredEvents = convertFilter(k.instance.FilteredEventTypes)
+
 	return nil
 }
 
@@ -146,7 +163,7 @@ func (k *KubeASCheck) Run() error {
 		// We start the API Server Client.
 		k.ac, err = apiserver.GetAPIClient()
 		if err != nil {
-			k.Warnf("Could not connect to apiserver: %s", err)
+			k.Warnf("Could not connect to apiserver: %s", err) //nolint:errcheck
 			return err
 		}
 
@@ -159,11 +176,11 @@ func (k *KubeASCheck) Run() error {
 	// Running the Control Plane status check.
 	componentsStatus, err := k.ac.ComponentStatuses()
 	if err != nil {
-		k.Warnf("Could not retrieve the status from the control plane's components %s", err.Error())
+		k.Warnf("Could not retrieve the status from the control plane's components %s", err.Error()) //nolint:errcheck
 	} else {
 		err = k.parseComponentStatus(sender, componentsStatus)
 		if err != nil {
-			k.Warnf("Could not collect API Server component status: %s", err.Error())
+			k.Warnf("Could not collect API Server component status: %s", err.Error()) //nolint:errcheck
 		}
 	}
 
@@ -171,7 +188,7 @@ func (k *KubeASCheck) Run() error {
 	if k.instance.CollectOShiftQuotas && k.oshiftAPILevel != apiserver.NotOpenShift {
 		quotas, err := k.retrieveOShiftClusterQuotas()
 		if err != nil {
-			k.Warnf("Could not collect OpenShift cluster quotas: %s", err.Error())
+			k.Warnf("Could not collect OpenShift cluster quotas: %s", err.Error()) //nolint:errcheck
 		} else {
 			k.reportClusterQuotas(quotas, sender)
 		}
@@ -191,30 +208,22 @@ func (k *KubeASCheck) Run() error {
 	// Process the events to have a Datadog format.
 	err = k.processEvents(sender, events)
 	if err != nil {
-		k.Warnf("Could not submit new event %s", err.Error())
+		k.Warnf("Could not submit new event %s", err.Error()) //nolint:errcheck
 	}
 	return nil
-}
-
-// KubernetesASFactory is exported for integration testing.
-func KubernetesASFactory() check.Check {
-	return &KubeASCheck{
-		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
-		instance:  &KubeASConfig{},
-	}
 }
 
 func (k *KubeASCheck) runLeaderElection() error {
 
 	leaderEngine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		k.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
+		k.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.") //nolint:errcheck
 		return err
 	}
 
 	err = leaderEngine.EnsureLeaderElectionRuns()
 	if err != nil {
-		k.Warn("Leader Election process failed to start")
+		k.Warn("Leader Election process failed to start") //nolint:errcheck
 		return err
 	}
 
@@ -244,13 +253,13 @@ func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 	newEvents, k.eventCollection.LastResVer, k.eventCollection.LastTime, err = k.ac.RunEventCollection(resVer, lastTime, timeout, limit, resync, k.ignoredEvents)
 
 	if err != nil {
-		k.Warnf("Could not collect events from the api server: %s", err.Error())
+		k.Warnf("Could not collect events from the api server: %s", err.Error()) //nolint:errcheck
 		return nil, err
 	}
 
 	configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, k.eventCollection.LastResVer, k.eventCollection.LastTime)
 	if configMapErr != nil {
-		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
+		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error()) //nolint:errcheck
 	}
 	return newEvents, nil
 }
@@ -268,6 +277,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 		tagComp := []string{fmt.Sprintf("component:%s", component.Name)}
 		for _, condition := range component.Conditions {
 			statusCheck := metrics.ServiceCheckUnknown
+			message := ""
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
 			if condition.Type != "Healthy" {
@@ -278,11 +288,12 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			switch condition.Status {
 			case "True":
 				statusCheck = metrics.ServiceCheckOK
-
+				message = condition.Message
 			case "False":
 				statusCheck = metrics.ServiceCheckCritical
+				message = condition.Error
 			}
-			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, k.KubeAPIServerHostname, tagComp, "")
+			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tagComp, message)
 		}
 	}
 	return nil
@@ -293,29 +304,36 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 // - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
 // - formats the bundle and submit the Datadog event
 func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event) error {
-	eventsByObject := make(map[types.UID]*kubernetesEventBundle)
+	eventsByObject := make(map[string]*kubernetesEventBundle)
 
 	for _, event := range events {
-		bundle, found := eventsByObject[event.InvolvedObject.UID]
+		id := bundleID(event)
+		bundle, found := eventsByObject[id]
 		if found == false {
-			bundle = newKubernetesEventBundler(event.InvolvedObject.UID, event.Source.Component)
-			eventsByObject[event.InvolvedObject.UID] = bundle
+			bundle = newKubernetesEventBundler(event)
+			eventsByObject[id] = bundle
 		}
 		err := bundle.addEvent(event)
 		if err != nil {
-			k.Warnf("Error while bundling events, %s.", err.Error())
+			k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
 		}
 	}
 	clusterName := clustername.GetClusterName()
 	for _, bundle := range eventsByObject {
-		datadogEv, err := bundle.formatEvents(clusterName)
+		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
 		if err != nil {
-			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error())
+			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error()) //nolint:errcheck
 			continue
 		}
 		sender.Event(datadogEv)
 	}
 	return nil
+}
+
+// bundleID generates a unique ID to separate k8s events
+// based on their InvolvedObject UIDs and event Types
+func bundleID(e *v1.Event) string {
+	return fmt.Sprintf("%s/%s", e.InvolvedObject.UID, e.Type)
 }
 
 func init() {

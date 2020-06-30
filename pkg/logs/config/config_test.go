@@ -6,6 +6,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -139,4 +140,171 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 
 func TestConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
+}
+
+func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.batch_wait", 1)
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
+	suite.config.Set("logs_config.use_compression", true)
+	suite.config.Set("logs_config.compression_level", 6)
+	suite.config.Set("logs_config.logs_no_ssl", false)
+
+	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[
+	{"api_key": "456", "host": "additional.endpoint.1", "port": 1234, "use_compression": true, "compression_level": 2},
+	{"api_key": "789", "host": "additional.endpoint.2", "port": 1234, "use_compression": true, "compression_level": 2}]`)
+	defer os.Unsetenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS")
+
+	expectedMainEndpoint := Endpoint{
+		APIKey:           "123",
+		Host:             "agent-http-intake.logs.datadoghq.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 6}
+	expectedAdditionalEndpoint1 := Endpoint{
+		APIKey:           "456",
+		Host:             "additional.endpoint.1",
+		Port:             1234,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 2}
+	expectedAdditionalEndpoint2 := Endpoint{
+		APIKey:           "789",
+		Host:             "additional.endpoint.2",
+		Port:             1234,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 2}
+
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second)
+	endpoints, err := BuildHTTPEndpoints()
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
+	suite.config.Set("logs_config.logs_no_ssl", false)
+	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128")
+	suite.config.Set("logs_config.dev_mode_use_proto", true)
+
+	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[{"api_key": "456      \n", "host": "additional.endpoint", "port": 1234}]`)
+	defer os.Unsetenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS")
+
+	expectedMainEndpoint := Endpoint{
+		APIKey:           "123",
+		Host:             "agent-http-intake.logs.datadoghq.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   false,
+		CompressionLevel: 0,
+		ProxyAddress:     "proxy.test:3128"}
+	expectedAdditionalEndpoint := Endpoint{
+		APIKey:           "456",
+		Host:             "additional.endpoint",
+		Port:             1234,
+		UseSSL:           true,
+		UseCompression:   false,
+		CompressionLevel: 0,
+		ProxyAddress:     "proxy.test:3128"}
+
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false, 0)
+	endpoints, err := buildTCPEndpoints()
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.batch_wait", 1)
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
+	suite.config.Set("logs_config.use_compression", true)
+	suite.config.Set("logs_config.compression_level", 6)
+	suite.config.Set("logs_config.logs_no_ssl", false)
+	endpointsInConfig := []map[string]interface{}{
+		{
+			"api_key":           "456     \n\n",
+			"host":              "additional.endpoint.1",
+			"port":              1234,
+			"use_compression":   true,
+			"compression_level": 2},
+		{
+			"api_key":           "789",
+			"host":              "additional.endpoint.2",
+			"port":              1234,
+			"use_compression":   true,
+			"compression_level": 2},
+	}
+	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig)
+
+	expectedMainEndpoint := Endpoint{
+		APIKey:           "123",
+		Host:             "agent-http-intake.logs.datadoghq.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 6}
+	expectedAdditionalEndpoint1 := Endpoint{
+		APIKey:           "456",
+		Host:             "additional.endpoint.1",
+		Port:             1234,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 2}
+	expectedAdditionalEndpoint2 := Endpoint{
+		APIKey:           "789",
+		Host:             "additional.endpoint.2",
+		Port:             1234,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 2}
+
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second)
+	endpoints, err := BuildHTTPEndpoints()
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
+	suite.config.Set("logs_config.logs_no_ssl", false)
+	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128")
+	suite.config.Set("logs_config.dev_mode_use_proto", true)
+	suite.config.Set("logs_config.dev_mode_use_proto", true)
+	endpointsInConfig := []map[string]interface{}{
+		{
+			"api_key": "456",
+			"host":    "additional.endpoint",
+			"port":    1234},
+	}
+	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig)
+
+	expectedMainEndpoint := Endpoint{
+		APIKey:           "123",
+		Host:             "agent-http-intake.logs.datadoghq.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   false,
+		CompressionLevel: 0,
+		ProxyAddress:     "proxy.test:3128"}
+	expectedAdditionalEndpoint := Endpoint{
+		APIKey:           "456",
+		Host:             "additional.endpoint",
+		Port:             1234,
+		UseSSL:           true,
+		UseCompression:   false,
+		CompressionLevel: 0,
+		ProxyAddress:     "proxy.test:3128"}
+
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false, 0)
+	endpoints, err := buildTCPEndpoints()
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
 }

@@ -112,6 +112,7 @@ func populateDeviceField(serie *Serie) {
 			filteredTags = append(filteredTags, tag)
 		}
 	}
+
 	serie.Tags = filteredTags
 }
 

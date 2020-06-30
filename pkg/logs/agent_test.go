@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 type AgentTestSuite struct {
@@ -100,8 +102,10 @@ func (suite *AgentTestSuite) TestAgent() {
 
 	agent.Start()
 	sources.AddSource(suite.source)
-	// Give the tailer some time to start its job.
-	time.Sleep(10 * time.Millisecond)
+	// Give the agent at most 4 second to send the logs. (seems to be slow on Windows/AppVeyor)
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsSent.Value()
+	})
 	agent.Stop()
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
@@ -122,8 +126,10 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 
 	agent.Start()
 	sources.AddSource(suite.source)
-	// Give the tailer some time to start its job.
-	time.Sleep(10 * time.Millisecond)
+	// Give the agent at most one second to process the logs.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsProcessed.Value()
+	})
 	agent.Stop()
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
@@ -146,8 +152,10 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 
 	agent.Start()
 	sources.AddSource(suite.source)
-	// Give the tailer some time to start its job.
-	time.Sleep(10 * time.Millisecond)
+	// Give the agent at most one second to send the logs.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
+		return int64(2) == metrics.LogsSent.Value()
+	})
 	agent.Stop()
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())

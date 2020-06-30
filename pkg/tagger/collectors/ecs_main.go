@@ -100,7 +100,7 @@ func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error
 	// Using a go routine as the expire process can be done asynchronously.
 	// We do not use the output as the ECSCollector is not meant run in standalone.
 	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
-		go c.expire.ComputeExpires()
+		go c.expire.ComputeExpires() //nolint:errcheck
 		c.lastExpire = time.Now()
 	}
 

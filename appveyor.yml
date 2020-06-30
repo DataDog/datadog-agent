@@ -8,8 +8,8 @@ clone_folder: C:\gopath\src\github.com\DataDog\datadog-agent
 # environment must be set for python 64 bit
 environment:
   GOPATH: C:\gopath
-  GOVERSION: '1.12.9'
-  GOROOT: C:\go_1.12.9
+  GOVERSION: '1.13.11'
+  GOROOT: C:\go_1.13.11
   GOLANGCI_LINT_VERSION: "1.21.0"
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
@@ -25,9 +25,8 @@ install:
   # create 'ddagentuser' user to test the secrets feature on windows
   - ps: $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force; New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
   - set PATH=%APPVEYOR_BUILD_FOLDER%\dev\lib;%GOPATH%\bin;%Python2_ROOT_DIR%;%Python2_ROOT_DIR%\Scripts;%Python3_ROOT_DIR%;%Python3_ROOT_DIR%\Scripts;%MSYS_ROOT%\mingw64\bin;%MSYS_ROOT%\usr\bin\;%PATH%
-  - git clone --depth 1 https://github.com/datadog/integrations-core
   - "%PIP2% install codecov -r requirements.txt"
-  - "%PIP3% install PyYAML==5.1"
+  - "%PIP3% install -r requirements.txt"
   # download specific go version
   - md c:\tmp
   - ps: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://dl.google.com/go/go$ENV:GOVERSION.windows-amd64.zip", "c:\tmp\godl.zip")
@@ -48,7 +47,7 @@ build: off
 
 test_script:
   - inv -e deps --dep-vendor-only
-  - inv -e rtloader.build --install-prefix=%APPVEYOR_BUILD_FOLDER%\dev --cmake-options="-G \"MSYS Makefiles\""
+  - inv -e rtloader.make --install-prefix=%APPVEYOR_BUILD_FOLDER%\dev --cmake-options="-G \"MSYS Makefiles\""
   - inv -e rtloader.install
   - inv -e rtloader.format --raise-if-changed
   - inv -e rtloader.test

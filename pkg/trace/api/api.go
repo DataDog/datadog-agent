@@ -29,6 +29,7 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
+	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -41,11 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	maxRequestBodyLength = 10 * 1024 * 1024
-	tagTraceHandler      = "handler:traces"
 )
 
 // Version is a dumb way to version our collector handlers
@@ -81,9 +77,8 @@ type HTTPReceiver struct {
 	dynConf *sampler.DynamicConfig
 	server  *http.Server
 
-	maxRequestBodyLength int64
-	debug                bool
-	rateLimiterResponse  int // HTTP status code when refusing
+	debug               bool
+	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
@@ -103,9 +98,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		conf:    conf,
 		dynConf: dynConf,
 
-		maxRequestBodyLength: maxRequestBodyLength,
-		debug:                strings.ToLower(conf.LogLevel) == "debug",
-		rateLimiterResponse:  rateLimiterResponse,
+		debug:               strings.ToLower(conf.LogLevel) == "debug",
+		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
 	}
@@ -127,6 +121,7 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -201,7 +196,11 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 		runtime.SetBlockProfileRate(0)
 	})
 
-	mux.Handle("/debug/vars", expvar.Handler())
+	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// allow the GUI to call this endpoint so that the status can be reported
+		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+mainconfig.Datadog.GetString("GUI_port"))
+		expvar.Handler().ServeHTTP(w, req)
+	}))
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.
@@ -232,12 +231,15 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	ln, err := newRateLimitedListener(tcpln, r.conf.ConnectionLimit)
-	go func() {
-		defer watchdog.LogOnPanic()
-		ln.Refresh(r.conf.ConnectionLimit)
-	}()
-	return ln, err
+	if climit := r.conf.ConnectionLimit; climit > 0 {
+		ln, err := newRateLimitedListener(tcpln, climit)
+		go func() {
+			defer watchdog.LogOnPanic()
+			ln.Refresh(climit)
+		}()
+		return ln, err
+	}
+	return tcpln, err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
@@ -266,7 +268,7 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
-		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
+		req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
 		f(v, w, req)
 	}
@@ -370,7 +372,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 	traces, err := r.decodeTraces(v, req)
 	if err != nil {
-		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		if err == ErrLimitedReaderLimitReached {
 			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, traceCount)
 		} else {

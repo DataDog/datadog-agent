@@ -13,20 +13,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (j *JMXFetch) Monitor() {}
-
 // Stop stops the JMXFetch process
 func (j *JMXFetch) Stop() error {
+	var stopChan chan struct{}
+
 	err := j.cmd.Process.Kill()
 	if err != nil {
 		return err
 	}
 
-	stopChan := make(chan struct{})
-	go func() {
-		j.Wait()
-		close(stopChan)
-	}()
+	if j.managed {
+		stopChan = j.stopped
+		close(j.shutdown)
+	} else {
+		stopChan = make(chan struct{})
+
+		go func() {
+			j.Wait()
+			close(stopChan)
+		}()
+	}
 
 	select {
 	case <-time.After(time.Millisecond * 1000):

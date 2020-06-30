@@ -39,8 +39,8 @@ var versionCmd = &cobra.Command{
 				color.CyanString(av.GetNumberAndPre()),
 				meta,
 				color.GreenString(av.Commit),
-				color.MagentaString(serializer.AgentPayloadVersion),
-				color.BlueString(runtime.Version()),
+				color.YellowString(serializer.AgentPayloadVersion),
+				color.RedString(runtime.Version()),
 			),
 		)
 	},

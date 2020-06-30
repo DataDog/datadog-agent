@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1129-doxygen-golangci
+      - image: datadog/datadog-agent-runner-circle:go11311-py3
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -61,8 +61,9 @@ jobs:
       - run:
           name: setup python deps
           command: |
-            pip install wheel
-            pip install -r requirements.txt
+            python3 -m pip install wheel
+            python3 -m pip install -r requirements.txt
+            python3 -m pip install flake8~=3.8.3 flake8-bugbear~=20.1.4 black~=19.10b0
       - run:
           name: grab go deps
           command: |
@@ -70,7 +71,7 @@ jobs:
       - run:
           name: build rtloader
           command: |
-            inv rtloader.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
             inv rtloader.install
       - run:
           name: lint rtloader
@@ -79,12 +80,10 @@ jobs:
       - run:
           name: test rtloader
           command: |
-            # remove base check before running tests, go on if pip fails
-            pip uninstall datadog-checks-base -y || :
             inv rtloader.test
       - run:
           name: pre-compile go deps
-          command: inv -e agent.build --race --precompile-only
+          command: inv -e agent.build --exclude-rtloader --race --precompile-only
       - save_cache:
           <<: *save_deps
           paths:
@@ -92,7 +91,7 @@ jobs:
             - /go/src/github.com/DataDog/datadog-agent/dev
             - /go/pkg
             - /go/bin
-            - /usr/local/lib/python2.7/dist-packages
+            - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 
   unit_tests:
@@ -155,6 +154,33 @@ jobs:
           name: run filename linting
           command: inv -e lint-filenames
 
+  shell_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: Install shellcheck
+          command: inv -e install-shellcheck
+      - run:
+          name: Print shellcheck version
+          command: shellcheck --version
+      - run:
+          name: Run shellcheck
+          #Excludes:
+          #SC2028: echo may not expand escape sequences. Use printf.
+          #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
+          command: shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
+
+  python_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: lint python files
+          command: inv -e lint-python
+
   docker_tests:
     <<: *job_template
     steps:
@@ -178,18 +204,18 @@ jobs:
           command: inv -e dogstatsd.build --static
       - run:
           name: build agent
-          command: inv -e agent.build
+          command: inv -e agent.build --exclude-rtloader
 
-  build_puppy:
+  build_iot_agent:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: build puppy
-          command: inv -e agent.build --puppy
+          name: build iot agent
+          command: inv -e agent.build --iot
       - run:
-          name: test puppy
+          name: test iot agent
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
   documentation_generation:
@@ -201,11 +227,37 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
+  macos_build:
+    macos:
+      xcode: 10.1.0
+    environment:
+      BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      RELEASE_VERSION: "nightly-a7"
+      AGENT_MAJOR_VERSION: "7"
+      PYTHON_RUNTIMES: "3"
+    working_directory: ~/go/src/github.com/DataDog/datadog-agent
+    steps:
+      - checkout
+      - run:
+          name: Setup builder
+          command: |
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
+      - run:
+          name: Run omnibus build
+          no_output_timeout: 30m
+          command: |
+            export VERSION=$CIRCLE_SHA1
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/build_script.sh)"
+      - run: mkdir -p ~/artifacts && cp omnibus/pkg/*.dmg ~/artifacts
+      - store_artifacts:
+          path: ~/artifacts
+
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
+      - macos_build
       - dependencies:
           requires:
             - checkout_code
@@ -227,6 +279,12 @@ workflows:
       - filename_linting:
           requires:
             - dependencies
+      - shell_linting:
+          requires:
+            - dependencies
+      - python_linting:
+          requires:
+            - dependencies
       - docker_tests:
           requires:
             - dependencies
@@ -238,7 +296,7 @@ workflows:
             - unit_tests
             - integration_tests
             - docker_tests
-      - build_puppy:
+      - build_iot_agent:
           requires:
             - unit_tests
             - integration_tests

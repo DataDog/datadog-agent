@@ -91,7 +91,12 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 	qsize := cfg.TraceWriter.QueueSize
 	if qsize == 0 {
 		// default to 50% of maximum memory.
-		qsize = int(math.Max(1, cfg.MaxMemory/2/float64(maxPayloadSize)))
+		maxmem := cfg.MaxMemory / 2
+		if maxmem == 0 {
+			// or 500MB if unbound
+			maxmem = 500 * 1024 * 1024
+		}
+		qsize = int(math.Max(1, maxmem/float64(maxPayloadSize)))
 	}
 	if s := cfg.TraceWriter.FlushPeriodSeconds; s != 0 {
 		tw.tick = time.Duration(s*1000) * time.Millisecond
@@ -158,7 +163,7 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 		w.traces = append(w.traces, traceutil.APITrace(pkg.Trace))
 	}
 	if len(pkg.Events) > 0 {
-		log.Tracef("Handling new APM events: %v", pkg.Events)
+		log.Tracef("Handling new analyzed spans: %v", pkg.Events)
 		w.events = append(w.events, pkg.Events...)
 	}
 	w.bufferedSize += size
@@ -182,13 +187,13 @@ func (w *TraceWriter) flush() {
 	defer w.resetBuffer()
 
 	log.Debugf("Serializing %d traces and %d APM events.", len(w.traces), len(w.events))
-	payload := pb.TracePayload{
+	tracePayload := pb.TracePayload{
 		HostName:     w.hostname,
 		Env:          w.env,
 		Traces:       w.traces,
 		Transactions: w.events,
 	}
-	b, err := proto.Marshal(&payload)
+	b, err := proto.Marshal(&tracePayload)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
@@ -213,12 +218,14 @@ func (w *TraceWriter) flush() {
 			log.Errorf("gzip.NewWriterLevel: %d", err)
 			return
 		}
-		gzipw.Write(b)
-		gzipw.Close()
-
-		for _, sender := range w.senders {
-			sender.Push(p)
+		if _, err := gzipw.Write(b); err != nil {
+			log.Errorf("Error gzipping trace payload: %v", err)
 		}
+		if err := gzipw.Close(); err != nil {
+			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+		}
+
+		sendPayloads(w.senders, p)
 	}()
 }
 

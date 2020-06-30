@@ -7,6 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func parseServiceCheck(rawServiceCheck []byte) (dogstatsdServiceCheck, error) {
+	parser := newParser()
+	return parser.parseServiceCheck(rawServiceCheck)
+}
+
 func TestServiceCheckMinimal(t *testing.T) {
 	sc, err := parseServiceCheck([]byte("_sc|agent.up|0"))
 

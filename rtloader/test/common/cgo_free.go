@@ -8,9 +8,6 @@ import (
 )
 
 /*
-#cgo CFLAGS: -I../../include
-#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
 #include <datadog_agent_rtloader.h>
 
 extern void c_callCgoFree(void *ptr);

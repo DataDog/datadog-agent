@@ -19,8 +19,10 @@ import (
 type context struct {
 	Common            bool
 	Agent             bool
-	BothPythonPresent bool
+	Python            bool // Sub-option of Agent
+	BothPythonPresent bool // Sub-option of Agent - Python
 	Metadata          bool
+	Profiling         bool
 	Dogstatsd         bool
 	LogsAgent         bool
 	JMX               bool
@@ -38,6 +40,7 @@ type context struct {
 	KubeApiServer     bool
 	TraceAgent        bool
 	ClusterChecks     bool
+	CloudFoundryBBS   bool
 }
 
 func mkContext(buildType string) context {
@@ -46,7 +49,9 @@ func mkContext(buildType string) context {
 	agentContext := context{
 		Common:            true,
 		Agent:             true,
+		Python:            true,
 		Metadata:          true,
+		Profiling:         false, // NOTE: hidden for now
 		Dogstatsd:         true,
 		LogsAgent:         true,
 		JMX:               true,
@@ -70,6 +75,15 @@ func mkContext(buildType string) context {
 	case "agent-py2py3":
 		agentContext.BothPythonPresent = true
 		return agentContext
+	case "iot-agent":
+		return context{
+			Common:    true,
+			Agent:     true,
+			Metadata:  true,
+			Dogstatsd: true,
+			LogsAgent: true,
+			Logging:   true,
+		}
 	case "system-probe":
 		return context{
 			SystemProbe: true,
@@ -91,6 +105,13 @@ func mkContext(buildType string) context {
 			Logging:       true,
 			KubeApiServer: true,
 			ClusterChecks: true,
+		}
+	case "dcacf":
+		return context{
+			Common:          true,
+			Logging:         true,
+			ClusterChecks:   true,
+			CloudFoundryBBS: true,
 		}
 	}
 

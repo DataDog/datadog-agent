@@ -55,61 +55,40 @@ func TestRegisterCheck(t *testing.T) {
 func TestLoad(t *testing.T) {
 	RegisterCheck("foo", testCheckFactory)
 
-	// check is in catalog, pass 2 instances
+	// check is in catalog, pass 1 good instance
 	i := []integration.Data{
 		integration.Data("foo: bar"),
-		integration.Data("bar: baz"),
 	}
 	cc := integration.Config{Name: "foo", Instances: i}
 	l, _ := NewGoCheckLoader()
 
-	lst, err := l.Load(cc)
+	_, err := l.Load(cc, i[0])
 
 	if err != nil {
 		t.Fatalf("Expected nil error, found: %v", err)
 	}
-	if len(lst) != 2 {
-		t.Fatalf("Expected 2 checks, found: %d", len(lst))
-	}
 
-	// check is in catalog, pass 1 good instance & 1 bad instance
+	// check is in catalog, pass 1 bad instance
 	i = []integration.Data{
-		integration.Data("foo: bar"),
 		integration.Data("err"),
 	}
 	cc = integration.Config{Name: "foo", Instances: i}
 
-	lst, err = l.Load(cc)
+	_, err = l.Load(cc, i[0])
 
 	if err == nil {
 		t.Fatalf("Expected error, found: nil")
 	}
-	if len(lst) != 1 {
-		t.Fatalf("Expected 1 checks, found: %d", len(lst))
-	}
-
-	// check is in catalog, pass no instances
-	i = []integration.Data{}
-	cc = integration.Config{Name: "foo", Instances: i}
-
-	lst, err = l.Load(cc)
-
-	if err != nil {
-		t.Fatalf("Expected nil error, found: %v", err)
-	}
-	if len(lst) != 0 {
-		t.Fatalf("Expected 0 checks, found: %d", len(lst))
-	}
 
 	// check not in catalog
-	cc = integration.Config{Name: "bar", Instances: nil}
+	i = []integration.Data{
+		integration.Data("foo: bar"),
+	}
+	cc = integration.Config{Name: "bar", Instances: i}
 
-	lst, err = l.Load(cc)
+	_, err = l.Load(cc, i[0])
 
 	if err == nil {
 		t.Fatal("Expected error, found: nil")
-	}
-	if len(lst) != 0 {
-		t.Fatalf("Expected 0 checks, found: %d", len(lst))
 	}
 }

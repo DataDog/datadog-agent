@@ -173,3 +173,22 @@ To generate it (using the `invoke rtloader.generate-doc` command), you'll need t
 Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
 
 To get the dependency graphs, you may also need to install the `dot` executable from [graphviz](http://www.graphviz.org/) and add it to your `$PATH`.
+
+## Pre-commit hooks
+
+It is optional but recommended to install `pre-commit` to run a number of checks done by the CI locally.
+To install it, run:
+
+```sh
+pip install pre-commit
+pre-commit install
+```
+
+The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`.
+To install it, run:
+
+```sh
+inv install-shellcheck --destination <path>
+```
+
+(by default, the shellcheck binary is installed in `/usr/local/bin`).

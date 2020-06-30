@@ -124,10 +124,10 @@ func TestIOCheck(t *testing.T) {
 		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:C:"}).Return().Times(1)
 		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:C:"}).Return().Times(1)
 	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
-		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 		expectedRates += 2
 	}
 	mock.On("Commit").Return().Times(1)
@@ -143,22 +143,22 @@ func TestIOCheck(t *testing.T) {
 
 	switch os := runtime.GOOS; os {
 	case "windows":
-		mock.On("Gauge", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.r_s", 443071.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.w_s", 10412454.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
-		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.rkb_s", 60.5, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.wkb_s", 37.5, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.avg_rq_sz", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.await", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.r_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.w_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.avg_q_sz", 0.03, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.util", 2.8, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.svctm", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.rkb_s", 60.5, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.wkb_s", 37.5, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.avg_rq_sz", 0.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.await", 0.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.r_await", 0.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.w_await", 0.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.avg_q_sz", 0.03, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.util", 2.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.svctm", 0.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 		expectedRates += 4
 		expectedGauges += 9
 	}

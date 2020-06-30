@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows/svc"
@@ -25,6 +26,7 @@ const ServiceName = "datadog-process-agent"
 
 // opts are the command-line options
 var defaultConfigPath = "c:\\programdata\\datadog\\datadog.yaml"
+var defaultSysProbeConfigPath = "c:\\programdata\\datadog\\system-probe.yaml"
 var defaultConfdPath = "c:\\programdata\\datadog\\conf.d"
 var defaultLogFilePath = "c:\\programdata\\datadog\\logs\\process-agent.log"
 
@@ -33,6 +35,7 @@ var winopts struct {
 	uninstallService bool
 	startService     bool
 	stopService      bool
+	foreground       bool
 }
 
 func init() {
@@ -51,7 +54,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	exit := make(chan bool)
+	exit := make(chan struct{})
 
 	go func() {
 		for {
@@ -112,6 +115,7 @@ func runService(isDebug bool) {
 func main() {
 	ignore := ""
 	flag.StringVar(&opts.configPath, "config", defaultConfigPath, "Path to datadog.yaml config")
+	flag.StringVar(&opts.sysProbeConfigPath, "sysprobe-config", defaultSysProbeConfigPath, "Path to system-probe.yaml config")
 	flag.StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
 	flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
@@ -122,67 +126,70 @@ func main() {
 	flag.BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the process agent from the Service Control Manager")
 	flag.BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
 	flag.BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
+	flag.BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
 
 	flag.Parse()
-	isIntSess, err := svc.IsAnInteractiveSession()
-	if err != nil {
-		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
-	}
-	if !isIntSess {
-		runService(false)
-		return
-	}
-	// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
-	// make sure more than one wasn't specified
-	optcount := 0
-	if winopts.installService {
-		fmt.Println("Installservice")
-		optcount++
-	} else {
-		fmt.Println("no Installservice")
-	}
-	if winopts.uninstallService {
-		optcount++
-	}
-	if winopts.startService {
-		optcount++
-	}
-	if winopts.stopService {
-		optcount++
-	}
-	if optcount > 1 {
-		fmt.Println("Incompatible options chosen")
-		return
-	}
-	if winopts.installService {
-		if err = installService(); err != nil {
-			fmt.Printf("Error installing service %v\n", err)
-		}
-		return
-	}
-	if winopts.uninstallService {
-		if err = removeService(); err != nil {
-			fmt.Printf("Error removing service %v\n", err)
-		}
-		return
-	}
-	if winopts.startService {
-		if err = startService(); err != nil {
-			fmt.Printf("Error starting service %v\n", err)
-		}
-		return
-	}
-	if winopts.stopService {
-		if err = stopService(); err != nil {
-			fmt.Printf("Error stopping service %v\n", err)
-		}
-		return
 
-	}
+	if !winopts.foreground {
+		isIntSess, err := svc.IsAnInteractiveSession()
+		if err != nil {
+			fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
+		}
 
-	exit := make(chan bool)
+		if !isIntSess {
+			runService(false)
+			return
+		}
+		// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
+		// make sure more than one wasn't specified
+		optcount := 0
+		if winopts.installService {
+			fmt.Println("Installservice")
+			optcount++
+		} else {
+			fmt.Println("no Installservice")
+		}
+		if winopts.uninstallService {
+			optcount++
+		}
+		if winopts.startService {
+			optcount++
+		}
+		if winopts.stopService {
+			optcount++
+		}
+		if optcount > 1 {
+			fmt.Println("Incompatible options chosen")
+			return
+		}
+		if winopts.installService {
+			if err = installService(); err != nil {
+				fmt.Printf("Error installing service %v\n", err)
+			}
+			return
+		}
+		if winopts.uninstallService {
+			if err = removeService(); err != nil {
+				fmt.Printf("Error removing service %v\n", err)
+			}
+			return
+		}
+		if winopts.startService {
+			if err = startService(); err != nil {
+				fmt.Printf("Error starting service %v\n", err)
+			}
+			return
+		}
+		if winopts.stopService {
+			if err = stopService(); err != nil {
+				fmt.Printf("Error stopping service %v\n", err)
+			}
+			return
+		}
+	}
 
 	// Invoke the Agent
+	exit := make(chan struct{})
 	runAgent(exit)
 }
 

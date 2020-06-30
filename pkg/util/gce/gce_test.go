@@ -71,6 +71,30 @@ func TestGetHostAliases(t *testing.T) {
 	assert.Equal(t, "gce-instance-name.gce-project", val)
 }
 
+func TestGetHostAliasesInstanceNameError(t *testing.T) {
+	lastRequests := []*http.Request{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch path := r.URL.Path; path {
+		case "/instance/hostname":
+			io.WriteString(w, "gce-custom-hostname.custom-domain.gce-project")
+		case "/instance/name":
+			w.WriteHeader(http.StatusNotFound)
+		case "/project/project-id":
+			io.WriteString(w, "gce-project")
+		default:
+			t.Fatalf("Unknown URL requested: %s", path)
+		}
+		lastRequests = append(lastRequests, r)
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	val, err := GetHostAlias()
+	assert.Nil(t, err)
+	assert.Equal(t, "gce-custom-hostname.gce-project", val)
+}
+
 func TestGetClusterName(t *testing.T) {
 	expected := "test-cluster-name"
 	var lastRequest *http.Request

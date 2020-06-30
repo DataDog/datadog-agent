@@ -60,7 +60,7 @@ func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	// The fact we need a constant "additional depth" means some
 	// theoretical refactor to avoid duplication in the functions
 	// below cannot be performed.
-	logger.inner.SetAdditionalStackDepth(defaultStackDepth)
+	logger.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
 	// Flushing logs since the logger is now initialized
 	bufferMutex.Lock()
@@ -193,7 +193,7 @@ func (sw *DatadogLogger) warn(s string) error {
 	err := sw.inner.Warn(scrubbed)
 
 	for _, l := range sw.extra {
-		l.Warn(scrubbed)
+		l.Warn(scrubbed) //nolint:errcheck
 	}
 
 	return err
@@ -208,7 +208,7 @@ func (sw *DatadogLogger) error(s string) error {
 	err := sw.inner.Error(scrubbed)
 
 	for _, l := range sw.extra {
-		l.Error(scrubbed)
+		l.Error(scrubbed) //nolint:errcheck
 	}
 
 	return err
@@ -220,12 +220,12 @@ func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
 	defer sw.l.Unlock()
 
 	scrubbed := sw.scrub(s)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 	err := sw.inner.Error(scrubbed)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
 	for _, l := range sw.extra {
-		l.Error(scrubbed)
+		l.Error(scrubbed) //nolint:errcheck
 	}
 
 	return err
@@ -240,7 +240,7 @@ func (sw *DatadogLogger) critical(s string) error {
 	err := sw.inner.Critical(scrubbed)
 
 	for _, l := range sw.extra {
-		l.Critical(scrubbed)
+		l.Critical(scrubbed) //nolint:errcheck
 	}
 
 	return err
@@ -294,7 +294,7 @@ func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
 	err := sw.inner.Warn(scrubbed)
 
 	for _, l := range sw.extra {
-		l.Warn(scrubbed)
+		l.Warn(scrubbed) //nolint:errcheck
 	}
 
 	return err
@@ -309,7 +309,7 @@ func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
 	err := sw.inner.Error(scrubbed)
 
 	for _, l := range sw.extra {
-		l.Error(scrubbed)
+		l.Error(scrubbed) //nolint:errcheck
 	}
 
 	return err
@@ -324,7 +324,7 @@ func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
 	err := sw.inner.Critical(scrubbed)
 
 	for _, l := range sw.extra {
-		l.Critical(scrubbed)
+		l.Critical(scrubbed) //nolint:errcheck
 	}
 
 	return err
@@ -569,4 +569,26 @@ func GetLogLevel() (seelog.LogLevel, error) {
 
 	// need to return something, just set to Info (expected default)
 	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
+}
+
+// ChangeLogLevel changes the current log level, valide levels are trace, debug,
+// info, warn, error, critical and off, it requires a new seelog logger because
+// an existing one cannot be updated
+func ChangeLogLevel(l seelog.LoggerInterface, level string) error {
+	if logger != nil && logger.inner != nil {
+		err := logger.changeLogLevel(level)
+		if err != nil {
+			return err
+		}
+		// See detailed explanation in SetupDatadogLogger(...)
+		err = l.SetAdditionalStackDepth(defaultStackDepth)
+		if err != nil {
+			return err
+		}
+
+		logger.replaceInnerLogger(l)
+		return nil
+	}
+	// need to return something, just set to Info (expected default)
+	return errors.New("cannot change loglevel: logger not initialized")
 }

@@ -116,7 +116,7 @@ func TestNormalizeEmptyName(t *testing.T) {
 	s := newTestSpan()
 	s.Name = ""
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, s.Name, strings.Replace(DefaultSpanName, "-", "_", -1))
+	assert.Equal(t, s.Name, DefaultSpanName)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: 1}), ts)
 }
 

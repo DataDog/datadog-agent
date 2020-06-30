@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/gobwas/glob"
 )
 
 const (
@@ -31,6 +34,7 @@ type KubeletCollector struct {
 	expireFreq        time.Duration
 	labelsAsTags      map[string]string
 	annotationsAsTags map[string]string
+	globMap           map[string]glob.Glob
 }
 
 // Detect tries to connect to the kubelet
@@ -39,26 +43,44 @@ func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error)
 	if err != nil {
 		return NoCollection, err
 	}
+	c.init(
+		watcher,
+		out,
+		config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags"),
+		config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags"),
+	)
+
+	return PullCollection, nil
+}
+
+func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagInfo, labelsAsTags, annotationsAsTags map[string]string) {
 	c.watcher = watcher
 	c.infoOut = out
 	c.lastExpire = time.Now()
 	c.expireFreq = kubeletExpireFreq
 
 	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
-	labelsList := config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
-	for label, value := range labelsList {
-		delete(labelsList, label)
-		labelsList[strings.ToLower(label)] = value
+	c.globMap = map[string]glob.Glob{}
+	for label, value := range labelsAsTags {
+		delete(labelsAsTags, label)
+		pattern := strings.ToLower(label)
+		labelsAsTags[pattern] = value
+		if strings.Index(pattern, "*") != -1 {
+			g, err := glob.Compile(pattern)
+			if err != nil {
+				log.Errorf("Failed to compile glob for [%s]: %v", pattern, err)
+				continue
+			}
+			c.globMap[pattern] = g
+		}
 	}
-	c.labelsAsTags = labelsList
+	c.labelsAsTags = labelsAsTags
 
-	annotationsList := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
-	for annotation, value := range annotationsList {
-		delete(annotationsList, annotation)
-		annotationsList[strings.ToLower(annotation)] = value
+	for annotation, value := range annotationsAsTags {
+		delete(annotationsAsTags, annotation)
+		annotationsAsTags[strings.ToLower(annotation)] = value
 	}
-	c.annotationsAsTags = annotationsList
-	return PullCollection, nil
+	c.annotationsAsTags = annotationsAsTags
 }
 
 // Pull triggers a podlist refresh and sends new info. It also triggers

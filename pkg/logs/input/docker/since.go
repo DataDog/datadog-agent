@@ -21,6 +21,8 @@ func Since(registry auditor.Registry, identifier string, creationTime service.Cr
 	var err error
 	offset := registry.GetOffset(identifier)
 	switch {
+	case isEOFCorruptedOffset(offset):
+		since = time.Time{}
 	case offset != "":
 		// an offset was registered, tail from the offset
 		since, err = time.Parse(config.DateFormat, offset)
@@ -35,4 +37,11 @@ func Since(registry auditor.Registry, identifier string, creationTime service.Cr
 		since = time.Now().UTC()
 	}
 	return since, err
+}
+
+// isEOFCorruptedOffset return true if the offset doesn't contain a
+// valid timestamp value due to a file rotation.
+func isEOFCorruptedOffset(offset string) bool {
+	// check if the offset value is equal to EOF char
+	return len(offset) > 0 && offset[0] == 0x03
 }

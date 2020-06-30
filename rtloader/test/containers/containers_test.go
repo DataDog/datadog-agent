@@ -26,8 +26,8 @@ func TestIsExcluded(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
-			containers.is_excluded('foo', 'bar'),
-			containers.is_excluded('baz', 'bar'),
+			containers.is_excluded('foo', 'bar', 'ns'),
+			containers.is_excluded('baz', 'bar', 'ns'),
 		))
 	`, tmpfile.Name())
 	out, err := run(code)
@@ -49,7 +49,7 @@ func TestIsExcludedErrorTypeName(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
-			containers.is_excluded(123, 'bar'),
+			containers.is_excluded(123, 'bar', 'ns'),
 		))
 	`, tmpfile.Name())
 	out, err := run(code)
@@ -72,7 +72,7 @@ func TestIsExcludedErrorTypeImage(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
-			containers.is_excluded('foo', 123),
+			containers.is_excluded('foo', 123, 'ns'),
 		))
 	`, tmpfile.Name())
 	out, err := run(code)

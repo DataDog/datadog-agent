@@ -23,6 +23,6 @@ func NewConfigConverter() *LegacyConfigConverter {
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	initConfig(Datadog)
+	InitConfig(Datadog)
 	return &LegacyConfigConverter{Datadog}
 }

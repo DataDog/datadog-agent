@@ -6,6 +6,9 @@
 package gohai
 
 import (
+	"net"
+	"sync"
+
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/filesystem"
 	"github.com/DataDog/gohai/memory"
@@ -14,6 +17,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	// we can use this a hint that docker is running in host mode and it's safe to use detect
+	docker0Detected = false
 )
 
 // GetPayload builds a payload of every metadata collected with gohai except processes metadata.
@@ -47,7 +55,7 @@ func getGohaiInfo() *gohai {
 		log.Errorf("Failed to retrieve memory metadata: %s", err)
 	}
 
-	if !config.IsContainerized() {
+	if !config.IsContainerized() || detectDocker0() {
 		networkPayload, err := new(network.Network).Collect()
 		if err == nil {
 			res.Network = networkPayload
@@ -64,4 +72,15 @@ func getGohaiInfo() *gohai {
 	}
 
 	return res
+}
+
+var docker0Detector sync.Once
+
+func detectDocker0() bool {
+	docker0Detector.Do(func() {
+		iface, _ := net.InterfaceByName("docker0")
+		docker0Detected = iface != nil
+	})
+
+	return docker0Detected
 }

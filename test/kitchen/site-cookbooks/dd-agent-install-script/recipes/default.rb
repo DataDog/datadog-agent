@@ -13,8 +13,14 @@ directory wrk_dir do
   recursive true
 end
 
-remote_file "#{wrk_dir}/install-script" do
-  source node['dd-agent-install-script']['install_script_url']
+if node['dd-agent-install-script']['agent_flavor'] == "datadog-dogstatsd"
+  cookbook_file "#{wrk_dir}/install-script" do
+    source "dogstatsd_install_script.sh"
+  end
+else
+  remote_file "#{wrk_dir}/install-script" do
+    source node['dd-agent-install-script']['install_script_url']
+  end
 end
 
 # apt-get update fails a LOT on our droplets, so ignore these failures
@@ -24,37 +30,53 @@ execute 'ignore "apt-get update" failure' do
   command "sed -i 's/apt-get update$/apt-get update || true/' install-script"
 end
 
+kitchen_environment_variables = {
+  'DD_API_KEY' => node['dd-agent-install-script']['api_key'],
+  'REPO_URL' => node['dd-agent-install-script']['repo_url'],
+  'DD_URL' => node['dd-agent-install-script']['dd_url'],
+  'DD_SITE' => node['dd-agent-install-script']['dd_site'],
+  'DD_AGENT_FLAVOR' => node['dd-agent-install-script']['agent_flavor'],
+
+  'TESTING_APT_URL' => node['dd-agent-install-script']['repo_domain_apt'],
+  'TESTING_YUM_URL' => node['dd-agent-install-script']['repo_domain_yum'],
+  'TESTING_APT_REPO_VERSION' => "#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}",
+  'TESTING_YUM_VERSION_PATH' => node['dd-agent-install-script']['repo_branch_yum'],
+}.compact
+
+# Transform hash into bash syntax for exporting environment variables
+kitchen_env_export = kitchen_environment_variables.map{ |pair| "export '#{pair.join('=')}'" }.join("\n")
+
 execute 'update Agent install script repository' do
   cwd wrk_dir
   command <<-EOF
-    sed -i 's/apt\\.datadoghq\\.com/#{node['dd-agent-install-script']['repo_domain_apt']}/' install-script
-    sed -i 's/yum\\.datadoghq\\.com/#{node['dd-agent-install-script']['repo_domain_yum']}/' install-script
-    sed -i 's/apt.${repo_url}/#{node['dd-agent-install-script']['repo_domain_apt']}/' install-script
-    sed -i 's/yum.${repo_url}/#{node['dd-agent-install-script']['repo_domain_yum']}/' install-script
-    sed -i 's~stable/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~rpm/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta main~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
-    sed -i 's~stable main~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
-    sed -i 's~stable 6~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
-    sed -i 's~stable/6~#{node['dd-agent-install-script']['repo_branch_yum']}~' install-script
-    sed -i 's~${dd_agent_dist_channel} ${dd_agent_major_version}~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
-    sed -i 's~${dd_agent_dist_channel}/${dd_agent_major_version}~#{node['dd-agent-install-script']['repo_branch_yum']}~' install-script
     sed -i 's~$sudo_cmd which service~sudo which service~' install-script
   EOF
 
   only_if { node['dd-agent-install-script']['install_candidate'] }
 end
 
+user 'installuser' do
+  comment 'Not a root user to run install script'
+  uid 9999
+  home '/home/installuser'
+  shell '/bin/bash'
+end
+
+sudo 'installuser' do
+  nopasswd true
+  users 'installuser'
+end
+
+directory wrk_dir do
+  owner 'installuser'
+  mode '0755'
+end
+
 execute 'run agent install script' do
+  user 'installuser'
   cwd wrk_dir
   command <<-EOF
-    sed -i '1aDD_API_KEY=#{node['dd-agent-install-script']['api_key']}' install-script
-    sed -i '1aREPO_URL="datad0g.com"' install-script
-    sed -i '1aDD_URL="datad0g.com"' install-script
+    #{kitchen_env_export}
     bash install-script
     sleep 10
   EOF

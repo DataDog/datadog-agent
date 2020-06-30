@@ -8,6 +8,8 @@
 package providers
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -74,8 +76,16 @@ func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) 
 	return reply.Configs, nil
 }
 
-// getNodename retrieves current node name from kubelet.
+// getNodename retrieves current node name from kubelet (if running on Kubernetes)
+// or bosh ID of current node (if running on Cloud Foundry).
 func getNodename() (string, error) {
+	if config.Datadog.GetBool("cloud_foundry") {
+		boshID := config.Datadog.GetString("bosh_id")
+		if boshID == "" {
+			return "", fmt.Errorf("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
+		}
+		return boshID, nil
+	}
 	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
 		log.Errorf("Cannot get kubeUtil object: %s", err)

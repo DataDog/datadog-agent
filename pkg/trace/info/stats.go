@@ -350,6 +350,7 @@ func (s *Stats) update(recent *Stats) {
 
 func (s *Stats) reset() {
 	atomic.StoreInt64(&s.TracesReceived, 0)
+	atomic.StoreInt64(&s.TracesDropped.PayloadTooLarge, 0)
 	atomic.StoreInt64(&s.TracesDropped.DecodingError, 0)
 	atomic.StoreInt64(&s.TracesDropped.EmptyTrace, 0)
 	atomic.StoreInt64(&s.TracesDropped.TraceIDZero, 0)

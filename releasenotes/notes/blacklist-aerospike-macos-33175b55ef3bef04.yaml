@@ -1,0 +1,10 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    On MacOS, the Aerospike integration is no longer available since version 3.10
+    of the aerospike-client-python library is not yet available on this platform.

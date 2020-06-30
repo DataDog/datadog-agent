@@ -14,7 +14,7 @@ COPY readsecret.sh .
 
 RUN chmod 755 entrypoint.sh \
     && chown root:root readsecret.sh \
-    && chmod 500 readsecret.sh \
+    && chmod 555 readsecret.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
@@ -30,9 +30,8 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 ENV PATH="/opt/datadog-agent/bin/:$PATH"
 
 RUN apt-get update \
+    && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl \
-    # https://security-tracker.debian.org/tracker/CVE-2018-15686
-    && apt-get install -y libudev1 libsystemd0 \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /

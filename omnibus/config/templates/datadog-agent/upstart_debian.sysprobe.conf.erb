@@ -1,6 +1,7 @@
 description "Datadog System Probe"
 
-stop on (runlevel [!2345])
+start on starting datadog-agent
+stop on (runlevel [!2345] or stopping datadog-agent)
 
 respawn
 respawn limit 10 5
@@ -14,6 +15,9 @@ env DD_LOG_TO_CONSOLE=false
 
 # mount debugfs before start
 pre-start script
+  # Do not run if config file doesn't exist
+  test -f <%= etc_dir %>/system-probe.yaml || { stop ; exit 0; }
+
   if [ -d /sys/kernel/debug ]; then
     if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
       mount -t debugfs none /sys/kernel/debug

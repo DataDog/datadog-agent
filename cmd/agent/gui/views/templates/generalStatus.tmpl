@@ -3,6 +3,7 @@
     <span class="stat_title">Agent Info</span>
     <span class="stat_data">
       Version: {{.version}}
+      <br>Flavor: {{.flavor}}
       <br>PID: {{.pid}}
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
@@ -104,6 +105,13 @@
   <div class="stat">
     <span class="stat_title">JMX Status</span>
     <span class="stat_data">
+      {{ if .JMXStartupError.LastError }}
+      <span class="stat_subtitle">JMX startup errors</span>
+        <span class="stat_subdata">
+          Error: {{ .JMXStartupError.LastError }} <br>
+          Date: {{ formatUnixTime .JMXStartupError.Timestamp }}
+        </span>
+      {{ end -}}
       {{- with .JMXStatus -}}
         {{- if and (not .timestamp) (not .checks)}}
           No JMX status available
@@ -148,7 +156,7 @@
     <span class="stat_data">
       {{- with .forwarderStats -}}
         {{- range $key, $value := .Transactions }}
-            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode")}}
+            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
           {{formatTitle $key}}: {{humanize $value}}<br>
             {{- end}}
         {{- end}}
@@ -221,6 +229,10 @@
         {{- range $endpoint := .endpoints }}
           {{ $endpoint }}<br>
         {{- end }}
+      {{- end }}
+      {{- if and (eq .use_http false) (.is_running) }}
+
+        You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.</br>
       {{- end }}
       {{- if .metrics }}
 
@@ -330,5 +342,10 @@
         {{- end }}
       {{- end -}}
     </span>
+  </div>
+
+  <div class="stat" id="apmStats">
+    <span class="stat_title">APM</span>
+    <span class="stat_data">Loading...</span>
   </div>
 {{- end -}}

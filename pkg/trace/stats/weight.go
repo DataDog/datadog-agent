@@ -14,6 +14,7 @@ import (
 type WeightedSpan struct {
 	Weight   float64 // Span weight. Similar to the trace root.Weight().
 	TopLevel bool    // Is this span a service top-level or not. Similar to span.TopLevel().
+	Measured bool    // Is this span marked for metrics computation.
 
 	*pb.Span
 }
@@ -32,6 +33,7 @@ func NewWeightedTrace(trace pb.Trace, root *pb.Span) WeightedTrace {
 			Span:     trace[i],
 			Weight:   weight,
 			TopLevel: traceutil.HasTopLevel(trace[i]),
+			Measured: traceutil.IsMeasured(trace[i]),
 		}
 	}
 	return wt
