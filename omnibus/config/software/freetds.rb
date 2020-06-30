@@ -22,19 +22,8 @@ build do
 
   command configure_command, env: env, in_msys_bash: true
   make env: env
-  make "install", env: env
 
-  # removing unused files
-  delete "#{install_dir}/embedded/bin/bsqldb"
-  delete "#{install_dir}/embedded/bin/bsqlodbc"
-  delete "#{install_dir}/embedded/bin/datacopy"
-  delete "#{install_dir}/embedded/bin/defncopy"
-  delete "#{install_dir}/embedded/bin/fisql"
-  delete "#{install_dir}/embedded/bin/freebcp"
-  delete "#{install_dir}/embedded/bin/osql"
-  delete "#{install_dir}/embedded/bin/tdspool"
-  delete "#{install_dir}/embedded/bin/tsql"
-  delete "#{install_dir}/embedded/etc/freetds.conf"
-  delete "#{install_dir}/embedded/etc/locales.conf"
-  delete "#{install_dir}/embedded/etc/pool.conf"
+  copy "src/odbc/.libs/libtdsodbc.so", "#{install_dir}/embedded/lib/libtdsodbc.so"
+  copy "src/odbc/.libs/libtdsodbc.so.0.0.0", "#{install_dir}/embedded/lib/libtdsodbc.so.0.0.0"
+
 end
