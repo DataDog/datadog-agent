@@ -23,6 +23,8 @@ func TestEmptyCatalog(t *testing.T) {
 
 func TestCatalogStartsHealthy(t *testing.T) {
 	cat := newCatalog()
+	// Register a fake compoment
+	// because without any registered component, the `healthcheck` component would be disabled
 	_ = cat.register("test1")
 
 	status := cat.getStatus()
@@ -34,6 +36,8 @@ func TestCatalogStartsHealthy(t *testing.T) {
 
 func TestCatalogGetsUnhealthyAndBack(t *testing.T) {
 	cat := newCatalog()
+	// Register a fake compoment
+	// because without any registered component, the `healthcheck` component would be disabled
 	_ = cat.register("test1")
 
 	status := cat.getStatus()

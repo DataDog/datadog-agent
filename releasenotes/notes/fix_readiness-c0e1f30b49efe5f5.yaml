@@ -9,3 +9,7 @@
 fixes:
   - |
     Fixes the `/ready` health endpoint on the cluster-agent.
+
+    The `/ready` health endpoint was reporting 200 at the cluster-agent startup and was then, permanently reporting 500 even though the cluster-agent was experiencing no problem.
+    In the body of the response, we could see that a `healthcheck` component was failing.
+    This change fixes this issue.
