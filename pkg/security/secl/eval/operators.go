@@ -49,6 +49,10 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 	}
 
 	p := strings.ReplaceAll(b.Value, "*", ".*")
+	// make sure we match the requested pattern and not *pattern*
+	p = strings.ReplaceAll(p, "^", "\\^")
+	p = strings.ReplaceAll(p, "$", "\\$")
+	p = "^" + p + "$"
 	re, err := regexp.Compile(p)
 	if err != nil {
 		return nil, err

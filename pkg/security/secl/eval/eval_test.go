@@ -304,7 +304,7 @@ func TestSimpleBitOperations(t *testing.T) {
 func TestRegexp(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
-			name: "/usr/bin/cat",
+			name: "/usr/bin/c$t",
 		},
 	}
 
@@ -315,6 +315,13 @@ func TestRegexp(t *testing.T) {
 		{Expr: `process.name =~ "/usr/bin/*"`, Expected: true},
 		{Expr: `process.name =~ "/usr/sbin/*"`, Expected: false},
 		{Expr: `process.name !~ "/usr/sbin/*"`, Expected: true},
+		{Expr: `process.name =~ "/bin/"`, Expected: false},
+		{Expr: `process.name =~ "*/bin/"`, Expected: false},
+		{Expr: `process.name =~ "/bin/*"`, Expected: false},
+		{Expr: `process.name =~ "*/bin/*"`, Expected: true},
+		{Expr: `process.name =~ "^*/bin/*$"`, Expected: false},
+		{Expr: `process.name =~ "*/bin/*$*"`, Expected: true},
+		{Expr: `process.name =~ ""`, Expected: false},
 	}
 
 	for _, test := range tests {
