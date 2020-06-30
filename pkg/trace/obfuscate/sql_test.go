@@ -1130,6 +1130,27 @@ func TestMySQLDialect(t *testing.T) {
 			"SELECT COUNT ( * ) AS `count_1` FROM ( SELECT `customer` . `id_` AS `customer_id_` FROM `customer` ) AS `anon_1`",
 			"SELECT COUNT ( * ) FROM ( SELECT customer.id_ FROM customer )",
 		},
+		{
+			`DELETE FROM t1
+			WHERE s11 > ANY
+			 (SELECT COUNT(*) /* no hint */ FROM t2
+			  WHERE NOT EXISTS
+			   (SELECT * FROM t3
+				WHERE ROW(5*t2.s1,77)=
+				 (SELECT 50,11*s1 FROM t4 UNION SELECT 50,77 FROM
+				  (SELECT * FROM t5) AS t5)));`,
+			"DELETE FROM t1 WHERE s11 > ANY ( SELECT COUNT ( * ) FROM t2 WHERE NOT EXISTS ( SELECT * FROM t3 WHERE ROW ( ? * t2.s1, ? ) = ( SELECT ? * s1 FROM t4 UNION SELECT ? FROM ( SELECT * FROM t5 ) ) ) )",
+		},
+		{
+			`WITH RECURSIVE cte AS
+			(
+			  SELECT 1 AS n, 'abc' AS str
+			  UNION ALL
+			  SELECT n + 1, CONCAT(str, str) FROM cte WHERE n < 3
+			)
+			SELECT * FROM cte;`,
+			"WITH RECURSIVE cte ( SELECT ?, ? UNION ALL SELECT n + ? CONCAT ( str, str ) FROM cte WHERE n < ? ) SELECT * FROM cte",
+		},
 	}
 
 	for _, c := range cases {
