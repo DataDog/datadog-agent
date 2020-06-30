@@ -25,8 +25,15 @@ build do
   make "install", env: env
 
   # removing unused files
-  delete "#{install_dir}/embedded/bin/tsql"
+  delete "#{install_dir}/embedded/bin/bsqldb"
+  delete "#{install_dir}/embedded/bin/bsqlodbc"
+  delete "#{install_dir}/embedded/bin/datacopy"
+  delete "#{install_dir}/embedded/bin/defncopy"
   delete "#{install_dir}/embedded/bin/fisql"
+  delete "#{install_dir}/embedded/bin/freebcp"
+  delete "#{install_dir}/embedded/bin/osql"
+  delete "#{install_dir}/embedded/bin/tdspool"
+  delete "#{install_dir}/embedded/bin/tsql"
   delete "#{install_dir}/embedded/etc/freetds.conf"
   delete "#{install_dir}/embedded/etc/locales.conf"
   delete "#{install_dir}/embedded/etc/pool.conf"
