@@ -13,17 +13,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestEmptyCatalog(t *testing.T) {
+	cat := newCatalog()
+
+	status := cat.getStatus()
+	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Unhealthy, 0)
+}
+
 func TestCatalogStartsHealthy(t *testing.T) {
 	cat := newCatalog()
+	// Register a fake compoment
+	// because without any registered component, the `healthcheck` component would be disabled
+	_ = cat.register("test1")
 
 	status := cat.getStatus()
 	assert.Len(t, status.Healthy, 1)
 	assert.Contains(t, status.Healthy, "healthcheck")
-	assert.Len(t, status.Unhealthy, 0)
+	assert.Len(t, status.Unhealthy, 1)
+	assert.Contains(t, status.Unhealthy, "test1")
 }
 
 func TestCatalogGetsUnhealthyAndBack(t *testing.T) {
 	cat := newCatalog()
+	// Register a fake compoment
+	// because without any registered component, the `healthcheck` component would be disabled
+	_ = cat.register("test1")
 
 	status := cat.getStatus()
 	assert.Contains(t, status.Healthy, "healthcheck")
