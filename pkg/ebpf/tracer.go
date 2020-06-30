@@ -371,7 +371,7 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
 	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
 		return true
-	} else if network.IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
+	} else if network.IsExcludedConnection(t.sourceExcludes, t.destExcludes, conn) {
 		return true
 	}
 	return false

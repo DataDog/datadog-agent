@@ -93,10 +93,10 @@ func TestTracerExpvar(t *testing.T) {
 			"TruncatedPackets",
 		},
 		"kprobes": {
-			"PXSysBindHits",
-			"PXSysBindMisses",
-			"PXSysSocketHits",
-			"PXSysSocketMisses",
+			"PSysBindHits",
+			"PSysBindMisses",
+			"PSysSocketHits",
+			"PSysSocketMisses",
 			"PTcpCleanupRbufHits",
 			"PTcpCleanupRbufMisses",
 			"PTcpCloseHits",
@@ -113,25 +113,35 @@ func TestTracerExpvar(t *testing.T) {
 			"PUdpRecvmsgMisses",
 			"PUdpSendmsgHits",
 			"PUdpSendmsgMisses",
-			"RXSysBindHits",
-			"RXSysBindMisses",
-			"RXSysSocketHits",
-			"RXSysSocketMisses",
+			"RSysBindHits",
+			"RSysBindMisses",
+			"RSysSocketHits",
+			"RSysSocketMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
 			"RTcpCloseMisses",
 			"RUdpRecvmsgHits",
 			"RUdpRecvmsgMisses",
+			"PTcpGetInfoHits",
+			"PTcpGetInfoMisses",
+			"RTcpSendmsgHits",
+			"RTcpSendmsgMisses",
+			"RTcpVConnectHits",
+			"RTcpVConnectMisses",
+			"PTcpVConnectHits",
+			"PTcpVConnectMisses",
 		},
 	}
 
 	for _, et := range expvarTypes {
 		expvar := map[string]float64{}
 		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
-		assert.Len(t, expvar, len(expected[et]))
 		for _, name := range expected[et] {
-			assert.Contains(t, expvar, name)
+			assert.Contains(t, expvar, name, "%s actual is missing %s", et, name)
+		}
+		for k := range expvar {
+			assert.Contains(t, expected[et], k, "%s expected is missing expvar %s", et, k)
 		}
 	}
 }
@@ -896,7 +906,11 @@ func isLocalDNS(c network.ConnectionStats) bool {
 	return c.Source.String() == "127.0.0.1" && c.Dest.String() == "127.0.0.1" && c.DPort == 53
 }
 
-func TestShouldSkipBlacklistedConnection(t *testing.T) {
+func TestShouldSkipExcludedConnection(t *testing.T) {
+	// BEWARE: if you have multiple simultaneous SSH connections to the agent VM, this test will fail.
+	// This is because it picks up the sshd connection for the "other" SSH connections besides the one
+	// used to run the tests.
+
 	// exclude connections from 127.0.0.1:80
 	config := NewDefaultConfig()
 	config.ExcludedSourceConnections = map[string][]string{"127.0.0.1": {"80"}}

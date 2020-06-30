@@ -463,7 +463,6 @@ func guessOffsets(m *manager.Manager, cfg *Config) error {
 			return fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
-	fmt.Printf("%+v\n", status)
 
 	return nil
 }

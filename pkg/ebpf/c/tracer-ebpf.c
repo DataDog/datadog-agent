@@ -1026,7 +1026,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &lport);
 
     if (state == NULL) {
-        log_debug("kprobe/udp_destroy_sock: sock was not listening, will drop event");
+        log_debug("kprobe/udp_destroy_sock: sock was not listening, will drop event\n");
         return 0;
     }
 
@@ -1034,7 +1034,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     __u8 new_state = PORT_CLOSED;
     bpf_map_update_elem(&udp_port_bindings, &lport, &new_state, BPF_ANY);
 
-    log_debug("kprobe/udp_destroy_sock: port %d marked as closed", lport);
+    log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
 
     return 0;
 }
@@ -1122,11 +1122,11 @@ int kprobe__sys_socket(struct pt_regs* ctx) {
     }
 
     if (pending_udp == 0) {
-        log_debug("kprobe sys_socket: got a socket() call, but was not for UDP with tid=%d", tid);
+        log_debug("kprobe sys_socket: got a socket() call, but was not for UDP with tid=%d\n", tid);
         return 0;
     }
 
-    log_debug("kprobe sys_socket: started a UDP socket for tid=%d", tid);
+    log_debug("kprobe sys_socket: started a UDP socket for tid=%d\n", tid);
     __u8 x = 1;
     bpf_map_update_elem(&pending_sockets, &tid, &x, BPF_ANY);
 

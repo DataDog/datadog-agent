@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -53,7 +54,7 @@ func getSnooper(
 		mp, _, _ := mgr.GetMap(string(bytecode.ConfigMap))
 		require.NotNil(t, mp)
 		var zero uint64
-		mp.Put(zero, &zero)
+		mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(&zero))
 	}
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
 	require.NotNil(t, filter)
@@ -207,7 +208,7 @@ Loop:
 	return key, allStats
 }
 
-func TestDNSOverTCPSnoopingWithSuccessfulResposne(t *testing.T) {
+func TestDNSOverTCPSnoopingWithSuccessfulResponse(t *testing.T) {
 	m, reverseDNS := initDNSTests(t)
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
