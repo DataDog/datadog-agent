@@ -15,7 +15,6 @@ build do
 
   configure_args = [
     "--disable-readline",
-    "--prefix=#{install_dir}/embedded",
   ]
 
   configure_command = configure_args.unshift("./configure").join(" ")
