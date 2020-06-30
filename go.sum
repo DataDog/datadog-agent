@@ -85,6 +85,8 @@ github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q
 github.com/DATA-DOG/go-sqlmock v1.4.1/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/DataDog/agent-payload v0.0.0-20200624194755-bbcbef3bd83d h1:RMHcMKuZZZNx1h0Qrbde+fy5YVT07fJ7nJNZ4k6c9MM=
 github.com/DataDog/agent-payload v0.0.0-20200624194755-bbcbef3bd83d/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v0.0.0-20200630140101-31e351744885 h1:Vx6oxLrMP2rg9aGObiUBHlcHub059upFySplaj2LB9g=
+github.com/DataDog/agent-payload v0.0.0-20200630140101-31e351744885/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go v3.5.0+incompatible h1:AShr9cqkF+taHjyQgcBcQUt/ZNK+iPq4ROaZwSX5c/U=
 github.com/DataDog/datadog-go v3.5.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=

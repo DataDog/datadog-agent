@@ -31,7 +31,7 @@ func TestExtractPodMessage(t *testing.T) {
 		input    v1.Pod
 		expected model.Pod
 	}{
-		"full pod": {
+		"full pod with containers without resourceRequirements": {
 			input: v1.Pod{
 				Status: v1.PodStatus{
 					Phase:             v1.PodRunning,
@@ -320,8 +320,8 @@ func TestExtractPodMessage(t *testing.T) {
 						{
 							Name: "aContainer",
 							Resources: v1.ResourceRequirements{
-								Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("550M")},
-								Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("150M")},
+								Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
+								Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
 							},
 						},
 					},
@@ -359,7 +359,7 @@ func TestExtractPodMessage(t *testing.T) {
 				},
 			}, expected: model.Pod{
 				Metadata: &model.Metadata{
-					Name:      "barName",
+					Name:      "pod",
 					Namespace: "namespace",
 					OwnerReferences: []*model.OwnerReference{
 						{
@@ -367,7 +367,7 @@ func TestExtractPodMessage(t *testing.T) {
 						},
 					},
 				},
-				RestartCount: 0,
+				RestartCount: 10,
 				Status:       "chillin",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
@@ -383,6 +383,7 @@ func TestExtractPodMessage(t *testing.T) {
 						Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
 						Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
 						Name:     "aContainer",
+						Type:     model.ResourceRequirementsType_container,
 					},
 				},
 			},
@@ -391,6 +392,99 @@ func TestExtractPodMessage(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, &tc.expected, extractPodMessage(&tc.input))
+		})
+	}
+}
+
+func TestConvertResourceRequirements(t *testing.T) {
+	tests := map[string]struct {
+		input    v1.Container
+		expected *model.ResourceRequirements
+	}{
+		"no ResourceRequirements set": {
+			input: v1.Container{
+				Name: "test",
+			},
+			expected: nil,
+		},
+		"only mem set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					// 1024 = 1Ki
+					Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("550Mi")},
+					Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("250Mi")},
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Limits:   map[string]int64{v1.ResourceMemory.String(): 576716800},
+				Requests: map[string]int64{v1.ResourceMemory.String(): 262144000},
+				Name:     "test",
+				Type:     model.ResourceRequirementsType_container,
+			},
+		},
+		"only cpu set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("1")},
+					Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("0.5")},
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Limits:   map[string]int64{v1.ResourceCPU.String(): 1000},
+				Requests: map[string]int64{v1.ResourceCPU.String(): 500},
+				Name:     "test",
+				Type:     model.ResourceRequirementsType_container,
+			},
+		},
+		"only cpu request set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("0.5")},
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Requests: map[string]int64{v1.ResourceCPU.String(): 500},
+				Limits:   map[string]int64{},
+				Name:     "test",
+				Type:     model.ResourceRequirementsType_container,
+			},
+		},
+		"mem and cpu set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					Limits: map[v1.ResourceName]resource.Quantity{
+						v1.ResourceCPU:    resource.MustParse("1"),
+						v1.ResourceMemory: resource.MustParse("550Mi"),
+					},
+					Requests: map[v1.ResourceName]resource.Quantity{
+						v1.ResourceCPU:    resource.MustParse("0.5"),
+						v1.ResourceMemory: resource.MustParse("250Mi"),
+					},
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Limits: map[string]int64{
+					v1.ResourceCPU.String():    1000,
+					v1.ResourceMemory.String(): 576716800,
+				},
+				Requests: map[string]int64{
+					v1.ResourceCPU.String():    500,
+					v1.ResourceMemory.String(): 262144000,
+				},
+				Name: "test",
+				Type: model.ResourceRequirementsType_container,
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			actual := convertResourceRequirements(tc.input.Resources, tc.input.Name, model.ResourceRequirementsType_container)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
