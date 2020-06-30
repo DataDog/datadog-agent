@@ -27,4 +27,7 @@ build do
   # removing unused files
   delete "#{install_dir}/embedded/bin/tsql"
   delete "#{install_dir}/embedded/bin/fisql"
+  delete "#{install_dir}/embedded/etc/freetds.conf"
+  delete "#{install_dir}/embedded/etc/locales.conf"
+  delete "#{install_dir}/embedded/etc/pool.conf"
 end
