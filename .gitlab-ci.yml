@@ -342,7 +342,6 @@ run_tests_deb-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
     CONDA_ENV: ddpy2
   <<: *run_tests_preparation
   script:
@@ -354,7 +353,6 @@ run_tests_deb-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
     CONDA_ENV: ddpy3
   <<: *run_tests_preparation
   script:
@@ -367,7 +365,6 @@ run_tests_rpm-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
     CONDA_ENV: ddpy2
   <<: *run_tests_preparation
   script:
@@ -382,7 +379,6 @@ run_tests_rpm-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
     CONDA_ENV: ddpy3
   <<: *run_tests_preparation
   script:
