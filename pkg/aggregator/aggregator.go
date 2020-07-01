@@ -313,7 +313,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	if _, ok := agg.checkSamplers[id]; ok {
 		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
-	agg.checkSamplers[id] = newCheckSampler()
+	agg.checkSamplers[id] = newCheckSampler(agg.flushInterval)
 	return nil
 }
 

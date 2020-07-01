@@ -18,27 +18,29 @@ const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
-	series          []*metrics.Serie
-	sketches        []metrics.SketchSeries
-	contextResolver *ContextResolver
-	metrics         metrics.ContextMetrics
-	sketchMap       sketchMap
-	lastBucketValue map[ckey.ContextKey]int64
-	lastSeenBucket  map[ckey.ContextKey]time.Time
-	bucketExpiry    time.Duration
+	series               []*metrics.Serie
+	sketches             []metrics.SketchSeries
+	contextResolver      *ContextResolver
+	flushIntervalSeconds int64
+	metrics              metrics.ContextMetrics
+	sketchMap            sketchMap
+	lastBucketValue      map[ckey.ContextKey]int64
+	lastSeenBucket       map[ckey.ContextKey]time.Time
+	bucketExpiry         time.Duration
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler() *CheckSampler {
+func newCheckSampler(flushInterval time.Duration) *CheckSampler {
 	return &CheckSampler{
-		series:          make([]*metrics.Serie, 0),
-		sketches:        make([]metrics.SketchSeries, 0),
-		contextResolver: newContextResolver(),
-		metrics:         metrics.MakeContextMetrics(),
-		sketchMap:       make(sketchMap),
-		lastBucketValue: make(map[ckey.ContextKey]int64),
-		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
-		bucketExpiry:    1 * time.Minute,
+		series:               make([]*metrics.Serie, 0),
+		sketches:             make([]metrics.SketchSeries, 0),
+		contextResolver:      newContextResolver(),
+		metrics:              metrics.MakeContextMetrics(),
+		flushIntervalSeconds: int64(flushInterval.Seconds()),
+		sketchMap:            make(sketchMap),
+		lastBucketValue:      make(map[ckey.ContextKey]int64),
+		lastSeenBucket:       make(map[ckey.ContextKey]time.Time),
+		bucketExpiry:         1 * time.Minute,
 	}
 }
 
@@ -139,6 +141,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 		serie.Name = context.Name + serie.NameSuffix
 		serie.Tags = context.Tags
 		serie.Host = context.Host
+		serie.Interval = cs.flushIntervalSeconds
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 
 		cs.series = append(cs.series, serie)
