@@ -415,20 +415,20 @@ api_key:
 #
 # secret_backend_timeout: 5
 
-## @param snmp_listener - custom object - optional
+## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using
 ## the auto_conf.yaml file provided by default.
 #
 # snmp_listener:
 
-  ## @param workers - integer - optional - default: 2
+  ## @param workers - integer - optional - default: 2
   ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
   ## discovers devices faster but at the cost of increased resource consumption.
   #
   # workers: 2
 
-  ## @param discovery_interval - integer - optional - default: 3600
+  ## @param discovery_interval - integer - optional - default: 3600
   ## How often to discover new SNMP devices, in seconds. Decreasing this value
   ## discovers devices faster (within the limit of the time taken to scan subnets)
   ## but at the cost of increased resource consumption.
