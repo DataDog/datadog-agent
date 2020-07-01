@@ -22,6 +22,8 @@ build do
   command configure_command, env: env, in_msys_bash: true
   make env: env
 
+  # Only `libtdsodbc.so/libtdsodbc.so.0.0.0` are needed for SQLServer integration.
+  # Hence we only need to copy those.
   copy "src/odbc/.libs/libtdsodbc.so", "#{install_dir}/embedded/lib/libtdsodbc.so"
   copy "src/odbc/.libs/libtdsodbc.so.0.0.0", "#{install_dir}/embedded/lib/libtdsodbc.so.0.0.0"
 
