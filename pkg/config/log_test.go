@@ -64,12 +64,12 @@ func BenchmarkLogFormatShortFilePath(b *testing.B) {
 
 func TestExtractContextString(t *testing.T) {
 	assert.Equal(t, `,"foo":"bar"`, extractContextString(jsonFormat, []interface{}{"foo", "bar"}))
-	assert.Equal(t, `foo:bar`, extractContextString(textFormat, []interface{}{"foo", "bar"}))
+	assert.Equal(t, `foo:bar | `, extractContextString(textFormat, []interface{}{"foo", "bar"}))
 	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, extractContextString(jsonFormat, []interface{}{"foo", "bar", "bar", "buzz"}))
-	assert.Equal(t, `foo:bar bar:buzz`, extractContextString(textFormat, []interface{}{"foo", "bar", "bar", "buzz"}))
+	assert.Equal(t, `foo:bar,bar:buzz | `, extractContextString(textFormat, []interface{}{"foo", "bar", "bar", "buzz"}))
 	assert.Equal(t, `,"foo":"b\"a\"r"`, extractContextString(jsonFormat, []interface{}{"foo", "b\"a\"r"}))
-	assert.Equal(t, `,"foo":3`, extractContextString(jsonFormat, []interface{}{"foo", 3}))
-	assert.Equal(t, `,"foo":4.1313`, extractContextString(jsonFormat, []interface{}{"foo", float64(4.131313131)}))
+	assert.Equal(t, `,"foo":"3"`, extractContextString(jsonFormat, []interface{}{"foo", 3}))
+	assert.Equal(t, `,"foo":"4.131313131"`, extractContextString(jsonFormat, []interface{}{"foo", float64(4.131313131)}))
 	assert.Equal(t, "", extractContextString(jsonFormat, nil))
 	assert.Equal(t, ",", extractContextString(jsonFormat, []interface{}{2, 3}))
 	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, extractContextString(jsonFormat, []interface{}{"foo", "bar", 2, 3, "bar", "buzz"}))

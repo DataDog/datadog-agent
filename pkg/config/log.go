@@ -35,6 +35,8 @@ const (
 
 var syslogTLSConfig *tls.Config
 
+var seelogConfig *seelogCfg.Config
+
 func getLogDateFormat() string {
 	if Datadog.GetBool("log_format_rfc3339") {
 		return time.RFC3339
@@ -50,7 +52,7 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
 
 // buildCommonFormat returns the log common format seelog string
 func buildCommonFormat(loggerName LoggerName) string {
-	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg %%ExtraTextContext%%n", getLogDateFormat(), loggerName)
+	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%ExtraTextContext%%Msg%%n", getLogDateFormat(), loggerName)
 }
 
 // buildJSONFormat returns the log JSON format seelog string
@@ -348,26 +350,27 @@ func createExtraTextContext(params string) seelog.FormatterFunc {
 }
 
 func extractContextString(format contextFormat, contextList []interface{}) string {
+	if len(contextList) == 0 || len(contextList)%2 != 0 {
+		return ""
+	}
+
 	builder := strings.Builder{}
-	if len(contextList) > 0 && format == jsonFormat {
+	if format == jsonFormat {
 		builder.WriteString(",")
 	}
 
-	for i := 0; i < len(contextList); {
-		if i == len(contextList)-1 {
-			// key without value
-			return ""
-		}
+	for i := 0; i < len(contextList); i += 2 {
 		key, val := contextList[i], contextList[i+1]
-		keyStr, ok := key.(string)
-		if !ok {
-			// skip non string keys
-			i += 2
-			continue
+		// Only add if key is string
+		if keyStr, ok := key.(string); ok {
+			addToBuilder(&builder, keyStr, val, format, i == len(contextList)-2)
 		}
-		addToBuilder(&builder, keyStr, val, format, i == len(contextList)-2)
-		i += 2
 	}
+
+	if format != jsonFormat {
+		builder.WriteString(" | ")
+	}
+
 	return builder.String()
 }
 
@@ -378,19 +381,11 @@ func addToBuilder(builder *strings.Builder, key string, value interface{}, forma
 	switch val := value.(type) {
 	case string:
 		appendFmt(builder, format, val, buf)
-	case int:
-		builder.WriteString(strconv.Itoa(val))
-	case float64:
-		builder.WriteString(strconv.FormatFloat(val, 'f', 4, 32))
 	default:
-		appendFmt(builder, format, "non supported field", buf)
+		appendFmt(builder, format, fmt.Sprintf("%v", val), buf)
 	}
 	if !isLast {
-		if format == jsonFormat {
-			builder.WriteString(",")
-		} else {
-			builder.WriteString(" ")
-		}
+		builder.WriteString(",")
 	}
 }
 

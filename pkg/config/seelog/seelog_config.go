@@ -29,7 +29,7 @@ const seelogConfigurationTemplate = `
 		<format id="json"          format="{{.jsonFormat}}"/>
 		<format id="common"        format="{{.commonFormat}}"/>
 		<format id="syslog-json"   format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{getJSONSyslogFormat .loggerName}}"/>
-		<format id="syslog-common" format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{.loggerName}} | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg %ExtraTextContext%n" />
+		<format id="syslog-common" format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{.loggerName}} | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n" />
 	</formats>
 </seelog>`
 

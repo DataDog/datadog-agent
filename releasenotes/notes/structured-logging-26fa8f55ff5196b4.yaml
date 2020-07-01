@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add possibility to add structured logging (KV) to Agent logging system through `<log_level>c` functions
