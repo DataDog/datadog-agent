@@ -206,6 +206,15 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
 	}
 
+	if commonGlobalOptions.MetricsMetadataSetInterval {
+		s, err := aggregator.GetSender(c.id)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
+		} else {
+			s.SetCheckCollectionInterval(c.interval)
+		}
+	}
+
 	// Disable default hostname if specified
 	if commonOptions.EmptyDefaultHostname {
 		s, err := aggregator.GetSender(c.id)

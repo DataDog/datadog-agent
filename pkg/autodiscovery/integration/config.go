@@ -72,6 +72,7 @@ type CommonInstanceConfig struct {
 // CommonGlobalConfig holds the reserved fields for the yaml init_config data
 type CommonGlobalConfig struct {
 	Service string `yaml:"service"`
+	MetricsMetadataSetInterval bool `yaml:"metrics_metadata_set_interval"`
 }
 
 // Equal determines whether the passed config is the same

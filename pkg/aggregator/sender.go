@@ -39,6 +39,7 @@ type Sender interface {
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
+	SetCheckCollectionInterval(interval time.Duration) error
 	FinalizeCheckServiceTag()
 }
 
@@ -177,6 +178,22 @@ func (s *checkSender) SetCheckCustomTags(tags []string) {
 // This may be called any number of times, though the only the last call will have an effect
 func (s *checkSender) SetCheckService(service string) {
 	s.service = service
+}
+
+// SetCheckCollectionInterval configures the check sampler to set the collection interval
+// on the metric metadata for all metrics collected from this check.
+func (s *checkSender) SetCheckCollectionInterval(interval time.Duration) error {
+	if aggregatorInstance == nil {
+		return errors.New("Aggregator was not initialized")
+	}
+
+	sampler, ok := aggregatorInstance.checkSamplers[s.id]
+	if !ok {
+		return fmt.Errorf("check sampler for ID '%s' has not been initialized. This should not happen.", s.id)
+	}
+
+	sampler.flushIntervalSeconds = int64(interval.Seconds())
+	return nil
 }
 
 // FinalizeCheckServiceTag appends the service as a tag for metrics, events, and service checks
