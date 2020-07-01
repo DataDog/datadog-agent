@@ -42,7 +42,10 @@ var (
 )
 
 func TestTracerExpvar(t *testing.T) {
-	tr, err := NewTracer(NewDefaultConfig())
+	cfg := NewDefaultConfig()
+	// BPFDebug must be true for kretprobe/tcp_sendmsg to be included
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 
@@ -196,7 +199,6 @@ func TestTCPSendAndReceive(t *testing.T) {
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
-	t.Logf("%+v\n", connections)
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)

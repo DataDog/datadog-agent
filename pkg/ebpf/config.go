@@ -109,7 +109,7 @@ func NewDefaultConfig() *Config {
 		ConntrackMaxStateSize: 65536,
 		ConntrackRateLimit:    500,
 		ProcRoot:              "/proc",
-		BPFDebug:              true,
+		BPFDebug:              false,
 		EnableConntrack:       true,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
