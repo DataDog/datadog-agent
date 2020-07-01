@@ -470,6 +470,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
 		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
 		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
+		{"DD_COLLECT_DNS_STATS", "system_probe_config.collect_dns_stats"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)

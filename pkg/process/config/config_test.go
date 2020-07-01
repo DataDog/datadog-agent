@@ -479,3 +479,28 @@ func TestIsAffirmative(t *testing.T) {
 	assert.Nil(t, err)
 	assert.False(t, value)
 }
+
+func TestEnablingDNSStatsCollection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSStats)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		os.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
+		defer os.Unsetenv("DD_DISABLE_DNS_INSPECTION")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSStats)
+	})
+}
