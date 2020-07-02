@@ -46,8 +46,12 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
+    int retval = PT_REGS_RC(ctx);
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
     struct unlink_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
+        .event.retval = retval,
         .event.type = EVENT_VFS_UNLINK,
         .event.timestamp = bpf_ktime_get_ns(),
         .dev = syscall->unlink.path_key.dev,

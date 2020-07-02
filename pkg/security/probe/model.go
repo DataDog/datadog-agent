@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os/user"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -28,6 +29,18 @@ func (m *Model) SetEvent(event interface{}) {
 
 func (m *Model) GetEvent() eval.Event {
 	return m.event
+}
+
+func (m *Model) ValidateField(key string, field eval.FieldValue) error {
+	switch key {
+
+	case "event.retval":
+		if value := field.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
+			return fmt.Errorf("return value can only be tested against EPERM or EACCES")
+		}
+	}
+
+	return nil
 }
 
 type ChmodEvent struct {

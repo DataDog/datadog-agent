@@ -59,7 +59,9 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 	}
 
 	if a.Field != "" {
-		state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: PatternValueType})
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: PatternValueType}); err != nil {
+			return nil, err
+		}
 	}
 
 	if a.EvalFnc != nil {
@@ -178,7 +180,7 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	}
 }
 
-func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opts, state *state) *BoolEvaluator {
+func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
@@ -186,7 +188,9 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 
 	if a.Field != "" {
 		for _, value := range b.Values {
-			state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType})
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -215,7 +219,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 				return result
 			},
 			isPartial: isPartialLeaf,
-		}
+		}, nil
 	}
 
 	ea := true
@@ -230,10 +234,10 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 	return &BoolEvaluator{
 		Value:     ea,
 		isPartial: isPartialLeaf,
-	}
+	}, nil
 }
 
-func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state *state) *BoolEvaluator {
+func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
@@ -241,7 +245,9 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 
 	if a.Field != "" {
 		for _, value := range b.Values {
-			state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType})
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -272,7 +278,7 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 				return result
 			},
 			isPartial: isPartialLeaf,
-		}
+		}, nil
 	}
 
 	ea := true
@@ -287,5 +293,5 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 	return &BoolEvaluator{
 		Value:     ea,
 		isPartial: isPartialLeaf,
-	}
+	}, nil
 }

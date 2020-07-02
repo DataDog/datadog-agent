@@ -22,6 +22,8 @@
 				     ##__VA_ARGS__);			\
 		})
 
+#define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES
+
 enum event_type
 {
     EVENT_MAY_OPEN = 1,
@@ -39,7 +41,7 @@ enum event_type
 struct event_t {
     u64 type;
     u64 timestamp;
-    u64 retval;
+    s64 retval;
 };
 
 struct process_data_t {

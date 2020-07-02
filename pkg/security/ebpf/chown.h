@@ -93,9 +93,13 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
+    int retval = PT_REGS_RC(ctx);
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
     struct path_key_t path_key = get_dentry_key(syscall->setattr.dentry);
     struct chown_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
+        .event.retval = retval,
         .event.type = EVENT_VFS_CHOWN,
         .event.timestamp = bpf_ktime_get_ns(),
         .user = syscall->setattr.user,
