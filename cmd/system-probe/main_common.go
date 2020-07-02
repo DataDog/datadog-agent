@@ -108,7 +108,7 @@ func runAgent() {
 	loader := module.NewLoader()
 	if err := loader.Register(cfg, nil, factories); err != nil {
 		log.Criticalf("failed to register modules: %s", err)
-		os.Exit(1)
+		return
 	}
 	defer loader.Close()
 

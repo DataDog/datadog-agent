@@ -20,7 +20,7 @@ package	eval
 
 {{ range . }}
 
-func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) *{{ .FuncReturnType }} {
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -67,7 +67,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 				return ea(ctx) {{ .Op }} eb(ctx)
 			},
 			isPartial: isPartialLeaf,
-		}
+		}, nil
 	}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
@@ -87,7 +87,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		return &{{ .FuncReturnType }}{
 			Value: ea {{ .Op }} eb,
 			isPartial: isPartialLeaf,
-		}
+		}, nil
 	}
 
 	if a.EvalFnc != nil {
@@ -95,7 +95,9 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
-			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
 		}
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
@@ -124,14 +126,16 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 				return ea(ctx) {{ .Op }} eb
 			},
 			isPartial: isPartialLeaf,
-		}
+		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
 	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
-		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
 	}
 
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
@@ -160,7 +164,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			return ea {{ .Op }} eb(ctx)
 		},
 		isPartial: isPartialLeaf,
-	}
+	}, nil
 }
 {{ end }}
 `))

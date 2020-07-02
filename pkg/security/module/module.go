@@ -99,12 +99,15 @@ func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, er
 			policySet.AddPolicy(policy)
 		}
 	}
+
 	// Create new ruleset with empty rules and macros
 	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
+
 	// Add the macros to the ruleset and generate macros evaluators
 	if err := ruleSet.AddMacros(policySet.Macros); err != nil {
 		return nil, errors.Wrap(err, "couldn't add macros to the ruleset")
 	}
+
 	// Add rules to the ruleset and generate rules evaluators
 	if err := ruleSet.AddRules(policySet.Rules); err != nil {
 		return nil, errors.Wrap(err, "couldn't add rules to the ruleset")

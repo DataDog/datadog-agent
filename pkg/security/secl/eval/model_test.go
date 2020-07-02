@@ -3,6 +3,7 @@ package eval
 import (
 	"reflect"
 	"syscall"
+	"testing"
 
 	"github.com/pkg/errors"
 )
@@ -60,6 +61,25 @@ func (m *testModel) SetEvent(event interface{}) {
 
 func (m *testModel) GetEvent() Event {
 	return m.event
+}
+
+func (m *testModel) ValidateField(key string, value FieldValue) error {
+	switch key {
+
+	case "process.uid":
+
+		uid, ok := value.Value.(int)
+		if !ok {
+			return errors.New("invalid type for process.ui")
+		}
+
+		if uid < 0 {
+			return errors.New("process.uid cannot be negative")
+		}
+
+	}
+
+	return nil
 }
 
 func (m *testModel) GetEvaluator(key string) (interface{}, error) {
@@ -385,4 +405,12 @@ var testConstants = map[string]interface{}{
 	"O_EXCL":   &IntEvaluator{Value: syscall.O_EXCL},
 	"O_SYNC":   &IntEvaluator{Value: syscall.O_SYNC},
 	"O_TRUNC":  &IntEvaluator{Value: syscall.O_TRUNC},
+}
+
+func TestFieldValidator(t *testing.T) {
+	expr := `process.uid == -100 && open.filename == "/etc/passwd"`
+	_, _, err := parse(t, expr, &testModel{}, &Opts{}, nil)
+	if err == nil {
+		t.Error("expected an error on process.uid being negative")
+	}
 }

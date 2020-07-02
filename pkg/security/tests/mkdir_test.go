@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"os"
+	"runtime"
 	"syscall"
 	"testing"
 
@@ -10,7 +12,7 @@ import (
 func TestMkdir(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `mkdir.filename == "{{.Root}}/test-mkdir" || mkdir.filename == "{{.Root}}/testat-mkdir" || (event.type == "mkdir" && event.retval == EEXIST)`,
+		Expression: `mkdir.filename == "{{.Root}}/test-mkdir" || mkdir.filename == "{{.Root}}/testat-mkdir" || (event.type == "mkdir" && event.retval == EPERM)`,
 	}
 
 	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
@@ -50,7 +52,6 @@ func TestMkdir(t *testing.T) {
 	if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
 		t.Fatal(error(errno))
 	}
-	defer syscall.Rmdir(testatFile)
 
 	event, _, err = test.GetEvent()
 	if err != nil {
@@ -65,9 +66,30 @@ func TestMkdir(t *testing.T) {
 		}
 	}
 
-	if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
-		t.Fatal(error(errno))
+	if err := syscall.Rmdir(testatFile); err != nil {
+		t.Fatal(err)
 	}
+
+	if err := os.Chmod(test.Root(), 0711); err != nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
+		if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
+			t.Fatal(err)
+		}
+
+		if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 10000, 10000, 0); errno != 0 {
+			t.Fatal(err)
+		}
+
+		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
+			t.Fatal(error(errno))
+		}
+	}()
 
 	event, _, err = test.GetEvent()
 	if err != nil {
@@ -77,8 +99,8 @@ func TestMkdir(t *testing.T) {
 			t.Errorf("expected mkdir event, got %s", event.GetType())
 		}
 
-		if retval := event.Event.Retval; retval != -int64(syscall.EEXIST) {
-			t.Errorf("expected retval != EEXIST, got %#o", retval)
+		if retval := event.Event.Retval; retval != -int64(syscall.EACCES) {
+			t.Errorf("expected retval != EACCES, got %d", retval)
 		}
 	}
 }
