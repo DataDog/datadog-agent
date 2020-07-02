@@ -496,3 +496,62 @@ func TestGetConditionMessage(t *testing.T) {
 		})
 	}
 }
+
+func TestChunkPods(t *testing.T) {
+	pods := []*model.Pod{
+		{
+			Metadata: &model.Metadata{
+				Uid: "1",
+			},
+		},
+		{
+			Metadata: &model.Metadata{
+				Uid: "2",
+			},
+		},
+		{
+			Metadata: &model.Metadata{
+				Uid: "3",
+			},
+		},
+		{
+			Metadata: &model.Metadata{
+				Uid: "4",
+			},
+		},
+		{
+			Metadata: &model.Metadata{
+				Uid: "5",
+			},
+		},
+	}
+	expected := [][]*model.Pod{
+		{{
+			Metadata: &model.Metadata{
+				Uid: "1",
+			},
+		},
+			{
+				Metadata: &model.Metadata{
+					Uid: "2",
+				},
+			}},
+		{{
+			Metadata: &model.Metadata{
+				Uid: "3",
+			},
+		},
+			{
+				Metadata: &model.Metadata{
+					Uid: "4",
+				},
+			}},
+		{{
+			Metadata: &model.Metadata{
+				Uid: "5",
+			},
+		}},
+	}
+	actual := chunkPods(pods, 3, 2)
+	assert.ElementsMatch(t, expected, actual)
+}
