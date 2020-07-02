@@ -196,7 +196,7 @@ func (g *OverlayGroup) dryDelete(m *Mount) []*Mount {
 // Delete - Deletes a mount point in the peer group. Returns true if the PeerGroup is empty after the deletion (a peer
 // group is empty if its master is nil and its list of slaves is empty).
 func (g *OverlayGroup) Delete(m *Mount) bool {
-	if g.parent.NewMountID == m.NewMountID {
+	if g.parent != nil && g.parent.NewMountID == m.NewMountID {
 		g.parent = nil
 	}
 	delete(g.children, m.NewMountID)
@@ -372,8 +372,6 @@ func (mr *MountResolver) insert(e *MountEvent, allowResync bool) {
 	mr.mounts[e.NewMountID] = m
 }
 
-// TODO: device is always 0 => can find overlay parent. + link might have to be done with a `bind` mount point
-
 // GetMountPath - (not thread safe) Returns the path of a mount identified by its mount ID
 func (mr *MountResolver) GetMountPath(mountID uint32) (string, error) {
 	m, ok := mr.mounts[mountID]
@@ -397,7 +395,7 @@ func (mr *MountResolver) GetContainerMountPath(mountID uint32, numlower int32) (
 		}
 		return "", ErrMountNotFound
 	}
-	if m.FSType == "overlay" {
+	if m.containerMountPath != "" {
 		if numlower == 0 {
 			return path.Join(m.containerMountPath, "diff"), nil
 		}
