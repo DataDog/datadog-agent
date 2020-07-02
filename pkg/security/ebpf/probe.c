@@ -20,7 +20,6 @@
 #include "defs.h"
 #include "process.h"
 #include "dentry.h"
-#include "setattr.h"
 #include "chmod.h"
 #include "chown.h"
 #include "mkdir.h"
@@ -30,6 +29,8 @@
 #include "exec.h"
 #include "open.h"
 #include "utimes.h"
+#include "mount.h"
+#include "umount.h"
 
 __u32 _version SEC("version") = 0xFFFFFFFE;
 

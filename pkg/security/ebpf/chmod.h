@@ -4,8 +4,8 @@
 #include "syscalls.h"
 
 /*
-  chmod syscalls call notify_change that performs many checks
-  which then calls security_inode_setattr
+  chmod syscalls call chmod_common that performs many checks
+  which then calls security_path_chmod
 */
 
 struct chmod_event_t {
@@ -63,8 +63,8 @@ SYSCALL_KPROBE(fchmodat) {
     return trace__sys_chmod(ctx, mode);
 }
 
-SEC("kprobe/chmod_common")
-int kprobe__chmod_common(struct pt_regs *ctx) {
+SEC("kprobe/security_path_chmod")
+int kprobe__security_path_chmod(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
@@ -81,8 +81,8 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
 
     struct path_key_t path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
     struct chmod_event_t event = {
-        .event.retval = retval,
-        .event.type = EVENT_VFS_CHMOD,
+        .event.retval = PT_REGS_RC(ctx),
+        .event.type = EVENT_CHMOD,
         .event.timestamp = bpf_ktime_get_ns(),
         .mode = syscall->setattr.mode,
         .mount_id = path_key.mount_id,

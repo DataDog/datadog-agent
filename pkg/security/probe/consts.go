@@ -29,6 +29,10 @@ const (
 	FileChownEventType
 	// FileUtimeEventType - Utime event
 	FileUtimeEventType
+	// FileMountEventType - Mount event
+	FileMountEventType
+	// FileUmountEventType - Umount event
+	FileUmountEventType
 )
 
 func (t ProbeEventType) String() string {
@@ -50,6 +54,10 @@ func (t ProbeEventType) String() string {
 		return "chown"
 	case FileUtimeEventType:
 		return "utimes"
+	case FileMountEventType:
+		return "mount"
+	case FileUmountEventType:
+		return "umount"
 	}
 	return "unknown"
 }

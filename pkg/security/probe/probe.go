@@ -91,19 +91,8 @@ func syscallKprobe(name string) *eprobe.KProbe {
 var AllKProbes = []*KProbe{
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "security_inode_setattr",
-			EntryFunc: "kprobe/security_inode_setattr",
-		},
-		EventTypes: map[string]Capabilities{
-			"chmod":  Capabilities{},
-			"chown":  Capabilities{},
-			"utimes": Capabilities{},
-		},
-	},
-	{
-		KProbe: &eprobe.KProbe{
-			Name:      "chmod_common",
-			EntryFunc: "kprobe/chmod_common",
+			Name:      "security_path_chmod",
+			EntryFunc: "kprobe/security_path_chmod",
 		},
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
@@ -129,8 +118,8 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "chown_common",
-			EntryFunc: "kprobe/chown_common",
+			Name:      "security_path_chown",
+			EntryFunc: "kprobe/security_path_chown",
 		},
 		EventTypes: map[string]Capabilities{
 			"chown": Capabilities{},
@@ -375,7 +364,26 @@ func (p *Probe) Start() error {
 		}
 	}
 
-	return p.Probe.Start()
+	if err := ebpfProbe.Load(); err != nil {
+		return nil, err
+	}
+	p.Probe = ebpfProbe
+
+	if err := p.initLRUTables(); err != nil {
+		return nil, err
+	}
+
+	dentryResolver, err := NewDentryResolver(ebpfProbe)
+	if err != nil {
+		return nil, err
+	}
+
+	p.resolvers = &Resolvers{
+		DentryResolver: dentryResolver,
+		MountResolver: NewMountResolver(),
+	}
+
+	return p, nil
 }
 
 func (p *Probe) SetEventHandler(handler EventHandler) {
@@ -462,6 +470,22 @@ func (p *Probe) handleEvent(data []byte) {
 		if _, err := event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, len(data))
 			return
+		}
+	case FileMountEventType:
+		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		// Insert new mount point in cache
+		p.resolvers.MountResolver.Insert(&event.Mount)
+	case FileUmountEventType:
+		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		// Delete new mount point from cache
+		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
+			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
 		}
 	default:
 		log.Errorf("Unsupported event type %d\n", event.Event.Type)
@@ -556,9 +580,14 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 	}
 
 	for _, kprobe := range AllKProbes {
-		if kprobe.EventTypes == nil {
-			continue
-		}
+		for eventType, capabilities := range kprobe.EventTypes {
+			if rs.HasRulesForEventType(eventType) || eventType == "*" {
+				if _, ok := already[kprobe]; !ok {
+					if err := p.Module.RegisterKprobe(kprobe.KProbe); err != nil {
+						return err
+					}
+					already[kprobe] = true
+				}
 
 		// first set policies
 		for eventType, capabilities := range kprobe.EventTypes {
@@ -631,7 +660,17 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	return p, nil
 }
 
+// Snapshot - Snapshot runs the different snapshot functions of the resolvers that require to sync with the current
+// state of the system
+func (p *Probe) Snapshot() error {
+	// Sync with the current mount points of the system
+	if err := p.resolvers.MountResolver.SyncCache(0); err != nil {
+		return errors.Wrap(err, "couldn't sync mount points of the host")
+	}
+	return nil
+}
+
 func init() {
 	AllKProbes = append(AllKProbes, OpenKProbes...)
-	AllKProbes = append(AllKProbes, ExecKProbes...)
+	AllKProbes = append(AllKProbes, MountProbes...)
 }

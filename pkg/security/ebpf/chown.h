@@ -4,8 +4,8 @@
 #include "syscalls.h"
 
 /*
-  chown syscalls call notify_change that performs many checks
-  which then calls security_inode_setattr
+  chown syscalls call chown_common that performs many checks
+  which then calls security_path_chown
 */
 
 struct chown_event_t {
@@ -90,8 +90,8 @@ SYSCALL_KPROBE(lchown) {
     return trace__sys_chown(ctx, user, group);
 }
 
-SEC("kprobe/chown_common")
-int kprobe__chown_common(struct pt_regs *ctx) {
+SEC("kprobe/security_path_chown")
+int kprobe__security_path_chown(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
@@ -108,8 +108,8 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
 
     struct path_key_t path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
     struct chown_event_t event = {
-        .event.retval = retval,
-        .event.type = EVENT_VFS_CHOWN,
+        .event.retval = PT_REGS_RC(ctx),
+        .event.type = EVENT_CHOWN,
         .event.timestamp = bpf_ktime_get_ns(),
         .user = syscall->setattr.user,
         .group = syscall->setattr.group,

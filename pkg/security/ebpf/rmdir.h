@@ -45,8 +45,8 @@ SYSCALL_KRETPROBE(rmdir) {
         return 0;
 
     struct rmdir_event_t event = {
-        .event.retval = retval,
-        .event.type = EVENT_VFS_RMDIR,
+        .event.retval = PT_REGS_RC(ctx),
+        .event.type = EVENT_RMDIR,
         .event.timestamp = bpf_ktime_get_ns(),
         .inode = syscall->rmdir.path_key.ino,
         .mount_id = syscall->rmdir.path_key.mount_id,

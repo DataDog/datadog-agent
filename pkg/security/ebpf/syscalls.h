@@ -4,6 +4,14 @@
 #include "../../ebpf/c/bpf_helpers.h"
 #include "filters.h"
 
+#define bpf_printk(fmt, ...)                       \
+	({                                             \
+		char ____fmt[] = fmt;                      \
+		bpf_trace_printk(____fmt, sizeof(____fmt), \
+						 ##__VA_ARGS__);           \
+	})
+
+
 struct ktimeval {
     long tv_sec;
     long tv_nsec;
@@ -61,6 +69,17 @@ struct syscall_cache_t {
                 };
             };
         } setattr;
+
+        struct {
+            struct mount *src_mnt;
+            struct mount *dest_mnt;
+            struct mountpoint *dest_mountpoint;
+            void *fstype;
+        } mount;
+
+        struct {
+            struct vfsmount *vfs;
+        } umount;
     };
 };
 

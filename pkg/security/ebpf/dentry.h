@@ -3,6 +3,8 @@
 
 #include <linux/dcache.h>
 #include <linux/types.h>
+#include <linux/mount.h>
+#include <linux/fs.h>
 
 #define DENTRY_MAX_DEPTH 6
 
@@ -63,14 +65,65 @@ int __attribute__((always_inline)) get_inode_mount_id(struct inode *dir) {
     return mount_id;
 }
 
-int __attribute__((always_inline)) get_path_mount_id(struct path *path) {
+int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     int mount_id;
-    struct vfsmount *mnt;
-    bpf_probe_read(&mnt, sizeof(struct vfsmount *), &path->mnt);
-
-    // bpf_probe_read(&mount_id, sizeof(int), (void *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
-    bpf_probe_read(&mount_id, sizeof(int), (void *)mnt + 252);
+    // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + 252);
     return mount_id;
+}
+
+int __attribute__((always_inline)) get_path_mount_id(struct path *path) {
+    struct vfsmount *mnt;
+    bpf_probe_read(&mnt, sizeof(mnt), &path->mnt);
+    return get_vfsmount_mount_id(mnt);
+}
+
+int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
+    int mount_id;
+
+    // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id));
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + 284);
+    return mount_id;
+}
+
+int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
+    int mount_id;
+
+    // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_group_id));
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + 288);
+    return mount_id;
+}
+
+struct vfsmount * __attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
+    return (struct vfsmount *)mnt + 32;
+}
+
+struct super_block * __attribute__((always_inline)) get_vfsmount_sb(struct vfsmount *mnt) {
+    struct super_block *sb;
+    bpf_probe_read(&sb, sizeof(sb), mnt + offsetof(struct vfsmount, mnt_sb));
+    return sb;
+}
+
+dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
+    dev_t dev;
+    bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
+    return dev;
+}
+
+struct dentry * __attribute__((always_inline)) get_mountpoint_dentry(void *mntpoint) {
+    struct dentry *dentry;
+
+    // bpf_probe_read(&dentry, sizeof(dentry), (void *)mntpoint + offsetof(struct mountpoint, m_dentry));
+    bpf_probe_read(&dentry, sizeof(dentry), (void *)mntpoint + 16);
+    return dentry;
+}
+
+dev_t __attribute__((always_inline)) get_vfsmount_dev(struct vfsmount *mnt) {
+    return get_sb_dev(get_vfsmount_sb(mnt));
+}
+
+dev_t __attribute__((always_inline)) get_mount_dev(void *mnt) {
+    return get_vfsmount_dev(get_mount_vfsmount(mnt));
 }
 
 int __attribute__((always_inline)) get_overlay_numlower(struct dentry *dentry) {
@@ -79,6 +132,7 @@ int __attribute__((always_inline)) get_overlay_numlower(struct dentry *dentry) {
     bpf_probe_read(&fsdata, sizeof(void *), &dentry->d_fsdata);
 
     // bpf_probe_read(&numlower, sizeof(int), fsdata + offsetof(struct ovl_entry, numlower));
+    // TODO: make it a constant and change its value based on the current kernel version. 16 is only good for kernels 4.13+
     bpf_probe_read(&numlower, sizeof(int), fsdata + 16);
     return numlower;
 }

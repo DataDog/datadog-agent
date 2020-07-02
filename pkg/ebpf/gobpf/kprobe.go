@@ -11,7 +11,7 @@ import (
 
 func (m *Module) RegisterKprobe(k *types.KProbe) error {
 	if k.EntryFunc != "" {
-		if err := m.EnableKprobe(k.EntryFunc, 0); err != nil {
+		if err := m.EnableKprobe(k.EntryFunc, 128); err != nil {
 			return fmt.Errorf("failed to load Kprobe %v: %s", k.EntryFunc, err)
 		}
 	}
