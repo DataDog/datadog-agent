@@ -250,8 +250,8 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     struct path_key_t path_key = get_key(syscall->open.dentry, syscall->open.dir);
 
     struct open_event_t event = {
-        .event.retval = retval,
-        .event.type = EVENT_MAY_OPEN,
+        .event.retval = PT_REGS_RC(ctx),
+        .event.type = EVENT_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

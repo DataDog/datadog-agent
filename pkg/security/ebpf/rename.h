@@ -60,8 +60,8 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
     struct path_key_t path_key = get_key(syscall->rename.src_dentry, syscall->rename.src_dir);
     struct rename_event_t event = {
-        .event.retval = retval,
-        .event.type = EVENT_VFS_RENAME,
+        .event.retval = PT_REGS_RC(ctx),
+        .event.type = EVENT_RENAME,
         .event.timestamp = bpf_ktime_get_ns(),
         .src_mount_id = syscall->rename.random_key.mount_id,
         .src_inode = syscall->rename.random_key.ino,

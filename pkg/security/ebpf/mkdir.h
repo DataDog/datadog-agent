@@ -66,8 +66,8 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     struct path_key_t path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.dir);
     struct mkdir_event_t event = {
-        .event.retval = retval,
-        .event.type = EVENT_VFS_MKDIR,
+        .event.retval = PT_REGS_RC(ctx),
+        .event.type = EVENT_MKDIR,
         .event.timestamp = bpf_ktime_get_ns(),
         .mode = syscall->mkdir.mode,
         .mount_id = path_key.mount_id,

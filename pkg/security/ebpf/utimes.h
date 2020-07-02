@@ -6,8 +6,7 @@
 #include <uapi/linux/utime.h>
 
 /*
-  utime syscalls call notify_change that performs many checks
-  which then calls security_inode_setattr
+  utime syscalls call utimes_common
 */
 
 struct utime_event_t {
@@ -65,8 +64,8 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
 
     struct path_key_t path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
     struct utime_event_t event = {
-        .event.retval = retval,
-        .event.type = EVENT_VFS_UTIME,
+        .event.retval = PT_REGS_RC(ctx),
+        .event.type = EVENT_UTIME,
         .event.timestamp = bpf_ktime_get_ns(),
         .atime = {
             .tv_sec = syscall->setattr.atime.tv_sec,
