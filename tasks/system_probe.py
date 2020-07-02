@@ -307,7 +307,6 @@ def build_object_files(ctx, install=True):
         '-O2',
         '-emit-llvm',
         '-c',
-        os.path.join(c_dir, "tracer-ebpf.c"),
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -339,22 +338,31 @@ def build_object_files(ctx, install=True):
         for s in subdirs:
             flags.extend(["-isystem", os.path.join(d, s)])
 
-    cmd = "clang {flags} -o - | llc -march=bpf -filetype=obj -o '{file}'"
+    cmd = "clang {flags} {c_file} -o - | llc -march=bpf -filetype=obj -o '{file}'"
 
     commands = []
 
-    # Build both the standard and debug version
+    # Build both the standard and debug version of tracer-ebpf
+    src_file = os.path.join(c_dir, "tracer-ebpf.c")
     obj_file = os.path.join(c_dir, "tracer-ebpf.o")
-    commands.append(cmd.format(flags=" ".join(flags), file=obj_file))
+    commands.append(cmd.format(flags=" ".join(flags), file=obj_file, c_file=src_file))
 
     debug_obj_file = os.path.join(c_dir, "tracer-ebpf-debug.o")
-    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_obj_file))
+    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_obj_file, c_file=src_file))
+
+    # Build both the standard and debug version of offset-guess
+    offset_src_file = os.path.join(c_dir, "offset-guess.c")
+    offset_obj_file = os.path.join(c_dir, "offset-guess.o")
+    commands.append(cmd.format(flags=" ".join(flags), file=offset_obj_file, c_file=offset_src_file))
+
+    debug_offset_obj_file = os.path.join(c_dir, "offset-guess-debug.o")
+    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_offset_obj_file, c_file=offset_src_file))
 
     if install:
         assets_cmd = (
             os.environ["GOPATH"]
             + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
-            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' "
+            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' '{offset_obj_file}' '{debug_offset_obj_file}'"
             + "'{bpf_common_h_file}' '{test_asset_file}' '{test_h_file}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
@@ -372,6 +380,8 @@ def build_object_files(ctx, install=True):
                 bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
                 test_asset_file=os.path.join(test_dir, "test-asset.c"),
                 test_h_file=os.path.join(test_dir, "test-header.h"),
+                offset_obj_file=offset_obj_file,
+                debug_offset_obj_file=debug_offset_obj_file,
             )
         )
 

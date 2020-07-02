@@ -126,14 +126,8 @@ func TestTracerExpvar(t *testing.T) {
 			"RTcpCloseMisses",
 			"RUdpRecvmsgHits",
 			"RUdpRecvmsgMisses",
-			"PTcpGetInfoHits",
-			"PTcpGetInfoMisses",
 			"RTcpSendmsgHits",
 			"RTcpSendmsgMisses",
-			"RTcpVConnectHits",
-			"RTcpVConnectMisses",
-			"PTcpVConnectHits",
-			"PTcpVConnectMisses",
 		},
 	}
 

@@ -39,9 +39,6 @@ func getSnooper(
 		},
 		PerfMaps: []*manager.PerfMap{},
 	}
-	err := mgr.Init(buf)
-	require.NoError(t, err)
-
 	maxSizes := map[bytecode.BPFMapName]uint32{
 		bytecode.ConnMap:            1024,
 		bytecode.TcpStatsMap:        1024,
@@ -49,6 +46,9 @@ func getSnooper(
 		bytecode.UdpPortBindingsMap: 1024,
 	}
 	bytecode.ConfigureMapMaxEntries(mgr, maxSizes)
+
+	err := mgr.Init(buf)
+	require.NoError(t, err)
 
 	if collectStats {
 		mp, _, _ := mgr.GetMap(string(bytecode.ConfigMap))

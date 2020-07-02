@@ -21,3 +21,18 @@ func ReadBPFModule(debug bool) (*bytes.Reader, error) {
 
 	return bytes.NewReader(buf), nil
 }
+
+// ReadOffsetBPFModule from the asset file
+func ReadOffsetBPFModule(debug bool) (*bytes.Reader, error) {
+	file := "pkg/ebpf/c/offset-guess.o"
+	if debug {
+		file = "pkg/ebpf/c/offset-guess-debug.o"
+	}
+
+	buf, err := Asset(file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return bytes.NewReader(buf), nil
+}

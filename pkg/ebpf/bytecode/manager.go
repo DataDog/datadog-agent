@@ -10,7 +10,8 @@ import (
 const (
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
-	maxActive = 128
+	maxActive     = 128
+	syscallPrefix = "sys_"
 )
 
 func NewOffsetManager() *manager.Manager {
@@ -31,10 +32,6 @@ func NewOffsetManager() *manager.Manager {
 func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
 	return &manager.Manager{
 		Maps: []*manager.Map{
-			// offset guessing
-			{Name: "connectsock_ipv6"},
-			{Name: string(TracerStatusMap)},
-
 			{Name: string(ConnMap)},
 			{Name: string(TcpStatsMap)},
 			{Name: string(TcpCloseBatchMap)},
@@ -60,11 +57,6 @@ func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
 			},
 		},
 		Probes: []*manager.Probe{
-			// offset guessing
-			{Section: string(TCPGetInfo)},
-			{Section: string(TCPv6Connect)},
-			{Section: string(TCPv6ConnectReturn), KProbeMaxActive: maxActive},
-
 			{Section: string(TCPSendMsg)},
 			{Section: string(TCPSendMsgPre410)},
 			{Section: string(TCPSendMsgReturn), KProbeMaxActive: maxActive},
@@ -80,10 +72,10 @@ func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
 			{Section: string(InetCskAcceptReturn), KProbeMaxActive: maxActive},
 			{Section: string(TCPv4DestroySock)},
 			{Section: string(UDPDestroySock)},
-			{Section: string(SysBind), SyscallFuncName: "bind"},
-			{Section: string(SysBindRet), SyscallFuncName: "bind", KProbeMaxActive: maxActive},
-			{Section: string(SysSocket), SyscallFuncName: "socket"},
-			{Section: string(SysSocketRet), SyscallFuncName: "socket", KProbeMaxActive: maxActive},
+			{Section: string(SysBind), SyscallFuncName: syscallPrefix + "bind"},
+			{Section: string(SysBindRet), SyscallFuncName: syscallPrefix + "bind", KProbeMaxActive: maxActive},
+			{Section: string(SysSocket), SyscallFuncName: syscallPrefix + "socket"},
+			{Section: string(SysSocketRet), SyscallFuncName: syscallPrefix + "socket", KProbeMaxActive: maxActive},
 			{Section: string(SocketDnsFilter)},
 		},
 	}
@@ -92,9 +84,7 @@ func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
 func ConfigureMapMaxEntries(m *manager.Manager, sizes map[BPFMapName]uint32) {
 	for _, mp := range m.Maps {
 		if maxSize, ok := sizes[BPFMapName(mp.Name)]; ok {
-			if spec, _, _ := m.GetMapSpec(mp.Name); spec != nil {
-				spec.MaxEntries = maxSize
-			}
+			mp.MaxEntries = maxSize
 		}
 	}
 }

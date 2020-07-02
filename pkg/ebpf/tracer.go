@@ -6,20 +6,21 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/ebpf"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -91,9 +92,22 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
 	}
 
+	// Extend RLIMIT_MEMLOCK (8) size
+	err := unix.Setrlimit(8, &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to adjust RLIMIT_MEMLOCK limit")
+	}
+
 	buf, err := bytecode.ReadBPFModule(config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
+	}
+	offsetBuf, err := bytecode.ReadOffsetBPFModule(config.BPFDebug)
+	if err != nil {
+		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
 	}
 
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
@@ -109,9 +123,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
 	}
 
-	//if err := runOffsetGuessing(config, buf); err != nil {
-	//	return nil, fmt.Errorf("error guessing offsets: %s", err)
-	//}
+	mgrOptions := manager.Options{}
+	mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
+	if err != nil {
+		return nil, fmt.Errorf("error guessing offsets: %s", err)
+	}
 
 	closedChannelSize := defaultClosedChannelSize
 	if config.ClosedChannelSize > 0 {
@@ -119,11 +135,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 	perfHandler := bytecode.NewClosedConnPerfHandler(closedChannelSize)
 	m := bytecode.NewManager(perfHandler)
-	mgrOptions := manager.Options{}
 
-	for _, probeName := range offsetGuessProbes(config) {
-		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(probeName))
-	}
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes := config.EnabledKProbes(pre410Kernel)
 	for probeName := range enabledProbes {
@@ -133,28 +145,20 @@ func NewTracer(config *Config) (*Tracer, error) {
 	if enableSocketFilter {
 		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(bytecode.SocketDnsFilter))
 	}
+	maxSizes := map[bytecode.BPFMapName]uint32{
+		bytecode.ConnMap:            uint32(config.MaxTrackedConnections),
+		bytecode.TcpStatsMap:        uint32(config.MaxTrackedConnections),
+		bytecode.PortBindingsMap:    uint32(config.MaxTrackedConnections),
+		bytecode.UdpPortBindingsMap: uint32(config.MaxTrackedConnections),
+	}
+	bytecode.ConfigureMapMaxEntries(m, maxSizes)
 
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
-	configureProbesAndMaps(config, m)
 
-	for _, probeName := range offsetGuessProbes(config) {
-		p, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probeName)})
-		if p == nil {
-			return nil, fmt.Errorf("unable to get offset probe %s", probeName)
-		}
-		err = p.Attach()
-		if err != nil {
-			return nil, fmt.Errorf("unable to attach offset probe %s: %s", probeName, err)
-		}
-	}
-	start := time.Now()
-	if err := guessOffsets(m, config); err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %v", err)
-	}
-	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
+	overrideProbeSectionNames(m)
 
 	reverseDNS := network.NewNullReverseDNS()
 	if enableSocketFilter {
@@ -247,7 +251,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	return tr, nil
 }
 
-func configureProbesAndMaps(config *Config, m *manager.Manager) {
+func overrideProbeSectionNames(m *manager.Manager) {
 	for _, p := range m.Probes {
 		if !p.Enabled {
 			continue
@@ -256,16 +260,9 @@ func configureProbesAndMaps(config *Config, m *manager.Manager) {
 			p.Section = string(override)
 		}
 	}
-	maxSizes := map[bytecode.BPFMapName]uint32{
-		bytecode.ConnMap:            uint32(config.MaxTrackedConnections),
-		bytecode.TcpStatsMap:        uint32(config.MaxTrackedConnections),
-		bytecode.PortBindingsMap:    uint32(config.MaxTrackedConnections),
-		bytecode.UdpPortBindingsMap: uint32(config.MaxTrackedConnections),
-	}
-	bytecode.ConfigureMapMaxEntries(m, maxSizes)
 }
 
-func runOffsetGuessing(config *Config, buf *bytes.Reader) error {
+func runOffsetGuessing(config *Config, buf *bytes.Reader) ([]manager.ConstantEditor, error) {
 	// Enable kernel probes used for offset guessing.
 	offsetMgr := bytecode.NewOffsetManager()
 	offsetOptions := manager.Options{}
@@ -273,11 +270,11 @@ func runOffsetGuessing(config *Config, buf *bytes.Reader) error {
 		offsetOptions.ActivatedProbes = append(offsetOptions.ActivatedProbes, string(probeName))
 	}
 	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
-		return fmt.Errorf("could not load bpf module for offset guessing: %s", err)
+		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
 	}
 
 	if err := offsetMgr.Start(); err != nil {
-		return fmt.Errorf("could not start offset ebpf manager: %s", err)
+		return nil, fmt.Errorf("could not start offset ebpf manager: %s", err)
 	}
 	defer func() {
 		err := offsetMgr.Stop(manager.CleanAll)
@@ -286,11 +283,12 @@ func runOffsetGuessing(config *Config, buf *bytes.Reader) error {
 		}
 	}()
 	start := time.Now()
-	if err := guessOffsets(offsetMgr, config); err != nil {
-		return fmt.Errorf("error guessing offsets: %v", err)
+	editors, err := guessOffsets(offsetMgr, config)
+	if err != nil {
+		return nil, fmt.Errorf("error guessing offsets: %v", err)
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
-	return nil
+	return editors, nil
 }
 
 func (t *Tracer) expvarStats() {
