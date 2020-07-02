@@ -331,6 +331,11 @@ func TestGetContainerStats(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(expected, metadata)
 
+	// Container without stats
+	metadata, err = NewClient(ts.URL).GetContainerStats("470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42")
+	assert.NotNil(err)
+	assert.Nil(metadata)
+
 	select {
 	case r := <-ecsinterface.Requests:
 		assert.Equal("GET", r.Method)

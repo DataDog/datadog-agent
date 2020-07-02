@@ -57,7 +57,7 @@ func (c *Client) GetContainerStats(id string) (*ContainerStats, error) {
 		return nil, err
 	}
 
-	if s, ok := stats[id]; ok {
+	if s, ok := stats[id]; ok && s != nil {
 		return s, nil
 	}
 
