@@ -66,6 +66,7 @@ SYSCALL_KRETPROBE(mount) {
         .mount_id = get_mount_mount_id(syscall->mount.dest_mnt),
         .ino = get_dentry_ino(dentry),
     };
+
     struct mount_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_MOUNT,
@@ -77,6 +78,10 @@ SYSCALL_KRETPROBE(mount) {
         .parent_ino = path_key.ino,
     };
     bpf_probe_read_str(&event.fstype, FSTYPE_LEN, syscall->mount.fstype);
+
+    if (event.new_mount_id == 0 && event.new_device == 0) {
+        return 0;
+    }
 
     fill_process_data(&event.process);
     resolve_dentry(dentry, path_key);
