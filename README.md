@@ -5,7 +5,7 @@
 [![GoDoc](https://godoc.org/github.com/StackVista/stackstate-agent?status.svg)](https://godoc.org/github.com/StackVista/stackstate-agent)
 [![Go Report Card](https://goreportcard.com/badge/github.com/StackVista/stackstate-agent)](https://goreportcard.com/report/github.com/StackVista/stackstate-agent)
 
-The present repository contains the source code of the StackState Agent version 6.
+The present repository contains the source code of the StackState Agent version 2.
 
 ## Documentation
 

@@ -745,56 +745,31 @@ process_config:
     container: 30
     process: 30
     connections: 30
+## Relation Cache is used to keep state of the known network relations for this agent, with items expiring after relation_cache_duration minutes. The default is 5 minutes.
+#  relation_cache_duration_min: 5
+## Process Cache is used to keep state of the known processes for this agent, with items expiring after process_cache_duration minutes. The default is 5 minutes.
+#  process_cache_duration_min: 5
+## Filters are used to filter out processes or network connections based on some condition
+#  filters:
+##   The Short-Lived Processes filter is used to filter out process that are observed for less than x seconds, with the default being 60 seconds.
+#    short_lived_processes:
+#      enabled: true
+#      qualifier_secs: 60
+##   The Short-Lived Relations filter is used to filter out network relations that are observed for less than x seconds, with the default being 60 seconds.
+##   Short-Lived network relations are defined as network connections that do not occur frequently between processes / services. Multiple short-lived connections
+##   between the same processes / services are considered a Long-Lived network relation, while a once-off network connection is filtered out and not reported to StackState.
+#    short_lived_network_relations:
+#      enabled: true
+#      qualifier_secs: 60
+
+##  Process blacklisting is used to filter out unwanted processes and not report them to StackState.
   process_blacklist:
-    # A list of regex patterns that will exclude a process if matched.
-    patterns:
-      # Linux Specific patterns
-      # stress is used for molecule testing
-      - "stress"
-      - "^-bash"
-      - "^su$"
-      - "^/bin/bash"
-      - "^/lib/systemd/"
-      - "^pickup"
-      - "^/sbin/"
-      - "^qmgr"
-      - "^sshd:"
-      - "^/usr/bin/bash"
-      - "^/usr/bin/dbus-daemon"
-      - "^/usr/bin/vi(?:m|m.basic)?$"
-      - "^/usr/bin/tail"
-      - "^/usr/lib/systemd/"
-      - "^/usr/sbin/"
-      - "^\\(sd-pam\\)"
-      # Windows Specific patterns
-      - "cmd.exe"
-      - "conhost.exe"
-      - "DllHost.exe"
-      - "dwm.exe"
-      - "Explorer.EXE"
-      - "lsass.exe"
-      - "msdtc.exe"
-      - "SearchUI.exe"
-      - "sihost.exe"
-      - "smartscreen.exe"
-      - "svchost.exe"
-      - "taskhostw.exe"
-      - "tasklist.exe"
-      - "VBoxService.exe"
-      - "vim.exe"
-      - "wininit.exe"
-      - "winlogon.exe"
-      - "wlms.exe"
-      - "wmiprvse.exe"
-      - "sshd.exe"
-      # Should be ignored, but gets reported with an empty command line
-      #- "sppsvc.exe"
-      #- "services.exe"
-      #- "csrss.exe"
-      #- "wininit.exe"
-      #- "System"
-      #- "smss.exe"
-    # Process blacklist inclusions for top resource using processes
+#    patterns:
+#      - "regex-pattern"
+##    Inclusions override the blacklist patterns, these are used to include process that consume a lot of resources.
+##    Each inclusion type: top_cpu, top_io_read, top_io_write and top_mem have an amount of processes that get's considered
+##    as the top x resource using processes. For top_cpu and top_mem there is a threshold that needs to be met first, meaning
+##    the process needs to consume more resource % than the threshold.
     inclusions:
       amount_top_cpu_pct_usage: 3
       cpu_pct_usage_threshold: 20

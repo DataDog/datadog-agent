@@ -15,3 +15,8 @@ connection_port_after_start_windows: 128
 dnat_service_port: 1234
 dnat_server_port: 49123
 max_test_time: 3500  # in seconds
+process_filter_short_lived_qualifier_secs: 45
+network_relation_filter_short_lived_qualifier_secs: 20
+network_relation_test_server_port_single_request: 4321
+network_relation_test_server_port_multiple_requests: 4322
+network_relation_test_server_port_shared_connection: 4323
