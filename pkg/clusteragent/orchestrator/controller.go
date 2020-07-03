@@ -181,7 +181,9 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
+	start = time.Now()
 	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
+	log.Debugf("Sent %d deployment msg in %s", len(msg), time.Now().Sub(start))
 }
 
 func (o *Controller) processReplicasets() {
@@ -203,7 +205,9 @@ func (o *Controller) processReplicasets() {
 		return
 	}
 
+	start = time.Now()
 	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
+	log.Debugf("Sent %d replica sets msg in %s", len(msg), time.Now().Sub(start))
 }
 
 func (o *Controller) processPods() {
