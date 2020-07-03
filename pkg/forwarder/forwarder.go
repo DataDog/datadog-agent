@@ -23,8 +23,11 @@ import (
 )
 
 const (
-	PayloadTypePod        = "pod"
+	// PayloadTypePod is the name of the pod payload type
+	PayloadTypePod = "pod"
+	// PayloadTypeDeployment is the name of the deployment payload type
 	PayloadTypeDeployment = "deployment"
+	// PayloadTypeReplicaSet is the name of the replica set payload type
 	PayloadTypeReplicaSet = "replicaset"
 )
 
