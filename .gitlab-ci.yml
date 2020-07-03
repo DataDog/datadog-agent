@@ -26,6 +26,8 @@ stages:
   - image_deploy
   - deploy6
   - deploy7
+  - choco_build
+  - choco_deploy
   - deploy_invalidate
   - trigger_release
   - e2e
@@ -1261,12 +1263,14 @@ windows_dsd_msi_x64-a7:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
 
+# The online version fetches the package from S3 so
+# it is created only when the package is pushed
 windows_choco_online_7_x64:
   rules:
-    - <<: *if_version_7
-  stage: image_build
+    - <<: *if_triggered_on_tag_7
+  stage: choco_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["windows_msi_x64-a7"]
+  needs: ["deploy_staging_windows_tags-a7"]
   variables:
     ARCH: "x64"
   script:
@@ -1303,10 +1307,10 @@ windows_choco_offline_7_x64:
 
 publish_choco_7_x64:
   rules:
-    - <<: *if_version_7
+    - <<: *if_triggered_on_tag_7
       when: manual
       allow_failure: true
-  stage: image_deploy
+  stage: choco_deploy
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_choco_online_7_x64"]
   variables:
