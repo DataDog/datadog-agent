@@ -179,7 +179,7 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	o.sendMessages(msg)
+	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
 }
 
 func (o *Controller) processReplicasets() {
@@ -199,7 +199,7 @@ func (o *Controller) processReplicasets() {
 		return
 	}
 
-	o.sendMessages(msg)
+	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
 }
 
 func (o *Controller) processPods() {
@@ -220,10 +220,10 @@ func (o *Controller) processPods() {
 		return
 	}
 
-	o.sendMessages(msg)
+	o.sendMessages(msg, forwarder.PayloadTypePod)
 }
 
-func (o *Controller) sendMessages(msg []model.MessageBody) {
+func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 	for _, m := range msg {
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(api.HostHeader, o.hostName)
@@ -237,7 +237,7 @@ func (o *Controller) sendMessages(msg []model.MessageBody) {
 		}
 
 		payloads := forwarder.Payloads{&body}
-		responses, err := o.forwarder.SubmitPodChecks(payloads, extraHeaders)
+		responses, err := o.forwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			log.Errorf("Unable to submit payload: %s", err)
 			continue
