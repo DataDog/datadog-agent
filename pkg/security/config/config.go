@@ -4,7 +4,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 
-	agent "github.com/DataDog/datadog-agent/pkg/config"
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -23,17 +23,19 @@ type Config struct {
 	Policies            []Policy
 	MaxKernelFilters    int
 	EnableKernelFilters bool
+	SocketPath          string
 }
 
 func NewConfig() (*Config, error) {
 	c := &Config{
-		PerfMapPageCount:    agent.Datadog.GetInt("runtime_security_config.perf_map_page_count"),
-		Debug:               agent.Datadog.GetBool("runtime_security_config.debug"),
-		MaxKernelFilters:    agent.Datadog.GetInt("runtime_security_config.max_kernel_filters"),
-		EnableKernelFilters: agent.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
+		PerfMapPageCount:    aconfig.Datadog.GetInt("runtime_security_config.perf_map_page_count"),
+		Debug:               aconfig.Datadog.GetBool("runtime_security_config.debug"),
+		MaxKernelFilters:    aconfig.Datadog.GetInt("runtime_security_config.max_kernel_filters"),
+		EnableKernelFilters: aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
+		SocketPath:          aconfig.Datadog.GetString("runtime_security_config.socket"),
 	}
 
-	policies, ok := agent.Datadog.Get("runtime_security_config.policies").([]interface{})
+	policies, ok := aconfig.Datadog.Get("runtime_security_config.policies").([]interface{})
 	if !ok {
 		return nil, errors.New("policies must be a list of policy definitions")
 	}

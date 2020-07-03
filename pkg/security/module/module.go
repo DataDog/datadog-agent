@@ -1,6 +1,7 @@
 package module
 
 import (
+	"net"
 	"os"
 
 	"github.com/pkg/errors"
@@ -17,16 +18,26 @@ import (
 )
 
 type Module struct {
-	probe   *sprobe.Probe
-	config  *config.Config
-	ruleSet *eval.RuleSet
-	server  *EventServer
+	probe       *sprobe.Probe
+	config      *config.Config
+	ruleSet     *eval.RuleSet
+	eventServer *EventServer
+	grpcServer  *grpc.Server
+	listener    net.Listener
 }
 
 func (m *Module) Register(server *grpc.Server) error {
-	if server != nil {
-		api.RegisterSecurityModuleServer(server, m.server)
+	ln, err := net.Listen("unix", m.config.SocketPath)
+	if err != nil {
+		return errors.Wrap(err, "unable to register security runtime module")
 	}
+	if err := os.Chmod(m.config.SocketPath, 0700); err != nil {
+		return errors.Wrap(err, "unable to register security runtime module")
+	}
+
+	m.listener = ln
+
+	go m.grpcServer.Serve(ln)
 
 	m.probe.SetEventHandler(m)
 	m.ruleSet.AddListener(m)
@@ -36,24 +47,35 @@ func (m *Module) Register(server *grpc.Server) error {
 	}
 
 	if err := m.probe.ApplyRuleSet(m.ruleSet); err != nil {
-		log.Warnf(err.Error())
+		log.Warn(err)
 	}
 
 	return nil
 }
 
 func (m *Module) Close() {
+	if m.grpcServer != nil {
+		m.grpcServer.Stop()
+	}
+
+	if m.listener != nil {
+		m.listener.Close()
+	}
+
 	m.probe.Stop()
 }
 
+// RuleMatch - called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
-	m.server.SendEvent(rule, event)
+	m.eventServer.SendEvent(rule, event)
 }
 
+// EventDiscarderFound - called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(event eval.Event, field string) {
 	m.probe.OnNewDiscarder(event.(*sprobe.Event), field)
 }
 
+// HandleEvent - called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
 	m.ruleSet.Evaluate(event)
 }
@@ -115,12 +137,15 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		return nil, err
 	}
 
-	agent := &Module{
-		config:  config,
-		probe:   probe,
-		ruleSet: ruleSet,
-		server:  NewEventServer(),
+	m := &Module{
+		config:      config,
+		probe:       probe,
+		ruleSet:     ruleSet,
+		eventServer: NewEventServer(),
+		grpcServer:  grpc.NewServer(),
 	}
 
-	return agent, nil
+	api.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
+
+	return m, nil
 }

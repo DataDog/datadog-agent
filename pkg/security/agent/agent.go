@@ -2,12 +2,14 @@ package agent
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"google.golang.org/grpc"
+	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"google.golang.org/grpc"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -25,9 +27,8 @@ type RuntimeSecurityAgent struct {
 
 // NewRuntimeSecurityAgent - Instantiates a new RuntimeSecurityAgent
 func NewRuntimeSecurityAgent() (*RuntimeSecurityAgent, error) {
-	systemProbeAddr := coreconfig.Datadog.GetString("runtime_security_config.system_probe_addr")
-	// Dials system-probe
-	conn, err := grpc.Dial(systemProbeAddr, grpc.WithInsecure())
+	path := fmt.Sprintf("unix://%s", coreconfig.Datadog.GetString("runtime_security_config.socket"))
+	conn, err := grpc.Dial(path, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
