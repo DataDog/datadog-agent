@@ -903,6 +903,7 @@ api_key:
 
 # runtime_security_config:
   # debug: false
+  # socket: /opt/datadog-agent/run/runtime-security.sock
   # policies:
   #  - name: default-policies
   #    files:
@@ -1786,9 +1787,10 @@ api_key:
 #######################################################
 
 # runtime_security_config:
-#   enabled: true
+  # enabled: true
+  # socket: /opt/datadog-agent/run/runtime-security.sock
 
 # compliance_config:
-#   enabled: true
+  # enabled: true
 
 {{ end -}}

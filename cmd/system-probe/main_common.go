@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"strings"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"google.golang.org/grpc"
 
 	_ "net/http/pprof"
 )
@@ -100,28 +98,19 @@ func runAgent() {
 	}
 	defer sysprobe.Close()
 
-	lis, err := net.Listen("tcp", ":8787")
-	if err != nil {
-		log.Criticalf("failed to create system probe: %s", err)
-		os.Exit(1)
-	}
-	grpcServer := grpc.NewServer()
-
 	factories := []module.Factory{
 		module.Factory{
-			Name: "security-module",
+			Name: "runtime-security-module",
 			Fn:   secmodule.NewModule,
 		},
 	}
 
 	loader := module.NewLoader()
-	if err := loader.Register(cfg, grpcServer, factories); err != nil {
+	if err := loader.Register(cfg, nil, factories); err != nil {
 		log.Criticalf("failed to register modules: %s", err)
 		os.Exit(1)
 	}
 	defer loader.Close()
-
-	go grpcServer.Serve(lis)
 
 	go sysprobe.Run()
 	log.Infof("system probe successfully started")
