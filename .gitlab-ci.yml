@@ -26,6 +26,7 @@ stages:
   - image_deploy
   - deploy6
   - deploy7
+  - publish_packages
   - deploy_invalidate
   - trigger_release
   - e2e
@@ -1303,12 +1304,12 @@ windows_choco_offline_7_x64:
 
 publish_choco_7_x64:
   rules:
-    - <<: *if_version_7
+    - <<: *if_triggered_on_tag_7
       when: manual
       allow_failure: true
-  stage: image_deploy
+  stage: publish_packages
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["windows_choco_online_7_x64"]
+  needs: ["deploy_staging_windows_tags-a7"]
   variables:
     ARCH: "x64"
   before_script:
