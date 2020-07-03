@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
@@ -97,6 +98,19 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 }
 
 func (p *datadogMetricProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+	res, err := p.getExternalMetric(namespace, metricSelector, info)
+	if err != nil {
+		log.Errorf("ExternalMetric query failed with error: %v", err)
+		convErr := apierr.NewInternalError(err)
+		if convErr != nil {
+			err = convErr
+		}
+	}
+
+	return res, err
+}
+
+func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	log.Debugf("Received external metric query with ns: %s, selector: %s, metricName: %s", namespace, metricSelector.String(), info.Metric)
 
 	// Convert metric name to lower case to allow proper matching (and DD metrics are always lower case)

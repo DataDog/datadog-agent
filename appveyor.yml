@@ -25,7 +25,6 @@ install:
   # create 'ddagentuser' user to test the secrets feature on windows
   - ps: $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force; New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
   - set PATH=%APPVEYOR_BUILD_FOLDER%\dev\lib;%GOPATH%\bin;%Python2_ROOT_DIR%;%Python2_ROOT_DIR%\Scripts;%Python3_ROOT_DIR%;%Python3_ROOT_DIR%\Scripts;%MSYS_ROOT%\mingw64\bin;%MSYS_ROOT%\usr\bin\;%PATH%
-  - git clone --depth 1 https://github.com/datadog/integrations-core
   - "%PIP2% install codecov -r requirements.txt"
   - "%PIP3% install -r requirements.txt"
   # download specific go version

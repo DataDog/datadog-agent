@@ -20,6 +20,10 @@ func (s dsdStatsRuntimeSetting) Description() string {
 	return "Enable/disable the dogstatsd debug stats. Possible values: true, false"
 }
 
+func (s dsdStatsRuntimeSetting) Hidden() bool {
+	return false
+}
+
 func (s dsdStatsRuntimeSetting) Name() string {
 	return string(s)
 }

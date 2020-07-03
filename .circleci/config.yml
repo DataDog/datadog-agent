@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go11311
+      - image: datadog/datadog-agent-runner-circle:go11311-py3
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -61,9 +61,9 @@ jobs:
       - run:
           name: setup python deps
           command: |
-            pip install wheel
-            pip install -r requirements.txt
-            pip3 install flake8~=3.8.3 flake8-bugbear~=20.1.4 black~=19.10b0
+            python3 -m pip install wheel
+            python3 -m pip install -r requirements.txt
+            python3 -m pip install flake8~=3.8.3 flake8-bugbear~=20.1.4 black~=19.10b0
       - run:
           name: grab go deps
           command: |
@@ -80,8 +80,6 @@ jobs:
       - run:
           name: test rtloader
           command: |
-            # remove base check before running tests, go on if pip fails
-            pip uninstall datadog-checks-base -y || :
             inv rtloader.test
       - run:
           name: pre-compile go deps
@@ -93,7 +91,6 @@ jobs:
             - /go/src/github.com/DataDog/datadog-agent/dev
             - /go/pkg
             - /go/bin
-            - /usr/local/lib/python2.7/dist-packages
             - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 

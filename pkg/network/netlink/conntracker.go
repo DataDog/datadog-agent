@@ -108,6 +108,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int) (Con
 	}
 
 	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
+	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET6))
 	ctr.run()
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
