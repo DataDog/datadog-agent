@@ -208,7 +208,7 @@ fail_on_non_triggered_tag:
     - make install
     - cd /opt/libbcc
     - chmod go-rwx lib/libbcc*
-    - rm share/bcc/introspection/bps
+    - rm -rf share/bcc/examples share/bcc/introspection share/bcc/man share/bcc/tools
     - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
     - tar cvaf /tmp/libbcc.tar.xz .
     - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
