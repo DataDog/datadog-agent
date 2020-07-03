@@ -67,9 +67,7 @@ func (w *PodWatcher) PullChanges() ([]*Pod, error) {
 	if err != nil {
 		return podList, err
 	}
-	changes, err := w.computeChanges(podList)
-
-	return changes, err
+	return w.computeChanges(podList)
 }
 
 // computeChanges is used by PullChanges, split for testing
@@ -128,6 +126,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect changes in labels and annotations values
 		newLabelsOrAnnotations := false
+		// Detect changes in the pod phase
 		newPhase := false
 		if w.isWatchingTags() {
 			newTagsDigest := digestPodMeta(pod.Metadata)
@@ -136,9 +135,10 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 				w.tagsDigest[podEntity] = newTagsDigest
 				newLabelsOrAnnotations = true
 			}
+			// compared to our last seen phase the pod phase has changed.
 			if foundPod && pod.Status.Phase != w.oldPhase[podEntity] {
-				newPhase = true
 				w.oldPhase[podEntity] = pod.Status.Phase
+				newPhase = true
 			}
 		}
 		if newStaticPod || updatedContainer || newLabelsOrAnnotations || newPhase {
