@@ -29,12 +29,14 @@ struct syscall_cache_t {
             umode_t mode;
             struct path *dir;
             struct dentry *dentry;
+            struct path_key_t path_key;
         } open;
 
         struct {
             umode_t mode;
             struct path *dir;
             struct dentry *dentry;
+            struct path_key_t path_key;
         } mkdir;
 
         struct {
@@ -48,15 +50,18 @@ struct syscall_cache_t {
         } rmdir;
 
         struct {
-            struct path *src_dir;
-            struct dentry *src_dentry;
-            struct path_key_t random_key;
+            struct path_key_t src_key;
+            unsigned long src_inode;
+            struct path *target_dir;
+            struct dentry *target_dentry;
+            struct path_key_t target_key;
             int src_overlay_numlower;
         } rename;
 
         struct {
             struct dentry *dentry;
             struct path *path;
+            struct path_key_t path_key;
             union {
                 umode_t mode;
                 struct {

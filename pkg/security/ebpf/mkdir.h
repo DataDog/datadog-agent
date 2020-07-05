@@ -56,6 +56,7 @@ int kprobe__security_path_mkdir(struct pt_regs *ctx) {
 
     syscall->mkdir.dir = (struct path *)PT_REGS_PARM1(ctx);
     syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+    syscall->mkdir.path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.dir);
     return 0;
 }
 
@@ -64,19 +65,20 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct path_key_t path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.dir);
+    // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
+    syscall->mkdir.path_key.ino = get_dentry_ino(syscall->mkdir.dentry);
     struct mkdir_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_MKDIR,
         .event.timestamp = bpf_ktime_get_ns(),
         .mode = syscall->mkdir.mode,
-        .mount_id = path_key.mount_id,
-        .inode = path_key.ino,
+        .mount_id = syscall->mkdir.path_key.mount_id,
+        .inode = syscall->mkdir.path_key.ino,
         .overlay_numlower = get_overlay_numlower(syscall->mkdir.dentry),
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->mkdir.dentry, path_key);
+    resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key);
 
     send_event(ctx, event);
 

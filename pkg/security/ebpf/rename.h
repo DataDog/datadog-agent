@@ -9,6 +9,7 @@ struct rename_event_t {
     int src_mount_id;
     u32 padding;
     unsigned long src_inode;
+    unsigned long src_random_id;
     unsigned long target_inode;
     int target_mount_id;
     int src_overlay_numlower;
@@ -41,14 +42,19 @@ int kprobe__security_path_rename(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    syscall->rename.src_dir = (struct path *)PT_REGS_PARM1(ctx);
-    syscall->rename.src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    syscall->rename.src_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry);
+    struct path *src_dir = (struct path *)PT_REGS_PARM1(ctx);
+    struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+    syscall->rename.src_overlay_numlower = get_overlay_numlower(src_dentry);
 
     // we generate a fake source key as the inode is (can be ?) reused
-    syscall->rename.random_key.mount_id = get_path_mount_id(syscall->rename.src_dir);
-    syscall->rename.random_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
-    resolve_dentry(syscall->rename.src_dentry, syscall->rename.random_key);
+    syscall->rename.src_key.mount_id = get_path_mount_id(src_dir);
+    syscall->rename.src_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
+    syscall->rename.src_inode = get_dentry_ino(src_dentry);
+
+    syscall->rename.target_dir = (struct path *)PT_REGS_PARM3(ctx);
+    syscall->rename.target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
+    syscall->rename.target_key = get_key(syscall->rename.target_dentry, syscall->rename.target_dir);
+    resolve_dentry(src_dentry, syscall->rename.src_key);
 
     return 0;
 }
@@ -58,21 +64,27 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct path_key_t path_key = get_key(syscall->rename.src_dentry, syscall->rename.src_dir);
+    // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
+    syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.target_dentry);
+    if (syscall->rename.target_key.ino == 0) {
+        // the inode was used, fall back to the src_inode
+        syscall->rename.target_key.ino = syscall->rename.src_inode;
+    }
     struct rename_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_RENAME,
         .event.timestamp = bpf_ktime_get_ns(),
-        .src_mount_id = syscall->rename.random_key.mount_id,
-        .src_inode = syscall->rename.random_key.ino,
-        .target_inode = path_key.ino,
-        .target_mount_id = path_key.mount_id,
+        .src_inode = syscall->rename.src_inode,
+        .src_mount_id = syscall->rename.src_key.mount_id,
+        .src_random_id = syscall->rename.src_key.ino,
+        .target_inode = syscall->rename.target_key.ino,
+        .target_mount_id = syscall->rename.target_key.mount_id,
         .src_overlay_numlower = syscall->rename.src_overlay_numlower,
-        .target_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
+        .target_overlay_numlower = get_overlay_numlower(syscall->rename.target_dentry),
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->rename.src_dentry, path_key);
+    resolve_dentry(syscall->rename.target_dentry, syscall->rename.target_key);
 
     send_event(ctx, event);
 

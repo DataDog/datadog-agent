@@ -86,7 +86,7 @@ SYSCALL_KRETPROBE(mount) {
     fill_process_data(&event.process);
     resolve_dentry(dentry, path_key);
 
-    send_event(ctx, event);
+    send_mountpoints_events(ctx, event);
 
     return 0;
 }

@@ -16,7 +16,7 @@ func (m *Module) RegisterKprobe(k *types.KProbe) error {
 		}
 	}
 	if k.ExitFunc != "" {
-		if err := m.EnableKprobe(k.ExitFunc, 0); err != nil {
+		if err := m.EnableKprobe(k.ExitFunc, 128); err != nil {
 			return fmt.Errorf("failed to load Kretprobe %v: %s", k.ExitFunc, err)
 		}
 	}

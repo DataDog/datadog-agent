@@ -1,15 +1,18 @@
 package probe
 
 import (
-	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"os"
+	"path"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/gopsutil/process"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
-	"os"
-	"path"
-	"strconv"
-	"strings"
+
+	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -52,9 +55,9 @@ var MountProbes = []*KProbe{
 		},
 	},
 	{
-		KProbe:  &eprobe.KProbe{
-			Name:      "sys_umount",
-			ExitFunc:  "kretprobe/" + getSyscallFnName("umount"),
+		KProbe: &eprobe.KProbe{
+			Name:     "sys_umount",
+			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
 		},
 		EventTypes: map[string]Capabilities{
 			"*": Capabilities{},
@@ -110,10 +113,10 @@ func newMountEventFromMountInfo(mnt *utils.MountInfo) (*MountEvent, error) {
 	return &MountEvent{
 		ParentMountID: uint32(mnt.ParentID),
 		ParentPathStr: path,
-		NewMountID: uint32(mnt.MountID),
-		NewGroupID: uint32(groupID),
-		NewDevice: uint32(unix.Mkdev(uint32(major), uint32(minor))),
-		FSType: mnt.FSType,
+		NewMountID:    uint32(mnt.MountID),
+		NewGroupID:    uint32(groupID),
+		NewDevice:     uint32(unix.Mkdev(uint32(major), uint32(minor))),
+		FSType:        mnt.FSType,
 	}, nil
 }
 
@@ -145,6 +148,16 @@ func (m *Mount) DFS(mask map[uint32]bool) []*Mount {
 	return mounts
 }
 
+func sanitizeContainerPath(eventPath string) string {
+	// Look for the first container ID and remove everything that comes after
+	r, _ := regexp.Compile("[0-9a-f]{63}")
+	loc := r.FindStringIndex(eventPath)
+	if len(loc) == 2 {
+		return eventPath[:loc[1]]
+	}
+	return ""
+}
+
 // newMount - Creates a new Mount from a mount event and sets / updates its parent
 func newMount(e *MountEvent, parent *Mount, group *OverlayGroup) *Mount {
 	m := Mount{
@@ -152,29 +165,31 @@ func newMount(e *MountEvent, parent *Mount, group *OverlayGroup) *Mount {
 		parent:     parent,
 		peerGroup:  group,
 	}
+	eventPath := e.ParentPathStr
+	if e.GetFSType() == "overlay" {
+		m.containerMountPath = sanitizeContainerPath(eventPath)
+	}
 	if parent != nil {
-		if strings.HasPrefix(e.ParentPathStr, parent.mountPath) {
-			m.mountPath = e.ParentPathStr
+		if strings.HasPrefix(eventPath, parent.mountPath) {
+			m.mountPath = eventPath
 		} else {
-			m.mountPath = path.Join(parent.mountPath, e.ParentPathStr)
+			m.mountPath = path.Join(parent.mountPath, eventPath)
 		}
 		if m.containerMountPath == "" {
 			m.containerMountPath = parent.containerMountPath
 		}
 		parent.children = append(parent.children, &m)
 	}
-	// Try to inherit the container mount path first
 	if m.containerMountPath == "" {
-		if group != nil && group.parent != nil && group.parent.NewMountID != e.NewMountID && group.parent.FSType == "overlay" {
-			m.containerMountPath = strings.ReplaceAll(group.parent.mountPath, "merged/", "")
-			m.containerMountPath = strings.ReplaceAll(group.parent.mountPath, "merged", "")
+		if group != nil && group.parent != nil && group.parent.NewMountID != e.NewMountID && group.parent.GetFSType() == "overlay" {
+			m.containerMountPath = sanitizeContainerPath(group.parent.mountPath)
 		}
 	}
 	return &m
 }
 
 type OverlayGroup struct {
-	parent *Mount
+	parent   *Mount
 	children map[uint32]*Mount
 }
 
@@ -209,7 +224,7 @@ func (g *OverlayGroup) Insert(e *MountEvent, parent *Mount) *Mount {
 	m := newMount(e, parent, g)
 
 	// Check if this is a slave mount
-	if m.FSType == "overlay" {
+	if m.GetFSType() == "overlay" {
 		g.parent = m
 	} else {
 		g.children[m.NewMountID] = m
@@ -224,7 +239,8 @@ func newPeerGroup() *OverlayGroup {
 }
 
 type FSDevice struct {
-	peerGroups map[uint32]*OverlayGroup
+	OverlayGroupID uint32
+	peerGroups     map[uint32]*OverlayGroup
 }
 
 // dryDelete - If the provided mount was deleted, dryDeletes returns the list of mounts that should be deleted as well
@@ -246,7 +262,12 @@ func (d *FSDevice) Delete(m *Mount) {
 
 // Insert - Inserts a new mount in the list of mount groups of the device
 func (d *FSDevice) Insert(e *MountEvent, parent *Mount) *Mount {
-	// Select peer group
+	// The first mount of the overlay inside the container is technically a bind. Map it to its rightful overlay
+	// group ID if there is one.
+	if e.GetFSType() == "bind" && d.OverlayGroupID != 0 && e.NewGroupID == 0 {
+		e.NewGroupID = d.OverlayGroupID
+	}
+	// Select overlay group
 	pg, ok := d.peerGroups[e.NewGroupID]
 	if !ok {
 		pg = newPeerGroup()
@@ -354,16 +375,15 @@ func (mr *MountResolver) insert(e *MountEvent, allowResync bool) {
 	d, ok := mr.devices[e.NewDevice]
 	if !ok {
 		d = newFSDevice()
+		// Set the overlay group ID if necessary
+		if e.GetFSType() == "overlay" {
+			d.OverlayGroupID = e.NewGroupID
+		}
 		mr.devices[e.NewDevice] = d
 	}
 
 	// Fetch the new mount point parent
-	parent, ok := mr.mounts[e.ParentMountID]
-	if !ok && allowResync {
-		// try to resync with /proc
-		_ = mr.SyncCache(0)
-		parent, ok = mr.mounts[e.ParentMountID]
-	}
+	parent, _ := mr.mounts[e.ParentMountID]
 
 	// Insert the new mount point in the device cache
 	m := d.Insert(e, parent)

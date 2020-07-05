@@ -36,7 +36,7 @@ SYSCALL_KRETPROBE(umount) {
 
     fill_process_data(&event.process);
 
-    send_event(ctx, event);
+    send_mountpoints_events(ctx, event);
 
     return 0;
 }

@@ -6,7 +6,7 @@
 #include <linux/mount.h>
 #include <linux/fs.h>
 
-#define DENTRY_MAX_DEPTH 6
+#define DENTRY_MAX_DEPTH 16
 
 struct path_key_t {
     unsigned long ino;
@@ -240,12 +240,10 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times. For now, add a fake parent to notify
     // that we couldn't fetch everything.
 
-    if (next_key.ino != 0) {
-        map_value.name[0] = map_value.name[0];
-        map_value.parent.mount_id = 0;
-        map_value.parent.ino = 0;
-        bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);
-    }
+    map_value.name[0] = 0;
+    map_value.parent.mount_id = 0;
+    map_value.parent.ino = 0;
+    bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);
 
     return DENTRY_MAX_DEPTH;
 }

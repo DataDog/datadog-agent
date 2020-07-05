@@ -151,7 +151,10 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "utimes_common",
+			Name: "utimes_common",
+			// TODO: switch to the new eBPF library. `isra.0` might be needed on your kernel for this probe to work.
+			// adding `isra.0` now will fail anyway because the current eBPF lib doesn't properly sanitize the kprobe
+			// events names.
 			EntryFunc: "kprobe/utimes_common",
 		},
 		EventTypes: map[string]Capabilities{
@@ -338,6 +341,11 @@ func (p *Probe) getPerfMaps() []*types.PerfMap {
 			Handler:     p.handleEvent,
 			LostHandler: p.handleLostEvents,
 		},
+		{
+			Name:        "mountpoints_events",
+			Handler:     p.handleEvent,
+			LostHandler: p.handleLostEvents,
+		},
 	}
 }
 
@@ -380,7 +388,7 @@ func (p *Probe) Start() error {
 
 	p.resolvers = &Resolvers{
 		DentryResolver: dentryResolver,
-		MountResolver: NewMountResolver(),
+		MountResolver:  NewMountResolver(),
 	}
 
 	return p, nil
@@ -436,6 +444,7 @@ func (p *Probe) handleEvent(data []byte) {
 			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.Open.ResolveInode(p.resolvers)
 	case FileMkdirEventType:
 		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, len(data))
@@ -476,6 +485,8 @@ func (p *Probe) handleEvent(data []byte) {
 			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		// Resolve event inode
+		event.Mount.ResolveInode(p.resolvers)
 		// Insert new mount point in cache
 		p.resolvers.MountResolver.Insert(&event.Mount)
 	case FileUmountEventType:

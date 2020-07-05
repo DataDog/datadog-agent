@@ -68,4 +68,16 @@ struct bpf_map_def SEC("maps/events") events = {
 #define send_event(ctx, event) \
     bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
+struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+#define send_mountpoints_events(ctx, event) \
+    bpf_perf_event_output(ctx, &mountpoints_events, bpf_get_smp_processor_id(), &event, sizeof(event))
+
 #endif
