@@ -98,6 +98,7 @@ int kprobe__security_path_chown(struct pt_regs *ctx) {
 
     syscall->setattr.path = (struct path *)PT_REGS_PARM1(ctx);
     syscall->setattr.dentry = get_path_dentry(syscall->setattr.path);
+    syscall->setattr.path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
     return 0;
 }
 
@@ -106,20 +107,19 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct path_key_t path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
     struct chown_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_CHOWN,
         .event.timestamp = bpf_ktime_get_ns(),
         .user = syscall->setattr.user,
         .group = syscall->setattr.group,
-        .mount_id = path_key.mount_id,
-        .inode = path_key.ino,
+        .mount_id = syscall->setattr.path_key.mount_id,
+        .inode = syscall->setattr.path_key.ino,
         .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->setattr.dentry, path_key);
+    resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key);
 
     send_event(ctx, event);
 

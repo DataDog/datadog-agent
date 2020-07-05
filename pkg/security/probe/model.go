@@ -257,8 +257,8 @@ func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
 	buf.WriteRune('}')
 
@@ -301,8 +301,8 @@ func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
 	buf.WriteRune('}')
 
@@ -337,6 +337,7 @@ func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
 type RenameEvent struct {
 	SrcMountID            uint32 `field:"-"`
 	SrcInode              uint64 `field:"old_inode"`
+	SrcRandomInode        uint64 `field:"-"`
 	SrcPathnameStr        string `field:"old_filename" handler:"ResolveSrcInode,string"`
 	SrcOverlayNumLower    int32  `field:"-"`
 	TargetMountID         uint32 `field:"-"`
@@ -350,34 +351,44 @@ func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"old_mount_id":%d,`, e.SrcMountID)
 	fmt.Fprintf(&buf, `"old_inode":%d,`, e.SrcInode)
+	fmt.Fprintf(&buf, `"old_random_inode":%d,`, e.SrcRandomInode)
 	fmt.Fprintf(&buf, `"old_filename":"%s",`, e.ResolveSrcInode(resolvers))
 	fmt.Fprintf(&buf, `"old_overlay_numlower":%d,`, e.SrcOverlayNumLower)
 	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.TargetMountID)
 	fmt.Fprintf(&buf, `"new_inode":%d,`, e.TargetInode)
-	fmt.Fprintf(&buf, `"new_filename":"%s"`, e.ResolveTargetInode(resolvers))
-	fmt.Fprintf(&buf, `"new_overlay_numlower":%d,`, e.TargetOverlayNumLower)
+	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.ResolveTargetInode(resolvers))
+	fmt.Fprintf(&buf, `"new_overlay_numlower":%d`, e.TargetOverlayNumLower)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
 }
 
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 36 {
+	if len(data) < 44 {
 		return 0, NotEnoughData
 	}
 	e.SrcMountID = byteOrder.Uint32(data[0:4])
 	// padding
 	e.SrcInode = byteOrder.Uint64(data[8:16])
-	e.TargetInode = byteOrder.Uint64(data[16:24])
-	e.TargetMountID = byteOrder.Uint32(data[24:28])
-	e.SrcOverlayNumLower = int32(byteOrder.Uint32(data[28:32]))
-	e.TargetOverlayNumLower = int32(byteOrder.Uint32(data[32:36]))
-	return 36, nil
+	e.SrcRandomInode = byteOrder.Uint64(data[16:24])
+	e.TargetInode = byteOrder.Uint64(data[24:32])
+	e.TargetMountID = byteOrder.Uint32(data[32:36])
+	e.SrcOverlayNumLower = int32(byteOrder.Uint32(data[36:40]))
+	e.TargetOverlayNumLower = int32(byteOrder.Uint32(data[40:44]))
+	return 44, nil
 }
 
 func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
 	if len(e.SrcPathnameStr) == 0 {
-		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcMountID, e.SrcInode)
+		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcMountID, e.SrcRandomInode)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID)
+		if err == nil {
+			e.SrcPathnameStr = path.Join(mountPath, e.SrcPathnameStr)
+		}
+		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.SrcMountID, e.SrcOverlayNumLower)
+		if err == nil {
+			e.SrcPathnameStr = path.Join(containerPath, e.SrcPathnameStr)
+		}
 	}
 	return e.SrcPathnameStr
 }
@@ -385,6 +396,14 @@ func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
 func (e *RenameEvent) ResolveTargetInode(resolvers *Resolvers) string {
 	if len(e.TargetPathnameStr) == 0 {
 		e.TargetPathnameStr = resolvers.DentryResolver.Resolve(e.TargetMountID, e.TargetInode)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.TargetMountID)
+		if err == nil {
+			e.TargetPathnameStr = path.Join(mountPath, e.TargetPathnameStr)
+		}
+		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.TargetMountID, e.TargetOverlayNumLower)
+		if err == nil {
+			e.TargetPathnameStr = path.Join(containerPath, e.TargetPathnameStr)
+		}
 	}
 	return e.TargetPathnameStr
 }

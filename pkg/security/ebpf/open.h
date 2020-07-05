@@ -126,9 +126,10 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    // NOTE(safchain) could be move only if pass_to_userspace == 1
+    // NOTE(safchain) could be moved only if pass_to_userspace == 1
     syscall->open.dir = (struct path *)PT_REGS_PARM1(ctx);
     syscall->open.dentry = get_path_dentry(syscall->open.dir);
+    syscall->open.path_key = get_key(syscall->open.dentry, syscall->open.dir);
 
     // array key index 0
     u32 ak0 = 0;
@@ -247,21 +248,19 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct path_key_t path_key = get_key(syscall->open.dentry, syscall->open.dir);
-
     struct open_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
-        .mount_id = path_key.mount_id,
-        .inode = path_key.ino,
+        .mount_id = syscall->open.path_key.mount_id,
+        .inode = syscall->open.path_key.ino,
         .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->open.dentry, path_key);
+    resolve_dentry(syscall->open.dentry, syscall->open.path_key);
 
     send_event(ctx, event);
 
