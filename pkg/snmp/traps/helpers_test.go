@@ -165,6 +165,7 @@ func (b *builder) StartServer() *TrapServer {
 	require.NoError(b.t, err)
 	require.NotNil(b.t, s)
 	require.True(b.t, s.Started)
-	require.Equal(b.t, len(b.configs), s.NumRunningListeners()) // By default, assume all listeners start successfully.
+	require.Equal(b.t, len(b.configs), s.NumListeners())
+	require.Equal(b.t, 0, s.NumFailedListeners())
 	return s
 }

@@ -103,5 +103,6 @@ func TestPortConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, s.Started)
 	defer s.Stop()
-	require.Equal(t, 1, s.NumRunningListeners()) // Second listener didn't start.
+	require.Equal(t, 2, s.NumListeners())
+	require.Equal(t, 1, s.NumFailedListeners()) // Second listener didn't start.
 }

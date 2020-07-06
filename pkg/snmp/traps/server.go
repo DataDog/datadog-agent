@@ -6,6 +6,7 @@
 package traps
 
 import (
+	"expvar"
 	"net"
 	"sync"
 	"time"
@@ -26,6 +27,21 @@ import (
 * ! = delimitation between the outside world and the Agent
  */
 
+var (
+	trapsExpvars              = expvar.NewMap("snmp_traps")
+	trapsListeners            = expvar.Int{}
+	trapsListenersStartErrors = expvar.Int{}
+	trapsPackets              = expvar.Int{}
+	trapsPacketsAuthErrors    = expvar.Int{}
+)
+
+func init() {
+	trapsExpvars.Set("Listeners", &trapsListeners)
+	trapsExpvars.Set("ListenersStartErrors", &trapsListenersStartErrors)
+	trapsExpvars.Set("Packets", &trapsPackets)
+	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
+}
+
 // SnmpPacket is the type of packets yielded by server listeners.
 type SnmpPacket struct {
 	Content *gosnmp.SnmpPacket
@@ -40,7 +56,7 @@ type TrapServer struct {
 	Started bool
 
 	listeners   []TrapListener
-	running     []bool
+	failed      []bool
 	output      OutputChannel
 	stopTimeout time.Duration
 }
@@ -65,7 +81,7 @@ func NewTrapServer() (*TrapServer, error) {
 
 	output := make(OutputChannel, outputChannelSize)
 	listeners := make([]TrapListener, 0, len(configs))
-	running := make([]bool, 0, len(configs))
+	failed := make([]bool, 0, len(configs))
 
 	for _, c := range configs {
 		bindHost := c.BindHost
@@ -80,13 +96,14 @@ func NewTrapServer() (*TrapServer, error) {
 		}
 
 		listeners = append(listeners, *listener)
-		running = append(running, false)
+		failed = append(failed, false)
+		trapsListeners.Add(1)
 	}
 
 	s := &TrapServer{
 		Started:     false,
 		listeners:   listeners,
-		running:     running,
+		failed:      failed,
 		output:      output,
 		stopTimeout: stopTimeout,
 	}
@@ -101,6 +118,12 @@ func (s *TrapServer) start() {
 	wg := new(sync.WaitGroup)
 	wg.Add(len(s.listeners))
 
+	// Reset failure counts.
+	trapsListenersStartErrors.Set(0)
+	for idx := range s.listeners {
+		s.failed[idx] = false
+	}
+
 	for idx, l := range s.listeners {
 		idx := idx
 		l := l
@@ -108,10 +131,10 @@ func (s *TrapServer) start() {
 		go func() {
 			defer wg.Done()
 			err := l.WaitReadyOrError()
-			if err == nil {
-				s.running[idx] = true
-			} else {
+			if err != nil {
 				log.Errorf("snmp-traps: listener %s failed to start: %s", l.Addr(), err)
+				trapsListenersStartErrors.Add(1)
+				s.failed[idx] = true
 			}
 		}()
 	}
@@ -126,11 +149,16 @@ func (s *TrapServer) Output() OutputChannel {
 	return s.output
 }
 
-// NumRunningListeners returns the number of listeners running in this server.
-func (s *TrapServer) NumRunningListeners() int {
+// NumListeners returns the number of listeners managed by this server.
+func (s *TrapServer) NumListeners() int {
+	return len(s.listeners)
+}
+
+// NumFailedListeners returns the number of listeners that failed to start.
+func (s *TrapServer) NumFailedListeners() int {
 	num := 0
-	for _, running := range s.running {
-		if running {
+	for _, failed := range s.failed {
+		if failed {
 			num++
 		}
 	}
@@ -139,6 +167,10 @@ func (s *TrapServer) NumRunningListeners() int {
 
 // Stop stops the TrapServer.
 func (s *TrapServer) Stop() {
+	if !s.Started {
+		return
+	}
+
 	wg := new(sync.WaitGroup)
 	stopped := make(chan interface{})
 
@@ -149,9 +181,8 @@ func (s *TrapServer) Stop() {
 		l := listener
 		go func() {
 			defer wg.Done()
-			if s.running[idx] {
+			if !s.failed[idx] {
 				l.Stop()
-				s.running[idx] = false
 			}
 		}()
 	}

@@ -348,4 +348,15 @@
     <span class="stat_title">APM</span>
     <span class="stat_data">Loading...</span>
   </div>
+
+  <div class="stat">
+    <span class="stat_title">SNMP Traps</span>
+    <span class="stat_data">
+      {{- with .snmpTrapsStats -}}
+        {{- range $key, $value := .}}
+          {{formatTitle $key}}: {{humanize $value}}<br>
+        {{- end }}
+      {{- end -}}
+    </span>
+  </div>
 {{- end -}}

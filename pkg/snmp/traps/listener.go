@@ -34,8 +34,10 @@ func NewTrapListener(bindHost string, c TrapListenerConfig, output OutputChannel
 	impl.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 		if !validateCredentials(p, c) {
 			log.Warnf("snmp-traps: invalid credentials from %s on listener %s, dropping packet", u.String(), addr)
+			trapsPacketsAuthErrors.Add(1)
 			return
 		}
+		trapsPackets.Add(1)
 		output <- &SnmpPacket{Content: p, Addr: u}
 	}
 

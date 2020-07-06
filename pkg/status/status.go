@@ -383,6 +383,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["agent_metadata"] = map[string]string{}
 	}
 
+	snmpTrapsJSON := []byte(expvar.Get("snmp_traps").String())
+	snmpTrapsStats := make(map[string]interface{})
+	json.Unmarshal(snmpTrapsJSON, &snmpTrapsStats) //nolint:errcheck
+	stats["snmpTrapsStats"] = snmpTrapsStats
+
 	return stats, err
 }
 
