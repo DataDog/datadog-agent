@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/gopsutil/process"
 	"github.com/pkg/errors"
@@ -18,6 +19,10 @@ import (
 var (
 	ErrMountNotFound = errors.New("unknown mount ID")
 )
+
+func IsErrMountNotFound(err error) bool {
+	return ErrMountNotFound.Error() == err.Error()
+}
 
 // MountProbes - Mount tracking probes
 var MountProbes = []*KProbe{
@@ -136,8 +141,10 @@ func (m *Mount) DFS(mask map[uint32]bool) []*Mount {
 	if mask == nil {
 		mask = map[uint32]bool{}
 	}
-	mounts = append(mounts, m)
-	mask[m.NewMountID] = true
+	if !mask[m.NewMountID] {
+		mounts = append(mounts, m)
+		mask[m.NewMountID] = true
+	}
 	for _, child := range m.children {
 		if !mask[child.NewMountID] {
 			mask[child.NewMountID] = true
@@ -150,7 +157,7 @@ func (m *Mount) DFS(mask map[uint32]bool) []*Mount {
 
 func sanitizeContainerPath(eventPath string) string {
 	// Look for the first container ID and remove everything that comes after
-	r, _ := regexp.Compile("[0-9a-f]{63}")
+	r, _ := regexp.Compile("[0-9a-f]{64}")
 	loc := r.FindStringIndex(eventPath)
 	if len(loc) == 2 {
 		return eventPath[:loc[1]]
@@ -195,17 +202,19 @@ type OverlayGroup struct {
 
 // dryDelete - If the provided mount was deleted, dryDeletes returns the list of mounts that should be deleted as well
 func (g *OverlayGroup) dryDelete(m *Mount) []*Mount {
+	var mounts []*Mount
+	mask := map[uint32]bool{}
+
+	// Mark the immediate children of the mount for deletion
+	mounts = append(mounts, m.DFS(mask)...)
+
+	// Mark the children of the overlay group for deletion
 	if g.parent != nil && m.NewMountID == g.parent.NewMountID {
-		var mounts []*Mount
-		mask := map[uint32]bool{}
-		mounts = append(mounts, m)
-		mask[m.NewMountID] = true
 		for _, v := range g.children {
 			mounts = append(mounts, v.DFS(mask)...)
 		}
-		return mounts
 	}
-	return nil
+	return mounts
 }
 
 // Delete - Deletes a mount point in the peer group. Returns true if the PeerGroup is empty after the deletion (a peer
@@ -215,6 +224,11 @@ func (g *OverlayGroup) Delete(m *Mount) bool {
 		g.parent = nil
 	}
 	delete(g.children, m.NewMountID)
+	return g.IsEmpty()
+}
+
+// IsEmpty - Returns true if the overlay group is empty and should therefore be deleted
+func (g *OverlayGroup) IsEmpty() bool {
 	return g.parent == nil && len(g.children) == 0
 }
 
@@ -247,17 +261,26 @@ type FSDevice struct {
 func (d *FSDevice) dryDelete(m *Mount) []*Mount {
 	g, ok := d.peerGroups[m.NewGroupID]
 	if !ok {
-		return nil
+		return []*Mount{m}
 	}
 	return g.dryDelete(m)
 }
 
 // Delete - Deletes a mount from the device
-func (d *FSDevice) Delete(m *Mount) {
+func (d *FSDevice) Delete(m *Mount) bool {
 	g, ok := d.peerGroups[m.NewGroupID]
 	if ok {
-		g.Delete(m)
+		if g.Delete(m) {
+			// delete the group as well
+			delete(d.peerGroups, m.NewGroupID)
+		}
 	}
+	return d.IsEmty()
+}
+
+// IsEmpty - Returns true if the device is empty and should therefore be deleted
+func (d *FSDevice) IsEmty() bool {
+	return len(d.peerGroups) == 0
 }
 
 // Insert - Inserts a new mount in the list of mount groups of the device
@@ -284,8 +307,9 @@ func newFSDevice() *FSDevice {
 	}
 }
 
-// MountResolver - (not thread safe) Mount point cache
+// MountResolver - Mount point cache
 type MountResolver struct {
+	lock sync.RWMutex
 	devices map[uint32]*FSDevice
 	mounts  map[uint32]*Mount
 }
@@ -293,6 +317,8 @@ type MountResolver struct {
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo. If pid is null,
 // the function will parse the mountinfo entry of all the processes currently running.
 func (mr *MountResolver) SyncCache(pid uint32) error {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
 	if pid > 0 {
 		return mr.syncCache(pid)
 	}
@@ -340,13 +366,15 @@ func (mr *MountResolver) syncCache(pid uint32) error {
 func (mr *MountResolver) dryDelete(m *Mount) []*Mount {
 	d, ok := mr.devices[m.NewDevice]
 	if !ok {
-		return nil
+		return []*Mount{m}
 	}
 	return d.dryDelete(m)
 }
 
-// Delete - (not thread safe) Deletes a mount from the cache
+// Delete - Deletes a mount from the cache
 func (mr *MountResolver) Delete(mountID uint32) error {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
 	m, ok := mr.mounts[mountID]
 	if !ok {
 		return ErrMountNotFound
@@ -359,14 +387,19 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 	for _, mnt := range mnts {
 		d, ok := mr.devices[mnt.NewDevice]
 		if ok {
-			d.Delete(m)
+			if d.Delete(mnt) {
+				delete(mr.devices, mnt.NewDevice)
+			}
 		}
+		delete(mr.mounts, mnt.NewMountID)
 	}
 	return nil
 }
 
-// Insert - (not thread safe) Inserts a new mount point in the cache
+// Insert - Inserts a new mount point in the cache
 func (mr *MountResolver) Insert(e *MountEvent) {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
 	mr.insert(e, true)
 }
 
@@ -392,8 +425,10 @@ func (mr *MountResolver) insert(e *MountEvent, allowResync bool) {
 	mr.mounts[e.NewMountID] = m
 }
 
-// GetMountPath - (not thread safe) Returns the path of a mount identified by its mount ID
-func (mr *MountResolver) GetMountPath(mountID uint32) (string, error) {
+// GetMountPath - Returns the path of a mount identified by its mount ID
+func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, error) {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
 	m, ok := mr.mounts[mountID]
 	if !ok {
 		if mountID == 0 {
@@ -403,30 +438,19 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, error) {
 			return "", ErrMountNotFound
 		}
 	}
-	return m.mountPath, nil
-}
-
-// GetContainerMountPath - (not thread safe) Returns the container mount path
-func (mr *MountResolver) GetContainerMountPath(mountID uint32, numlower int32) (string, error) {
-	m, ok := mr.mounts[mountID]
-	if !ok {
-		if mountID == 0 {
-			return "", nil
-		}
-		return "", ErrMountNotFound
-	}
 	if m.containerMountPath != "" {
 		if numlower == 0 {
-			return path.Join(m.containerMountPath, "diff"), nil
+			return path.Join(m.containerMountPath, "diff", m.mountPath), nil
 		}
-		return path.Join(m.containerMountPath, "merged"), nil
+		return path.Join(m.containerMountPath, "merged", m.mountPath), nil
 	}
-	return m.containerMountPath, nil
+	return m.mountPath, nil
 }
 
 // NewMountResolver - Instantiates a new mount resolver
 func NewMountResolver() *MountResolver {
 	return &MountResolver{
+		lock: sync.RWMutex{},
 		devices: make(map[uint32]*FSDevice),
 		mounts:  make(map[uint32]*Mount),
 	}

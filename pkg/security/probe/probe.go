@@ -91,6 +91,17 @@ func syscallKprobe(name string) *eprobe.KProbe {
 var AllKProbes = []*KProbe{
 	{
 		KProbe: &eprobe.KProbe{
+			Name:      "security_inode_setattr",
+			EntryFunc: "kprobe/security_inode_setattr",
+		},
+		EventTypes: map[string]Capabilities{
+			"chmod":  Capabilities{},
+			"chown":  Capabilities{},
+			"utimes": Capabilities{},
+		},
+	},
+	{
+		KProbe: &eprobe.KProbe{
 			Name:      "security_path_chmod",
 			EntryFunc: "kprobe/security_path_chmod",
 		},

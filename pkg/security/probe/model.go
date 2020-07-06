@@ -79,13 +79,9 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *ChmodEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.PathnameStr = path.Join(containerPath, e.PathnameStr)
 		}
 	}
 	return e.PathnameStr
@@ -129,13 +125,9 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *ChownEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.PathnameStr = path.Join(containerPath, e.PathnameStr)
 		}
 	}
 	return e.PathnameStr
@@ -168,13 +160,9 @@ func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 func (e *OpenEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.PathnameStr = path.Join(containerPath, e.PathnameStr)
 		}
 	}
 	return e.PathnameStr
@@ -234,13 +222,9 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *MkdirEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.PathnameStr = path.Join(containerPath, e.PathnameStr)
 		}
 	}
 	return e.PathnameStr
@@ -268,13 +252,9 @@ func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 func (e *RmdirEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.PathnameStr = path.Join(containerPath, e.PathnameStr)
 		}
 	}
 	return e.PathnameStr
@@ -322,13 +302,9 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.PathnameStr = path.Join(containerPath, e.PathnameStr)
 		}
 	}
 	return e.PathnameStr
@@ -381,13 +357,9 @@ func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
 	if len(e.SrcPathnameStr) == 0 {
 		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcMountID, e.SrcRandomInode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
 		if err == nil {
 			e.SrcPathnameStr = path.Join(mountPath, e.SrcPathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.SrcMountID, e.SrcOverlayNumLower)
-		if err == nil {
-			e.SrcPathnameStr = path.Join(containerPath, e.SrcPathnameStr)
 		}
 	}
 	return e.SrcPathnameStr
@@ -396,13 +368,9 @@ func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
 func (e *RenameEvent) ResolveTargetInode(resolvers *Resolvers) string {
 	if len(e.TargetPathnameStr) == 0 {
 		e.TargetPathnameStr = resolvers.DentryResolver.Resolve(e.TargetMountID, e.TargetInode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.TargetMountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
 		if err == nil {
 			e.TargetPathnameStr = path.Join(mountPath, e.TargetPathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.TargetMountID, e.TargetOverlayNumLower)
-		if err == nil {
-			e.TargetPathnameStr = path.Join(containerPath, e.TargetPathnameStr)
 		}
 	}
 	return e.TargetPathnameStr
@@ -452,13 +420,9 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *UtimesEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
+		mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		containerPath, err := resolvers.MountResolver.GetContainerMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.PathnameStr = path.Join(containerPath, e.PathnameStr)
 		}
 	}
 	return e.PathnameStr

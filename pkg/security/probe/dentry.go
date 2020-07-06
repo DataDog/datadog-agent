@@ -10,13 +10,13 @@ import (
 	"github.com/pkg/errors"
 
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
-	"github.com/hashicorp/golang-lru/simplelru"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 type DentryResolver struct {
 	probe     *eprobe.Probe
 	pathnames eprobe.Table
-	lru       *simplelru.LRU
+	lru       *lru.Cache
 }
 
 type PathKey struct {
@@ -144,8 +144,7 @@ func (dr *DentryResolver) Start() error {
 	return nil
 }
 
-func NewDentryResolver(probe *eprobe.Probe) (*DentryResolver, error) {
-	lru, err := simplelru.NewLRU(1024, nil)
+	lru, err := lru.New(1024)
 	if err != nil {
 		return nil, err
 	}
