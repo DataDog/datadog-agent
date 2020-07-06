@@ -6,7 +6,6 @@
 package traps
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,28 +13,26 @@ import (
 )
 
 const (
-	sysUpTimeInstance = ".1.3.6.1.2.1.1.3.0"
-	snmpTrapOID       = ".1.3.6.1.6.3.1.1.4.1.0"
+	sysUpTime           = ".1.3.6.1.2.1.1.3"
+	sysUpTimeInstance   = ".1.3.6.1.2.1.1.3.0"
+	snmpTrapOID         = ".1.3.6.1.6.3.1.1.4.1"
+	snmpTrapOIDInstance = ".1.3.6.1.6.3.1.1.4.1.0"
 )
 
 // NOTE: This module is used by the traps logs input.
 
-// FormatJSON converts an SNMP trap packet to a JSON bytestring.
-func FormatJSON(p *SnmpPacket) ([]byte, error) {
-	data, err := formatV2(p.Content.Variables)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(data)
+// FormatJSON converts an SNMP trap packet to a JSON-serializable object.
+func FormatJSON(p *SnmpPacket) (map[string]interface{}, error) {
+	return formatV2(p.Content.Variables)
 }
 
 // GetTags returns a list of tags associated to an SNMP trap packet.
 func GetTags(p *SnmpPacket) []string {
 	return []string{
-		fmt.Sprintf("device_ip:%s", p.Addr.IP.String()),
-		fmt.Sprintf("device_port:%d", p.Addr.Port),
 		fmt.Sprintf("snmp_version:2"),
 		fmt.Sprintf("community:%s", p.Content.Community),
+		fmt.Sprintf("device_ip:%s", p.Addr.IP.String()),
+		fmt.Sprintf("device_port:%d", p.Addr.Port),
 	}
 }
 
@@ -74,17 +71,13 @@ func formatV2(vars []gosnmp.SnmpPDU) (map[string]interface{}, error) {
 }
 
 func parseSysUpTimeV2(v gosnmp.SnmpPDU) (uint32, error) {
-	if v.Type != gosnmp.TimeTicks {
-		return 0, fmt.Errorf("expected %v, got %v", gosnmp.TimeTicks, v.Type)
-	}
-
-	if v.Name != sysUpTimeInstance {
-		return 0, fmt.Errorf("expected OID %s, got %s", sysUpTimeInstance, v.Name)
+	if v.Name != sysUpTime && v.Name != sysUpTimeInstance {
+		return 0, fmt.Errorf("expected OID %s or %s, got %s", sysUpTime, sysUpTimeInstance, v.Name)
 	}
 
 	value, ok := v.Value.(uint32)
 	if !ok {
-		return 0, fmt.Errorf("expected uptime to be uint32 (got %T)", v.Value)
+		return 0, fmt.Errorf("expected uptime to be uint32 (got %v of type %T)", v.Value, v.Value)
 	}
 
 	// sysUpTimeInstance is given in hundreds of a second, convert it to seconds.
@@ -94,17 +87,18 @@ func parseSysUpTimeV2(v gosnmp.SnmpPDU) (uint32, error) {
 }
 
 func parseSnmpTrapOIDV2(v gosnmp.SnmpPDU) (string, error) {
-	if v.Type != gosnmp.ObjectIdentifier {
-		return "", fmt.Errorf("expected %v, got %v", gosnmp.ObjectIdentifier, v.Type)
+	if v.Name != snmpTrapOID && v.Name != snmpTrapOIDInstance {
+		return "", fmt.Errorf("expected OID %s or %s, got %s", snmpTrapOID, snmpTrapOIDInstance, v.Name)
 	}
 
-	if v.Name != snmpTrapOID {
-		return "", fmt.Errorf("expected OID %s, got %s", snmpTrapOID, v.Name)
-	}
-
-	value, ok := v.Value.(string)
-	if !ok {
-		return "", fmt.Errorf("expected snmpTrapOID to be a string (got %T)", v.Value)
+	value := ""
+	switch v.Value.(type) {
+	case string:
+		value = v.Value.(string)
+	case []byte:
+		value = string(v.Value.([]byte))
+	default:
+		return "", fmt.Errorf("expected snmpTrapOID to be a string (got %v of type %T)", v.Value, v.Value)
 	}
 
 	return normalizeOID(value), nil

@@ -55,7 +55,7 @@ func validateCredentials(p *gosnmp.SnmpPacket, config TrapListenerConfig) bool {
 	}
 
 	// Enforce that one of the known community strings matches.
-	for _, community := range config.Community {
+	for _, community := range config.CommunityStrings {
 		if community == p.Community {
 			return true
 		}

@@ -39,7 +39,6 @@ type OutputChannel = chan *SnmpPacket
 type TrapServer struct {
 	Started bool
 
-	bindHost    string
 	listeners   []TrapListener
 	output      OutputChannel
 	stopTimeout time.Duration
@@ -59,13 +58,17 @@ func NewTrapServer() (*TrapServer, error) {
 		return nil, err
 	}
 
-	bindHost := config.Datadog.GetString("bind_host")
+	defaultBindHost := config.Datadog.GetString("bind_host")
 	stopTimeout := config.Datadog.GetDuration("snmp_traps_stop_timeout") * time.Second
 
 	output := make(OutputChannel, outputChannelSize)
 	listeners := make([]TrapListener, 0, len(configs))
 
 	for _, c := range configs {
+		bindHost := c.BindHost
+		if bindHost == "" {
+			bindHost = defaultBindHost
+		}
 		listener, err := NewTrapListener(bindHost, c, output)
 		if err != nil {
 			return nil, err
@@ -76,7 +79,6 @@ func NewTrapServer() (*TrapServer, error) {
 
 	s := &TrapServer{
 		Started:     false,
-		bindHost:    bindHost,
 		listeners:   listeners,
 		output:      output,
 		stopTimeout: stopTimeout,

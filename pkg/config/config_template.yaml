@@ -1762,9 +1762,9 @@ api_key:
 #
 # snmp_traps_listeners:
 # -
-    ## @param version - string - optional - default: "2"
+    ## @param version - int - optional - default: 2
     ## The SNMP version to use.
-    ## Only "2" (SNMPv2c) is supported for now.
+    ## Only 2 (SNMPv2c) is supported for now.
     #
     # version: 2
 
@@ -1773,11 +1773,13 @@ api_key:
     #
     # port: <PORT>
 
-    ## @param community - list of strings - required
+    ## @param community_strings - list of strings - required
     ## A list of known community strings that devices can use to send traps to the Agent.
-    ## Trap PDUs with unknown community strings will be ignored.
+    ## Traps with an unknown community string will be ignored.
     #
-    # community: [<COMMUNITY_1>, <COMMUNITY_2>, ...]
+    # community_strings:
+    #   - <COMMUNITY_1>
+    #   - <COMMUNITY_2>
 
     ## @param bind_host - string - optional
     ## The hostname to listen on for incoming trap packets.

@@ -6,6 +6,8 @@
 package traps
 
 import (
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -46,9 +48,14 @@ func (t *Tailer) run() {
 	}()
 
 	for packet := range t.inputChan {
-		content, err := traps.FormatJSON(packet)
+		data, err := traps.FormatJSON(packet)
 		if err != nil {
 			log.Errorf("failed to format packet: %s", err)
+			continue
+		}
+		content, err := json.Marshal(data)
+		if err != nil {
+			log.Errorf("failed to serialize packet data to JSON: %s", err)
 			continue
 		}
 		origin := message.NewOrigin(t.source)

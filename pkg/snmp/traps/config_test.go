@@ -14,8 +14,8 @@ import (
 
 func TestConfigCommon(t *testing.T) {
 	config := TrapListenerConfig{
-		Port:      162,
-		Community: []string{"public"},
+		Port:             162,
+		CommunityStrings: []string{"public"},
 	}
 	params, err := config.BuildParams()
 	assert.NoError(t, err)
@@ -33,8 +33,8 @@ func TestConfigPort(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		config := TrapListenerConfig{
-			Port:      162,
-			Community: []string{"public"},
+			Port:             162,
+			CommunityStrings: []string{"public"},
 		}
 		params, err := config.BuildParams()
 		assert.NoError(t, err)
@@ -45,8 +45,8 @@ func TestConfigPort(t *testing.T) {
 func TestConfigV2(t *testing.T) {
 	t.Run("community", func(t *testing.T) {
 		config := TrapListenerConfig{
-			Port:      162,
-			Community: []string{"public"},
+			Port:             162,
+			CommunityStrings: []string{"public"},
 		}
 		params, err := config.BuildParams()
 		assert.NoError(t, err)
