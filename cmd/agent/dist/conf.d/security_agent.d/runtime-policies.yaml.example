@@ -6,6 +6,13 @@
       process.name not in ["vipw", "vigr"]
     tags:
       mitre: T1003
+#- rule:
+#    id: credential_read
+#    description: credential files modified using unknown tool
+#    expression: >-
+#      open.filename == "/etc/passwd" && process.name != "vipw"
+#    tags:
+#      mitre: T1087
 - rule:
     id: memory_dump
     description: memory dump
@@ -21,16 +28,26 @@
       unlink.filename =~ "/var/log/*"
     tags:
       mitre: T1070
-#- rule:
-  #  id: permissions_changed
-  #  description: permissions change on sensible files
-  #  expression: >-
-  #    chattr.filename =~ "/etc/*" || chattr.filename =~ "/etc/*" ||
-  #    chattr.filename =~ "/sbin/*" || chattr.filename =~ "/usr/sbin/*" ||
-  #    chattr.filename =~ "/usr/local/sbin*" || chattr.filename =~ "/usr/bin/local/*" ||
-  #    chattr.filename =~ "/var/log/*" || chattr.filename =~ "/usr/lib/*"
-  # tags:
-  #    mitre: T1099
+- rule:
+  id: permissions_changed
+  description: permissions change on sensible files
+  expression: >-
+    chmod.filename =~ "/etc/*" || chmod.filename =~ "/etc/*" ||
+    chmod.filename =~ "/sbin/*" || chmod.filename =~ "/usr/sbin/*" ||
+    chmod.filename =~ "/usr/local/sbin*" || chmod.filename =~ "/usr/bin/local/*" ||
+    chmod.filename =~ "/var/log/*" || chmod.filename =~ "/usr/lib/*"
+  tags:
+    mitre: T1099
+- rule:
+    id: times_changed
+    description: time change on sensible files
+    expression: >-
+      utimes.filename =~ "/etc/*" || utimes.filename =~ "/etc/*" ||
+      utimes.filename =~ "/sbin/*" || chattr.filename =~ "/usr/sbin/*" ||
+      utimes.filename =~ "/usr/local/sbin*" || utimes.filename =~ "/usr/bin/local/*" ||
+      utimes.filename =~ "/usr/lib/*"
+   tags:
+      mitre: T1099
 - rule:
     id: file_created
     description: file creation/modification in sensible location
@@ -45,7 +62,15 @@
   #  id: bash_history
   #  description: command line history read by another user
   #  expression: >-
-  #    open.basename == ".bash_history" &&
+  #    open.basename in [".bash_history", ".zsh_history"] &&
+  #    (open.uid != process.uid || open.gid != process.gid)
+  # tags:
+  #    mitre: T1139
+# - rule:
+  #  id: aws_config
+  #  description: aws config file read by another user
+  #  expression: >-
+  #    open.filename =~ /root/.aws/* &&
   #    (open.uid != process.uid || open.gid != process.gid)
   # tags:
   #    mitre: T1139
@@ -53,7 +78,7 @@
   #  id: ssh_keys
   #  description: ssh private key read by another user
   #  expression: >-
-  #    open.filename =~ "*/.ssh/*" &&
+  #    open.filename =~ "/root/.ssh/*" &&
   #    (open.uid != process.uid || open.gid != process.gid)
   # tags:
   #    mitre: T1139
@@ -76,7 +101,7 @@
     id: cron_updated
     description: new cron entry
     expression: >-
-      (open.filename =~"/etc/crontab/*" || open.filename =~ "/etc/cron.d/*") &&
+      (open.filename =~ "/etc/crontab/*" || open.filename =~ "/etc/cron.d/*") &&
       open.flags ^ O_RDONLY > 0
     tags:
       mitre: T1168
@@ -99,24 +124,24 @@
   #  id: binary_modified
   #  description: a process is trying to modify its binary
   #  expression: >-
-  #    open.inode == process.inode
+  #    open.inode == process.inode && open.flags & O_CREAT > 0
   # tags:
   #    mitre: T1036
 - rule:
     id: remote_copy
     description: remote copy
     expression: >-
-      (open.filename =~ "/var/*" || open.filename =~"/etc/*") &&
+      (open.filename =~ "/var/*" || open.filename =~ "/etc/*") &&
       process.name in ["scp", "ftp", "rsync", "sftp", "curl", "wget", "nc"]
     tags:
       mitre: T1105
-# - rule:
-  #  id: timestamp_tampering
-  #  description: timestamp tampering attempt
-  #  expression: >-
-  #    chattr.mode & ATTR_TIMES_SET > 0 || chattr.mode & ATTR_ATIME_SET > 0 || chattr.mode & ATTR_MTIME_SET > 0
-  # tags:
-  #    mitre: T1099
+  - rule:
+  id: timestamp_tampering
+  description: timestamp tampering attempt
+  expression: >-
+    utimes.basename =~ "/etc/*"
+  tags:
+    mitre: T1099
 # - rule:
   #  id: container_binary_exec
   #  description: a binary that was not part of the original container image was executed
