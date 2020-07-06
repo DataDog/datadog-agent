@@ -12,7 +12,7 @@ import (
 func TestMount(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `container.id == "{{.Root}}/test-mount" || true`,
+		Expression: `container.id == "{{.Root}}/test-mount"`,
 	}
 
 	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{})
