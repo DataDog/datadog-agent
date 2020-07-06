@@ -20,8 +20,8 @@ import (
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
 
-// SnmpTrapsCollect is the name of the integration that collects logs from SNMP traps received by the Agent
-const SnmpTrapsCollect = "snmp_traps_collect"
+// SnmpTraps is the name of the integration that collects logs from SNMP traps received by the Agent
+const SnmpTraps = "snmp_traps"
 
 // logs-intake endpoint prefix.
 const (
@@ -62,8 +62,8 @@ func DefaultSources() []*LogSource {
 	}
 
 	if traps.IsEnabled() {
-		source := NewLogSource(SnmpTrapsCollect, &LogsConfig{
-			Type:    "traps",
+		source := NewLogSource(SnmpTraps, &LogsConfig{
+			Type:    TrapsType,
 			Service: "snmp",
 			Source:  "snmp",
 		})
