@@ -72,7 +72,7 @@ struct open_event_t {
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     struct syscall_cache_t syscall = {
-        .type = EVENT_MAY_OPEN,
+        .type = EVENT_OPEN,
         .policy = {.mode = ACCEPT},
         .open = {
             .flags = flags,
@@ -234,7 +234,7 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
         return 0;
 
     switch(syscall->type) {
-        case EVENT_MAY_OPEN:
+        case EVENT_OPEN:
             return vfs_handle_open_event(ctx, syscall);
         case EVENT_EXEC:
             return vfs_handle_exec_event(ctx, syscall);
