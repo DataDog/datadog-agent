@@ -114,6 +114,12 @@ variables:
 .if_triggered: &if_triggered
   if: $CI_PIPELINE_SOURCE == "trigger"
 
+.if_triggered_6: &if_triggered_6
+  if: $CI_PIPELINE_SOURCE == "trigger" && $RELEASE_VERSION_6 != ""
+
+.if_triggered_7: &if_triggered_7
+  if: $CI_PIPELINE_SOURCE == "trigger" && $RELEASE_VERSION_7 != ""
+
 .if_not_triggered: &if_not_triggered
   if: $CI_PIPELINE_SOURCE != "trigger"
 
@@ -1919,6 +1925,9 @@ deploy_windows_testing-a7:
 # Kitchen: final test matrix (tests * scenarios)
 # ----------------------------------------------
 
+# We only want to run step-by-step tests on triggered pipelines,
+# which is why they have a different rule (if_triggered_6/7)
+
 # run dd-agent-testing for the windows installer
 kitchen_windows_installer_agent-a6:
   allow_failure: true
@@ -2016,12 +2025,16 @@ kitchen_centos_install_script_dogstatsd-a7:
 
 kitchen_centos_step_by_step_agent-a6:
   allow_failure: false
+  rules:
+    - <<: *if_triggered_6
   extends:
     - .kitchen_scenario_centos_a6
     - .kitchen_test_step_by_step_agent
 
 kitchen_centos_step_by_step_agent-a7:
   allow_failure: false
+  rules:
+    - <<: *if_triggered_7
   extends:
     - .kitchen_scenario_centos_a7
     - .kitchen_test_step_by_step_agent
@@ -2102,12 +2115,16 @@ kitchen_ubuntu_install_script_dogstatsd-a7:
 
 kitchen_ubuntu_step_by_step_agent-a6:
   allow_failure: false
+  rules:
+    - <<: *if_triggered_6
   extends:
     - .kitchen_scenario_ubuntu_a6
     - .kitchen_test_step_by_step_agent
 
 kitchen_ubuntu_step_by_step_agent-a7:
   allow_failure: false
+  rules:
+    - <<: *if_triggered_7
   extends:
     - .kitchen_scenario_ubuntu_a7
     - .kitchen_test_step_by_step_agent
@@ -2187,12 +2204,16 @@ kitchen_suse_install_script_dogstatsd-a7:
 
 kitchen_suse_step_by_step_agent-a6:
   allow_failure: false
+  rules:
+    - <<: *if_triggered_6
   extends:
     - .kitchen_scenario_suse_a6
     - .kitchen_test_step_by_step_agent
 
 kitchen_suse_step_by_step_agent-a7:
   allow_failure: false
+  rules:
+    - <<: *if_triggered_7
   extends:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_step_by_step_agent
@@ -2273,12 +2294,16 @@ kitchen_debian_install_script_dogstatsd-a7:
 
 kitchen_debian_step_by_step_agent-a6:
   allow_failure: false
+  rules:
+    - <<: *if_triggered_6
   extends:
     - .kitchen_scenario_debian_a6
     - .kitchen_test_step_by_step_agent
 
 kitchen_debian_step_by_step_agent-a7:
   allow_failure: false
+  rules:
+    - <<: *if_triggered_7
   extends:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_step_by_step_agent
