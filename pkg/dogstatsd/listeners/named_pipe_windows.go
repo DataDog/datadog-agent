@@ -7,6 +7,7 @@
 package listeners
 
 import (
+	"bytes"
 	"io"
 	"net"
 	"sync"
@@ -95,8 +96,10 @@ func (l *NamedPipeListener) Listen() {
 
 func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 	log.Infof("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
+	startWriteIndex := 0
 	for {
-		n, err := conn.Read(buffer)
+		bytesRead, err := conn.Read(buffer[startWriteIndex:])
+
 		if err != nil {
 			if err == io.EOF {
 				log.Infof("dogstatsd-named-pipes: client disconnected from %s", conn.LocalAddr())
@@ -111,10 +114,26 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 			log.Errorf("dogstatsd-named-pipes: error reading packet: %v", err.Error())
 			namedPipeTelemetry.onReadError()
 		} else {
-			namedPipeTelemetry.onReadSuccess(n)
+			endIndex := startWriteIndex + bytesRead
 
-			// packetAssembler merges multiple packets together and sends them when its buffer is full
-			l.packetManager.packetAssembler.addMessage(buffer[:n])
+			// When there is no '\n', the message is partial. LastIndexByte returns -1 and messageSize is 0.
+			// If there is a '\n', at least one message is completed and '\n' is part of this message.
+			messageSize := bytes.LastIndexByte(buffer[:endIndex], '\n') + 1
+			if messageSize > 0 {
+				namedPipeTelemetry.onReadSuccess(messageSize)
+
+				// packetAssembler merges multiple packets together and sends them when its buffer is full
+				l.packetManager.packetAssembler.addMessage(buffer[:messageSize])
+			}
+
+			startWriteIndex = endIndex - messageSize
+
+			// If the message is bigger than the buffer size, reset startWriteIndex to continue reading next messages.
+			if startWriteIndex >= len(buffer) {
+				startWriteIndex = 0
+			} else {
+				copy(buffer, buffer[messageSize:endIndex])
+			}
 		}
 	}
 	conn.Close()
