@@ -19,18 +19,14 @@ type Policy struct {
 
 type Config struct {
 	Debug               bool
-	PerfMapPageCount    int
 	Policies            []Policy
-	MaxKernelFilters    int
 	EnableKernelFilters bool
 	SocketPath          string
 }
 
 func NewConfig() (*Config, error) {
 	c := &Config{
-		PerfMapPageCount:    aconfig.Datadog.GetInt("runtime_security_config.perf_map_page_count"),
 		Debug:               aconfig.Datadog.GetBool("runtime_security_config.debug"),
-		MaxKernelFilters:    aconfig.Datadog.GetInt("runtime_security_config.max_kernel_filters"),
 		EnableKernelFilters: aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		SocketPath:          aconfig.Datadog.GetString("runtime_security_config.socket"),
 	}
