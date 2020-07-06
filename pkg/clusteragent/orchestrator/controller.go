@@ -151,11 +151,13 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
+	// TODO: check here static pod, below needs to be changed, because depends on agent vs clusteragent
 	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
 	}
+	log.Errorf("pods from controller: %d", len(msg))
 
 	for _, m := range msg {
 		extraHeaders := make(http.Header)
