@@ -13,8 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
-	"github.com/DataDog/gopsutil/process"
-
 	assert "github.com/stretchr/testify/require"
 )
 
@@ -22,7 +20,8 @@ type processFixture struct {
 	name     string
 	resource compliance.Resource
 
-	processes    map[int32]*process.FilledProcess
+	processes    processes
+	useCache     bool
 	expectReport *report
 	expectError  error
 }
@@ -31,8 +30,10 @@ func (f *processFixture) run(t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 
-	cache.Cache.Delete(processCacheKey)
-	processFetcher = func() (map[int32]*process.FilledProcess, error) {
+	if !f.useCache {
+		cache.Cache.Delete(processCacheKey)
+	}
+	processFetcher = func() (processes, error) {
 		return f.processes, nil
 	}
 
@@ -58,7 +59,7 @@ func TestProcessCheck(t *testing.T) {
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
-			processes: map[int32]*process.FilledProcess{
+			processes: processes{
 				42: {
 					Name:    "proc1",
 					Cmdline: []string{"arg1", "--path=foo"},
@@ -81,7 +82,7 @@ func TestProcessCheck(t *testing.T) {
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
-			processes: map[int32]*process.FilledProcess{
+			processes: processes{
 				42: {
 					Name:    "proc2",
 					Cmdline: []string{"arg1", "--path=foo"},
@@ -103,7 +104,7 @@ func TestProcessCheck(t *testing.T) {
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
-			processes: map[int32]*process.FilledProcess{
+			processes: processes{
 				42: {
 					Name:    "proc1",
 					Cmdline: []string{"arg1", "--paths=foo"},
@@ -124,4 +125,53 @@ func TestProcessCheck(t *testing.T) {
 			tt.run(t)
 		})
 	}
+}
+
+func TestProcessCheckCache(t *testing.T) {
+	// Run first fixture, populating cache
+	firstContent := processFixture{
+		name: "simple case",
+		resource: compliance.Resource{
+			Process: &compliance.Process{
+				Name: "proc1",
+			},
+			Condition: `process.flag("--path") == "foo"`,
+		},
+		processes: processes{
+			42: {
+				Name:    "proc1",
+				Cmdline: []string{"arg1", "--path=foo"},
+			},
+		},
+		expectReport: &report{
+			passed: true,
+			data: event.Data{
+				"process.name":    "proc1",
+				"process.exe":     "",
+				"process.cmdLine": []string{"arg1", "--path=foo"},
+			},
+		},
+	}
+	firstContent.run(t)
+
+	// Run second fixture, using cache
+	secondFixture := processFixture{
+		name: "simple case",
+		resource: compliance.Resource{
+			Process: &compliance.Process{
+				Name: "proc1",
+			},
+			Condition: `process.flag("--path") == "foo"`,
+		},
+		useCache: true,
+		expectReport: &report{
+			passed: true,
+			data: event.Data{
+				"process.name":    "proc1",
+				"process.exe":     "",
+				"process.cmdLine": []string{"arg1", "--path=foo"},
+			},
+		},
+	}
+	secondFixture.run(t)
 }
