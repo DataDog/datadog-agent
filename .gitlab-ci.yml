@@ -3145,9 +3145,9 @@ dev_master_docker_hub-a7-windows:
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-amd64 datadog/agent-dev:master-py3-jmx-win1909
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
 
-      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag datadog/agent-dev:master-py3-win --image datadog/agent-dev:master-py3-win1809,windows/amd64 --image datadog/agent-dev:master-py3-win1909,windows/amd64
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-win --image datadog/agent-dev:master-py3-win1809,windows/amd64 --image datadog/agent-dev:master-py3-win1909,windows/amd64
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag datadog/agent-dev:master-py3-jmx-win --image datadog/agent-dev:master-py3-jmx-win1809,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win1909,windows/amd64
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-jmx-win --image datadog/agent-dev:master-py3-jmx-win1809,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win1909,windows/amd64
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
