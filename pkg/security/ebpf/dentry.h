@@ -16,7 +16,9 @@ struct path_key_t {
 
 struct path_leaf_t {
   struct path_key_t parent;
-  char name[64];
+  // TODO: reduce the amount of allocated structs during the resolution so that we can take this buffer to its max
+  // theoretical value (256), without reaching the eBPF stack max size.
+  char name[128];
 };
 
 struct bpf_map_def SEC("maps/pathnames") pathnames = {
