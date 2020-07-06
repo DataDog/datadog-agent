@@ -163,11 +163,6 @@ type IntArray struct {
 	Values []int
 }
 
-type AstToEvalError struct {
-	Pos  lexer.Position
-	Text string
-}
-
 func (s *state) UpdateTags(tags []string) {
 	for _, tag := range tags {
 		s.tags[tag] = true
@@ -226,22 +221,6 @@ func newState(model Model, field string, macros map[string]*MacroEvaluator) *sta
 	}
 }
 
-func (r *AstToEvalError) Error() string {
-	return fmt.Sprintf("%s: %s", r.Text, r.Pos)
-}
-
-func NewError(pos lexer.Position, text string) *AstToEvalError {
-	return &AstToEvalError{Pos: pos, Text: text}
-}
-
-func NewTypeError(pos lexer.Position, kind reflect.Kind) *AstToEvalError {
-	return NewError(pos, fmt.Sprintf("%s expected", kind))
-}
-
-func NewOpError(pos lexer.Position, op string) *AstToEvalError {
-	return NewError(pos, fmt.Sprintf("unknown operator %s", op))
-}
-
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {
 	switch obj := obj.(type) {
 	case *ast.BooleanExpression:
@@ -282,7 +261,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				}
 				return boolEvaluator, nil, obj.Pos, nil
 			}
-			return nil, nil, pos, NewOpError(obj.Pos, *obj.Op)
+			return nil, nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
 		}
 		return cmp, nil, obj.Pos, nil
 	case *ast.BitOperation:
@@ -327,7 +306,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				}
 				return IntEvaluator, nil, obj.Pos, nil
 			}
-			return nil, nil, pos, NewOpError(obj.Pos, *obj.Op)
+			return nil, nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
 		}
 		return unary, nil, obj.Pos, nil
 
@@ -396,7 +375,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 					}
 					return boolEvaluator, nil, obj.Pos, nil
 				}
-				return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
+				return nil, nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			case *StringEvaluator:
 				nextString, ok := next.(*StringEvaluator)
 				if !ok {
@@ -419,11 +398,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				case "=~", "!~":
 					eval, err := StringMatches(unary, nextString, *obj.ScalarComparison.Op == "!~", opts, state)
 					if err != nil {
-						return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
+						return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op, err)
 					}
 					return eval, nil, obj.Pos, nil
 				}
-				return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
+				return nil, nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			case *IntEvaluator:
 				nextInt, ok := next.(*IntEvaluator)
 				if !ok {
@@ -468,7 +447,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 					}
 					return boolEvaluator, nil, obj.Pos, nil
 				}
-				return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
+				return nil, nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			}
 		} else {
 			return unary, nil, pos, nil
@@ -510,7 +489,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 
 				return IntNot(unaryInt, opts, state), nil, pos, nil
 			}
-			return nil, nil, pos, NewOpError(obj.Pos, *obj.Op)
+			return nil, nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
 		}
 
 		return nodeToEvaluator(obj.Primary, opts, state)
