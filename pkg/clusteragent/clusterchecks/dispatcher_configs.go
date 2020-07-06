@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
 // getAllConfigs returns all configurations known to the store, for reporting
@@ -53,7 +54,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 
 	// No target node specified: store in danglingConfigs
 	if targetNodeName == "" {
-		danglingConfigs.Inc()
+		danglingConfigs.Inc(le.JoinLeaderValue)
 		d.store.danglingConfigs[digest] = config
 		return
 	}
@@ -122,7 +123,7 @@ func (d *dispatcher) retrieveAndClearDangling() []integration.Config {
 	defer d.store.Unlock()
 	configs := makeConfigArray(d.store.danglingConfigs)
 	d.store.clearDangling()
-	danglingConfigs.Set(0)
+	danglingConfigs.Set(0, le.JoinLeaderValue)
 	return configs
 }
 

@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
@@ -185,6 +186,14 @@ func StartAgent() error {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
+	// Setup Profiling
+	if config.Datadog.GetBool("profiling.enabled") {
+		err := settings.SetRuntimeSetting("profiling", true)
+		if err != nil {
+			log.Errorf("Error starting profiler: %v", err)
+		}
+	}
+
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	if config.Datadog.GetBool("telemetry.enabled") {
@@ -238,9 +247,6 @@ func StartAgent() error {
 		}
 	}
 
-	// is this instance running as an iot agent
-	var iotAgent bool = config.Datadog.GetBool("iot_host")
-
 	// start the GUI server
 	guiPort := config.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
@@ -259,14 +265,9 @@ func StartAgent() error {
 	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
 
-	agentName := "agent"
-	if iotAgent {
-		agentName = "iot_agent"
-	}
-
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(s, hostname, agentName)
+	agg := aggregator.InitAggregator(s, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
@@ -371,8 +372,11 @@ func StopAgent() {
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
+
 	logs.Stop()
 	gui.StopGUIServer()
+	profiler.Stop()
+
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

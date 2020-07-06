@@ -3,6 +3,6 @@ invoke==1.0.0
 reno==2.9.2
 dulwich==0.19.16
 docker==3.7.3
-requests==2.20.1
+requests==2.23.0
 PyYAML==5.3.1
 toml==0.9.4

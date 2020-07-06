@@ -14,8 +14,8 @@ from .build_tags import get_default_build_tags
 from .utils import get_build_flags, get_gopath
 from .bootstrap import get_deps, process_deps
 
-#We use `basestring` in the code for compat with python2 unicode strings.
-#This makes the same code work in python3 as well.
+# We use `basestring` in the code for compat with python2 unicode strings.
+# This makes the same code work in python3 as well.
 try:
     basestring
 except NameError:
@@ -37,7 +37,7 @@ MODULE_WHITELIST = [
     "allprocesses_windows.go",
     "allprocesses_windows_test.go",
     "adapters.go",  # pkg/util/winutil/iphelper
-    "routes.go",    # pkg/util/winutil/iphelper
+    "routes.go",  # pkg/util/winutil/iphelper
     # All
     "agent.pb.go",
     "bbscache_test.go",
@@ -52,10 +52,8 @@ MISSPELL_IGNORED_TARGETS = [
 ]
 
 # Packages that need go:generate
-GO_GENERATE_TARGETS = [
-    "./pkg/status",
-    "./cmd/agent/gui"
-]
+GO_GENERATE_TARGETS = ["./pkg/status", "./cmd/agent/gui"]
+
 
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
@@ -183,11 +181,15 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
         print("running golangci on {}".format(target))
-        ctx.run("golangci-lint run -c .golangci.yml --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)), env=env)
+        ctx.run(
+            "golangci-lint run -c .golangci.yml --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)),
+            env=env,
+        )
 
     # golangci exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("golangci-lint found no issues")
+
 
 @task
 def ineffassign(ctx, targets):
@@ -234,27 +236,39 @@ def misspell(ctx, targets):
     else:
         print("misspell found no issues")
 
+
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False):
+def deps(
+    ctx, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_bootstrap=False, no_dep_ensure=False,
+):
     """
     Setup Go dependencies
     """
-    deps = get_deps('deps')
-    order = deps.get("order", deps.keys())
-    for dependency in order:
-        tool = deps.get(dependency)
-        if not tool:
-            print("Malformed bootstrap JSON, dependency {} not found". format(dependency))
-            raise Exit(code=1)
-        print("processing checkout tool {}".format(dependency))
-        process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
+    if not no_bootstrap:
+        deps = get_deps('deps')
+        order = deps.get("order", deps.keys())
+        for dependency in order:
+            tool = deps.get(dependency)
+            if not tool:
+                print("Malformed bootstrap JSON, dependency {} not found".format(dependency))
+                raise Exit(code=1)
+            print("processing checkout tool {}".format(dependency))
+            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
 
-    order = deps.get("order", deps.keys())
-    for dependency in order:
-        tool = deps.get(dependency)
-        if tool.get('install', True):
-            print("processing get tool {}".format(dependency))
-            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', cmd=tool.get('cmd'), verbose=verbose)
+        order = deps.get("order", deps.keys())
+        for dependency in order:
+            tool = deps.get(dependency)
+            if tool.get('install', True):
+                print("processing get tool {}".format(dependency))
+                process_deps(
+                    ctx,
+                    dependency,
+                    tool.get('version'),
+                    tool.get('type'),
+                    'install',
+                    cmd=tool.get('cmd'),
+                    verbose=verbose,
+                )
 
     if android:
         ndkhome = os.environ.get('ANDROID_NDK_HOME')
@@ -262,8 +276,8 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
             print("set ANDROID_NDK_HOME to build android")
             raise Exit(code=1)
 
-        cmd = "gomobile init -ndk {}". format(ndkhome)
-        print("gomobile command {}". format(cmd))
+        cmd = "gomobile init -ndk {}".format(ndkhome)
+        print("gomobile command {}".format(cmd))
         ctx.run(cmd)
 
     if not no_dep_ensure:
@@ -301,25 +315,9 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
             print("Removing vendored golang.org/x/mobile")
             shutil.rmtree('vendor/golang.org/x/mobile')
 
-    checks_start = datetime.datetime.now()
-    if not no_checks:
-        verbosity = 'v' if verbose else 'q'
-        core_dir = core_dir or os.getenv('DD_CORE_DIR')
-
-        if core_dir:
-            checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
-            ctx.run('pip install -{} -e "{}[deps]"'.format(verbosity, checks_base))
-        else:
-            core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
-            checks_base = os.path.join(core_dir, 'datadog_checks_base')
-            if not os.path.isdir(core_dir):
-                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
-            ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
-    checks_done = datetime.datetime.now()
-
     if not no_dep_ensure:
         print("go mod vendor, elapsed: {}".format(dep_done - start))
-    print("checks install elapsed: {}".format(checks_done - checks_start))
+
 
 @task
 def lint_licenses(ctx, verbose=False):
@@ -329,7 +327,7 @@ def lint_licenses(ctx, verbose=False):
     print("Verify licenses")
 
     licenses = []
-    file='LICENSE-3rdparty.csv'
+    file = 'LICENSE-3rdparty.csv'
     with open(file, 'r') as f:
         next(f)
         for line in f:
@@ -378,34 +376,34 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
             f.write('{}\n'.format(license))
     print("licenses files generated")
 
+
 def get_licenses_list(ctx):
     result = ctx.run('{}/bin/wwhrd list --no-color'.format(get_gopath(ctx)), hide='err')
-    licenses=[]
+    licenses = []
     licenses.append('core,"github.com/frapposelli/wwhrd",MIT')
     if result.stderr:
-        for line in result.stderr.split("\n") :
+        for line in result.stderr.split("\n"):
             index = line.find('msg="Found License"')
             if index == -1:
                 continue
             license = ""
             package = ""
-            for val in line[index+len('msg="Found License"'):].split(" "):
+            for val in line[index + len('msg="Found License"') :].split(" "):
                 if val.startswith('license='):
-                    license = val[len('license='):]
+                    license = val[len('license=') :]
                 elif val.startswith('package='):
-                    package = val[len('package='):]
-                    licenses.append("core,{},{}".format(package,license))
+                    package = val[len('package=') :]
+                    licenses.append("core,{},{}".format(package, license))
     licenses.sort()
     return licenses
+
 
 @task
 def lint_licenses_old(ctx):
     # non-go deps that should be listed in the license file, but not in go.sum
-    NON_GO_DEPS = set([
-        'github.com/codemirror/CodeMirror',
-        'github.com/FortAwesome/Font-Awesome',
-        'github.com/jquery/jquery',
-    ])
+    NON_GO_DEPS = set(
+        ['github.com/codemirror/CodeMirror', 'github.com/FortAwesome/Font-Awesome', 'github.com/jquery/jquery',]
+    )
 
     # Read all dep names from go.sum
     go_deps = set()
@@ -430,10 +428,13 @@ def lint_licenses_old(ctx):
         license_deps.add('/'.join(entrysplit))
 
     if deps != license_deps:
-        raise Exit(message="LICENSE-3rdparty.csv is outdated compared to deps listed in go.sum:\n" +
-                           "missing from LICENSE-3rdparty.csv: {}\n".format(deps - license_deps) +
-                           "listed in LICENSE-3rdparty.csv but not in go.sum: {}".format(license_deps - deps),
-                   code=1)
+        raise Exit(
+            message="LICENSE-3rdparty.csv is outdated compared to deps listed in go.sum:\n"
+            + "missing from LICENSE-3rdparty.csv: {}\n".format(deps - license_deps)
+            + "listed in LICENSE-3rdparty.csv but not in go.sum: {}".format(license_deps - deps),
+            code=1,
+        )
+
 
 @task
 def reset(ctx):
@@ -451,6 +452,7 @@ def reset(ctx):
     # remove vendor folder
     print("Remove vendor folder")
     ctx.run("rm -rf ./vendor")
+
 
 @task
 def generate(ctx):

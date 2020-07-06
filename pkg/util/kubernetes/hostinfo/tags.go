@@ -32,7 +32,7 @@ func GetTags() ([]string, error) {
 
 func getDefaultLabelsToTags() map[string]string {
 	return map[string]string{
-		"kubernetes.io/role": "kube_node_role",
+		NormalizedRoleLabel: "kube_node_role",
 	}
 }
 
@@ -50,24 +50,13 @@ func extractTags(nodeLabels, labelsToTags map[string]string) []string {
 	tagList := utils.NewTagList()
 
 	for labelName, labelValue := range nodeLabels {
-		labelName, labelValue := labelPreprocessor(labelName, labelValue)
+		labelName, labelValue := LabelPreprocessor(labelName, labelValue)
 
 		if tagName, found := labelsToTags[strings.ToLower(labelName)]; found {
 			tagList.AddLow(tagName, labelValue)
 		}
 	}
 
-	tags, _, _ := tagList.Compute()
+	tags, _, _, _ := tagList.Compute()
 	return tags
-}
-
-func labelPreprocessor(labelName string, labelValue string) (string, string) {
-	switch {
-	// Kube label syntax guarantees that a valid name is present after /
-	// Label value is not used by Kube in this case
-	case strings.HasPrefix(labelName, "node-role.kubernetes.io/"):
-		return "kubernetes.io/role", labelName[24:]
-	}
-
-	return labelName, labelValue
 }

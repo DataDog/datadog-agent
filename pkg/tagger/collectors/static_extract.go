@@ -23,7 +23,7 @@ func (c *StaticCollector) getTagInfo(entity string) []*TagInfo {
 		tags.AddLow(tagParts[0], tagParts[1])
 	}
 
-	lowTags, _, _ := tags.Compute()
+	lowTags, _, _, _ := tags.Compute()
 
 	var tagInfoList []*TagInfo
 

@@ -7,6 +7,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -91,7 +92,7 @@ var checkCmd = &cobra.Command{
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		resolvedLogLevel, err := standalone.SetupCLI(loggerName, confFilePath, logLevel, "off")
+		resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, confFilePath, logLevel, "off")
 		if err != nil {
 			fmt.Printf("Cannot initialize command: %v\n", err)
 			return err
@@ -114,17 +115,9 @@ var checkCmd = &cobra.Command{
 			return err
 		}
 
-		// is this instance running as an iot agent
-		var iotAgent bool = config.Datadog.GetBool("iot_host")
-
-		agentName := aggregator.AgentName
-		if iotAgent {
-			agentName = aggregator.IotAgentName
-		}
-
 		s := serializer.NewSerializer(common.Forwarder)
 		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, agentName, 0)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {
@@ -391,6 +384,9 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
+		if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
+			return errors.New("tracemalloc is enabled but unavailable with python version 2")
+		}
 		return nil
 	},
 }

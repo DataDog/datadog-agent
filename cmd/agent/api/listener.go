@@ -12,11 +12,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// getIPCAddressPort returns a listening connection
+func getIPCAddressPort() (string, error) {
+	address, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%v:%v", address, config.Datadog.GetInt("cmd_port")), nil
+}
+
 // getListener returns a listening connection
 func getListener() (net.Listener, error) {
-	address, err := config.GetIPCAddress()
+	address, err := getIPCAddressPort()
 	if err != nil {
 		return nil, err
 	}
-	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, config.Datadog.GetInt("cmd_port")))
+	return net.Listen("tcp", address)
 }

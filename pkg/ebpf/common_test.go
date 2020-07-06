@@ -6,21 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLinuxKernelVersionCode(t *testing.T) {
-	// Some sanity checks
-	assert.Equal(t, linuxKernelVersionCode(2, 6, 9), uint32(132617))
-	assert.Equal(t, linuxKernelVersionCode(3, 2, 12), uint32(197132))
-	assert.Equal(t, linuxKernelVersionCode(4, 4, 0), uint32(263168))
-
-	assert.Equal(t, stringToKernelCode("2.6.9"), uint32(132617))
-	assert.Equal(t, stringToKernelCode("3.2.12"), uint32(197132))
-	assert.Equal(t, stringToKernelCode("4.4.0"), uint32(263168))
-
-	assert.Equal(t, kernelCodeToString(uint32(132617)), "2.6.9")
-	assert.Equal(t, kernelCodeToString(uint32(197132)), "3.2.12")
-	assert.Equal(t, kernelCodeToString(uint32(263168)), "4.4.0")
-}
-
 func TestVerifyKernelFuncs(t *testing.T) {
 	missing, err := verifyKernelFuncs("./testdata/kallsyms.supported")
 	assert.Empty(t, missing)
@@ -45,4 +30,29 @@ func TestSnakeToCamel(t *testing.T) {
 	} {
 		assert.Equal(t, exp, snakeToCapInitialCamel(test))
 	}
+}
+
+func TestProcessHeaders(t *testing.T) {
+	testFile := "pkg/ebpf/testdata/test-asset.c"
+	source, err := processHeaders(testFile)
+
+	sourceString := source.String()
+
+	// Assert err is nil
+	assert.Nil(t, err, err)
+
+	// Assert negative examples source should not contain
+	assert.NotContains(t, sourceString, "linux/sched.h")
+	assert.NotContains(t, sourceString, "linux/stdio.h")
+
+	// Assert examples of what source should contain
+	assert.Contains(t, sourceString, "linux/oom.h")
+	assert.Contains(t, sourceString, "linux/tcp.h")
+	assert.Contains(t, sourceString, "linux/bpf.h")
+
+	// Assert test-header.h content is present
+	assert.Contains(t, sourceString, "TEST_H")
+	assert.Contains(t, sourceString, "linux/types.h")
+	assert.Contains(t, sourceString, "SOME_CONSTANT")
+	assert.Contains(t, sourceString, "test_struct")
 }

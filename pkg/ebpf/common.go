@@ -2,12 +2,16 @@ package ebpf
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"os"
+	"regexp"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
-	"os"
-	"strings"
 )
 
 // Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
@@ -25,25 +29,10 @@ var requiredKernelFuncs = []string{
 var (
 	// ErrNotImplemented will be returned on non-linux environments like Windows and Mac OSX
 	ErrNotImplemented = errors.New("BPF-based system probe not implemented on non-linux systems")
+
+	// CIncludePattern is the regex for #include headers of C files
+	CIncludePattern = `^\s*#\s*include\s+"(.*)"$`
 )
-
-func kernelCodeToString(code uint32) string {
-	// Kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-	a, b, c := code>>16, code>>8&0xff, code&0xff
-	return fmt.Sprintf("%d.%d.%d", a, b, c)
-}
-
-func stringToKernelCode(str string) uint32 {
-	var a, b, c uint32
-	fmt.Sscanf(str, "%d.%d.%d", &a, &b, &c)
-	return linuxKernelVersionCode(a, b, c)
-}
-
-// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
-// Per https://github.com/torvalds/linux/blob/master/Makefile#L1187
-func linuxKernelVersionCode(major, minor, patch uint32) uint32 {
-	return (major << 16) + (minor << 8) + patch
-}
 
 // IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
 // along with some context on why it's not supported
@@ -124,4 +113,31 @@ func snakeToCapInitialCamel(s string) string {
 		}
 	}
 	return n
+}
+
+// processHeaders processes the `#include` of embedded headers.
+func processHeaders(fileName string) (bytes.Buffer, error) {
+	sourceRaw, err := bytecode.Asset(fileName)
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+
+	// Note that embedded headers including other embedded headers is not managed because
+	// this would also require to properly handle inclusion guards.
+	includeRegexp := regexp.MustCompile(CIncludePattern)
+	var source bytes.Buffer
+	scanner := bufio.NewScanner(bytes.NewBuffer(sourceRaw))
+	for scanner.Scan() {
+		match := includeRegexp.FindSubmatch(scanner.Bytes())
+		if len(match) == 2 {
+			header, err := bytecode.Asset(string(match[1]))
+			if err == nil {
+				source.Write(header)
+				continue
+			}
+		}
+		source.Write(scanner.Bytes())
+		source.WriteByte('\n')
+	}
+	return source, nil
 }

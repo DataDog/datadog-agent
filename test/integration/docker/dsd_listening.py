@@ -5,7 +5,9 @@ import os
 # The DOCKER_IMAGE envvar is needed to specify what
 # image to test
 
-SOCKET_PATH = "/tmp/statsd.socket"
+# The `docker` library gives all output from containers as raw bytes, so
+# we need to use byte string literals for comparison/membership tests
+SOCKET_PATH = b"/tmp/statsd.socket"
 
 COMMON_ENVIRONMENT = [
     "DD_DD_URL=http://dummy",
@@ -14,14 +16,8 @@ COMMON_ENVIRONMENT = [
 
 ENVIRONMENTS = {
     "udp": [],
-    "uds": [
-        "DD_DOGSTATSD_SOCKET=" + SOCKET_PATH,
-        "DD_DOGSTATSD_PORT=0"
-    ],
-    "both": [
-        "DD_DOGSTATSD_SOCKET=" + SOCKET_PATH,
-        "DD_DOGSTATSD_PORT=8125"
-    ]
+    "uds": ["DD_DOGSTATSD_SOCKET=" + SOCKET_PATH.decode('utf-8'), "DD_DOGSTATSD_PORT=0"],
+    "both": ["DD_DOGSTATSD_SOCKET=" + SOCKET_PATH.decode('utf-8'), "DD_DOGSTATSD_PORT=8125"],
 }
 
 containers = {}
@@ -36,10 +32,7 @@ def setUpModule():
 
     for name, env in ENVIRONMENTS.items():
         containers[name] = client.containers.run(
-            os.environ.get('DOCKER_IMAGE'),
-            detach=True,
-            environment=COMMON_ENVIRONMENT + env,
-            auto_remove=True
+            os.environ.get('DOCKER_IMAGE'), detach=True, environment=COMMON_ENVIRONMENT + env, auto_remove=True
         )
 
 
@@ -54,14 +47,14 @@ def tearDownModule():
 def waitUntilListening(container, retries=20):
     for _ in range(0, retries):
         out = container.exec_run(cmd="netstat -a").output
-        if ":8125" in out or SOCKET_PATH in out:
+        if b":8125" in out or SOCKET_PATH in out:
             return True
     return False
 
 
 def isUDPListening(container):
     out = container.exec_run(cmd="netstat -a").output
-    return ":8125" in out
+    return b":8125" in out
 
 
 def isUDSListening(container, retries=10):
@@ -81,9 +74,9 @@ class DSDStaticTest(unittest.TestCase):
             environment=COMMON_ENVIRONMENT,
             auto_remove=True,
             stdout=True,
-            command='sh -c "apk add --no-cache file && file /dogstatsd"'
+            command='sh -c "apk add --no-cache file && file /dogstatsd"',
         )
-        self.assertIn("statically linked", fileOutput)
+        self.assertIn(b"statically linked", fileOutput)
 
 
 class DSDListeningTest(unittest.TestCase):

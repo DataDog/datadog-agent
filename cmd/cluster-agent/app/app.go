@@ -179,7 +179,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.ClusterAgentName)
+	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -319,6 +319,18 @@ func start(cmd *cobra.Command, args []string) error {
 			errServ := server.Run(mainCtx, apiCl.Cl)
 			if errServ != nil {
 				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
+			}
+		}()
+	}
+
+	// Compliance
+	if config.Datadog.GetBool("compliance_config.enabled") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			if err := runCompliance(mainCtx); err != nil {
+				log.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
 	}

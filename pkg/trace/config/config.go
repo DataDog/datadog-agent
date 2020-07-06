@@ -135,7 +135,6 @@ func New() *AgentConfig {
 
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,
-		ConnectionLimit: 2000,
 		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
 		StatsWriter:             new(WriterConfig),
@@ -261,7 +260,7 @@ func prepareConfig(path string) (*AgentConfig, error) {
 	// we'll resolve secrets later, after loading environment variable values too,
 	// in order to make sure that any potential secret references present in environment
 	// variables get counted.
-	if err := config.LoadWithoutSecret(); err != nil {
+	if _, err := config.LoadWithoutSecret(); err != nil {
 		return cfg, err
 	}
 	cfg.ConfigPath = path

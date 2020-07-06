@@ -60,25 +60,5 @@ class TestFiles(unittest.TestCase):
                 self.assertFalse(has_write_permissions(os.path.join(root, name)))
 
 
-def correct_permissions(root):
-    def correct_perm(path):
-        try:
-            mode = os.stat(path).st_mode
-        except Exception:
-            return
-
-        if bool(mode & stat.S_IWOTH):
-            mode -= mode & (stat.S_IWGRP | stat.S_IWOTH)
-            print("Changing permissions for: ", path)
-            os.chmod(path, mode)
-
-    for root, dirs, files in os.walk(root):
-        for name in files:
-            correct_perm(os.path.join(root, name))
-        for name in dirs:
-            correct_perm(os.path.join(root, name))
-
-
 if __name__ == "__main__":
-    correct_permissions("/etc")
     unittest.main()

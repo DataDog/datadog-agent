@@ -5,7 +5,8 @@
 #include <net/inet_sock.h>
 #include <linux/tcp.h>
 
-#include "tcp-queue-length-kern-user.h"
+#include "pkg/ebpf/c/bpf-common.h"
+#include "pkg/ebpf/c/tcp-queue-length-kern-user.h"
 
 /*
  * The `queue` map is used to share with the userland program system-probe
@@ -45,25 +46,8 @@ static inline int check_sock(struct sock *sk) {
    */
   if (s->pid == 0) {
     s->pid = bpf_get_current_pid_tgid() >> 32;
-
-    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
-    struct css_set *css_set;
-    if (!bpf_probe_read(&css_set, sizeof(css_set), &cur_tsk->cgroups)) {
-      struct cgroup_subsys_state *css;
-      // TODO: Do not arbitrarily pick the first subsystem
-      if (!bpf_probe_read(&css, sizeof(css), &css_set->subsys[0])) {
-        struct cgroup *cgrp;
-        if (!bpf_probe_read(&cgrp, sizeof(cgrp), &css->cgroup)) {
-          struct kernfs_node *kn;
-          if (!bpf_probe_read(&kn, sizeof(kn), &cgrp->kn)) {
-            const char *name;
-            if (!bpf_probe_read(&name, sizeof(name), &kn->name)) {
-              bpf_probe_read_str(&s->cgroup_name, sizeof(s->cgroup_name), name);
-            }
-          }
-        }
-      }
-    }
+    // From bpf-common.h
+    get_cgroup_name(s->cgroup_name, sizeof(s->cgroup_name));
 
     const struct inet_sock *ip = inet_sk(sk);
     bpf_probe_read(&s->conn.saddr, sizeof(s->conn.saddr), &ip->inet_saddr);

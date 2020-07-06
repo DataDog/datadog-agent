@@ -80,6 +80,16 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ConntrackRateLimit = config.Datadog.GetInt(key(spNS, "conntrack_rate_limit"))
 	}
 
+	// When reading kernel structs at different offsets, don't go over the threshold
+	// This defaults to 400 and has a max of 3000. These are arbitrary choices to avoid infinite loops.
+	if th := config.Datadog.GetInt(key(spNS, "offset_guess_threshold")); th > 0 {
+		if th < maxOffsetThreshold {
+			a.OffsetGuessThreshold = uint64(th)
+		} else {
+			log.Warn("offset_guess_threshold exceeds maximum of 3000. Setting it to the default of 400")
+		}
+	}
+
 	if logFile := config.Datadog.GetString(key(spNS, "log_file")); logFile != "" {
 		a.LogFile = logFile
 	}
@@ -137,6 +147,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
 		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
+	}
+
+	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
+		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
 	}
 
 	return nil

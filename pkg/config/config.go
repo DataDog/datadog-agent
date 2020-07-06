@@ -58,18 +58,9 @@ var (
 	proxies *Proxy
 )
 
-//Values for AgentFlavor below
-const (
-	DefaultAgentFlavor = "agent"
-	IotAgentFlavor     = "iot_agent"
-	ClusterAgentFlavor = "cluster_agent"
-	DogstatsdFlavor    = "dogstatsd"
-)
-
 // Variables to initialize at build time
 var (
 	DefaultPython string
-	AgentFlavor   = DefaultAgentFlavor
 
 	// ForceDefaultPython has its value set to true at compile time if we should ignore
 	// the Python version set in the configuration and use `DefaultPython` instead.
@@ -127,16 +118,21 @@ type MetricMapping struct {
 	Tags      map[string]string `mapstructure:"tags"`
 }
 
+// Warnings represent the warnings in the config
+type Warnings struct {
+	TraceMallocEnabledWithPy2 bool
+}
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	initConfig(Datadog)
+	InitConfig(Datadog)
 }
 
-// initConfig initializes the config defaults on a config
-func initConfig(config Config) {
+// InitConfig initializes the config defaults on a config
+func InitConfig(config Config) {
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site")   //nolint:errcheck
@@ -179,7 +175,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
-	config.BindEnvAndSetDefault("iot_host", AgentFlavor == IotAgentFlavor)
+
+	// overridden in IoT Agent main
+	config.BindEnvAndSetDefault("iot_host", false)
 
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
@@ -480,6 +478,10 @@ func initConfig(config Config) {
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
 
+	// Profiling
+	config.BindEnvAndSetDefault("profiling.enabled", false)
+	config.BindEnv("profiling.profile_dd_url", "") //nolint:errcheck
+
 	// Trace agent
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
 	// since some of them require custom parsing algorithms. DO NOT add environment variable
@@ -609,6 +611,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
+	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -675,6 +678,9 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.closed_channel_size")
 	config.SetKnown("system_probe_config.dns_timeout_in_s")
 	config.SetKnown("system_probe_config.collect_dns_stats")
+	config.SetKnown("system_probe_config.offset_guess_threshold")
+	config.SetKnown("system_probe_config.enable_tcp_queue_length")
+	config.SetKnown("system_probe_config.enable_oom_kill")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -727,7 +733,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
 	// Datadog security agent (compliance)
-	config.BindEnvAndSetDefault("compliance_config.enabled", true)
+	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
@@ -824,12 +830,12 @@ func loadProxyFromEnv(config Config) {
 }
 
 // Load reads configs files and initializes the config module
-func Load() error {
+func Load() (*Warnings, error) {
 	return load(Datadog, "datadog.yaml", true)
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret() error {
+func LoadWithoutSecret() (*Warnings, error) {
 	return load(Datadog, "datadog.yaml", false)
 }
 
@@ -856,10 +862,12 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
-func load(config Config, origin string, loadSecret bool) error {
+func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
+	warnings := Warnings{}
+
 	if err := config.ReadInConfig(); err != nil {
 		log.Warnf("Error loading config: %v", err)
-		return err
+		return &warnings, err
 	}
 
 	for _, key := range findUnknownKeys(config) {
@@ -868,7 +876,7 @@ func load(config Config, origin string, loadSecret bool) error {
 
 	if loadSecret {
 		if err := ResolveSecrets(config, origin); err != nil {
-			return err
+			return &warnings, err
 		}
 	}
 
@@ -890,9 +898,9 @@ func load(config Config, origin string, loadSecret bool) error {
 	SanitizeAPIKeyConfig(config, "api_key")
 	applyOverrides(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
-	setTracemallocEnabled(config)
+	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
-	return nil
+	return &warnings, nil
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -1161,16 +1169,19 @@ func applyOverrides(config Config) {
 
 // setTracemallocEnabled is a helper to get the effective tracemalloc
 // configuration.
-func setTracemallocEnabled(config Config) {
+func setTracemallocEnabled(config Config) bool {
 	pyVersion := config.GetString("python_version")
 	wTracemalloc := config.GetBool("tracemalloc_debug")
+	traceMallocEnabledWithPy2 := false
 	if pyVersion == "2" && wTracemalloc {
 		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
 		wTracemalloc = false
+		traceMallocEnabledWithPy2 = true
 	}
 
 	// update config with the actual effective tracemalloc
 	config.Set("tracemalloc_debug", wTracemalloc)
+	return traceMallocEnabledWithPy2
 }
 
 // setNumWorkers is a helper to set the effective number of workers for

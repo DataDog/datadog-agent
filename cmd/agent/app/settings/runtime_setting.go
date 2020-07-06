@@ -17,6 +17,12 @@ type SettingNotFoundError struct {
 	name string
 }
 
+// RuntimeSettingResponse is used to communicate settings config
+type RuntimeSettingResponse struct {
+	Description string
+	Hidden      bool
+}
+
 func (e *SettingNotFoundError) Error() string {
 	return fmt.Sprintf("setting %s not found", e.name)
 }
@@ -27,6 +33,7 @@ type RuntimeSetting interface {
 	Set(v interface{}) error
 	Name() string
 	Description() string
+	Hidden() bool
 }
 
 // InitRuntimeSettings builds the map of runtime settings configurable at runtime.
@@ -38,6 +45,10 @@ func InitRuntimeSettings() error {
 	if err := registerRuntimeSetting(dsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
 		return err
 	}
+	if err := registerRuntimeSetting(profilingRuntimeSetting("profiling")); err != nil {
+		return err
+	}
+
 	return nil
 }
 

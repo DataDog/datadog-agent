@@ -30,7 +30,7 @@ var (
 	// Coll is the global collector instance
 	Coll *collector.Collector
 
-	// DSD is the global dogstastd instance
+	// DSD is the global dogstatsd instance
 	DSD *dogstatsd.Server
 
 	// MetadataScheduler is responsible to orchestrate metadata collection

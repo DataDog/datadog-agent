@@ -111,10 +111,10 @@ func runAgent(ctx context.Context) (err error) {
 
 	// a path to the folder containing the config file was passed
 	if len(confPath) != 0 {
-		// we'll search for a config file named `dogstastd.yaml`
+		// we'll search for a config file named `dogstatsd.yaml`
 		config.Datadog.SetConfigName("dogstatsd")
 		config.Datadog.AddConfigPath(confPath)
-		confErr := config.Load()
+		_, confErr := config.Load()
 		if confErr != nil {
 			log.Error(confErr)
 		} else {
@@ -202,7 +202,7 @@ func runAgent(ctx context.Context) (err error) {
 		tagger.Init()
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname, aggregator.DogStatsDStandAloneName)
+	aggregatorInstance := aggregator.InitAggregator(s, hname)
 
 	statsd, err = dogstatsd.NewServer(aggregatorInstance)
 	if err != nil {

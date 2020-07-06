@@ -12,8 +12,20 @@ from .utils import REPO_PATH
 from .go import generate
 
 
-def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_include,
-                 build_exclude, race, development, skip_assets, go_mod="vendor"):
+def build_common(
+    ctx,
+    command,
+    bin_path,
+    build_tags,
+    bin_suffix,
+    rebuild,
+    build_include,
+    build_exclude,
+    race,
+    development,
+    skip_assets,
+    go_mod="vendor",
+):
     """
     Build Cluster Agent
     """
@@ -23,7 +35,7 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
     build_tags = get_build_tags(build_include, build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca', agent_flavor="cluster_agent")
+    ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca')
 
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
@@ -35,8 +47,7 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
-        "bin_name": os.path.join(
-            bin_path, bin_name("datadog-cluster-agent{suffix}".format(suffix=bin_suffix))),
+        "bin_name": os.path.join(bin_path, bin_name("datadog-cluster-agent{suffix}".format(suffix=bin_suffix))),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
@@ -48,20 +59,16 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
     #
     # We need to remove cross compiling bits if any because go generate must
     # build and execute in the native platform
-    env.update({
-        "GOOS": "",
-        "GOARCH": "",
-    })
+    env.update(
+        {"GOOS": "", "GOARCH": "",}
+    )
 
     cmd = "go generate -mod={go_mod} -tags '{build_tags}' {repo_path}/cmd/cluster-agent{suffix}"
     ctx.run(cmd.format(go_mod=go_mod, build_tags=" ".join(build_tags), repo_path=REPO_PATH, suffix=bin_suffix), env=env)
 
     if not skip_assets:
         refresh_assets_common(
-            ctx,
-            bin_path,
-            [os.path.join("./Dockerfiles/cluster-agent", "dist")],
-            development=development
+            ctx, bin_path, [os.path.join("./Dockerfiles/cluster-agent", "dist")], development=development
         )
 
 
@@ -75,7 +82,7 @@ def refresh_assets_common(ctx, bin_path, additional_dist_folders, development):
 
     dist_folders = [
         os.path.join(bin_path, "dist"),
-        ]
+    ]
     dist_folders.extend(additional_dist_folders)
     for dist_folder in dist_folders:
         if os.path.exists(dist_folder):
