@@ -40,6 +40,7 @@ type TrapServer struct {
 	Started bool
 
 	listeners   []TrapListener
+	running     []bool
 	output      OutputChannel
 	stopTimeout time.Duration
 }
@@ -51,6 +52,7 @@ var (
 )
 
 // NewTrapServer configures and returns a running SNMP traps server.
+// Misconfigured listeners are be dropped, allowing valid listeners to start in all cases.
 func NewTrapServer() (*TrapServer, error) {
 	var configs []TrapListenerConfig
 	err := config.Datadog.UnmarshalKey("snmp_traps_listeners", &configs)
@@ -63,6 +65,7 @@ func NewTrapServer() (*TrapServer, error) {
 
 	output := make(OutputChannel, outputChannelSize)
 	listeners := make([]TrapListener, 0, len(configs))
+	running := make([]bool, 0, len(configs))
 
 	for _, c := range configs {
 		bindHost := c.BindHost
@@ -71,62 +74,51 @@ func NewTrapServer() (*TrapServer, error) {
 		}
 		listener, err := NewTrapListener(bindHost, c, output)
 		if err != nil {
-			return nil, err
+			// Don't return the error, we still want to run other valid listeners.
+			log.Errorf("snmp-traps: failed to create listener on port %d: %s", c.Port, err)
+			continue
 		}
 
 		listeners = append(listeners, *listener)
+		running = append(running, false)
 	}
 
 	s := &TrapServer{
 		Started:     false,
 		listeners:   listeners,
+		running:     running,
 		output:      output,
 		stopTimeout: stopTimeout,
 	}
 
-	err = s.start()
-	if err != nil {
-		return nil, err
-	}
+	s.start()
 
 	return s, nil
 }
 
 // start spawns listeners in the background, and waits for them to be ready to accept traffic, handling any errors.
-func (s *TrapServer) start() error {
+func (s *TrapServer) start() {
 	wg := new(sync.WaitGroup)
-	allReady := make(chan struct{})
-	readyErrors := make(chan error)
-
 	wg.Add(len(s.listeners))
 
-	for _, l := range s.listeners {
+	for idx, l := range s.listeners {
+		idx := idx
 		l := l
 		go l.Listen()
 		go func() {
 			defer wg.Done()
 			err := l.WaitReadyOrError()
-			if err != nil {
-				readyErrors <- err
+			if err == nil {
+				s.running[idx] = true
+			} else {
+				log.Errorf("snmp-traps: listener %s failed to start: %s", l.Addr(), err)
 			}
 		}()
 	}
 
-	go func() {
-		wg.Wait()
-		close(allReady)
-	}()
-
-	select {
-	case <-allReady:
-	case err := <-readyErrors:
-		close(readyErrors)
-		return err
-	}
+	wg.Wait()
 
 	s.Started = true
-
-	return nil
 }
 
 // Output returns the channel which listeners feed trap packets to.
@@ -134,23 +126,33 @@ func (s *TrapServer) Output() OutputChannel {
 	return s.output
 }
 
-// NumListeners returns the number of listeners managed by this server.
-func (s *TrapServer) NumListeners() int {
-	return len(s.listeners)
+// NumRunningListeners returns the number of listeners running in this server.
+func (s *TrapServer) NumRunningListeners() int {
+	num := 0
+	for _, running := range s.running {
+		if running {
+			num++
+		}
+	}
+	return num
 }
 
 // Stop stops the TrapServer.
 func (s *TrapServer) Stop() {
 	wg := new(sync.WaitGroup)
-	stopped := make(chan bool)
+	stopped := make(chan interface{})
 
 	wg.Add(len(s.listeners))
 
-	for _, listener := range s.listeners {
+	for idx, listener := range s.listeners {
+		idx := idx
 		l := listener
 		go func() {
 			defer wg.Done()
-			l.Stop()
+			if s.running[idx] {
+				l.Stop()
+				s.running[idx] = false
+			}
 		}()
 	}
 

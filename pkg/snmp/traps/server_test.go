@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -100,6 +99,9 @@ func TestPortConflict(t *testing.T) {
 	b.Configure()
 
 	s, err := NewTrapServer()
-	require.Error(t, err)
-	assert.Nil(t, s)
+	require.NotNil(t, s)
+	require.NoError(t, err)
+	require.True(t, s.Started)
+	defer s.Stop()
+	require.Equal(t, 1, s.NumRunningListeners()) // Second listener didn't start.
 }

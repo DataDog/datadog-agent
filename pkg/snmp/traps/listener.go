@@ -64,6 +64,11 @@ func validateCredentials(p *gosnmp.SnmpPacket, config TrapListenerConfig) bool {
 	return false
 }
 
+// Addr returns the listener socket address.
+func (ln *TrapListener) Addr() string {
+	return ln.addr
+}
+
 // Listen runs the packet reception and processing loop.
 func (ln *TrapListener) Listen() {
 	log.Infof("snmp-traps: starting to listen on %s", ln.addr)
@@ -90,6 +95,7 @@ func (ln *TrapListener) WaitReadyOrError() error {
 }
 
 // Stop stops accepting incoming packets and closes the socket connection.
+// Should only be called if the listener is currently running.
 func (ln *TrapListener) Stop() {
 	log.Debugf("snmp-traps: stopping %s", ln.addr)
 	ln.impl.Close()
