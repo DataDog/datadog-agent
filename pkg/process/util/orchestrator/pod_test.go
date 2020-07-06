@@ -727,3 +727,15 @@ func TestChunkPods(t *testing.T) {
 	actual := chunkPods(pods, 3, 2)
 	assert.ElementsMatch(t, expected, actual)
 }
+
+func TestGenerateUniqueStaticPodHash(t *testing.T) {
+	hostName := "agent-dev-tim"
+	podName := "nginxP"
+	namespace := "kube-system"
+	clusterName := "something"
+
+	uniqueHash := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
+	uniqueHashAgain := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
+
+	assert.Equal(t, uniqueHash, uniqueHashAgain)
+}

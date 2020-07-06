@@ -9,6 +9,9 @@ package orchestrator
 
 import (
 	"fmt"
+	"hash/fnv"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/kubelet/pod"
 	"strconv"
 	"time"
 
@@ -36,6 +39,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
 	for p := 0; p < len(podList); p++ {
+
 		// extract pod info
 		podModel := extractPodMessage(podList[p])
 
@@ -46,6 +50,12 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			continue
 		}
 		podModel.Tags = tags
+
+		// for static pods we want generate a uid, as we use uid in the backend as documentID for ES
+		// we differ from the k8 uuid format in purpose to differentiate static pods from the frontend
+		if pod.IsStaticPod(podList[p]) {
+			podList[p].UID = types.UID(generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName))
+		}
 
 		// scrub & generate YAML
 		for c := 0; c < len(podList[p].Spec.Containers); c++ {
@@ -365,4 +375,16 @@ func GetConditionMessage(p *v1.Pod) string {
 		}
 	}
 	return ""
+}
+
+// this should generate a unique id because:
+// postName + namespace = unique per host
+// postName + namespace + host + clustername = unique
+func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) string {
+	h := fnv.New64()
+	_, _ = h.Write([]byte(host))
+	_, _ = h.Write([]byte(podName))
+	_, _ = h.Write([]byte(namespace))
+	_, _ = h.Write([]byte(clusterName))
+	return strconv.FormatUint(h.Sum64(), 16)
 }
