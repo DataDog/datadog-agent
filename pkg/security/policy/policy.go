@@ -43,7 +43,7 @@ type Policy struct {
 // PolicySet - Regroups the macros and the rules of multiple policies in a usable format by the ruleset
 type PolicySet struct {
 	// Rules holds the list of merged rule definitions, indexed by their IDs
-	Rules  map[string]*RuleDefinition
+	Rules map[string]*RuleDefinition
 	// Macros holds the list of merged macro asts, indexed by their ID
 	Macros map[string]*MacroDefinition
 }
