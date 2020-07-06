@@ -3,7 +3,6 @@ package eval
 import (
 	"regexp"
 	"sort"
-	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -38,7 +37,30 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	}
 }
 
+func patternToRegexp(pattern string) (*regexp.Regexp, error) {
+	// only accept suffix wilcard, ex: /etc/* or /etc/*.conf
+	if matched, err := regexp.Match(`\*.*/`, []byte(pattern)); err != nil || matched {
+		return nil, &InvalidPattern{Pattern: pattern}
+	}
+
+	// quote eveything except wilcard
+	re := regexp.MustCompile(`[\.*+?()|\[\]{}^$]`)
+	quoted := re.ReplaceAllStringFunc(pattern, func(s string) string {
+		if s != "*" {
+			return "\\" + s
+		}
+		return ".*"
+	})
+
+	return regexp.Compile("^" + string(quoted) + "$")
+}
+
 func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+	re, err := patternToRegexp(b.Value)
+	if err != nil {
+		return nil, err
+	}
+
 	if b.EvalFnc != nil {
 		return nil, errors.New("regex has to be a scalar string")
 	}
@@ -46,16 +68,6 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
-	}
-
-	p := strings.ReplaceAll(b.Value, "*", ".*")
-	// make sure we match the requested pattern and not *pattern*
-	p = strings.ReplaceAll(p, "^", "\\^")
-	p = strings.ReplaceAll(p, "$", "\\$")
-	p = "^" + p + "$"
-	re, err := regexp.Compile(p)
-	if err != nil {
-		return nil, err
 	}
 
 	if a.Field != "" {
@@ -81,7 +93,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 				if not {
 					return !result
 				}
-				ctx.Logf("Evaluating %s ~= %s => %v", op, p, result)
+				ctx.Logf("Evaluating %s ~= %s => %v", op, re.String(), result)
 				ctx.evalDepth--
 				return result
 			},
