@@ -731,8 +731,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
-	config.BindEnvAndSetDefault("runtime_security_config.perf_map_page_count", 128)
-	config.BindEnvAndSetDefault("runtime_security_config.max_kernel_filters", 128)
 	config.BindEnvAndSetDefault("runtime_security_config.policies", []interface{}{})
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
