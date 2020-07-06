@@ -1,8 +1,9 @@
 package probe
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+	
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMountResolver(t *testing.T) {
