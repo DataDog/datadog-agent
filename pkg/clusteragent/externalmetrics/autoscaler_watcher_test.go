@@ -223,6 +223,14 @@ func TestCreateAutogenDatadogMetrics(t *testing.T) {
 				},
 			},
 		}),
+		newFakeHorizontalPodAutoscaler("ns0", "hpa1", []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName: "datadogmetric@ns0:donotexist",
+				},
+			},
+		}),
 	}
 
 	f.wpaLister = []*datadoghq.WatermarkPodAutoscaler{

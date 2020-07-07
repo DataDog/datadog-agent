@@ -1,3 +1,5 @@
+// +build linux windows
+
 package main
 
 import (
@@ -34,6 +36,7 @@ type SystemProbe struct {
 	conn   net.Conn
 
 	tcpQueueLengthTracer *ebpf.TCPQueueLengthTracer
+	oomKillProbe         *ebpf.OOMKillProbe
 }
 
 // CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
@@ -62,6 +65,17 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		log.Infof("TCP queue length tracer disabled")
 	}
 
+	var okp *ebpf.OOMKillProbe
+	if cfg.CheckIsEnabled("OOM Kill") {
+		log.Infof("Starting the OOM Kill probe")
+		okp, err = ebpf.NewOOMKillProbe()
+		if err != nil {
+			log.Errorf("unable to start the OOM kill probe: %v", err)
+		}
+	} else {
+		log.Info("OOM kill probe disabled")
+	}
+
 	// Setting up the unix socket
 	conn, err := net.NewListener(cfg)
 	if err != nil {
@@ -71,6 +85,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	return &SystemProbe{
 		tracer:               t,
 		tcpQueueLengthTracer: tqlt,
+		oomKillProbe:         okp,
 		cfg:                  cfg,
 		conn:                 conn,
 	}, nil
@@ -150,6 +165,17 @@ func (nt *SystemProbe) Run() {
 			return
 		}
 		stats := nt.tcpQueueLengthTracer.GetAndFlush()
+
+		writeAsJSON(w, stats)
+	})
+
+	httpMux.HandleFunc("/check/oom_kill", func(w http.ResponseWriter, req *http.Request) {
+		if nt.oomKillProbe == nil {
+			log.Errorf("OOM kill probe was not properly initialized")
+			w.WriteHeader(500)
+			return
+		}
+		stats := nt.oomKillProbe.GetAndFlush()
 
 		writeAsJSON(w, stats)
 	})

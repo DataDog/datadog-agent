@@ -123,6 +123,7 @@ Vagrantfile
 packer.json
 *.box
 devenv/iso
+devenv/output-virtualbox-iso/
 devenv/packer_cache
 
 # doxygen doc & error log
@@ -135,3 +136,6 @@ integrations-core/
 # file generated for templates
 pkg/status/templates.go
 cmd/agent/gui/templates.go
+
+# netlink message dump test files
+pkg/network/netlink/testdata/message_dump*

@@ -255,7 +255,7 @@ func loadConfigIfExists(path string) error {
 			config.Datadog.SetConfigFile(path)
 		}
 
-		if err := config.LoadWithoutSecret(); err != nil {
+		if _, err := config.LoadWithoutSecret(); err != nil {
 			return err
 		}
 	} else {

@@ -11,38 +11,62 @@ sending commands and receiving infos.
 package api
 
 import (
+	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	stdLog "log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/gorilla/mux"
+	hostutil "github.com/DataDog/datadog-agent/pkg/util"
+	gorilla "github.com/gorilla/mux"
 )
 
 var (
 	listener net.Listener
 )
 
+type server struct {
+	pb.UnimplementedAgentServer
+}
+
+func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
+	h, err := hostutil.GetHostname()
+	if err != nil {
+		return &pb.HostnameReply{}, err
+	}
+	return &pb.HostnameReply{Hostname: h}, nil
+}
+
+// grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
+// connections or otherHandler otherwise. Copied from cockroachdb.
+func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		// This is a partial recreation of gRPC's internal checks https://github.com/grpc/grpc-go/pull/514/files#diff-95e9a25b738459a2d3030e1e6fa2a718R61
+		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
+			grpcServer.ServeHTTP(w, r)
+		} else {
+			otherHandler.ServeHTTP(w, r)
+		}
+	})
+}
+
 // StartServer creates the router and starts the HTTP server
 func StartServer() error {
-	// create the root HTTP router
-	r := mux.NewRouter()
 
-	// IPC REST API server
-	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
-	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
-
-	// Validate token for every request
-	r.Use(validateToken)
+	initializeTLS()
 
 	// get the transport we're going to use under HTTP
 	var err error
@@ -58,36 +82,56 @@ func StartServer() error {
 		return err
 	}
 
-	hosts := []string{"127.0.0.1", "localhost"}
-	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return fmt.Errorf("unable to start TLS server")
-	}
+	// gRPC server
+	mux := http.NewServeMux()
+	opts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, tlsAddr))}
 
-	// PEM encode the private key
-	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	s := grpc.NewServer(opts...)
+	pb.RegisterAgentServer(s, &server{})
+
+	dcreds := credentials.NewTLS(&tls.Config{
+		ServerName: tlsAddr,
+		RootCAs:    tlsCertPool,
 	})
+	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
 
-	// Create a TLS cert using the private key and certificate
-	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
+	// starting grpc gateway
+	ctx := context.Background()
+	gwmux := runtime.NewServeMux()
+	err = pb.RegisterAgentHandlerFromEndpoint(
+		ctx, gwmux, tlsAddr, dopts)
 	if err != nil {
-		return fmt.Errorf("invalid key pair: %v", err)
+		panic(err)
 	}
 
-	tlsConfig := tls.Config{
-		Certificates: []tls.Certificate{rootTLSCert},
-	}
+	// Setup multiplexer
+	// create the REST HTTP router
+	agentMux := gorilla.NewRouter()
+	checkMux := gorilla.NewRouter()
+	// Validate token for every request
+	agentMux.Use(validateToken)
+	checkMux.Use(validateToken)
+
+	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux)))
+	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
+	mux.Handle("/", gwmux)
 
 	srv := &http.Server{
-		Handler: r,
+		Addr:    tlsAddr,
+		Handler: grpcHandlerFunc(s, mux),
+		// Handler: grpcHandlerFunc(s, r),
+		TLSConfig: &tls.Config{
+			Certificates: []tls.Certificate{*tlsKeyPair},
+			NextProtos:   []string{"h2"},
+		},
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
-		TLSConfig:    &tlsConfig,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}
-	tlsListener := tls.NewListener(listener, &tlsConfig)
+
+	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
