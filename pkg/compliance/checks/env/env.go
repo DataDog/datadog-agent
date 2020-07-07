@@ -7,13 +7,22 @@ package env
 
 import "github.com/DataDog/datadog-agent/pkg/compliance"
 
-// Env provides an abstraction for various environment methods needed by checks
+// Env provides environment methods for compliance checks execution
 type Env interface {
+	Clients
+	Configuration
 	Reporter() compliance.Reporter
+}
+
+// Clients provides an abstraction for accessing various clients needed by checks
+type Clients interface {
 	DockerClient() DockerClient
 	AuditClient() AuditClient
 	KubeClient() KubeClient
+}
 
+// Configuration provides an abstraction for various environment methods used by checks
+type Configuration interface {
 	Hostname() string
 	EtcGroupPath() string
 	NormalizePath(path string) string
