@@ -25,10 +25,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type endpointResolveMode string
+
 const (
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
+	kubeEndpointResolvePath      = "resolve"
 	kubePodKind                  = "Pod"
 	KubePodPrefix                = "kubernetes_pod://"
+
+	kubeEndpointResolveAuto endpointResolveMode = "auto"
+	kubeEndpointResolveIP   endpointResolveMode = "ip"
 )
 
 // kubeEndpointsConfigProvider implements the ConfigProvider interface for the apiserver.
@@ -42,9 +48,10 @@ type kubeEndpointsConfigProvider struct {
 
 // configInfo contains an endpoint check config template with its name and namespace
 type configInfo struct {
-	tpl       integration.Config
-	namespace string
-	name      string
+	tpl         integration.Config
+	namespace   string
+	name        string
+	resolveMode endpointResolveMode
 }
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
@@ -106,7 +113,7 @@ func (k *kubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
 			log.Errorf("Cannot get Kubernetes endpoints: %s", err)
 			continue
 		}
-		generatedConfigs = append(generatedConfigs, generateConfigs(config.tpl, kep)...)
+		generatedConfigs = append(generatedConfigs, generateConfigs(config.tpl, config.resolveMode, kep)...)
 		endpointsID := apiserver.EntityForEndpoints(config.namespace, config.name, "")
 		k.Lock()
 		k.monitoredEndpoints[endpointsID] = true
@@ -210,13 +217,18 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointAnnotationPrefix)
+		var resolveMode endpointResolveMode
+		if value, found := svc.Annotations[kubeEndpointAnnotationPrefix+kubeEndpointResolvePath]; found {
+			resolveMode = endpointResolveMode(value)
+		}
 		for i := range endptConf {
 			endptConf[i].Source = "kube_endpoints:" + endpointsID
 			endptConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 			configsInfo = append(configsInfo, configInfo{
-				tpl:       endptConf[i],
-				namespace: svc.Namespace,
-				name:      svc.Name,
+				tpl:         endptConf[i],
+				namespace:   svc.Namespace,
+				name:        svc.Name,
+				resolveMode: resolveMode,
 			})
 		}
 	}
@@ -224,7 +236,7 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 }
 
 // generateConfigs creates a config template for each Endpoints IP
-func generateConfigs(tpl integration.Config, kep *v1.Endpoints) []integration.Config {
+func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, kep *v1.Endpoints) []integration.Config {
 	if kep == nil {
 		log.Warn("Nil Kubernetes Endpoints object, cannot generate config templates")
 		return []integration.Config{tpl}
@@ -232,6 +244,23 @@ func generateConfigs(tpl integration.Config, kep *v1.Endpoints) []integration.Co
 	generatedConfigs := []integration.Config{}
 	namespace := kep.Namespace
 	name := kep.Name
+
+	// Check resolve annotation to know how we should process this endpoint
+	var resolveFunc func(*integration.Config, v1.EndpointAddress)
+	switch resolveMode {
+	// IP: we explicitly ignore what's behind this address (nothing to do)
+	case kubeEndpointResolveIP:
+	// In case of unknown value, fallback to auto
+	default:
+		log.Warnf("Unknown resolve value: %s for endpoint: %s/%s - fallback to auto mode", resolveMode, namespace, name)
+		fallthrough
+	// Auto or empty (default to auto): we try to resolve the POD behind this address
+	case "":
+		fallthrough
+	case kubeEndpointResolveAuto:
+		resolveFunc = resolveConfigAuto
+	}
+
 	for i := range kep.Subsets {
 		for j := range kep.Subsets[i].Addresses {
 			// Set a new entity containing the endpoint's IP
@@ -249,23 +278,30 @@ func generateConfigs(tpl integration.Config, kep *v1.Endpoints) []integration.Co
 				Source:                  tpl.Source,
 				IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
 			}
-			if targetRef := kep.Subsets[i].Addresses[j].TargetRef; targetRef != nil {
-				if targetRef.Kind == kubePodKind {
-					// The endpoint is backed by a pod.
-					// We add the pod uid as AD identifiers so the check can get the pod tags.
-					podUID := string(targetRef.UID)
-					newConfig.ADIdentifiers = append(newConfig.ADIdentifiers, getPodEntity(podUID))
-					if nodeName := kep.Subsets[i].Addresses[j].NodeName; nodeName != nil {
-						// Set the node name to schedule the endpoint check on the correct node.
-						// This field needs to be set only when the endpoint is backed by a pod.
-						newConfig.NodeName = *nodeName
-					}
-				}
+
+			if resolveFunc != nil {
+				resolveFunc(&newConfig, kep.Subsets[i].Addresses[j])
 			}
+
 			generatedConfigs = append(generatedConfigs, newConfig)
 		}
 	}
 	return generatedConfigs
+}
+
+func resolveConfigAuto(conf *integration.Config, addr v1.EndpointAddress) {
+	log.Debugf("using 'auto' resolve for config: %s, entity: %s", conf.Name, conf.Entity)
+	if targetRef := addr.TargetRef; targetRef != nil && targetRef.Kind == kubePodKind {
+		// The endpoint is backed by a pod.
+		// We add the pod uid as AD identifiers so the check can get the pod tags.
+		podUID := string(targetRef.UID)
+		conf.ADIdentifiers = append(conf.ADIdentifiers, getPodEntity(podUID))
+		if nodeName := addr.NodeName; nodeName != nil {
+			// Set the node name to schedule the endpoint check on the correct node.
+			// This field needs to be set only when the endpoint is backed by a pod.
+			conf.NodeName = *nodeName
+		}
+	}
 }
 
 // getPodEntity returns pod entity
