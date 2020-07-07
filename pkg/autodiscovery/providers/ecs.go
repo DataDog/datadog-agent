@@ -43,7 +43,13 @@ func (p *ECSConfigProvider) IsUpToDate() (bool, error) {
 // Collect finds all running containers in the agent's task, reads their labels
 // and extract configuration templates from them for auto discovery.
 func (p *ECSConfigProvider) Collect() ([]integration.Config, error) {
-	meta, err := ecsmeta.V2().GetTask()
+	client, err := ecsmeta.V2()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	meta, err := client.GetTask()
 	if err != nil {
 		return nil, err
 	}

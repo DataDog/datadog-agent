@@ -16,7 +16,9 @@ import (
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -58,7 +60,13 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 
 // Pull looks for new containers and computes deletions
 func (c *ECSFargateCollector) Pull() error {
-	taskMeta, err := ecsmeta.V2().GetTask()
+	client, err := ecsmeta.V2()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	taskMeta, err := client.GetTask()
 	if err != nil {
 		return err
 	}
@@ -90,7 +98,13 @@ func (c *ECSFargateCollector) Pull() error {
 // Fetch parses tags for a container on cache miss. We avoid races with Pull,
 // we re-parse the whole list, but don't send updates on other containers.
 func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, []string, error) {
-	taskMeta, err := ecsmeta.V2().GetTask()
+	client, err := metadata.V2()
+	if err != nil {
+		log.Error(err)
+		return []string{}, []string{}, []string{}, err
+	}
+
+	taskMeta, err := client.GetTask()
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

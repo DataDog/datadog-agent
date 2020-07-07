@@ -104,7 +104,13 @@ func (l *ECSListener) Stop() {
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
 func (l *ECSListener) refreshServices(firstRun bool) {
-	meta, err := ecsmeta.V2().GetTask()
+	client, err := ecsmeta.V2()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	meta, err := client.GetTask()
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
 		return

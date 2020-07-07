@@ -54,7 +54,13 @@ func IsFargateInstance() bool {
 			return newBoolEntry(false)
 		}
 
-		_, err := ecsmeta.V2().GetTask()
+		client, err := ecsmeta.V2()
+		if err != nil {
+			log.Error(err)
+			return newBoolEntry(false)
+		}
+
+		_, err = client.GetTask()
 		if err != nil {
 			log.Debug(err)
 			return newBoolEntry(false)
@@ -89,7 +95,13 @@ func HasEC2ResourceTags() bool {
 // exposes resource tags.
 func HasFargateResourceTags() bool {
 	return queryCacheBool(hasFargateResourceTagsCacheKey, func() (bool, time.Duration) {
-		_, err := ecsmeta.V2().GetTaskWithTags()
+		client, err := ecsmeta.V2()
+		if err != nil {
+			log.Error(err)
+			return newBoolEntry(false)
+		}
+
+		_, err = client.GetTaskWithTags()
 		return newBoolEntry(err == nil)
 	})
 }
