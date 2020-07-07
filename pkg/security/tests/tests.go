@@ -40,6 +40,7 @@ system_probe_config:
 
 runtime_security_config:
   debug: true
+  socket: /tmp/test-security-probe.sock
 {{if not .EnableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -190,7 +191,9 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	rs := mod.(*module.Module).GetRuleSet()
 	rs.AddListener(testMod)
 
-	mod.Register(nil)
+	if err := mod.Register(nil); err != nil {
+		return nil, err
+	}
 
 	return testMod, nil
 }
