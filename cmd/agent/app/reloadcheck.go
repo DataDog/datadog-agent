@@ -20,7 +20,6 @@ import (
 func init() {
 	// TODO: re-enable when the API endpoint is implemented
 	// AgentCmd.AddCommand(reloadCheckCommand)
-	checkCmd.SetArgs([]string{"checkName"})
 }
 
 var reloadCheckCommand = &cobra.Command{
