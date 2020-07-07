@@ -14,13 +14,13 @@ import (
 
 // SetupConfig fires up the configuration system
 func SetupConfig(confFilePath string) error {
-	_, err := SetupConfigWithWarnings(confFilePath)
+	_, err := SetupConfigWithWarnings(confFilePath, "")
 	return err
 }
 
 // SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
-func SetupConfigWithWarnings(confFilePath string) (*config.Warnings, error) {
-	return setupConfig(confFilePath, "", false)
+func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
+	return setupConfig(confFilePath, configName, false)
 }
 
 // SetupConfigWithoutSecrets fires up the configuration system without secrets support
