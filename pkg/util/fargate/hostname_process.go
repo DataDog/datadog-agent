@@ -40,7 +40,7 @@ func getECSHost() (string, error) {
 	client, err := metadata.V2()
 	if err != nil {
 		log.Error(err)
-		return err
+		return "", err
 	}
 
 	// Use the task ARN as hostname
