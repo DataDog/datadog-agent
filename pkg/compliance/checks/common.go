@@ -6,6 +6,8 @@
 package checks
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,4 +23,8 @@ func evalCondition(property string, condition *compliance.Condition) bool {
 		log.Warnf("Unsupported operation in condition: %s", condition.Operation)
 		return false
 	}
+}
+
+func invalidInputErr(err error, invalidInput string) error {
+	return fmt.Errorf(err.Error(), invalidInput)
 }

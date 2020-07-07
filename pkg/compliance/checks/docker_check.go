@@ -22,7 +22,7 @@ import (
 
 // ErrDockerKindNotSupported is returned when an unsupported kind of docker
 // object is requested by check
-var ErrDockerKindNotSupported = errors.New("unsupported docker object kind")
+var ErrDockerKindNotSupported = errors.New("unsupported docker object kind '%s'")
 
 // DockerClient abstracts Docker API client
 type DockerClient interface {
@@ -102,7 +102,7 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 		}
 		fn("", version)
 	default:
-		return ErrDockerKindNotSupported
+		return invalidInputErr(ErrDockerKindNotSupported, c.dockerResource.Kind)
 	}
 	return nil
 }
