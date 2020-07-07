@@ -11,7 +11,8 @@ import (
 	"errors"
 	"fmt"
 
-	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetFargateHost returns the hostname to be used
@@ -36,8 +37,14 @@ func getFargateHost(orchestrator OrchestratorName, ecsFunc, eksFunc func() (stri
 }
 
 func getECSHost() (string, error) {
+	client, err := metadata.V2()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
 	// Use the task ARN as hostname
-	taskMeta, err := ecsmeta.V2().GetTask()
+	taskMeta, err := client.GetTask()
 	if err != nil {
 		return "", err
 	}
