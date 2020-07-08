@@ -18,6 +18,9 @@ import (
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
+// CloudProviderName contains the inventory name of for ECS
+const CloudProviderName = "AWS"
+
 // V1 returns a client for the ECS metadata API v1, also called introspection
 // endpoint, by detecting the endpoint address. Returns an error if it was not
 // possible to detect the endpoint address.

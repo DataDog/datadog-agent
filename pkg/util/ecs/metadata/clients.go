@@ -23,6 +23,7 @@ import (
 
 var globalUtil util
 
+// CloudProviderName contains the inventory name of for ECS
 const CloudProviderName = "AWS"
 
 type util struct {
