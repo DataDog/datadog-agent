@@ -444,6 +444,98 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "with labels mapper",
+			config: &KSMConfig{LabelsMapper: map[string]string{"node": "host"}},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_created": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-g54n", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Val:    1.588236673e+09,
+							},
+						},
+					},
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-fs46", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Val:    1.588197278e+09,
+							},
+						},
+					},
+				},
+			},
+			expected: []metricsExpected{
+				{
+					name: "kube_node_created",
+					val:  1.588236673e+09,
+					tags: []string{"host:gke-charly-default-pool-6948dc89-g54n", "uid:bec19172-8abf-11ea-8546-42010a80022c"},
+				},
+				{
+					name: "kube_node_created",
+					val:  1.588197278e+09,
+					tags: []string{"host:gke-charly-default-pool-6948dc89-fs46", "uid:05e99c5f-8a64-11ea-8546-42010a80022c"},
+				},
+			},
+		},
+		{
+			name: "with label joins and labels mapper",
+			config: &KSMConfig{
+				LabelsMapper: map[string]string{"kernel_version": "kernel"},
+				LabelJoins: map[string]*JoinsConfig{"kube_node_info": {
+					LabelsToMatch: []string{"node"},
+					LabelsToGet:   []string{"kernel_version"},
+				}},
+			},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_created": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-g54n", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Val:    1.588236673e+09,
+							},
+						},
+					},
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-fs46", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Val:    1.588197278e+09,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-fs46", "kernel_version": "4.14.138"}}},
+				},
+			},
+			expected: []metricsExpected{
+				{
+					name: "kube_node_created",
+					val:  1.588236673e+09,
+					tags: []string{"node:gke-charly-default-pool-6948dc89-g54n", "uid:bec19172-8abf-11ea-8546-42010a80022c"},
+				},
+				{
+					name: "kube_node_created",
+					val:  1.588197278e+09,
+					tags: []string{"node:gke-charly-default-pool-6948dc89-fs46", "uid:05e99c5f-8a64-11ea-8546-42010a80022c", "kernel:4.14.138"},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
@@ -455,6 +547,7 @@ func TestProcessMetrics(t *testing.T) {
 			for _, expectMetric := range test.expected {
 				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, "", expectMetric.tags)
 			}
+			mocked.AssertNumberOfCalls(t, "Gauge", lenMetrics(test.metricsToProcess))
 		})
 	}
 }
@@ -638,4 +731,14 @@ func TestKSMCheck_joinLabels(t *testing.T) {
 			assert.ElementsMatch(t, tt.wantTags, kubeStateMetricsSCheck.joinLabels(tt.args.labels, tt.args.metricsToGet))
 		})
 	}
+}
+
+func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
+	count := 0
+	for _, metricFamily := range metricsToProcess {
+		for _, metrics := range metricFamily {
+			count += len(metrics.ListMetrics)
+		}
+	}
+	return count
 }

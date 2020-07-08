@@ -47,6 +47,12 @@ type KSMConfig struct {
 	//     labels_to_get:
 	//       - label_addonmanager_kubernetes_io_mode
 	LabelJoins map[string]*JoinsConfig `yaml:"label_joins"`
+
+	// LabelsMapper can be used to translate kube-state-metrics labels to other tags.
+	// Example: Adding kube_namespace tag instead of namespace.
+	// labels_mapper:
+	//   namespace: kube_namespace
+	LabelsMapper map[string]string `yaml:"labels_mapper"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
@@ -189,8 +195,8 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 
 // joinLabels converts metric labels into datatog tags and applies the label joins config
 func (k *KSMCheck) joinLabels(labels map[string]string, metricsToGet []ksmstore.DDMetricsFam) (tags []string) {
-	for k, v := range labels {
-		tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+	for key, value := range labels {
+		tags = append(tags, k.buildTag(key, value))
 	}
 
 	// apply label joins
@@ -201,7 +207,7 @@ func (k *KSMCheck) joinLabels(labels map[string]string, metricsToGet []ksmstore.
 		}
 		for _, m := range mFamily.ListMetrics {
 			if isMatching(config, labels, m.Labels) {
-				tags = append(tags, getJoinedTags(config, m.Labels)...)
+				tags = append(tags, k.getJoinedTags(config, m.Labels)...)
 			}
 		}
 	}
@@ -246,17 +252,26 @@ func isMatching(config *JoinsConfig, destlabels, srcLabels map[string]string) bo
 	return true
 }
 
-func getJoinedTags(config *JoinsConfig, srcLabels map[string]string) []string {
+// buildTag applies the LabelsMapper config and returns the tag in a key:value string format
+func (k *KSMCheck) buildTag(key, value string) string {
+	if newKey, found := k.instance.LabelsMapper[key]; found {
+		key = newKey
+	}
+	return fmt.Sprintf("%s:%s", key, value)
+}
+
+// getJoinedTags applies the label joins config, it gets labels from a targeted metric labels
+func (k *KSMCheck) getJoinedTags(config *JoinsConfig, srcLabels map[string]string) []string {
 	tags := []string{}
 	if config.GetAllLabels {
-		for k, v := range srcLabels {
-			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+		for key, value := range srcLabels {
+			tags = append(tags, k.buildTag(key, value))
 		}
 		return tags
 	}
-	for _, k := range config.LabelsToGet {
-		if v, found := srcLabels[k]; found {
-			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+	for _, key := range config.LabelsToGet {
+		if value, found := srcLabels[key]; found {
+			tags = append(tags, k.buildTag(key, value))
 		}
 	}
 	return tags
