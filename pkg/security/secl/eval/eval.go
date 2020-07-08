@@ -99,10 +99,9 @@ type Evaluator interface {
 }
 
 type BoolEvaluator struct {
-	EvalFnc      func(ctx *Context) bool
-	DebugEvalFnc func(ctx *Context) bool
-	Field        string
-	Value        bool
+	EvalFnc func(ctx *Context) bool
+	Field   string
+	Value   bool
 
 	isPartial bool
 }
@@ -116,10 +115,9 @@ func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
 }
 
 type IntEvaluator struct {
-	EvalFnc      func(ctx *Context) int
-	DebugEvalFnc func(ctx *Context) int
-	Field        string
-	Value        int
+	EvalFnc func(ctx *Context) int
+	Field   string
+	Value   int
 
 	isPartial bool
 }
@@ -133,10 +131,9 @@ func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 }
 
 type StringEvaluator struct {
-	EvalFnc      func(ctx *Context) string
-	DebugEvalFnc func(ctx *Context) string
-	Field        string
-	Value        string
+	EvalFnc func(ctx *Context) string
+	Field   string
+	Value   string
 
 	isPartial bool
 }
@@ -640,15 +637,6 @@ func RuleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 			Eval: func(ctx *Context) bool {
 				return evalBool.Value
 			},
-			EventTypes:  events,
-			Tags:        state.Tags(),
-			FieldValues: state.fieldValues,
-		}, nil
-	}
-
-	if opts.Debug {
-		return &RuleEvaluator{
-			Eval:        evalBool.DebugEvalFnc,
 			EventTypes:  events,
 			Tags:        state.Tags(),
 			FieldValues: state.fieldValues,

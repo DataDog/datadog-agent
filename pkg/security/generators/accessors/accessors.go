@@ -345,15 +345,12 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	{{if eq $Field.ReturnType "string"}}
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string { return {{$Return}} },
-			DebugEvalFnc: func(ctx *eval.Context) string { return {{$Return}} },
 	{{else if eq $Field.ReturnType "int"}}
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int({{$Return}}) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int({{$Return}}) },
 	{{else if eq $Field.ReturnType "bool"}}
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
-			DebugEvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
 	{{end}}
 			Field: field,
 		}, nil

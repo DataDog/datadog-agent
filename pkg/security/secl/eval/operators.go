@@ -15,18 +15,25 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
-				return ^ea(ctx)
-			},
-			DebugEvalFnc: func(ctx *Context) int {
+
+		var evalFnc func(ctx *Context) int
+		if opts.Debug {
+			evalFnc = func(ctx *Context) int {
 				ctx.evalDepth++
 				op := ea(ctx)
 				result := ^ea(ctx)
 				ctx.Logf("Evaluation ^%d => %d", op, result)
 				ctx.evalDepth--
 				return result
-			},
+			}
+		} else {
+			evalFnc = func(ctx *Context) int {
+				return ^ea(ctx)
+			}
+		}
+
+		return &IntEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}
 	}
@@ -78,15 +85,10 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
-		return &BoolEvaluator{
-			EvalFnc: func(ctx *Context) bool {
-				result := re.MatchString(ea(ctx))
-				if not {
-					return !result
-				}
-				return result
-			},
-			DebugEvalFnc: func(ctx *Context) bool {
+
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
 				op := ea(ctx)
 				result := re.MatchString(op)
@@ -96,7 +98,19 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 				ctx.Logf("Evaluating %s ~= %s => %v", op, re.String(), result)
 				ctx.evalDepth--
 				return result
-			},
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
+				result := re.MatchString(ea(ctx))
+				if not {
+					return !result
+				}
+				return result
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -137,16 +151,22 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 			}
 		}
 
-		return &BoolEvaluator{
-			EvalFnc: ea,
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
 				op := a.EvalFnc(ctx)
 				result := !op
 				ctx.Logf("Evaluating ! %v => %v", op, result)
 				ctx.evalDepth--
 				return result
-			},
+			}
+		} else {
+			evalFnc = ea
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}
 	}
@@ -170,18 +190,25 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
-				return -ea(ctx)
-			},
-			DebugEvalFnc: func(ctx *Context) int {
+
+		var evalFnc func(ctx *Context) int
+		if opts.Debug {
+			evalFnc = func(ctx *Context) int {
 				ctx.evalDepth++
 				op := ea(ctx)
 				result := -op
 				ctx.Logf("Evaluating -%d => %d", op, result)
 				ctx.evalDepth--
 				return result
-			},
+			}
+		} else {
+			evalFnc = func(ctx *Context) int {
+				return -ea(ctx)
+			}
+		}
+
+		return &IntEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}
 	}
@@ -208,17 +235,10 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
-		return &BoolEvaluator{
-			EvalFnc: func(ctx *Context) bool {
-				s := ea(ctx)
-				i := sort.SearchStrings(b.Values, s)
-				result := i < len(b.Values) && b.Values[i] == s
-				if not {
-					result = !result
-				}
-				return result
-			},
-			DebugEvalFnc: func(ctx *Context) bool {
+
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
 				s := ea(ctx)
 				i := sort.SearchStrings(b.Values, s)
@@ -229,7 +249,21 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 				}
 				ctx.evalDepth--
 				return result
-			},
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
+				s := ea(ctx)
+				i := sort.SearchStrings(b.Values, s)
+				result := i < len(b.Values) && b.Values[i] == s
+				if not {
+					result = !result
+				}
+				return result
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -265,19 +299,10 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 
 	if a.EvalFnc != nil {
 		ea := a.EvalFnc
-		return &BoolEvaluator{
-			EvalFnc: func(ctx *Context) bool {
-				ctx.evalDepth++
-				n := ea(ctx)
-				i := sort.SearchInts(b.Values, n)
-				result := i < len(b.Values) && b.Values[i] == n
-				if not {
-					result = !result
-				}
-				ctx.evalDepth--
-				return result
-			},
-			DebugEvalFnc: func(ctx *Context) bool {
+
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
 				n := ea(ctx)
 				i := sort.SearchInts(b.Values, n)
@@ -288,7 +313,23 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 				ctx.Logf("Evaluating %d in %+v => %v", n, b.Values, result)
 				ctx.evalDepth--
 				return result
-			},
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
+				ctx.evalDepth++
+				n := ea(ctx)
+				i := sort.SearchInts(b.Values, n)
+				result := i < len(b.Values) && b.Values[i] == n
+				if not {
+					result = !result
+				}
+				ctx.evalDepth--
+				return result
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
