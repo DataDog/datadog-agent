@@ -10,8 +10,7 @@ import (
 const (
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
-	maxActive     = 128
-	syscallPrefix = "sys_"
+	maxActive = 128
 )
 
 func NewOffsetManager() *manager.Manager {
@@ -72,10 +71,10 @@ func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
 			{Section: string(InetCskAcceptReturn), KProbeMaxActive: maxActive},
 			{Section: string(TCPv4DestroySock)},
 			{Section: string(UDPDestroySock)},
-			{Section: string(SysBind), SyscallFuncName: syscallPrefix + "bind"},
-			{Section: string(SysBindRet), SyscallFuncName: syscallPrefix + "bind", KProbeMaxActive: maxActive},
-			{Section: string(SysSocket), SyscallFuncName: syscallPrefix + "socket"},
-			{Section: string(SysSocketRet), SyscallFuncName: syscallPrefix + "socket", KProbeMaxActive: maxActive},
+			{Section: string(SysBind), SyscallFuncName: "bind"},
+			{Section: string(SysBindRet), SyscallFuncName: "bind", KProbeMaxActive: maxActive},
+			{Section: string(SysSocket), SyscallFuncName: "socket"},
+			{Section: string(SysSocketRet), SyscallFuncName: "socket", KProbeMaxActive: maxActive},
 			{Section: string(SocketDnsFilter)},
 		},
 	}

@@ -93,7 +93,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	// Extend RLIMIT_MEMLOCK (8) size
-	err := unix.Setrlimit(8, &unix.Rlimit{
+	// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
+	// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
+	// using bpf(2) with BPF_MAP_CREATE.
+	//
+	// We are setting the limit to infinity until we have a better handle on the true requirements.
+	err := unix.Setrlimit(unix.RLIMIT_MEMLOCK, &unix.Rlimit{
 		Cur: math.MaxUint64,
 		Max: math.MaxUint64,
 	})
@@ -127,6 +132,27 @@ func NewTracer(config *Config) (*Tracer, error) {
 	mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
 	if err != nil {
 		return nil, fmt.Errorf("error guessing offsets: %s", err)
+	}
+
+	// In linux kernel version 4.17(?) they added architecture specific calling conventions to syscalls within the kernel.
+	// When attaching a kprobe to the `__x64_sys_` prefixed syscall, all the arguments are behind an additional layer of
+	// indirection. We are detecting this at runtime, and setting the constant `use_indirect_syscall` so the kprobe code
+	// accesses the arguments correctly.
+	//
+	// For example:
+	// int domain;
+	// struct pt_regs *_ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
+	// bpf_probe_read(&domain, sizeof(domain), &(PT_REGS_PARM1(_ctx)));
+	//
+	// Instead of:
+	// int domain = PT_REGS_PARM1(ctx);
+	//
+	syscallName, err := manager.GetSyscallFnName("socket")
+	if err == nil && strings.HasPrefix(syscallName, "__x64_sys_") {
+		mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "use_indirect_syscall",
+			Value: uint64(1),
+		})
 	}
 
 	closedChannelSize := defaultClosedChannelSize
