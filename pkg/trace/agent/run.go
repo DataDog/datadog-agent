@@ -32,8 +32,8 @@ const (
 	messageMissingAPIKey = "you must specify an API Key, either via a configuration file or the DD_API_KEY env var"
 
 	messageAgentDisabled = `trace-agent not enabled. Set the environment variable
-		DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
-		to your datadog.yaml. Exiting...`
+DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
+to your datadog.yaml. Exiting...`
 )
 
 // Run is the entrypoint of our code, which starts the agent.
