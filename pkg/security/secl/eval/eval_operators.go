@@ -19,7 +19,6 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
 		if state.field != "" {
 			if a.isPartial {
@@ -34,18 +33,24 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 || op2
 				ctx.Logf("Evaluating %v || %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) || eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -70,7 +75,6 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -89,24 +93,29 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 || op2
 				ctx.Logf("Evaluating %v || %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) || eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -125,18 +134,24 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEval
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 || op2
 			ctx.Logf("Evaluating %v || %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea || eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -158,7 +173,6 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
 		if state.field != "" {
 			if a.isPartial {
@@ -173,18 +187,24 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 && op2
 				ctx.Logf("Evaluating %v && %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) && eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -209,7 +229,6 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -228,24 +247,29 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 && op2
 				ctx.Logf("Evaluating %v && %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) && eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -264,18 +288,24 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEva
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 && op2
 			ctx.Logf("Evaluating %v && %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea && eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -297,20 +327,25 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 == op2
 				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) == eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -326,7 +361,6 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -334,24 +368,29 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 == op2
 				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) == eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -359,18 +398,24 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Boo
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 == op2
 			ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea == eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -392,20 +437,25 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 != op2
 				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) != eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -421,7 +471,6 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -429,24 +478,29 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 != op2
 				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) != eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -454,18 +508,24 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 != op2
 			ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea != eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -487,20 +547,25 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &IntEvaluator{
-			DebugEvalFnc: func(ctx *Context) int {
+		var evalFnc func(ctx *Context) int
+		if opts.Debug {
+			evalFnc = func(ctx *Context) int {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 & op2
 				ctx.Logf("Evaluating %v & %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) int {
+			}
+		} else {
+			evalFnc = func(ctx *Context) int {
 				return ea(ctx) & eb(ctx)
-			},
+			}
+		}
+
+		return &IntEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -516,7 +581,6 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: BitmaskValueType}); err != nil {
@@ -524,24 +588,29 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 			}
 		}
 
-		return &IntEvaluator{
-			DebugEvalFnc: func(ctx *Context) int {
+		var evalFnc func(ctx *Context) int
+		if opts.Debug {
+			evalFnc = func(ctx *Context) int {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 & op2
 				ctx.Logf("Evaluating %v & %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) int {
+			}
+		} else {
+			evalFnc = func(ctx *Context) int {
 				return ea(ctx) & eb
-			},
+			}
+		}
+
+		return &IntEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: BitmaskValueType}); err != nil {
@@ -549,18 +618,24 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 		}
 	}
 
-	return &IntEvaluator{
-		DebugEvalFnc: func(ctx *Context) int {
+	var evalFnc func(ctx *Context) int
+	if opts.Debug {
+		evalFnc = func(ctx *Context) int {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 & op2
 			ctx.Logf("Evaluating %v & %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) int {
+		}
+	} else {
+		evalFnc = func(ctx *Context) int {
 			return ea & eb(ctx)
-		},
+		}
+	}
+
+	return &IntEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -582,20 +657,25 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &IntEvaluator{
-			DebugEvalFnc: func(ctx *Context) int {
+		var evalFnc func(ctx *Context) int
+		if opts.Debug {
+			evalFnc = func(ctx *Context) int {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 | op2
 				ctx.Logf("Evaluating %v | %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) int {
+			}
+		} else {
+			evalFnc = func(ctx *Context) int {
 				return ea(ctx) | eb(ctx)
-			},
+			}
+		}
+
+		return &IntEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -611,7 +691,6 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: BitmaskValueType}); err != nil {
@@ -619,24 +698,29 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 			}
 		}
 
-		return &IntEvaluator{
-			DebugEvalFnc: func(ctx *Context) int {
+		var evalFnc func(ctx *Context) int
+		if opts.Debug {
+			evalFnc = func(ctx *Context) int {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 | op2
 				ctx.Logf("Evaluating %v | %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) int {
+			}
+		} else {
+			evalFnc = func(ctx *Context) int {
 				return ea(ctx) | eb
-			},
+			}
+		}
+
+		return &IntEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: BitmaskValueType}); err != nil {
@@ -644,18 +728,24 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEval
 		}
 	}
 
-	return &IntEvaluator{
-		DebugEvalFnc: func(ctx *Context) int {
+	var evalFnc func(ctx *Context) int
+	if opts.Debug {
+		evalFnc = func(ctx *Context) int {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 | op2
 			ctx.Logf("Evaluating %v | %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) int {
+		}
+	} else {
+		evalFnc = func(ctx *Context) int {
 			return ea | eb(ctx)
-		},
+		}
+	}
+
+	return &IntEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -677,20 +767,25 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &IntEvaluator{
-			DebugEvalFnc: func(ctx *Context) int {
+		var evalFnc func(ctx *Context) int
+		if opts.Debug {
+			evalFnc = func(ctx *Context) int {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 ^ op2
 				ctx.Logf("Evaluating %v ^ %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) int {
+			}
+		} else {
+			evalFnc = func(ctx *Context) int {
 				return ea(ctx) ^ eb(ctx)
-			},
+			}
+		}
+
+		return &IntEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -706,7 +801,6 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: BitmaskValueType}); err != nil {
@@ -714,24 +808,29 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 			}
 		}
 
-		return &IntEvaluator{
-			DebugEvalFnc: func(ctx *Context) int {
+		var evalFnc func(ctx *Context) int
+		if opts.Debug {
+			evalFnc = func(ctx *Context) int {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 ^ op2
 				ctx.Logf("Evaluating %v ^ %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) int {
+			}
+		} else {
+			evalFnc = func(ctx *Context) int {
 				return ea(ctx) ^ eb
-			},
+			}
+		}
+
+		return &IntEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: BitmaskValueType}); err != nil {
@@ -739,18 +838,24 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*IntEva
 		}
 	}
 
-	return &IntEvaluator{
-		DebugEvalFnc: func(ctx *Context) int {
+	var evalFnc func(ctx *Context) int
+	if opts.Debug {
+		evalFnc = func(ctx *Context) int {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 ^ op2
 			ctx.Logf("Evaluating %v ^ %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) int {
+		}
+	} else {
+		evalFnc = func(ctx *Context) int {
 			return ea ^ eb(ctx)
-		},
+		}
+	}
+
+	return &IntEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -772,20 +877,25 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 == op2
 				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) == eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -801,7 +911,6 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -809,24 +918,29 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 == op2
 				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) == eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -834,18 +948,24 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 == op2
 			ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea == eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -867,20 +987,25 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 != op2
 				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) != eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -896,7 +1021,6 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -904,24 +1028,29 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 != op2
 				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) != eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -929,18 +1058,24 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 != op2
 			ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea != eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -962,20 +1097,25 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 == op2
 				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) == eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -991,7 +1131,6 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -999,24 +1138,29 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 == op2
 				ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) == eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -1024,18 +1168,24 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 == op2
 			ctx.Logf("Evaluating %v == %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea == eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1057,20 +1207,25 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 != op2
 				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) != eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1086,7 +1241,6 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -1094,24 +1248,29 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 != op2
 				ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) != eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -1119,18 +1278,24 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state)
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 != op2
 			ctx.Logf("Evaluating %v != %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea != eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1152,20 +1317,25 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 > op2
 				ctx.Logf("Evaluating %v > %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) > eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1181,7 +1351,6 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -1189,24 +1358,29 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 > op2
 				ctx.Logf("Evaluating %v > %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) > eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -1214,18 +1388,24 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*B
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 > op2
 			ctx.Logf("Evaluating %v > %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea > eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1247,20 +1427,25 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 >= op2
 				ctx.Logf("Evaluating %v >= %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) >= eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1276,7 +1461,6 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -1284,24 +1468,29 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 >= op2
 				ctx.Logf("Evaluating %v >= %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) >= eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -1309,18 +1498,24 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 >= op2
 			ctx.Logf("Evaluating %v >= %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea >= eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1342,20 +1537,25 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 < op2
 				ctx.Logf("Evaluating %v < %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) < eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1371,7 +1571,6 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -1379,24 +1578,29 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 < op2
 				ctx.Logf("Evaluating %v < %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) < eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -1404,18 +1608,24 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*Bo
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 < op2
 			ctx.Logf("Evaluating %v < %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea < eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }
@@ -1437,20 +1647,25 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 <= op2
 				ctx.Logf("Evaluating %v <= %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) <= eb(ctx)
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1466,7 +1681,6 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
@@ -1474,24 +1688,29 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 			}
 		}
 
-		return &BoolEvaluator{
-			DebugEvalFnc: func(ctx *Context) bool {
+		var evalFnc func(ctx *Context) bool
+		if opts.Debug {
+			evalFnc = func(ctx *Context) bool {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 <= op2
 				ctx.Logf("Evaluating %v <= %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) bool {
+			}
+		} else {
+			evalFnc = func(ctx *Context) bool {
 				return ea(ctx) <= eb
-			},
+			}
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
@@ -1499,18 +1718,24 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 		}
 	}
 
-	return &BoolEvaluator{
-		DebugEvalFnc: func(ctx *Context) bool {
+	var evalFnc func(ctx *Context) bool
+	if opts.Debug {
+		evalFnc = func(ctx *Context) bool {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 <= op2
 			ctx.Logf("Evaluating %v <= %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) bool {
+		}
+	} else {
+		evalFnc = func(ctx *Context) bool {
 			return ea <= eb(ctx)
-		},
+		}
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
 		isPartial: isPartialLeaf,
 	}, nil
 }

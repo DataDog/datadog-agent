@@ -37,7 +37,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
-		dea, deb := a.DebugEvalFnc, b.DebugEvalFnc
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
@@ -54,18 +53,24 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		return &{{ .FuncReturnType }}{
-			DebugEvalFnc: func(ctx *Context) {{ .EvalReturnType }} {
+		var evalFnc func(ctx *Context) {{ .EvalReturnType }}
+		if opts.Debug {
+			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), deb(ctx)
+				op1, op2 := ea(ctx), eb(ctx)
 				result := op1 {{.Op}} op2
 				ctx.Logf("Evaluating %v {{ .Op }} %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) {{ .EvalReturnType }} {
+			}
+		} else {
+			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
 				return ea(ctx) {{ .Op }} eb(ctx)
-			},
+			}
+		}
+
+		return &{{ .FuncReturnType }}{
+			EvalFnc: evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -92,7 +97,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
-		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: {{ .ValueType }}}); err != nil {
@@ -113,24 +117,29 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		return &{{ .FuncReturnType }}{
-			DebugEvalFnc: func(ctx *Context) {{ .EvalReturnType }} {
+		var evalFnc func(ctx *Context) {{ .EvalReturnType }}
+		if opts.Debug {
+			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
 				ctx.evalDepth++
-				op1, op2 := dea(ctx), eb
+				op1, op2 := ea(ctx), eb
 				result := op1 {{ .Op }} op2
 				ctx.Logf("Evaluating %v {{.Op}} %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
-			},
-			EvalFnc: func(ctx *Context) {{ .EvalReturnType }} {
+			}
+		} else {
+			evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
 				return ea(ctx) {{ .Op }} eb
-			},
+			}
+		}
+
+		return &{{ .FuncReturnType }}{
+			EvalFnc: evalFnc,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
-	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: {{ .ValueType }}}); err != nil {
@@ -151,18 +160,24 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		}
 	{{ end }}
 
-	return &{{ .FuncReturnType }}{
-		DebugEvalFnc: func(ctx *Context) {{ .EvalReturnType }} {
+	var evalFnc func(ctx *Context) {{ .EvalReturnType }}
+	if opts.Debug {
+		evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
 			ctx.evalDepth++
-			op1, op2 := ea, deb(ctx)
+			op1, op2 := ea, eb(ctx)
 			result := op1 {{ .Op }} op2
 			ctx.Logf("Evaluating %v {{ .Op }} %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
-		},
-		EvalFnc: func(ctx *Context) {{ .EvalReturnType }} {
+		}
+	} else {
+		evalFnc = func(ctx *Context) {{ .EvalReturnType }} {
 			return ea {{ .Op }} eb(ctx)
-		},
+		}
+	}
+
+	return &{{ .FuncReturnType }}{
+		EvalFnc: evalFnc	,
 		isPartial: isPartialLeaf,
 	}, nil
 }
