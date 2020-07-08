@@ -231,7 +231,7 @@ jobs:
     macos:
       xcode: 10.1.0
     environment:
-      BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "f43e0e081e9a54fea3241ef0efde28374981f7a0" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
       RELEASE_VERSION: "nightly-a7"
       AGENT_MAJOR_VERSION: "7"
       PYTHON_RUNTIMES: "3"
