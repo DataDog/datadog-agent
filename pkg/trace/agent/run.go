@@ -27,9 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
-DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
-to your datadog.yaml. Exiting...`
+var (
+	// messageMissingAPIKey is printed when the config could not be validated due to missing API key.
+	messageMissingAPIKey = "you must specify an API Key, either via a configuration file or the DD_API_KEY env var"
+
+	messageAgentDisabled = `trace-agent not enabled. Set the environment variable
+		DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
+		to your datadog.yaml. Exiting...`
+)
 
 // Run is the entrypoint of our code, which starts the agent.
 func Run(ctx context.Context) {
@@ -67,9 +72,16 @@ func Run(ctx context.Context) {
 	}
 	defer log.Flush()
 
+	gracefullyExits := false
+	if len(cfg.Endpoints) == 0 || cfg.Endpoints[0].APIKey == "" {
+		log.Warn(messageMissingAPIKey)
+		gracefullyExits = true
+	}
 	if !cfg.Enabled {
 		log.Info(messageAgentDisabled)
-
+		gracefullyExits = true
+	}
+	if gracefullyExits {
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
 		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 		// http://supervisord.org/subprocess.html#process-states

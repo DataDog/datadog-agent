@@ -25,9 +25,6 @@ import (
 )
 
 var (
-	// ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
-	ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
-
 	// ErrMissingHostname is returned when the config could not be validated due to missing hostname.
 	ErrMissingHostname = errors.New("failed to automatically set the hostname, you must specify it via configuration for or the DD_HOSTNAME env var")
 )
@@ -170,9 +167,6 @@ func (c *AgentConfig) APIKey() string {
 
 // Validate validates if the current configuration is good for the agent to start with.
 func (c *AgentConfig) validate() error {
-	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {
-		return ErrMissingAPIKey
-	}
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")
 	}
