@@ -16,15 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
 var globalUtil util
-
-// CloudProviderName contains the inventory name of for ECS
-const CloudProviderName = "AWS"
 
 type util struct {
 	// used to setup the ECSUtil
@@ -42,13 +40,13 @@ type util struct {
 // endpoint, by detecting the endpoint address. Returns an error if it was not
 // possible to detect the endpoint address.
 func V1() (*v1.Client, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", CloudProviderName)
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
 	globalUtil.initV1.Do(func() {
 		globalUtil.initRetryV1.SetupRetrier(&retry.Config{ //nolint:errcheck
-			Name:              "til-meta-v1",
+			Name:              "ecsutil-meta-v1",
 			AttemptMethod:     initV1,
 			Strategy:          retry.Backoff,
 			InitialRetryDelay: 1 * time.Second,
@@ -65,8 +63,8 @@ func V1() (*v1.Client, error) {
 // V2 returns a client for the ECS metadata API v2 that uses the default
 // endpoint address.
 func V2() (*v2.Client, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", CloudProviderName)
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
 	globalUtil.initV2.Do(func() {
@@ -80,8 +78,8 @@ func V2() (*v2.Client, error) {
 // address for the specified container. Returns an error if it was not possible
 // to detect the endpoint address.
 func V3(containerID string) (*v3.Client, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", CloudProviderName)
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
 	return newClientV3ForContainer(containerID)
@@ -91,13 +89,13 @@ func V3(containerID string) (*v3.Client, error) {
 // the endpoint address from the task the executable is running in. Returns an
 // error if it was not possible to detect the endpoint address.
 func V3FromCurrentTask() (*v3.Client, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", CloudProviderName)
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
 	globalUtil.initV3.Do(func() {
 		globalUtil.initRetryV3.SetupRetrier(&retry.Config{ //nolint:errcheck
-			Name:              "til-meta-v3",
+			Name:              "ecsutil-meta-v3",
 			AttemptMethod:     initV3,
 			Strategy:          retry.Backoff,
 			InitialRetryDelay: 1 * time.Second,
