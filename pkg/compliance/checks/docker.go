@@ -11,11 +11,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-func newDockerClient() (DockerClient, error) {
+func newDockerClient() (env.DockerClient, error) {
 	queryTimeout := config.Datadog.GetDuration("docker_query_timeout") * time.Second
 
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)

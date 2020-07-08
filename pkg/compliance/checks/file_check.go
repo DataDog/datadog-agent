@@ -31,35 +31,35 @@ type pathMapper func(string) string
 
 type fileCheck struct {
 	baseCheck
-	pathMapper pathMapper
-	file       *compliance.File
+	file *compliance.File
 }
 
-func newFileCheck(baseCheck baseCheck, pathMapper pathMapper, file *compliance.File) (*fileCheck, error) {
+func newFileCheck(baseCheck baseCheck, file *compliance.File) (*fileCheck, error) {
 	// TODO: validate config for the file here
 	return &fileCheck{
-		baseCheck:  baseCheck,
-		pathMapper: pathMapper,
-		file:       file,
+		baseCheck: baseCheck,
+		file:      file,
 	}, nil
 }
 
 func (c *fileCheck) Run() error {
 	// TODO: here we will introduce various cached results lookups
 
-	log.Debugf("%s: file check: %s", c.ruleID, c.file.Path)
-	if c.file.Path != "" {
-		return c.reportFile(c.normalizePath(c.file.Path))
+	var err error
+	path := c.file.Path
+	if path == "" {
+		path, err = c.ResolveValueFrom(c.file.PathFrom)
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Debugf("%s: file check: %s", c.ruleID, path)
+	if path != "" {
+		return c.reportFile(c.NormalizePath(path))
 	}
 
 	return log.Error("no path for file check")
-}
-
-func (c *fileCheck) normalizePath(path string) string {
-	if c.pathMapper == nil {
-		return path
-	}
-	return c.pathMapper(path)
 }
 
 func (c *fileCheck) reportFile(filePath string) error {
@@ -80,9 +80,9 @@ func (c *fileCheck) reportFile(filePath string) error {
 		case compliance.PropertyKindAttribute:
 			v, err = c.getAttribute(filePath, fi, field.Property)
 		case compliance.PropertyKindJSONQuery:
-			v, err = c.getPathValue(filePath, field.Property, jsonGetter)
+			v, err = queryValueFromFile(filePath, field.Property, jsonGetter)
 		case compliance.PropertyKindYAMLQuery:
-			v, err = c.getPathValue(filePath, field.Property, yamlGetter)
+			v, err = queryValueFromFile(filePath, field.Property, yamlGetter)
 		default:
 			return invalidInputErr(ErrPropertyKindNotSupported, field.Kind)
 		}
@@ -137,7 +137,7 @@ func yamlGetter(data []byte, query string) (string, error) {
 	return value, err
 }
 
-func (c *fileCheck) getPathValue(filePath string, query string, get getter) (string, error) {
+func queryValueFromFile(filePath string, query string, get getter) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err

@@ -10,11 +10,9 @@ import (
 	"errors"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/Masterminds/sprig"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,31 +22,15 @@ import (
 // object is requested by check
 var ErrDockerKindNotSupported = errors.New("unsupported docker object kind '%s'")
 
-// DockerClient abstracts Docker API client
-type DockerClient interface {
-	client.ConfigAPIClient
-	client.ContainerAPIClient
-	client.ImageAPIClient
-	client.NodeAPIClient
-	client.NetworkAPIClient
-	client.SystemAPIClient
-	client.VolumeAPIClient
-	ServerVersion(ctx context.Context) (types.Version, error)
-	Close() error
-}
-
 type dockerCheck struct {
 	baseCheck
-
-	client         DockerClient
 	dockerResource *compliance.DockerResource
 }
 
-func newDockerCheck(baseCheck baseCheck, client DockerClient, dockerResource *compliance.DockerResource) (*dockerCheck, error) {
+func newDockerCheck(baseCheck baseCheck, dockerResource *compliance.DockerResource) (*dockerCheck, error) {
 	// TODO: validate config for the docker resource here
 	return &dockerCheck{
 		baseCheck:      baseCheck,
-		client:         client,
 		dockerResource: dockerResource,
 	}, nil
 }
@@ -56,33 +38,38 @@ func newDockerCheck(baseCheck baseCheck, client DockerClient, dockerResource *co
 type iterFn func(id string, obj interface{})
 
 func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
+	client := c.DockerClient()
+	if client == nil {
+		return errors.New("docker client not configured")
+	}
+
 	switch c.dockerResource.Kind {
 	case "image":
-		images, err := c.client.ImageList(ctx, types.ImageListOptions{All: true})
+		images, err := client.ImageList(ctx, types.ImageListOptions{All: true})
 		if err != nil {
 			return err
 		}
 		for _, image := range images {
-			imageInspect, _, err := c.client.ImageInspectWithRaw(ctx, image.ID)
+			imageInspect, _, err := client.ImageInspectWithRaw(ctx, image.ID)
 			if err != nil {
 				log.Errorf("failed to inspect image %s", image.ID)
 			}
 			fn(image.ID, imageInspect)
 		}
 	case "container":
-		containers, err := c.client.ContainerList(ctx, types.ContainerListOptions{All: true})
+		containers, err := client.ContainerList(ctx, types.ContainerListOptions{All: true})
 		if err != nil {
 			return err
 		}
 		for _, container := range containers {
-			containerInspect, err := c.client.ContainerInspect(ctx, container.ID)
+			containerInspect, err := client.ContainerInspect(ctx, container.ID)
 			if err != nil {
 				log.Errorf("failed to inspect container %s", container.ID)
 			}
 			fn(container.ID, containerInspect)
 		}
 	case "network":
-		networks, err := c.client.NetworkList(ctx, types.NetworkListOptions{})
+		networks, err := client.NetworkList(ctx, types.NetworkListOptions{})
 		if err != nil {
 			return err
 		}
@@ -90,13 +77,13 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 			fn(network.ID, network)
 		}
 	case "info":
-		info, err := c.client.Info(ctx)
+		info, err := client.Info(ctx)
 		if err != nil {
 			return err
 		}
 		fn("", info)
 	case "version":
-		version, err := c.client.ServerVersion(ctx)
+		version, err := client.ServerVersion(ctx)
 		if err != nil {
 			return err
 		}
@@ -109,7 +96,7 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 
 func (c *dockerCheck) Run() error {
 	log.Debugf("%s: running docker check", c.id)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(defaultTimeoutSeconds)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	return c.iterate(ctx, c.inspect)
 }

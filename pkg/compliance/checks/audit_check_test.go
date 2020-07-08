@@ -16,12 +16,14 @@ import (
 )
 
 func TestAuditCheck(t *testing.T) {
+	type setupFunc func(t *testing.T, env *mocks.Env)
 	type validateFunc func(t *testing.T, kv compliance.KVMap)
 
 	tests := []struct {
 		name     string
 		rules    []*rule.FileWatchRule
 		audit    *compliance.Audit
+		setup    setupFunc
 		validate validateFunc
 	}{
 		{
@@ -91,6 +93,57 @@ func TestAuditCheck(t *testing.T) {
 				)
 			},
 		},
+		{
+			name: "file rule present (pathFrom)",
+			rules: []*rule.FileWatchRule{
+				{
+					Type: rule.FileWatchRuleType,
+					Path: "/etc/docker/daemon.json",
+					Permissions: []rule.AccessType{
+						rule.ReadAccessType,
+						rule.WriteAccessType,
+						rule.AttributeChangeAccessType,
+					},
+				},
+			},
+			audit: &compliance.Audit{
+				PathFrom: compliance.ValueFrom{
+					{
+						Process: &compliance.ValueFromProcess{
+							Name: "dockerd",
+							Flag: "--config-file",
+						},
+					},
+				},
+				Report: []compliance.ReportedField{
+					{
+						Property: "enabled",
+						Kind:     compliance.PropertyKindAttribute,
+					},
+					{
+						Property: "path",
+						Kind:     compliance.PropertyKindAttribute,
+					},
+					{
+						Property: "permissions",
+						Kind:     compliance.PropertyKindAttribute,
+					},
+				},
+			},
+			setup: func(t *testing.T, env *mocks.Env) {
+				env.On("ResolveValueFrom", mock.AnythingOfType("compliance.ValueFrom")).Return("/etc/docker/daemon.json", nil)
+			},
+			validate: func(t *testing.T, kv compliance.KVMap) {
+				assert.Equal(t,
+					compliance.KVMap{
+						"enabled":     "true",
+						"path":        "/etc/docker/daemon.json",
+						"permissions": "rwa",
+					},
+					kv,
+				)
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -105,8 +158,17 @@ func TestAuditCheck(t *testing.T) {
 
 			client.On("GetFileWatchRules").Return(test.rules, nil)
 
-			base := newTestBaseCheck(reporter, checkKindAudit)
-			check, err := newAuditCheck(base, client, test.audit)
+			env := &mocks.Env{}
+			defer env.AssertExpectations(t)
+			env.On("Reporter").Return(reporter)
+			env.On("AuditClient").Return(client)
+
+			if test.setup != nil {
+				test.setup(t, env)
+			}
+
+			base := newTestBaseCheck(env, checkKindAudit)
+			check, err := newAuditCheck(base, test.audit)
 			assert.NoError(err)
 
 			reporter.On(

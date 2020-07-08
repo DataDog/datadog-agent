@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,11 +20,12 @@ type checkKind string
 
 // baseCheck defines common behavior for all compliance checks
 type baseCheck struct {
+	env.Env
+
 	name     string
 	id       check.ID
 	kind     checkKind
 	interval time.Duration
-	reporter compliance.Reporter
 
 	framework    string
 	suiteName    string
@@ -103,7 +105,7 @@ func (c *baseCheck) report(tags []string, kv compliance.KVMap, logMsgAndArgs ...
 		Tags:         []string{fmt.Sprintf("check_kind:%s", c.kind)},
 		Data:         kv,
 	}
-	c.reporter.Report(event)
+	c.Reporter().Report(event)
 }
 
 func logFromMsgAndArgs(msgAndArgs ...interface{}) string {

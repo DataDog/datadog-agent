@@ -19,23 +19,21 @@ import (
 
 type groupCheck struct {
 	baseCheck
-	etcGroupPath string
-	group        *compliance.Group
+	group *compliance.Group
 }
 
-func newGroupCheck(baseCheck baseCheck, etcGroupPath string, group *compliance.Group) (*groupCheck, error) {
+func newGroupCheck(baseCheck baseCheck, group *compliance.Group) (*groupCheck, error) {
 	return &groupCheck{
-		baseCheck:    baseCheck,
-		etcGroupPath: etcGroupPath,
-		group:        group,
+		baseCheck: baseCheck,
+		group:     group,
 	}, nil
 }
 
 func (c *groupCheck) Run() error {
-	f, err := os.Open(c.etcGroupPath)
+	f, err := os.Open(c.EtcGroupPath())
 
 	if err != nil {
-		log.Errorf("%s: failed to open %s: %v", c.id, c.etcGroupPath, err)
+		log.Errorf("%s: failed to open %s: %v", c.id, c.EtcGroupPath(), err)
 		return err
 	}
 

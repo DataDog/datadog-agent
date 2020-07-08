@@ -3,16 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !linux
+package env
 
-package checks
+import "k8s.io/client-go/dynamic"
 
-import (
-	"errors"
-
-	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
-)
-
-func newAuditClient() (env.AuditClient, error) {
-	return nil, errors.New("audit client requires linux build flag")
-}
+// KubeClient is the Kubernetes (API server) client interface
+type KubeClient dynamic.Interface

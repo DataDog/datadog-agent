@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/docker/docker/api/types"
 
@@ -50,8 +51,9 @@ func newTestRuleEvent(tags []string, kv compliance.KVMap) *compliance.RuleEvent 
 	}
 }
 
-func newTestBaseCheck(reporter compliance.Reporter, kind checkKind) baseCheck {
+func newTestBaseCheck(env env.Env, kind checkKind) baseCheck {
 	return baseCheck{
+		Env:       env,
 		id:        check.ID("check-1"),
 		kind:      kind,
 		interval:  time.Minute,
@@ -61,7 +63,6 @@ func newTestBaseCheck(reporter compliance.Reporter, kind checkKind) baseCheck {
 		ruleID:       testCheckMeta.ruleID,
 		resourceType: testCheckMeta.resourceType,
 		resourceID:   testCheckMeta.resourceID,
-		reporter:     reporter,
 	}
 }
 
@@ -159,9 +160,13 @@ func TestDockerImageCheck(t *testing.T) {
 		).Once()
 	}
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
@@ -219,9 +224,13 @@ func TestDockerNetworkCheck(t *testing.T) {
 		),
 	).Once()
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
@@ -282,9 +291,13 @@ func TestDockerContainerCheck(t *testing.T) {
 		),
 	).Once()
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
@@ -326,9 +339,13 @@ func TestDockerInfoCheck(t *testing.T) {
 		),
 	).Once()
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
@@ -370,9 +387,13 @@ func TestDockerVersionCheck(t *testing.T) {
 		),
 	).Once()
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
