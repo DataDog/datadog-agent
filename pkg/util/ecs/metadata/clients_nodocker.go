@@ -18,8 +18,6 @@ import (
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
-var cloudProviderName = "AWS"
-
 // V1 returns a client for the ECS metadata API v1, also called introspection
 // endpoint, by detecting the endpoint address. Returns an error if it was not
 // possible to detect the endpoint address.
@@ -30,8 +28,8 @@ func V1() (*v1.Client, error) {
 // V2 returns a client for the ECS metadata API v2 that uses the default
 // endpoint address.
 func V2() (*v2.Client, error) {
-	if !config.IsCloudProviderEnabled(cloudProviderName) {
-		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", CloudProviderName)
 	}
 
 	return v2.NewDefaultClient(), nil

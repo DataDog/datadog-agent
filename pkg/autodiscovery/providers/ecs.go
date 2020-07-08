@@ -45,7 +45,6 @@ func (p *ECSConfigProvider) IsUpToDate() (bool, error) {
 func (p *ECSConfigProvider) Collect() ([]integration.Config, error) {
 	client, err := ecsmeta.V2()
 	if err != nil {
-		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
 		return nil, err
 	}
 
