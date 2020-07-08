@@ -52,6 +52,11 @@ type KubernetesResource struct {
 	Report Report `yaml:"report,omitempty"`
 }
 
+// String returns human-friendly information string about the KubernetesResource
+func (kr *KubernetesResource) String() string {
+	return fmt.Sprintf("%s/%s - Kind: %s - Namespace: %s - Request: %s - %s", kr.Group, kr.Version, kr.Kind, kr.Namespace, kr.APIRequest.Verb, kr.APIRequest.ResourceName)
+}
+
 // KubernetesAPIRequest defines it check applies to a single object or a list
 type KubernetesAPIRequest struct {
 	Verb         string `yaml:"verb"`

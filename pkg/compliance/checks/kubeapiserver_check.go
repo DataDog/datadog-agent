@@ -56,7 +56,7 @@ func newKubeapiserverCheck(baseCheck baseCheck, kubeResource *compliance.Kuberne
 }
 
 func (c *kubeApiserverCheck) Run() error {
-	log.Debugf("%s: kubeapiserver check: %v", c.ruleID, c.kubeResource)
+	log.Debugf("%s: kubeapiserver check: %s", c.ruleID, c.kubeResource.String())
 
 	resourceSchema := schema.GroupVersionResource{
 		Group:    c.kubeResource.Group,

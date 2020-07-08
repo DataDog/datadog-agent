@@ -21,10 +21,10 @@ import (
 
 var (
 	// ErrPropertyKindNotSupported is returned for property kinds not supported by the check
-	ErrPropertyKindNotSupported = errors.New("property kind not supported")
+	ErrPropertyKindNotSupported = errors.New("property kind '%s' not supported")
 
 	// ErrPropertyNotSupported is returned for properties not supported by the check
-	ErrPropertyNotSupported = errors.New("property not supported")
+	ErrPropertyNotSupported = errors.New("property '%s' not supported")
 )
 
 type pathMapper func(string) string
@@ -84,7 +84,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 		case compliance.PropertyKindYAMLQuery:
 			v, err = c.getPathValue(filePath, field.Property, yamlGetter)
 		default:
-			return ErrPropertyKindNotSupported
+			return invalidInputErr(ErrPropertyKindNotSupported, field.Kind)
 		}
 		if err != nil {
 			return err
@@ -113,7 +113,7 @@ func (c *fileCheck) getAttribute(filePath string, fi os.FileInfo, property strin
 	case "owner":
 		return getFileOwner(fi)
 	}
-	return "", ErrPropertyNotSupported
+	return "", invalidInputErr(ErrPropertyNotSupported, property)
 }
 
 // getter applies jq query to get string value from json or yaml raw data
