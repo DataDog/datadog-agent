@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 )
 
@@ -59,9 +58,9 @@ func diagnoseECSTags() error {
 
 // diagnose the ECS Fargate metadata API availability
 func diagnoseFargate() error {
-	client, err := metadata.V2()
+	client, err := ecsmeta.V2()
 	if err != nil {
-		log.Error(err)
+		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
 		return err
 	}
 

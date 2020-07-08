@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,9 +37,9 @@ func getFargateHost(orchestrator OrchestratorName, ecsFunc, eksFunc func() (stri
 }
 
 func getECSHost() (string, error) {
-	client, err := metadata.V2()
+	client, err := ecsmeta.V2()
 	if err != nil {
-		log.Error(err)
+		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
 		return "", err
 	}
 

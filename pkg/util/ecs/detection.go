@@ -56,7 +56,7 @@ func IsFargateInstance() bool {
 
 		client, err := ecsmeta.V2()
 		if err != nil {
-			log.Error(err)
+			log.Debugf("error while initializing ECS metadata V2 client: %s", err)
 			return newBoolEntry(false)
 		}
 
@@ -97,7 +97,7 @@ func HasFargateResourceTags() bool {
 	return queryCacheBool(hasFargateResourceTagsCacheKey, func() (bool, time.Duration) {
 		client, err := ecsmeta.V2()
 		if err != nil {
-			log.Error(err)
+			log.Debugf("error while initializing ECS metadata V2 client: %s", err)
 			return newBoolEntry(false)
 		}
 

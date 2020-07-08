@@ -9,4 +9,4 @@
 fixes:
   - |
     Fixes a bug where the ECS metadata endpoint V2 would get queried even though it was not configured
-    in the cloud_metadata providers.
+    with the configuration option `cloud_provider_metadata`.
