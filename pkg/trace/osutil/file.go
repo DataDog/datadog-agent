@@ -30,8 +30,8 @@ func Exit(msg string) {
 	os.Exit(1)
 }
 
-// ExitWithStatusCode prints the formatted text and exits the program with the given status code.
-func ExitWithStatusCode(statusCode int, format string, args ...interface{}) {
+// Exitf prints the formatted text and exits the program with status code 1.
+func Exitf(format string, args ...interface{}) {
 	if flags.Info || flags.Version {
 		fmt.Printf(format, args...)
 		fmt.Println("")
@@ -39,10 +39,5 @@ func ExitWithStatusCode(statusCode int, format string, args ...interface{}) {
 		log.Criticalf(format, args...)
 		log.Flush()
 	}
-	os.Exit(statusCode)
-}
-
-// Exitf prints the formatted text and exits the program with status code 1.
-func Exitf(format string, args ...interface{}) {
-	ExitWithStatusCode(1, format, args...)
+	os.Exit(1)
 }
