@@ -87,7 +87,7 @@ SYSCALL_KRETPROBE(utimes) {
     return trace__sys_utimes_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(utimesat) {
+SYSCALL_KRETPROBE(utimensat) {
     return trace__sys_utimes_ret(ctx);
 }
 

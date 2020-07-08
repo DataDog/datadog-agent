@@ -155,7 +155,7 @@ var AllKProbes = []*KProbe{
 		},
 	},
 	{
-		KProbe: syscallKprobe("utimesat"),
+		KProbe: syscallKprobe("utimensat"),
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
 		},
