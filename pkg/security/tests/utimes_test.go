@@ -91,4 +91,36 @@ func TestUtime(t *testing.T) {
 			t.Errorf("expected access microseconds of 222, got %d", atime%int64(time.Second)/int64(time.Microsecond))
 		}
 	}
+
+	var ntimes = [2]syscall.Timespec{
+		{
+			Sec:  111,
+			Nsec: 222,
+		},
+		{
+			Sec:  555,
+			Nsec: 666,
+		},
+	}
+
+	if _, _, errno := syscall.Syscall(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0]))); errno != 0 {
+		t.Fatal(err)
+	}
+
+	event, _, err = test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		if event.GetType() != "utimes" {
+			t.Errorf("expected utimes event, got %s", event.GetType())
+		}
+
+		if mtime := event.Utimes.Mtime.Unix(); mtime != 555 {
+			t.Errorf("expected modification time of 555, got %d", mtime)
+		}
+
+		if mtime := event.Utimes.Mtime.UnixNano(); mtime%int64(time.Second)/int64(time.Nanosecond) != 666 {
+			t.Errorf("expected modification microseconds of 666, got %d (%d)", mtime%int64(time.Second)/int64(time.Nanosecond), mtime)
+		}
+	}
 }
