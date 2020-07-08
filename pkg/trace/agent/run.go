@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
+const (
 	// messageMissingAPIKey is printed when the config could not be validated due to missing API key.
 	messageMissingAPIKey = "you must specify an API Key, either via a configuration file or the DD_API_KEY env var"
 
