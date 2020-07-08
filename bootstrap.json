@@ -48,7 +48,7 @@
             "type": "go"
         },
         "github.com/golangci/golangci-lint": {
-            "version": "v1.23.1",
+            "version": "v1.27.0",
             "cmd": "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $BOOTSTRAPPED_VERSION",
             "type": "shell"
         },

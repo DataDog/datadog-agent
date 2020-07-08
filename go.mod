@@ -6,7 +6,7 @@ go 1.13
 replace (
 	github.com/benesch/cgosymbolizer => github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
 	github.com/fzipp/gocyclo => github.com/fzipp/gocyclo v0.0.0-20150627053110-6acd4345c835 // indirect
-	github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.23.1
+	github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.27.0
 	github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign v0.0.0-20200309095847-7953dde2c7bf // indirect
 	// next line until pr https://github.com/ianlancetaylor/cgosymbolizer/pull/8 is merged
 	github.com/ianlancetaylor/cgosymbolizer => github.com/ianlancetaylor/cgosymbolizer v0.0.0-20170921033129-f5072df9c550
