@@ -1275,6 +1275,9 @@ windows_choco_online_7_x64:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
+    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - mkdir .omnibus\pkg
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\chocopack.bat online
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg .omnibus\pkg
