@@ -31,29 +31,80 @@ const (
 	kubeStateMetricsCheckName = "kube-state-metrics-alpha"
 )
 
+// KSMConfig contains the check config parameters
 type KSMConfig struct {
 	// TODO fill in all the configurations.
 	Collectors []string `yaml:"collectors"`
+
+	// LabelJoins allows adding the tags to join from other KSM metrics.
+	// Example: Joining for deployment metrics. Based on:
+	// kube_deployment_labels{deployment="kube-dns",label_addonmanager_kubernetes_io_mode="Reconcile"}
+	// Use the following config to add the value of label_addonmanager_kubernetes_io_mode as a tag to your KSM
+	// deployment metrics.
+	// label_joins:
+	//   kube_deployment_labels:
+	//     label_to_match: deployment
+	//     labels_to_get:
+	//       - label_addonmanager_kubernetes_io_mode
+	LabelJoins map[string]*JoinsConfig `yaml:"label_joins"`
 }
 
+// KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	instance *KSMConfig
-	store    []cache.Store
+	instance          *KSMConfig
+	store             []cache.Store
+	labelJoinsEnabled bool
+}
+
+// JoinsConfig contains the config parameters for label joins
+type JoinsConfig struct {
+	// LabelsToMatch contains the labels that must
+	// match the labels of the targeted metric
+	LabelsToMatch []string `yaml:"labels_to_match"`
+
+	// LabelsToGet contains the labels we want to get from the targeted metric
+	LabelsToGet []string `yaml:"labels_to_get"`
+
+	// GetAllLabels replaces LabelsToGet if enabled
+	GetAllLabels bool `yaml:"get_all_labels"`
+}
+
+func (jc *JoinsConfig) setupGetAllLabels() {
+	if jc.GetAllLabels {
+		return
+	}
+
+	for _, l := range jc.LabelsToGet {
+		if l == "*" {
+			jc.GetAllLabels = true
+			return
+		}
+	}
 }
 
 func init() {
 	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
 }
 
+// Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
 	err := k.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}
+
 	err = k.instance.parse(config)
 	if err != nil {
 		return err
+	}
+
+	k.labelJoinsEnabled = len(k.instance.LabelJoins) > 0
+
+	if k.labelJoinsEnabled {
+		for _, joinConf := range k.instance.LabelJoins {
+			joinConf.setupGetAllLabels()
+		}
 	}
 
 	builder := kubestatemetrics.New()
@@ -98,6 +149,7 @@ func (c *KSMConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+// Run runs the KSM check
 func (k *KSMCheck) Run() error {
 	sender, err := aggregator.GetSender(k.ID())
 	if err != nil {
@@ -106,26 +158,106 @@ func (k *KSMCheck) Run() error {
 
 	defer sender.Commit()
 
-	for _, store := range k.store {
-		metrics := store.(*ksmstore.MetricsStore).Push()
-		processMetrics(sender, metrics)
+	metricsToGet := []ksmstore.DDMetricsFam{}
+	if k.labelJoinsEnabled {
+		for _, store := range k.store {
+			metrics := store.(*ksmstore.MetricsStore).Push(k.familyFilter, k.metricFilter)
+			for _, m := range metrics {
+				metricsToGet = append(metricsToGet, m...)
+			}
+		}
 	}
+
+	for _, store := range k.store {
+		metrics := store.(*ksmstore.MetricsStore).Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
+		k.processMetrics(sender, metrics, metricsToGet)
+	}
+
 	return nil
 }
 
-func processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam) {
+// processMetrics attaches tags and forwards metrics to the aggregator
+func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, metricsToGet []ksmstore.DDMetricsFam) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			for _, m := range metricFamily.ListMetrics {
-				sender.Gauge(metricFamily.Name, m.Val, "", joinLabels(m.Labels))
+				sender.Gauge(metricFamily.Name, m.Val, "", k.joinLabels(m.Labels, metricsToGet))
 			}
 		}
 	}
 }
 
-func joinLabels(labels map[string]string) (tags []string) {
+// joinLabels converts metric labels into datatog tags and applies the label joins config
+func (k *KSMCheck) joinLabels(labels map[string]string, metricsToGet []ksmstore.DDMetricsFam) (tags []string) {
 	for k, v := range labels {
 		tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+	}
+
+	// apply label joins
+	for _, mFamily := range metricsToGet {
+		config, found := k.instance.LabelJoins[mFamily.Name]
+		if !found {
+			continue
+		}
+		for _, m := range mFamily.ListMetrics {
+			if isMatching(config, labels, m.Labels) {
+				tags = append(tags, getJoinedTags(config, m.Labels)...)
+			}
+		}
+	}
+
+	return tags
+}
+
+// familyFilter is a metric families filter for label joins
+// It ensures that we only get the configured metric names to
+// get labels based on the label joins config
+func (k *KSMCheck) familyFilter(f ksmstore.DDMetricsFam) bool {
+	_, found := k.instance.LabelJoins[f.Name]
+	return found
+}
+
+// metricFilter is a metrics filter for label joins
+// It ensures that we only get metadata-only metrics for label joins
+// metadata-only metrics that are used for label joins are always equal to 1
+// this is required for metrics where all combinations of a state are sent
+// but only the active one is set to 1 (others are set to 0)
+// example: kube_pod_status_phase
+func (k *KSMCheck) metricFilter(m ksmstore.DDMetric) bool {
+	return m.Val == float64(1)
+}
+
+// isMatching returns whether a targeted metric for label joins is
+// matching another metric labels based on the labels to match config
+func isMatching(config *JoinsConfig, destlabels, srcLabels map[string]string) bool {
+	for _, l := range config.LabelsToMatch {
+		firstVal, found := destlabels[l]
+		if !found {
+			return false
+		}
+		secondVal, found := srcLabels[l]
+		if !found {
+			return false
+		}
+		if firstVal != secondVal {
+			return false
+		}
+	}
+	return true
+}
+
+func getJoinedTags(config *JoinsConfig, srcLabels map[string]string) []string {
+	tags := []string{}
+	if config.GetAllLabels {
+		for k, v := range srcLabels {
+			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+		}
+		return tags
+	}
+	for _, k := range config.LabelsToGet {
+		if v, found := srcLabels[k]; found {
+			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+		}
 	}
 	return tags
 }
