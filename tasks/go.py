@@ -239,7 +239,7 @@ def misspell(ctx, targets):
 
 @task
 def deps(
-    ctx, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_bootstrap=False, no_dep_ensure=False,
+    ctx, verbose=False, android=False, no_bootstrap=False, no_dep_ensure=False,
 ):
     """
     Setup Go dependencies
