@@ -175,13 +175,8 @@ if linux?
   dependency 'system-probe'
 end
 
-# Additional software
-if windows?
-  dependency 'cacerts_py2' if with_python_runtime? "2"
-  dependency 'cacerts_py3' if with_python_runtime? "3"
-else
-  dependency 'cacerts'
-end
+# Bundled cacerts file (is this a good idea?)
+dependency 'cacerts'
 
 if osx?
   dependency 'datadog-agent-mac-app'
