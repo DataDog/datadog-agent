@@ -5,24 +5,6 @@ import (
 	"encoding/binary"
 )
 
-type PolicyMode uint8
-type PolicyFlag uint8
-
-const (
-	POLICY_MODE_ACCEPT PolicyMode = 1
-	POLICY_MODE_DENY   PolicyMode = 2
-
-	BASENAME_FLAG    PolicyFlag = 1
-	FLAGS_FLAG       PolicyFlag = 2
-	MODE_FLAG        PolicyFlag = 4
-	PARENT_NAME_FLAG PolicyFlag = 8
-	PROCESS_INODE    PolicyFlag = 16
-	PROCESS_NAME     PolicyFlag = 32
-
-	// need to be aligned with the kernel size
-	BASENAME_FILTER_SIZE = 32
-)
-
 type KFilter interface {
 	Bytes() []byte
 }
