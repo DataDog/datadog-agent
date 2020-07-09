@@ -39,10 +39,14 @@ func Run(ctx context.Context) {
 	}
 
 	cfg, err := config.Load(flags.ConfigPath)
-	// config.ErrMissingAPIKey is handled later in the method
-	// because the logger is not initialized yet
-	if err != nil && err != config.ErrMissingAPIKey {
-		osutil.Exitf("%v", err)
+	if err != nil {
+		if err == config.ErrMissingAPIKey {
+			// Exit with code 0, to prevent the SCM from restarting
+			// the service over and over and potentially causing uninstall issues.
+			osutil.ExitCode(0, "%v", err)
+		} else {
+			osutil.Exitf("%v", err)
+		}
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
@@ -69,16 +73,9 @@ func Run(ctx context.Context) {
 	}
 	defer log.Flush()
 
-	var gracefullyExits bool
-	if len(cfg.APIKey()) == 0 {
-		log.Warn(config.ErrMissingAPIKey)
-		gracefullyExits = true
-	}
 	if !cfg.Enabled {
 		log.Info(messageAgentDisabled)
-		gracefullyExits = true
-	}
-	if gracefullyExits {
+
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
 		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 		// http://supervisord.org/subprocess.html#process-states
