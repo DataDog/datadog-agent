@@ -9,7 +9,6 @@ type Macro struct {
 	ID         policy.MacroID
 	Expression string
 	ast        *ast.Macro
-	// evaluator  *MacroEvaluator
 }
 
 func (m *Macro) Parse() error {
