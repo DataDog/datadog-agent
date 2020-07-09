@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/elastic/go-libaudit/rule"
 )
@@ -61,7 +62,7 @@ func (c *auditCheck) reportOnRule(r *rule.FileWatchRule, path string) error {
 	var (
 		v   string
 		err error
-		kv  = compliance.KVMap{}
+		kv  = event.Data{}
 	)
 
 	for _, field := range c.audit.Report {

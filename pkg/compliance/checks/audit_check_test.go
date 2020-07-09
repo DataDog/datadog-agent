@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/elastic/go-libaudit/rule"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ import (
 
 func TestAuditCheck(t *testing.T) {
 	type setupFunc func(t *testing.T, env *mocks.Env)
-	type validateFunc func(t *testing.T, kv compliance.KVMap)
+	type validateFunc func(t *testing.T, kv event.Data)
 
 	tests := []struct {
 		name     string
@@ -42,9 +43,9 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, kv compliance.KVMap) {
+			validate: func(t *testing.T, kv event.Data) {
 				assert.Equal(t,
-					compliance.KVMap{
+					event.Data{
 						"enabled": "false",
 						"path":    "/etc/docker/daemon.json",
 					},
@@ -82,9 +83,9 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, kv compliance.KVMap) {
+			validate: func(t *testing.T, kv event.Data) {
 				assert.Equal(t,
-					compliance.KVMap{
+					event.Data{
 						"enabled":     "true",
 						"path":        "/etc/docker/daemon.json",
 						"permissions": "rwa",
@@ -133,9 +134,9 @@ func TestAuditCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env) {
 				env.On("ResolveValueFrom", mock.AnythingOfType("compliance.ValueFrom")).Return("/etc/docker/daemon.json", nil)
 			},
-			validate: func(t *testing.T, kv compliance.KVMap) {
+			validate: func(t *testing.T, kv event.Data) {
 				assert.Equal(t,
-					compliance.KVMap{
+					event.Data{
 						"enabled":     "true",
 						"path":        "/etc/docker/daemon.json",
 						"permissions": "rwa",
@@ -173,9 +174,9 @@ func TestAuditCheck(t *testing.T) {
 
 			reporter.On(
 				"Report",
-				mock.AnythingOfType("*compliance.RuleEvent"),
+				mock.AnythingOfType("*event.Event"),
 			).Run(func(args mock.Arguments) {
-				event := args.Get(0).(*compliance.RuleEvent)
+				event := args.Get(0).(*event.Event)
 				test.validate(t, event.Data)
 			})
 

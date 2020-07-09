@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
 )
@@ -54,7 +55,7 @@ func (c *processCheck) Run() error {
 
 func (c *processCheck) reportProcess(p *process.FilledProcess) error {
 	log.Debugf("%s: process check - match %s", c.ruleID, p.Cmdline)
-	kv := compliance.KVMap{}
+	kv := event.Data{}
 	flagValues := parseProcessCmdLine(p.Cmdline)
 
 	for _, field := range c.process.Report {

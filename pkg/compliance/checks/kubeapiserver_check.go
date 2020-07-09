@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -114,7 +115,7 @@ func (c *kubeApiserverCheck) Run() error {
 }
 
 func (c *kubeApiserverCheck) reportResource(p unstructured.Unstructured) error {
-	kv := compliance.KVMap{}
+	kv := event.Data{}
 
 	for _, field := range c.kubeResource.Report {
 		switch field.Kind {

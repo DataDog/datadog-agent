@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/stretchr/testify/assert"
 )
@@ -27,7 +28,7 @@ type commandFixture struct {
 	commandError    error
 	expCommandName  string
 	expCommandArgs  []string
-	expKV           compliance.KVMap
+	expKV           event.Data
 	expError        error
 }
 
@@ -87,7 +88,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"myCommandOutput": "output",
 				"exitCode":        "0",
 			},
@@ -109,7 +110,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  getDefaultShell().Name,
 			expCommandArgs:  append(getDefaultShell().Args, "my command --foo=bar --baz"),
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"myCommandOutput": "output",
 				"exitCode":        "0",
 			},
@@ -135,7 +136,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  "zsh",
 			expCommandArgs:  []string{"-someoption", "-c", "my command --foo=bar --baz"},
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"myCommandOutput": "output",
 				"exitCode":        "0",
 			},
@@ -178,7 +179,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"myCommandOutput": "output",
 				"exitCode":        "2",
 			},
@@ -208,7 +209,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"myCommandOutput": "output",
 				"exitCode":        "2",
 			},

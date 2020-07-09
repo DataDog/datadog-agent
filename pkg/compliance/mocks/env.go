@@ -6,6 +6,8 @@ import (
 	compliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	env "github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 
+	event "github.com/DataDog/datadog-agent/pkg/compliance/event"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -105,15 +107,15 @@ func (_m *Env) NormalizePath(path string) string {
 }
 
 // Reporter provides a mock function with given fields:
-func (_m *Env) Reporter() compliance.Reporter {
+func (_m *Env) Reporter() event.Reporter {
 	ret := _m.Called()
 
-	var r0 compliance.Reporter
-	if rf, ok := ret.Get(0).(func() compliance.Reporter); ok {
+	var r0 event.Reporter
+	if rf, ok := ret.Get(0).(func() event.Reporter); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(compliance.Reporter)
+			r0 = ret.Get(0).(event.Reporter)
 		}
 	}
 

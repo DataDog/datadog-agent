@@ -13,6 +13,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -63,7 +64,7 @@ func (c *fileCheck) Run() error {
 }
 
 func (c *fileCheck) reportFile(filePath string) error {
-	kv := compliance.KVMap{}
+	kv := event.Data{}
 	var v string
 
 	fi, err := os.Stat(filePath)

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -23,7 +24,7 @@ import (
 
 func TestFileCheck(t *testing.T) {
 	type setupFunc func(t *testing.T, env *mocks.Env) *fileCheck
-	type validateFunc func(t *testing.T, kv compliance.KVMap)
+	type validateFunc func(t *testing.T, kv event.Data)
 
 	setupFile := func(file *compliance.File) setupFunc {
 		return func(t *testing.T, env *mocks.Env) *fileCheck {
@@ -71,8 +72,8 @@ func TestFileCheck(t *testing.T) {
 					file:      file,
 				}
 			},
-			validate: func(t *testing.T, kv compliance.KVMap) {
-				assert.Equal(t, compliance.KVMap{
+			validate: func(t *testing.T, kv event.Data) {
+				assert.Equal(t, event.Data{
 					"permissions": "644",
 				}, kv)
 			},
@@ -92,7 +93,7 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KVMap) {
+			validate: func(t *testing.T, kv event.Data) {
 				owner, ok := kv["owner"]
 				assert.True(t, ok)
 				parts := strings.SplitN(owner, ":", 2)
@@ -114,8 +115,8 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KVMap) {
-				assert.Equal(t, compliance.KVMap{
+			validate: func(t *testing.T, kv event.Data) {
+				assert.Equal(t, event.Data{
 					"log_driver": "json-file",
 				}, kv)
 			},
@@ -132,8 +133,8 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KVMap) {
-				assert.Equal(t, compliance.KVMap{
+			validate: func(t *testing.T, kv event.Data) {
+				assert.Equal(t, event.Data{
 					"experimental": "false",
 				}, kv)
 			},
@@ -165,8 +166,8 @@ func TestFileCheck(t *testing.T) {
 
 				return setupFile(file)(t, env)
 			},
-			validate: func(t *testing.T, kv compliance.KVMap) {
-				assert.Equal(t, compliance.KVMap{
+			validate: func(t *testing.T, kv event.Data) {
+				assert.Equal(t, event.Data{
 					"experimental": "false",
 				}, kv)
 			},
@@ -183,8 +184,8 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KVMap) {
-				assert.Equal(t, compliance.KVMap{
+			validate: func(t *testing.T, kv event.Data) {
+				assert.Equal(t, event.Data{
 					"nofile_hard": "64000",
 				}, kv)
 			},
@@ -201,8 +202,8 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KVMap) {
-				assert.Equal(t, compliance.KVMap{
+			validate: func(t *testing.T, kv event.Data) {
+				assert.Equal(t, event.Data{
 					"apiVersion": "v1",
 				}, kv)
 			},
@@ -223,9 +224,9 @@ func TestFileCheck(t *testing.T) {
 
 			reporter.On(
 				"Report",
-				mock.AnythingOfType("*compliance.RuleEvent"),
+				mock.AnythingOfType("*event.Event"),
 			).Run(func(args mock.Arguments) {
-				event := args.Get(0).(*compliance.RuleEvent)
+				event := args.Get(0).(*event.Event)
 				test.validate(t, event.Data)
 			})
 

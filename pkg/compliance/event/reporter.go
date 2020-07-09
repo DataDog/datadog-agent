@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package compliance
+package event
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 
 // Reporter defines an interface for reporting rule events
 type Reporter interface {
-	Report(event *RuleEvent)
+	Report(event *Event)
 }
 
 type reporter struct {
@@ -31,10 +31,10 @@ func NewReporter(logSource *config.LogSource, logChan chan *message.Message) Rep
 	}
 }
 
-func (r *reporter) Report(event *RuleEvent) {
+func (r *reporter) Report(event *Event) {
 	buf, err := json.Marshal(event)
 	if err != nil {
-		log.Errorf("Failed to serialize rule event for rule %s", event.RuleID)
+		log.Errorf("Failed to serialize rule event for rule %s", event.AgentRuleID)
 		return
 	}
 

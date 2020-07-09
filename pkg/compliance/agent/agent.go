@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,7 +34,7 @@ type Agent struct {
 }
 
 // New creates a new instance of Agent
-func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) (*Agent, error) {
+func New(reporter event.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) (*Agent, error) {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -50,7 +51,7 @@ func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, op
 }
 
 // RunChecks runs checks right away without scheduling
-func RunChecks(reporter compliance.Reporter, configDir string, options ...checks.BuilderOption) error {
+func RunChecks(reporter event.Reporter, configDir string, options ...checks.BuilderOption) error {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -68,7 +69,7 @@ func RunChecks(reporter compliance.Reporter, configDir string, options ...checks
 }
 
 // RunChecksFromFile runs checks from the specified file with no scheduling
-func RunChecksFromFile(reporter compliance.Reporter, file string, options ...checks.BuilderOption) error {
+func RunChecksFromFile(reporter event.Reporter, file string, options ...checks.BuilderOption) error {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
