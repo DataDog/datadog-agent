@@ -102,8 +102,8 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "security_path_chmod",
-			EntryFunc: "kprobe/security_path_chmod",
+			Name:      "chmod_common",
+			EntryFunc: "kprobe/chmod_common",
 		},
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
@@ -129,8 +129,8 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "security_path_chown",
-			EntryFunc: "kprobe/security_path_chown",
+			Name:      "chown_common",
+			EntryFunc: "kprobe/chown_common",
 		},
 		EventTypes: map[string]Capabilities{
 			"chown": Capabilities{},
@@ -162,14 +162,14 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name: "utimes_common",
-			// TODO: switch to the new eBPF library. `isra.0` might be needed on your kernel for this probe to work.
-			// adding `isra.0` now will fail anyway because the current eBPF lib doesn't properly sanitize the kprobe
-			// events names.
-			EntryFunc: "kprobe/utimes_common",
+			Name: "mnt_want_write",
+			EntryFunc: "kprobe/mnt_want_write",
 		},
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
+			"rmdir": Capabilities{},
+			"unlink": Capabilities{},
+			"rename": Capabilities{},
 		},
 	},
 	{
@@ -197,6 +197,24 @@ var AllKProbes = []*KProbe{
 		},
 	},
 	{
+		KProbe: &eprobe.KProbe{
+			Name:      "vfs_mkdir",
+			EntryFunc: "kprobe/vfs_mkdir",
+		},
+		EventTypes: map[string]Capabilities{
+			"mkdir": Capabilities{},
+		},
+	},
+	{
+		KProbe: &eprobe.KProbe{
+			Name:      "filename_create",
+			EntryFunc: "kprobe/filename_create",
+		},
+		EventTypes: map[string]Capabilities{
+			"mkdir": Capabilities{},
+		},
+	},
+	{
 		KProbe: syscallKprobe("mkdir"),
 		EventTypes: map[string]Capabilities{
 			"mkdir": Capabilities{},
@@ -210,11 +228,11 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "security_path_mkdir",
-			EntryFunc: "kprobe/security_path_mkdir",
+			Name:      "vfs_rmdir",
+			EntryFunc: "kprobe/vfs_rmdir",
 		},
 		EventTypes: map[string]Capabilities{
-			"mkdir": Capabilities{},
+			"rmdir": Capabilities{},
 		},
 	},
 	{
@@ -225,11 +243,11 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "security_path_rmdir",
-			EntryFunc: "kprobe/security_path_rmdir",
+			Name:      "vfs_unlink",
+			EntryFunc: "kprobe/vfs_unlink",
 		},
 		EventTypes: map[string]Capabilities{
-			"rmdir": Capabilities{},
+			"unlink": Capabilities{},
 		},
 	},
 	{
@@ -246,11 +264,11 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "security_path_unlink",
-			EntryFunc: "kprobe/security_path_unlink",
+			Name:      "vfs_rename",
+			EntryFunc: "kprobe/vfs_rename",
 		},
 		EventTypes: map[string]Capabilities{
-			"unlink": Capabilities{},
+			"rename": Capabilities{},
 		},
 	},
 	{
@@ -267,15 +285,6 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: syscallKprobe("renameat2"),
-		EventTypes: map[string]Capabilities{
-			"rename": Capabilities{},
-		},
-	},
-	{
-		KProbe: &eprobe.KProbe{
-			Name:      "security_path_rename",
-			EntryFunc: "kprobe/security_path_rename",
-		},
 		EventTypes: map[string]Capabilities{
 			"rename": Capabilities{},
 		},

@@ -90,7 +90,7 @@ SYSCALL_KPROBE(lchown) {
     return trace__sys_chown(ctx, user, group);
 }
 
-SEC("kprobe/security_path_chown")
+SEC("kprobe/chown_common")
 int kprobe__security_path_chown(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)

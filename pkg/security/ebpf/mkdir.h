@@ -48,13 +48,22 @@ SYSCALL_KPROBE(mkdirat) {
     return trace__sys_mkdir(ctx, mode);
 }
 
-SEC("kprobe/security_path_mkdir")
+SEC("kprobe/filename_create")
+int kprobe__filename_create(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
+
+    syscall->mkdir.dir = (struct path *)PT_REGS_PARM3(ctx);
+    return 0;
+}
+
+SEC("kprobe/vfs_mkdir")
 int kprobe__security_path_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
 
-    syscall->mkdir.dir = (struct path *)PT_REGS_PARM1(ctx);
     syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);
     syscall->mkdir.path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.dir);
     return 0;

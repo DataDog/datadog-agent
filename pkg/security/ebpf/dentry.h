@@ -229,9 +229,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
 
         map_value.parent = next_key;
 
-        if (bpf_map_lookup_elem(&pathnames, &key) == NULL) {
-            bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
-        }
+        bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
 
         dentry = d_parent;
         if (next_key.ino == 0)
