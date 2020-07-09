@@ -1555,7 +1555,7 @@ deploy_rpm_testing-a6:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   script:
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "pipeline-$DD_PIPELINE_ID/6/x86_64/" $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm
 
 deploy_rpm_testing-a7:
   rules:
@@ -1571,7 +1571,7 @@ deploy_rpm_testing-a7:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "pipeline-$DD_PIPELINE_ID/7/x86_64/" $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
 
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing-a6:
@@ -1588,7 +1588,7 @@ deploy_suse_rpm_testing-a6:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   script:
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/pipeline-$DD_PIPELINE_ID/6/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm
 
 deploy_suse_rpm_testing-a7:
   rules:
@@ -1604,7 +1604,7 @@ deploy_suse_rpm_testing-a7:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
-    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/pipeline-$DD_PIPELINE_ID/7/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
 
 # deploy windows packages to our testing bucket
 deploy_windows_testing-a6:
@@ -2310,8 +2310,8 @@ kitchen_debian_upgrade7_iot_agent-a7:
   tags: [ "runner:main", "size:large" ]
   script:
     - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/testing/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/testing/suse/pipeline-$DD_PIPELINE_ID --recursive
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - aws s3 rm s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET --recursive
     - cd $OMNIBUS_PACKAGE_DIR
