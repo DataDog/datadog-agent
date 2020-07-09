@@ -66,6 +66,7 @@ type FieldValueType int
 const (
 	ScalarValueType  FieldValueType = 1
 	PatternValueType FieldValueType = 2
+	BitmaskValueType FieldValueType = 4
 )
 
 type FieldValue struct {

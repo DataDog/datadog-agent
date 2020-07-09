@@ -95,7 +95,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		dea := a.DebugEvalFnc
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: {{ .ValueType }}}); err != nil {
 				return nil, err
 			}
 		}
@@ -133,7 +133,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 	deb := b.DebugEvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: {{ .ValueType }}}); err != nil {
 			return nil, err
 		}
 	}
@@ -181,6 +181,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		FuncReturnType string
 		EvalReturnType string
 		Op             string
+		ValueType      string
 	}{
 		{
 			FuncName:       "Or",
@@ -189,6 +190,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "||",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "And",
@@ -197,6 +199,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "&&",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "IntEquals",
@@ -205,6 +208,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "==",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "IntNotEquals",
@@ -213,6 +217,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "!=",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "IntAnd",
@@ -221,6 +226,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "IntEvaluator",
 			EvalReturnType: "int",
 			Op:             "&",
+			ValueType:      "BitmaskValueType",
 		},
 		{
 			FuncName:       "IntOr",
@@ -229,6 +235,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "IntEvaluator",
 			EvalReturnType: "int",
 			Op:             "|",
+			ValueType:      "BitmaskValueType",
 		},
 		{
 			FuncName:       "IntXor",
@@ -237,6 +244,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "IntEvaluator",
 			EvalReturnType: "int",
 			Op:             "^",
+			ValueType:      "BitmaskValueType",
 		},
 		{
 			FuncName:       "StringEquals",
@@ -245,6 +253,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "==",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "StringNotEquals",
@@ -253,6 +262,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "!=",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "BoolEquals",
@@ -261,6 +271,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "==",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "BoolNotEquals",
@@ -269,6 +280,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "!=",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "GreaterThan",
@@ -277,6 +289,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             ">",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "GreaterOrEqualThan",
@@ -285,6 +298,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             ">=",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "LesserThan",
@@ -293,6 +307,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "<",
+			ValueType:      "ScalarValueType",
 		},
 		{
 			FuncName:       "LesserOrEqualThan",
@@ -301,6 +316,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			FuncReturnType: "BoolEvaluator",
 			EvalReturnType: "bool",
 			Op:             "<=",
+			ValueType:      "ScalarValueType",
 		},
 	}
 

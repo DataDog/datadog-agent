@@ -16,17 +16,16 @@ type truthTable struct {
 	Entries []truthEntry
 }
 
-func (tt *truthTable) getApprovers(fields ...string) map[string]FilterValues {
-	filterValues := make(map[string]FilterValues)
+func (tt *truthTable) getApprovers(fields ...string) map[Field]FilterValues {
+	filterValues := make(map[Field]FilterValues)
 
 	for _, entry := range tt.Entries {
 		if !entry.Result {
 			continue
 		}
 
-		// in order to have approvers we need to ensure that for a "true" result
-		// we always have all the given field set to true. If we find a "true" result
-		// with a field set to false we can exclude the given fields as approvers.
+		// a field value can't be an approver if we can find a entry that is true
+		// when all the fields are set to false.
 		allFalse := true
 		for _, field := range fields {
 			for _, value := range entry.Values {
@@ -44,7 +43,7 @@ func (tt *truthTable) getApprovers(fields ...string) map[string]FilterValues {
 		for _, field := range fields {
 		LOOP:
 			for _, value := range entry.Values {
-				if !value.ignore && field == value.Field {
+				if !value.ignore && !value.Not && field == value.Field {
 					fvs := filterValues[value.Field]
 					for _, fv := range fvs {
 						// do not append twice the same value
@@ -62,13 +61,28 @@ func (tt *truthTable) getApprovers(fields ...string) map[string]FilterValues {
 	return filterValues
 }
 
-func newTruthTable(rule *Rule, model Model, event Event) (*truthTable, error) {
-	model.SetEvent(event)
+func combineBitmasks(bitmasks []int) []int {
+	var result []int
 
-	var filterValues []*FilterValue
+	for i := 0; i < (1 << len(bitmasks)); i++ {
+		var mask int
+		for j, value := range bitmasks {
+			if (i & (1 << j)) > 0 {
+				mask |= value
+			}
+		}
+		result = append(result, mask)
+	}
+
+	return result
+}
+
+func genFilterValues(rule *Rule, event Event) ([]FilterValues, error) {
+	var filterValues []FilterValues
 	for field, fValues := range rule.evaluator.FieldValues {
 		// case where there is no static value, ex: process.gid == process.uid
 		// so generate fake value in order to be able to get the truth table
+		// note that we want to have the comparison returning true
 		if len(fValues) == 0 {
 			var value interface{}
 
@@ -87,56 +101,119 @@ func newTruthTable(rule *Rule, model Model, event Event) (*truthTable, error) {
 				return nil, &FieldTypeUnknown{Field: field}
 			}
 
-			filterValues = append(filterValues, &FilterValue{
-				Field:  field,
-				Value:  value,
-				Type:   ScalarValueType,
-				ignore: true,
+			filterValues = append(filterValues, FilterValues{
+				{
+					Field:  field,
+					Value:  value,
+					Type:   ScalarValueType,
+					ignore: true,
+				},
 			})
 
 			continue
 		}
 
+		var bitmasks []int
+
+		var values FilterValues
 		for _, fValue := range fValues {
-			filterValues = append(filterValues, &FilterValue{
-				Field: field,
-				Value: fValue.Value,
-				Type:  fValue.Type,
-			})
+			switch fValue.Type {
+			case ScalarValueType, PatternValueType:
+				values = append(values, FilterValue{
+					Field: field,
+					Value: fValue.Value,
+					Type:  fValue.Type,
+				})
+
+				notValue, err := notOfValue(fValue.Value)
+				if err != nil {
+					return nil, &ValueTypeUnknown{Field: field}
+				}
+
+				values = append(values, FilterValue{
+					Field: field,
+					Value: notValue,
+					Type:  fValue.Type,
+					Not:   true,
+				})
+			case BitmaskValueType:
+				bitmasks = append(bitmasks, fValue.Value.(int))
+			}
 		}
+
+		// add combinations of bitmask if bitmasks are used
+		if len(bitmasks) > 0 {
+			for _, mask := range combineBitmasks(bitmasks) {
+				values = append(values, FilterValue{
+					Field: field,
+					Value: mask,
+					Type:  BitmaskValueType,
+					Not:   mask == 0,
+				})
+			}
+		}
+
+		filterValues = append(filterValues, values)
 	}
 
-	if len(filterValues) == 0 {
+	return filterValues, nil
+}
+
+func combineFilterValues(filterValues []FilterValues) []FilterValues {
+	combine := func(a []FilterValues, b FilterValues) []FilterValues {
+		var result []FilterValues
+
+		for _, va := range a {
+			for _, vb := range b {
+				var s = make(FilterValues, len(va))
+				copy(s, va)
+				result = append(result, append(s, vb))
+			}
+		}
+
+		return result
+	}
+
+	var combined []FilterValues
+	for _, value := range filterValues[0] {
+		combined = append(combined, FilterValues{value})
+	}
+
+	for _, values := range filterValues[1:] {
+		combined = combine(combined, values)
+	}
+
+	return combined
+}
+
+func newTruthTable(rule *Rule, model Model, event Event) (*truthTable, error) {
+	model.SetEvent(event)
+
+	if len(rule.evaluator.FieldValues) == 0 {
 		return nil, nil
 	}
 
-	if len(filterValues) >= 64 {
-		return nil, errors.New("limit of field values reached")
+	filterValues, err := genFilterValues(rule, event)
+	if err != nil {
+		return nil, err
 	}
 
 	var truthTable truthTable
-	for i := 0; i < (1 << len(filterValues)); i++ {
+	for _, combination := range combineFilterValues(filterValues) {
 		var entry truthEntry
 
-		for j, value := range filterValues {
-			value.Not = (i & (1 << j)) > 0
-			if value.Not {
-				notValue, err := notOfValue(value.Value)
-				if err != nil {
-					return nil, &ValueTypeUnknown{Field: value.Field}
-				}
-				event.SetFieldValue(value.Field, notValue)
-			} else {
-				event.SetFieldValue(value.Field, value.Value)
-			}
+		for _, filterValue := range combination {
+			event.SetFieldValue(filterValue.Field, filterValue.Value)
 
 			entry.Values = append(entry.Values, FilterValue{
-				Field: value.Field,
-				Value: value.Value,
-				Type:  value.Type,
-				Not:   value.Not,
+				Field:  filterValue.Field,
+				Value:  filterValue.Value,
+				Type:   filterValue.Type,
+				Not:    filterValue.Not,
+				ignore: filterValue.ignore,
 			})
 		}
+
 		entry.Result = rule.evaluator.Eval(&Context{})
 
 		truthTable.Entries = append(truthTable.Entries, entry)

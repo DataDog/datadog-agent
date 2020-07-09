@@ -72,7 +72,7 @@ var OpenKProbes = []*KProbe{
 				},
 				"open.flags": {
 					PolicyFlags:     FLAGS_FLAG,
-					FieldValueTypes: eval.ScalarValueType,
+					FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 				},
 				"process.filename": {
 					PolicyFlags:     PROCESS_INODE,

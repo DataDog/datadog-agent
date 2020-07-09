@@ -184,7 +184,7 @@ func TestRuleSetFilters1(t *testing.T) {
 	}
 
 	if values, exists := approvers["open.filename"]; !exists || len(values) != 2 {
-		t.Fatal("expected approver not found")
+		t.Fatalf("expected approver not found: %v", values)
 	}
 
 	caps = FieldCapabilities{
@@ -300,5 +300,46 @@ func TestRuleSetFilters4(t *testing.T) {
 
 	if _, err := rs.GetApprovers("open", caps); err != nil {
 		t.Fatal("expected approver not found")
+	}
+}
+
+func TestRuleSetFilters5(t *testing.T) {
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+
+	addRuleExpr(t, rs, "id1", `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
+
+	caps := FieldCapabilities{
+		{
+			Field: "open.flags",
+			Types: ScalarValueType | BitmaskValueType,
+		},
+		{
+			Field: "open.filename",
+			Types: ScalarValueType,
+		},
+	}
+
+	if _, err := rs.GetApprovers("open", caps); err != nil {
+		t.Fatal("expected approver not found")
+	}
+}
+
+// TODO: re-add this test once approver on multiple event type rules will be fixed
+func TestRuleSetFilters6(t *testing.T) {
+	t.Skip()
+
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+
+	addRuleExpr(t, rs, "id1", `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) || process.name == "httpd"`)
+
+	caps := FieldCapabilities{
+		{
+			Field: "open.flags",
+			Types: ScalarValueType | BitmaskValueType,
+		},
+	}
+
+	if _, err := rs.GetApprovers("open", caps); err == nil {
+		t.Fatal("shouldn't get any approver")
 	}
 }
