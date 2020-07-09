@@ -86,7 +86,8 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
+	opts := flare.InitFlareOptions(false, false)
+	filePath, err := flare.CreateArchive(opts, common.GetDistPath(), common.PyChecksPath, logFile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
