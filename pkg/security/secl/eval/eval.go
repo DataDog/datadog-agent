@@ -1,4 +1,4 @@
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/operators -output eval_operators.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/operators -output eval_operators.go
 
 package eval
 
