@@ -168,7 +168,7 @@ func getMeta(hostnameData util.HostnameData) *Meta {
 	}
 
 	instanceID, err := ec2.GetInstanceID()
-	if err != nil || ec2Hostname == "" {
+	if err != nil || instanceID == "" {
 		log.Debugf("failed to get ec2 instanceID, trying from the cache: %s", err)
 		if x, found := cache.Cache.Get(key); found {
 			if cachedMeta, ok := x.(*Meta); ok {
