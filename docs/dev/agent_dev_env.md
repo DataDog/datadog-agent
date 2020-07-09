@@ -81,7 +81,7 @@ additional tool it might need.
 
 ## Installing dependencies
 
-From the root of `datadog-agent`, run `invoke deps`. This will use `go` to install the necessary dependencies.
+From the root of `datadog-agent`, run `invoke deps`. This uses `go` to install the necessary dependencies.
 
 ## System or Embedded?
 
