@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	api_util "github.com/DataDog/datadog-agent/pkg/api/util"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/mholt/archiver"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -84,18 +84,32 @@ type filePermsInfo struct {
 	group string
 }
 
+// Flare options are the options when creating a flare.
+type flareOptions struct {
+	local   bool
+	profile bool
+}
+
+// Initializer a new flare options struct.
+func InitFlareOptions(forceLocal bool, enableProfiling bool) *flareOptions {
+	return &flareOptions{
+		local:   forceLocal,
+		profile: enableProfiling,
+	}
+}
+
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
+func CreateArchive(opts *flareOptions, distPath, pyChecksPath, logFilePath string) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(zipFilePath, local, confSearchPaths, logFilePath)
+	return createArchive(zipFilePath, opts, confSearchPaths, logFilePath)
 }
 
-func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
+func createArchive(zipFilePath string, opts *flareOptions, confSearchPaths SearchPaths, logFilePath string) (string, error) {
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -113,7 +127,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 
 	permsInfos := make(permissionsInfos)
 
-	if local {
+	if opts.local {
 		err = writeLocal(tempDir, hostname)
 		if err != nil {
 			return "", err
@@ -277,7 +291,7 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -342,7 +356,7 @@ func zipExpVar(tempDir, hostname string) error {
 	var variables = make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		var variable = make(map[string]interface{})
-		json.Unmarshal([]byte(kv.Value.String()), &variable) //nolint:errcheck
+		json.Unmarshal([]byte(kv.Value.String()), &variable) // nolint:errcheck
 		variables[kv.Key] = variable
 	})
 
@@ -350,24 +364,32 @@ func zipExpVar(tempDir, hostname string) error {
 	// In order to properly ensure error checking,
 	// it needs to be done in its own loop
 	for key, value := range variables {
-		yamlValue, err := yaml.Marshal(value)
-		if err != nil {
-			return err
-		}
+		err := func() error {
+			yamlValue, err := yaml.Marshal(value)
+			if err != nil {
+				return err
+			}
 
-		f := filepath.Join(tempDir, hostname, "expvar", key)
-		err = ensureParentDirsExist(f)
-		if err != nil {
-			return err
-		}
+			f := filepath.Join(tempDir, hostname, "expvar", key)
+			err = ensureParentDirsExist(f)
+			if err != nil {
+				return err
+			}
 
-		w, err := newRedactingWriter(f, os.ModePerm, true)
-		if err != nil {
-			return err
-		}
-		defer w.Close()
+			w, err := newRedactingWriter(f)
+			if err != nil {
+				return err
+			}
+			defer w.Close()
 
-		_, err = w.Write(yamlValue)
+			_, err = w.Write(yamlValue)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}()
+
 		if err != nil {
 			return err
 		}
@@ -382,7 +404,7 @@ func zipExpVar(tempDir, hostname string) error {
 		apmPort = v
 	}
 	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -416,7 +438,7 @@ func zipExpVar(tempDir, hostname string) error {
 func zipSystemProbeStats(tempDir, hostname string) error {
 	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
-	sysProbeWriter, err := newRedactingWriter(sysProbeFile, os.ModePerm, true)
+	sysProbeWriter, err := newRedactingWriter(sysProbeFile)
 	if err != nil {
 		return err
 	}
@@ -442,7 +464,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -493,7 +515,7 @@ func zipSecrets(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -507,16 +529,19 @@ func zipDiagnose(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	diagnose.RunAll(writer) //nolint:errcheck
+	err := diagnose.RunAll(writer) // nolint:errcheck
+	if err != nil {
+		return err
+	}
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
-	err := ensureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -554,7 +579,7 @@ func zipConfigCheck(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetConfigCheck(writer, true) //nolint:errcheck
+	GetConfigCheck(writer, true) // nolint:errcheck
 	writer.Flush()
 
 	return writeConfigCheck(tempDir, hostname, b.Bytes())
@@ -567,7 +592,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -587,7 +612,7 @@ func zipTaggerList(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -602,9 +627,9 @@ func zipTaggerList(tempDir, hostname string) error {
 		taggerListURL = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
 
-	c := api_util.GetClient(false) // FIX: get certificates right then make this true
+	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := api_util.DoGet(c, taggerListURL)
+	r, err := apiutil.DoGet(c, taggerListURL)
 	if err != nil {
 		return err
 	}
@@ -639,7 +664,7 @@ func zipHealth(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -706,7 +731,7 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f, os.ModePerm, true)
+	w, err := newRedactingWriter(f)
 	if err != nil {
 		return err
 	}
@@ -743,7 +768,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					return err
 				}
 
-				w, err := newRedactingWriter(f, os.ModePerm, true)
+				w, err := newRedactingWriter(f)
 				if err != nil {
 					return err
 				}
@@ -778,7 +803,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 	return nil
 }
 
-func newRedactingWriter(f string, p os.FileMode, buffered bool) (*RedactingWriter, error) {
+func newRedactingWriter(f string) (*RedactingWriter, error) {
 	w, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return nil, err
@@ -836,7 +861,7 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 			return err
 		}
 
-		w, err := newRedactingWriter(f, os.ModePerm, true)
+		w, err := newRedactingWriter(f)
 		if err != nil {
 			return err
 		}

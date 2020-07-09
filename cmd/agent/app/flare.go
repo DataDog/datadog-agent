@@ -21,9 +21,10 @@ import (
 )
 
 var (
-	customerEmail string
-	autoconfirm   bool
-	forceLocal    bool
+	customerEmail   string
+	autoconfirm     bool
+	forceLocal      bool
+	enableProfiling bool
 )
 
 func init() {
@@ -32,6 +33,7 @@ func init() {
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
+	flareCmd.Flags().BoolVarP(&enableProfiling, "profile", "p", false, "Add performance enableProfiling data to the flare. If used, the flare command will wait for 120s to collect enableProfiling data.")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -148,7 +150,9 @@ func requestArchive(logFile string) (string, error) {
 
 func createArchive(logFile string) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
+	opts := flare.InitFlareOptions(forceLocal, enableProfiling)
+
+	filePath, e := flare.CreateArchive(opts, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 		return "", e
