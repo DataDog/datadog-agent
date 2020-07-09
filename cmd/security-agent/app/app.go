@@ -97,6 +97,7 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
+	SecurityAgentCmd.AddCommand(runtimeCmd)
 
 	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")

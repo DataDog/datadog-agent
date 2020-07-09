@@ -427,8 +427,23 @@ func (p *Probe) getPerfMaps() []*types.PerfMap {
 }
 
 func (p *Probe) Start() error {
-	err := p.Load()
+	asset := "pkg/security/ebpf/probe"
+	openSyscall := getSyscallFnName("open")
+	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
+		asset += "-syscall-wrapper"
+	}
+
+	bytecode, err := Asset(asset + ".o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
 	if err != nil {
+		return err
+	}
+
+	p.Module, err = gobpf.NewModuleFromReader(bytes.NewReader(bytecode))
+	if err != nil {
+		return err
+	}
+
+	if err := p.Load(); err != nil {
 		return err
 	}
 
@@ -673,9 +688,82 @@ func (p *Probe) SetFilterPolicy(tableName string, mode PolicyMode, flags PolicyF
 	return table.Set(zeroInt32, policy.Bytes())
 }
 
-func (p *Probe) setKProbePolicy(hook *HookPoint, rs *eval.RuleSet, eventType string, capabilities Capabilities) error {
+type PolicyReport struct {
+	Mode      PolicyMode
+	Flags     PolicyFlag
+	Approvers eval.Approvers
+}
+
+type Report struct {
+	Policies map[string]*PolicyReport
+}
+
+func NewReport() *Report {
+	return &Report{
+		Policies: make(map[string]*PolicyReport),
+	}
+}
+
+type Applier interface {
+	ApplyFilterPolicy(eventType string, tableName string, mode PolicyMode, flags PolicyFlag) error
+	ApplyApprovers(eventType string, hook *HookPoint, approvers eval.Approvers) error
+	GetReport() *Report
+}
+
+type Reporter struct {
+	report *Report
+}
+
+func (r *Reporter) getPolicyReport(eventType string) *PolicyReport {
+	if r.report.Policies[eventType] == nil {
+		r.report.Policies[eventType] = &PolicyReport{Approvers: eval.Approvers{}}
+	}
+	return r.report.Policies[eventType]
+}
+
+func (r *Reporter) ApplyFilterPolicy(eventType string, tableName string, mode PolicyMode, flags PolicyFlag) error {
+	policyReport := r.getPolicyReport(eventType)
+	policyReport.Mode = mode
+	policyReport.Flags = flags
+	return nil
+}
+
+func (r *Reporter) ApplyApprovers(eventType string, hookPoint *HookPoint, approvers eval.Approvers) error {
+	policyReport := r.getPolicyReport(eventType)
+	policyReport.Approvers = approvers
+	return nil
+}
+
+func (r *Reporter) GetReport() *Report {
+	return r.report
+}
+
+func NewReporter() *Reporter {
+	return &Reporter{report: NewReport()}
+}
+
+type KProbeApplier struct {
+	reporter Applier
+	probe    *Probe
+}
+
+func (k *KProbeApplier) ApplyFilterPolicy(eventType string, tableName string, mode PolicyMode, flags PolicyFlag) error {
+	k.reporter.ApplyFilterPolicy(eventType, tableName, mode, flags)
+	return k.probe.SetFilterPolicy(tableName, mode, flags)
+}
+
+func (k *KProbeApplier) ApplyApprovers(eventType string, hookPoint *HookPoint, approvers eval.Approvers) error {
+	k.reporter.ApplyApprovers(eventType, hookPoint, approvers)
+	return hookPoint.OnNewApprovers(k.probe, approvers)
+}
+
+func (k *KProbeApplier) GetReport() *Report {
+	return k.reporter.GetReport()
+}
+
+func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *eval.RuleSet, eventType string, capabilities Capabilities, applier Applier) error {
 	if !p.enableFilters {
-		if err := p.SetFilterPolicy(hook.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
@@ -683,32 +771,34 @@ func (p *Probe) setKProbePolicy(hook *HookPoint, rs *eval.RuleSet, eventType str
 
 	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
 	if err != nil {
-		log.Infof("Setting in-kernel filter policy to `PASS` for `%s`: no approver", eventType)
-		if err := p.SetFilterPolicy(hook.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	log.Debugf("Approver discovered: %+v\n", approvers)
-
-	if err := hook.OnNewApprovers(p, approvers); err != nil {
+	if err := applier.ApplyApprovers(eventType, hookPoint, approvers); err != nil {
 		log.Errorf("Error while adding approvers set in-kernel policy to `PASS` for `%s`: %s", eventType, err)
-		if err := p.SetFilterPolicy(hook.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
 	}
 
 	log.Infof("Setting in-kernel filter policy to `DENY` for `%s`", eventType)
-	if err := p.SetFilterPolicy(hook.PolicyTable, POLICY_MODE_DENY, capabilities.GetFlags()); err != nil {
+	if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_DENY, capabilities.GetFlags()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
+func (p *Probe) ApplyRuleSet(rs *eval.RuleSet, dryRun bool) (*Report, error) {
+	var applier Applier = NewReporter()
+	if !dryRun {
+		applier = &KProbeApplier{probe: p, reporter: applier}
+	}
+
 	already := make(map[*HookPoint]bool)
 
 	if !p.enableFilters {
@@ -727,10 +817,14 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 					continue
 				}
 
-				if err := p.setKProbePolicy(hookPoint, rs, eventType, capabilities); err != nil {
-					return err
+				if err := p.setKProbePolicy(hookPoint, rs, eventType, capabilities, applier); err != nil {
+					return nil, err
 				}
 			}
+		}
+
+		if dryRun {
+			continue
 		}
 
 		// then register kprobes
@@ -761,7 +855,7 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 
 				if err != nil {
 					if !hookPoint.Optional {
-						return err
+						return nil, err
 					}
 				}
 
@@ -771,7 +865,7 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 		}
 	}
 
-	return nil
+	return applier.GetReport(), nil
 }
 
 func NewProbe(config *config.Config) (*Probe, error) {
@@ -785,25 +879,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		},
 	}
 
-	asset := "pkg/security/ebpf/probe"
-	openSyscall := getSyscallFnName("open")
-	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
-		asset += "-syscall-wrapper"
-	}
-
-	bytecode, err := Asset(asset + ".o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
-	if err != nil {
-		return nil, err
-	}
-
-	log.Info("Start loading eBPF programs")
-	module, err := gobpf.NewModuleFromReader(bytes.NewReader(bytecode))
-	if err != nil {
-		return nil, err
-	}
-
 	p.Probe = &eprobe.Probe{
-		Module:   module,
 		Tables:   p.getTableNames(),
 		PerfMaps: p.getPerfMaps(),
 	}

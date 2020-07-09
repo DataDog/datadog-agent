@@ -2,6 +2,7 @@ package module
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +32,7 @@ type Module struct {
 	grpcServer   *grpc.Server
 	listener     net.Listener
 	statsdClient *statsd.Client
-	rateLimiter *RateLimiter
+	rateLimiter  *RateLimiter
 }
 
 func (m *Module) Register(server *grpc.Server) error {
@@ -55,7 +57,8 @@ func (m *Module) Register(server *grpc.Server) error {
 		return err
 	}
 
-	if err := m.probe.ApplyRuleSet(m.ruleSet); err != nil {
+	report, err := m.ApplyRuleSet(false)
+	if err != nil {
 		log.Warn(err)
 	}
 
@@ -65,7 +68,14 @@ func (m *Module) Register(server *grpc.Server) error {
 		return err
 	}
 
+	content, _ := json.MarshalIndent(report, "", "\t")
+	log.Debug(string(content))
+
 	return nil
+}
+
+func (m *Module) ApplyRuleSet(dryRun bool) (*probe.Report, error) {
+	return m.probe.ApplyRuleSet(m.ruleSet, dryRun)
 }
 
 func (m *Module) Close() {
@@ -102,7 +112,6 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, error) {
 	var result *multierror.Error
 
-	// Create new ruleset with empty rules and macros
 	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
 
 	// Load and parse policies
@@ -111,13 +120,15 @@ func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, er
 			// Open policy path
 			f, err := os.Open(policyPath)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
+				result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
+				continue
 			}
 
 			// Parse policy file
 			policy, err := policy.LoadPolicy(f)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
+				result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
+				continue
 			}
 
 			// Add the macros to the ruleset and generate macros evaluators
@@ -207,7 +218,7 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		eventServer:  NewEventServer(),
 		grpcServer:   grpc.NewServer(),
 		statsdClient: statsdClient,
-		rateLimiter: NewRateLimiter(ruleSet.ListRuleIDs()),
+		rateLimiter:  NewRateLimiter(ruleSet.ListRuleIDs()),
 	}
 
 	api.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
