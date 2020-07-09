@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	containerDiffPrefix = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/diff)`)
-	containerMergedPrefix = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/merged)`)
+	containerPathDiffPrefix = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/diff)`)
+	containerPathMergedPrefix = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/merged)`)
 )
 
 var NotEnoughData = errors.New("not enough data")
@@ -96,13 +96,13 @@ func (e *ChmodEvent) ResolveInode(resolvers *Resolvers) string {
 				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerDiffPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerMergedPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
 		}
 	}
@@ -172,13 +172,13 @@ func (e *ChownEvent) ResolveInode(resolvers *Resolvers) string {
 				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerDiffPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerMergedPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
 		}
 	}
@@ -237,13 +237,13 @@ func (e *OpenEvent) ResolveInode(resolvers *Resolvers) string {
 				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerDiffPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerMergedPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
 		}
 	}
@@ -329,13 +329,13 @@ func (e *MkdirEvent) ResolveInode(resolvers *Resolvers) string {
 				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerDiffPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerMergedPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
 		}
 	}
@@ -389,13 +389,13 @@ func (e *RmdirEvent) ResolveInode(resolvers *Resolvers) string {
 				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerDiffPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerMergedPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
 		}
 	}
@@ -469,13 +469,13 @@ func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
 				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerDiffPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerMergedPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
 		}
 	}
@@ -556,13 +556,13 @@ func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
 				e.SrcPathnameStr = strings.Replace(e.SrcPathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.SrcPathnameStr) {
-				e.SrcContainerPath = containerDiffPrefix.FindString(e.SrcPathnameStr)
-				e.SrcPathnameStr = containerDiffPrefix.ReplaceAllString(e.SrcPathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.SrcPathnameStr) {
+				e.SrcContainerPath = containerPathDiffPrefix.FindString(e.SrcPathnameStr)
+				e.SrcPathnameStr = containerPathDiffPrefix.ReplaceAllString(e.SrcPathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.SrcPathnameStr) {
-				e.SrcContainerPath = containerMergedPrefix.FindString(e.SrcPathnameStr)
-				e.SrcPathnameStr = containerMergedPrefix.ReplaceAllString(e.SrcPathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.SrcPathnameStr) {
+				e.SrcContainerPath = containerPathMergedPrefix.FindString(e.SrcPathnameStr)
+				e.SrcPathnameStr = containerPathMergedPrefix.ReplaceAllString(e.SrcPathnameStr, "")
 			}
 		}
 	}
@@ -595,13 +595,13 @@ func (e *RenameEvent) ResolveTargetInode(resolvers *Resolvers) string {
 				e.TargetPathnameStr = strings.Replace(e.TargetPathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.TargetPathnameStr) {
-				e.TargetContainerPath = containerDiffPrefix.FindString(e.TargetPathnameStr)
-				e.TargetPathnameStr = containerDiffPrefix.ReplaceAllString(e.TargetPathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.TargetPathnameStr) {
+				e.TargetContainerPath = containerPathDiffPrefix.FindString(e.TargetPathnameStr)
+				e.TargetPathnameStr = containerPathDiffPrefix.ReplaceAllString(e.TargetPathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.TargetPathnameStr) {
-				e.TargetContainerPath = containerMergedPrefix.FindString(e.TargetPathnameStr)
-				e.TargetPathnameStr = containerMergedPrefix.ReplaceAllString(e.TargetPathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.TargetPathnameStr) {
+				e.TargetContainerPath = containerPathMergedPrefix.FindString(e.TargetPathnameStr)
+				e.TargetPathnameStr = containerPathMergedPrefix.ReplaceAllString(e.TargetPathnameStr, "")
 			}
 		}
 	}
@@ -677,13 +677,13 @@ func (e *UtimesEvent) ResolveInode(resolvers *Resolvers) string {
 				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
 			}
 		} else {
-			if containerDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerDiffPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
-			if containerMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerMergedPrefix.ReplaceAllString(e.PathnameStr, "")
+			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
+				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
+				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
 			}
 		}
 	}
