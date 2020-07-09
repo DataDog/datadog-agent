@@ -30,9 +30,9 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -209,7 +209,7 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType string) (compliance.Reporter, error) {
+func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType string) (event.Reporter, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
@@ -244,7 +244,7 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 			Source:  sourceName,
 		},
 	)
-	return compliance.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
+	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
 func startCompliance(stopper restart.Stopper) error {

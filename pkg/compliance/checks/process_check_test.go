@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
@@ -21,7 +22,7 @@ type processFixture struct {
 	process *compliance.Process
 
 	processes map[int32]*process.FilledProcess
-	expKV     compliance.KVMap
+	expKV     event.Data
 	expError  error
 }
 
@@ -77,7 +78,7 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--path=foo"},
 				},
 			},
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"path": "foo",
 			},
 		},
@@ -144,7 +145,7 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--verbose"},
 				},
 			},
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"verbose": "true",
 			},
 		},

@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -120,7 +120,7 @@ func runCheck(cmd *cobra.Command, confPath *string, args []string) error {
 type runCheckReporter struct {
 }
 
-func (r *runCheckReporter) Report(event *compliance.RuleEvent) {
+func (r *runCheckReporter) Report(event *event.Event) {
 	data, err := json.Marshal(event)
 	if err != nil {
 		log.Errorf("Failed to marshal rule event: %v", err)

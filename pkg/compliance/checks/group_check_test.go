@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestGroupCheck(t *testing.T) {
-	type validateFunc func(t *testing.T, kv compliance.KVMap)
+	type validateFunc func(t *testing.T, kv event.Data)
 
 	tests := []struct {
 		name         string
@@ -39,9 +40,9 @@ func TestGroupCheck(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, kv compliance.KVMap) {
+			validate: func(t *testing.T, kv event.Data) {
 				assert.Equal(t,
-					compliance.KVMap{
+					event.Data{
 						"gid":   "412",
 						"users": "alice,bob,carlos,dan,eve",
 					},
@@ -68,9 +69,9 @@ func TestGroupCheck(t *testing.T) {
 
 			reporter.On(
 				"Report",
-				mock.AnythingOfType("*compliance.RuleEvent"),
+				mock.AnythingOfType("*event.Event"),
 			).Run(func(args mock.Arguments) {
-				event := args.Get(0).(*compliance.RuleEvent)
+				event := args.Get(0).(*event.Event)
 				test.validate(t, event.Data)
 			})
 

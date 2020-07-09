@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -158,7 +159,7 @@ func IsRuleID(ruleID string) RuleMatcher {
 }
 
 // NewBuilder constructs a check builder
-func NewBuilder(reporter compliance.Reporter, options ...BuilderOption) (Builder, error) {
+func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, error) {
 	b := &builder{
 		reporter:      reporter,
 		checkInterval: 20 * time.Minute,
@@ -182,7 +183,7 @@ func NewBuilder(reporter compliance.Reporter, options ...BuilderOption) (Builder
 type builder struct {
 	checkInterval time.Duration
 
-	reporter   compliance.Reporter
+	reporter   event.Reporter
 	valueCache *cache.Cache
 
 	hostname     string
@@ -410,7 +411,7 @@ func newCheckID(ruleID string, kind checkKind) check.ID {
 	return check.ID(fmt.Sprintf("%s:%s", ruleID, kind))
 }
 
-func (b *builder) Reporter() compliance.Reporter {
+func (b *builder) Reporter() event.Reporter {
 	return b.reporter
 }
 

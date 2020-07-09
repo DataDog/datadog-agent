@@ -15,6 +15,7 @@ import (
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -118,7 +119,7 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 		}
 	}
 
-	kv := compliance.KVMap{}
+	kv := event.Data{}
 	for _, field := range c.dockerResource.Report {
 		if c.setStaticKV(field, kv) {
 			continue

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -100,7 +101,7 @@ func (c *commandCheck) reportCommand(exitCode int, stdout []byte) error {
 		return log.Errorf("%s: command '%v' output is too large: %d, won't be reported", c.id, c.command, len(stdout))
 	}
 
-	kv := compliance.KVMap{
+	kv := event.Data{
 		"exitCode": strconv.Itoa(exitCode),
 	}
 	strStdout := string(stdout)
