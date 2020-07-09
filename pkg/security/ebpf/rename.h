@@ -18,7 +18,9 @@ struct rename_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_rename() {
-    struct syscall_cache_t syscall = {};
+    struct syscall_cache_t syscall = {
+        .type = EVENT_RENAME,
+    };
     cache_syscall(&syscall);
 
     return 0;
@@ -36,24 +38,21 @@ SYSCALL_KPROBE(renameat2) {
     return trace__sys_rename();
 }
 
-SEC("kprobe/security_path_rename")
-int kprobe__security_path_rename(struct pt_regs *ctx) {
+SEC("kprobe/vfs_rename")
+int kprobe__vfs_rename(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
 
-    struct path *src_dir = (struct path *)PT_REGS_PARM1(ctx);
     struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
     syscall->rename.src_overlay_numlower = get_overlay_numlower(src_dentry);
+    syscall->rename.target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
 
     // we generate a fake source key as the inode is (can be ?) reused
-    syscall->rename.src_key.mount_id = get_path_mount_id(src_dir);
     syscall->rename.src_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
     syscall->rename.src_inode = get_dentry_ino(src_dentry);
 
-    syscall->rename.target_dir = (struct path *)PT_REGS_PARM3(ctx);
-    syscall->rename.target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
-    syscall->rename.target_key = get_key(syscall->rename.target_dentry, syscall->rename.target_dir);
+    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     resolve_dentry(src_dentry, syscall->rename.src_key);
 
     return 0;
@@ -65,9 +64,10 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         return 0;
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
+    // (the mount id was set by kprobe/mnt_want_write)
     syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.target_dentry);
     if (syscall->rename.target_key.ino == 0) {
-        // the inode was used, fall back to the src_inode
+        // the same inode was re-used, fall back to the src_inode
         syscall->rename.target_key.ino = syscall->rename.src_inode;
     }
     struct rename_event_t event = {

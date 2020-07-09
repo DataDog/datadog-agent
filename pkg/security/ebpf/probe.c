@@ -21,6 +21,7 @@
 #include "process.h"
 #include "dentry.h"
 #include "setattr.h"
+#include "mnt.h"
 #include "chmod.h"
 #include "chown.h"
 #include "mkdir.h"

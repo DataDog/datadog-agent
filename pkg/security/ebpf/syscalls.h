@@ -52,7 +52,6 @@ struct syscall_cache_t {
         struct {
             struct path_key_t src_key;
             unsigned long src_inode;
-            struct path *target_dir;
             struct dentry *target_dentry;
             struct path_key_t target_key;
             int src_overlay_numlower;
@@ -89,10 +88,10 @@ struct syscall_cache_t {
 };
 
 struct bpf_map_def SEC("maps/syscalls") syscalls = {
-    .type = BPF_MAP_TYPE_HASH,
+    .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u64),
     .value_size = sizeof(struct syscall_cache_t),
-    .max_entries = 256,
+    .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
 };

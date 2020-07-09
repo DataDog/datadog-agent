@@ -12,25 +12,25 @@ struct rmdir_event_t {
 };
 
 SYSCALL_KPROBE(rmdir) {
-    struct syscall_cache_t syscall = {};
+    struct syscall_cache_t syscall = {
+        .type = EVENT_RMDIR,
+    };
     cache_syscall(&syscall);
 
     return 0;
 }
 
-SEC("kprobe/security_path_rmdir")
+SEC("kprobe/vfs_rmdir")
 int kprobe__vfs_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
 
-    // we resolve all the information before the file is actually removed
-    struct path *path = (struct path *) PT_REGS_PARM1(ctx);
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    struct path_key_t path_key = get_key(dentry, path);
-    syscall->rmdir.path_key = path_key;
+    syscall->rmdir.path_key.ino = get_dentry_ino(dentry);
     syscall->rmdir.overlay_numlower = get_overlay_numlower(dentry);
-    resolve_dentry(dentry, path_key);
+    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+    resolve_dentry(dentry, syscall->rmdir.path_key);
 
     return 0;
 }

@@ -24,7 +24,9 @@ struct utime_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_utimes() {
-    struct syscall_cache_t syscall = {};
+    struct syscall_cache_t syscall = {
+        .type = EVENT_UTIME,
+    };
     cache_syscall(&syscall);
 
     return 0;
@@ -44,18 +46,6 @@ SYSCALL_KPROBE(utimensat) {
 
 SYSCALL_KPROBE(futimensat) {
     return trace__sys_utimes();
-}
-
-SEC("kprobe/utimes_common.isra.0")
-int kprobe__utimes_common(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
-    if (!syscall)
-        return 0;
-
-    syscall->setattr.path = (struct path *)PT_REGS_PARM1(ctx);
-    syscall->setattr.dentry = get_path_dentry(syscall->setattr.path);
-    syscall->setattr.path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
-    return 0;
 }
 
 int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
@@ -81,7 +71,6 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key);
 
     send_event(ctx, event);
 

@@ -389,8 +389,8 @@ func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
 	buf.WriteRune('}')
 

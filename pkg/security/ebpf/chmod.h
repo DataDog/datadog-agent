@@ -63,8 +63,8 @@ SYSCALL_KPROBE(fchmodat) {
     return trace__sys_chmod(ctx, mode);
 }
 
-SEC("kprobe/security_path_chmod")
-int kprobe__security_path_chmod(struct pt_regs *ctx) {
+SEC("kprobe/chmod_common")
+int kprobe__chmod_common(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
