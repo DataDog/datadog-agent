@@ -69,9 +69,9 @@ func Run(ctx context.Context) {
 	}
 	defer log.Flush()
 
-	gracefullyExits := false
+	var gracefullyExits bool
 	if len(cfg.APIKey()) == 0 {
-		log.Warn(messageMissingAPIKey)
+		log.Warn(config.ErrMissingAPIKey)
 		gracefullyExits = true
 	}
 	if !cfg.Enabled {
