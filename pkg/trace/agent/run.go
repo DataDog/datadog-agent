@@ -44,9 +44,8 @@ func Run(ctx context.Context) {
 			// Exit with code 0, to prevent the SCM from restarting
 			// the service over and over and potentially causing uninstall issues.
 			osutil.ExitCode(0, "%v", err)
-		} else {
-			osutil.Exitf("%v", err)
 		}
+		osutil.Exitf("%v", err)
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
 	if err != nil {
