@@ -261,6 +261,13 @@ func createArchive(zipFilePath string, opts *flareOptions, confSearchPaths Searc
 		return "", err
 	}
 
+	if opts.profile {
+		err = zipPerformanceProfiles(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip performance profile data: %s", err)
+		}
+	}
+
 	return zipFilePath, nil
 }
 
@@ -883,4 +890,8 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 func getSystemProbePath(ddCfgFilePath string) string {
 	path := filepath.Dir(ddCfgFilePath)
 	return filepath.Join(path, "system-probe.yaml")
+}
+
+func zipPerformanceProfiles(tempdir, hostname string) error {
+	// TODO: Implement Go and Python perf fecthing
 }
