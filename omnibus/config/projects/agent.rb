@@ -175,7 +175,7 @@ if linux?
   dependency 'system-probe'
 end
 
-# Additional software
+# Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
 
 if osx?
