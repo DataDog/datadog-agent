@@ -153,10 +153,29 @@ func getHostAliases() []string {
 
 // getMeta grabs the information and refreshes the cache
 func getMeta(hostnameData util.HostnameData) *Meta {
+	key := buildKey("meta")
+
 	hostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
-	ec2Hostname, _ := ec2.GetHostname()
-	instanceID, _ := ec2.GetInstanceID()
+	ec2Hostname, err := ec2.GetHostname()
+	if err != nil || ec2Hostname == "" {
+		log.Debugf("failed to get ec2 hostname, trying from the cache: %s", err)
+		if x, found := cache.Cache.Get(key); found {
+			if cachedMeta, ok := x.(*Meta); ok {
+				ec2Hostname = cachedMeta.EC2Hostname
+			}
+		}
+	}
+
+	instanceID, err := ec2.GetInstanceID()
+	if err != nil || ec2Hostname == "" {
+		log.Debugf("failed to get ec2 instanceID, trying from the cache: %s", err)
+		if x, found := cache.Cache.Get(key); found {
+			if cachedMeta, ok := x.(*Meta); ok {
+				instanceID = cachedMeta.InstanceID
+			}
+		}
+	}
 
 	var agentHostname string
 
@@ -176,7 +195,6 @@ func getMeta(hostnameData util.HostnameData) *Meta {
 	}
 
 	// Cache the metadata for use in other payload
-	key := buildKey("meta")
 	cache.Cache.Set(key, m, cache.NoExpiration)
 
 	return m
