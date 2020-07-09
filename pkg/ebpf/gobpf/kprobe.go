@@ -11,12 +11,12 @@ import (
 
 func (m *Module) RegisterKprobe(k *types.KProbe) error {
 	if k.EntryFunc != "" {
-		if err := m.EnableKprobe(k.EntryFunc, 128); err != nil {
+		if err := m.EnableKprobe(k.EntryFunc, 512); err != nil {
 			return fmt.Errorf("failed to load Kprobe %v: %s", k.EntryFunc, err)
 		}
 	}
 	if k.ExitFunc != "" {
-		if err := m.EnableKprobe(k.ExitFunc, 128); err != nil {
+		if err := m.EnableKprobe(k.ExitFunc, 512); err != nil {
 			return fmt.Errorf("failed to load Kretprobe %v: %s", k.ExitFunc, err)
 		}
 	}
