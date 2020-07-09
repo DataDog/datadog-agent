@@ -156,6 +156,12 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*Rule, error) {
 		return nil, RuleWithoutEventErr
 	}
 
+	// TODO: this contraints could be removed, but currenlty approver resolution can't handle multiple event type approver
+	if len(rule.GetEventTypes()) > 1 {
+		log.Errorf("mulitple event types specified on the same rule: %s", ruleDef.Expression)
+		return nil, RuleWithMultipleEventsErr
+	}
+
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
 	rs.AddFields(evaluator.GetFields())
 

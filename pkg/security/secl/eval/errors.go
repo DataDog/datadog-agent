@@ -11,6 +11,8 @@ import (
 
 var RuleWithoutEventErr = errors.New("rule without event")
 
+var RuleWithMultipleEventsErr = errors.New("rule with multiple events")
+
 type NoApprover struct {
 	Fields []string
 }
