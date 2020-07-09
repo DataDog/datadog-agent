@@ -1,4 +1,4 @@
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/accessors -output model_accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -output model_accessors.go
 
 package probe
 
