@@ -27,14 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// messageMissingAPIKey is printed when the config could not be validated due to missing API key.
-	messageMissingAPIKey = "you must specify an API Key, either via a configuration file or the DD_API_KEY env var"
-
-	messageAgentDisabled = `trace-agent not enabled. Set the environment variable
+const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
 to your datadog.yaml. Exiting...`
-)
 
 // Run is the entrypoint of our code, which starts the agent.
 func Run(ctx context.Context) {
@@ -44,7 +39,9 @@ func Run(ctx context.Context) {
 	}
 
 	cfg, err := config.Load(flags.ConfigPath)
-	if err != nil {
+	// config.ErrMissingAPIKey is handled later in the method
+	// because the logger is not initialized yet
+	if err != nil && err != config.ErrMissingAPIKey {
 		osutil.Exitf("%v", err)
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
@@ -73,7 +70,7 @@ func Run(ctx context.Context) {
 	defer log.Flush()
 
 	gracefullyExits := false
-	if len(cfg.Endpoints) == 0 || cfg.Endpoints[0].APIKey == "" {
+	if len(cfg.APIKey()) == 0 {
 		log.Warn(messageMissingAPIKey)
 		gracefullyExits = true
 	}
