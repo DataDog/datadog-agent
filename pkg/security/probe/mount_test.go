@@ -9,10 +9,11 @@ import (
 func TestMountResolver(t *testing.T) {
 	// Prepare test cases
 	type testCase struct {
-		mountID           uint32
-		numlower          int32
-		expectedMountPath string
-		expectedError     error
+		mountID               uint32
+		numlower              int32
+		expectedMountPath     string
+		expectedContainerPath string
+		expectedError         error
 	}
 	type event struct {
 		mount  *MountEvent
@@ -47,12 +48,14 @@ func TestMountResolver(t *testing.T) {
 					{
 						127,
 						0,
+						"",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/diff",
 						nil,
 					},
 					{
 						127,
 						1,
+						"",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
 					},
@@ -60,11 +63,13 @@ func TestMountResolver(t *testing.T) {
 						0,
 						0,
 						"",
+						"",
 						nil,
 					},
 					{
 						27,
 						0,
+						"",
 						"",
 						ErrMountNotFound,
 					},
@@ -85,6 +90,7 @@ func TestMountResolver(t *testing.T) {
 					{
 						127,
 						0,
+						"",
 						"",
 						ErrMountNotFound,
 					},
@@ -137,11 +143,13 @@ func TestMountResolver(t *testing.T) {
 						27,
 						0,
 						"",
+						"",
 						nil,
 					},
 					{
 						27,
 						1,
+						"",
 						"",
 						nil,
 					},
@@ -149,6 +157,7 @@ func TestMountResolver(t *testing.T) {
 						31,
 						0,
 						"/sys/fs/cgroup",
+						"",
 						nil,
 					},
 				},
@@ -169,17 +178,20 @@ func TestMountResolver(t *testing.T) {
 						27,
 						0,
 						"",
+						"",
 						ErrMountNotFound,
 					},
 					{
 						22,
 						0,
 						"",
+						"",
 						ErrMountNotFound,
 					},
 					{
 						31,
 						0,
+						"",
 						"",
 						ErrMountNotFound,
 					},
@@ -243,7 +255,8 @@ func TestMountResolver(t *testing.T) {
 					{
 						639,
 						1,
-						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged/proc",
+						"proc",
+						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
 					},
 				},
@@ -264,17 +277,20 @@ func TestMountResolver(t *testing.T) {
 						176,
 						0,
 						"",
+						"",
 						ErrMountNotFound,
 					},
 					{
 						638,
 						0,
 						"",
+						"",
 						ErrMountNotFound,
 					},
 					{
 						639,
 						0,
+						"",
 						"",
 						ErrMountNotFound,
 					},
@@ -298,7 +314,7 @@ func TestMountResolver(t *testing.T) {
 				}
 			}
 			for _, testC := range tt.args.cases {
-				p, err := mr.GetMountPath(testC.mountID, testC.numlower)
+				cp, p, err := mr.GetMountPath(testC.mountID, testC.numlower)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
@@ -308,6 +324,7 @@ func TestMountResolver(t *testing.T) {
 					continue
 				}
 				assert.Equal(t, testC.expectedMountPath, p)
+				assert.Equal(t, testC.expectedContainerPath, cp)
 			}
 		})
 	}
