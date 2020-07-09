@@ -1,7 +1,6 @@
 package probe
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"regexp"
@@ -440,7 +439,6 @@ func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, s
 			return "", "", ErrMountNotFound
 		}
 	}
-	fmt.Printf("cMountPath: %v mountPath: %v\n", m.containerMountPath, m.mountPath)
 	if m.containerMountPath != "" {
 		if numlower == 0 {
 			return path.Join(m.containerMountPath, "diff"), m.mountPath, nil
