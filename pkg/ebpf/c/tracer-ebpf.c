@@ -200,20 +200,6 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
     .namespace = "",
 };
 
-/* This map is used for passing config from userspace.
- * Only key 0 is used. If it is present, it means DNS stat collection
- * is enabled.
- * Value does not matter.
- */
-struct bpf_map_def SEC("maps/config") config = {
-      .type = BPF_MAP_TYPE_HASH,
-      .key_size = sizeof(__u16),
-      .value_size = sizeof(__u8),
-      .max_entries = 1,
-      .pinning = 0,
-      .namespace = "",
-};
-
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
 __attribute__((always_inline))
 static bool is_big_endian(void) {
@@ -254,6 +240,13 @@ __attribute__((always_inline))
 static bool use_indirect_syscall() {
     __u64 val = 0;
     LOAD_CONSTANT("use_indirect_syscall", val);
+    return val == 1;
+}
+
+__attribute__((always_inline))
+static bool dns_stats_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("dns_stats_enabled", val);
     return val == 1;
 }
 
@@ -1093,10 +1086,8 @@ int socket__dns_filter(struct __sk_buff* skb) {
 
     __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
     __u16 dst_port = load_half(skb, ETH_HLEN + ip_hdr_size + dst_port_offset);
-    __u16 key = 0;
-    __u8* val = bpf_map_lookup_elem(&config, &key);
 
-    if (src_port != 53 && (val == NULL || dst_port != 53))
+    if (src_port != 53 && (!dns_stats_enabled() || dst_port != 53))
         return 0;
 
     return -1;

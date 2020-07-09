@@ -41,7 +41,6 @@ func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
 			{Name: "pending_bind"},
 			{Name: "unbound_sockets"},
 			{Name: string(TelemetryMap)},
-			{Name: string(ConfigMap)},
 			{Name: string(LatestTimestampMap)},
 		},
 		PerfMaps: []*manager.PerfMap{

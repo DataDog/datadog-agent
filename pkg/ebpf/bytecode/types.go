@@ -87,7 +87,6 @@ const (
 	PortBindingsMap    BPFMapName = "port_bindings"
 	UdpPortBindingsMap BPFMapName = "udp_port_bindings"
 	TelemetryMap       BPFMapName = "telemetry"
-	ConfigMap          BPFMapName = "config"
 	TcpCloseBatchMap   BPFMapName = "tcp_close_batch"
 )
 

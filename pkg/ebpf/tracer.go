@@ -170,6 +170,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 	enableSocketFilter := config.DNSInspection && !pre410Kernel
 	if enableSocketFilter {
 		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(bytecode.SocketDnsFilter))
+		if config.CollectDNSStats {
+			mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
+				Name:  "dns_stats_enabled",
+				Value: uint64(1),
+			})
+		}
 	}
 	maxSizes := map[bytecode.BPFMapName]uint32{
 		bytecode.ConnMap:            uint32(config.MaxTrackedConnections),
@@ -188,16 +194,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	reverseDNS := network.NewNullReverseDNS()
 	if enableSocketFilter {
-		if config.CollectDNSStats {
-			mp, _, err := m.GetMap(string(bytecode.ConfigMap))
-			if mp == nil {
-				return nil, fmt.Errorf("error retrieving the bpf %s map: %s", bytecode.ConfigMap, err)
-			}
-			if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(&zero)); err != nil {
-				return nil, fmt.Errorf("error updating element of bpf %s map: %s", bytecode.ConfigMap, err)
-			}
-		}
-
 		filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
