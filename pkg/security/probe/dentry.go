@@ -103,7 +103,7 @@ func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (filename string
 				break
 			}
 
-			dr.lru.Add(string(keyBuffer), path)
+			//dr.lru.Add(string(keyBuffer), path)
 		} else {
 			path = value.(PathValue)
 		}

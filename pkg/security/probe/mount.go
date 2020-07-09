@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"regexp"
@@ -425,26 +426,28 @@ func (mr *MountResolver) insert(e *MountEvent, allowResync bool) {
 	mr.mounts[e.NewMountID] = m
 }
 
-// GetMountPath - Returns the path of a mount identified by its mount ID
-func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, error) {
+// GetMountPath - Returns the path of a mount identified by its mount ID. The first path is the container mount path if
+// it exists
+func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, string, error) {
 	mr.lock.RLock()
 	defer mr.lock.RUnlock()
 	m, ok := mr.mounts[mountID]
 	if !ok {
 		if mountID == 0 {
-			return "", nil
+			return "", "", nil
 		}
 		if !ok {
-			return "", ErrMountNotFound
+			return "", "", ErrMountNotFound
 		}
 	}
+	fmt.Printf("cMountPath: %v mountPath: %v\n", m.containerMountPath, m.mountPath)
 	if m.containerMountPath != "" {
 		if numlower == 0 {
-			return path.Join(m.containerMountPath, "diff", m.mountPath), nil
+			return path.Join(m.containerMountPath, "diff"), m.mountPath, nil
 		}
-		return path.Join(m.containerMountPath, "merged", m.mountPath), nil
+		return path.Join(m.containerMountPath, "merged"), m.mountPath, nil
 	}
-	return m.mountPath, nil
+	return "", m.mountPath, nil
 }
 
 // NewMountResolver - Instantiates a new mount resolver
