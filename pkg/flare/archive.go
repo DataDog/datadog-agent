@@ -89,7 +89,7 @@ type filePermsInfo struct {
 	group string
 }
 
-// Flare options are the options when creating a flare through the CLI.
+// Options are the options when creating a flare through the CLI.
 type Options struct {
 	local   bool
 	profile bool
