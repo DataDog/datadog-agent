@@ -3,7 +3,7 @@
 void removeRegistryKeys(ddRegKey& regKey)
 {
     RegKey keyRollback, keyInstall;
-    regKey.createSubKey(strRollbackKeyName.c_str(), keyRollback, REG_OPTION_VOLATILE);
+    regKey.createSubKey(strRollbackKeyName.c_str(), keyRollback);
     regKey.createSubKey(strUninstallKeyName.c_str(), keyInstall);
     keyRollback.deleteSubKey(installCreatedDDUser.c_str());
     keyInstall.deleteSubKey(installCreatedDDUser.c_str());
