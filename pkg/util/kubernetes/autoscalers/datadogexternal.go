@@ -20,30 +20,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	ddRequests = telemetry.NewCounterWithOpts("", "datadog_requests",
-		[]string{"status"}, "Counter of requests made to Datadog",
+		[]string{"status", le.JoinLeaderLabel}, "Counter of requests made to Datadog",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	metricsEval = telemetry.NewGaugeWithOpts("", "external_metrics_processed_value",
-		[]string{"metric"}, "value processed from querying Datadog",
+		[]string{"metric", le.JoinLeaderLabel}, "value processed from querying Datadog",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	metricsDelay = telemetry.NewGaugeWithOpts("", "external_metrics_delay_seconds",
-		[]string{"metric"}, "freshness of the metric evaluated from querying Datadog",
+		[]string{"metric", le.JoinLeaderLabel}, "freshness of the metric evaluated from querying Datadog",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	rateLimitsRemaining = telemetry.NewGaugeWithOpts("", "rate_limit_queries_remaining",
-		[]string{"endpoint"}, "number of queries remaining before next reset",
+		[]string{"endpoint", le.JoinLeaderLabel}, "number of queries remaining before next reset",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	rateLimitsReset = telemetry.NewGaugeWithOpts("", "rate_limit_queries_reset",
-		[]string{"endpoint"}, "number of seconds before next reset",
+		[]string{"endpoint", le.JoinLeaderLabel}, "number of seconds before next reset",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	rateLimitsPeriod = telemetry.NewGaugeWithOpts("", "rate_limit_queries_period",
-		[]string{"endpoint"}, "period of rate limiting",
+		[]string{"endpoint", le.JoinLeaderLabel}, "period of rate limiting",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	rateLimitsLimit = telemetry.NewGaugeWithOpts("", "rate_limit_queries_limit",
-		[]string{"endpoint"}, "maximum number of queries allowed in the period",
+		[]string{"endpoint", le.JoinLeaderLabel}, "maximum number of queries allowed in the period",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
@@ -71,10 +72,10 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 	query := strings.Join(ddQueries, ",")
 	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 	if err != nil {
-		ddRequests.Inc("error")
+		ddRequests.Inc("error", le.JoinLeaderValue)
 		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
-	ddRequests.Inc("success")
+	ddRequests.Inc("success", le.JoinLeaderValue)
 
 	processedMetrics := make(map[string]Point, ddQueriesLen)
 	for _, serie := range seriesSlice {
@@ -130,9 +131,9 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 			processedMetrics[ddQueries[queryIndex]] = point
 
 			// Prometheus submissions on the processed external metrics
-			metricsEval.Set(point.Value, m)
+			metricsEval.Set(point.Value, m, le.JoinLeaderValue)
 			precision := time.Now().Unix() - point.Timestamp
-			metricsDelay.Set(float64(precision), m)
+			metricsDelay.Set(float64(precision), m, le.JoinLeaderValue)
 
 			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", ddQueries[queryIndex], point.Value, point.Timestamp, i+1, len(serie.Points))
 			break
@@ -160,7 +161,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 func setTelemetryMetric(val string, metric telemetry.Gauge) error {
 	valFloat, err := strconv.Atoi(val)
 	if err == nil {
-		metric.Set(float64(valFloat), queryEndpoint)
+		metric.Set(float64(valFloat), queryEndpoint, le.JoinLeaderValue)
 	}
 	return err
 }

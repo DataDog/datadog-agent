@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -629,20 +630,21 @@ func TestUpdateRateLimiting(t *testing.T) {
 			if err != nil {
 				assert.EqualError(t, tt.error, err.Error())
 			}
-			assert.Equal(t, rateLimitsLimit.(*mockGauge).values[queryEndpoint], tt.results.Limit)
-			assert.Equal(t, rateLimitsReset.(*mockGauge).values[queryEndpoint], tt.results.Reset)
-			assert.Equal(t, rateLimitsPeriod.(*mockGauge).values[queryEndpoint], tt.results.Period)
-			assert.Equal(t, rateLimitsRemaining.(*mockGauge).values[queryEndpoint], tt.results.Remaining)
+			key := strings.Join([]string{queryEndpoint, le.JoinLeaderValue}, ",")
+			assert.Equal(t, rateLimitsLimit.(*mockGauge).values[key], tt.results.Limit)
+			assert.Equal(t, rateLimitsReset.(*mockGauge).values[key], tt.results.Reset)
+			assert.Equal(t, rateLimitsPeriod.(*mockGauge).values[key], tt.results.Period)
+			assert.Equal(t, rateLimitsRemaining.(*mockGauge).values[key], tt.results.Remaining)
 		})
 		resetCounters(queryEndpoint)
 	}
 }
 
 func resetCounters(endpoint string) {
-	rateLimitsRemaining.Set(0, endpoint)
-	rateLimitsPeriod.Set(0, endpoint)
-	rateLimitsLimit.Set(0, endpoint)
-	rateLimitsReset.Set(0, endpoint)
+	rateLimitsRemaining.Set(0, endpoint, "true")
+	rateLimitsPeriod.Set(0, endpoint, "true")
+	rateLimitsLimit.Set(0, endpoint, "true")
+	rateLimitsReset.Set(0, endpoint, "true")
 }
 
 type mockGauge struct {

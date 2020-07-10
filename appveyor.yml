@@ -10,7 +10,7 @@ environment:
   GOPATH: C:\gopath
   GOVERSION: '1.13.11'
   GOROOT: C:\go_1.13.11
-  GOLANGCI_LINT_VERSION: "1.21.0"
+  GOLANGCI_LINT_VERSION: "1.27.0"
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
   Python3_ROOT_DIR: C:\Python37-x64
@@ -35,9 +35,9 @@ install:
   - set PATH=%GOROOT%\bin;%PATH%
 
   # installing golangci-lint
-  - ps: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://github.com/golangci/golangci-lint/releases/download/v1.21.0/golangci-lint-$ENV:GOLANGCI_LINT_VERSION-windows-amd64.zip", "c:\tmp\golangci-lint.zip")
+  - ps: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://github.com/golangci/golangci-lint/releases/download/v$ENV:GOLANGCI_LINT_VERSION/golangci-lint-$ENV:GOLANGCI_LINT_VERSION-windows-amd64.zip", "c:\tmp\golangci-lint.zip")
   - ps: '& 7z -o"c:\tmp\golangci-lint\" x c:\tmp\golangci-lint.zip'
-  - move "c:\tmp\golangci-lint\golangci-lint-%GOLANGCI_LINT_VERSION%-windows-amd64\golangci-lint.exe" %GOROOT%\bin
+  - move "c:\tmp\golangci-lint\golangci-lint.exe-%GOLANGCI_LINT_VERSION%-windows-amd64\golangci-lint.exe" %GOROOT%\bin
 cache:
   - '%GOPATH%\bin'
   - '%LOCALAPPDATA%\pip\Cache'
@@ -46,7 +46,7 @@ cache:
 build: off
 
 test_script:
-  - inv -e deps --dep-vendor-only
+  - inv -e deps
   - inv -e rtloader.make --install-prefix=%APPVEYOR_BUILD_FOLDER%\dev --cmake-options="-G \"MSYS Makefiles\""
   - inv -e rtloader.install
   - inv -e rtloader.format --raise-if-changed

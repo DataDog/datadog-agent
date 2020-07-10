@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
@@ -62,26 +62,22 @@ func TestRun(t *testing.T) {
 
 	reporter := &mocks.Reporter{}
 
-	reporter.On("Report", &compliance.RuleEvent{
-		RuleID:       "cis-docker-1",
-		Framework:    "cis-docker",
-		Version:      "1.2.0",
+	reporter.On("Report", &event.Event{
+		AgentRuleID:  "cis-docker-1",
 		ResourceID:   "the-host",
 		ResourceType: "docker",
 		Tags:         []string{"check_kind:file"},
-		Data: compliance.KVMap{
+		Data: event.Data{
 			"permissions": "644",
 		},
 	})
 
-	reporter.On("Report", &compliance.RuleEvent{
-		RuleID:       "cis-kubernetes-1",
-		Framework:    "cis-kubernetes",
-		Version:      "1.5.0",
+	reporter.On("Report", &event.Event{
+		AgentRuleID:  "cis-kubernetes-1",
 		ResourceID:   "the-host",
 		ResourceType: "kubernetesCluster",
 		Tags:         []string{"check_kind:file"},
-		Data: compliance.KVMap{
+		Data: event.Data{
 			"permissions": "644",
 		},
 	})
@@ -114,14 +110,12 @@ func TestRunChecks(t *testing.T) {
 
 	reporter := &mocks.Reporter{}
 
-	reporter.On("Report", &compliance.RuleEvent{
-		RuleID:       "cis-docker-1",
-		Framework:    "cis-docker",
-		Version:      "1.2.0",
+	reporter.On("Report", &event.Event{
+		AgentRuleID:  "cis-docker-1",
 		ResourceID:   "the-host",
 		ResourceType: "docker",
 		Tags:         []string{"check_kind:file"},
-		Data: compliance.KVMap{
+		Data: event.Data{
 			"permissions": "644",
 		},
 	})
@@ -145,14 +139,12 @@ func TestRunChecksFromFile(t *testing.T) {
 
 	reporter := &mocks.Reporter{}
 
-	reporter.On("Report", &compliance.RuleEvent{
-		RuleID:       "cis-kubernetes-1",
-		Framework:    "cis-kubernetes",
-		Version:      "1.5.0",
+	reporter.On("Report", &event.Event{
+		AgentRuleID:  "cis-kubernetes-1",
 		ResourceID:   "the-host",
 		ResourceType: "kubernetesCluster",
 		Tags:         []string{"check_kind:file"},
-		Data: compliance.KVMap{
+		Data: event.Data{
 			"permissions": "644",
 		},
 	})

@@ -150,6 +150,13 @@ func validateSelectedParameters(t *testing.T, migratedConfigFile, oldConfigFile 
 	assert.Equal(t, oldProxies["https"], migratedProxies["https"])
 	assert.Equal(t, oldProxies["http"], migratedProxies["http"])
 
+	// Tags
+	oldTags := strings.Split(oldConfig["tags"], ",")
+	for i, tag := range oldTags {
+		oldTags[i] = strings.TrimSpace(tag)
+	}
+	assert.ElementsMatch(t, oldTags, migratedConf["tags"].([]interface{}))
+
 	// Some second level parameters
 	migratedProcessConfig := migratedConf["process_config"].(map[interface{}]interface{})
 	assert.Equal(t, oldConfig["process_agent_enabled"], migratedProcessConfig["enabled"])

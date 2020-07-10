@@ -7,8 +7,12 @@
 
 package checks
 
-import "errors"
+import (
+	"errors"
 
-func newAuditClient() (AuditClient, error) {
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+)
+
+func newAuditClient() (env.AuditClient, error) {
 	return nil, errors.New("audit client requires linux build flag")
 }

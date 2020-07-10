@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/stretchr/testify/assert"
 )
 
 type metricsExpected struct {
@@ -24,11 +25,14 @@ type metricsExpected struct {
 func TestProcessMetrics(t *testing.T) {
 	tests := []struct {
 		name             string
+		config           *KSMConfig
 		metricsToProcess map[string][]ksmstore.DDMetricsFam
+		metricsToGet     []ksmstore.DDMetricsFam
 		expected         []metricsExpected
 	}{
 		{
-			name: "single metrics",
+			name:   "single metrics",
+			config: &KSMConfig{},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_node_created": {
 					{
@@ -355,7 +359,18 @@ func TestProcessMetrics(t *testing.T) {
 					},
 				},
 			},
+			metricsToGet: []ksmstore.DDMetricsFam{},
 			expected: []metricsExpected{
+				{
+					name: "kube_node_created",
+					val:  1.588236673e+09,
+					tags: []string{"node:gke-charly-default-pool-6948dc89-g54n", "uid:bec19172-8abf-11ea-8546-42010a80022c"},
+				},
+				{
+					name: "kube_node_created",
+					val:  1.588197278e+09,
+					tags: []string{"node:gke-charly-default-pool-6948dc89-fs46", "uid:05e99c5f-8a64-11ea-8546-42010a80022c"},
+				},
 				{
 					name: "kube_node_status_condition",
 					val:  0,
@@ -383,17 +398,347 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "with label joins",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfig{"kube_node_info": {LabelsToMatch: []string{"node"}, LabelsToGet: []string{"kernel_version"}}}},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_created": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-g54n", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Val:    1.588236673e+09,
+							},
+						},
+					},
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-fs46", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Val:    1.588197278e+09,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-fs46", "kernel_version": "4.14.138"}}},
+				},
+			},
+			expected: []metricsExpected{
+				{
+					name: "kube_node_created",
+					val:  1.588236673e+09,
+					tags: []string{"node:gke-charly-default-pool-6948dc89-g54n", "uid:bec19172-8abf-11ea-8546-42010a80022c"},
+				},
+				{
+					name: "kube_node_created",
+					val:  1.588197278e+09,
+					tags: []string{"node:gke-charly-default-pool-6948dc89-fs46", "uid:05e99c5f-8a64-11ea-8546-42010a80022c", "kernel_version:4.14.138"},
+				},
+			},
+		},
+		{
+			name:   "with labels mapper",
+			config: &KSMConfig{LabelsMapper: map[string]string{"node": "host"}},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_created": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-g54n", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Val:    1.588236673e+09,
+							},
+						},
+					},
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-fs46", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Val:    1.588197278e+09,
+							},
+						},
+					},
+				},
+			},
+			expected: []metricsExpected{
+				{
+					name: "kube_node_created",
+					val:  1.588236673e+09,
+					tags: []string{"host:gke-charly-default-pool-6948dc89-g54n", "uid:bec19172-8abf-11ea-8546-42010a80022c"},
+				},
+				{
+					name: "kube_node_created",
+					val:  1.588197278e+09,
+					tags: []string{"host:gke-charly-default-pool-6948dc89-fs46", "uid:05e99c5f-8a64-11ea-8546-42010a80022c"},
+				},
+			},
+		},
+		{
+			name: "with label joins and labels mapper",
+			config: &KSMConfig{
+				LabelsMapper: map[string]string{"kernel_version": "kernel"},
+				LabelJoins: map[string]*JoinsConfig{"kube_node_info": {
+					LabelsToMatch: []string{"node"},
+					LabelsToGet:   []string{"kernel_version"},
+				}},
+			},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_created": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-g54n", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Val:    1.588236673e+09,
+							},
+						},
+					},
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_created",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-fs46", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Val:    1.588197278e+09,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "gke-charly-default-pool-6948dc89-fs46", "kernel_version": "4.14.138"}}},
+				},
+			},
+			expected: []metricsExpected{
+				{
+					name: "kube_node_created",
+					val:  1.588236673e+09,
+					tags: []string{"node:gke-charly-default-pool-6948dc89-g54n", "uid:bec19172-8abf-11ea-8546-42010a80022c"},
+				},
+				{
+					name: "kube_node_created",
+					val:  1.588197278e+09,
+					tags: []string{"node:gke-charly-default-pool-6948dc89-fs46", "uid:05e99c5f-8a64-11ea-8546-42010a80022c", "kernel:4.14.138"},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{})
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
 		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
-		processMetrics(mocked, test.metricsToProcess)
+		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, test.metricsToGet)
 		t.Run(test.name, func(t *testing.T) {
 			for _, expectMetric := range test.expected {
 				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, "", expectMetric.tags)
 			}
+			mocked.AssertNumberOfCalls(t, "Gauge", lenMetrics(test.metricsToProcess))
 		})
 	}
+}
+
+func Test_isMatching(t *testing.T) {
+	type args struct {
+		config     *JoinsConfig
+		destLabels map[string]string
+		srcLabels  map[string]string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "match",
+			args: args{
+				config:     &JoinsConfig{LabelsToMatch: []string{"foo"}},
+				destLabels: map[string]string{"foo": "bar", "baz": "bar"},
+				srcLabels:  map[string]string{"foo": "bar"},
+			},
+			want: true,
+		},
+		{
+			name: "no match",
+			args: args{
+				config:     &JoinsConfig{LabelsToMatch: []string{"foo"}},
+				destLabels: map[string]string{"foo": "bar", "baz": "bar"},
+				srcLabels:  map[string]string{"baz": "bar"},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isMatching(tt.args.config, tt.args.srcLabels, tt.args.destLabels); got != tt.want {
+				t.Errorf("isMatching() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestKSMCheck_joinLabels(t *testing.T) {
+	type args struct {
+		labels       map[string]string
+		metricsToGet []ksmstore.DDMetricsFam
+	}
+	tests := []struct {
+		name       string
+		labelJoins map[string]*JoinsConfig
+		args       args
+		wantTags   []string
+	}{
+		{
+			name: "join labels, multiple match",
+			labelJoins: map[string]*JoinsConfig{
+				"foo": {
+					LabelsToMatch: []string{"foo_label", "bar_label"},
+					LabelsToGet:   []string{"baz_label"},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"}}},
+					},
+				},
+			},
+			wantTags: []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+		},
+		{
+			name: "join labels, multiple get",
+			labelJoins: map[string]*JoinsConfig{
+				"foo": {
+					LabelsToMatch: []string{"foo_label"},
+					LabelsToGet:   []string{"bar_label", "baz_label"},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"}}},
+					},
+				},
+			},
+			wantTags: []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+		},
+		{
+			name: "no label match",
+			labelJoins: map[string]*JoinsConfig{
+				"foo": {
+					LabelsToMatch: []string{"foo_label"},
+					LabelsToGet:   []string{"bar_label"},
+				},
+			},
+			args: args{
+				labels: map[string]string{"baz_label": "baz_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"bar_label": "bar_value", "baz_label": "baz_value"}}},
+					},
+				},
+			},
+			wantTags: []string{"baz_label:baz_value"},
+		},
+		{
+			name: "no metric name match",
+			labelJoins: map[string]*JoinsConfig{
+				"foo": {
+					LabelsToMatch: []string{"foo_label"},
+					LabelsToGet:   []string{"bar_label"},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "bar",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value"}}},
+					},
+				},
+			},
+			wantTags: []string{"foo_label:foo_value"},
+		},
+		{
+			name: "join labels, multiple metric match",
+			labelJoins: map[string]*JoinsConfig{
+				"foo": {
+					LabelsToMatch: []string{"foo_label", "bar_label"},
+					LabelsToGet:   []string{"baz_label"},
+				},
+				"bar": {
+					LabelsToMatch: []string{"bar_label"},
+					LabelsToGet:   []string{"baf_label"},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"}}},
+					},
+					{
+						Name:        "bar",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"bar_label": "bar_value", "baf_label": "baf_value"}}},
+					},
+				},
+			},
+			wantTags: []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value", "baf_label:baf_value"},
+		},
+		{
+			name: "join all labels",
+			labelJoins: map[string]*JoinsConfig{
+				"foo": {
+					LabelsToMatch: []string{"foo_label"},
+					GetAllLabels:  true,
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"}}},
+					},
+				},
+			},
+			wantTags: []string{"foo_label:foo_value", "foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{LabelJoins: tt.labelJoins})
+			assert.ElementsMatch(t, tt.wantTags, kubeStateMetricsSCheck.joinLabels(tt.args.labels, tt.args.metricsToGet))
+		})
+	}
+}
+
+func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
+	count := 0
+	for _, metricFamily := range metricsToProcess {
+		for _, metrics := range metricFamily {
+			count += len(metrics.ListMetrics)
+		}
+	}
+	return count
 }
