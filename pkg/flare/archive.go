@@ -20,8 +20,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/pprof"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -68,6 +70,9 @@ var (
 			return []byte("api_key: ********")
 		},
 	}
+
+	// Mutex for performance profiling, because it may clash with other profiling if it's configured.
+	mu sync.Mutex
 )
 
 // SearchPaths is just an alias for a map of strings
@@ -749,6 +754,69 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	return err
 }
 
+func zipPerformanceProfiles(tempDir, hostname string) error {
+	if err := writeCPUProfile(tempDir, hostname); err != nil {
+		return err
+	}
+
+	if err := writeHeapProfile(tempDir, hostname); err != nil {
+		return err
+	}
+
+	// TODO: Python
+	return nil
+}
+
+func writeCPUProfile(tempDir, hostname string) error {
+	// Acquire lock so no one else does CPU profile
+	mu.Lock()
+	defer mu.Unlock()
+
+	f := filepath.Join(tempDir, hostname, "cpu.prof")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	if err := pprof.StartCPUProfile(w); err != nil {
+		return err
+	}
+	time.Sleep(120 * time.Second)
+	pprof.StopCPUProfile()
+
+	return nil
+}
+
+func writeHeapProfile(tempDir, hostname string) error {
+	// Acquire lock so no one else does Heap Profile
+	mu.Lock()
+	defer mu.Unlock()
+
+	f := filepath.Join(tempDir, hostname, "heap.prof")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	if err := pprof.WriteHeapProfile(w); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	for prefix, filePath := range confSearchPaths {
 
@@ -890,8 +958,4 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 func getSystemProbePath(ddCfgFilePath string) string {
 	path := filepath.Dir(ddCfgFilePath)
 	return filepath.Join(path, "system-probe.yaml")
-}
-
-func zipPerformanceProfiles(tempdir, hostname string) error {
-	// TODO: Implement Go and Python perf fecthing
 }
