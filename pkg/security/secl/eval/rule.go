@@ -7,7 +7,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Rule - rule object identified by an `ID` containing a SECL `Expression`
+// RuleID - ID of a Rule
+type RuleID = string
+
+// Rule - Rule object identified by an `ID` containing a SECL `Expression`
 type Rule struct {
 	ID         RuleID
 	Expression string
@@ -19,6 +22,7 @@ type Rule struct {
 	ast       *ast.Rule
 }
 
+// RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
 	Eval        func(ctx *Context) bool
 	EventTypes  []EventType
@@ -28,6 +32,7 @@ type RuleEvaluator struct {
 	partialEvals map[Field]func(ctx *Context) bool
 }
 
+// PartialEval - Partiel evaluation of the Rule with the given Field.
 func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	eval, ok := r.partialEvals[field]
 	if !ok {
@@ -44,6 +49,7 @@ func (r *RuleEvaluator) setPartial(field string, partialEval func(ctx *Context) 
 	r.partialEvals[field] = partialEval
 }
 
+// GetFields - Returns all the Field that the RuleEvaluator handles
 func (r *RuleEvaluator) GetFields() []Field {
 	fields := make([]Field, len(r.FieldValues))
 	i := 0
@@ -54,18 +60,22 @@ func (r *RuleEvaluator) GetFields() []Field {
 	return fields
 }
 
+// Eval - Evaluates
 func (r *Rule) Eval(ctx *Context) bool {
 	return r.evaluator.Eval(ctx)
 }
 
+// PartialEval - Partial evaluation with the given Field
 func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
 	return r.evaluator.PartialEval(ctx, field)
 }
 
+// GetPartialEval - Returns the Partial RuleEvaluator for the given Field
 func (r *Rule) GetPartialEval(field Field) func(ctx *Context) bool {
 	return r.evaluator.partialEvals[field]
 }
 
+// GetFields - Returns all the Field of the Rule including field of the Macro used
 func (r *Rule) GetFields() []Field {
 	fields := r.evaluator.GetFields()
 
@@ -76,12 +86,12 @@ func (r *Rule) GetFields() []Field {
 	return fields
 }
 
-// GetEvaluator returns the RuleEvaluator of the Rule corresponding to the SECL `Expression`
+// GetEvaluator - Returns the RuleEvaluator of the Rule corresponding to the SECL `Expression`
 func (r *Rule) GetEvaluator() *RuleEvaluator {
 	return r.evaluator
 }
 
-// GetEventTypes returns a list of all the event that the `Expression` handles
+// GetEventTypes - Returns a list of all the event that the `Expression` handles
 func (r *Rule) GetEventTypes() []EventType {
 	eventTypes := r.evaluator.EventTypes
 
@@ -92,12 +102,12 @@ func (r *Rule) GetEventTypes() []EventType {
 	return eventTypes
 }
 
-// GetAst returns the representation of the SECL `Expression`
+// GetAst - Returns the representation of the SECL `Expression`
 func (r *Rule) GetAst() *ast.Rule {
 	return r.ast
 }
 
-// Parse transforms the SECL `Expression` into its AST representation
+// Parse - Transforms the SECL `Expression` into its AST representation
 func (r *Rule) Parse() error {
 	astRule, err := ast.ParseRule(r.Expression)
 	if err != nil {
@@ -149,6 +159,7 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 	}, nil
 }
 
+// GenEvaluator - Compile and generates the RuleEvaluator
 func (r *Rule) GenEvaluator(model Model, opts *Opts) error {
 	r.Model = model
 	r.Opts = opts
@@ -191,7 +202,7 @@ func (r *Rule) genMacroPartials() (map[Field]map[MacroID]*MacroEvaluator, error)
 	return partials, nil
 }
 
-// GenPartials - to be removed, shouldn't be used
+// GenPartials - Compiles and generates partial Evaluators
 func (r *Rule) GenPartials() error {
 	macroPartials, err := r.genMacroPartials()
 	if err != nil {

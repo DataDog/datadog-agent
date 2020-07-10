@@ -5,7 +5,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Macro - macro object identified by an `ID` containing a SECL `Expression`
+//MacroID - ID of a Macro
+type MacroID = string
+
+// Macro - Macro object identified by an `ID` containing a SECL `Expression`
 type Macro struct {
 	ID         MacroID
 	Expression string
@@ -15,6 +18,7 @@ type Macro struct {
 	ast       *ast.Macro
 }
 
+// MacroEvaluator - Evaluation part of a Macro
 type MacroEvaluator struct {
 	Value       interface{}
 	EventTypes  []EventType
@@ -23,17 +27,17 @@ type MacroEvaluator struct {
 	partialEvals map[Field]func(ctx *Context) bool
 }
 
-// GetEvaluator returns the MacroEvaluator of the Macro corresponding to the SECL `Expression`
+// GetEvaluator - Returns the MacroEvaluator of the Macro corresponding to the SECL `Expression`
 func (m *Macro) GetEvaluator() *MacroEvaluator {
 	return m.evaluator
 }
 
-// GetAst returns the representation of the SECL `Expression`
+// GetAst - Returns the representation of the SECL `Expression`
 func (m *Macro) GetAst() *ast.Macro {
 	return m.ast
 }
 
-// Parse transforms the SECL `Expression` into its AST representation
+// Parse - Transforms the SECL `Expression` into its AST representation
 func (m *Macro) Parse() error {
 	astMacro, err := ast.ParseMacro(m.Expression)
 	if err != nil {
@@ -78,6 +82,7 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 	}, nil
 }
 
+// GenEvaluator - Compiles and generates the evalutor
 func (m *Macro) GenEvaluator(model Model, opts *Opts) error {
 	m.Opts = opts
 
@@ -93,7 +98,7 @@ func (m *Macro) GenEvaluator(model Model, opts *Opts) error {
 	return nil
 }
 
-// GetEventTypes returns a list of all the event that the `Expression` handles
+// GetEventTypes - Returns a list of all the Event Type that the `Expression` handles
 func (m *Macro) GetEventTypes() []EventType {
 	eventTypes := m.evaluator.EventTypes
 
@@ -104,16 +109,7 @@ func (m *Macro) GetEventTypes() []EventType {
 	return eventTypes
 }
 
-func (m *MacroEvaluator) GetFields() []Field {
-	fields := make([]Field, len(m.FieldValues))
-	i := 0
-	for key := range m.FieldValues {
-		fields[i] = key
-		i++
-	}
-	return fields
-}
-
+// GetFields - Returns all the Field that the Macro handles included sub-Macro
 func (m *Macro) GetFields() []Field {
 	fields := m.evaluator.GetFields()
 
@@ -121,5 +117,16 @@ func (m *Macro) GetFields() []Field {
 		fields = append(fields, macro.GetFields()...)
 	}
 
+	return fields
+}
+
+// GetFields - Returns all the Field that the MacroEvaluator handles
+func (m *MacroEvaluator) GetFields() []Field {
+	fields := make([]Field, len(m.FieldValues))
+	i := 0
+	for key := range m.FieldValues {
+		fields[i] = key
+		i++
+	}
 	return fields
 }
