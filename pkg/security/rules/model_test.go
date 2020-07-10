@@ -1,10 +1,10 @@
-package eval
+package rules
 
 import (
 	"reflect"
 	"syscall"
-	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/pkg/errors"
 )
 
@@ -59,11 +59,11 @@ func (m *testModel) SetEvent(event interface{}) {
 	m.event = event.(*testEvent)
 }
 
-func (m *testModel) GetEvent() Event {
+func (m *testModel) GetEvent() eval.Event {
 	return m.event
 }
 
-func (m *testModel) ValidateField(key string, value FieldValue) error {
+func (m *testModel) ValidateField(key string, value eval.FieldValue) error {
 	switch key {
 
 	case "process.uid":
@@ -87,63 +87,63 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 
 	case "process.name":
 
-		return &StringEvaluator{
+		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return m.event.process.name },
 			Field:   key,
 		}, nil
 
 	case "process.uid":
 
-		return &IntEvaluator{
+		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return m.event.process.uid },
 			Field:   key,
 		}, nil
 
 	case "process.gid":
 
-		return &IntEvaluator{
+		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return m.event.process.gid },
 			Field:   key,
 		}, nil
 
 	case "process.is_root":
 
-		return &BoolEvaluator{
+		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *Context) bool { return m.event.process.isRoot },
 			Field:   key,
 		}, nil
 
 	case "open.filename":
 
-		return &StringEvaluator{
+		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return m.event.open.filename },
 			Field:   key,
 		}, nil
 
 	case "open.flags":
 
-		return &IntEvaluator{
+		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return m.event.open.flags },
 			Field:   key,
 		}, nil
 
 	case "open.mode":
 
-		return &IntEvaluator{
+		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return m.event.open.mode },
 			Field:   key,
 		}, nil
 
 	case "mkdir.filename":
 
-		return &StringEvaluator{
+		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return m.event.mkdir.filename },
 			Field:   key,
 		}, nil
 
 	case "mkdir.mode":
 
-		return &IntEvaluator{
+		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return m.event.mkdir.mode },
 			Field:   key,
 		}, nil
@@ -384,23 +384,16 @@ func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
 
 var testConstants = map[string]interface{}{
 	// boolean
-	"true":  &BoolEvaluator{Value: true},
-	"false": &BoolEvaluator{Value: false},
+	"true":  &eval.BoolEvaluator{Value: true},
+	"false": &eval.BoolEvaluator{Value: false},
 
 	// open flags
-	"O_RDONLY": &IntEvaluator{Value: syscall.O_RDONLY},
-	"O_WRONLY": &IntEvaluator{Value: syscall.O_WRONLY},
-	"O_RDWR":   &IntEvaluator{Value: syscall.O_RDWR},
-	"O_APPEND": &IntEvaluator{Value: syscall.O_APPEND},
-	"O_CREAT":  &IntEvaluator{Value: syscall.O_CREAT},
-	"O_EXCL":   &IntEvaluator{Value: syscall.O_EXCL},
-	"O_SYNC":   &IntEvaluator{Value: syscall.O_SYNC},
-	"O_TRUNC":  &IntEvaluator{Value: syscall.O_TRUNC},
-}
-
-func TestFieldValidator(t *testing.T) {
-	expr := `process.uid == -100 && open.filename == "/etc/passwd"`
-	if _, err := parseRule(expr, &testModel{}, &Opts{}); err == nil {
-		t.Error("expected an error on process.uid being negative")
-	}
+	"O_RDONLY": &eval.IntEvaluator{Value: syscall.O_RDONLY},
+	"O_WRONLY": &eval.IntEvaluator{Value: syscall.O_WRONLY},
+	"O_RDWR":   &eval.IntEvaluator{Value: syscall.O_RDWR},
+	"O_APPEND": &eval.IntEvaluator{Value: syscall.O_APPEND},
+	"O_CREAT":  &eval.IntEvaluator{Value: syscall.O_CREAT},
+	"O_EXCL":   &eval.IntEvaluator{Value: syscall.O_EXCL},
+	"O_SYNC":   &eval.IntEvaluator{Value: syscall.O_SYNC},
+	"O_TRUNC":  &eval.IntEvaluator{Value: syscall.O_TRUNC},
 }

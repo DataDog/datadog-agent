@@ -1,4 +1,4 @@
-package eval
+package rules
 
 import (
 	"reflect"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 type testFieldValues map[string][]interface{}
@@ -15,10 +16,10 @@ type testHandler struct {
 	filters map[string]testFieldValues
 }
 
-func (f *testHandler) RuleMatch(rule *Rule, event Event) {
+func (f *testHandler) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
-func (f *testHandler) EventDiscarderFound(event Event, field string) {
+func (f *testHandler) EventDiscarderFound(event eval.Event, field string) {
 	values, ok := f.filters[event.GetType()]
 	if !ok {
 		values = make(testFieldValues)

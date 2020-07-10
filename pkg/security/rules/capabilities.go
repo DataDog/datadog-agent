@@ -1,21 +1,23 @@
-package eval
+package rules
+
+import "github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 
 type FieldCapabilities []FieldCapability
 
 type FieldCapability struct {
-	Field string
-	Types FieldValueType
+	Field eval.Field
+	Types eval.FieldValueType
 }
 
-func (fcs FieldCapabilities) GetFields() []string {
-	var fields []string
+func (fcs FieldCapabilities) GetFields() []eval.Field {
+	var fields []eval.Field
 	for _, fc := range fcs {
 		fields = append(fields, fc.Field)
 	}
 	return fields
 }
 
-func (fcs FieldCapabilities) Validate(approvers map[string]FilterValues) bool {
+func (fcs FieldCapabilities) Validate(approvers map[eval.Field]FilterValues) bool {
 	for _, fc := range fcs {
 		values, exists := approvers[fc.Field]
 		if !exists {

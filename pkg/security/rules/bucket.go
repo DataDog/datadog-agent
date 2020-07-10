@@ -1,20 +1,24 @@
-package eval
+package rules
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+)
 
 type RuleBucket struct {
-	rules  []*Rule
-	fields []string
+	rules  []*eval.Rule
+	fields []eval.Field
 }
 
-func (rb *RuleBucket) AddRule(rule *Rule) error {
+func (rb *RuleBucket) AddRule(rule *eval.Rule) error {
 	for _, r := range rb.rules {
 		if r.ID == rule.ID {
 			return DuplicateRuleID{ID: r.ID}
 		}
 	}
 
-	for _, field := range rule.evaluator.GetFields() {
+	for _, field := range rule.GetEvaluator().GetFields() {
 		index := sort.SearchStrings(rb.fields, field)
 		if index < len(rb.fields) && rb.fields[index] == field {
 			continue
@@ -28,22 +32,22 @@ func (rb *RuleBucket) AddRule(rule *Rule) error {
 	return nil
 }
 
-func (rb *RuleBucket) GetRules() []*Rule {
+func (rb *RuleBucket) GetRules() []*eval.Rule {
 	return rb.rules
 }
 
 // FieldCombinations - array all the combinations of field
-type FieldCombinations [][]string
+type FieldCombinations [][]eval.Field
 
 func (a FieldCombinations) Len() int           { return len(a) }
 func (a FieldCombinations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a FieldCombinations) Less(i, j int) bool { return len(a[i]) < len(a[j]) }
 
-func fieldCombinations(fields []string) FieldCombinations {
+func fieldCombinations(fields []eval.Field) FieldCombinations {
 	var result FieldCombinations
 
 	for i := 1; i < (1 << len(fields)); i++ {
-		var subResult []string
+		var subResult []eval.Field
 		for j, field := range fields {
 			if (i & (1 << j)) > 0 {
 				subResult = append(subResult, field)
@@ -58,7 +62,7 @@ func fieldCombinations(fields []string) FieldCombinations {
 	return result
 }
 
-func (rb *RuleBucket) GetApprovers(model Model, event Event, fieldCaps FieldCapabilities) (Approvers, error) {
+func (rb *RuleBucket) GetApprovers(model eval.Model, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	fcs := fieldCombinations(fieldCaps.GetFields())
 
 	approvers := make(Approvers)
@@ -68,7 +72,7 @@ func (rb *RuleBucket) GetApprovers(model Model, event Event, fieldCaps FieldCapa
 			return nil, err
 		}
 
-		var ruleApprovers map[string]FilterValues
+		var ruleApprovers map[eval.Field]FilterValues
 		for _, fields := range fcs {
 			ruleApprovers = truthTable.getApprovers(fields...)
 			if ruleApprovers != nil && len(ruleApprovers) > 0 && fieldCaps.Validate(ruleApprovers) {
