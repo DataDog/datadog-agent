@@ -268,7 +268,7 @@ jobs:
           command: |
             source ~/.build_setup
 
-            inv -e deps --dep-vendor-only
+            inv -e deps
             inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
 
   macos_build:
