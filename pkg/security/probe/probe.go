@@ -14,6 +14,7 @@ import (
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/statsd"
@@ -35,11 +36,11 @@ type KTable struct {
 }
 
 type Discarder struct {
-	Field string
+	Field eval.Field
 	Value interface{}
 }
 
-type onApproversFnc func(probe *Probe, approvers eval.Approvers) error
+type onApproversFnc func(probe *Probe, approvers rules.Approvers) error
 type onDiscarderFnc func(probe *Probe, discarder Discarder) error
 
 type Probe struct {
@@ -47,7 +48,7 @@ type Probe struct {
 	config           *config.Config
 	handler          EventHandler
 	resolvers        *Resolvers
-	onDiscardersFncs map[string][]onDiscarderFnc
+	onDiscardersFncs map[eval.EventType][]onDiscarderFnc
 	enableFilters    bool
 	tables           map[string]eprobe.Table
 	stats            EventsStats
@@ -59,13 +60,13 @@ type Capability struct {
 	FieldValueTypes eval.FieldValueType
 }
 
-type Capabilities map[string]Capability
+type Capabilities map[eval.Field]Capability
 
 type HookPoint struct {
 	Name            string
 	KProbes         []*eprobe.KProbe
 	Optional        bool
-	EventTypes      map[string]Capabilities
+	EventTypes      map[eval.EventType]Capabilities
 	OnNewApprovers  onApproversFnc
 	OnNewDiscarders onDiscarderFnc
 	PolicyTable     string
@@ -99,7 +100,7 @@ var AllHookPoints = []*HookPoint{
 		KProbes: []*eprobe.KProbe{{
 			EntryFunc: "kprobe/security_inode_setattr",
 		}},
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chmod":  Capabilities{},
 			"chown":  Capabilities{},
 			"utimes": Capabilities{},
@@ -108,49 +109,49 @@ var AllHookPoints = []*HookPoint{
 	{
 		Name:    "sys_chmod",
 		KProbes: syscallKprobe("chmod"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chmod": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_fchmod",
 		KProbes: syscallKprobe("fchmod"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chmod": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_fchmodat",
 		KProbes: syscallKprobe("fchmodat"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chmod": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_chown",
 		KProbes: syscallKprobe("chown"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_fchown",
 		KProbes: syscallKprobe("fchown"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_fchownat",
 		KProbes: syscallKprobe("fchownat"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_lchown",
 		KProbes: syscallKprobe("lchown"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
@@ -159,7 +160,7 @@ var AllHookPoints = []*HookPoint{
 		KProbes: []*eprobe.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write",
 		}},
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"utimes": Capabilities{},
 			"chmod":  Capabilities{},
 			"chown":  Capabilities{},
@@ -173,28 +174,28 @@ var AllHookPoints = []*HookPoint{
 		KProbes: []*eprobe.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write_file",
 		}},
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_utime",
 		KProbes: syscallKprobe("utime"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"utimes": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_utimes",
 		KProbes: syscallKprobe("utimes"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"utimes": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_utimensat",
 		KProbes: syscallKprobe("utimensat"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"utimes": Capabilities{},
 		},
 	},
@@ -210,7 +211,7 @@ var AllHookPoints = []*HookPoint{
 		KProbes: []*eprobe.KProbe{{
 			EntryFunc: "kprobe/vfs_mkdir",
 		}},
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"mkdir": Capabilities{},
 		},
 	},
@@ -227,14 +228,14 @@ var AllHookPoints = []*HookPoint{
 	{
 		Name:    "sys_mkdir",
 		KProbes: syscallKprobe("mkdir"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"mkdir": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_mkdirat",
 		KProbes: syscallKprobe("mkdirat"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"mkdir": Capabilities{},
 		},
 	},
@@ -251,7 +252,7 @@ var AllHookPoints = []*HookPoint{
 	{
 		Name:    "sys_rmdir",
 		KProbes: syscallKprobe("rmdir"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"rmdir": Capabilities{},
 		},
 	},
@@ -260,21 +261,21 @@ var AllHookPoints = []*HookPoint{
 		KProbes: []*eprobe.KProbe{{
 			EntryFunc: "kprobe/vfs_unlink",
 		}},
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"unlink": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_unlink",
 		KProbes: syscallKprobe("unlink"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"unlink": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_unlinkat",
 		KProbes: syscallKprobe("unlinkat"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"unlink": Capabilities{},
 		},
 	},
@@ -283,7 +284,7 @@ var AllHookPoints = []*HookPoint{
 		KProbes: []*eprobe.KProbe{{
 			EntryFunc: "kprobe/vfs_rename",
 		}},
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"rename": Capabilities{},
 		},
 	},
@@ -297,14 +298,14 @@ var AllHookPoints = []*HookPoint{
 	{
 		Name:    "sys_renameat",
 		KProbes: syscallKprobe("renameat"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"rename": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_renameat2",
 		KProbes: syscallKprobe("renameat2"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"rename": Capabilities{},
 		},
 	},
@@ -320,14 +321,14 @@ var AllHookPoints = []*HookPoint{
 	{
 		Name:    "sys_link",
 		KProbes: syscallKprobe("link"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"link": Capabilities{},
 		},
 	},
 	{
 		Name:    "sys_linkat",
 		KProbes: syscallKprobe("linkat"),
-		EventTypes: map[string]Capabilities{
+		EventTypes: map[eval.EventType]Capabilities{
 			"link": Capabilities{},
 		},
 	},
@@ -341,8 +342,8 @@ func (caps Capabilities) GetFlags() PolicyFlag {
 	return flags
 }
 
-func (caps Capabilities) GetField() []string {
-	var fields []string
+func (caps Capabilities) GetField() []eval.Field {
+	var fields []eval.Field
 
 	for field := range caps {
 		fields = append(fields, field)
@@ -351,11 +352,11 @@ func (caps Capabilities) GetField() []string {
 	return fields
 }
 
-func (caps Capabilities) GetFieldCapabilities() eval.FieldCapabilities {
-	var fcs eval.FieldCapabilities
+func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
+	var fcs rules.FieldCapabilities
 
 	for field, cap := range caps {
-		fcs = append(fcs, eval.FieldCapability{
+		fcs = append(fcs, rules.FieldCapability{
 			Field: field,
 			Types: cap.FieldValueTypes,
 		})
@@ -364,12 +365,12 @@ func (caps Capabilities) GetFieldCapabilities() eval.FieldCapabilities {
 	return fcs
 }
 
-func (p *Probe) NewRuleSet(opts eval.Opts) *eval.RuleSet {
+func (p *Probe) NewRuleSet(opts eval.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers)
 	}
 
-	return eval.NewRuleSet(&Model{}, eventCtor, opts)
+	return rules.NewRuleSet(&Model{}, eventCtor, opts)
 }
 
 func (p *Probe) getTableNames() []*types.Table {
@@ -645,7 +646,7 @@ func (p *Probe) handleEvent(data []byte) {
 	p.DispatchEvent(event)
 }
 
-func (p *Probe) OnNewDiscarder(event *Event, field string) error {
+func (p *Probe) OnNewDiscarder(event *Event, field eval.Field) error {
 	log.Debugf("New discarder event %+v for field %s\n", event, field)
 
 	eventType, err := event.GetFieldEventType(field)
@@ -688,7 +689,7 @@ func (p *Probe) SetFilterPolicy(tableName string, mode PolicyMode, flags PolicyF
 type PolicyReport struct {
 	Mode      PolicyMode
 	Flags     PolicyFlag
-	Approvers eval.Approvers
+	Approvers rules.Approvers
 }
 
 type Report struct {
@@ -702,8 +703,8 @@ func NewReport() *Report {
 }
 
 type Applier interface {
-	ApplyFilterPolicy(eventType string, tableName string, mode PolicyMode, flags PolicyFlag) error
-	ApplyApprovers(eventType string, hook *HookPoint, approvers eval.Approvers) error
+	ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error
+	ApplyApprovers(eventType eval.EventType, hook *HookPoint, approvers rules.Approvers) error
 	GetReport() *Report
 }
 
@@ -711,21 +712,21 @@ type Reporter struct {
 	report *Report
 }
 
-func (r *Reporter) getPolicyReport(eventType string) *PolicyReport {
+func (r *Reporter) getPolicyReport(eventType eval.EventType) *PolicyReport {
 	if r.report.Policies[eventType] == nil {
-		r.report.Policies[eventType] = &PolicyReport{Approvers: eval.Approvers{}}
+		r.report.Policies[eventType] = &PolicyReport{Approvers: rules.Approvers{}}
 	}
 	return r.report.Policies[eventType]
 }
 
-func (r *Reporter) ApplyFilterPolicy(eventType string, tableName string, mode PolicyMode, flags PolicyFlag) error {
+func (r *Reporter) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
 	policyReport := r.getPolicyReport(eventType)
 	policyReport.Mode = mode
 	policyReport.Flags = flags
 	return nil
 }
 
-func (r *Reporter) ApplyApprovers(eventType string, hookPoint *HookPoint, approvers eval.Approvers) error {
+func (r *Reporter) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
 	policyReport := r.getPolicyReport(eventType)
 	policyReport.Approvers = approvers
 	return nil
@@ -744,14 +745,14 @@ type KProbeApplier struct {
 	probe    *Probe
 }
 
-func (k *KProbeApplier) ApplyFilterPolicy(eventType string, tableName string, mode PolicyMode, flags PolicyFlag) error {
+func (k *KProbeApplier) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
 	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 
 	k.reporter.ApplyFilterPolicy(eventType, tableName, mode, flags)
 	return k.probe.SetFilterPolicy(tableName, mode, flags)
 }
 
-func (k *KProbeApplier) ApplyApprovers(eventType string, hookPoint *HookPoint, approvers eval.Approvers) error {
+func (k *KProbeApplier) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
 	k.reporter.ApplyApprovers(eventType, hookPoint, approvers)
 	return hookPoint.OnNewApprovers(k.probe, approvers)
 }
@@ -760,7 +761,7 @@ func (k *KProbeApplier) GetReport() *Report {
 	return k.reporter.GetReport()
 }
 
-func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *eval.RuleSet, eventType string, capabilities Capabilities, applier Applier) error {
+func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleSet, eventType eval.EventType, capabilities Capabilities, applier Applier) error {
 	if !p.enableFilters {
 		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
 			return err
@@ -791,7 +792,7 @@ func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *eval.RuleSet, eventTyp
 	return nil
 }
 
-func (p *Probe) ApplyRuleSet(rs *eval.RuleSet, dryRun bool) (*Report, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 	var applier Applier = NewReporter()
 	if !dryRun {
 		applier = &KProbeApplier{probe: p, reporter: applier}
@@ -869,7 +870,7 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet, dryRun bool) (*Report, error) {
 func NewProbe(config *config.Config) (*Probe, error) {
 	p := &Probe{
 		config:           config,
-		onDiscardersFncs: make(map[string][]onDiscarderFnc),
+		onDiscardersFncs: make(map[eval.EventType][]onDiscarderFnc),
 		enableFilters:    config.EnableKernelFilters,
 		tables:           make(map[string]eprobe.Table),
 	}

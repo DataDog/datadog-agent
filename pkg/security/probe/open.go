@@ -3,6 +3,7 @@ package probe
 import (
 	"fmt"
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/pkg/errors"
 	"path"
@@ -72,8 +73,8 @@ var OpenHookPoints = []*HookPoint{
 			},
 		},
 		PolicyTable: "open_policy",
-		OnNewApprovers: func(probe *Probe, approvers eval.Approvers) error {
-			stringValues := func(fvs eval.FilterValues) []string {
+		OnNewApprovers: func(probe *Probe, approvers rules.Approvers) error {
+			stringValues := func(fvs rules.FilterValues) []string {
 				var values []string
 				for _, v := range fvs {
 					values = append(values, v.Value.(string))
@@ -81,7 +82,7 @@ var OpenHookPoints = []*HookPoint{
 				return values
 			}
 
-			intValues := func(fvs eval.FilterValues) []int {
+			intValues := func(fvs rules.FilterValues) []int {
 				var values []int
 				for _, v := range fvs {
 					values = append(values, v.Value.(int))

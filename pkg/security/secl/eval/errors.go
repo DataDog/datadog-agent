@@ -6,52 +6,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
-	"github.com/pkg/errors"
 )
-
-var RuleWithoutEventErr = errors.New("rule without event")
-
-var RuleWithMultipleEventsErr = errors.New("rule with multiple events")
-
-type NoApprover struct {
-	Fields []string
-}
-
-func (e NoApprover) Error() string {
-	return fmt.Sprintf("no approver for fields `%s`", strings.Join(e.Fields, ", "))
-}
-
-type ValueTypeUnknown struct {
-	Field string
-}
-
-func (e *ValueTypeUnknown) Error() string {
-	return fmt.Sprintf("value type unknown for `%s`", e.Field)
-}
-
-type FieldTypeUnknown struct {
-	Field string
-}
-
-func (e *FieldTypeUnknown) Error() string {
-	return fmt.Sprintf("field type unknown for `%s`", e.Field)
-}
-
-type DuplicateRuleID struct {
-	ID string
-}
-
-func (e DuplicateRuleID) Error() string {
-	return fmt.Sprintf("duplicate rule ID `%s`", e.ID)
-}
-
-type NoEventTypeBucket struct {
-	EventType string
-}
-
-func (e NoEventTypeBucket) Error() string {
-	return fmt.Sprintf("no bucket for event type `%s`", e.EventType)
-}
 
 type InvalidPattern struct {
 	Pattern string
@@ -84,4 +39,21 @@ func NewOpUnknownError(pos lexer.Position, op string) *AstToEvalError {
 
 func NewOpError(pos lexer.Position, op string, err error) *AstToEvalError {
 	return NewError(pos, fmt.Sprintf("operator `%s` error: %s", op, err))
+}
+
+type RuleParseError struct {
+	pos  lexer.Position
+	expr string
+}
+
+func (e *RuleParseError) Error() string {
+	column := e.pos.Column
+	if column > 0 {
+		column--
+	}
+
+	str := fmt.Sprintf("%s\n", e.expr)
+	str += strings.Repeat(" ", column)
+	str += "^"
+	return str
 }

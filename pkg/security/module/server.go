@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,7 +35,7 @@ LOOP:
 }
 
 func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
-	data, err := json.Marshal(eval.RuleEvent{Event: event, RuleID: rule.ID})
+	data, err := json.Marshal(rules.RuleEvent{Event: event, RuleID: rule.ID})
 	if err != nil {
 		return
 	}

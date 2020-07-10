@@ -1,15 +1,17 @@
-package eval
+package rules
+
+import "github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 
 // Approvers associates field names with their Filter values
-type Approvers map[string]FilterValues
+type Approvers map[eval.Field]FilterValues
 
 // FilterValues - list of FilterValue
 type FilterValues []FilterValue
 
 type FilterValue struct {
-	Field string
+	Field eval.Field
 	Value interface{}
-	Type  FieldValueType
+	Type  eval.FieldValueType
 	Not   bool
 
 	ignore bool

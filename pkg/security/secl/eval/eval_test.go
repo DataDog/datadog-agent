@@ -7,66 +7,24 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/pkg/errors"
-
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
-func generateMacroEvaluators(t *testing.T, model Model, opts *Opts, macros map[policy.MacroID]*ast.Macro) {
-	opts.Macros = make(map[policy.MacroID]*MacroEvaluator)
-	for name, macro := range macros {
-		eval, err := MacroToEvaluator(macro, model, opts, "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		opts.Macros[name] = eval
-	}
-}
-
-func parse(t *testing.T, expr string, model Model, opts *Opts, macros map[string]*ast.Macro) (*RuleEvaluator, *ast.Rule, error) {
-	rule, err := ast.ParseRule(expr)
-	if err != nil {
-		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
+	rule := &Rule{
+		ID:         "id1",
+		Expression: expr,
 	}
 
-	generateMacroEvaluators(t, model, opts, macros)
-
-	evaluator, err := RuleToEvaluator(rule, model, opts)
-	if err != nil {
-		return nil, rule, err
+	if err := rule.Parse(); err != nil {
+		return nil, err
 	}
 
-	return evaluator, rule, err
-}
-
-func generatePartials(t *testing.T, field Field, model Model, opts *Opts, evaluator *RuleEvaluator, rule *ast.Rule, macros map[policy.MacroID]*ast.Macro) {
-	macroPartials := make(map[policy.MacroID]*MacroEvaluator)
-
-	for id, macro := range macros {
-		eval, err := MacroToEvaluator(macro, model, opts, field)
-		if err != nil {
-			t.Fatal(err)
-		}
-		macroPartials[id] = eval
+	if err := rule.GenEvaluator(model, opts); err != nil {
+		return rule, err
 	}
 
-	state := newState(model, field, macroPartials)
-	pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
-	if err != nil {
-		t.Fatal(errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, rule.Expr))
-	}
-	pEvalBool, ok := pEval.(*BoolEvaluator)
-	if !ok {
-		t.Fatal("the generated evaluator is not of type BoolEvaluator")
-	}
-	if pEvalBool.EvalFnc == nil {
-		pEvalBool.EvalFnc = func(ctx *Context) bool {
-			return pEvalBool.Value
-		}
-	}
-	// Insert partial evaluators in the rule
-	evaluator.SetPartial(field, pEvalBool.EvalFnc)
+	return rule, nil
 }
 
 func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
@@ -75,24 +33,24 @@ func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) 
 	ctx := &Context{}
 
 	opts := NewOptsWithParams(false, testConstants)
-	evaluator, rule, err := parse(t, expr, model, &opts, nil)
+	rule, err := parseRule(expr, model, opts)
 	if err != nil {
-		return false, rule, err
+		return false, nil, err
 	}
-	r1 := evaluator.Eval(ctx)
+	r1 := rule.GetEvaluator().Eval(ctx)
 
 	opts = NewOptsWithParams(true, testConstants)
-	evaluator, _, err = parse(t, expr, model, &opts, nil)
+	rule, err = parseRule(expr, model, opts)
 	if err != nil {
-		return false, rule, err
+		return false, rule.GetAst(), err
 	}
-	r2 := evaluator.Eval(ctx)
+	r2 := rule.GetEvaluator().Eval(ctx)
 
 	if r1 != r2 {
 		t.Fatalf("different result for non-debug and debug evalutators with rule `%s`", expr)
 	}
 
-	return r1, rule, nil
+	return r1, rule.GetAst(), nil
 }
 
 func TestStringError(t *testing.T) {
@@ -106,7 +64,14 @@ func TestStringError(t *testing.T) {
 		},
 	}
 
-	_, _, err := eval(t, event, `process.name != "/usr/bin/vipw" && process.uid != 0 && open.filename == 3`)
+	model := &testModel{event: event}
+
+	rule, err := parseRule(`process.name != "/usr/bin/vipw" && process.uid != 0 && open.filename == 3`, model, &Opts{})
+	if rule == nil {
+		t.Fatal(err)
+	}
+
+	_, err = ruleToEvaluator(rule.GetAst(), model, &Opts{})
 	if err == nil || err.(*AstToEvalError).Pos.Column != 73 {
 		t.Fatal("should report a string type error")
 	}
@@ -123,7 +88,14 @@ func TestIntError(t *testing.T) {
 		},
 	}
 
-	_, _, err := eval(t, event, `process.name != "/usr/bin/vipw" && process.uid != "test" && Open.Filename == "/etc/shadow"`)
+	model := &testModel{event: event}
+
+	rule, err := parseRule(`process.name != "/usr/bin/vipw" && process.uid != "test" && Open.Filename == "/etc/shadow"`, model, &Opts{})
+	if rule == nil {
+		t.Fatal(err)
+	}
+
+	_, err = ruleToEvaluator(rule.GetAst(), model, &Opts{})
 	if err == nil || err.(*AstToEvalError).Pos.Column != 51 {
 		t.Fatal("should report a string type error")
 	}
@@ -140,7 +112,14 @@ func TestBoolError(t *testing.T) {
 		},
 	}
 
-	_, _, err := eval(t, event, `(process.name != "/usr/bin/vipw") == "test"`)
+	model := &testModel{event: event}
+
+	rule, err := parseRule(`(process.name != "/usr/bin/vipw") == "test"`, model, &Opts{})
+	if rule == nil {
+		t.Fatal(err)
+	}
+
+	_, err = ruleToEvaluator(rule.GetAst(), model, &Opts{})
 	if err == nil || err.(*AstToEvalError).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
 	}
@@ -411,15 +390,15 @@ func TestComplex(t *testing.T) {
 
 func TestTags(t *testing.T) {
 	expr := `process.name != "/usr/bin/vipw" && open.filename == "/etc/passwd"`
-	evaluator, _, err := parse(t, expr, &testModel{}, &Opts{}, nil)
+	rule, err := parseRule(expr, &testModel{}, &Opts{})
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
 	expected := []string{"fs", "process"}
 
-	if !reflect.DeepEqual(evaluator.Tags, expected) {
-		t.Errorf("tags expected not %+v != %+v", expected, evaluator.Tags)
+	if !reflect.DeepEqual(rule.GetEvaluator().Tags, expected) {
+		t.Errorf("tags expected not %+v != %+v", expected, rule.GetEvaluator().Tags)
 	}
 }
 
@@ -479,13 +458,15 @@ func TestPartial(t *testing.T) {
 	for _, test := range tests {
 		model := &testModel{event: &event}
 		opts := &Opts{Constants: testConstants}
-		evaluator, rule, err := parse(t, test.Expr, model, opts, nil)
+		rule, err := parseRule(test.Expr, model, opts)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
-		generatePartials(t, test.Field, model, opts, evaluator, rule, nil)
+		if err := rule.GenPartials(model, opts); err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
 
-		result, err := evaluator.PartialEval(&Context{}, test.Field)
+		result, err := rule.GetEvaluator().PartialEval(&Context{}, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
@@ -497,42 +478,49 @@ func TestPartial(t *testing.T) {
 }
 
 func TestMacroList(t *testing.T) {
-	expr := `[ "/etc/shadow", "/etc/password" ]`
-
-	macro, err := ast.ParseMacro(expr)
-	if err != nil {
-		t.Fatalf("%s\n%s", err, expr)
+	macro := &Macro{
+		ID:         "list",
+		Expression: `[ "/etc/shadow", "/etc/password" ]`,
 	}
 
-	macros := map[string]*ast.Macro{
+	if err := macro.Parse(); err != nil {
+		t.Fatalf("%s\n%s", err, macro.Expression)
+	}
+
+	model := &testModel{event: &testEvent{}}
+
+	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
+		t.Fatalf("%s\n%s", err, macro.Expression)
+	}
+
+	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	opts.Macros = map[string]*Macro{
 		"list": macro,
 	}
 
-	expr = `"/etc/shadow" in list`
-	opts := NewOptsWithParams(false, make(map[string]interface{}))
-	evaluator, _, err := parse(t, expr, &testModel{event: &testEvent{}}, &opts, macros)
+	expr := `"/etc/shadow" in list`
+
+	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if !evaluator.Eval(&Context{}) {
+	if !rule.GetEvaluator().Eval(&Context{}) {
 		t.Fatalf("should return true")
 	}
 }
 
 func TestMacroExpression(t *testing.T) {
-	expr := `open.filename in [ "/etc/shadow", "/etc/passwd" ]`
-
-	macro, err := ast.ParseMacro(expr)
-	if err != nil {
-		t.Fatalf("%s\n%s", err, expr)
+	macro := &Macro{
+		ID:         "is_passwd",
+		Expression: `open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
 	}
 
-	macros := map[string]*ast.Macro{
-		"is_passwd": macro,
+	if err := macro.Parse(); err != nil {
+		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	event := testEvent{
+	event := &testEvent{
 		process: testProcess{
 			name: "httpd",
 		},
@@ -541,111 +529,137 @@ func TestMacroExpression(t *testing.T) {
 		},
 	}
 
-	expr = `process.name == "httpd" && is_passwd`
+	model := &testModel{event: event}
+
+	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
+		t.Fatalf("%s\n%s", err, macro.Expression)
+	}
+
 	opts := NewOptsWithParams(false, make(map[string]interface{}))
-	evaluator, _, err := parse(t, expr, &testModel{event: &event}, &opts, macros)
+	opts.Macros = map[string]*Macro{
+		"is_passwd": macro,
+	}
+
+	expr := `process.name == "httpd" && is_passwd`
+
+	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if !evaluator.Eval(&Context{}) {
+	if !rule.GetEvaluator().Eval(&Context{}) {
 		t.Fatalf("should return true")
 	}
 }
 
 func TestMacroPartial(t *testing.T) {
-	expr := `open.filename in [ "/etc/shadow", "/etc/passwd" ]`
-
-	macro, err := ast.ParseMacro(expr)
-	if err != nil {
-		t.Fatalf("%s\n%s", err, expr)
+	macro := &Macro{
+		ID:         "is_passwd",
+		Expression: `open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
 	}
 
-	macros := map[string]*ast.Macro{
-		"is_passwd": macro,
+	if err := macro.Parse(); err != nil {
+		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	event := testEvent{
+	event := &testEvent{
+		process: testProcess{
+			name: "httpd",
+		},
 		open: testOpen{
-			filename: "/etc/hosts",
+			filename: "/etc/passwd",
 		},
 	}
 
-	expr = `is_passwd`
-	model := &testModel{event: &event}
-	opts := NewOptsWithParams(false, make(map[string]interface{}))
-	field := "open.filename"
+	model := &testModel{event: event}
 
-	evaluator, rule, err := parse(t, expr, model, &opts, macros)
+	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
+		t.Fatalf("%s\n%s", err, macro.Expression)
+	}
+
+	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	opts.Macros = map[string]*Macro{
+		"is_passwd": macro,
+	}
+
+	expr := `process.name == "httpd" && is_passwd`
+
+	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	// generate rule partials
-	generatePartials(t, field, model, &opts, evaluator, rule, macros)
+	if err := macro.GenPartials(model, rule.GetEvaluator().GetFields(), opts); err != nil {
+		t.Fatalf("error while generating partials `%s`: %s", expr, err)
+	}
 
-	result, err := evaluator.PartialEval(&Context{}, field)
+	if err := rule.GenPartials(model, opts); err != nil {
+		t.Fatalf("error while generating partials `%s`: %s", expr, err)
+	}
+
+	result, err := rule.GetEvaluator().PartialEval(&Context{}, "open.filename")
 	if err != nil {
-		t.Fatal(err)
+		fmt.Printf("TTTT: %+v\n", rule.GetEvaluator().GetFields())
+
+		t.Fatalf("error while partial evaluating `%s` : %s", expr, err)
 	}
 
-	if result {
-		t.Fatal("should be a discriminator")
-	}
-
-	model.event.open.filename = "/etc/passwd"
-	if !evaluator.Eval(&Context{}) {
-		t.Fatalf("should return true")
+	if !result {
+		t.Fatal("open.filename should be a discarder")
 	}
 }
 
 func TestNestedMacros(t *testing.T) {
-	macro1Expr := `[ "/etc/shadow", "/etc/passwd" ]`
-	macro2Expr := `open.filename in sensitive_files`
-
-	macro1, err := ast.ParseMacro(macro1Expr)
-	if err != nil {
-		t.Fatalf("%s\n%s", err, macro1Expr)
+	macro1 := &Macro{
+		ID:         "sensitive_files",
+		Expression: `[ "/etc/shadow", "/etc/passwd" ]`,
 	}
 
-	macro2, err := ast.ParseMacro(macro2Expr)
-	if err != nil {
-		t.Fatalf("%s\n%s", err, macro2Expr)
+	if err := macro1.Parse(); err != nil {
+		t.Fatalf("%s\n%s", err, macro1.Expression)
 	}
 
-	macros := map[string]*ast.Macro{
-		"sensitive_files": macro1,
-		"is_passwd":       macro2,
+	macro2 := &Macro{
+		ID:         "is_sensitive_opened",
+		Expression: `open.filename in sensitive_files`,
 	}
 
-	event := testEvent{
+	if err := macro2.Parse(); err != nil {
+		t.Fatalf("%s\n%s", err, macro2.Expression)
+	}
+
+	event := &testEvent{
 		open: testOpen{
-			filename: "/etc/hosts",
+			filename: "/etc/passwd",
 		},
 	}
 
-	ruleExpr := `is_passwd`
-	model := &testModel{event: &event}
+	model := &testModel{event: event}
+
 	opts := NewOptsWithParams(false, make(map[string]interface{}))
-	field := "open.filename"
+	opts.Macros = map[string]*Macro{
+		"sensitive_files":     macro1,
+		"is_sensitive_opened": macro2,
+	}
 
-	evaluator, rule, err := parse(t, ruleExpr, model, &opts, macros)
+	if err := macro1.GenEvaluator(model, opts); err != nil {
+		t.Fatalf("%s\n%s", err, macro1.Expression)
+	}
+
+	if err := macro2.GenEvaluator(model, opts); err != nil {
+		t.Fatalf("%s\n%s", err, macro2.Expression)
+	}
+
+	expr := `is_sensitive_opened`
+
+	rule, err := parseRule(expr, model, opts)
 	if err != nil {
-		t.Fatalf("error while evaluating `%s`: %s", ruleExpr, err)
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	// generate rule partials
-	generatePartials(t, field, model, &opts, evaluator, rule, macros)
-
-	result, err := evaluator.PartialEval(&Context{}, field)
-	if err != nil {
-		t.Fatal(err)
+	if !rule.GetEvaluator().Eval(&Context{}) {
+		t.Fatalf("should return true")
 	}
-
-	if result {
-		t.Error("should be a discriminator")
-	}
-
 }
 
 func BenchmarkComplex(b *testing.B) {
@@ -667,15 +681,12 @@ func BenchmarkComplex(b *testing.B) {
 
 	expr := strings.Join(exprs, " && ")
 
-	rule, err := ast.ParseRule(expr)
+	rule, err := parseRule(expr, &testModel{event: &event}, &Opts{})
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, &testModel{event: &event}, &Opts{})
-	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
-	}
+	evaluator := rule.GetEvaluator()
 
 	for i := 0; i < b.N; i++ {
 		if evaluator.Eval(ctx) != true {
@@ -703,15 +714,22 @@ func BenchmarkPartial(b *testing.B) {
 
 	expr := strings.Join(exprs, " && ")
 
-	rule, err := ast.ParseRule(expr)
+	model := &testModel{event: &event}
+
+	rule, err := parseRule(expr, model, &Opts{})
 	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+		b.Fatal(err)
 	}
 
-	evaluator, err := RuleToEvaluator(rule, &testModel{event: &event}, &Opts{})
-	if err != nil {
-		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	if err := rule.GenEvaluator(model, &Opts{}); err != nil {
+		b.Fatal(err)
 	}
+
+	if err := rule.GenPartials(model, &Opts{}); err != nil {
+		b.Fatal(err)
+	}
+
+	evaluator := rule.GetEvaluator()
 
 	for i := 0; i < b.N; i++ {
 		if ok, _ := evaluator.PartialEval(ctx, "process.name"); ok {

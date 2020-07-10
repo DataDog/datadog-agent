@@ -1,10 +1,12 @@
-package eval
+package rules
 
 import (
 	"math/rand"
 	"reflect"
 
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 type truthEntry struct {
@@ -16,8 +18,8 @@ type truthTable struct {
 	Entries []truthEntry
 }
 
-func (tt *truthTable) getApprovers(fields ...string) map[Field]FilterValues {
-	filterValues := make(map[Field]FilterValues)
+func (tt *truthTable) getApprovers(fields ...string) map[eval.Field]FilterValues {
+	filterValues := make(map[eval.Field]FilterValues)
 
 	for _, entry := range tt.Entries {
 		if !entry.Result {
@@ -77,9 +79,9 @@ func combineBitmasks(bitmasks []int) []int {
 	return result
 }
 
-func genFilterValues(rule *Rule, event Event) ([]FilterValues, error) {
+func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) {
 	var filterValues []FilterValues
-	for field, fValues := range rule.evaluator.FieldValues {
+	for field, fValues := range rule.GetEvaluator().FieldValues {
 		// case where there is no static value, ex: process.gid == process.uid
 		// so generate fake value in order to be able to get the truth table
 		// note that we want to have the comparison returning true
@@ -105,7 +107,7 @@ func genFilterValues(rule *Rule, event Event) ([]FilterValues, error) {
 				{
 					Field:  field,
 					Value:  value,
-					Type:   ScalarValueType,
+					Type:   eval.ScalarValueType,
 					ignore: true,
 				},
 			})
@@ -118,7 +120,7 @@ func genFilterValues(rule *Rule, event Event) ([]FilterValues, error) {
 		var values FilterValues
 		for _, fValue := range fValues {
 			switch fValue.Type {
-			case ScalarValueType, PatternValueType:
+			case eval.ScalarValueType, eval.PatternValueType:
 				values = append(values, FilterValue{
 					Field: field,
 					Value: fValue.Value,
@@ -136,7 +138,7 @@ func genFilterValues(rule *Rule, event Event) ([]FilterValues, error) {
 					Type:  fValue.Type,
 					Not:   true,
 				})
-			case BitmaskValueType:
+			case eval.BitmaskValueType:
 				bitmasks = append(bitmasks, fValue.Value.(int))
 			}
 		}
@@ -147,7 +149,7 @@ func genFilterValues(rule *Rule, event Event) ([]FilterValues, error) {
 				values = append(values, FilterValue{
 					Field: field,
 					Value: mask,
-					Type:  BitmaskValueType,
+					Type:  eval.BitmaskValueType,
 					Not:   mask == 0,
 				})
 			}
@@ -186,10 +188,10 @@ func combineFilterValues(filterValues []FilterValues) []FilterValues {
 	return combined
 }
 
-func newTruthTable(rule *Rule, model Model, event Event) (*truthTable, error) {
+func newTruthTable(rule *eval.Rule, model eval.Model, event eval.Event) (*truthTable, error) {
 	model.SetEvent(event)
 
-	if len(rule.evaluator.FieldValues) == 0 {
+	if len(rule.GetEvaluator().FieldValues) == 0 {
 		return nil, nil
 	}
 
@@ -214,7 +216,7 @@ func newTruthTable(rule *Rule, model Model, event Event) (*truthTable, error) {
 			})
 		}
 
-		entry.Result = rule.evaluator.Eval(&Context{})
+		entry.Result = rule.GetEvaluator().Eval(&eval.Context{})
 
 		truthTable.Entries = append(truthTable.Entries, entry)
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/statsd"
@@ -27,7 +28,7 @@ import (
 type Module struct {
 	probe        *sprobe.Probe
 	config       *config.Config
-	ruleSet      *eval.RuleSet
+	ruleSet      *rules.RuleSet
 	eventServer  *EventServer
 	grpcServer   *grpc.Server
 	listener     net.Listener
@@ -109,7 +110,7 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 	m.ruleSet.Evaluate(event)
 }
 
-func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, error) {
+func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*rules.RuleSet, error) {
 	var result *multierror.Error
 
 	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
@@ -179,7 +180,7 @@ func (m *Module) GetStats() map[string]interface{} {
 	}
 }
 
-func (m *Module) GetRuleSet() *eval.RuleSet {
+func (m *Module) GetRuleSet() *rules.RuleSet {
 	return m.ruleSet
 }
 

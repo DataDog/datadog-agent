@@ -11,13 +11,14 @@ import (
 	"github.com/alecthomas/participle/lexer"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type EventType = string
 type Field = string
+type RuleID = string
+type MacroID = string
 
 type Model interface {
 	GetEvaluator(key Field) (interface{}, error)
@@ -58,7 +59,7 @@ type state struct {
 	events      map[EventType]bool
 	tags        map[string]bool
 	fieldValues map[Field][]FieldValue
-	macros      map[policy.MacroID]*MacroEvaluator
+	macros      map[MacroID]*MacroEvaluator
 }
 
 type FieldValueType int
@@ -77,15 +78,15 @@ type FieldValue struct {
 type Opts struct {
 	Debug     bool
 	Constants map[string]interface{}
-	Macros    map[policy.MacroID]*MacroEvaluator
+	Macros    map[MacroID]*Macro
 }
 
 // NewOptsWithParams - Initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(debug bool, constants map[string]interface{}) Opts {
-	return Opts{
+func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
+	return &Opts{
 		Debug:     debug,
 		Constants: constants,
-		Macros:    make(map[policy.MacroID]*MacroEvaluator),
+		Macros:    make(map[MacroID]*Macro),
 	}
 }
 
@@ -198,9 +199,9 @@ func (s *state) Events() []EventType {
 	return events
 }
 
-func newState(model Model, field Field, macros map[policy.MacroID]*MacroEvaluator) *state {
+func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *state {
 	if macros == nil {
-		macros = make(map[policy.MacroID]*MacroEvaluator)
+		macros = make(map[MacroID]*MacroEvaluator)
 	}
 	return &state{
 		field:       field,
@@ -553,7 +554,7 @@ func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	return eval(ctx), nil
 }
 
-func (r *RuleEvaluator) SetPartial(field string, partialEval func(ctx *Context) bool) {
+func (r *RuleEvaluator) setPartial(field string, partialEval func(ctx *Context) bool) {
 	if r.partialEvals == nil {
 		r.partialEvals = make(map[string]func(ctx *Context) bool)
 	}
@@ -588,65 +589,4 @@ func eventFromFields(model Model, state *state) ([]string, error) {
 		uniq = append(uniq, event)
 	}
 	return uniq, nil
-}
-
-func MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*MacroEvaluator, error) {
-	var eval interface{}
-	var err error
-	state := newState(model, field, opts.Macros)
-
-	switch {
-	case macro.Expression != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Expression, opts, state)
-	case macro.Array != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Array, opts, state)
-	case macro.Primary != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Primary, opts, state)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &MacroEvaluator{
-		Value: eval,
-	}, nil
-}
-
-// RuleToEvaluator - Generate a rule evaluator for the provided ast
-func RuleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
-	state := newState(model, "", opts.Macros)
-
-	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
-	if err != nil {
-		return nil, err
-	}
-
-	evalBool, ok := eval.(*BoolEvaluator)
-	if !ok {
-		return nil, NewTypeError(rule.Pos, reflect.Bool)
-	}
-
-	events, err := eventFromFields(model, state)
-	if err != nil {
-		return nil, err
-	}
-
-	if evalBool.EvalFnc == nil {
-		return &RuleEvaluator{
-			Eval: func(ctx *Context) bool {
-				return evalBool.Value
-			},
-			EventTypes:  events,
-			Tags:        state.Tags(),
-			FieldValues: state.fieldValues,
-		}, nil
-	}
-
-	return &RuleEvaluator{
-		Eval:        evalBool.EvalFnc,
-		EventTypes:  events,
-		Tags:        state.Tags(),
-		FieldValues: state.fieldValues,
-	}, nil
 }
