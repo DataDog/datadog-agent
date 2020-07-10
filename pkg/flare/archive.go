@@ -89,22 +89,22 @@ type filePermsInfo struct {
 	group string
 }
 
-// Flare options are the options when creating a flare.
-type flareOptions struct {
+// Flare options are the options when creating a flare through the CLI.
+type Options struct {
 	local   bool
 	profile bool
 }
 
-// Initializer a new flare options struct.
-func InitFlareOptions(forceLocal bool, enableProfiling bool) *flareOptions {
-	return &flareOptions{
+// InitOptions initializes a new flare options struct.
+func InitOptions(forceLocal bool, enableProfiling bool) *Options {
+	return &Options{
 		local:   forceLocal,
 		profile: enableProfiling,
 	}
 }
 
 // CreateArchive packages up the files
-func CreateArchive(opts *flareOptions, distPath, pyChecksPath, logFilePath string) (string, error) {
+func CreateArchive(opts *Options, distPath, pyChecksPath, logFilePath string) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
@@ -114,7 +114,7 @@ func CreateArchive(opts *flareOptions, distPath, pyChecksPath, logFilePath strin
 	return createArchive(zipFilePath, opts, confSearchPaths, logFilePath)
 }
 
-func createArchive(zipFilePath string, opts *flareOptions, confSearchPaths SearchPaths, logFilePath string) (string, error) {
+func createArchive(zipFilePath string, opts *Options, confSearchPaths SearchPaths, logFilePath string) (string, error) {
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err

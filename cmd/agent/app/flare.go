@@ -150,7 +150,7 @@ func requestArchive(logFile string) (string, error) {
 
 func createArchive(logFile string) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	opts := flare.InitFlareOptions(forceLocal, enableProfiling)
+	opts := flare.InitOptions(forceLocal, enableProfiling)
 
 	filePath, e := flare.CreateArchive(opts, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {

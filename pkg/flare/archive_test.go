@@ -32,7 +32,7 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
-	opts := InitFlareOptions(true, false)
+	opts := InitOptions(true, false)
 	filePath, err := createArchive(zipFilePath, opts, SearchPaths{}, "")
 
 	assert.Nil(t, err)
@@ -57,7 +57,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	pprofURL = ts.URL
 
 	zipFilePath := getArchivePath()
-	opts := InitFlareOptions(true, false)
+	opts := InitOptions(true, false)
 	filePath, err := createArchive(zipFilePath, opts, SearchPaths{}, "")
 
 	assert.Nil(t, err)
@@ -102,7 +102,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
 	zipFilePath := getArchivePath()
-	opts := InitFlareOptions(true, false)
+	opts := InitOptions(true, false)
 	filePath, err := createArchive(zipFilePath, opts, SearchPaths{}, "")
 
 	assert.Nil(t, err)
@@ -157,7 +157,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	zipFilePath := getArchivePath()
-	opts := InitFlareOptions(true, false)
+	opts := InitOptions(true, false)
 	filePath, err := createArchive(zipFilePath, opts, SearchPaths{"": "./test/confd"}, "")
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
@@ -186,7 +186,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 
 	common.SetupConfig("./test")
 	zipFilePath := getArchivePath()
-	opts := InitFlareOptions(true, false)
+	opts := InitOptions(true, false)
 	filePath, err := createArchive(zipFilePath, opts, SearchPaths{"": "./test/confd"}, "")
 
 	assert.NoError(err)

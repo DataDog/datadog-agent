@@ -86,7 +86,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Making a flare")
-	opts := flare.InitFlareOptions(false, false)
+	opts := flare.InitOptions(false, false)
 	filePath, err := flare.CreateArchive(opts, common.GetDistPath(), common.PyChecksPath, logFile)
 	if err != nil || filePath == "" {
 		if err != nil {
