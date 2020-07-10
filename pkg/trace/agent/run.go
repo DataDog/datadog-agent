@@ -41,9 +41,16 @@ func Run(ctx context.Context) {
 	cfg, err := config.Load(flags.ConfigPath)
 	if err != nil {
 		if err == config.ErrMissingAPIKey {
-			// Exit with code 0, to prevent the SCM from restarting
-			// the service over and over and potentially causing uninstall issues.
-			osutil.ExitCode(0, "%v", err)
+
+			// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
+			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+			// http://supervisord.org/subprocess.html#process-states
+			time.Sleep(5 * time.Second)
+
+			// Don't use os.Exit() method here, even with os.Exit(0) the Service Control Manager
+			// on Windows will consider the process failed and log an error in the Event Viewer and
+			// attempt to restart the process.
+			return
 		}
 		osutil.Exitf("%v", err)
 	}
