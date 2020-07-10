@@ -1,5 +1,16 @@
 #include "stdafx.h"
 
+void removeRegistryKeys(ddRegKey& regKey)
+{
+    RegKey keyRollback, keyInstall;
+    regKey.createSubKey(strRollbackKeyName.c_str(), keyRollback, REG_OPTION_VOLATILE);
+    regKey.createSubKey(strUninstallKeyName.c_str(), keyInstall);
+    keyRollback.deleteSubKey(installCreatedDDUser.c_str());
+    keyInstall.deleteSubKey(installCreatedDDUser.c_str());
+    keyRollback.deleteSubKey(installCreatedDDDomain.c_str());
+    keyInstall.deleteSubKey(installCreatedDDDomain.c_str());
+}
+
 UINT doUninstallAs(UNINSTALL_TYPE t)
 {
 
@@ -105,8 +116,10 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             DeleteHomeDirectory(installedUser, sid);
         }
     }
-    // remove the auth token file altogether
 
+    removeRegistryKeys(regkey);
+
+    // remove the auth token file altogether
     DeleteFile(authtokenfilename.c_str());
     std::wstring svcsInstalled;
     if (installState.getStringValue(installInstalledServices.c_str(), svcsInstalled))
