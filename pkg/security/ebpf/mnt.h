@@ -43,7 +43,7 @@ int kprobe__mnt_want_write_file(struct pt_regs *ctx) {
 
     struct file *file = (struct file *)PT_REGS_PARM1(ctx);
     struct vfsmount *mnt;
-    bpf_probe_read(&mnt, sizeof(mnt), file + offsetof(struct file, f_path));
+    bpf_probe_read(&mnt, sizeof(mnt), &file->f_path.mnt);
 
     switch (syscall->type) {
     case EVENT_CHOWN:
