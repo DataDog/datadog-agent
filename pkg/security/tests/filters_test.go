@@ -56,7 +56,7 @@ func waitForOpenEvent(test *testProbe, filename string) (*probe.Event, error) {
 }
 
 func waitForOpenDiscarder(test *testProbe, filename string) (*probe.Event, error) {
-	timeout := time.After(3 * time.Second)
+	timeout := time.After(5 * time.Second)
 	exhaust := time.After(time.Second)
 
 	var event *probe.Event
