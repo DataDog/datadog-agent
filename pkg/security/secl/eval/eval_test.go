@@ -2,7 +2,6 @@ package eval
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -385,20 +384,6 @@ func TestComplex(t *testing.T) {
 		if result != test.Expected {
 			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
 		}
-	}
-}
-
-func TestTags(t *testing.T) {
-	expr := `process.name != "/usr/bin/vipw" && open.filename == "/etc/passwd"`
-	rule, err := parseRule(expr, &testModel{}, &Opts{})
-	if err != nil {
-		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
-	}
-
-	expected := []string{"fs", "process"}
-
-	if !reflect.DeepEqual(rule.GetEvaluator().Tags, expected) {
-		t.Errorf("tags expected not %+v != %+v", expected, rule.GetEvaluator().Tags)
 	}
 }
 

@@ -21,8 +21,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "chmod.container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Chmod.ResolveContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Chmod.ResolveContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Chmod.ResolveContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -54,8 +53,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "chmod.overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chmod.OverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chmod.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Chmod.OverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -63,8 +61,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "chown.container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Chown.ResolveContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Chown.ResolveContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Chown.ResolveContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -96,8 +93,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "chown.overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chown.OverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chown.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Chown.OverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -137,8 +133,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "link.new_container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Link.ResolveNewContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveNewContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveNewContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -146,8 +141,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "link.new_filename":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Link.ResolveNewInode(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveNewInode(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveNewInode(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -155,8 +149,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "link.new_inode":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Link.NewInode) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.NewInode) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.NewInode) },
 
 			Field: field,
 		}, nil
@@ -164,8 +157,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "link.new_overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Link.NewOverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.NewOverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.NewOverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -173,8 +165,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "link.src_container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Link.ResolveSrcContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveSrcContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveSrcContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -182,8 +173,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "link.src_filename":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Link.ResolveSrcInode(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveSrcInode(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveSrcInode(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -191,8 +181,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "link.src_inode":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Link.SrcInode) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.SrcInode) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.SrcInode) },
 
 			Field: field,
 		}, nil
@@ -200,8 +189,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "link.src_overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Link.SrcOverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.SrcOverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.SrcOverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -209,8 +197,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "mkdir.container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Mkdir.ResolveContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Mkdir.ResolveContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Mkdir.ResolveContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -242,8 +229,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "mkdir.overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Mkdir.OverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Mkdir.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Mkdir.OverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -259,8 +245,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "open.container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Open.ResolveContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Open.ResolveContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Open.ResolveContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -300,8 +285,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "open.overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Open.OverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Open.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Open.OverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -421,8 +405,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "rename.src_container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Rename.ResolveSrcContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Rename.ResolveSrcContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Rename.ResolveSrcContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -430,8 +413,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "rename.src_overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcOverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Rename.SrcOverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Rename.SrcOverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -439,8 +421,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "rename.target_container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Rename.ResolveTargetContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Rename.ResolveTargetContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Rename.ResolveTargetContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -448,8 +429,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "rename.target_overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Rename.TargetOverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Rename.TargetOverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Rename.TargetOverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -457,8 +437,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "rmdir.container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Rmdir.ResolveContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Rmdir.ResolveContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Rmdir.ResolveContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -482,8 +461,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "rmdir.overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Rmdir.OverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Rmdir.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Rmdir.OverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -491,8 +469,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "unlink.container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Unlink.ResolveContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Unlink.ResolveContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Unlink.ResolveContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -508,8 +485,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "unlink.flags":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Unlink.Flags) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Unlink.Flags) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Unlink.Flags) },
 
 			Field: field,
 		}, nil
@@ -525,8 +501,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "unlink.overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Unlink.OverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Unlink.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Unlink.OverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -534,8 +509,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "utimes.container_path":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Utimes.ResolveContainerPath(m.event.resolvers) },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Utimes.ResolveContainerPath(m.event.resolvers) },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.Utimes.ResolveContainerPath(m.event.resolvers) },
 
 			Field: field,
 		}, nil
@@ -559,8 +533,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	case "utimes.overlay_num_lower":
 
 		return &eval.IntEvaluator{
-			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Utimes.OverlayNumLower) },
-			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Utimes.OverlayNumLower) },
+			EvalFnc: func(ctx *eval.Context) int { return int(m.event.Utimes.OverlayNumLower) },
 
 			Field: field,
 		}, nil
@@ -832,209 +805,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "utimes.overlay_num_lower":
 
 		return int(e.Utimes.OverlayNumLower), nil
-
-	}
-
-	return nil, errors.Wrap(ErrFieldNotFound, field)
-}
-
-func (e *Event) GetFieldTags(field eval.Field) ([]string, error) {
-	switch field {
-
-	case "chmod.container_path":
-		return []string{}, nil
-
-	case "chmod.filename":
-		return []string{}, nil
-
-	case "chmod.inode":
-		return []string{}, nil
-
-	case "chmod.mode":
-		return []string{}, nil
-
-	case "chmod.overlay_num_lower":
-		return []string{}, nil
-
-	case "chown.container_path":
-		return []string{}, nil
-
-	case "chown.filename":
-		return []string{}, nil
-
-	case "chown.gid":
-		return []string{}, nil
-
-	case "chown.inode":
-		return []string{}, nil
-
-	case "chown.overlay_num_lower":
-		return []string{}, nil
-
-	case "chown.uid":
-		return []string{}, nil
-
-	case "container.id":
-		return []string{}, nil
-
-	case "event.retval":
-		return []string{}, nil
-
-	case "event.type":
-		return []string{}, nil
-
-	case "link.new_container_path":
-		return []string{}, nil
-
-	case "link.new_filename":
-		return []string{}, nil
-
-	case "link.new_inode":
-		return []string{}, nil
-
-	case "link.new_overlay_num_lower":
-		return []string{}, nil
-
-	case "link.src_container_path":
-		return []string{}, nil
-
-	case "link.src_filename":
-		return []string{}, nil
-
-	case "link.src_inode":
-		return []string{}, nil
-
-	case "link.src_overlay_num_lower":
-		return []string{}, nil
-
-	case "mkdir.container_path":
-		return []string{}, nil
-
-	case "mkdir.filename":
-		return []string{}, nil
-
-	case "mkdir.inode":
-		return []string{}, nil
-
-	case "mkdir.mode":
-		return []string{}, nil
-
-	case "mkdir.overlay_num_lower":
-		return []string{}, nil
-
-	case "open.basename":
-		return []string{}, nil
-
-	case "open.container_path":
-		return []string{}, nil
-
-	case "open.filename":
-		return []string{}, nil
-
-	case "open.flags":
-		return []string{}, nil
-
-	case "open.inode":
-		return []string{}, nil
-
-	case "open.mode":
-		return []string{}, nil
-
-	case "open.overlay_num_lower":
-		return []string{}, nil
-
-	case "process.filename":
-		return []string{}, nil
-
-	case "process.gid":
-		return []string{}, nil
-
-	case "process.group":
-		return []string{}, nil
-
-	case "process.name":
-		return []string{}, nil
-
-	case "process.pid":
-		return []string{}, nil
-
-	case "process.pidns":
-		return []string{}, nil
-
-	case "process.tid":
-		return []string{}, nil
-
-	case "process.tty_name":
-		return []string{}, nil
-
-	case "process.uid":
-		return []string{}, nil
-
-	case "process.user":
-		return []string{}, nil
-
-	case "rename.new_filename":
-		return []string{}, nil
-
-	case "rename.new_inode":
-		return []string{}, nil
-
-	case "rename.old_filename":
-		return []string{}, nil
-
-	case "rename.old_inode":
-		return []string{}, nil
-
-	case "rename.src_container_path":
-		return []string{}, nil
-
-	case "rename.src_overlay_num_lower":
-		return []string{}, nil
-
-	case "rename.target_container_path":
-		return []string{}, nil
-
-	case "rename.target_overlay_num_lower":
-		return []string{}, nil
-
-	case "rmdir.container_path":
-		return []string{}, nil
-
-	case "rmdir.filename":
-		return []string{}, nil
-
-	case "rmdir.inode":
-		return []string{}, nil
-
-	case "rmdir.overlay_num_lower":
-		return []string{}, nil
-
-	case "unlink.container_path":
-		return []string{}, nil
-
-	case "unlink.filename":
-		return []string{}, nil
-
-	case "unlink.flags":
-		return []string{}, nil
-
-	case "unlink.inode":
-		return []string{}, nil
-
-	case "unlink.overlay_num_lower":
-		return []string{}, nil
-
-	case "utimes.container_path":
-		return []string{}, nil
-
-	case "utimes.filename":
-		return []string{}, nil
-
-	case "utimes.inode":
-		return []string{}, nil
-
-	case "utimes.overlay_num_lower":
-		return []string{}, nil
 
 	}
 

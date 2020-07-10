@@ -50,7 +50,6 @@ type structField struct {
 	ReturnType string
 	IsArray    bool
 	Public     bool
-	Tags       string
 	Event      string
 	Handler    string
 	OrigType   string
@@ -78,12 +77,12 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func handleBasic(name, alias, kind, tags, event string) {
+func handleBasic(name, alias, kind, event string) {
 	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		module.Fields[alias] = &structField{Name: name, ReturnType: "int", Public: true, Tags: tags, Event: event, OrigType: kind, BasicType: origTypeToBasicType(kind)}
+		module.Fields[alias] = &structField{Name: name, ReturnType: "int", Public: true, Event: event, OrigType: kind, BasicType: origTypeToBasicType(kind)}
 	default:
 		public := false
 		firstChar := strings.TrimPrefix(kind, "[]")
@@ -99,14 +98,13 @@ func handleBasic(name, alias, kind, tags, event string) {
 			ReturnType: kind,
 			IsArray:    strings.HasPrefix(kind, "[]"),
 			Public:     public,
-			Tags:       tags,
 			Event:      event,
 			OrigType:   kind,
 		}
 	}
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, tags, event string) error {
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string) error {
 	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
 	switch fieldType.Name {
@@ -115,7 +113,7 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(name, alias, fieldType.Name, tags, event)
+		handleBasic(name, alias, fieldType.Name, event)
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType.Name)
 		if err != nil {
@@ -150,14 +148,6 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 				var tag reflect.StructTag
 				if field.Tag != nil {
 					tag = reflect.StructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
-				}
-
-				tags, found := tag.Lookup("tags")
-				if found {
-					f := func(c rune) bool {
-						return !unicode.IsLetter(c) && !unicode.IsNumber(c)
-					}
-					tags = fmt.Sprintf(`"%s"`, strings.Join(strings.FieldsFunc(tags, f), `","`))
 				}
 
 				if e, ok := tag.Lookup("event"); ok {
@@ -195,7 +185,6 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 									Handler:    fmt.Sprintf("%s.%s", prefix, fnc),
 									ReturnType: kind,
 									Public:     true,
-									Tags:       tags,
 									Event:      event,
 									OrigType:   fieldType.Name,
 								}
@@ -205,13 +194,13 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					}
 
 					if fieldType, ok := field.Type.(*ast.Ident); ok {
-						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, tags, event); err != nil {
+						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, event); err != nil {
 							log.Print(err)
 						}
 						continue
 					} else if fieldType, ok := field.Type.(*ast.StarExpr); ok {
 						if itemIdent, ok := fieldType.X.(*ast.Ident); ok {
-							handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent, tags, event)
+							handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent, event)
 							continue
 						}
 					}
@@ -380,17 +369,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 
 		return nil, errors.Wrap(ErrFieldNotFound, field)
-}
-
-func (e *Event) GetFieldTags(field eval.Field) ([]string, error) {
-	switch field {
-	{{range $Name, $Field := .Fields}}
-	case "{{$Name}}":
-		return []string{ {{$Field.Tags}} }, nil
-	{{end}}
-	}
-
-	return nil, errors.Wrap(ErrFieldNotFound, field)
 }
 
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {

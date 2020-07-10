@@ -6,15 +6,8 @@ type state struct {
 	model       Model
 	field       Field
 	events      map[EventType]bool
-	tags        map[string]bool
 	fieldValues map[Field][]FieldValue
 	macros      map[MacroID]*MacroEvaluator
-}
-
-func (s *state) UpdateTags(tags []string) {
-	for _, tag := range tags {
-		s.tags[tag] = true
-	}
 }
 
 //
@@ -32,17 +25,6 @@ func (s *state) UpdateFieldValues(field Field, value FieldValue) error {
 	values = append(values, value)
 	s.fieldValues[field] = values
 	return s.model.ValidateField(field, value)
-}
-
-func (s *state) Tags() []string {
-	var tags []string
-
-	for tag := range s.tags {
-		tags = append(tags, tag)
-	}
-	sort.Strings(tags)
-
-	return tags
 }
 
 func (s *state) Events() []EventType {
@@ -65,7 +47,6 @@ func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *sta
 		macros:      macros,
 		model:       model,
 		events:      make(map[EventType]bool),
-		tags:        make(map[string]bool),
 		fieldValues: make(map[Field][]FieldValue),
 	}
 }

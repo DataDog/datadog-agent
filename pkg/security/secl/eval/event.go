@@ -11,7 +11,6 @@ type Event interface {
 	GetID() string
 	// GetType - Returns the Type of the Event
 	GetType() EventType
-	GetFieldTags(field Field) ([]string, error)
 	// GetFieldEventType - Returns the Event Type for the given Field
 	GetFieldEventType(field Field) (EventType, error)
 	// SetFieldValue - Set the value of the given Field
