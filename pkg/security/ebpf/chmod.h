@@ -20,6 +20,7 @@ struct chmod_event_t {
 
 int __attribute__((always_inline)) trace__sys_chmod(struct pt_regs *ctx, umode_t mode) {
     struct syscall_cache_t syscall = {
+        .type = EVENT_CHMOD,
         .setattr = {
             .mode = mode
         }
@@ -61,18 +62,6 @@ SYSCALL_KPROBE(fchmodat) {
 #endif
 
     return trace__sys_chmod(ctx, mode);
-}
-
-SEC("kprobe/chmod_common")
-int kprobe__chmod_common(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
-    if (!syscall)
-        return 0;
-
-    syscall->setattr.path = (struct path *)PT_REGS_PARM1(ctx);
-    syscall->setattr.dentry = get_path_dentry(syscall->setattr.path);
-    syscall->setattr.path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
-    return 0;
 }
 
 int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {

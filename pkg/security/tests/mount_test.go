@@ -2,6 +2,7 @@ package tests
 
 import (
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -47,7 +48,9 @@ func TestMount(t *testing.T) {
 			t.Errorf("expected mount event, got %s", event.GetType())
 		}
 
-		if p := event.Mount.ParentPathStr; p != dstMntPath {
+		p := event.Mount.ParentPathStr
+		p = strings.Replace(p, "/tmp", "", 1)
+		if p != strings.Replace(dstMntPath, "/tmp", "", 1) {
 			t.Errorf("expected %v for ParentPathStr, got %v", mntPath, p)
 		}
 

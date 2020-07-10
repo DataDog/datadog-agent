@@ -22,6 +22,7 @@ struct chown_event_t {
 
 int __attribute__((always_inline)) trace__sys_chown(struct pt_regs *ctx, uid_t user, gid_t group) {
     struct syscall_cache_t syscall = {
+        .type = EVENT_CHOWN,
         .setattr = {
             .user = user,
             .group = group
@@ -88,18 +89,6 @@ SYSCALL_KPROBE(lchown) {
     group = (gid_t) PT_REGS_PARM3(ctx);
 #endif
     return trace__sys_chown(ctx, user, group);
-}
-
-SEC("kprobe/chown_common")
-int kprobe__security_path_chown(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
-    if (!syscall)
-        return 0;
-
-    syscall->setattr.path = (struct path *)PT_REGS_PARM1(ctx);
-    syscall->setattr.dentry = get_path_dentry(syscall->setattr.path);
-    syscall->setattr.path_key = get_key(syscall->setattr.dentry, syscall->setattr.path);
-    return 0;
 }
 
 int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
