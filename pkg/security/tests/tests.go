@@ -230,6 +230,7 @@ func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
 func (tm *testModule) Close() {
 	tm.st.Close()
 	tm.module.Close()
+	time.Sleep(time.Second)
 }
 
 func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testProbe, error) {
@@ -310,6 +311,7 @@ func (tp *testProbe) Path(filename string) (string, unsafe.Pointer, error) {
 func (tp *testProbe) Close() {
 	tp.st.Close()
 	tp.probe.Stop()
+	time.Sleep(time.Second)
 }
 
 type simpleTest struct {
