@@ -21,38 +21,32 @@
     tags:
       mitre: T1003
 - rule:
-    id: logs_altered
-    description: log entries altered
-    expression: >-
-      open.filename =~ "/var/log/*" && open.flags & O_TRUNC > 0
-    tags:
-      mitre: T1070
-- rule:
     id: logs_removed
     description: log entries removed
     expression: >-
+      (open.filename =~ "/var/log/*" && open.flags ^ O_TRUNC > 0) ||
       unlink.filename =~ "/var/log/*"
     tags:
       mitre: T1070
 - rule:
-    id: permissions_changed
-    description: permissions change on sensible files
-    expression: >-
-      chmod.filename =~ "/etc/*" || chmod.filename =~ "/etc/*" ||
-      chmod.filename =~ "/sbin/*" || chmod.filename =~ "/usr/sbin/*" ||
-      chmod.filename =~ "/usr/local/sbin*" || chmod.filename =~ "/usr/bin/local/*" ||
-      chmod.filename =~ "/var/log/*" || chmod.filename =~ "/usr/lib/*"
-    tags:
-      mitre: T1099
+  id: permissions_changed
+  description: permissions change on sensible files
+  expression: >-
+    chmod.filename =~ "/etc/*" || chmod.filename =~ "/etc/*" ||
+    chmod.filename =~ "/sbin/*" || chmod.filename =~ "/usr/sbin/*" ||
+    chmod.filename =~ "/usr/local/sbin*" || chmod.filename =~ "/usr/bin/local/*" ||
+    chmod.filename =~ "/var/log/*" || chmod.filename =~ "/usr/lib/*"
+  tags:
+    mitre: T1099
 - rule:
     id: times_changed
     description: time change on sensible files
     expression: >-
       utimes.filename =~ "/etc/*" || utimes.filename =~ "/etc/*" ||
-      utimes.filename =~ "/sbin/*" || utimes.filename =~ "/usr/sbin/*" ||
+      utimes.filename =~ "/sbin/*" || chattr.filename =~ "/usr/sbin/*" ||
       utimes.filename =~ "/usr/local/sbin*" || utimes.filename =~ "/usr/bin/local/*" ||
       utimes.filename =~ "/usr/lib/*"
-    tags:
+   tags:
       mitre: T1099
 - rule:
     id: file_created
@@ -61,33 +55,33 @@
       (open.filename =~ "/etc/*" || open.filename =~ "/etc/*" ||
       open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*" ||
       open.filename =~ "/usr/local/sbin*" || open.filename =~ "/usr/bin/local/*" ||
-      open.filename =~ "/var/log/*" || open.filename =~ "/usr/lib/*") && open.flags & (O_CREAT | O_RDWR | O_WRONLY) > 0
+      open.filename =~ "/var/log/*" || open.filename =~ "/usr/lib/*") && open.flags ^ O_RDONLY > 0
     tags:
       mitre: T1099
-#- rule:
-#    id: bash_history
-#    description: command line history read by another user
-#    expression: >-
-#      open.basename in [".bash_history", ".zsh_history"] &&
-#      (open.uid != process.uid || open.gid != process.gid)
-#    tags:
-#      mitre: T1139
-#- rule:
-#    id: aws_config
-#    description: aws config file read by another user
-#    expression: >-
-#      open.filename =~ /root/.aws/* &&
-#     (open.uid != process.uid || open.gid != process.gid)
-#   tags:
-#     mitre: T1139
-#- rule:
-#  id: ssh_keys
-#    description: ssh private key read by another user
-#    expression: >-
-#      open.filename =~ "/root/.ssh/*" &&
-#      (open.uid != process.uid || open.gid != process.gid)
-#    tags:
-#      mitre: T1139
+# - rule:
+  #  id: bash_history
+  #  description: command line history read by another user
+  #  expression: >-
+  #    open.basename in [".bash_history", ".zsh_history"] &&
+  #    (open.uid != process.uid || open.gid != process.gid)
+  # tags:
+  #    mitre: T1139
+# - rule:
+  #  id: aws_config
+  #  description: aws config file read by another user
+  #  expression: >-
+  #    open.filename =~ /root/.aws/* &&
+  #    (open.uid != process.uid || open.gid != process.gid)
+  # tags:
+  #    mitre: T1139
+# - rule:
+  #  id: ssh_keys
+  #  description: ssh private key read by another user
+  #  expression: >-
+  #    open.filename =~ "/root/.ssh/*" &&
+  #    (open.uid != process.uid || open.gid != process.gid)
+  # tags:
+  #    mitre: T1139
 - rule:
     id: hidden_file
     description: hidden file creation
@@ -108,7 +102,7 @@
     description: new cron entry
     expression: >-
       (open.filename =~ "/etc/crontab/*" || open.filename =~ "/etc/cron.d/*") &&
-      open.flags & (O_CREAT | O_RDWR | O_WRONLY) > 0
+      open.flags ^ O_RDONLY > 0
     tags:
       mitre: T1168
 - rule:
@@ -123,43 +117,43 @@
     description: new file in common systemd location
     expression: >-
       (open.filename =~ "/etc/systemd/system/*" || open.filename =~ "/usr/lib/systemd/system/*") &&
-      open.flags & (O_CREAT | O_RDWR | O_WRONLY) > 0
+      open.flags ^ O_RDONLY > 0
     tags:
       mitre: T1501
-#- rule:
-#    id: binary_modified
-#    description: a process is trying to modify its binary
-#    expression: >-
-#      open.inode == process.inode && open.flags & O_CREAT > 0
-#    tags:
-#      mitre: T1036
-#- rule:
-#    id: remote_copy
-#    description: remote copy
-#    expression: >-
-#      (open.filename =~ "/var/*" || open.filename =~ "/etc/*") &&
-#      process.name in ["scp", "ftp", "rsync", "sftp", "curl", "wget", "nc"]
-#    tags:
-#      mitre: T1105
+# - rule:
+  #  id: binary_modified
+  #  description: a process is trying to modify its binary
+  #  expression: >-
+  #    open.inode == process.inode && open.flags & O_CREAT > 0
+  # tags:
+  #    mitre: T1036
 - rule:
-    id: timestamp_tampering
-    description: timestamp tampering attempt
+    id: remote_copy
+    description: remote copy
     expression: >-
-      utimes.filename =~ "/etc/*"
+      (open.filename =~ "/var/*" || open.filename =~ "/etc/*") &&
+      process.name in ["scp", "ftp", "rsync", "sftp", "curl", "wget", "nc"]
     tags:
-      mitre: T1099
-#- rule:
-#    id: container_binary_exec
-#    description: a binary that was not part of the original container image was executed
-#    expression: >-
-#      event.type == "exec" && process.filename =~ "*/diff/*" && process.ns.mount == "dedicated"
-#- rule:
-#    id: container_lib_loaded
-#    description: a library that was not part of the original container image was loaded
-#    expression: >-
-#      open.filename =~ "*/diff/*/usr/lib/*" && process.ns.mount == "dedicated"
-#- rule:
-#    id: datadog_config
-#    description: datadog agent configuration modified
-#    expression: >-
-#      open.filename =~ "/opt/datadog-agent/*"
+      mitre: T1105
+  - rule:
+  id: timestamp_tampering
+  description: timestamp tampering attempt
+  expression: >-
+    utimes.basename =~ "/etc/*"
+  tags:
+    mitre: T1099
+# - rule:
+  #  id: container_binary_exec
+  #  description: a binary that was not part of the original container image was executed
+  #  expression: >-
+  #    event.type == "exec" && process.filename =~ "*/diff/*" && process.ns.mount == "dedicated"
+# - rule:
+  #  id: container_lib_loaded
+  #  description: a library that was not part of the original container image was loaded
+  #  expression: >-
+  #    open.filename =~ "*/diff/*/usr/lib/*" && process.ns.mount == "dedicated"
+- rule:
+    id: datadog_config
+    description: datadog agent configuration modified
+    expression: >-
+      open.filename =~ "/opt/datadog-agent/*"
