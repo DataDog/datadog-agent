@@ -41,7 +41,6 @@ func Run(ctx context.Context) {
 	cfg, err := config.Load(flags.ConfigPath)
 	if err != nil {
 		if err == config.ErrMissingAPIKey {
-
 			// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 			// http://supervisord.org/subprocess.html#process-states
