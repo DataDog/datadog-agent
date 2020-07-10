@@ -25,6 +25,7 @@ type Module struct {
 	eventServer *EventServer
 	grpcServer  *grpc.Server
 	listener    net.Listener
+	rateLimiter *RateLimiter
 }
 
 func (m *Module) Register(server *grpc.Server) error {
@@ -74,7 +75,9 @@ func (m *Module) Close() {
 
 // RuleMatch - called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
-	m.eventServer.SendEvent(rule, event)
+	if m.rateLimiter.Allow(rule.ID) {
+		m.eventServer.SendEvent(rule, event)
+	}
 }
 
 // EventDiscarderFound - called by the ruleset when a new discarder discovered
@@ -154,6 +157,7 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		ruleSet:     ruleSet,
 		eventServer: NewEventServer(),
 		grpcServer:  grpc.NewServer(),
+		rateLimiter: NewRateLimiter(),
 	}
 
 	api.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
