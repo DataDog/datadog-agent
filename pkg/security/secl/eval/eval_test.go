@@ -37,14 +37,14 @@ func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) 
 	if err != nil {
 		return false, nil, err
 	}
-	r1 := rule.GetEvaluator().Eval(ctx)
+	r1 := rule.Eval(ctx)
 
 	opts = NewOptsWithParams(true, testConstants)
 	rule, err = parseRule(expr, model, opts)
 	if err != nil {
 		return false, rule.GetAst(), err
 	}
-	r2 := rule.GetEvaluator().Eval(ctx)
+	r2 := rule.Eval(ctx)
 
 	if r1 != r2 {
 		t.Fatalf("different result for non-debug and debug evalutators with rule `%s`", expr)
@@ -462,11 +462,11 @@ func TestPartial(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
-		if err := rule.GenPartials(model, opts); err != nil {
+		if err := rule.GenPartials(); err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
-		result, err := rule.GetEvaluator().PartialEval(&Context{}, test.Field)
+		result, err := rule.PartialEval(&Context{}, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
@@ -505,7 +505,7 @@ func TestMacroList(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if !rule.GetEvaluator().Eval(&Context{}) {
+	if !rule.Eval(&Context{}) {
 		t.Fatalf("should return true")
 	}
 }
@@ -547,7 +547,7 @@ func TestMacroExpression(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if !rule.GetEvaluator().Eval(&Context{}) {
+	if !rule.Eval(&Context{}) {
 		t.Fatalf("should return true")
 	}
 }
@@ -589,22 +589,26 @@ func TestMacroPartial(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if err := macro.GenPartials(model, rule.GetEvaluator().GetFields(), opts); err != nil {
+	if err := rule.GenPartials(); err != nil {
 		t.Fatalf("error while generating partials `%s`: %s", expr, err)
 	}
 
-	if err := rule.GenPartials(model, opts); err != nil {
-		t.Fatalf("error while generating partials `%s`: %s", expr, err)
-	}
-
-	result, err := rule.GetEvaluator().PartialEval(&Context{}, "open.filename")
+	result, err := rule.PartialEval(&Context{}, "open.filename")
 	if err != nil {
-		fmt.Printf("TTTT: %+v\n", rule.GetEvaluator().GetFields())
-
 		t.Fatalf("error while partial evaluating `%s` : %s", expr, err)
 	}
 
 	if !result {
+		t.Fatal("open.filename should be a discarder")
+	}
+
+	event.open.filename = "abc"
+	result, err = rule.PartialEval(&Context{}, "open.filename")
+	if err != nil {
+		t.Fatalf("error while partial evaluating `%s` : %s", expr, err)
+	}
+
+	if result {
 		t.Fatal("open.filename should be a discarder")
 	}
 }
@@ -657,8 +661,15 @@ func TestNestedMacros(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if !rule.GetEvaluator().Eval(&Context{}) {
+	if !rule.Eval(&Context{}) {
 		t.Fatalf("should return true")
+	}
+}
+
+func TestFieldValidator(t *testing.T) {
+	expr := `process.uid == -100 && open.filename == "/etc/passwd"`
+	if _, err := parseRule(expr, &testModel{}, &Opts{}); err == nil {
+		t.Error("expected an error on process.uid being negative")
 	}
 }
 
@@ -725,7 +736,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := rule.GenPartials(model, &Opts{}); err != nil {
+	if err := rule.GenPartials(); err != nil {
 		b.Fatal(err)
 	}
 

@@ -88,63 +88,63 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 	case "process.name":
 
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return m.event.process.name },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.process.name },
 			Field:   key,
 		}, nil
 
 	case "process.uid":
 
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.process.uid },
+			EvalFnc: func(ctx *eval.Context) int { return m.event.process.uid },
 			Field:   key,
 		}, nil
 
 	case "process.gid":
 
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.process.gid },
+			EvalFnc: func(ctx *eval.Context) int { return m.event.process.gid },
 			Field:   key,
 		}, nil
 
 	case "process.is_root":
 
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *Context) bool { return m.event.process.isRoot },
+			EvalFnc: func(ctx *eval.Context) bool { return m.event.process.isRoot },
 			Field:   key,
 		}, nil
 
 	case "open.filename":
 
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return m.event.open.filename },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.open.filename },
 			Field:   key,
 		}, nil
 
 	case "open.flags":
 
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.open.flags },
+			EvalFnc: func(ctx *eval.Context) int { return m.event.open.flags },
 			Field:   key,
 		}, nil
 
 	case "open.mode":
 
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.open.mode },
+			EvalFnc: func(ctx *eval.Context) int { return m.event.open.mode },
 			Field:   key,
 		}, nil
 
 	case "mkdir.filename":
 
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return m.event.mkdir.filename },
+			EvalFnc: func(ctx *eval.Context) string { return m.event.mkdir.filename },
 			Field:   key,
 		}, nil
 
 	case "mkdir.mode":
 
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.mkdir.mode },
+			EvalFnc: func(ctx *eval.Context) int { return m.event.mkdir.mode },
 			Field:   key,
 		}, nil
 

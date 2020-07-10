@@ -3,7 +3,6 @@ package eval
 import (
 	"reflect"
 	"syscall"
-	"testing"
 
 	"github.com/pkg/errors"
 )
@@ -396,11 +395,4 @@ var testConstants = map[string]interface{}{
 	"O_EXCL":   &IntEvaluator{Value: syscall.O_EXCL},
 	"O_SYNC":   &IntEvaluator{Value: syscall.O_SYNC},
 	"O_TRUNC":  &IntEvaluator{Value: syscall.O_TRUNC},
-}
-
-func TestFieldValidator(t *testing.T) {
-	expr := `process.uid == -100 && open.filename == "/etc/passwd"`
-	if _, err := parseRule(expr, &testModel{}, &Opts{}); err == nil {
-		t.Error("expected an error on process.uid being negative")
-	}
 }
