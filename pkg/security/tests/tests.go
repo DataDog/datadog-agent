@@ -210,7 +210,7 @@ func (tm *testModule) EventDiscarderFound(event eval.Event, field string) {
 }
 
 func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
-	timeout := time.After(3 * time.Second)
+	timeout := time.After(5 * time.Second)
 
 	select {
 	case event := <-tm.events:
