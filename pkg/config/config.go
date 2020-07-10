@@ -1068,16 +1068,10 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 
 	for _, cloudName := range cloudProviderFromConfig {
 		if strings.ToLower(cloudName) == strings.ToLower(cloudProviderName) {
-			log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider",
-				cloudProviderFromConfig,
-				cloudProviderName)
 			return true
 		}
 	}
 
-	log.Debugf("cloud_provider_metadata is set to %s in agent configuration, skipping %s Cloud Provider",
-		cloudProviderFromConfig,
-		cloudProviderName)
 	return false
 }
 
