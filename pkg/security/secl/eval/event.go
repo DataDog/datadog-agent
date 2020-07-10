@@ -2,13 +2,23 @@ package eval
 
 import "reflect"
 
+// EventType - Type of an event
+type EventType = string
+
+// Event - Interface that an Event has to implement for the evaluation
 type Event interface {
+	// GetID - Returns the ID of the Event
 	GetID() string
+	// GetType - Returns the Type of the Event
 	GetType() EventType
 	GetFieldTags(field Field) ([]string, error)
+	// GetFieldEventType - Returns the Event Type for the given Field
 	GetFieldEventType(field Field) (EventType, error)
+	// SetFieldValue - Set the value of the given Field
 	SetFieldValue(field Field, value interface{}) error
+	// GetFieldValue - Returns the value of the given Field
 	GetFieldValue(field Field) (interface{}, error)
+	// GetFieldType - Returns the Type of the Field
 	GetFieldType(field Field) (reflect.Kind, error)
 }
 

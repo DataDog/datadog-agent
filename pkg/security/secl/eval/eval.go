@@ -6,50 +6,17 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 
 	"github.com/alecthomas/participle/lexer"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type EventType = string
+//  Field - Field name
 type Field = string
-type RuleID = string
-type MacroID = string
-
-type Model interface {
-	GetEvaluator(key Field) (interface{}, error)
-	ValidateField(key Field, value FieldValue) error
-	SetEvent(event interface{})
-	GetEvent() Event
-}
-
-type Context struct {
-	Debug     bool
-	evalDepth int
-}
-
-func (c *Context) Logf(format string, v ...interface{}) {
-	log.Tracef(strings.Repeat("\t", c.evalDepth-1)+format, v...)
-}
-
-var (
-	EmptyContext = &Context{}
-)
 
 type IdentEvaluator struct {
 	Eval func(ctx *Context) bool
-}
-
-type state struct {
-	model       Model
-	field       Field
-	events      map[EventType]bool
-	tags        map[string]bool
-	fieldValues map[Field][]FieldValue
-	macros      map[MacroID]*MacroEvaluator
 }
 
 type FieldValueType int
@@ -60,11 +27,13 @@ const (
 	BitmaskValueType FieldValueType = 4
 )
 
+// FieldValue - field value with its type
 type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
 }
 
+// Opts - Options to be passed to the evaluator
 type Opts struct {
 	Debug     bool
 	Constants map[string]interface{}
@@ -80,123 +49,77 @@ func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
 	}
 }
 
+// Evaluator - interface of an evaluator
 type Evaluator interface {
 	StringValue(ctx *Context) string
 	Eval(ctx *Context) interface{}
 }
 
+// BoolEvaluator - returns a bool as result of the evaluation
 type BoolEvaluator struct {
 	EvalFnc func(ctx *Context) bool
-	Field   string
+	Field   Field
 	Value   bool
 
 	isPartial bool
 }
 
+// StringValue - Returns a string representation of the evaluation result
 func (b *BoolEvaluator) StringValue(ctx *Context) string {
 	return fmt.Sprintf("%t", b.EvalFnc(nil))
 }
 
+// Eval - Evaluates
 func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(nil)
 }
 
+// IntEvaluator - Returns an int as result of the evaluation
 type IntEvaluator struct {
 	EvalFnc func(ctx *Context) int
-	Field   string
+	Field   Field
 	Value   int
 
 	isPartial bool
 }
 
+// StringValue returns a string representation of the evaluation result
 func (i *IntEvaluator) StringValue(ctx *Context) string {
 	return fmt.Sprintf("%d", i.EvalFnc(nil))
 }
 
+// Eval - Evaluates
 func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 	return i.EvalFnc(nil)
 }
 
+// StringEvaluator - Returns a string as result of the evaluation
 type StringEvaluator struct {
 	EvalFnc func(ctx *Context) string
-	Field   string
+	Field   Field
 	Value   string
 
 	isPartial bool
 }
 
+// StringValue returns a string representation of the evaluation result
 func (s *StringEvaluator) StringValue(ctx *Context) string {
 	return s.EvalFnc(ctx)
 }
 
+// Eval - Evaluates
 func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
+// StringArray - array of string value
 type StringArray struct {
 	Values []string
 }
 
+// IntArray - array of int value
 type IntArray struct {
 	Values []int
-}
-
-func (s *state) UpdateTags(tags []string) {
-	for _, tag := range tags {
-		s.tags[tag] = true
-	}
-}
-
-func (s *state) UpdateFields(field Field) {
-	if _, ok := s.fieldValues[field]; !ok {
-		s.fieldValues[field] = []FieldValue{}
-	}
-}
-
-func (s *state) UpdateFieldValues(field Field, value FieldValue) error {
-	values, ok := s.fieldValues[field]
-	if !ok {
-		values = []FieldValue{}
-	}
-	values = append(values, value)
-	s.fieldValues[field] = values
-	return s.model.ValidateField(field, value)
-}
-
-func (s *state) Tags() []string {
-	var tags []string
-
-	for tag := range s.tags {
-		tags = append(tags, tag)
-	}
-	sort.Strings(tags)
-
-	return tags
-}
-
-func (s *state) Events() []EventType {
-	var events []EventType
-
-	for event := range s.events {
-		events = append(events, event)
-	}
-	sort.Strings(events)
-
-	return events
-}
-
-func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *state {
-	if macros == nil {
-		macros = make(map[MacroID]*MacroEvaluator)
-	}
-	return &state{
-		field:       field,
-		macros:      macros,
-		model:       model,
-		events:      make(map[EventType]bool),
-		tags:        make(map[string]bool),
-		fieldValues: make(map[Field][]FieldValue),
-	}
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {

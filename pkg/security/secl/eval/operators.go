@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// IntNot - ^int operator
 func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
@@ -62,6 +63,7 @@ func patternToRegexp(pattern string) (*regexp.Regexp, error) {
 	return regexp.Compile("^" + string(quoted) + "$")
 }
 
+// StringMatches - String pattern matching operator
 func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
 	re, err := patternToRegexp(b.Value)
 	if err != nil {
@@ -132,6 +134,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 	}, nil
 }
 
+// Not - !true operator
 func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
@@ -182,6 +185,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 	}
 }
 
+// Minus - -int operator
 func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
@@ -219,6 +223,7 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	}
 }
 
+// StringArrayContains - "test" in ["...", "..."] operator
 func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
@@ -283,6 +288,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 	}, nil
 }
 
+// IntArrayContains - 1 in [1, 2, 3] operator
 func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
 	isPartialLeaf := a.isPartial
 	if a.Field != "" && state.field != "" && a.Field != state.field {
