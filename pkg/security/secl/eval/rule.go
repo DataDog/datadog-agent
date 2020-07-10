@@ -26,7 +26,6 @@ type Rule struct {
 type RuleEvaluator struct {
 	Eval        func(ctx *Context) bool
 	EventTypes  []EventType
-	Tags        []string
 	FieldValues map[Field][]FieldValue
 
 	partialEvals map[Field]func(ctx *Context) bool
@@ -146,7 +145,6 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 				return evalBool.Value
 			},
 			EventTypes:  events,
-			Tags:        state.Tags(),
 			FieldValues: state.fieldValues,
 		}, nil
 	}
@@ -154,7 +152,6 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventTypes:  events,
-		Tags:        state.Tags(),
 		FieldValues: state.fieldValues,
 	}, nil
 }

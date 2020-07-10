@@ -9,7 +9,6 @@ import (
 
 var (
 	ErrEvaluatorNotFound     = errors.New("evaluator not found")
-	ErrTagsNotFound          = errors.New("tags not found")
 	ErrEventTypeNotFound     = errors.New("event type not found")
 	ErrSetEventValueNotFound = errors.New("set event value error field not found")
 	ErrFieldTypeNotFound     = errors.New("field type not found")
@@ -194,50 +193,6 @@ func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
 	}
 
 	return nil, errors.Wrap(ErrEvaluatorNotFound, key)
-}
-
-func (e *testEvent) GetFieldTags(key string) ([]string, error) {
-	switch key {
-
-	case "process.name":
-
-		return []string{"process"}, nil
-
-	case "process.uid":
-
-		return []string{"process"}, nil
-
-	case "process.gid":
-
-		return []string{"process"}, nil
-
-	case "process.is_root":
-
-		return []string{"process"}, nil
-
-	case "open.filename":
-
-		return []string{"fs"}, nil
-
-	case "open.flags":
-
-		return []string{"fs"}, nil
-
-	case "open.mode":
-
-		return []string{"fs"}, nil
-
-	case "mkdir.filename":
-
-		return []string{"fs"}, nil
-
-	case "mkdir.flags":
-
-		return []string{"fs"}, nil
-
-	}
-
-	return nil, errors.Wrap(ErrTagsNotFound, key)
 }
 
 func (e *testEvent) GetFieldEventType(key string) (string, error) {

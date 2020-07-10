@@ -412,11 +412,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				return nil, nil, obj.Pos, err
 			}
 
-			tags, err := state.model.GetEvent().GetFieldTags(*obj.Ident)
-			if err == nil {
-				state.UpdateTags(tags)
-			}
-
 			state.UpdateFields(*obj.Ident)
 
 			return accessor, nil, obj.Pos, nil

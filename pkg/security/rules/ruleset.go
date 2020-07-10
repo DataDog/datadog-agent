@@ -100,7 +100,6 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*eval.Rule, error) {
 	rule := &eval.Rule{
 		ID:         ruleDef.ID,
 		Expression: ruleDef.Expression,
-		Tags:       ruleDef.GetTags(),
 	}
 
 	if err := rule.Parse(); err != nil {
@@ -272,5 +271,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *eval.Opts) 
 		eventCtor:        eventCtor,
 		opts:             opts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
+		rules:            make(map[policy.RuleID]*eval.Rule),
 	}
 }
