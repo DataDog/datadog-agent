@@ -158,7 +158,7 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name: "mnt_want_write",
+			Name: "mnt_want_write_file",
 			EntryFunc: "kprobe/mnt_want_write_file",
 		},
 		EventTypes: map[string]Capabilities{
