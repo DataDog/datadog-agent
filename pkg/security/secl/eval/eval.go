@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,15 +38,6 @@ func (c *Context) Logf(format string, v ...interface{}) {
 var (
 	EmptyContext = &Context{}
 )
-
-type RuleEvaluator struct {
-	Eval        func(ctx *Context) bool
-	EventTypes  []EventType
-	Tags        []string
-	FieldValues map[Field][]FieldValue
-
-	partialEvals map[Field]func(ctx *Context) bool
-}
 
 type IdentEvaluator struct {
 	Eval func(ctx *Context) bool
@@ -88,10 +78,6 @@ func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
 		Constants: constants,
 		Macros:    make(map[MacroID]*Macro),
 	}
-}
-
-type MacroEvaluator struct {
-	Value interface{}
 }
 
 type Evaluator interface {
@@ -543,50 +529,4 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 	}
 
 	return nil, nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
-}
-
-func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
-	eval, ok := r.partialEvals[field]
-	if !ok {
-		return false, errors.New("field not found")
-	}
-
-	return eval(ctx), nil
-}
-
-func (r *RuleEvaluator) setPartial(field string, partialEval func(ctx *Context) bool) {
-	if r.partialEvals == nil {
-		r.partialEvals = make(map[string]func(ctx *Context) bool)
-	}
-	r.partialEvals[field] = partialEval
-}
-
-func (r *RuleEvaluator) GetFields() []string {
-	fields := make([]string, len(r.FieldValues))
-	i := 0
-	for key, _ := range r.FieldValues {
-		fields[i] = key
-		i++
-	}
-	return fields
-}
-
-func eventFromFields(model Model, state *state) ([]string, error) {
-	events := make(map[EventType]bool)
-	for field := range state.fieldValues {
-		eventType, err := model.GetEvent().GetFieldEventType(field)
-		if err != nil {
-			return nil, err
-		}
-
-		if eventType != "*" {
-			events[eventType] = true
-		}
-	}
-
-	var uniq []string
-	for event := range events {
-		uniq = append(uniq, event)
-	}
-	return uniq, nil
 }

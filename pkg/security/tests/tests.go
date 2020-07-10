@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -95,7 +96,7 @@ type testProbe struct {
 }
 
 type testEventHandler struct {
-	ruleSet    *eval.RuleSet
+	ruleSet    *rules.RuleSet
 	events     chan *sprobe.Event
 	discarders chan *testDiscarder
 }

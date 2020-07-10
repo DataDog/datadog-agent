@@ -9,10 +9,18 @@ import (
 type Macro struct {
 	ID         MacroID
 	Expression string
+	Opts       *Opts
 
 	evaluator *MacroEvaluator
 	ast       *ast.Macro
-	partials  map[Field]*MacroEvaluator
+}
+
+type MacroEvaluator struct {
+	Value       interface{}
+	EventTypes  []EventType
+	FieldValues map[Field][]FieldValue
+
+	partialEvals map[Field]func(ctx *Context) bool
 }
 
 // GetEvaluator returns the MacroEvaluator of the Macro corresponding to the SECL `Expression`
@@ -58,12 +66,21 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 		return nil, err
 	}
 
+	events, err := eventFromFields(model, state)
+	if err != nil {
+		return nil, err
+	}
+
 	return &MacroEvaluator{
-		Value: eval,
+		Value:       eval,
+		EventTypes:  events,
+		FieldValues: state.fieldValues,
 	}, nil
 }
 
 func (m *Macro) GenEvaluator(model Model, opts *Opts) error {
+	m.Opts = opts
+
 	evaluator, err := macroToEvaluator(m.ast, model, opts, "")
 	if err != nil {
 		if err, ok := err.(*AstToEvalError); ok {
@@ -76,19 +93,33 @@ func (m *Macro) GenEvaluator(model Model, opts *Opts) error {
 	return nil
 }
 
-func (m *Macro) GenPartials(model Model, fields []Field, opts *Opts) error {
-	m.partials = make(map[Field]*MacroEvaluator)
+// GetEventTypes returns a list of all the event that the `Expression` handles
+func (m *Macro) GetEventTypes() []EventType {
+	eventTypes := m.evaluator.EventTypes
 
-	for _, field := range fields {
-		evaluator, err := macroToEvaluator(m.ast, model, opts, field)
-		if err != nil {
-			if err, ok := err.(*AstToEvalError); ok {
-				return errors.Wrap(&RuleParseError{pos: err.Pos, expr: m.Expression}, "macro syntax error")
-			}
-			return errors.Wrap(err, "macro compilation error")
-		}
-		m.partials[field] = evaluator
+	for _, macro := range m.Opts.Macros {
+		eventTypes = append(eventTypes, macro.GetEventTypes()...)
 	}
 
-	return nil
+	return eventTypes
+}
+
+func (m *MacroEvaluator) GetFields() []Field {
+	fields := make([]Field, len(m.FieldValues))
+	i := 0
+	for key := range m.FieldValues {
+		fields[i] = key
+		i++
+	}
+	return fields
+}
+
+func (m *Macro) GetFields() []Field {
+	fields := m.evaluator.GetFields()
+
+	for _, macro := range m.Opts.Macros {
+		fields = append(fields, macro.GetFields()...)
+	}
+
+	return fields
 }

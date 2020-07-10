@@ -18,9 +18,8 @@ type RuleSetListener interface {
 }
 
 type RuleSet struct {
-	opts             eval.Opts
+	opts             *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
-	macros           map[policy.MacroID]*eval.Macro
 	rules            map[policy.RuleID]*eval.Rule
 	model            eval.Model
 	eventCtor        func() eval.Event
@@ -53,7 +52,7 @@ func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
 }
 
 func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*eval.Macro, error) {
-	if _, exists := rs.macros[macroDef.ID]; exists {
+	if _, exists := rs.opts.Macros[macroDef.ID]; exists {
 		return nil, fmt.Errorf("found multiple definition of the macro '%s'", macroDef.ID)
 	}
 
@@ -66,12 +65,11 @@ func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*eval.Macro, erro
 		return nil, errors.Wrapf(err, "couldn't generate an AST of the macro %s", macroDef.ID)
 	}
 
-	if err := macro.GenEvaluator(rs.model, &rs.opts); err != nil {
+	if err := macro.GenEvaluator(rs.model, rs.opts); err != nil {
 		return nil, errors.Wrapf(err, "couldn't generate an evaluation of the macro %s", macroDef.ID)
 	}
 
-	rs.macros[macro.ID] = macro
-	rs.opts.Macros[macro.ID] = evaluator
+	rs.opts.Macros[macro.ID] = macro
 
 	return macro, nil
 }
@@ -109,7 +107,7 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*eval.Rule, error) {
 		return nil, err
 	}
 
-	if err := rule.GenEvaluator(rs.model, &rs.opts); err != nil {
+	if err := rule.GenEvaluator(rs.model, rs.opts); err != nil {
 		return nil, err
 	}
 
@@ -257,16 +255,10 @@ NewFields:
 // on one field. The goal of partial is to determine if a rule depends on a specific field, so that we can decide if
 // we should create an in-kernel filter for that field.
 func (rs *RuleSet) generatePartials() error {
-	for _, macro := range rs.macros {
-		if err := macro.GenPartials(rs.model, rs.fields, &rs.opts); err != nil {
-			return err
-		}
-	}
-
 	// Compute the partials of each rule
 	for _, bucket := range rs.eventRuleBuckets {
 		for _, rule := range bucket.GetRules() {
-			if err := rule.GenPartials(rs.model, rs.macros, &rs.opts); err != nil {
+			if err := rule.GenPartials(); err != nil {
 				return err
 			}
 		}
@@ -274,14 +266,11 @@ func (rs *RuleSet) generatePartials() error {
 	return nil
 }
 
-func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts eval.Opts) *RuleSet {
+func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *eval.Opts) *RuleSet {
 	return &RuleSet{
 		model:            model,
 		eventCtor:        eventCtor,
 		opts:             opts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
-		macros:           make(map[policy.MacroID]*eval.Macro),
-		rules:            make(map[policy.RuleID]*eval.Rule),
-		fields:           []string{},
 	}
 }

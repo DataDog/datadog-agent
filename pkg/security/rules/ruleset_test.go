@@ -32,7 +32,7 @@ func (f *testHandler) EventDiscarderFound(event eval.Event, field string) {
 	}
 	evaluator, _ := f.model.GetEvaluator(field)
 
-	value := evaluator.(Evaluator).Eval(&Context{})
+	value := evaluator.(eval.Evaluator).Eval(&eval.Context{})
 
 	found := false
 	for _, d := range discarders {
@@ -42,7 +42,7 @@ func (f *testHandler) EventDiscarderFound(event eval.Event, field string) {
 	}
 
 	if !found {
-		discarders = append(discarders, evaluator.(Evaluator).Eval(&Context{}))
+		discarders = append(discarders, evaluator.(eval.Evaluator).Eval(&eval.Context{}))
 	}
 	values[field] = discarders
 }
@@ -62,7 +62,7 @@ func addRuleExpr(t *testing.T, rs *RuleSet, id, expr string) {
 }
 
 func TestRuleBuckets(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
 	addRuleExpr(t, rs, "id1", `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
 	addRuleExpr(t, rs, "id2", `(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`)
 
@@ -74,8 +74,8 @@ func TestRuleBuckets(t *testing.T) {
 	}
 	for _, bucket := range rs.eventRuleBuckets {
 		for _, rule := range bucket.rules {
-			if rule.evaluator != nil && rule.evaluator.partialEvals == nil {
-				t.Fatalf("failed to initialize partials %v", rule.evaluator.partialEvals)
+			if rule.GetPartialEval("process.uid") == nil {
+				t.Fatal("failed to initialize partials")
 			}
 		}
 	}
@@ -88,7 +88,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 		model:   model,
 		filters: make(map[string]testFieldValues),
 	}
-	rs := NewRuleSet(model, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(model, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
 	rs.AddListener(handler)
 
 	addRuleExpr(t, rs, "id1", `open.filename == "/etc/passwd" && process.uid != 0`)
@@ -144,18 +144,18 @@ func TestRuleSetDiscarders(t *testing.T) {
 }
 
 func TestRuleSetFilters1(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 || process.gid == 0)`)
 
 	caps := FieldCapabilities{
 		{
 			Field: "process.uid",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 		{
 			Field: "process.gid",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 	}
 
@@ -175,7 +175,7 @@ func TestRuleSetFilters1(t *testing.T) {
 	caps = FieldCapabilities{
 		{
 			Field: "open.filename",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 	}
 
@@ -191,7 +191,7 @@ func TestRuleSetFilters1(t *testing.T) {
 	caps = FieldCapabilities{
 		{
 			Field: "process.uid",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 	}
 
@@ -202,7 +202,7 @@ func TestRuleSetFilters1(t *testing.T) {
 }
 
 func TestRuleSetFilters2(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && process.uid == 0`)
 	addRuleExpr(t, rs, "id2", `open.flags & O_CREAT > 0 && (process.uid == 0 || process.gid == 0)`)
@@ -210,7 +210,7 @@ func TestRuleSetFilters2(t *testing.T) {
 	caps := FieldCapabilities{
 		{
 			Field: "open.filename",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 	}
 
@@ -222,15 +222,15 @@ func TestRuleSetFilters2(t *testing.T) {
 	caps = FieldCapabilities{
 		{
 			Field: "open.filename",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 		{
 			Field: "process.uid",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 		{
 			Field: "process.gid",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 	}
 
@@ -251,14 +251,14 @@ func TestRuleSetFilters2(t *testing.T) {
 }
 
 func TestRuleSetFilters3(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
 
 	caps := FieldCapabilities{
 		{
 			Field: "open.filename",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 	}
 
@@ -277,14 +277,14 @@ func TestRuleSetFilters3(t *testing.T) {
 }
 
 func TestRuleSetFilters4(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, "id1", `open.filename =~ "/etc/passwd" && process.uid == 0`)
 
 	caps := FieldCapabilities{
 		{
 			Field: "open.filename",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 	}
 
@@ -295,7 +295,7 @@ func TestRuleSetFilters4(t *testing.T) {
 	caps = FieldCapabilities{
 		{
 			Field: "open.filename",
-			Types: ScalarValueType | PatternValueType,
+			Types: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
 
@@ -305,18 +305,18 @@ func TestRuleSetFilters4(t *testing.T) {
 }
 
 func TestRuleSetFilters5(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, "id1", `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
 
 	caps := FieldCapabilities{
 		{
 			Field: "open.flags",
-			Types: ScalarValueType | BitmaskValueType,
+			Types: eval.ScalarValueType | eval.BitmaskValueType,
 		},
 		{
 			Field: "open.filename",
-			Types: ScalarValueType,
+			Types: eval.ScalarValueType,
 		},
 	}
 
@@ -329,14 +329,14 @@ func TestRuleSetFilters5(t *testing.T) {
 func TestRuleSetFilters6(t *testing.T) {
 	t.Skip()
 
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, "id1", `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) || process.name == "httpd"`)
 
 	caps := FieldCapabilities{
 		{
 			Field: "open.flags",
-			Types: ScalarValueType | BitmaskValueType,
+			Types: eval.ScalarValueType | eval.BitmaskValueType,
 		},
 	}
 
