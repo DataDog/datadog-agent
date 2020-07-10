@@ -267,6 +267,10 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
+	if err := probe.Snapshot(); err != nil {
+		return nil, err
+	}
+
 	events := make(chan *sprobe.Event, eventChanLength)
 	discarders := make(chan *testDiscarder, discarderChanLength)
 
