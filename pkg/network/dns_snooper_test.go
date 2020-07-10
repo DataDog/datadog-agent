@@ -4,19 +4,18 @@ package network
 
 import (
 	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
+	mdns "github.com/miekg/dns"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"math/rand"
 	"net"
 	"strings"
 	"testing"
 	"time"
-	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/ebpf/manager"
-	mdns "github.com/miekg/dns"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func getSnooper(
@@ -35,27 +34,26 @@ func getSnooper(
 			{Name: string(bytecode.TcpStatsMap)},
 			{Name: string(bytecode.PortBindingsMap)},
 			{Name: string(bytecode.UdpPortBindingsMap)},
-			{Name: string(bytecode.ConfigMap)},
 		},
 		PerfMaps: []*manager.PerfMap{},
 	}
-	maxSizes := map[bytecode.BPFMapName]uint32{
-		bytecode.ConnMap:            1024,
-		bytecode.TcpStatsMap:        1024,
-		bytecode.PortBindingsMap:    1024,
-		bytecode.UdpPortBindingsMap: 1024,
+	mgrOptions := manager.Options{
+		MapSpecEditors: map[string]manager.MapSpecEditor{
+			string(bytecode.ConnMap):            {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+			string(bytecode.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+			string(bytecode.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+			string(bytecode.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
+		},
 	}
-	bytecode.ConfigureMapMaxEntries(mgr, maxSizes)
-
-	err := mgr.Init(buf)
+	if collectStats {
+		mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "dns_stats_enabled",
+			Value: uint64(1),
+		})
+	}
+	err := mgr.InitWithOptions(buf, mgrOptions)
 	require.NoError(t, err)
 
-	if collectStats {
-		mp, _, _ := mgr.GetMap(string(bytecode.ConfigMap))
-		require.NotNil(t, mp)
-		var zero uint64
-		mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(&zero))
-	}
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
 	require.NotNil(t, filter)
 

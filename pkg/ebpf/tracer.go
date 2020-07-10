@@ -92,20 +92,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
 	}
 
-	// Extend RLIMIT_MEMLOCK (8) size
-	// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
-	// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
-	// using bpf(2) with BPF_MAP_CREATE.
-	//
-	// We are setting the limit to infinity until we have a better handle on the true requirements.
-	err := unix.Setrlimit(unix.RLIMIT_MEMLOCK, &unix.Rlimit{
-		Cur: math.MaxUint64,
-		Max: math.MaxUint64,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to adjust RLIMIT_MEMLOCK limit")
-	}
-
 	buf, err := bytecode.ReadBPFModule(config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
@@ -116,7 +102,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
-	currKernelVersion, err := CurrentKernelVersion()
+	currKernelVersion, err := ebpf.CurrentKernelVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
@@ -128,7 +114,24 @@ func NewTracer(config *Config) (*Tracer, error) {
 		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
 	}
 
-	mgrOptions := manager.Options{}
+	mgrOptions := manager.Options{
+		// Extend RLIMIT_MEMLOCK (8) size
+		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
+		// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
+		// using bpf(2) with BPF_MAP_CREATE.
+		//
+		// We are setting the limit to infinity until we have a better handle on the true requirements.
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
+		},
+		MapSpecEditors: map[string]manager.MapSpecEditor{
+			string(bytecode.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(bytecode.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(bytecode.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(bytecode.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+		},
+	}
 	mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
 	if err != nil {
 		return nil, fmt.Errorf("error guessing offsets: %s", err)
@@ -177,13 +180,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 			})
 		}
 	}
-	maxSizes := map[bytecode.BPFMapName]uint32{
-		bytecode.ConnMap:            uint32(config.MaxTrackedConnections),
-		bytecode.TcpStatsMap:        uint32(config.MaxTrackedConnections),
-		bytecode.PortBindingsMap:    uint32(config.MaxTrackedConnections),
-		bytecode.UdpPortBindingsMap: uint32(config.MaxTrackedConnections),
-	}
-	bytecode.ConfigureMapMaxEntries(m, maxSizes)
 
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
@@ -287,7 +283,12 @@ func overrideProbeSectionNames(m *manager.Manager) {
 func runOffsetGuessing(config *Config, buf *bytes.Reader) ([]manager.ConstantEditor, error) {
 	// Enable kernel probes used for offset guessing.
 	offsetMgr := bytecode.NewOffsetManager()
-	offsetOptions := manager.Options{}
+	offsetOptions := manager.Options{
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
+		},
+	}
 	for _, probeName := range offsetGuessProbes(config) {
 		offsetOptions.ActivatedProbes = append(offsetOptions.ActivatedProbes, string(probeName))
 	}

@@ -78,11 +78,3 @@ func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
 		},
 	}
 }
-
-func ConfigureMapMaxEntries(m *manager.Manager, sizes map[BPFMapName]uint32) {
-	for _, mp := range m.Maps {
-		if maxSize, ok := sizes[BPFMapName(mp.Name)]; ok {
-			mp.MaxEntries = maxSize
-		}
-	}
-}

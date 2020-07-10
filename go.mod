@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/agent-payload v0.0.0-20200630140101-31e351744885 // 4.37.0
 	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200527110245-7850164045c8
-	github.com/DataDog/ebpf v0.0.0-20200624122815-7b7a03c461bb
+	github.com/DataDog/ebpf v0.0.0-20200710073722-71fe0ffeb692
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
@@ -89,6 +89,7 @@ require (
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/go-ini/ini v1.55.0
 	github.com/go-ole/go-ole v1.2.4
+	github.com/go-openapi/spec v0.19.8 // indirect
 	github.com/go-test/deep v1.0.5 // indirect
 	github.com/gobwas/glob v0.2.3
 	github.com/godbus/dbus v4.1.0+incompatible
@@ -147,7 +148,7 @@ require (
 	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4
+	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	gomodules.xyz/jsonpatch/v3 v3.0.1
