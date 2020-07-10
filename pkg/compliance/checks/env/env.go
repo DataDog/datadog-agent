@@ -5,13 +5,16 @@
 
 package env
 
-import "github.com/DataDog/datadog-agent/pkg/compliance"
+import (
+	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+)
 
 // Env provides environment methods for compliance checks execution
 type Env interface {
 	Clients
 	Configuration
-	Reporter() compliance.Reporter
+	Reporter() event.Reporter
 }
 
 // Clients provides an abstraction for accessing various clients needed by checks

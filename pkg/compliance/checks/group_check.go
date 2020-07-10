@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,7 +57,7 @@ func (c *groupCheck) findGroup(line []byte) (bool, error) {
 		return false, errors.New("malformed group file format")
 	}
 
-	kv := compliance.KVMap{}
+	kv := event.Data{}
 	for _, field := range c.group.Report {
 
 		if c.setStaticKV(field, kv) {

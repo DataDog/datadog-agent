@@ -14,7 +14,6 @@ if ($Env:NEW_BUILDER -eq "true") {
 $Env:BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"
 
-& git clone --depth 1 https://github.com/datadog/integrations-core
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3
 
 $archflag = "x64"
@@ -22,7 +21,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
 & go get gopkg.in/yaml.v2
-& inv -e deps --verbose --dep-vendor-only
+& inv -e deps --verbose
 
 & inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
 $err = $LASTEXITCODE

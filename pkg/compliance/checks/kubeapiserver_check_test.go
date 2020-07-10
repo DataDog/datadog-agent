@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ type kubeApiserverFixture struct {
 	name         string
 	kubeResource *compliance.KubernetesResource
 	objects      []runtime.Object
-	expKV        []compliance.KVMap
+	expKV        []event.Data
 	expError     error
 }
 
@@ -112,7 +113,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 			objects: []runtime.Object{
 				newDummyObject("testns", "dummy1"),
 			},
-			expKV: []compliance.KVMap{
+			expKV: []event.Data{
 				{
 					kubeResourceNameKey:      "dummy1",
 					kubeResourceNamespaceKey: "testns",
@@ -145,7 +146,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns2", "dummy1"),
 			},
-			expKV: []compliance.KVMap{
+			expKV: []event.Data{
 				{
 					kubeResourceNameKey:      "dummy1",
 					kubeResourceNamespaceKey: "testns",
@@ -179,7 +180,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy2"),
 				newDummyObject("testns2", "dummy1"),
 			},
-			expKV: []compliance.KVMap{
+			expKV: []event.Data{
 				{
 					kubeResourceNameKey:      "dummy1",
 					kubeResourceNamespaceKey: "testns",
@@ -221,7 +222,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns2", "dummy1"),
 			},
-			expKV: []compliance.KVMap{
+			expKV: []event.Data{
 				{
 					kubeResourceNameKey:      "dummy1",
 					kubeResourceNamespaceKey: "testns",
@@ -265,7 +266,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns", "dummy2"),
 			},
-			expKV: []compliance.KVMap{
+			expKV: []event.Data{
 				{
 					kubeResourceNameKey:      "dummy1",
 					kubeResourceNamespaceKey: "testns",
@@ -335,7 +336,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns", "dummy2"),
 			},
-			expKV: []compliance.KVMap{
+			expKV: []event.Data{
 				{
 					kubeResourceNameKey:      "dummy1",
 					kubeResourceNamespaceKey: "testns",
@@ -437,7 +438,7 @@ func TestKubeApiserverFilters(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns", "dummy2"),
 			},
-			expKV: []compliance.KVMap{
+			expKV: []event.Data{
 				{
 					kubeResourceNameKey:      "dummy1",
 					kubeResourceNamespaceKey: "testns",

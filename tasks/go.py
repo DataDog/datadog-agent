@@ -211,6 +211,28 @@ def ineffassign(ctx, targets):
 
 
 @task
+def staticcheck(ctx, targets):
+    """
+    Run staticcheck on targets.
+
+    Example invokation:
+        inv statickcheck --targets=./pkg/collector/check,./pkg/aggregator
+    """
+    if isinstance(targets, basestring):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        targets = targets.split(',')
+
+    # staticcheck checks recursively only if path is in "path/..." format
+    go_targets = [sub + "/..." for sub in targets]
+
+    ctx.run("staticcheck -checks=SA1027 " + " ".join(go_targets))
+    # staticcheck exits with status 1 when it finds an issue, if we're here
+    # everything went smooth
+    print("staticcheck found no issues")
+
+
+@task
 def misspell(ctx, targets):
     """
     Run misspell on targets.
@@ -239,7 +261,7 @@ def misspell(ctx, targets):
 
 @task
 def deps(
-    ctx, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_bootstrap=False, no_dep_ensure=False,
+    ctx, verbose=False, android=False, no_bootstrap=False, no_dep_ensure=False,
 ):
     """
     Setup Go dependencies

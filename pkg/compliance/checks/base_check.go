@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,7 +75,7 @@ func (c *baseCheck) IsTelemetryEnabled() bool {
 	return false
 }
 
-func (c *baseCheck) setStaticKV(field compliance.ReportedField, kv compliance.KVMap) bool {
+func (c *baseCheck) setStaticKV(field compliance.ReportedField, kv event.Data) bool {
 	key := field.As
 
 	if field.Value != "" {
@@ -89,23 +90,21 @@ func (c *baseCheck) setStaticKV(field compliance.ReportedField, kv compliance.KV
 	return false
 }
 
-func (c *baseCheck) report(tags []string, kv compliance.KVMap, logMsgAndArgs ...interface{}) {
-	if len(kv) == 0 {
+func (c *baseCheck) report(tags []string, data event.Data, logMsgAndArgs ...interface{}) {
+	if len(data) == 0 {
 		return
 	}
 
 	log.Debugf("%s: reporting %s:[%s]", c.ruleID, c.kind, logFromMsgAndArgs(logMsgAndArgs))
 
-	event := &compliance.RuleEvent{
-		RuleID:       c.ruleID,
-		Framework:    c.framework,
-		Version:      c.version,
+	e := &event.Event{
+		AgentRuleID:  c.ruleID,
 		ResourceID:   c.resourceID,
 		ResourceType: c.resourceType,
 		Tags:         []string{fmt.Sprintf("check_kind:%s", c.kind)},
-		Data:         kv,
+		Data:         data,
 	}
-	c.Reporter().Report(event)
+	c.Reporter().Report(e)
 }
 
 func logFromMsgAndArgs(msgAndArgs ...interface{}) string {
