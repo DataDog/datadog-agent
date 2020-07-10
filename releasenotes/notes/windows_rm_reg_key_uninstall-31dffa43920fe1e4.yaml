@@ -1,0 +1,4 @@
+fixes:
+  - |
+    On Windows, remove CreatedDDUser registry keys when uninstalling.
+
