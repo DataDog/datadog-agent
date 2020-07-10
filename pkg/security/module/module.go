@@ -47,14 +47,14 @@ func (m *Module) Register(server *grpc.Server) error {
 		return err
 	}
 
+	if err := m.probe.ApplyRuleSet(m.ruleSet); err != nil {
+		log.Warn(err)
+	}
+
 	// now that the probes have started, run the snapshot functions for the probes that require
 	// to fetch the current state of the system (example: mount points probes, process probes, ...)
 	if err := m.probe.Snapshot(); err != nil {
 		return err
-	}
-
-	if err := m.probe.ApplyRuleSet(m.ruleSet); err != nil {
-		log.Warn(err)
 	}
 
 	return nil
