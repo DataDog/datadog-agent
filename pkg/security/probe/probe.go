@@ -101,15 +101,6 @@ var AllKProbes = []*KProbe{
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "chmod_common",
-			EntryFunc: "kprobe/chmod_common",
-		},
-		EventTypes: map[string]Capabilities{
-			"chmod": Capabilities{},
-		},
-	},
-	{
 		KProbe: syscallKprobe("chmod"),
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
@@ -125,15 +116,6 @@ var AllKProbes = []*KProbe{
 		KProbe: syscallKprobe("fchmodat"),
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
-		},
-	},
-	{
-		KProbe: &eprobe.KProbe{
-			Name:      "chown_common",
-			EntryFunc: "kprobe/chown_common",
-		},
-		EventTypes: map[string]Capabilities{
-			"chown": Capabilities{},
 		},
 	},
 	{
@@ -167,9 +149,20 @@ var AllKProbes = []*KProbe{
 		},
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
+			"chmod": Capabilities{},
+			"chown": Capabilities{},
 			"rmdir": Capabilities{},
 			"unlink": Capabilities{},
 			"rename": Capabilities{},
+		},
+	},
+	{
+		KProbe: &eprobe.KProbe{
+			Name: "mnt_want_write",
+			EntryFunc: "kprobe/mnt_want_write_file",
+		},
+		EventTypes: map[string]Capabilities{
+			"chown": Capabilities{},
 		},
 	},
 	{
