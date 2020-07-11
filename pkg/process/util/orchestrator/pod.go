@@ -186,7 +186,64 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.Status = ComputeStatus(p)
 	podModel.ConditionMessage = GetConditionMessage(p)
 
+	for _, c := range p.Spec.Containers {
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_container); modelReq != nil {
+			podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
+		}
+	}
+
+	for _, c := range p.Spec.InitContainers {
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_initContainer); modelReq != nil {
+			podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
+		}
+	}
+
 	return &podModel
+}
+
+// resourceRequirements calculations: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#:~:text=Resource%20units%20in%20Kubernetes&text=Limits%20and%20requests%20for%20CPU,A%20Container%20with%20spec.
+// CPU: 1/10 of a single core, would represent that as 100m.
+// Memory: Memory is measured in bytes. In addition, it may be used with SI suffices (E, P, T, G, M, K, m) or their power-of-two-equivalents (Ei, Pi, Ti, Gi, Mi, Ki).
+func convertResourceRequirements(rq v1.ResourceRequirements, containerName string, resourceType model.ResourceRequirementsType) *model.ResourceRequirements {
+	requests := map[string]int64{}
+	setRequests := false
+	setLimits := false
+	limits := map[string]int64{}
+
+	cpuLimit := rq.Limits.Cpu()
+	if !cpuLimit.IsZero() {
+		limits[v1.ResourceCPU.String()] = cpuLimit.MilliValue()
+		setLimits = true
+	}
+
+	memLimit := rq.Limits.Memory()
+	if !memLimit.IsZero() {
+		limits[v1.ResourceMemory.String()] = memLimit.Value()
+		setLimits = true
+	}
+
+	cpuRequest := rq.Requests.Cpu()
+	if !cpuRequest.IsZero() {
+		requests[v1.ResourceCPU.String()] = cpuRequest.MilliValue()
+		setRequests = true
+	}
+
+	memRequest := rq.Requests.Memory()
+	if !memRequest.IsZero() {
+		requests[v1.ResourceMemory.String()] = memRequest.Value()
+		setRequests = true
+	}
+
+	if !setRequests && !setLimits {
+		return nil
+	}
+
+	return &model.ResourceRequirements{
+		Limits:   limits,
+		Requests: requests,
+		Name:     containerName,
+		Type:     resourceType,
+	}
 }
 
 func convertContainerStatus(cs v1.ContainerStatus) model.ContainerStatus {

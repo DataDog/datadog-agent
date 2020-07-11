@@ -17,17 +17,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestExtractPodMessage(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
+
+	parseRequests := resource.MustParse("250M")
+	parseLimits := resource.MustParse("550M")
 	tests := map[string]struct {
 		input    v1.Pod
 		expected model.Pod
 	}{
-		"full pod": {
+		"full pod with containers without resourceRequirements": {
 			input: v1.Pod{
 				Status: v1.PodStatus{
 					Phase:             v1.PodRunning,
@@ -309,10 +313,178 @@ func TestExtractPodMessage(t *testing.T) {
 				},
 			},
 		},
+		"partial pod with resourceRequirements": {
+			input: v1.Pod{
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name: "aContainer",
+							Resources: v1.ResourceRequirements{
+								Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
+								Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
+							},
+						},
+					},
+				},
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:   v1.PodReady,
+							Status: v1.ConditionTrue,
+						},
+					},
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							Name:         "barName",
+							Image:        "barImage",
+							ContainerID:  "docker://barID",
+							RestartCount: 10,
+							State: v1.ContainerState{
+								Waiting: &v1.ContainerStateWaiting{
+									Reason:  "chillin",
+									Message: "testin",
+								},
+							},
+						},
+					},
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pod",
+					Namespace: "namespace",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							UID: types.UID("1234567890"),
+						},
+					},
+				},
+			}, expected: model.Pod{
+				Metadata: &model.Metadata{
+					Name:      "pod",
+					Namespace: "namespace",
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Uid: "1234567890",
+						},
+					},
+				},
+				RestartCount: 10,
+				Status:       "chillin",
+				ContainerStatuses: []*model.ContainerStatus{
+					{
+						State:        "Waiting",
+						Message:      "chillin testin",
+						RestartCount: 10,
+						Name:         "barName",
+						ContainerID:  "docker://barID",
+					},
+				},
+				ResourceRequirements: []*model.ResourceRequirements{
+					{
+						Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
+						Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
+						Name:     "aContainer",
+						Type:     model.ResourceRequirementsType_container,
+					},
+				},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, &tc.expected, extractPodMessage(&tc.input))
+		})
+	}
+}
+
+func TestConvertResourceRequirements(t *testing.T) {
+	tests := map[string]struct {
+		input    v1.Container
+		expected *model.ResourceRequirements
+	}{
+		"no ResourceRequirements set": {
+			input: v1.Container{
+				Name: "test",
+			},
+			expected: nil,
+		},
+		"only mem set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					// 1024 = 1Ki
+					Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("550Mi")},
+					Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: resource.MustParse("250Mi")},
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Limits:   map[string]int64{v1.ResourceMemory.String(): 576716800},
+				Requests: map[string]int64{v1.ResourceMemory.String(): 262144000},
+				Name:     "test",
+				Type:     model.ResourceRequirementsType_container,
+			},
+		},
+		"only cpu set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("1")},
+					Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("0.5")},
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Limits:   map[string]int64{v1.ResourceCPU.String(): 1000},
+				Requests: map[string]int64{v1.ResourceCPU.String(): 500},
+				Name:     "test",
+				Type:     model.ResourceRequirementsType_container,
+			},
+		},
+		"only cpu request set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("0.5")},
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Requests: map[string]int64{v1.ResourceCPU.String(): 500},
+				Limits:   map[string]int64{},
+				Name:     "test",
+				Type:     model.ResourceRequirementsType_container,
+			},
+		},
+		"mem and cpu set": {
+			input: v1.Container{
+				Name: "test",
+				Resources: v1.ResourceRequirements{
+					Limits: map[v1.ResourceName]resource.Quantity{
+						v1.ResourceCPU:    resource.MustParse("1"),
+						v1.ResourceMemory: resource.MustParse("550Mi"),
+					},
+					Requests: map[v1.ResourceName]resource.Quantity{
+						v1.ResourceCPU:    resource.MustParse("0.5"),
+						v1.ResourceMemory: resource.MustParse("250Mi"),
+					},
+				},
+			},
+			expected: &model.ResourceRequirements{
+				Limits: map[string]int64{
+					v1.ResourceCPU.String():    1000,
+					v1.ResourceMemory.String(): 576716800,
+				},
+				Requests: map[string]int64{
+					v1.ResourceCPU.String():    500,
+					v1.ResourceMemory.String(): 262144000,
+				},
+				Name: "test",
+				Type: model.ResourceRequirementsType_container,
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			actual := convertResourceRequirements(tc.input.Resources, tc.input.Name, model.ResourceRequirementsType_container)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
