@@ -44,7 +44,7 @@ if "%TARGET_ARCH%" == "x86" (
     Powershell -C "ridk enable; cd omnibus; bundle install"
 )
 
-pip install -r requirements.txt || exit /b 4
+pip3 install -r requirements.txt || exit /b 4
 
 inv -e deps --verbose || exit /b 5
 
