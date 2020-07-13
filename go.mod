@@ -82,7 +82,7 @@ require (
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/fatih/color v1.9.0
-	github.com/florianl/go-conntrack v0.1.0
+	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/go-ini/ini v1.55.0
 	github.com/go-ole/go-ole v1.2.4
 	github.com/go-test/deep v1.0.5 // indirect
