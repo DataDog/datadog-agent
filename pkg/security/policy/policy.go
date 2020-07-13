@@ -3,6 +3,7 @@ package policy
 import (
 	"fmt"
 	"io"
+	"regexp"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
@@ -44,6 +45,13 @@ type Policy struct {
 	Macros []*MacroDefinition
 }
 
+var ruleIDPattern = `^([a-z]*_*)*$`
+
+func checkRuleID(ruleID string) bool {
+	pattern := regexp.MustCompile(ruleIDPattern)
+	return pattern.MatchString(ruleID)
+}
+
 func LoadPolicy(r io.Reader) (*Policy, error) {
 	var mapSlice []map[string]interface{}
 
@@ -71,6 +79,9 @@ func LoadPolicy(r io.Reader) (*Policy, error) {
 				if ruleDef.ID == "" {
 					return nil, errors.New("rule has no name")
 				}
+				if !checkRuleID(ruleDef.ID) {
+					return nil, fmt.Errorf("rule ID does not match pattern %s", ruleIDPattern)
+				}
 
 				if ruleDef.Expression == "" {
 					return nil, errors.New("rule has no expression")
@@ -87,6 +98,9 @@ func LoadPolicy(r io.Reader) (*Policy, error) {
 
 				if macroDef.ID == "" {
 					return nil, errors.New("macro has no name")
+				}
+				if !checkRuleID(macroDef.ID) {
+					return nil, fmt.Errorf("macro ID does not match pattern %s", ruleIDPattern)
 				}
 
 				if macroDef.Expression == "" {
