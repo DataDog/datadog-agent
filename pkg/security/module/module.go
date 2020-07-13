@@ -196,21 +196,13 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 	}
 
 	m := &Module{
-<<<<<<< HEAD
-		config:      config,
-		probe:       probe,
-		ruleSet:     ruleSet,
-		eventServer: NewEventServer(),
-		grpcServer:  grpc.NewServer(),
-		rateLimiter: NewRateLimiter(ruleSet.ListRuleIDs()),
-=======
 		config:       config,
 		probe:        probe,
 		ruleSet:      ruleSet,
 		eventServer:  NewEventServer(),
 		grpcServer:   grpc.NewServer(),
 		statsdClient: statsdClient,
->>>>>>> Allow sending syscall metrics using statsd
+		rateLimiter: NewRateLimiter(ruleSet.ListRuleIDs()),
 	}
 
 	api.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
