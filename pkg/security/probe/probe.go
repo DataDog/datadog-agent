@@ -187,7 +187,18 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
-		KProbes: syscallKprobe("futimesat"),
+		KProbes: []*eprobe.KProbe{
+			{
+				Name:      "sys_futimesat",
+				EntryFunc: "kprobe/" + getSyscallFnName("futimesat"),
+				ExitFunc:  "kretprobe/" + getSyscallFnName("futimesat"),
+			},
+			{
+				Name:      "sys_futimesat",
+				EntryFunc: "kprobe/sys_futimesat",
+				ExitFunc:  "kretprobe/sys_futimesat",
+			},
+		},
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
 		},

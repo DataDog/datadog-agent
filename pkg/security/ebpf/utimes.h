@@ -44,7 +44,11 @@ SYSCALL_KPROBE(utimensat) {
     return trace__sys_utimes();
 }
 
-SYSCALL_KPROBE(futimensat) {
+SYSCALL_KPROBE(utimesat) {
+    return trace__sys_utimes();
+}
+
+SYSCALL_KPROBE(futimesat) {
     return trace__sys_utimes();
 }
 
