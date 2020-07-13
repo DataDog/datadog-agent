@@ -748,6 +748,8 @@ type KProbeApplier struct {
 }
 
 func (k *KProbeApplier) ApplyFilterPolicy(eventType string, tableName string, mode PolicyMode, flags PolicyFlag) error {
+	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
+
 	k.reporter.ApplyFilterPolicy(eventType, tableName, mode, flags)
 	return k.probe.SetFilterPolicy(tableName, mode, flags)
 }
@@ -778,14 +780,13 @@ func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *eval.RuleSet, eventTyp
 	}
 
 	if err := applier.ApplyApprovers(eventType, hookPoint, approvers); err != nil {
-		log.Errorf("Error while adding approvers set in-kernel policy to `PASS` for `%s`: %s", eventType, err)
+		log.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", POLICY_MODE_ACCEPT, eventType, err)
 		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	log.Infof("Setting in-kernel filter policy to `DENY` for `%s`", eventType)
 	if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_DENY, capabilities.GetFlags()); err != nil {
 		return err
 	}

@@ -23,15 +23,23 @@ const (
 	BASENAME_FILTER_SIZE = 32
 )
 
-func (m PolicyMode) MarshalJSON() ([]byte, error) {
+func (m PolicyMode) String() string {
 	switch m {
 	case POLICY_MODE_ACCEPT:
-		return []byte(`"accept"`), nil
+		return "accept"
 	case POLICY_MODE_DENY:
-		return []byte(`"deny"`), nil
-	default:
+		return "deny"
+	}
+	return ""
+}
+
+func (m PolicyMode) MarshalJSON() ([]byte, error) {
+	s := m.String()
+	if s == "" {
 		return nil, errors.New("invalid policy mode")
 	}
+
+	return []byte(`"` + s + `"`), nil
 }
 
 func (f PolicyFlag) MarshalJSON() ([]byte, error) {
@@ -46,7 +54,7 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 		flags = append(flags, `"mode"`)
 	}
 	if f&PARENT_NAME_FLAG != 0 {
-		flags = append(flags, `"name"`)
+		flags = append(flags, `"parent_name"`)
 	}
 	if f&PROCESS_INODE != 0 {
 		flags = append(flags, `"inode"`)

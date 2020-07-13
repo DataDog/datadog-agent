@@ -264,10 +264,6 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	if _, err := probe.ApplyRuleSet(ruleSet, false); err != nil {
-		return nil, err
-	}
-
 	if err := probe.Snapshot(); err != nil {
 		return nil, err
 	}
@@ -280,6 +276,10 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 	ruleSet.AddListener(handler)
 
 	if err := probe.Start(); err != nil {
+		return nil, err
+	}
+
+	if _, err := probe.ApplyRuleSet(ruleSet, false); err != nil {
 		return nil, err
 	}
 
