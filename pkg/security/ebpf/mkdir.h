@@ -15,6 +15,7 @@ struct mkdir_event_t {
 
 int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t mode) {
     struct syscall_cache_t syscall = {
+        .type = EVENT_MKDIR,
         .mkdir = {
             .mode = mode
         }
@@ -46,16 +47,6 @@ SYSCALL_KPROBE(mkdirat) {
 #endif
 
     return trace__sys_mkdir(ctx, mode);
-}
-
-SEC("kprobe/filename_create")
-int kprobe__filename_create(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
-    if (!syscall)
-        return 0;
-
-    syscall->mkdir.dir = (struct path *)PT_REGS_PARM3(ctx);
-    return 0;
 }
 
 SEC("kprobe/vfs_mkdir")

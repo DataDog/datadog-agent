@@ -13,7 +13,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	tmpl, err := template.New("test-config").Parse(testConfig)
+	tmpl, err := template.New("test_config").Parse(testConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
