@@ -139,17 +139,41 @@ func TestEvalBoolean(t *testing.T) {
 			vars: VarMap{
 				"x": "abc",
 			},
-			expectError: newLexerError(0, "rhs of ! must be a boolean"),
+			expectError: newLexerError(0, `rhs of "!" must be a boolean`),
 		},
 		{
-			name:        "invalid and",
+			name:        "invalid lhs in and",
 			expression:  `"x" && "y"`,
 			expectError: newLexerError(0, "type mismatch, expected bool in lhs of boolean expression"),
 		},
 		{
-			name:        "invalid or",
+			name:        "invalid lhs in or",
 			expression:  `"x" || "y"`,
 			expectError: newLexerError(0, "type mismatch, expected bool in lhs of boolean expression"),
+		},
+		{
+			name:       "invalid rhs in and",
+			expression: `x && "y"`,
+			vars: VarMap{
+				"x": true,
+			},
+			expectError: newLexerError(0, "type mismatch, expected bool in rhs of boolean expression"),
+		},
+		{
+			name:       "invalid rhs in or",
+			expression: `x || "y"`,
+			vars: VarMap{
+				"x": true,
+			},
+			expectError: newLexerError(0, "type mismatch, expected bool in rhs of boolean expression"),
+		},
+		{
+			name:       "invalid rhs in or",
+			expression: `x || y`,
+			vars: VarMap{
+				"x": true,
+			},
+			expectError: newLexerError(5, `unknown variable "y"`),
 		},
 	}.Run(t)
 }
@@ -215,7 +239,7 @@ func TestEvalInteger(t *testing.T) {
 		{
 			name:        "unsigned greater than string",
 			expression:  `0x9 > "a"`,
-			expectError: newLexerError(0, "rhs of > must be an integer"),
+			expectError: newLexerError(0, `rhs of ">" must be an integer`),
 		},
 		{
 			name:         "negative",
@@ -263,7 +287,7 @@ func TestEvalInteger(t *testing.T) {
 		{
 			name:        "signed greater than string",
 			expression:  `-9 > "a"`,
-			expectError: newLexerError(0, "rhs of > must be an integer"),
+			expectError: newLexerError(0, `rhs of ">" must be an integer`),
 		},
 		{
 			name:       "negative unsigned var",
@@ -284,12 +308,17 @@ func TestEvalInteger(t *testing.T) {
 		{
 			name:        "invalid negative",
 			expression:  `-"abc"`,
-			expectError: newLexerError(0, "rhs of - must be an integer"),
+			expectError: newLexerError(0, `rhs of "-" must be an integer`),
 		},
 		{
-			name:        "failed to evaluate rhs",
+			name:        "binray failed to evaluate rhs",
 			expression:  "0644 & unknown",
 			expectError: newLexerError(7, `unknown variable "unknown"`),
+		},
+		{
+			name:        "comparison failed to evaluate rhs",
+			expression:  `0x9 > unknown`,
+			expectError: newLexerError(6, `unknown variable "unknown"`),
 		},
 	}.Run(t)
 }
@@ -319,7 +348,7 @@ func TestEvalBitOperations(t *testing.T) {
 		{
 			name:        "unsigned bitwise and invalid rhs",
 			expression:  `0644 & "abc"`,
-			expectError: newLexerError(0, "rhs of & must be an integer"),
+			expectError: newLexerError(0, `rhs of "&" must be an integer`),
 		},
 		{
 			name:       "signed bitwise and",
@@ -351,7 +380,7 @@ func TestEvalBitOperations(t *testing.T) {
 		{
 			name:        "signed bitwise and invalid rhs",
 			expression:  `0 & "abc"`,
-			expectError: newLexerError(0, "rhs of & must be an integer"),
+			expectError: newLexerError(0, `rhs of "&" must be an integer`),
 		},
 		{
 			name:       "signed unary bitwise not",
@@ -418,7 +447,7 @@ func TestEvalBitOperations(t *testing.T) {
 		{
 			name:        "invalid unary bitwise not",
 			expression:  `^"abc"`,
-			expectError: newLexerError(0, "rhs of ^ must be an integer"),
+			expectError: newLexerError(0, `rhs of "^" must be an integer`),
 		},
 	}.Run(t)
 }
@@ -473,12 +502,12 @@ func TestEvalString(t *testing.T) {
 		{
 			name:        "invalid string concat",
 			expression:  `"abc" + 0`,
-			expectError: newLexerError(0, "rhs of + must be a string"),
+			expectError: newLexerError(0, `rhs of "+" must be a string`),
 		},
 		{
 			name:        "invalid string comparison",
 			expression:  `"abc" > 0`,
-			expectError: newLexerError(0, "rhs of > must be a string"),
+			expectError: newLexerError(0, `rhs of ">" must be a string`),
 		},
 	}.Run(t)
 }
@@ -533,7 +562,7 @@ func TestEvalArrayOperations(t *testing.T) {
 					0,
 				},
 			},
-			expectError: newLexerError(0, "lhs of > must be an integer or string"),
+			expectError: newLexerError(0, `lhs of ">" must be an integer or string`),
 		},
 		{
 			name:       "invalid rhs of in",
@@ -541,7 +570,19 @@ func TestEvalArrayOperations(t *testing.T) {
 			vars: VarMap{
 				"notarray": 0,
 			},
-			expectError: newLexerError(0, "rhs of in array operation must be an array"),
+			expectError: newLexerError(0, `rhs of "in" array operation must be an array`),
+		},
+		{
+			name:         "failing to evaluate var in array",
+			expression:   `"abc" in ["abc", def]`,
+			expectResult: true,
+			expectError:  newLexerError(17, `unknown variable "def"`),
+		},
+		{
+			name:         "failing to evaluate call in array",
+			expression:   `"abc" in ["abc", def()]`,
+			expectResult: true,
+			expectError:  newLexerError(17, `unknown function "def()"`),
 		},
 	}.Run(t)
 }
@@ -566,14 +607,29 @@ func TestEvalSubExpression(t *testing.T) {
 	}.Run(t)
 }
 
+type iteratorFixture struct {
+	vars      VarMap
+	functions FunctionMap
+	err       error
+}
+
 type iteratorMock struct {
-	instances []*Instance
-	index     int
+	fixtures []iteratorFixture
+	index    int
 }
 
 func (i *iteratorMock) Next() (*Instance, error) {
 	if !i.Done() {
-		result := i.instances[i.index]
+		current := i.fixtures[i.index]
+		if current.err != nil {
+			return nil, current.err
+		}
+
+		result := &Instance{
+			Vars:      current.vars,
+			Functions: current.functions,
+		}
+
 		i.index++
 		return result, nil
 	}
@@ -581,67 +637,103 @@ func (i *iteratorMock) Next() (*Instance, error) {
 }
 
 func (i *iteratorMock) Done() bool {
-	return i.index >= len(i.instances)
+	return i.index >= len(i.fixtures)
+}
+
+type iterableTest struct {
+	name         string
+	expression   string
+	global       Instance
+	expectResult bool
+	expectError  error
+}
+
+func (test iterableTest) Run(fixtures []iteratorFixture, t *testing.T) {
+	iterator := &iteratorMock{
+		fixtures: fixtures,
+	}
+
+	assert := assert.New(t)
+	expr, err := ParseIterable(test.expression)
+	assert.NoError(err)
+	assert.NotNil(expr)
+
+	value, err := expr.Evaluate(iterator, &test.global)
+	if test.expectError != nil {
+		assert.Equal(test.expectError, err)
+	} else {
+		assert.NoError(err)
+		assert.Equal(test.expectResult, value.Passed)
+	}
+}
+
+type iterableTests []iterableTest
+
+func (tests iterableTests) Run(fixtures []iteratorFixture, t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.Run(fixtures, t)
+		})
+	}
 }
 
 func TestEvalIterable(t *testing.T) {
-	instances := []*Instance{
+	fixtures := []iteratorFixture{
 		{
-			Functions: map[string]Function{
+			functions: map[string]Function{
 				"has": func(instance *Instance, args ...interface{}) (interface{}, error) {
 					return true, nil
 				},
 			},
-			Vars: map[string]interface{}{
+			vars: map[string]interface{}{
 				"file.permissions": 0677,
 				"file.owner":       "root",
 			},
 		},
 		{
-			Functions: map[string]Function{
+			functions: map[string]Function{
 				"has": func(instance *Instance, args ...interface{}) (interface{}, error) {
 					return false, nil
 				},
 			},
-			Vars: map[string]interface{}{
+			vars: map[string]interface{}{
 				"file.permissions": 0644,
 				"file.owner":       "root",
 			},
 		},
 		{
-			Functions: map[string]Function{
+			functions: map[string]Function{
 				"has": func(instance *Instance, args ...interface{}) (interface{}, error) {
 					return false, nil
 				},
 			},
-			Vars: map[string]interface{}{
+			vars: map[string]interface{}{
 				"file.permissions": 0,
 				"file.owner":       "root",
 			},
 		},
 	}
 
-	tests := []struct {
-		name         string
-		expression   string
-		global       Instance
-		expectResult bool
-		expectError  error
-	}{
+	iterableTests{
 		{
-			name:         "len",
-			expression:   `len(has("important-property") || file.permissions == 0644) == 2`,
+			name:         "count",
+			expression:   `count(has("important-property") || file.permissions == 0644) == 2`,
 			expectResult: true,
 		},
 		{
-			name:        "len invalid comparison",
-			expression:  `len(file.permissions == 0644) == "yes"`,
-			expectError: newLexerError(0, `expecting an integer rhs for iterable comparison using len()`),
+			name:         "count unsigned",
+			expression:   `count(has("important-property") || file.permissions == 0644) == 0x2`,
+			expectResult: true,
 		},
 		{
-			name:        "len failed to evaluate rhs",
-			expression:  `len(file.permissions == 0644) == EXPECTED`,
-			expectError: newLexerError(33, `unknown variable "EXPECTED"`),
+			name:        "count invalid comparison",
+			expression:  `count(file.permissions == 0644) == "yes"`,
+			expectError: newLexerError(0, `expecting an integer rhs for iterable comparison using "count()"`),
+		},
+		{
+			name:        "count failed to evaluate rhs",
+			expression:  `count(file.permissions == 0644) == EXPECTED`,
+			expectError: newLexerError(35, `unknown variable "EXPECTED"`),
 		},
 		{
 			name:         "all",
@@ -649,13 +741,18 @@ func TestEvalIterable(t *testing.T) {
 			expectResult: true,
 		},
 		{
+			name:         "all early iteration exit",
+			expression:   `all(file.owner == "alice")`,
+			expectResult: false,
+		},
+		{
 			name:         "none",
 			expression:   `none(file.owner == "alice")`,
 			expectResult: true,
 		},
 		{
-			name:         "any",
-			expression:   `any(file.owner == "alice")`,
+			name:         "none early iteration exit",
+			expression:   `none(file.owner == "root")`,
 			expectResult: false,
 		},
 		{
@@ -668,28 +765,45 @@ func TestEvalIterable(t *testing.T) {
 			expression:  `some(file.owner == "alice")`,
 			expectError: newLexerError(0, `unexpected function "some()" for iterable comparison`),
 		},
+		{
+			name:        "failed to evaluate iterable comparison",
+			expression:  `all(file.owner in allowed_users)`,
+			expectError: newLexerError(18, `unknown variable "allowed_users" used as array`),
+		},
+		{
+			name:        "non-boolean innerexpression",
+			expression:  `all(file.owner)`,
+			expectError: newLexerError(0, `expression in iteration must evaluate to a boolean`),
+		},
+	}.Run(fixtures, t)
+}
+
+func TestEvalIterableError(t *testing.T) {
+	expectedError := errors.New("external API failed")
+	fixtures := []iteratorFixture{
+		{
+			functions: map[string]Function{
+				"has": func(instance *Instance, args ...interface{}) (interface{}, error) {
+					return true, nil
+				},
+			},
+			vars: map[string]interface{}{
+				"file.permissions": 0677,
+				"file.owner":       "root",
+			},
+		},
+		{
+			err: expectedError,
+		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			iterator := &iteratorMock{
-				instances: instances,
-			}
-
-			assert := assert.New(t)
-			expr, err := ParseIterable(test.expression)
-			assert.NoError(err)
-			assert.NotNil(expr)
-
-			value, err := expr.Evaluate(iterator, &test.global)
-			if test.expectError != nil {
-				assert.Equal(test.expectError, err)
-			} else {
-				assert.NoError(err)
-				assert.Equal(test.expectResult, value.Passed)
-			}
-		})
-	}
+	iterableTests{
+		{
+			name:        "count",
+			expression:  `count(has("important-property") || file.permissions == 0644) == 2`,
+			expectError: expectedError,
+		},
+	}.Run(fixtures, t)
 }
 
 func TestEvalPathExpression(t *testing.T) {
