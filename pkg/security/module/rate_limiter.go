@@ -1,8 +1,10 @@
 package module
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"golang.org/x/time/rate"
 )
 
@@ -17,6 +19,7 @@ const (
 type RuleLimiter struct {
 	limiter *rate.Limiter
 	dropped int64
+	allowed int64
 }
 
 func NewRuleLimiter(limit rate.Limit, burst int) *RuleLimiter {
@@ -47,18 +50,39 @@ func (rl *RateLimiter) Allow(ruleID string) bool {
 		return false
 	}
 	if ruleLimiter.limiter.Allow() {
+		atomic.AddInt64(&ruleLimiter.allowed, 1)
 		return true
 	}
 	atomic.AddInt64(&ruleLimiter.dropped, 1)
 	return false
 }
 
+type rateLimiterStat struct {
+	dropped int64
+	allowed int64
+}
+
 // GetStats - Returns a map indexed by ruleIDs that describes the amount of events that were dropped because of the rate
 // limiter
-func (rl *RateLimiter) GetStats() map[string]int64 {
-	stats := make(map[string]int64)
+func (rl *RateLimiter) GetStats() map[string]rateLimiterStat {
+	stats := make(map[string]rateLimiterStat)
 	for ruleID, ruleLimiter := range rl.limiters {
-		stats[ruleID] = atomic.SwapInt64(&ruleLimiter.dropped, 0)
+		stats[ruleID] = rateLimiterStat{
+			dropped: atomic.SwapInt64(&ruleLimiter.dropped, 0),
+			allowed: atomic.SwapInt64(&ruleLimiter.allowed, 0),
+		}
 	}
 	return stats
+}
+
+func (rl *RateLimiter) SendStats(client *statsd.Client) error {
+	for ruleID, counts := range rl.GetStats() {
+		if err := client.Count(probe.MetricPrefix+".rules."+ruleID+".rate_limiter.drop", counts.dropped, nil, 1.0); err != nil {
+			return err
+		}
+		if err := client.Count(probe.MetricPrefix+".rules."+ruleID+".rate_limiter.allow", counts.allowed, nil, 1.0); err != nil {
+			return err
+		}
+	}
+	return nil
 }

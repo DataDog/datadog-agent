@@ -139,13 +139,18 @@ func (m *Module) statsMonitor(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(20 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			m.probe.SendStats(m.statsdClient)
+			if err := m.probe.SendStats(m.statsdClient); err != nil {
+				log.Debug(err)
+			}
+			if err := m.rateLimiter.SendStats(m.statsdClient); err != nil {
+				log.Debug(err)
+			}
 		case <-ctx.Done():
 			return
 		}
