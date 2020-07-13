@@ -22,6 +22,7 @@
 #include "dentry.h"
 #include "setattr.h"
 #include "mnt.h"
+#include "filename.h"
 #include "chmod.h"
 #include "chown.h"
 #include "mkdir.h"
