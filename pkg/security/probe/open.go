@@ -30,33 +30,25 @@ var OpenTables = []KTable{
 	},
 }
 
-// OpenKProbes - list of open's kProbes
-var OpenKProbes = []*KProbe{
+// OpenHookPoints - list of open's kProbes
+var OpenHookPoints = []*HookPoint{
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_open",
-			EntryFunc: "kprobe/" + getSyscallFnName("open"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("open"),
-		},
+		KProbes: syscallKprobe("open"),
 		EventTypes: map[string]Capabilities{
 			"open": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_openat",
-			EntryFunc: "kprobe/" + getSyscallFnName("openat"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("openat"),
-		},
+		KProbes: syscallKprobe("openat"),
 		EventTypes: map[string]Capabilities{
 			"open": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
+		KProbes: []*eprobe.KProbe{{
 			Name:      "vfs_open",
 			EntryFunc: "kprobe/vfs_open",
-		},
+		}},
 		EventTypes: map[string]Capabilities{
 			"open": Capabilities{
 				"open.filename": {
