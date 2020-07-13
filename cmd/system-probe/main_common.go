@@ -1,3 +1,5 @@
+// +build linux windows
+
 package main
 
 import (
@@ -26,6 +28,7 @@ import (
 var factories = []api.Factory{
 	modules.NetworkTracer,
 	modules.TCPQueueLength,
+	modules.OOMKillProbe,
 }
 
 // Flag values

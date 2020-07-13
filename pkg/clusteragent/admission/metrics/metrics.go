@@ -35,4 +35,10 @@ var (
 	WebhooksReceived = telemetry.NewGaugeWithOpts("admission_webhooks", "webhooks_received",
 		[]string{}, "Number of mutation webhook requests received.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	GetOwnerCacheHit = telemetry.NewGaugeWithOpts("admission_webhooks", "owner_cache_hit",
+		[]string{"resource"}, "Number of cache hits while getting pod's owner object.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	GetOwnerCacheMiss = telemetry.NewGaugeWithOpts("admission_webhooks", "owner_cache_miss",
+		[]string{"resource"}, "Number of cache misses while getting pod's owner object.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

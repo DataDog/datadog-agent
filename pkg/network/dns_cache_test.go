@@ -152,7 +152,7 @@ func TestDNSCacheTelemetry(t *testing.T) {
 		"lookups":   3, // 127.0.0.1, 192.168.0.1, 192.168.0.2
 		"resolved":  1, // 192.168.0.1
 		"ips":       1,
-		"added":     0,
+		"added":     1,
 		"expired":   0,
 		"oversized": 0,
 	}
@@ -162,10 +162,10 @@ func TestDNSCacheTelemetry(t *testing.T) {
 	t2 := t1.Add(ttl + 1*time.Millisecond)
 	cache.Expire(t2)
 	expected = map[string]int64{
-		"lookups":   0,
-		"resolved":  0,
+		"lookups":   3,
+		"resolved":  1,
 		"ips":       0,
-		"added":     0,
+		"added":     1,
 		"expired":   1,
 		"oversized": 0,
 	}

@@ -4,11 +4,7 @@ param(
     )
 
 
-if ("$Env:NEW_BUILDER" -eq "true") {
-    [Reflection.Assembly]::LoadFrom("$($Env:WIX)\bin\Microsoft.Deployment.WindowsInstaller.dll")
-} else {
-    [Reflection.Assembly]::LoadFrom("$($Env:WIX)\Microsoft.Deployment.WindowsInstaller.dll")
-}
+[Reflection.Assembly]::LoadFrom("$($Env:WIX)\bin\Microsoft.Deployment.WindowsInstaller.dll")
 
 write-host "Extracting files from merge module: "$file
 

@@ -57,7 +57,6 @@ type realConntracker struct {
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
 
-	statsTicker   *time.Ticker
 	compactTicker *time.Ticker
 	stats         struct {
 		gets                 int64
@@ -109,6 +108,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int) (Con
 	}
 
 	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
+	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET6))
 	ctr.run()
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
@@ -148,7 +148,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 
 	m := map[string]int64{
 		"state_size": int64(size),
-		"expires":    int64(ctr.stats.expiresTotal),
+		"expires":    ctr.stats.expiresTotal,
 	}
 
 	if ctr.stats.gets != 0 {
@@ -359,20 +359,4 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 	}
 
 	return
-}
-
-func conDebug(c ct.Con) string {
-	proto := "tcp"
-	if *c.Origin.Proto.Number == 17 {
-		proto = "udp"
-	}
-
-	return fmt.Sprintf(
-		"orig_src=%s:%d orig_dst=%s:%d reply_src=%s:%d reply_dst=%s:%d proto=%s",
-		c.Origin.Src, *c.Origin.Proto.SrcPort,
-		c.Origin.Dst, *c.Origin.Proto.DstPort,
-		c.Reply.Src, *c.Reply.Proto.SrcPort,
-		c.Reply.Dst, *c.Reply.Proto.DstPort,
-		proto,
-	)
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -107,7 +108,11 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return err
 	}
 
-	for _, line := range data {
+	for _, lineRaw := range data {
+		line, ok := lineRaw.(tcpqueuelength.Stats)
+		if !ok {
+			continue
+		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
 		tags, err := tagger.Tag(entityID, collectors.OrchestratorCardinality)
 		if err != nil {

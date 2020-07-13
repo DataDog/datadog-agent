@@ -10,9 +10,9 @@ package providers
 import (
 	"testing"
 
-	"github.com/coreos/etcd/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.etcd.io/etcd/client"
 	"golang.org/x/net/context"
 )
 

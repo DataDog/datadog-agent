@@ -16,10 +16,10 @@ import (
 
 const (
 	// TCPProtocol represents the IANA protocol number for TCP
-	TCPProtocol = 17
+	TCPProtocol = 6
 
 	// UDPProtocol represents the IANA protocol number for UDP
-	UDPProtocol = 6
+	UDPProtocol = 17
 )
 
 func connFamily(addressFamily C.uint16_t) ConnectionFamily {
@@ -34,6 +34,25 @@ func connType(protocol C.uint16_t) ConnectionType {
 		return TCP
 	}
 	return UDP
+}
+
+func connDirection(flags C.uint32_t) ConnectionDirection {
+	direction := (flags & C.FLOW_DIRECTION_MASK) >> C.FLOW_DIRECTION_BITS
+	if (direction & C.FLOW_DIRECTION_INBOUND) == C.FLOW_DIRECTION_INBOUND {
+		return INCOMING
+	}
+	if (direction & C.FLOW_DIRECTION_OUTBOUND) == C.FLOW_DIRECTION_OUTBOUND {
+		return OUTGOING
+	}
+	return NONE
+}
+
+func isFlowClosed(flags C.uint32_t) bool {
+	// Connection is closed
+	if (flags & C.FLOW_CLOSED_MASK) == C.FLOW_CLOSED_MASK {
+		return true
+	}
+	return false
 }
 
 func convertV4Addr(addr [16]C.uint8_t) util.Address {
@@ -80,7 +99,6 @@ func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 		DPort:                uint16(flow.remotePort),
 		Type:                 connectionType,
 		Family:               family,
-		// TODO: Driver needs to be updated to send Direction
-		Direction: 0,
+		Direction:            connDirection(flow.flags),
 	}
 }

@@ -33,6 +33,7 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
+	lastTelemetry          *model.CollectorConnectionsTelemetry
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -43,7 +44,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
-	net.SetSystemProbePath(cfg.SystemProbeSocketPath)
+	net.SetSystemProbePath(cfg.SystemProbeAddress)
 	_, _ = net.GetRemoteSystemProbeUtil()
 
 	networkID, err := util.GetNetworkID()
@@ -84,8 +85,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
+	tel := c.diffTelemetry(conns.Telemetry)
+
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -112,6 +115,43 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 	return conns
 }
 
+func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model.CollectorConnectionsTelemetry {
+	if tel == nil {
+		return nil
+	}
+	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
+	if c.lastTelemetry == nil {
+		c.lastTelemetry = &model.CollectorConnectionsTelemetry{}
+		c.saveTelemetry(tel)
+		return nil
+	}
+
+	cct := &model.CollectorConnectionsTelemetry{
+		KprobesTriggered:          tel.MonotonicKprobesTriggered - c.lastTelemetry.KprobesTriggered,
+		KprobesMissed:             tel.MonotonicKprobesMissed - c.lastTelemetry.KprobesMissed,
+		ConntrackRegisters:        tel.MonotonicConntrackRegisters - c.lastTelemetry.ConntrackRegisters,
+		ConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped - c.lastTelemetry.ConntrackRegistersDropped,
+		DnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
+		ConnsClosed:               tel.MonotonicConnsClosed - c.lastTelemetry.ConnsClosed,
+		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
+	}
+	c.saveTelemetry(tel)
+	return cct
+}
+
+func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
+	if tel == nil || c.lastTelemetry == nil {
+		return
+	}
+
+	c.lastTelemetry.KprobesTriggered = tel.MonotonicKprobesTriggered
+	c.lastTelemetry.KprobesMissed = tel.MonotonicKprobesMissed
+	c.lastTelemetry.ConntrackRegisters = tel.MonotonicConntrackRegisters
+	c.lastTelemetry.ConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
+	c.lastTelemetry.DnsPacketsProcessed = tel.MonotonicDnsPacketsProcessed
+	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
+}
+
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	cfg *config.AgentConfig,
@@ -119,6 +159,7 @@ func batchConnections(
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
+	telemetry *model.CollectorConnectionsTelemetry,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -139,7 +180,7 @@ func batchConnections(
 		// Get the container and process relationship from either the process or container checks
 		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
 
-		batches = append(batches, &model.CollectorConnections{
+		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
 			NetworkId:         networkID,
 			Connections:       batchConns,
@@ -148,7 +189,13 @@ func batchConnections(
 			ContainerForPid:   ctrIDForPID,
 			EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			ContainerHostType: cfg.ContainerHostType,
-		})
+		}
+		// only add the telemetry to the first message to prevent double counting
+		if len(batches) == 0 {
+			cc.Telemetry = telemetry
+		}
+		batches = append(batches, cc)
+
 		cxs = cxs[batchSize:]
 	}
 	return batches

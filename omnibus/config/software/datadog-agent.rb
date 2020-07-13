@@ -110,7 +110,6 @@ build do
     end
   end
 
-
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     # Build the process-agent with the correct go version for windows
@@ -126,6 +125,17 @@ build do
   if debian? || redhat?
     mkdir "#{conf_dir}/selinux"
     command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+  end
+
+  # Security agent
+  if windows?
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
+
+    copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  else
+    command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
+    copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
   end
 
   if linux?
@@ -146,6 +156,10 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "upstart_debian.security.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-security.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.erb",
           dest: "#{install_dir}/scripts/datadog-agent",
           mode: 0755,
@@ -156,6 +170,10 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.trace.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_debian.security.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat? || suse?
@@ -177,6 +195,10 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "upstart_redhat.security.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-security.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
     if suse?
       erb source: "sysvinit_suse.erb",
@@ -189,6 +211,10 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_suse.trace.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_suse.security.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
@@ -207,6 +233,10 @@ build do
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.trace.service.erb",
         dest: "#{install_dir}/scripts/datadog-agent-trace.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.security.service.erb",
+        dest: "#{install_dir}/scripts/datadog-agent-security.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
   end

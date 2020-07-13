@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/input"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -36,6 +37,7 @@ type Launcher struct {
 	addedServices      chan *service.Service
 	removedServices    chan *service.Service
 	collectAll         bool
+	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
 // NewLauncher returns a new launcher.
@@ -53,6 +55,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		stopped:            make(chan struct{}),
 		kubeutil:           kubeutil,
 		collectAll:         collectAll,
+		serviceNameFunc:    input.ServiceNameFromTags,
 	}
 	launcher.addedServices = services.GetAllAddedServices()
 	launcher.removedServices = services.GetAllRemovedServices()
@@ -143,19 +146,13 @@ func (l *Launcher) removeSource(service *service.Service) {
 	}
 }
 
-const (
-	// kubernetesIntegration represents the name of the integration.
-	kubernetesIntegration          = "kubernetes"
-	podStandardLabelPrefix         = "tags.datadoghq.com/"
-	tagKeyService                  = "service"
-	podContainerLabelServiceFormat = podStandardLabelPrefix + "%s." + tagKeyService
-	podStandardLabelService        = podStandardLabelPrefix + tagKeyService
-)
+// kubernetesIntegration represents the name of the integration.
+const kubernetesIntegration = "kubernetes"
 
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
-	serviceLabel := getServiceLabel(pod, container)
+	standardService := l.serviceNameFunc(container.Name, getTaggerEntityID(container.ID))
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {
@@ -166,10 +163,10 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
-		if serviceLabel != "" {
+		if standardService != "" {
 			cfg = &config.LogsConfig{
 				Source:  kubernetesIntegration,
-				Service: serviceLabel,
+				Service: standardService,
 			}
 		} else {
 			shortImageName, err := l.getShortImageName(container)
@@ -186,8 +183,8 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 			}
 		}
 	}
-	if cfg.Service == "" && serviceLabel != "" {
-		cfg.Service = serviceLabel
+	if cfg.Service == "" && standardService != "" {
+		cfg.Service = standardService
 	}
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(basePath, pod, container)
@@ -231,23 +228,6 @@ func (l *Launcher) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerSt
 	if annotation, exists := pod.Metadata.Annotations[configPath]; exists {
 		return annotation
 	}
-	return ""
-}
-
-// getServiceLabel returns the standard service label for container if present
-// Order of preference is first "tags.datadoghq.com/<container-name>.service" then "tags.datadoghq.com/service"
-func getServiceLabel(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
-	if pod.Metadata.Labels != nil {
-		if containerServiceLabel, exists := pod.Metadata.Labels[fmt.Sprintf(podContainerLabelServiceFormat, container.Name)]; exists {
-			return containerServiceLabel
-		}
-
-		if standardServiceLabel, exists := pod.Metadata.Labels[podStandardLabelService]; exists {
-			return standardServiceLabel
-		}
-
-	}
-
 	return ""
 }
 

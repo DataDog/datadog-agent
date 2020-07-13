@@ -40,6 +40,10 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
+	// TCPClosedTimeout represents the maximum amount of time a closed TCP connection can remain buffered in eBPF before
+	// being marked as idle and flushed to the perf ring.
+	TCPClosedTimeout time.Duration
+
 	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
 	MaxTrackedConnections uint
 
@@ -85,6 +89,9 @@ type Config struct {
 
 	// ExcludedDestinationConnections is a map of destination connections to blacklist
 	ExcludedDestinationConnections map[string][]string
+
+	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
+	OffsetGuessThreshold uint64
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -97,6 +104,7 @@ func NewDefaultConfig() *Config {
 		DNSInspection:         true,
 		UDPConnTimeout:        30 * time.Second,
 		TCPConnTimeout:        2 * time.Minute,
+		TCPClosedTimeout:      20 * time.Second,
 		MaxTrackedConnections: 65536,
 		ConntrackMaxStateSize: 65536,
 		ConntrackRateLimit:    500,
@@ -110,51 +118,8 @@ func NewDefaultConfig() *Config {
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
-		CollectDNSStats: false,
-		DNSTimeout:      15 * time.Second,
+		CollectDNSStats:      false,
+		DNSTimeout:           15 * time.Second,
+		OffsetGuessThreshold: 400,
 	}
-}
-
-// EnabledKProbes returns a map of kprobes that are enabled per config settings.
-// This map does not include the probes used exclusively in the offset guessing process.
-func (c *Config) EnabledKProbes(pre410Kernel bool) map[KProbeName]struct{} {
-	enabled := make(map[KProbeName]struct{}, 0)
-
-	if c.CollectTCPConns {
-		if pre410Kernel {
-			enabled[TCPSendMsgPre410] = struct{}{}
-		} else {
-			enabled[TCPSendMsg] = struct{}{}
-		}
-		enabled[TCPCleanupRBuf] = struct{}{}
-		enabled[TCPClose] = struct{}{}
-		enabled[TCPCloseReturn] = struct{}{}
-		enabled[TCPRetransmit] = struct{}{}
-		enabled[InetCskAcceptReturn] = struct{}{}
-		enabled[TCPv4DestroySock] = struct{}{}
-
-		if c.BPFDebug {
-			enabled[TCPSendMsgReturn] = struct{}{}
-		}
-	}
-
-	if c.CollectUDPConns {
-		enabled[UDPRecvMsgReturn] = struct{}{}
-		enabled[SysSocket] = struct{}{}
-		enabled[SysSocketRet] = struct{}{}
-		enabled[SysBind] = struct{}{}
-		enabled[SysBindRet] = struct{}{}
-		enabled[UDPDestroySock] = struct{}{}
-
-		if pre410Kernel {
-			enabled[UDPSendMsgPre410] = struct{}{}
-			enabled[UDPRecvMsgPre410] = struct{}{}
-		} else {
-			enabled[UDPRecvMsg] = struct{}{}
-			enabled[UDPSendMsg] = struct{}{}
-		}
-
-	}
-
-	return enabled
 }

@@ -174,8 +174,8 @@ platforms:
   url = "https://app.datad0g.com"
   aptrepo = "http://apttesting.datad0g.com/"
   aptrepo_dist = "pipeline-#{ENV['DD_PIPELINE_ID']}"
-  yumrepo = "http://yumtesting.datad0g.com/pipeline-#{ENV['DD_PIPELINE_ID']}/#{ENV['MAJOR_VERSION']}/x86_64/"
-  yumrepo_suse = "http://yumtesting.datad0g.com/suse/pipeline-#{ENV['DD_PIPELINE_ID']}/#{ENV['MAJOR_VERSION']}/x86_64/"
+  yumrepo = "http://yumtesting.datad0g.com/testing/pipeline-#{ENV['DD_PIPELINE_ID']}/#{ENV['MAJOR_VERSION']}/x86_64/"
+  yumrepo_suse = "http://yumtesting.datad0g.com/suse/testing/pipeline-#{ENV['DD_PIPELINE_ID']}/#{ENV['MAJOR_VERSION']}/x86_64/"
   agent_major_version = "#{ENV['MAJOR_VERSION']}"
   windows_agent_url = ENV['WINDOWS_AGENT_URL'] ? ENV['WINDOWS_AGENT_URL'] : "https://#{ENV['WIN_S3_BUCKET']}.s3.amazonaws.com/#{ENV['WINDOWS_TESTING_S3_BUCKET']}"
   dd_agent_config = {

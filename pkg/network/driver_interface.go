@@ -189,29 +189,35 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 }
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
-func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, error) {
+func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []ConnectionStats, error) {
 	readbuffer := make([]uint8, 1024)
-	connStats := make([]ConnectionStats, 0)
+	connStatsActive := make([]ConnectionStats, 0)
+	connStatsClosed := make([]ConnectionStats, 0)
 
 	for {
 		var count uint32
 		var bytesused int
 		err := windows.ReadFile(di.driverFlowHandle.handle, readbuffer, &count, nil)
 		if err != nil && err != windows.ERROR_MORE_DATA {
-			return nil, err
+			return nil, nil, err
 		}
 		var buf []byte
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
 			buf = readbuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
-			connStats = append(connStats, FlowToConnStat(pfd))
+			if isFlowClosed(pfd.flags) {
+				// Closed Connection
+				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd))
+			} else {
+				connStatsActive = append(connStatsActive, FlowToConnStat(pfd))
+			}
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
 		if err == nil {
 			break
 		}
 	}
-	return connStats, nil
+	return connStatsActive, connStatsClosed, nil
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
@@ -325,8 +331,10 @@ func createFlowHandleFilters() (filters []C.struct__filterDefinition, err error)
 		log.Debugf("Creating filters for interface: %s [%+v]", iface.Name, iface)
 		// Set ipv4 Traffic
 		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
+		filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
 		// Set ipv6
 		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, false))
+		filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, false))
 	}
 
 	return filters, nil

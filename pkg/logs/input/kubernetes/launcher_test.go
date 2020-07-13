@@ -11,16 +11,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetSource(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -48,7 +49,7 @@ func TestGetSource(t *testing.T) {
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -80,7 +81,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -106,112 +107,8 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Nil(t, source)
 }
 
-func TestGetSourceShouldHaveStandardServiceLabelifNoAnnotation(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
-	container := kubelet.ContainerStatus{
-		Name:  "foo",
-		Image: "bar",
-		ID:    "boo",
-	}
-
-	cases := []struct {
-		testName string
-		pod      *kubelet.Pod
-		expected string
-	}{
-		{
-			testName: "onlyServiceLabel",
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:      "fuz",
-					Namespace: "buu",
-					UID:       "baz",
-					Labels: map[string]string{
-						"component":                  "kube-proxy",
-						"tags.datadoghq.com/env":     "production",
-						"tags.datadoghq.com/service": "dd-agent",
-						"tags.datadoghq.com/version": "1.1.0",
-					},
-				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{container},
-				},
-			},
-			expected: "dd-agent",
-		},
-		{
-			testName: "hasAnnotation",
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:      "fuz",
-					Namespace: "buu",
-					UID:       "baz",
-					Labels: map[string]string{
-						"component":                  "kube-proxy",
-						"tags.datadoghq.com/env":     "production",
-						"tags.datadoghq.com/service": "dd-agent",
-						"tags.datadoghq.com/version": "1.1.0",
-					},
-					Annotations: map[string]string{
-						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
-					},
-				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{container},
-				},
-			},
-			expected: "any_service",
-		},
-		{
-			testName: "noServiceLabelOrAnnotation",
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:      "fuz",
-					Namespace: "buu",
-					UID:       "baz",
-					Labels: map[string]string{
-						"component": "kube-proxy",
-					},
-				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{container},
-				},
-			},
-			expected: "bar",
-		},
-		{
-			testName: "noAnnotationServicebutHasServiceLabel",
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:      "fuz",
-					Namespace: "buu",
-					UID:       "baz",
-					Labels: map[string]string{
-						"component":                  "kube-proxy",
-						"tags.datadoghq.com/service": "dd-agent",
-					},
-					Annotations: map[string]string{
-						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","tags":["tag1","tag2"]}]`,
-					},
-				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{container},
-				},
-			},
-			expected: "dd-agent",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.testName, func(t *testing.T) {
-			source, _ := launcher.getSource(tc.pod, container)
-			assert.Equal(t, tc.expected, source.Config.Service)
-		})
-	}
-}
-
 func TestGetSourceAddContainerdParser(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -234,8 +131,8 @@ func TestGetSourceAddContainerdParser(t *testing.T) {
 }
 
 func TestContainerCollectAll(t *testing.T) {
-	launcherCollectAll := &Launcher{collectAll: true}
-	launcherCollectAllDisabled := &Launcher{collectAll: false}
+	launcherCollectAll := getLauncher(true)
+	launcherCollectAllDisabled := getLauncher(false)
 	containerFoo := kubelet.ContainerStatus{
 		Name:  "fooName",
 		Image: "fooImage",
@@ -305,7 +202,7 @@ func TestContainerCollectAll(t *testing.T) {
 }
 
 func TestGetPath(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -370,110 +267,118 @@ func contains(list []string, items ...string) bool {
 	return true
 }
 
-func TestGetServiceLabel(t *testing.T) {
-	container := kubelet.ContainerStatus{
-		Name:  "foo",
-		Image: "bar",
-		ID:    "boo",
+func getLauncher(collectAll bool) *Launcher {
+	return &Launcher{
+		collectAll:      collectAll,
+		serviceNameFunc: func(string, string) string { return "" },
 	}
+}
 
-	cases := []struct {
-		testName string
-		pod      *kubelet.Pod
-		expected string
+func TestGetSourceServiceNameOrder(t *testing.T) {
+	tests := []struct {
+		name            string
+		sFunc           func(string, string) string
+		pod             *kubelet.Pod
+		container       kubelet.ContainerStatus
+		wantServiceName string
+		wantErr         bool
 	}{
 		{
-			testName: "hasContainerServiceLabel",
+			name:  "log config",
+			sFunc: func(n, e string) string { return "stdServiceName" },
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
-					Name:      "fuz",
-					Namespace: "buu",
-					UID:       "baz",
-					Labels: map[string]string{
-						"component":                      "kube-proxy",
-						"tags.datadoghq.com/foo.env":     "foo-production",
-						"tags.datadoghq.com/foo.service": "foo-agent",
-						"tags.datadoghq.com/foo.version": "1.1.0",
-						"tags.datadoghq.com/env":         "production",
-						"tags.datadoghq.com/service":     "dd-agent",
-						"tags.datadoghq.com/version":     "1.1.0",
-					},
+					Name:      "podName",
+					Namespace: "podNamespace",
+					UID:       "podUIDFoo",
 					Annotations: map[string]string{
-						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+						"ad.datadoghq.com/fooName.logs": `[{"source":"foo","service":"annotServiceName"}]`,
 					},
 				},
 				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{container},
+					Containers: []kubelet.ContainerStatus{{
+						Name:  "fooName",
+						Image: "fooImage",
+						ID:    "docker://fooID",
+					}},
 				},
 			},
-			expected: "foo-agent",
+			container: kubelet.ContainerStatus{
+				Name:  "fooName",
+				Image: "fooImage",
+				ID:    "docker://fooID",
+			},
+			wantServiceName: "annotServiceName",
+			wantErr:         false,
 		},
 		{
-			testName: "hasOnlyStandardServiceLavel",
+			name:  "standard tags",
+			sFunc: func(n, e string) string { return "stdServiceName" },
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
-					Name:      "fuz",
-					Namespace: "buu",
-					UID:       "baz",
-					Labels: map[string]string{
-						"component":                  "kube-proxy",
-						"tags.datadoghq.com/env":     "production",
-						"tags.datadoghq.com/service": "dd-agent",
-						"tags.datadoghq.com/version": "1.1.0",
-					},
+					Name:      "podName",
+					Namespace: "podNamespace",
+					UID:       "podUIDFoo",
 					Annotations: map[string]string{
-						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+						"ad.datadoghq.com/fooName.logs": `[{"source":"foo"}]`,
 					},
 				},
 				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{container},
+					Containers: []kubelet.ContainerStatus{{
+						Name:  "fooName",
+						Image: "fooImage",
+						ID:    "docker://fooID",
+					}},
 				},
 			},
-			expected: "dd-agent",
+			container: kubelet.ContainerStatus{
+				Name:  "fooName",
+				Image: "fooImage",
+				ID:    "docker://fooID",
+			},
+			wantServiceName: "stdServiceName",
+			wantErr:         false,
 		},
 		{
-			testName: "noLabels",
+			name:  "image name",
+			sFunc: func(n, e string) string { return "" },
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
-					Name:      "fuz",
-					Namespace: "buu",
-					UID:       "baz",
-					Annotations: map[string]string{
-						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
-					},
+					Name:      "podName",
+					Namespace: "podNamespace",
+					UID:       "podUIDFoo",
 				},
 				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{container},
+					Containers: []kubelet.ContainerStatus{{
+						Name:  "fooName",
+						Image: "fooImage",
+						ID:    "docker://fooID",
+					}},
 				},
 			},
-			expected: "",
-		},
-		{
-			testName: "labelsExistButNoService",
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:      "fuz",
-					Namespace: "buu",
-					UID:       "baz",
-					Labels: map[string]string{
-						"tags.datadoghq.com/env": "kube-proxy",
-					},
-					Annotations: map[string]string{
-						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
-					},
-				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{container},
-				},
+			container: kubelet.ContainerStatus{
+				Name:  "fooName",
+				Image: "fooImage",
+				ID:    "docker://fooID",
 			},
-			expected: "",
+			wantServiceName: "fooImage",
+			wantErr:         false,
 		},
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.testName, func(t *testing.T) {
-			assert.Equal(t, tc.expected, getServiceLabel(tc.pod, container))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &Launcher{
+				collectAll:      true,
+				serviceNameFunc: tt.sFunc,
+			}
+			got, err := l.getSource(tt.pod, tt.container)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Launcher.getSource() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got.Config.Service, tt.wantServiceName) {
+				t.Errorf("Launcher.getSource() = %v, want %v", got, tt.wantServiceName)
+			}
 		})
 	}
-
 }

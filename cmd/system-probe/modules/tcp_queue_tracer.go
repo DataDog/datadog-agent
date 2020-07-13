@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TCPQueueLength Factory
@@ -14,11 +15,16 @@ var TCPQueueLength = api.Factory{
 	Name: "tcp_queue_length_tracer",
 	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
 		if !cfg.CheckIsEnabled("TCP queue length") {
+			log.Infof("TCP queue length tracer disabled")
 			return nil, api.ErrNotEnabled
 		}
 
 		t, err := ebpf.NewTCPQueueLengthTracer()
-		return &tcpQueueLengthModule{t}, err
+		if err != nil {
+			log.Errorf("unable to start the TCP queue length tracer: %v", err)
+		}
+
+		return &tcpQueueLengthModule{t}, nil
 	},
 }
 

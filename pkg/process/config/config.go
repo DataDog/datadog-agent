@@ -27,8 +27,6 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultSystemProbeSocketPath is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultSystemProbeFilePath is the default logging file for the system probe
 	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
 
@@ -79,7 +77,7 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
-	SystemProbeSocketPath          string
+	SystemProbeAddress             string
 	SystemProbeLogFile             string
 	MaxTrackedConnections          uint
 	SysProbeBPFDebug               bool
@@ -93,6 +91,7 @@ type AgentConfig struct {
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
+	OffsetGuessThreshold           uint64
 
 	// DNS stats configuration
 	CollectDNSStats bool
@@ -134,6 +133,7 @@ const (
 	maxMessageBatch              = 100
 	maxConnsMessageBatch         = 1000
 	defaultMaxTrackedConnections = 65536
+	maxOffsetThreshold           = 3000
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -202,13 +202,14 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableUDPTracing:     false,
 		DisableIPv6Tracing:    false,
 		DisableDNSInspection:  false,
-		SystemProbeSocketPath: defaultSystemProbeSocketPath,
+		SystemProbeAddress:    defaultSystemProbeAddress,
 		SystemProbeLogFile:    defaultSystemProbeFilePath,
 		MaxTrackedConnections: defaultMaxTrackedConnections,
 		EnableConntrack:       true,
 		ClosedChannelSize:     500,
 		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
 		ConntrackRateLimit:    500,
+		OffsetGuessThreshold:  400,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -254,7 +255,24 @@ func loadConfigIfExists(path string) error {
 			config.Datadog.SetConfigFile(path)
 		}
 
-		if err := config.LoadWithoutSecret(); err != nil {
+		if _, err := config.LoadWithoutSecret(); err != nil {
+			return err
+		}
+	} else {
+		log.Infof("no config exists at %s, ignoring...", path)
+	}
+	return nil
+}
+
+func mergeConfigIfExists(path string) error {
+	if util.PathExists(path) {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		if err := config.Datadog.MergeConfig(file); err != nil {
 			return err
 		}
 	} else {
@@ -291,7 +309,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	loadConfigIfExists(netYamlPath) //nolint:errcheck
+	mergeConfigIfExists(netYamlPath) //nolint:errcheck
 	if err = cfg.loadSysProbeYamlConfig(netYamlPath); err != nil {
 		return nil, err
 	}
@@ -416,7 +434,7 @@ func loadEnvVariables() {
 
 	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
 		log.Infof("overriding API key from env %s value", envKey)
-		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(apiKey, ",")[0]))
+		config.Datadog.Set("api_key", config.SanitizeAPIKey(strings.Split(apiKey, ",")[0]))
 	}
 
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {

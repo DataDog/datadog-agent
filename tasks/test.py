@@ -4,26 +4,24 @@ High level testing tasks
 from __future__ import print_function
 
 import os
-import fnmatch
 import re
 import operator
 import sys
 import yaml
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags, get_version
-from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
+from .utils import get_build_flags
+from .go import fmt, lint, vet, misspell, ineffassign, staticcheck, lint_licenses, golangci_lint, generate
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .trace_agent import integration_tests as trace_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
 
-#We use `basestring` in the code for compat with python2 unicode strings.
-#This makes the same code work in python3 as well.
+# We use `basestring` in the code for compat with python2 unicode strings.
+# This makes the same code work in python3 as well.
 try:
     basestring
 except NameError:
@@ -43,11 +41,28 @@ DEFAULT_TEST_TARGETS = [
 
 
 @task()
-def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
-    verbose=False, race=False, profile=False, fail_on_fmt=False,
-    rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0, major_version='7',
-    python_runtimes='3', timeout=120, arch="x64", cache=True, skip_linters=False,
-    go_mod="vendor"):
+def test(
+    ctx,
+    targets=None,
+    coverage=False,
+    build_include=None,
+    build_exclude=None,
+    verbose=False,
+    race=False,
+    profile=False,
+    fail_on_fmt=False,
+    rtloader_root=None,
+    python_home_2=None,
+    python_home_3=None,
+    cpus=0,
+    major_version='7',
+    python_runtimes='3',
+    timeout=120,
+    arch="x64",
+    cache=True,
+    skip_linters=False,
+    go_mod="vendor",
+):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -65,7 +80,9 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags(process=True, arch=arch) if build_include is None else build_include.split(",")
+    build_include = (
+        get_default_build_tags(process=True, arch=arch) if build_include is None else build_include.split(",")
+    )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -76,13 +93,14 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     print("--- go generating:")
     generate(ctx)
 
+    print("--- Linting licenses:")
+    lint_licenses(ctx)
+
     if skip_linters:
         print("--- [skipping linters]")
     else:
         print("--- Linting filenames:")
         lint_filenames(ctx)
-        print("--- Linting licenses:")
-        lint_licenses(ctx)
 
         # Until all packages whitelisted in .golangci.yml are fixed and removed
         # from the 'skip-dirs' list we need to keep using the old functions that
@@ -93,6 +111,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
         ineffassign(ctx, targets=tool_targets)
+        staticcheck(ctx, targets=tool_targets)
 
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
@@ -102,9 +121,15 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
-    ldflags, gcflags, env = get_build_flags(ctx, rtloader_root=rtloader_root,
-            python_home_2=python_home_2, python_home_3=python_home_3, major_version=major_version,
-            python_runtimes='3', arch=arch)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        rtloader_root=rtloader_root,
+        python_home_2=python_home_2,
+        python_home_3=python_home_3,
+        major_version=major_version,
+        python_runtimes='3',
+        arch=arch,
+    )
 
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
@@ -168,7 +193,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         ctx.run("go tool cover -func {}".format(PROFILE_COV))
 
     if profile:
-        print ("\n--- Top 15 packages sorted by run time:")
+        print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
 
@@ -180,20 +205,24 @@ def lint_teamassignment(ctx):
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
     if pr_url:
         import requests
+
         pr_id = pr_url.rsplit('/')[-1]
 
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
-        if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
-            print("Team Assignment: %s" % l['name'])
-            return
 
-        print("PR %s requires team assignment" % pr_url)
+        for label in issue.get('labels', {}):
+            if re.match('team/', label['name']):
+                print("Team Assignment: {}".format(label['name']))
+                return
+
+        print("PR {} requires team assignment".format(pr_url))
         raise Exit(code=1)
 
     # The PR has not been created yet
     else:
         print("PR not yet created, skipping check for team assignment")
+
 
 @task
 def lint_milestone(ctx):
@@ -203,6 +232,7 @@ def lint_milestone(ctx):
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
     if pr_url:
         import requests
+
         pr_id = pr_url.rsplit('/')[-1]
 
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
@@ -218,6 +248,7 @@ def lint_milestone(ctx):
     else:
         print("PR not yet created, skipping check for milestone")
 
+
 @task
 def lint_releasenote(ctx):
     """
@@ -228,6 +259,7 @@ def lint_releasenote(ctx):
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
     if pr_url:
         import requests
+
         pr_id = pr_url.rsplit('/')[-1]
 
         # first check 'changelog/no-changelog' label
@@ -243,15 +275,22 @@ def lint_releasenote(ctx):
         while True:
             res = requests.get(url)
             files = res.json()
-            if any([f['filename'].startswith("releasenotes/notes/") or \
-                    f['filename'].startswith("releasenotes-dca/notes/") for f in files]):
+            if any(
+                [
+                    f['filename'].startswith("releasenotes/notes/")
+                    or f['filename'].startswith("releasenotes-dca/notes/")
+                    for f in files
+                ]
+            ):
                 break
 
             if 'next' in res.links:
                 url = res.links['next']['url']
             else:
-                print("Error: No releasenote was found for this PR. Please add one using 'reno'"\
-                      ", or apply the label 'changelog/no-changelog' to the PR.")
+                print(
+                    "Error: No releasenote was found for this PR. Please add one using 'reno'"
+                    ", or apply the label 'changelog/no-changelog' to the PR."
+                )
                 raise Exit(code=1)
 
     # The PR has not been created yet, let's compare with master (the usual base branch of the future PR)
@@ -271,15 +310,22 @@ def lint_releasenote(ctx):
                 while True:
                     res = requests.get(url)
                     files = res.json().get("files", {})
-                    if any([f['filename'].startswith("releasenotes/notes/") or \
-                            f['filename'].startswith("releasenotes-dca/notes/") for f in files]):
+                    if any(
+                        [
+                            f['filename'].startswith("releasenotes/notes/")
+                            or f['filename'].startswith("releasenotes-dca/notes/")
+                            for f in files
+                        ]
+                    ):
                         break
 
                     if 'next' in res.links:
                         url = res.links['next']['url']
                     else:
-                        print("Error: No releasenote was found for this PR. Please add one using 'reno'"\
-                              ", or apply the label 'changelog/no-changelog' to the PR.")
+                        print(
+                            "Error: No releasenote was found for this PR. Please add one using 'reno'"
+                            ", or apply the label 'changelog/no-changelog' to the PR."
+                        )
                         raise Exit(code=1)
 
     ctx.run("reno lint")
@@ -310,7 +356,11 @@ def lint_filenames(ctx):
     max_length = 255
     for file in files:
         if prefix_length + len(file) > max_length:
-            print("Error: path {} is too long ({} characters too many)".format(file, prefix_length + len(file) - max_length))
+            print(
+                "Error: path {} is too long ({} characters too many)".format(
+                    file, prefix_length + len(file) - max_length
+                )
+            )
             failure = True
 
     if failure:
@@ -348,7 +398,7 @@ def e2e_tests(ctx, target="gitlab", image=""):
 
 class TestProfiler:
     times = []
-    parser = re.compile("^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
+    parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
 
     def write(self, txt):
         # Output to stdout
@@ -372,6 +422,7 @@ class TestProfiler:
             for pkg, time in sorted_times:
                 print("{}s\t{}".format(time, pkg))
 
+
 @task
 def make_kitchen_gitlab_yml(ctx):
     """
@@ -380,12 +431,26 @@ def make_kitchen_gitlab_yml(ctx):
     with open('.gitlab-ci.yml') as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
-    data['stages'] = ['deps_build', 'binary_build', 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
-    for k,v in data.items():
+    data['stages'] = [
+        'deps_build',
+        'binary_build',
+        'package_build',
+        'testkitchen_deploy',
+        'testkitchen_testing',
+        'testkitchen_cleanup',
+    ]
+    for k, v in data.items():
         if isinstance(v, dict) and v.get('stage', None) not in ([None] + data['stages']):
             del data[k]
             continue
-        if isinstance(v, dict) and v.get('stage', None) == 'binary_build' and k != 'build_system-probe-arm64' and k != 'build_system-probe-x64' and k != 'build_system-probe_with-bcc-arm64' and k != 'build_system-probe_with-bcc-x64':
+        if (
+            isinstance(v, dict)
+            and v.get('stage', None) == 'binary_build'
+            and k != 'build_system-probe-arm64'
+            and k != 'build_system-probe-x64'
+            and k != 'build_system-probe_with-bcc-arm64'
+            and k != 'build_system-probe_with-bcc-x64'
+        ):
             del data[k]
             continue
         if 'except' in v:
@@ -396,7 +461,7 @@ def make_kitchen_gitlab_yml(ctx):
             del data[k]
             continue
 
-    for k,v in data.items():
+    for k, v in data.items():
         if 'extends' in v:
             extended = v['extends']
             if extended not in data:
@@ -406,11 +471,12 @@ def make_kitchen_gitlab_yml(ctx):
             new_needed = []
             for n in needed:
                 if n in data:
-                   new_needed.append(n)
+                    new_needed.append(n)
             v['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
-        documents = yaml.dump(data, f, default_style='"')
+        yaml.dump(data, f, default_style='"')
+
 
 @task
 def check_gitlab_broken_dependencies(ctx):
@@ -422,13 +488,53 @@ def check_gitlab_broken_dependencies(ctx):
         data = yaml.load(f, Loader=yaml.FullLoader)
 
     def is_unwanted(job, version):
-        e = job.get('except',{})
-        return isinstance(e, dict) and '$RELEASE_VERSION_{} == ""'.format(version) in e.get('variables',{})
+        e = job.get('except', {})
+        return isinstance(e, dict) and '$RELEASE_VERSION_{} == ""'.format(version) in e.get('variables', {})
 
-    for version in [6,7]:
-        for k,v in data.items():
+    for version in [6, 7]:
+        for k, v in data.items():
             if isinstance(v, dict) and not is_unwanted(v, version) and "needs" in v:
                 needed = v['needs']
                 for need in needed:
                     if is_unwanted(data[need], version):
                         print("{} needs on {} but it won't be built for A{}".format(k, need, version))
+
+
+@task
+def lint_python(ctx):
+    """
+    Lints Python files.
+    See 'setup.cfg' and 'pyproject.toml' file for configuration.
+    If running locally, you probably want to use the pre-commit instead.
+    """
+
+    ctx.run("flake8 .")
+    ctx.run("black --check --diff .")
+
+
+@task
+def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
+    """
+    Installs the requested version of shellcheck in the specified folder (by default /usr/local/bin).
+    Required to run the shellcheck pre-commit hook.
+    """
+
+    if sys.platform == 'win32':
+        print("shellcheck is not supported on Windows")
+        raise Exit(code=1)
+    if sys.platform.startswith('darwin'):
+        platform = "darwin"
+    if sys.platform.startswith('linux'):
+        platform = "linux"
+
+    ctx.run(
+        "wget -qO- \"https://storage.googleapis.com/shellcheck/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp".format(
+            sc_version=version, platform=platform
+        )
+    )
+    ctx.run(
+        "cp \"/tmp/shellcheck-v{sc_version}/shellcheck\" {destination}".format(
+            sc_version=version, destination=destination
+        )
+    )
+    ctx.run("rm -rf \"/tmp/shellcheck-v{sc_version}\"".format(sc_version=version))

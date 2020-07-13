@@ -18,13 +18,12 @@ import (
 
 func setupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	InitConfig(conf)
 	return conf
 }
 
 func setupConfFromYAML(yamlConfig string) Config {
-	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	conf := setupConf()
 	conf.SetConfigType("yaml")
 	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	if e != nil {
@@ -655,23 +654,23 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
-func TestSanitizeAPIKey(t *testing.T) {
+func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := setupConf()
 
 	config.Set("api_key", "foo")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", " \n  foo   \n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
 
@@ -683,7 +682,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := setupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	err := load(conf, "datadog_secrets.yaml", true)
+	_, err := load(conf, "datadog_secrets.yaml", true)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{

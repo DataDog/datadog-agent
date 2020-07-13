@@ -78,7 +78,7 @@ type Server struct {
 	histToDist                bool
 	histToDistPrefix          string
 	extraTags                 []string
-	Debug                     dsdServerDebug
+	Debug                     *dsdServerDebug
 	mapper                    *mapper.MetricMapper
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
@@ -204,9 +204,8 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		telemetryEnabled:          telemetry.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
-		Debug: dsdServerDebug{
-			Enabled: metricsStatsEnabled,
-			Stats:   make(map[ckey.ContextKey]metricStat),
+		Debug: &dsdServerDebug{
+			Stats: make(map[ckey.ContextKey]metricStat),
 			metricsCounts: metricsCountBuckets{
 				counts:     [5]uint64{0, 0, 0, 0, 0},
 				metricChan: make(chan struct{}),

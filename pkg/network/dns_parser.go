@@ -14,8 +14,8 @@ import (
 const maxIPBufferSize = 200
 
 var (
-	errTruncated   = errors.New("the packet is truncated")
-	skippedPayload = errors.New("the packet does not contain relevant DNS response")
+	errTruncated      = errors.New("the packet is truncated")
+	errSkippedPayload = errors.New("the packet does not contain relevant DNS response")
 )
 
 type dnsParser struct {
@@ -69,7 +69,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 
 	// If there is a DNS layer then it would be the last layer
 	if p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
-		return skippedPayload
+		return errSkippedPayload
 	}
 
 	if err := p.parseAnswerInto(p.dnsPayload, t, pktInfo); err != nil {
@@ -129,12 +129,12 @@ func (p *dnsParser) parseAnswerInto(
 ) error {
 	// Only consider singleton, A-record questions
 	if len(dns.Questions) != 1 {
-		return skippedPayload
+		return errSkippedPayload
 	}
 
 	question := dns.Questions[0]
 	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
-		return skippedPayload
+		return errSkippedPayload
 	}
 
 	// Only consider responses

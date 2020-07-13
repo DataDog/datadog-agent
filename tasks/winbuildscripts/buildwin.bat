@@ -44,9 +44,9 @@ if "%TARGET_ARCH%" == "x86" (
     Powershell -C "ridk enable; cd omnibus; bundle install"
 )
 
-pip install -r requirements.txt || exit /b 4
+pip3 install -r requirements.txt || exit /b 4
 
-inv -e deps --verbose --dep-vendor-only --no-checks || exit /b 5
+inv -e deps --verbose || exit /b 5
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 6

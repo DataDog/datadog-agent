@@ -79,7 +79,7 @@ func (t *Tailer) Identifier() string {
 }
 
 // toMessage converts an XML message into json
-func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
+func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) { //nolint:unused
 	event := re.xmlEvent
 	log.Debug("Rendered XML:", event)
 	mxj.PrependAttrWithHyphen(false)

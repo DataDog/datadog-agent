@@ -16,9 +16,8 @@ var attrTypeMask uint16 = 0x3fff
 
 // errors
 var (
-	errInvalidAttribute  = errors.New("invalid attribute; length too short or too large")
-	errMessageTooShort   = errors.New("netlink message is too short")
-	errMissingNestedAttr = errors.New("netlink message is missing nested attribute")
+	errInvalidAttribute = errors.New("invalid attribute; length too short or too large")
+	errMessageTooShort  = errors.New("netlink message is too short")
 )
 
 // AttributeScanner provides an iterator API to traverse each field in a netlink message.

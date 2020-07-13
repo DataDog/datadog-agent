@@ -25,7 +25,13 @@ import (
 func ListContainersInCurrentTask() ([]*containers.Container, error) {
 	var cList []*containers.Container
 
-	task, err := metadata.V2().GetTask()
+	client, err := metadata.V2()
+	if err != nil {
+		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+		return cList, err
+	}
+
+	task, err := client.GetTask()
 	if err != nil || len(task.Containers) == 0 {
 		log.Error("Unable to get the container list from ecs")
 		return cList, err
@@ -42,7 +48,13 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 // container representations based on stats collected from the ECS metadata v2 API
 func UpdateContainerMetrics(cList []*containers.Container) error {
 	for _, ctr := range cList {
-		stats, err := metadata.V2().GetContainerStats(ctr.ID)
+		client, err := metadata.V2()
+		if err != nil {
+			log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+			return err
+		}
+
+		stats, err := client.GetContainerStats(ctr.ID)
 		if err != nil {
 			log.Debugf("Unable to get stats from ECS for container %s: %s", ctr.ID, err)
 			continue
@@ -56,8 +68,8 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 		// then support ecs stats natively
 		cm, memLimit := convertMetaV2ContainerStats(stats)
 		ctr.SetMetrics(&cm)
-		if ctr.MemLimit == 0 {
-			ctr.MemLimit = memLimit
+		if ctr.Limits.MemLimit == 0 {
+			ctr.Limits.MemLimit = memLimit
 		}
 	}
 	return nil
@@ -90,12 +102,12 @@ func convertMetaV2Container(c v2.Container) *containers.Container {
 	}
 
 	if l, found := c.Limits["cpu"]; found && l > 0 {
-		container.CPULimit = float64(l)
+		container.Limits.CPULimit = float64(l)
 	} else {
-		container.CPULimit = 100
+		container.Limits.CPULimit = 100
 	}
 	if l, found := c.Limits["memory"]; found && l > 0 {
-		container.MemLimit = l
+		container.Limits.MemLimit = l
 	}
 
 	return container

@@ -90,6 +90,21 @@ func FormatHPAStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
+// FormatSecurityAgentStatus takes a json bytestring and prints out the formatted status for security agent
+func FormatSecurityAgentStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats) //nolint:errcheck
+	runnerStats := stats["runnerStats"]
+	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
+	stats["title"] = title
+	renderStatusTemplate(b, "/header.tmpl", stats)
+	renderComplianceChecksStats(b, runnerStats)
+
+	return b.String(), nil
+}
+
 // FormatMetadataMapCLI builds the rendering in the metadataMapper template.
 func FormatMetadataMapCLI(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
@@ -129,6 +144,12 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, checkName)
 
 	return b.String(), nil
+}
+
+func renderComplianceChecksStats(w io.Writer, runnerStats /*, checkSchedulerStats*/ interface{} /*, onlyCheck string*/) {
+	checkStats := make(map[string]interface{})
+	checkStats["RunnerStats"] = runnerStats
+	renderStatusTemplate(w, "/compliance.tmpl", checkStats)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {

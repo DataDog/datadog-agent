@@ -231,12 +231,15 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	ln, err := newRateLimitedListener(tcpln, r.conf.ConnectionLimit)
-	go func() {
-		defer watchdog.LogOnPanic()
-		ln.Refresh(r.conf.ConnectionLimit)
-	}()
-	return ln, err
+	if climit := r.conf.ConnectionLimit; climit > 0 {
+		ln, err := newRateLimitedListener(tcpln, climit)
+		go func() {
+			defer watchdog.LogOnPanic()
+			ln.Refresh(climit)
+		}()
+		return ln, err
+	}
+	return tcpln, err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
