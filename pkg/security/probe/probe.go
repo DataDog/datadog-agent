@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/pkg/errors"
+
 	"github.com/iovisor/gobpf/elf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/gobpf"
@@ -144,21 +146,21 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name: "mnt_want_write",
+			Name:      "mnt_want_write",
 			EntryFunc: "kprobe/mnt_want_write",
 		},
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
-			"chmod": Capabilities{},
-			"chown": Capabilities{},
-			"rmdir": Capabilities{},
+			"chmod":  Capabilities{},
+			"chown":  Capabilities{},
+			"rmdir":  Capabilities{},
 			"unlink": Capabilities{},
 			"rename": Capabilities{},
 		},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name: "mnt_want_write_file",
+			Name:      "mnt_want_write_file",
 			EntryFunc: "kprobe/mnt_want_write_file",
 		},
 		EventTypes: map[string]Capabilities{
@@ -661,6 +663,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		return nil, err
 	}
 
+	log.Info("Start loading eBPF programs")
 	module, err := gobpf.NewModuleFromReader(bytes.NewReader(bytecode))
 	if err != nil {
 		return nil, err
