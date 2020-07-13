@@ -46,7 +46,8 @@ func writePyHeapProfile(tempDir, hostname string) error {
 	}
 
 	j, _ := json.Marshal(pyStats)
-	w.Write(j)
-
+	if _, err = w.Write(j); err != nil {
+		return err
+	}
 	return nil
 }
