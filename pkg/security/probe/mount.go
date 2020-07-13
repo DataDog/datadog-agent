@@ -27,8 +27,8 @@ func IsErrMountNotFound(err error) bool {
 // MountHookPoints - Mount tracking probes
 var MountHookPoints = []*HookPoint{
 	{
+		Name: "attach_recursive_mnt",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "attach_recursive_mnt",
 			EntryFunc: "kprobe/attach_recursive_mnt",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -36,8 +36,8 @@ var MountHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name: "propagate_mnt",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "propagate_mnt",
 			EntryFunc: "kprobe/propagate_mnt",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -45,14 +45,15 @@ var MountHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name:    "sys_mount",
 		KProbes: syscallKprobe("mount"),
 		EventTypes: map[string]Capabilities{
 			"*": Capabilities{},
 		},
 	},
 	{
+		Name: "security_sb_umount",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "security_sb_umount",
 			EntryFunc: "kprobe/security_sb_umount",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -60,8 +61,8 @@ var MountHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name: "sys_umount",
 		KProbes: []*eprobe.KProbe{{
-			Name:     "sys_umount",
 			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
 		}},
 		EventTypes: map[string]Capabilities{

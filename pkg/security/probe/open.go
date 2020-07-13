@@ -33,20 +33,22 @@ var OpenTables = []KTable{
 // OpenHookPoints - list of open's kProbes
 var OpenHookPoints = []*HookPoint{
 	{
+		Name:    "sys_open",
 		KProbes: syscallKprobe("open"),
 		EventTypes: map[string]Capabilities{
 			"open": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_openat",
 		KProbes: syscallKprobe("openat"),
 		EventTypes: map[string]Capabilities{
 			"open": Capabilities{},
 		},
 	},
 	{
+		Name: "vfs_open",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "vfs_open",
 			EntryFunc: "kprobe/vfs_open",
 		}},
 		EventTypes: map[string]Capabilities{
