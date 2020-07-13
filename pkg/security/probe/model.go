@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	containerPathDiffPrefix = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/diff)`)
+	containerPathDiffPrefix   = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/diff)`)
 	containerPathMergedPrefix = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/merged)`)
 )
 
@@ -922,7 +922,7 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 // genaccessors
 type Event struct {
 	ID        string         `yaml:"id" field:"-"`
-	Event     KernelEvent    `yaml:"event" field:"event"`
+	Event     KernelEvent    `yaml:"event" field:"event" event:"*"`
 	Process   ProcessEvent   `yaml:"process" field:"process" event:"*"`
 	Container ContainerEvent `yaml:"container" field:"container"`
 	Chmod     ChmodEvent     `yaml:"chmod" field:"chmod" event:"chmod"`

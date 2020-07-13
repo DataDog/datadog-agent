@@ -975,10 +975,10 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "container", nil
 
 	case "event.retval":
-		return "", nil
+		return "*", nil
 
 	case "event.type":
-		return "", nil
+		return "*", nil
 
 	case "mkdir.container_path":
 		return "mkdir", nil
