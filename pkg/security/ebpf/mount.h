@@ -30,7 +30,7 @@ SYSCALL_KPROBE(mount) {
 
 SEC("kprobe/attach_recursive_mnt")
 int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
 
@@ -38,13 +38,12 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
     syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM2(ctx);
     syscall->mount.dest_mountpoint = (struct mountpoint *)PT_REGS_PARM3(ctx);
 
-    cache_syscall(syscall);
     return 0;
 }
 
 SEC("kprobe/propagate_mnt")
 int kprobe__propagate_mnt(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
 
@@ -52,7 +51,6 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
     syscall->mount.dest_mountpoint = (struct mountpoint *)PT_REGS_PARM2(ctx);
     syscall->mount.src_mnt = (struct mount *)PT_REGS_PARM3(ctx);
 
-    cache_syscall(syscall);
     return 0;
 }
 

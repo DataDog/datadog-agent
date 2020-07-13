@@ -309,7 +309,7 @@ func newFSDevice() *FSDevice {
 
 // MountResolver - Mount point cache
 type MountResolver struct {
-	lock sync.RWMutex
+	lock    sync.RWMutex
 	devices map[uint32]*FSDevice
 	mounts  map[uint32]*Mount
 }
@@ -451,7 +451,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, s
 // NewMountResolver - Instantiates a new mount resolver
 func NewMountResolver() *MountResolver {
 	return &MountResolver{
-		lock: sync.RWMutex{},
+		lock:    sync.RWMutex{},
 		devices: make(map[uint32]*FSDevice),
 		mounts:  make(map[uint32]*Mount),
 	}

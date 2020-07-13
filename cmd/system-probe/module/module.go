@@ -1,10 +1,9 @@
 package module
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
@@ -27,11 +26,11 @@ func (l *Loader) Register(cfg *config.AgentConfig, server *grpc.Server, factorie
 	for _, factory := range factories {
 		module, err := factory.Fn(cfg)
 		if err != nil {
-			return fmt.Errorf("new module `%s` error: %s", factory.Name, err)
+			return errors.Wrapf(err, "failed to instantiate module `%s`", factory.Name)
 		}
 
 		if err = module.Register(server); err != nil {
-			return fmt.Errorf("register module `%s` error", factory.Name)
+			return errors.Wrapf(err, "failed to register module `%s`", factory.Name)
 		}
 
 		l.modules[factory.Name] = module
