@@ -1,11 +1,12 @@
 package module
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 )
 
 const (

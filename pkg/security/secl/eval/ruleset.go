@@ -174,6 +174,8 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*Rule, error) {
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
 	rs.AddFields(evaluator.GetFields())
 
+	rs.rules[ruleDef.ID] = rule
+
 	return rule, nil
 }
 
@@ -354,6 +356,7 @@ func NewRuleSet(model Model, eventCtor func() Event, opts Opts) *RuleSet {
 		opts:             opts,
 		eventRuleBuckets: make(map[string]*RuleBucket),
 		macros:           make(map[string]*Macro),
+		rules:            make(map[string]*Rule),
 		fields:           []string{},
 	}
 }
