@@ -755,6 +755,15 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 }
 
 func zipPerformanceProfiles(tempDir, hostname string) error {
+	// Taking two Heap profiles for diff
+
+	if err := writeHeapProfile(tempDir, hostname); err != nil {
+		return err
+	}
+	if err := writePyHeapProfile(tempDir, hostname); err != nil {
+		log.Warnf("Error getting first sample of python stats: %s\n", err)
+	}
+
 	if err := writeCPUProfile(tempDir, hostname); err != nil {
 		return err
 	}
@@ -763,7 +772,10 @@ func zipPerformanceProfiles(tempDir, hostname string) error {
 		return err
 	}
 
-	// TODO: Python
+	if err := writePyHeapProfile(tempDir, hostname); err != nil {
+		log.Warnf("Error getting second sample of python stats: %s\n", err)
+	}
+
 	return nil
 }
 
@@ -772,7 +784,7 @@ func writeCPUProfile(tempDir, hostname string) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	f := filepath.Join(tempDir, hostname, "cpu.prof")
+	f := filepath.Join(tempDir, hostname, "profile", "cpu.prof")
 	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
@@ -798,7 +810,7 @@ func writeHeapProfile(tempDir, hostname string) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	f := filepath.Join(tempDir, hostname, "heap.prof")
+	f := filepath.Join(tempDir, hostname, "profile", "heap.prof")
 	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
