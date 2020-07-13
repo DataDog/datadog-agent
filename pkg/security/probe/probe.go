@@ -60,6 +60,7 @@ type Capability struct {
 type Capabilities map[string]Capability
 
 type HookPoint struct {
+	Name            string
 	KProbes         []*eprobe.KProbe
 	Optional        bool
 	EventTypes      map[string]Capabilities
@@ -85,7 +86,6 @@ func getSyscallFnName(name string) string {
 
 func syscallKprobe(name string) []*eprobe.KProbe {
 	return []*eprobe.KProbe{{
-		Name:      "sys_" + name,
 		EntryFunc: "kprobe/" + getSyscallFnName(name),
 		ExitFunc:  "kretprobe/" + getSyscallFnName(name),
 	}}
@@ -93,8 +93,8 @@ func syscallKprobe(name string) []*eprobe.KProbe {
 
 var AllHookPoints = []*HookPoint{
 	{
+		Name: "security_inode_setattr",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "security_inode_setattr",
 			EntryFunc: "kprobe/security_inode_setattr",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -104,50 +104,57 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name:    "sys_chmod",
 		KProbes: syscallKprobe("chmod"),
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_fchmod",
 		KProbes: syscallKprobe("fchmod"),
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_fchmodat",
 		KProbes: syscallKprobe("fchmodat"),
 		EventTypes: map[string]Capabilities{
 			"chmod": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_chown",
 		KProbes: syscallKprobe("chown"),
 		EventTypes: map[string]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_fchown",
 		KProbes: syscallKprobe("fchown"),
 		EventTypes: map[string]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_fchownat",
 		KProbes: syscallKprobe("fchownat"),
 		EventTypes: map[string]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_lchown",
 		KProbes: syscallKprobe("lchown"),
 		EventTypes: map[string]Capabilities{
 			"chown": Capabilities{},
 		},
 	},
 	{
+		Name: "mnt_want_write",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "mnt_want_write",
 			EntryFunc: "kprobe/mnt_want_write",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -160,8 +167,8 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name: "mnt_want_write_file",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "mnt_want_write_file",
 			EntryFunc: "kprobe/mnt_want_write_file",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -169,43 +176,36 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name:    "sys_utime",
 		KProbes: syscallKprobe("utime"),
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_utimes",
 		KProbes: syscallKprobe("utimes"),
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_utimensat",
 		KProbes: syscallKprobe("utimensat"),
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
 		},
 	},
 	{
-		KProbes: []*eprobe.KProbe{
-			{
-				Name:      "sys_futimesat",
-				EntryFunc: "kprobe/" + getSyscallFnName("futimesat"),
-				ExitFunc:  "kretprobe/" + getSyscallFnName("futimesat"),
-			},
-			{
-				Name:      "sys_futimesat",
-				EntryFunc: "kprobe/sys_futimesat",
-				ExitFunc:  "kretprobe/sys_futimesat",
-			},
-		},
+		Name:    "sys_futimesat",
+		KProbes: syscallKprobe("futimesat"),
 		EventTypes: map[string]Capabilities{
 			"utimes": Capabilities{},
 		},
 	},
 	{
+		Name: "vfs_mkdir",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "vfs_mkdir",
 			EntryFunc: "kprobe/vfs_mkdir",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -213,8 +213,8 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name: "filename_create",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "filename_create",
 			EntryFunc: "kprobe/filename_create",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -222,20 +222,22 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name:    "sys_mkdir",
 		KProbes: syscallKprobe("mkdir"),
 		EventTypes: map[string]Capabilities{
 			"mkdir": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_mkdirat",
 		KProbes: syscallKprobe("mkdirat"),
 		EventTypes: map[string]Capabilities{
 			"mkdir": Capabilities{},
 		},
 	},
 	{
+		Name: "vfs_rmdir",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "vfs_rmdir",
 			EntryFunc: "kprobe/vfs_rmdir",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -243,14 +245,15 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name:    "sys_rmdir",
 		KProbes: syscallKprobe("rmdir"),
 		EventTypes: map[string]Capabilities{
 			"rmdir": Capabilities{},
 		},
 	},
 	{
+		Name: "vfs_unlink",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "vfs_unlink",
 			EntryFunc: "kprobe/vfs_unlink",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -258,20 +261,22 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name:    "sys_unlink",
 		KProbes: syscallKprobe("unlink"),
 		EventTypes: map[string]Capabilities{
 			"unlink": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_unlinkat",
 		KProbes: syscallKprobe("unlinkat"),
 		EventTypes: map[string]Capabilities{
 			"unlink": Capabilities{},
 		},
 	},
 	{
+		Name: "vfs_rename",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "vfs_rename",
 			EntryFunc: "kprobe/vfs_rename",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -279,18 +284,21 @@ var AllHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name:    "sys_rename",
 		KProbes: syscallKprobe("rename"),
 		EventTypes: map[string]Capabilities{
 			"rename": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_renameat",
 		KProbes: syscallKprobe("renameat"),
 		EventTypes: map[string]Capabilities{
 			"rename": Capabilities{},
 		},
 	},
 	{
+		Name:    "sys_renameat2",
 		KProbes: syscallKprobe("renameat2"),
 		EventTypes: map[string]Capabilities{
 			"rename": Capabilities{},
@@ -617,46 +625,58 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	for _, kprobe := range AllHookPoints {
-		if kprobe.EventTypes == nil {
+	for _, hookPoint := range AllHookPoints {
+		if hookPoint.EventTypes == nil {
 			continue
 		}
 
 		// first set policies
-		for eventType, capabilities := range kprobe.EventTypes {
+		for eventType, capabilities := range hookPoint.EventTypes {
 			if eventType == "*" || rs.HasRulesForEventType(eventType) {
-				if kprobe.PolicyTable == "" {
+				if hookPoint.PolicyTable == "" {
 					continue
 				}
 
-				if err := p.setKProbePolicy(kprobe, rs, eventType, capabilities); err != nil {
+				if err := p.setKProbePolicy(hookPoint, rs, eventType, capabilities); err != nil {
 					return err
 				}
 			}
 		}
 
 		// then register kprobes
-		for eventType := range kprobe.EventTypes {
+		for eventType := range hookPoint.EventTypes {
 			if eventType == "*" || rs.HasRulesForEventType(eventType) {
-				if _, ok := already[kprobe]; !ok {
-					var err error
-
-					for _, kprobe := range kprobe.KProbes {
-						log.Infof("Register kProbe `%s`", kprobe.Name)
-						if err = p.Module.RegisterKprobe(kprobe); err == nil {
-							break
-						}
-					}
-
-					if err != nil {
-						if !kprobe.Optional {
-							return err
-						}
-						log.Debugf("Failed to load optional kprobe")
-					}
-
-					already[kprobe] = true
+				if _, ok := already[hookPoint]; ok {
+					continue
 				}
+
+				var active int
+				var err error
+
+				log.Infof("Registering Hook Point `%s`", hookPoint.Name)
+				for _, kprobe := range hookPoint.KProbes {
+					// use hook point name if kprobe name not provided
+					if len(kprobe.Name) == 0 {
+						kprobe.Name = hookPoint.Name
+					}
+
+					if err = p.Module.RegisterKprobe(kprobe); err == nil {
+						active++
+
+						log.Infof("kProbe `%s` registered", kprobe.Name)
+						break
+					}
+					log.Debugf("failed to register kProbe `%s`", kprobe.Name)
+				}
+
+				if err != nil {
+					if !hookPoint.Optional {
+						return err
+					}
+				}
+
+				log.Infof("Hook Point `%s` registered with %d active kProbes", hookPoint.Name, active)
+				already[hookPoint] = true
 			}
 		}
 	}

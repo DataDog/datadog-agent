@@ -10,8 +10,8 @@ var ExecTables = []KTable{}
 // ExecHookPoints - list of open's hooks
 var ExecHookPoints = []*HookPoint{
 	{
+		Name: "sys_execve",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "sys_execve",
 			EntryFunc: "kprobe/" + getSyscallFnName("execve"),
 		}},
 		EventTypes: map[string]Capabilities{
@@ -19,8 +19,8 @@ var ExecHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name: "sys_execveat",
 		KProbes: []*eprobe.KProbe{{
-			Name:      "sys_execveat",
 			EntryFunc: "kprobe/" + getSyscallFnName("execveat"),
 		}},
 		EventTypes: map[string]Capabilities{
@@ -29,11 +29,10 @@ var ExecHookPoints = []*HookPoint{
 		Optional: true,
 	},
 	{
+		Name: "do_fork",
 		KProbes: []*eprobe.KProbe{{
-			Name:     "_do_fork",
 			ExitFunc: "kretprobe/_do_fork",
 		}, {
-			Name:     "do_fork",
 			ExitFunc: "kretprobe/do_fork",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -41,8 +40,8 @@ var ExecHookPoints = []*HookPoint{
 		},
 	},
 	{
+		Name: "do_exit",
 		KProbes: []*eprobe.KProbe{{
-			Name:     "do_exit",
 			ExitFunc: "kprobe/do_exit",
 		}},
 		EventTypes: map[string]Capabilities{
