@@ -84,6 +84,14 @@ struct syscall_cache_t {
         struct {
             struct vfsmount *vfs;
         } umount;
+
+        struct {
+            struct path_key_t src_key;
+            struct path *target_path;
+            struct dentry *target_dentry;
+            struct path_key_t target_key;
+            int src_overlay_numlower;
+        } link;
     };
 };
 

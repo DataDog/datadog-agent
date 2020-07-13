@@ -144,6 +144,78 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 			Field: field,
 		}, nil
 
+	case "link.new_filename":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Link.ResolveTargetInode(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveTargetInode(m.event.resolvers) },
+
+			Field: field,
+		}, nil
+
+	case "link.new_inode":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Link.TargetInode) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.TargetInode) },
+
+			Field: field,
+		}, nil
+
+	case "link.old_filename":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Link.ResolveSrcInode(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveSrcInode(m.event.resolvers) },
+
+			Field: field,
+		}, nil
+
+	case "link.old_inode":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Link.SrcInode) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.SrcInode) },
+
+			Field: field,
+		}, nil
+
+	case "link.src_container_path":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Link.ResolveSrcContainerPath(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveSrcContainerPath(m.event.resolvers) },
+
+			Field: field,
+		}, nil
+
+	case "link.src_overlay_num_lower":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Link.SrcOverlayNumLower) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.SrcOverlayNumLower) },
+
+			Field: field,
+		}, nil
+
+	case "link.target_container_path":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Link.ResolveTargetContainerPath(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Link.ResolveTargetContainerPath(m.event.resolvers) },
+
+			Field: field,
+		}, nil
+
+	case "link.target_overlay_num_lower":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Link.TargetOverlayNumLower) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Link.TargetOverlayNumLower) },
+
+			Field: field,
+		}, nil
+
 	case "mkdir.container_path":
 
 		return &eval.StringEvaluator{
@@ -586,6 +658,38 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Event.ResolveType(e.resolvers), nil
 
+	case "link.new_filename":
+
+		return e.Link.ResolveTargetInode(e.resolvers), nil
+
+	case "link.new_inode":
+
+		return int(e.Link.TargetInode), nil
+
+	case "link.old_filename":
+
+		return e.Link.ResolveSrcInode(e.resolvers), nil
+
+	case "link.old_inode":
+
+		return int(e.Link.SrcInode), nil
+
+	case "link.src_container_path":
+
+		return e.Link.ResolveSrcContainerPath(e.resolvers), nil
+
+	case "link.src_overlay_num_lower":
+
+		return int(e.Link.SrcOverlayNumLower), nil
+
+	case "link.target_container_path":
+
+		return e.Link.ResolveTargetContainerPath(e.resolvers), nil
+
+	case "link.target_overlay_num_lower":
+
+		return int(e.Link.TargetOverlayNumLower), nil
+
 	case "mkdir.container_path":
 
 		return e.Mkdir.ResolveContainerPath(e.resolvers), nil
@@ -804,6 +908,30 @@ func (e *Event) GetFieldTags(field eval.Field) ([]string, error) {
 	case "event.type":
 		return []string{}, nil
 
+	case "link.new_filename":
+		return []string{}, nil
+
+	case "link.new_inode":
+		return []string{}, nil
+
+	case "link.old_filename":
+		return []string{}, nil
+
+	case "link.old_inode":
+		return []string{}, nil
+
+	case "link.src_container_path":
+		return []string{}, nil
+
+	case "link.src_overlay_num_lower":
+		return []string{}, nil
+
+	case "link.target_container_path":
+		return []string{}, nil
+
+	case "link.target_overlay_num_lower":
+		return []string{}, nil
+
 	case "mkdir.container_path":
 		return []string{}, nil
 
@@ -979,6 +1107,30 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "event.type":
 		return "*", nil
+
+	case "link.new_filename":
+		return "link", nil
+
+	case "link.new_inode":
+		return "link", nil
+
+	case "link.old_filename":
+		return "link", nil
+
+	case "link.old_inode":
+		return "link", nil
+
+	case "link.src_container_path":
+		return "link", nil
+
+	case "link.src_overlay_num_lower":
+		return "link", nil
+
+	case "link.target_container_path":
+		return "link", nil
+
+	case "link.target_overlay_num_lower":
+		return "link", nil
 
 	case "mkdir.container_path":
 		return "mkdir", nil
@@ -1169,6 +1321,38 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "event.type":
 
 		return reflect.String, nil
+
+	case "link.new_filename":
+
+		return reflect.String, nil
+
+	case "link.new_inode":
+
+		return reflect.Int, nil
+
+	case "link.old_filename":
+
+		return reflect.String, nil
+
+	case "link.old_inode":
+
+		return reflect.Int, nil
+
+	case "link.src_container_path":
+
+		return reflect.String, nil
+
+	case "link.src_overlay_num_lower":
+
+		return reflect.Int, nil
+
+	case "link.target_container_path":
+
+		return reflect.String, nil
+
+	case "link.target_overlay_num_lower":
+
+		return reflect.Int, nil
 
 	case "mkdir.container_path":
 
@@ -1461,6 +1645,70 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return ErrWrongValueType
 		}
 		e.Event.Type = uint64(v)
+		return nil
+
+	case "link.new_filename":
+
+		if e.Link.TargetPathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "link.new_inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Link.TargetInode = uint64(v)
+		return nil
+
+	case "link.old_filename":
+
+		if e.Link.SrcPathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "link.old_inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Link.SrcInode = uint64(v)
+		return nil
+
+	case "link.src_container_path":
+
+		if e.Link.SrcContainerPath, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "link.src_overlay_num_lower":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Link.SrcOverlayNumLower = int32(v)
+		return nil
+
+	case "link.target_container_path":
+
+		if e.Link.TargetContainerPath, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "link.target_overlay_num_lower":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Link.TargetOverlayNumLower = int32(v)
 		return nil
 
 	case "mkdir.container_path":

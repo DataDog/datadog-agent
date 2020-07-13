@@ -34,6 +34,7 @@
 #include "utimes.h"
 #include "mount.h"
 #include "umount.h"
+#include "link.h"
 #include "raw_syscalls.h"
 
 __u32 _version SEC("version") = 0xFFFFFFFE;

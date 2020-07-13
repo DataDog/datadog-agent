@@ -228,6 +228,7 @@ var AllHookPoints = []*HookPoint{
 		}},
 		EventTypes: map[string]Capabilities{
 			"mkdir": Capabilities{},
+			"link": Capabilities{},
 		},
 	},
 	{
@@ -311,6 +312,29 @@ var AllHookPoints = []*HookPoint{
 		KProbes: syscallKprobe("renameat2"),
 		EventTypes: map[string]Capabilities{
 			"rename": Capabilities{},
+		},
+	},
+	{
+		Name: "vfs_link",
+		KProbes: []*eprobe.KProbe{{
+			EntryFunc: "kprobe/vfs_link",
+		}},
+		EventTypes: map[string]Capabilities{
+			"link": Capabilities{},
+		},
+	},
+	{
+		Name:    "sys_link",
+		KProbes: syscallKprobe("link"),
+		EventTypes: map[string]Capabilities{
+			"link": Capabilities{},
+		},
+	},
+	{
+		Name:    "sys_linkat",
+		KProbes: syscallKprobe("linkat"),
+		EventTypes: map[string]Capabilities{
+			"link": Capabilities{},
 		},
 	},
 }
@@ -574,6 +598,11 @@ func (p *Probe) handleEvent(data []byte) {
 	case FileUtimeEventType:
 		if _, err := event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileLinkEventType:
+		if _, err := event.Link.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileMountEventType:

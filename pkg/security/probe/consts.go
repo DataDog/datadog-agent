@@ -15,8 +15,8 @@ const (
 	FileOpenEventType ProbeEventType = iota + 1
 	// FileMkdirEventType - Folder creation event
 	FileMkdirEventType
-	// FileHardLinkEventType - Hard link creation event
-	FileHardLinkEventType
+	// FileLinkEventType - Hard link creation event
+	FileLinkEventType
 	// FileRenameEventType - File or folder rename event
 	FileRenameEventType
 	// FileUnlinkEventType - Unlink event
@@ -41,7 +41,8 @@ func (t ProbeEventType) String() string {
 		return "open"
 	case FileMkdirEventType:
 		return "mkdir"
-	case FileHardLinkEventType:
+	case FileLinkEventType:
+		return "link"
 	case FileRenameEventType:
 		return "rename"
 	case FileUnlinkEventType:

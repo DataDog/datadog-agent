@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os/user"
 	"path"
 	"regexp"
@@ -704,6 +705,130 @@ func (e *UtimesEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	return e.ContainerPath
 }
 
+type LinkEvent struct {
+	SrcMountID            uint32 `field:"-"`
+	SrcInode              uint64 `field:"old_inode"`
+	SrcPathnameStr        string `field:"old_filename" handler:"ResolveSrcInode,string"`
+	SrcContainerPath      string `field:"src_container_path" handler:"ResolveSrcContainerPath,string"`
+	SrcOverlayNumLower    int32  `field:"src_overlay_num_lower"`
+	TargetMountID         uint32 `field:"-"`
+	TargetInode           uint64 `field:"new_inode"`
+	TargetPathnameStr     string `field:"new_filename" handler:"ResolveTargetInode,string"`
+	TargetContainerPath   string `field:"target_container_path" handler:"ResolveTargetContainerPath,string"`
+	TargetOverlayNumLower int32  `field:"target_overlay_num_lower"`
+}
+
+func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"old_mount_id":%d,`, e.SrcMountID)
+	fmt.Fprintf(&buf, `"old_inode":%d,`, e.SrcInode)
+	fmt.Fprintf(&buf, `"old_filename":"%s",`, e.ResolveSrcInode(resolvers))
+	fmt.Fprintf(&buf, `"old_container_path":"%s",`, e.ResolveSrcContainerPath(resolvers))
+	fmt.Fprintf(&buf, `"old_overlay_numlower":%d,`, e.SrcOverlayNumLower)
+	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.TargetMountID)
+	fmt.Fprintf(&buf, `"new_inode":%d,`, e.TargetInode)
+	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.ResolveTargetInode(resolvers))
+	fmt.Fprintf(&buf, `"new_container_path":"%s",`, e.ResolveTargetContainerPath(resolvers))
+	fmt.Fprintf(&buf, `"new_overlay_numlower":%d`, e.TargetOverlayNumLower)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 36 {
+		return 0, NotEnoughData
+	}
+	log.Debugf("%d", data)
+	e.SrcMountID = byteOrder.Uint32(data[0:4])
+	// padding
+	e.SrcInode = byteOrder.Uint64(data[8:16])
+	e.TargetInode = byteOrder.Uint64(data[16:24])
+	e.TargetMountID = byteOrder.Uint32(data[24:28])
+	e.SrcOverlayNumLower = int32(byteOrder.Uint32(data[28:32]))
+	e.TargetOverlayNumLower = int32(byteOrder.Uint32(data[32:36]))
+	return 36, nil
+}
+
+func (e *LinkEvent) ResolveSrcInode(resolvers *Resolvers) string {
+	if len(e.SrcPathnameStr) == 0 {
+		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcMountID, e.SrcInode)
+		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
+		if err == nil {
+			e.SrcPathnameStr = path.Join(mountPath, e.SrcPathnameStr)
+		}
+		if containerPath != "" {
+			if strings.HasPrefix(e.SrcPathnameStr, containerPath) {
+				e.SrcPathnameStr = strings.Replace(e.SrcPathnameStr, containerPath, "", 1)
+			}
+		} else {
+			if containerPathDiffPrefix.MatchString(e.SrcPathnameStr) {
+				e.SrcContainerPath = containerPathDiffPrefix.FindString(e.SrcPathnameStr)
+				e.SrcPathnameStr = containerPathDiffPrefix.ReplaceAllString(e.SrcPathnameStr, "")
+			}
+			if containerPathMergedPrefix.MatchString(e.SrcPathnameStr) {
+				e.SrcContainerPath = containerPathMergedPrefix.FindString(e.SrcPathnameStr)
+				e.SrcPathnameStr = containerPathMergedPrefix.ReplaceAllString(e.SrcPathnameStr, "")
+			}
+		}
+	}
+	return e.SrcPathnameStr
+}
+
+func (e *LinkEvent) ResolveSrcContainerPath(resolvers *Resolvers) string {
+	if len(e.SrcContainerPath) == 0 {
+		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
+		if err == nil {
+			e.SrcContainerPath = containerPath
+		}
+		if len(containerPath) == 0 && len(e.SrcPathnameStr) == 0 {
+			// The container path might be included in the pathname. The container path will be set there.
+			_ = e.ResolveSrcInode(resolvers)
+		}
+	}
+	return e.SrcContainerPath
+}
+
+func (e *LinkEvent) ResolveTargetInode(resolvers *Resolvers) string {
+	if len(e.TargetPathnameStr) == 0 {
+		e.TargetPathnameStr = resolvers.DentryResolver.Resolve(e.TargetMountID, e.TargetInode)
+		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
+		if err == nil {
+			e.TargetPathnameStr = path.Join(mountPath, e.TargetPathnameStr)
+		}
+		if containerPath != "" {
+			if strings.HasPrefix(e.TargetPathnameStr, containerPath) {
+				e.TargetPathnameStr = strings.Replace(e.TargetPathnameStr, containerPath, "", 1)
+			}
+		} else {
+			if containerPathDiffPrefix.MatchString(e.TargetPathnameStr) {
+				e.TargetContainerPath = containerPathDiffPrefix.FindString(e.TargetPathnameStr)
+				e.TargetPathnameStr = containerPathDiffPrefix.ReplaceAllString(e.TargetPathnameStr, "")
+			}
+			if containerPathMergedPrefix.MatchString(e.TargetPathnameStr) {
+				e.TargetContainerPath = containerPathMergedPrefix.FindString(e.TargetPathnameStr)
+				e.TargetPathnameStr = containerPathMergedPrefix.ReplaceAllString(e.TargetPathnameStr, "")
+			}
+		}
+	}
+	return e.TargetPathnameStr
+}
+
+func (e *LinkEvent) ResolveTargetContainerPath(resolvers *Resolvers) string {
+	if len(e.TargetContainerPath) == 0 {
+		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
+		if err == nil {
+			e.TargetContainerPath = containerPath
+		}
+		if len(containerPath) == 0 && len(e.TargetPathnameStr) == 0 {
+			// The container path might be included in the pathname. The container path will be set there.
+			_ = e.ResolveTargetInode(resolvers)
+		}
+	}
+	return e.TargetContainerPath
+}
+
 type MountEvent struct {
 	NewMountID    uint32
 	NewGroupID    uint32
@@ -933,6 +1058,7 @@ type Event struct {
 	Rename    RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
 	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
 	Utimes    UtimesEvent    `yaml:"utimes" field:"utimes" event:"utimes"`
+	Link      LinkEvent      `yaml:"link" field:"link" event:"link"`
 	Mount     MountEvent     `yaml:"mount" field:"-"`
 	Umount    UmountEvent    `yaml:"umount" field:"-"`
 
@@ -1016,6 +1142,12 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			eventMarshaler{
 				field:      "file",
 				marshalFnc: e.Utimes.marshalJSON,
+			})
+	case FileLinkEventType:
+		entries = append(entries,
+			eventMarshaler{
+				field:      "file",
+				marshalFnc: e.Link.marshalJSON,
 			})
 	case FileMountEventType:
 		entries = append(entries,
