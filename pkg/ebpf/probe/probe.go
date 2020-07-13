@@ -14,10 +14,6 @@ type PerfMap interface {
 	Stop()
 }
 
-type TableKey interface {
-	Bytes() []byte
-}
-
 type Table interface {
 	Get(key []byte) ([]byte, error)
 	GetNext(key []byte) (bool, []byte, []byte, error)
