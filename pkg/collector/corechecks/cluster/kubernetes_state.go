@@ -19,6 +19,7 @@ import (
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/tools/cache"
@@ -28,12 +29,17 @@ import (
 
 const (
 	// TODO rename correctly once we deprecate the python check
-	kubeStateMetricsCheckName = "kube-state-metrics-alpha"
+	kubeStateMetricsCheckName = "kubernetes_state-alpha"
+	defaultResyncPeriod       = 30
 )
 
 // KSMConfig contains the check config parameters
 type KSMConfig struct {
-	// TODO fill in all the configurations.
+	// Collectors defines the resource type collectors.
+	// Example: Enable pods and nodes collectors.
+	// collectors:
+	//   - nodes
+	//   - pods
 	Collectors []string `yaml:"collectors"`
 
 	// LabelJoins allows adding the tags to join from other KSM metrics.
@@ -53,14 +59,23 @@ type KSMConfig struct {
 	// labels_mapper:
 	//   namespace: kube_namespace
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
+
+	// Namespaces contains the namespaces from which we collect metrics
+	// Example: Enable metric collection for objects in prod and kube-system namespaces.
+	// namespaces:
+	//   - prod
+	//   - kube-system
+	Namespaces []string `yaml:"namespaces"`
+
+	// ResyncPeriod is the frequency of resync'ing the metrics cache in seconds, default 30.
+	ResyncPeriod int `yaml:"resync_period"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	instance          *KSMConfig
-	store             []cache.Store
-	labelJoinsEnabled bool
+	instance *KSMConfig
+	store    []cache.Store
 }
 
 // JoinsConfig contains the config parameters for label joins
@@ -105,26 +120,41 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		return err
 	}
 
-	k.labelJoinsEnabled = len(k.instance.LabelJoins) > 0
-
-	if k.labelJoinsEnabled {
-		for _, joinConf := range k.instance.LabelJoins {
-			joinConf.setupGetAllLabels()
-		}
+	// Prepare label joins
+	for _, joinConf := range k.instance.LabelJoins {
+		joinConf.setupGetAllLabels()
 	}
+
+	k.mergeLabelJoins(defaultLabelJoins)
+
+	// Prepare labels mapper
+	k.mergeLabelsMapper(defaultLabelsMapper)
 
 	builder := kubestatemetrics.New()
 
 	// Prepare the collectors for the resources specified in the configuration file.
-	if err := builder.WithEnabledResources(k.instance.Collectors); err != nil {
+	collectors := k.instance.Collectors
+
+	// Enable the KSM default collectors if the config collectors list is empty.
+	if len(collectors) == 0 {
+		collectors = options.DefaultResources.AsSlice()
+	}
+
+	if err := builder.WithEnabledResources(collectors); err != nil {
 		return err
 	}
 
-	// TODO namespaces should be configurable
-	builder.WithNamespaces(options.DefaultNamespaces)
+	// Prepare watched namespaces
+	namespaces := k.instance.Namespaces
 
-	// TODO Metrics exclusion/inclusion needs to be configurable
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, options.MetricSet{})
+	// Enable the KSM default namespaces if the config namespaces list is empty.
+	if len(namespaces) == 0 {
+		namespaces = options.DefaultNamespaces
+	}
+
+	builder.WithNamespaces(namespaces)
+
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
 	if err != nil {
 		return err
 	}
@@ -132,6 +162,7 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	if err := allowDenyList.Parse(); err != nil {
 		return err
 	}
+
 	builder.WithAllowDenyList(allowDenyList)
 
 	c, err := apiserver.GetAPIClient()
@@ -141,7 +172,14 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 	builder.WithKubeClient(c.Cl)
 	builder.WithContext(context.Background())
-	builder.WithResync(30 * time.Second) // TODO resync period should be configurable
+
+	resyncPeriod := k.instance.ResyncPeriod
+	if resyncPeriod == 0 {
+		resyncPeriod = defaultResyncPeriod
+	}
+
+	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
+
 	builder.WithGenerateStoreFunc(builder.GenerateStore)
 
 	// Start the collection process
@@ -151,7 +189,6 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 }
 
 func (c *KSMConfig) parse(data []byte) error {
-	// TODO specify the default values
 	return yaml.Unmarshal(data, c)
 }
 
@@ -165,12 +202,10 @@ func (k *KSMCheck) Run() error {
 	defer sender.Commit()
 
 	metricsToGet := []ksmstore.DDMetricsFam{}
-	if k.labelJoinsEnabled {
-		for _, store := range k.store {
-			metrics := store.(*ksmstore.MetricsStore).Push(k.familyFilter, k.metricFilter)
-			for _, m := range metrics {
-				metricsToGet = append(metricsToGet, m...)
-			}
+	for _, store := range k.store {
+		metrics := store.(*ksmstore.MetricsStore).Push(k.familyFilter, k.metricFilter)
+		for _, m := range metrics {
+			metricsToGet = append(metricsToGet, m...)
 		}
 	}
 
@@ -186,8 +221,20 @@ func (k *KSMCheck) Run() error {
 func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, metricsToGet []ksmstore.DDMetricsFam) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
+			if metadataMetricsRegex.MatchString(metricFamily.Name) {
+				// metadata metrics are only used by the check for label joins
+				// they shouldn't be forwarded to Datadog
+				continue
+			}
+			if transform, found := metricTransformers[metricFamily.Name]; found {
+				for _, m := range metricFamily.ListMetrics {
+					// TODO: implement metric transformer functions
+					transform(sender, metricFamily.Name, m.Val, k.joinLabels(m.Labels, metricsToGet))
+				}
+				continue
+			}
 			for _, m := range metricFamily.ListMetrics {
-				sender.Gauge(metricFamily.Name, m.Val, "", k.joinLabels(m.Labels, metricsToGet))
+				sender.Gauge(formatMetricName(metricFamily.Name), m.Val, "", k.joinLabels(m.Labels, metricsToGet))
 			}
 		}
 	}
@@ -277,8 +324,34 @@ func (k *KSMCheck) getJoinedTags(config *JoinsConfig, srcLabels map[string]strin
 	return tags
 }
 
+// mergeLabelsMapper adds extra label mappings to the configured labels mapper
+// User-defined mappings are prioritized over additional mappings
+func (k *KSMCheck) mergeLabelsMapper(extra map[string]string) {
+	for key, value := range extra {
+		if _, found := k.instance.LabelsMapper[key]; !found {
+			k.instance.LabelsMapper[key] = value
+		}
+	}
+}
+
+// mergeLabelJoins adds extra label joins to the configured label joins
+// User-defined label joins are prioritized over additional label joins
+func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
+	for key, value := range extra {
+		if _, found := k.instance.LabelJoins[key]; !found {
+			k.instance.LabelJoins[key] = value
+		}
+	}
+}
+
 func KubeStateMetricsFactory() check.Check {
-	return newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{})
+	return newKSMCheck(
+		core.NewCheckBase(kubeStateMetricsCheckName),
+		&KSMConfig{
+			LabelsMapper: make(map[string]string),
+			LabelJoins:   make(map[string]*JoinsConfig),
+			Namespaces:   []string{},
+		})
 }
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
@@ -286,4 +359,13 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 		CheckBase: base,
 		instance:  instance,
 	}
+}
+
+// formatMetricName converts the default KSM metric names into Datadog metric names
+func formatMetricName(name string) string {
+	if ddName, found := metricNamesMapper[name]; found {
+		return ksmMetricPrefix + ddName
+	}
+	log.Tracef("KSM metric '%s' is not found in the metric names mapper", name)
+	return ksmMetricPrefix + name
 }
