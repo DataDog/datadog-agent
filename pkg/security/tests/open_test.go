@@ -17,7 +17,7 @@ func TestOpen(t *testing.T) {
 		Expression: `open.filename == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -139,8 +139,6 @@ func TestOpenBasenameDiscarderFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(3 * time.Second)
-
 	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
