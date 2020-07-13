@@ -42,9 +42,9 @@ do_start()
 	#   0 if daemon has been started
 	#   1 if daemon was already running
 	#   2 if daemon could not be started
-	start-stop-daemon --start --test --quiet --pidfile $PIDFILE --startas $AGENTPATH > /dev/null \
+	start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH > /dev/null \
 		|| return 1
-	start-stop-daemon --start --background --chuid $AGENT_USER --quiet --pidfile $PIDFILE --startas $AGENTPATH -- \
+	start-stop-daemon --start --background --chuid $AGENT_USER --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH -- \
 		$AGENT_ARGS \
 		|| return 2
 	# Add code here, if necessary, that waits for the process to be ready
@@ -67,7 +67,7 @@ start_and_wait()
 			# check if the agent is running once per second for 5 seconds
 			retries=5
 			while [ $retries -gt 1 ]; do
-				start-stop-daemon --start --test --quiet --pidfile $PIDFILE --startas $AGENTPATH
+				start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH
 				if [ "$?" -eq "1" ]; then
 					# We've started up successfully. Exit cleanly
 					log_end_msg 0
@@ -94,7 +94,7 @@ do_stop()
 	#   1 if daemon was already stopped
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
-	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --startas $AGENTPATH
+	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH
 	RETVAL="$?"
 	rm -f $PIDFILE
 	return $RETVAL
