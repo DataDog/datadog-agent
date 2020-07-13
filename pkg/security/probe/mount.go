@@ -24,46 +24,46 @@ func IsErrMountNotFound(err error) bool {
 	return ErrMountNotFound.Error() == err.Error()
 }
 
-// MountProbes - Mount tracking probes
-var MountProbes = []*KProbe{
+// MountHookPoints - Mount tracking probes
+var MountHookPoints = []*HookPoint{
 	{
-		KProbe: &eprobe.KProbe{
+		KProbes: []*eprobe.KProbe{{
 			Name:      "attach_recursive_mnt",
 			EntryFunc: "kprobe/attach_recursive_mnt",
-		},
+		}},
 		EventTypes: map[string]Capabilities{
 			"*": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
+		KProbes: []*eprobe.KProbe{{
 			Name:      "propagate_mnt",
 			EntryFunc: "kprobe/propagate_mnt",
-		},
+		}},
 		EventTypes: map[string]Capabilities{
 			"*": Capabilities{},
 		},
 	},
 	{
-		KProbe: syscallKprobe("mount"),
+		KProbes: syscallKprobe("mount"),
 		EventTypes: map[string]Capabilities{
 			"*": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
+		KProbes: []*eprobe.KProbe{{
 			Name:      "security_sb_umount",
 			EntryFunc: "kprobe/security_sb_umount",
-		},
+		}},
 		EventTypes: map[string]Capabilities{
 			"*": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
+		KProbes: []*eprobe.KProbe{{
 			Name:     "sys_umount",
 			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
-		},
+		}},
 		EventTypes: map[string]Capabilities{
 			"*": Capabilities{},
 		},

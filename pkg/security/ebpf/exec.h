@@ -48,8 +48,7 @@ u64 __attribute__((always_inline)) pid_inode(u64 pid) {
     return 0;
 }
 
-SEC("kretprobe/_do_fork")
-int kprobe__do_fork(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__do_fork_ret(struct pt_regs *ctx) {
     u64 pid = bpf_get_current_pid_tgid();
     u64 rc = PT_REGS_RC(ctx);
 
@@ -60,6 +59,16 @@ int kprobe__do_fork(struct pt_regs *ctx) {
     }
 
     return 0;
+}
+
+SEC("kretprobe/_do_fork")
+int kprobe_do_fork(struct pt_regs *ctx) {
+    return trace__do_fork_ret(ctx);
+}
+
+SEC("kretprobe/do_fork")
+int kprobe__do_fork(struct pt_regs *ctx) {
+    return trace__do_fork_ret(ctx);
 }
 
 SEC("kprobe/do_exit")
