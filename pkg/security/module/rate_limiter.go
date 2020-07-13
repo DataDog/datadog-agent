@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	// Arbitrary default limit to prevent flooding. Might change in the future.
-	defaultLimit = rate.Limit(20)
-	// We can only reserve one token at a time.
-	defaultBurst int = 1
+	// Arbitrary default limit to prevent flooding.
+	defaultLimit = rate.Limit(10)
+	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
+	// flooding.
+	defaultBurst int = 40
 )
 
 type RuleLimiter struct {
