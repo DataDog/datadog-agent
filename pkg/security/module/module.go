@@ -77,6 +77,8 @@ func (m *Module) Close() {
 func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
+	} else {
+		log.Debugf("Event %s on rule %s was dropped due to rate limiting", event.GetID(), rule.ID)
 	}
 }
 
@@ -157,7 +159,7 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		ruleSet:     ruleSet,
 		eventServer: NewEventServer(),
 		grpcServer:  grpc.NewServer(),
-		rateLimiter: NewRateLimiter(),
+		rateLimiter: NewRateLimiter(ruleSet.ListRuleIDs()),
 	}
 
 	api.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)

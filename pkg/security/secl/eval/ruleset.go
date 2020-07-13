@@ -49,7 +49,16 @@ type RuleSet struct {
 	fields []string
 }
 
-// AddMacros - Parse the macros AST and add them to the list of macros of the ruleset
+// ListRuleIDs - Returns the list of RuleIDs from the ruleset
+func (rs *RuleSet) ListRuleIDs() []string {
+	var ids []string
+	for ruleID := range rs.rules {
+		ids = append(ids, ruleID)
+	}
+	return ids
+}
+
+// AddMacros - Parses the macros AST and add them to the list of macros of the ruleset
 func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
 	var result *multierror.Error
 

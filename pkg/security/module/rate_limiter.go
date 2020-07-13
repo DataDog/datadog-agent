@@ -7,7 +7,9 @@ import (
 )
 
 const (
-	defaultLimit = rate.Limit(50)
+	// Arbitrary default limit to prevent flooding. Might change in the future.
+	defaultLimit = rate.Limit(20)
+	// We can only reserve one token at a time.
 	defaultBurst int = 1
 )
 
@@ -16,14 +18,24 @@ type RuleLimiter struct {
 	dropped int64
 }
 
+func NewRuleLimiter(limit rate.Limit, burst int) *RuleLimiter {
+	return &RuleLimiter{
+		limiter: rate.NewLimiter(limit, burst),
+	}
+}
+
 type RateLimiter struct {
 	limiters map[string]*RuleLimiter
 }
 
 // NewRateLimiter - Initializes an empty rate limiter
-func NewRateLimiter() *RateLimiter {
+func NewRateLimiter(ids []string) *RateLimiter {
+	limiters := make(map[string]*RuleLimiter)
+	for _, id := range ids {
+		limiters[id] = NewRuleLimiter(defaultLimit, defaultBurst)
+	}
 	return &RateLimiter{
-		limiters: make(map[string]*RuleLimiter),
+		limiters: limiters,
 	}
 }
 
@@ -31,11 +43,7 @@ func NewRateLimiter() *RateLimiter {
 func (rl *RateLimiter) Allow(ruleID string) bool {
 	ruleLimiter, ok := rl.limiters[ruleID]
 	if !ok {
-		// Create a new rate limiter for this rule
-		rl.limiters[ruleID] = &RuleLimiter{
-			limiter: rate.NewLimiter(defaultLimit, defaultBurst),
-		}
-		ruleLimiter = rl.limiters[ruleID]
+		return false
 	}
 	if ruleLimiter.limiter.Allow() {
 		return true
@@ -49,12 +57,7 @@ func (rl *RateLimiter) Allow(ruleID string) bool {
 func (rl *RateLimiter) GetStats() map[string]int64 {
 	stats := make(map[string]int64)
 	for ruleID, ruleLimiter := range rl.limiters {
-		if ruleLimiter.dropped > 0 {
-			stats[ruleID] = ruleLimiter.dropped
-			// It's ok if we missed an event between the previous line and the next one, as long as we subtract the
-			// value read. The missed events will show up on the next call to GetStats
-			atomic.AddInt64(&ruleLimiter.dropped, -stats[ruleID])
-		}
+		stats[ruleID] = atomic.SwapInt64(&ruleLimiter.dropped, 0)
 	}
 	return stats
 }
