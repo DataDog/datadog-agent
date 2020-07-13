@@ -176,7 +176,11 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 
 	var statsdClient *statsd.Client
 	if cfg != nil {
-		if statsdClient, err = statsd.New(fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)); err != nil {
+		statsdAddr := os.Getenv("STATSD_URL")
+		if statsdAddr == "" {
+			statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
+		}
+		if statsdClient, err = statsd.New(statsdAddr); err != nil {
 			return nil, err
 		}
 	}
