@@ -119,7 +119,12 @@ func runAgent() {
 		utils.WriteAsJSON(w, stats)
 	})
 
-	http.Serve(conn.GetListener(), httpMux) //nolint:errcheck
+	err = http.Serve(conn.GetListener(), httpMux)
+	if err != nil {
+		log.Criticalf("Error creating HTTP server: %s", err)
+		cleanupAndExit(1)
+	}
+
 	log.Infof("system probe successfully started")
 
 	go func() {
