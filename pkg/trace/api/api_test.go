@@ -29,6 +29,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
 )
 
 // Traces shouldn't come from more than 5 different sources
@@ -397,6 +398,69 @@ func TestTraceCount(t *testing.T) {
 		count, err := traceCount(req)
 		assert.NoError(t, err)
 		assert.Equal(t, count, int64(123))
+	})
+}
+
+func TestDecodeV05(t *testing.T) {
+	assert := assert.New(t)
+	data := [][][12]interface{}{
+		{
+			{"Service", "Name", "Resource", uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[string]string{"A": "B"}, map[string]float64{"X": 1.2}, "sql"},
+			{"Service2", "Name2", "Resource2", uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[string]string{"c": "d"}, map[string]float64{"y": 1.4}, "sql"},
+			{"Service2", "Name2", "Resource2", uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[string]string{"c": "d"}, nil, "sql"},
+		},
+	}
+	b, err := vmsgp.Marshal(&data)
+	assert.NoError(err)
+	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
+	assert.NoError(err)
+	traces, err := (&HTTPReceiver{}).decodeTraces(v05, req)
+	assert.NoError(err)
+	assert.EqualValues(traces, pb.Traces{
+		{
+			{
+				Service:  "Service",
+				Name:     "Name",
+				Resource: "Resource",
+				TraceID:  1,
+				SpanID:   2,
+				ParentID: 3,
+				Start:    123,
+				Duration: 456,
+				Error:    1,
+				Meta:     map[string]string{"A": "B"},
+				Metrics:  map[string]float64{"X": 1.2},
+				Type:     "sql",
+			},
+			{
+				Service:  "Service2",
+				Name:     "Name2",
+				Resource: "Resource2",
+				TraceID:  2,
+				SpanID:   3,
+				ParentID: 3,
+				Start:    789,
+				Duration: 456,
+				Error:    0,
+				Meta:     map[string]string{"c": "d"},
+				Metrics:  map[string]float64{"y": 1.4},
+				Type:     "sql",
+			},
+			{
+				Service:  "Service2",
+				Name:     "Name2",
+				Resource: "Resource2",
+				TraceID:  2,
+				SpanID:   3,
+				ParentID: 3,
+				Start:    789,
+				Duration: 456,
+				Error:    0,
+				Meta:     map[string]string{"c": "d"},
+				Metrics:  nil,
+				Type:     "sql",
+			},
+		},
 	})
 }
 

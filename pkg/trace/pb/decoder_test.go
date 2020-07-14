@@ -44,3 +44,20 @@ func TestParseFloat64(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(3.14, f)
 }
+
+func TestDecode(t *testing.T) {
+	want := Traces{
+		{{Service: "A", Name: "op"}},
+		{{Service: "B"}},
+		{{Service: "C"}},
+	}
+	var buf bytes.Buffer
+	if err := msgp.Encode(&buf, &want); err != nil {
+		t.Fatal(err)
+	}
+	var got Traces
+	if err := msgp.Decode(&buf, &got); err != nil {
+		t.Fatal(err)
+	}
+	assert.ElementsMatch(t, want, got)
+}
