@@ -66,7 +66,7 @@ type DriverInterface struct {
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCount bool) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:   deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
@@ -211,7 +211,7 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 				// Closed Connection
 				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd, di.enableMonotonicCounts))
 			} else {
-				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.enableMonotonicCount))
+				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.enableMonotonicCounts))
 			}
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
