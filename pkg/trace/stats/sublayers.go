@@ -141,6 +141,181 @@ func ComputeSublayers(trace pb.Trace) []SublayerValue {
 	return values
 }
 
+type Calculator struct {
+	activeSpans      []int
+	activeSpansIndex []int
+	openedSpans      []bool
+	nChildren        []int
+	execPct          []float64
+	parentIdx        []int
+	timestamps       TimestampArray
+}
+
+func NewCalculator(n int) *Calculator {
+	// todo add 1
+	return &Calculator{
+		activeSpans:      make([]int, n),
+		activeSpansIndex: make([]int, n),
+		openedSpans:      make([]bool, n),
+		nChildren:        make([]int, n),
+		execPct:          make([]float64, n),
+		parentIdx:        make([]int, n),
+		timestamps:       make(TimestampArray, 2*n),
+	}
+}
+
+func (c *Calculator) reset(n int) {
+	for i := 0; i < n+1; i++ {
+		c.activeSpansIndex[i] = -1
+		c.activeSpans[i] = 0
+		c.openedSpans[i] = false
+		c.nChildren[i] = 0
+		c.execPct[i] = 0
+	}
+}
+
+type timestamp struct {
+	spanStart bool
+	spanIdx    int
+	parentIdx  int
+	ts        int64
+}
+
+type TimestampArray []timestamp
+
+func (t TimestampArray) Len() int      { return len(t) }
+func (t TimestampArray) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+
+// for spans with a duration of 0, we need to open them before closing them
+func (t TimestampArray) Less(i, j int) bool {
+	return t[i].ts < t[j].ts || (t[i].ts == t[j].ts && t[i].spanStart && !t[j].spanStart)
+}
+
+func (c *Calculator) buildNewTimestamps(trace pb.Trace) {
+	for i, span := range trace {
+		c.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start}
+		c.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start+span.Duration}
+	}
+	sort.Sort(c.timestamps[:2*len(trace)])
+}
+
+func (c *Calculator) computeParentIdx(trace pb.Trace) {
+	idToIdx := make(map[uint64]int, len(trace))
+	for idx, span := range trace {
+		idToIdx[span.SpanID] = idx
+	}
+	for idx, span := range trace {
+		if parentIdx, ok := idToIdx[span.ParentID]; ok {
+			c.parentIdx[idx] = parentIdx
+		} else {
+			// unknown parent (or root)
+			c.parentIdx[idx] = len(trace)
+		}
+	}
+}
+
+func (c *Calculator) computeDurationByAttrNew(trace pb.Trace, selector attrSelector) map[string]float64 {
+	durations := make(map[string]float64)
+	for i, span := range trace {
+		key := selector(span)
+		if key == "" {
+			continue
+		}
+		durations[key] += c.execPct[i]
+	}
+	return durations
+}
+
+func (c *Calculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
+	c.reset(len(trace))
+	c.computeParentIdx(trace)
+	c.buildNewTimestamps(trace)
+	nActiveSpans := 0
+	activate := func(spanIdx int) {
+		if c.activeSpansIndex[spanIdx] == -1 {
+			c.activeSpansIndex[spanIdx] = nActiveSpans
+			c.activeSpans[nActiveSpans] = spanIdx
+			nActiveSpans++
+		}
+	}
+
+	deactivate := func(spanIdx int) {
+		i := c.activeSpansIndex[spanIdx]
+		if i != -1 {
+			c.activeSpansIndex[c.activeSpans[nActiveSpans-1]] = i
+			c.activeSpans[i] = c.activeSpans[nActiveSpans-1]
+			nActiveSpans--
+			c.activeSpansIndex[spanIdx] = -1
+		}
+	}
+
+	var previousTs int64
+
+	for j := 0; j < len(trace)*2; j++ {
+		tp := c.timestamps[j]
+		var timeIncr float64
+		if nActiveSpans > 0 {
+			timeIncr = float64(tp.ts - previousTs)
+		}
+		previousTs = tp.ts
+		if timeIncr > 0 {
+			timeIncr /= float64(nActiveSpans)
+			for i := 0; i < nActiveSpans; i++ {
+				c.execPct[c.activeSpans[i]] += timeIncr
+			}
+		}
+		if tp.spanStart {
+			deactivate(tp.parentIdx)
+			c.openedSpans[tp.spanIdx] = true
+			if c.nChildren[tp.spanIdx] == 0 {
+				activate(tp.spanIdx)
+			}
+			c.nChildren[tp.parentIdx]++
+		} else {
+			c.openedSpans[tp.spanIdx] = false
+			deactivate(tp.spanIdx)
+			c.nChildren[tp.parentIdx]--
+			if c.openedSpans[tp.parentIdx] && c.nChildren[tp.parentIdx] == 0 {
+				activate(tp.parentIdx)
+			}
+		}
+	}
+	durationsByService := c.computeDurationByAttrNew(
+		trace, func(s *pb.Span) string { return s.Service },
+	)
+	durationsByType := c.computeDurationByAttrNew(
+		trace, func(s *pb.Span) string { return s.Type },
+	)
+
+	// Generate sublayers values
+	values := make([]SublayerValue, 0,
+		len(durationsByService)+len(durationsByType)+1,
+	)
+
+	for service, duration := range durationsByService {
+		values = append(values, SublayerValue{
+			Metric: "_sublayers.duration.by_service",
+			Tag:    Tag{"sublayer_service", service},
+			Value:  float64(int64(duration)),
+		})
+	}
+
+	for spanType, duration := range durationsByType {
+		values = append(values, SublayerValue{
+			Metric: "_sublayers.duration.by_type",
+			Tag:    Tag{"sublayer_type", spanType},
+			Value:  float64(int64(duration)),
+		})
+	}
+
+	values = append(values, SublayerValue{
+		Metric: "_sublayers.span_count",
+		Value:  float64(len(trace)),
+	})
+
+	return values
+}
+
 // int64Slice is used by buildTraceTimestamps as a sortable slice of
 // int64
 type int64Slice []int64
