@@ -66,7 +66,7 @@ type DriverInterface struct {
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCount bool) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:   deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
