@@ -9,22 +9,12 @@ package flare
 
 import (
 	"encoding/json"
-	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func writePyHeapProfile(tempDir, hostname string) error {
-	if !rtLoaderEnabled() {
-		return fmt.Errorf("rtloader is not initialized")
-	}
-
-	if !config.Datadog.GetBool("memtrack_enabled") {
-		return fmt.Errorf("memory tracking is disabled")
-	}
-
 	mu.Lock()
 	defer mu.Unlock()
 

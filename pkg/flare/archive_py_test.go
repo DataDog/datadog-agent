@@ -15,15 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestPyHeapProfile(t *testing.T) {
 	assert := assert.New(t)
 
 	common.SetupConfig("./test")
-	mockConfig := config.Mock()
-	mockConfig.Set("memtrack_enabled", true)
 	zipFilePath := getArchivePath()
 	opts := InitOptions(true, true)
 	filePath, err := createArchive(zipFilePath, opts, SearchPaths{}, "")
@@ -32,7 +29,7 @@ func TestPyHeapProfile(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(zipFilePath, filePath)
 
-	// asserts that it as indeed created a permissions.log file
+	// asserts that it as indeed created profile files
 	z, err := zip.OpenReader(zipFilePath)
 	assert.NoError(err, "opening the zip shouldn't pop an error")
 
@@ -44,8 +41,4 @@ func TestPyHeapProfile(t *testing.T) {
 		}
 	}
 	assert.True(ok, "a profile directory should have been appended to the zip")
-}
-
-func rtLoaderEnabled() bool {
-	return true
 }

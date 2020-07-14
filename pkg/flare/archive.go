@@ -760,7 +760,9 @@ func zipPerformanceProfiles(tempDir, hostname string) error {
 	if err := writeHeapProfile(tempDir, hostname); err != nil {
 		return err
 	}
-	if err := writePyHeapProfile(tempDir, hostname); err != nil {
+
+	if rtLoaderEnabled() && config.Datadog.GetBool("memtrack_enabled") {
+		err := writePyHeapProfile(tempDir, hostname)
 		log.Warnf("Error getting first sample of python stats: %s\n", err)
 	}
 
@@ -772,8 +774,9 @@ func zipPerformanceProfiles(tempDir, hostname string) error {
 		return err
 	}
 
-	if err := writePyHeapProfile(tempDir, hostname); err != nil {
-		log.Warnf("Error getting second sample of python stats: %s\n", err)
+	if rtLoaderEnabled() && config.Datadog.GetBool("memtrack_enabled") {
+		err := writePyHeapProfile(tempDir, hostname)
+		log.Warnf("Error getting first sample of python stats: %s\n", err)
 	}
 
 	return nil

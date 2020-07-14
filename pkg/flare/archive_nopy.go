@@ -10,3 +10,7 @@ package flare
 func writePyHeapProfile(tempDir, hostname string) error {
 	return nil
 }
+
+func rtLoaderEnabled() bool {
+	return false
+}
