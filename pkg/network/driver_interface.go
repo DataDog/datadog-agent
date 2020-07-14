@@ -14,6 +14,7 @@ import "C"
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"net"
 	"sync/atomic"
 	"unsafe"
@@ -59,15 +60,17 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 type DriverInterface struct {
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
+	config          *ebpf.Config
 
 	path       string
 	totalFlows int64
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface() (*DriverInterface, error) {
+func NewDriverInterface(config *ebpf.Config) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path: deviceName,
+		config: config,
 	}
 
 	err := dc.setupFlowHandle()
@@ -207,9 +210,9 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 			if isFlowClosed(pfd.flags) {
 				// Closed Connection
-				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd))
+				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd, di.config.EnableMonotonicCount))
 			} else {
-				connStatsActive = append(connStatsActive, FlowToConnStat(pfd))
+				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.config.EnableMonotonicCount))
 			}
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
