@@ -143,10 +143,10 @@ func (c *SublayerCalculator) computeParentIdx(trace pb.Trace) {
 //
 //         [(0, open, span idx 0, parent idx 7), (10, open, span idx 1, parent idx 0), ... (150, close, span idx 6, parent idx 5)]
 //
-// Step 2: it goes through all the ordered timestamps (start and ends of each span) in the trace
-// it keeps track of which are the opened spans at any given timestamp
-// it keeps track of the active spans (opened, and with no children) at any given timestamp
-// in order to know when a span has no more children, it keeps track of the number of children for each span at any given timestamp
+// Step 2: Go through all the ordered timestamps (start and ends of each span) in the trace
+// Keep track of which are the opened spans at any given timestamp
+// Keep track of the active spans (opened, and with no children) at any given timestamp
+// in order to know when a span has no more children, Keep track of the number of children for each span at any given timestamp
 // for each period between two timestamps, it knows which were the active spans. And it increases the exec duration for them by
 // (interval duration / nActiveSpans)
 //
