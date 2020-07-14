@@ -93,7 +93,7 @@ type Config struct {
 	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
 	OffsetGuessThreshold uint64
 
-	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
+	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
 }
 

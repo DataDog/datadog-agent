@@ -75,9 +75,7 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 		tracerConfig.OffsetGuessThreshold = th
 	}
 
-	if cfg.Windows.EnableMonotonicCount {
-		tracerConfig.EnableMonotonicCount = true
-	}
+	tracerConfig.EnableMonotonicCount = cfg.Windows.EnableMonotonicCount
 
 	return tracerConfig
 }
