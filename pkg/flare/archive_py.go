@@ -17,7 +17,7 @@ import (
 )
 
 func writePyHeapProfile(tempDir, hostname string) error {
-	if python.GetRtLoader() == nil {
+	if !rtLoaderEnabled() {
 		return fmt.Errorf("rtloader is not initialized")
 	}
 
@@ -28,7 +28,7 @@ func writePyHeapProfile(tempDir, hostname string) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	f := filepath.Join(tempDir, hostname, "profile", "python", "heap.json")
+	f := filepath.Join(tempDir, hostname, "profile", "py_heap.json")
 	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
@@ -50,4 +50,8 @@ func writePyHeapProfile(tempDir, hostname string) error {
 		return err
 	}
 	return nil
+}
+
+func rtLoaderEnabled() bool {
+	return python.GetRtLoader()
 }
