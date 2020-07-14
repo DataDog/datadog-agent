@@ -38,6 +38,12 @@ var subservices = []Servicedef{
 		configKey:   "process_config.enabled",
 		serviceName: "datadog-process-agent",
 		serviceInit: processInit,
+	},
+	{
+		name:        "sysprobe",
+		configKey:   "system_probe_config.enabled",
+		serviceName: "datadog-system-probe",
+		serviceInit: sysprobeInit,
 	}}
 
 func apmInit() error {
@@ -47,6 +53,10 @@ func apmInit() error {
 }
 
 func processInit() error {
+	return nil
+}
+
+func sysprobeInit() error {
 	return nil
 }
 

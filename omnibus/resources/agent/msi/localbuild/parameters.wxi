@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Include>
-  <?define VersionNumber="7.18.0.1" ?>
-  <?define DisplayVersionNumber="7.18.0" ?>
+  <?define VersionNumber="7.20.0.1" ?>
+  <?define DisplayVersionNumber="7.20.0" ?>
   <?define UpgradeCode="0c50421b-aefb-4f15-a809-7af256d608a5" ?>
   <?define InstallDir="C:/opt/datadog-agent" ?>
   <?define InstallFiles="C:/omnibus-ruby/src/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files" ?>
@@ -11,4 +11,5 @@
   <?define IncludePython2= "false" ?>
   <?define IncludePython3= "true" ?>
   <?define Platform= "x64" ?>
+  <?define IncludeSysprobe="true" ?>
 </Include>
