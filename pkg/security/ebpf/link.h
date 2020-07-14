@@ -38,6 +38,10 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
+    // In a container, vfs_link can be called multiple times to handle the different layers of the overlay filesystem.
+    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
+    if (syscall->link.target_dentry)
+        return 0;
 
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
     syscall->link.target_dentry = (struct dentry *)PT_REGS_PARM3(ctx);
@@ -46,7 +50,6 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     // target_path was set by kprobe/filename_create before we reach this point.
     syscall->link.src_key = get_key(dentry, syscall->link.target_path);
     syscall->link.target_key = get_key(syscall->link.target_dentry, syscall->link.target_path);
-
 
     resolve_dentry(dentry, syscall->link.src_key);
     return 0;
