@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
-
 	"golang.org/x/sys/windows"
 )
 
@@ -60,7 +59,7 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 type DriverInterface struct {
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
-	config          *ebpf.Config
+	config            *ebpf.Config
 
 	path       string
 	totalFlows int64
@@ -69,7 +68,7 @@ type DriverInterface struct {
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface(config *ebpf.Config) (*DriverInterface, error) {
 	dc := &DriverInterface{
-		path: deviceName,
+		path:   deviceName,
 		config: config,
 	}
 
