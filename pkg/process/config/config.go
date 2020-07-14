@@ -45,7 +45,7 @@ type WindowsConfig struct {
 
 	//System Probe Configuration
 
-	// EnableMonotonicCount will have us count bytes in retransmits and header values
+	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
 }
 
