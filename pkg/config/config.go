@@ -128,11 +128,11 @@ func init() {
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	initConfig(Datadog)
+	InitConfig(Datadog)
 }
 
-// initConfig initializes the config defaults on a config
-func initConfig(config Config) {
+// InitConfig initializes the config defaults on a config
+func InitConfig(config Config) {
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site")   //nolint:errcheck
@@ -473,6 +473,10 @@ func initConfig(config Config) {
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
 
+	// Profiling
+	config.BindEnvAndSetDefault("profiling.enabled", false)
+	config.BindEnv("profiling.profile_dd_url", "") //nolint:errcheck
+
 	// Trace agent
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
 	// since some of them require custom parsing algorithms. DO NOT add environment variable
@@ -670,6 +674,8 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.dns_timeout_in_s")
 	config.SetKnown("system_probe_config.collect_dns_stats")
 	config.SetKnown("system_probe_config.offset_guess_threshold")
+	config.SetKnown("system_probe_config.enable_tcp_queue_length")
+	config.SetKnown("system_probe_config.enable_oom_kill")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck

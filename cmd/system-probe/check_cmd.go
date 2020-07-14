@@ -1,3 +1,5 @@
+// +build linux windows
+
 package main
 
 import (
@@ -16,6 +18,7 @@ import (
 )
 
 var (
+	//nolint:unused
 	checkEndpoints = map[string]string{
 		"network_maps":  "http://unix/debug/net_maps",
 		"stats":         "http://unix/debug/stats",
@@ -24,6 +27,7 @@ var (
 	}
 )
 
+//nolint:deadcode,unused
 func querySocketEndpoint(cfg *config.AgentConfig, check string, client string) error {
 	if cfg.SystemProbeAddress == "" {
 		return errors.New("no sysprobe_socket has been specified in system-probe.yaml")

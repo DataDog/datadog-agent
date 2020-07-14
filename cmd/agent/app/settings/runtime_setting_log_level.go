@@ -17,6 +17,10 @@ func (l logLevelRuntimeSetting) Description() string {
 	return "Set/get the log level, valid values are: trace, debug, info, warn, error, critical and off"
 }
 
+func (l logLevelRuntimeSetting) Hidden() bool {
+	return false
+}
+
 func (l logLevelRuntimeSetting) Name() string {
 	return string(l)
 }

@@ -31,7 +31,9 @@ file:
 const testResourceFilePathFromCommand = `
 file:
   pathFrom:
-  - command: systemctl show -p FragmentPath docker.service
+  - command:
+      shell:
+        run: systemctl show -p FragmentPath docker.service
   report:
   - property: owner
     kind: attribute
@@ -76,7 +78,9 @@ audit:
 const testResourceAuditPathFromCommand = `
 audit:
   pathFrom:
-  - command: systemctl show -p FragmentPath docker.socket
+  - command:
+      shell:
+        run: systemctl show -p FragmentPath docker.socket
   report:
   - property: enabled
     kind: attribute
@@ -151,7 +155,11 @@ func TestResources(t *testing.T) {
 				File: &File{
 					PathFrom: ValueFrom{
 						{
-							Command: `systemctl show -p FragmentPath docker.service`,
+							Command: &ValueFromCommand{
+								ShellCmd: &ShellCmd{
+									Run: `systemctl show -p FragmentPath docker.service`,
+								},
+							},
 						},
 					},
 					Report: Report{
@@ -241,7 +249,11 @@ func TestResources(t *testing.T) {
 				Audit: &Audit{
 					PathFrom: ValueFrom{
 						{
-							Command: `systemctl show -p FragmentPath docker.socket`,
+							Command: &ValueFromCommand{
+								ShellCmd: &ShellCmd{
+									Run: `systemctl show -p FragmentPath docker.socket`,
+								},
+							},
 						},
 					},
 					Report: Report{

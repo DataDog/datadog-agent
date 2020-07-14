@@ -13,7 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .utils import get_build_flags
-from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
+from .go import fmt, lint, vet, misspell, ineffassign, staticcheck, lint_licenses, golangci_lint, generate
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
@@ -111,6 +111,7 @@ def test(
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
         ineffassign(ctx, targets=tool_targets)
+        staticcheck(ctx, targets=tool_targets)
 
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
@@ -209,11 +210,13 @@ def lint_teamassignment(ctx):
 
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
-        if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
-            print("Team Assignment: %s" % l['name'])  # noqa: F821
-            return
 
-        print("PR %s requires team assignment" % pr_url)
+        for label in issue.get('labels', {}):
+            if re.match('team/', label['name']):
+                print("Team Assignment: {}".format(label['name']))
+                return
+
+        print("PR {} requires team assignment".format(pr_url))
         raise Exit(code=1)
 
     # The PR has not been created yet

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
@@ -17,24 +18,30 @@ import (
 )
 
 type processFixture struct {
-	name      string
-	check     processCheck
+	name    string
+	process *compliance.Process
+
 	processes map[int32]*process.FilledProcess
-	expKV     compliance.KVMap
+	expKV     event.Data
 	expError  error
 }
 
 func (f *processFixture) run(t *testing.T) {
 	t.Helper()
 
-	reporter := f.check.reporter.(*mocks.Reporter)
 	cache.Cache.Delete(processCacheKey)
-	processFetcherFunc = func() (map[int32]*process.FilledProcess, error) {
+	processFetcher = func() (map[int32]*process.FilledProcess, error) {
 		return f.processes, nil
 	}
 
-	expectedCalls := 0
+	reporter := &mocks.Reporter{}
+	defer reporter.AssertExpectations(t)
+
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+
 	if f.expKV != nil {
+		env.On("Reporter").Return(reporter)
 		reporter.On(
 			"Report",
 			newTestRuleEvent(
@@ -42,11 +49,12 @@ func (f *processFixture) run(t *testing.T) {
 				f.expKV,
 			),
 		).Once()
-		expectedCalls = 1
 	}
 
-	err := f.check.Run()
-	reporter.AssertNumberOfCalls(t, "Report", expectedCalls)
+	check, err := newProcessCheck(newTestBaseCheck(env, checkKindProcess), f.process)
+	assert.NoError(t, err)
+
+	err = check.Run()
 	assert.Equal(t, f.expError, err)
 }
 
@@ -54,16 +62,13 @@ func TestProcessCheck(t *testing.T) {
 	tests := []processFixture{
 		{
 			name: "Simple case",
-			check: processCheck{
-				baseCheck: newTestBaseCheck(&mocks.Reporter{}, checkKindProcess),
-				process: &compliance.Process{
-					Name: "proc1",
-					Report: compliance.Report{
-						{
-							Kind:     "flag",
-							Property: "--path",
-							As:       "path",
-						},
+			process: &compliance.Process{
+				Name: "proc1",
+				Report: compliance.Report{
+					{
+						Kind:     "flag",
+						Property: "--path",
+						As:       "path",
 					},
 				},
 			},
@@ -73,22 +78,19 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--path=foo"},
 				},
 			},
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"path": "foo",
 			},
 		},
 		{
 			name: "Process not found",
-			check: processCheck{
-				baseCheck: newTestBaseCheck(&mocks.Reporter{}, checkKindProcess),
-				process: &compliance.Process{
-					Name: "proc1",
-					Report: compliance.Report{
-						{
-							Kind:     "flag",
-							Property: "--path",
-							As:       "path",
-						},
+			process: &compliance.Process{
+				Name: "proc1",
+				Report: compliance.Report{
+					{
+						Kind:     "flag",
+						Property: "--path",
+						As:       "path",
 					},
 				},
 			},
@@ -106,16 +108,13 @@ func TestProcessCheck(t *testing.T) {
 		},
 		{
 			name: "Argument not found",
-			check: processCheck{
-				baseCheck: newTestBaseCheck(&mocks.Reporter{}, checkKindProcess),
-				process: &compliance.Process{
-					Name: "proc1",
-					Report: compliance.Report{
-						{
-							Kind:     "flag",
-							Property: "--path",
-							As:       "path",
-						},
+			process: &compliance.Process{
+				Name: "proc1",
+				Report: compliance.Report{
+					{
+						Kind:     "flag",
+						Property: "--path",
+						As:       "path",
 					},
 				},
 			},
@@ -129,17 +128,14 @@ func TestProcessCheck(t *testing.T) {
 		},
 		{
 			name: "Override returned value",
-			check: processCheck{
-				baseCheck: newTestBaseCheck(&mocks.Reporter{}, checkKindProcess),
-				process: &compliance.Process{
-					Name: "proc1",
-					Report: compliance.Report{
-						{
-							Kind:     "flag",
-							Property: "--verbose",
-							As:       "verbose",
-							Value:    "true",
-						},
+			process: &compliance.Process{
+				Name: "proc1",
+				Report: compliance.Report{
+					{
+						Kind:     "flag",
+						Property: "--verbose",
+						As:       "verbose",
+						Value:    "true",
 					},
 				},
 			},
@@ -149,7 +145,7 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--verbose"},
 				},
 			},
-			expKV: compliance.KVMap{
+			expKV: event.Data{
 				"verbose": "true",
 			},
 		},

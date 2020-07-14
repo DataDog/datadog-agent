@@ -187,9 +187,8 @@ if windows?
   if ENV['WINDOWS_DDFILTER_DRIVER'] and not ENV['WINDOWS_DDFILTER_DRIVER'].empty?
     dependency 'datadog-windows-filter-driver'
   end
-else
-  dependency 'cacerts'
-end
+# Bundled cacerts file (is this a good idea?)
+dependency 'cacerts'
 
 if osx?
   dependency 'datadog-agent-mac-app'

@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	compliance "github.com/DataDog/datadog-agent/pkg/compliance"
+	event "github.com/DataDog/datadog-agent/pkg/compliance/event"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -12,7 +12,7 @@ type Reporter struct {
 	mock.Mock
 }
 
-// Report provides a mock function with given fields: event
-func (_m *Reporter) Report(event *compliance.RuleEvent) {
-	_m.Called(event)
+// Report provides a mock function with given fields: _a0
+func (_m *Reporter) Report(_a0 *event.Event) {
+	_m.Called(_a0)
 }

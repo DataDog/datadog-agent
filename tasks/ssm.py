@@ -12,7 +12,15 @@ ssm_param_pfx_part2 = "keygen.dd_win_agent_codesign.pfx_b64_1"
 
 def get_value_of_param(ctx, param):
     full_command = ssm_command.format(param)
-    result = ctx.run(full_command, hide='stdout')
+    # With default values, we can get "Connect timeout on endpoint" errors.
+    # AWS suggests increasing timeout values when fetching credentials on
+    # an EC2 instance configured with an IAM role.
+    # See: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
+    env = {
+        "AWS_METADATA_SERVICE_TIMEOUT": "5",  # 5 seconds instead of 1 by default
+        "AWS_METADATA_SERVICE_NUM_ATTEMPTS": "5",  # 5 attempts instead of 1 by default
+    }
+    result = ctx.run(full_command, env=env, hide='stdout')
     # if there's an exception, just let it pass through
 
     if not result.ok:

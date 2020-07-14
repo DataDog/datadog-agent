@@ -18,13 +18,12 @@ import (
 
 func setupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	InitConfig(conf)
 	return conf
 }
 
 func setupConfFromYAML(yamlConfig string) Config {
-	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	conf := setupConf()
 	conf.SetConfigType("yaml")
 	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	if e != nil {
