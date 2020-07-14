@@ -9,6 +9,7 @@ package flare
 
 import (
 	"archive/zip"
+	"log"
 	"os"
 	"testing"
 
@@ -38,6 +39,8 @@ func TestPyHeapProfile(t *testing.T) {
 		if f.Name == "profile" {
 			dir, err := f.Open()
 			assert.Nil(err)
+			log.Print(dir)
+			assert.NotNil(dir)
 		}
 	}
 	assert.True(ok, "a profile directory should have been appended to the zip")
