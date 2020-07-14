@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	_ "net/http/pprof"
@@ -29,6 +28,7 @@ var opts struct {
 	checkCmd    *flag.FlagSet
 	checkType   string
 	checkClient string
+	console     bool // windows only; execute on console rather than via SCM
 }
 
 // Version info sourced from build flags
@@ -42,7 +42,7 @@ var (
 
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
-func runAgent() {
+func runAgent(exit <-chan struct{}) {
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
@@ -101,10 +101,7 @@ func runAgent() {
 	go sysprobe.Run()
 	log.Infof("system probe successfully started")
 
-	// Handles signals, which tells us whether we should exit.
-	e := make(chan struct{})
-	go util.HandleSignals(e)
-	<-e
+	<-exit
 }
 
 func gracefulExit() {
