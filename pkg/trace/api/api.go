@@ -63,6 +63,12 @@ const (
 	// Traces: msgpack/JSON (Content-Type) slice of traces + returns service sampling ratios
 	// Services: deprecated
 	v04 Version = "v0.4"
+	// v05
+	// Traces: msgpack (Content-Type) slice of traces + returns service sampling ratios
+	// Spans are encoded as a 12-element array containing only the values for each field, in this exact order:
+	//   [ Service, Name, Resource, TraceID, SpanID, ParentID, Start, Duration, Error, Meta, Metrics, Type ]
+	// Empty fields will be nil.
+	v05 Version = "v0.5"
 )
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
@@ -120,6 +126,7 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
 	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	timeout := 5 * time.Second
@@ -329,19 +336,27 @@ func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
 	})
 }
 
-func (r *HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
-	if v == v01 {
+func (*HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+	switch v {
+	case v01:
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, err
 		}
 		return tracesFromSpans(spans), nil
+	case v05:
+		var traces pb.Traces
+		rd := pb.NewMsgpReader(req.Body)
+		err := traces.DecodeMsgArray(rd)
+		pb.FreeMsgpReader(rd)
+		return traces, err
+	default:
+		var traces pb.Traces
+		if err := decodeRequest(req, &traces); err != nil {
+			return nil, err
+		}
+		return traces, nil
 	}
-	var traces pb.Traces
-	if err := decodeRequest(req, &traces); err != nil {
-		return nil, err
-	}
-	return traces, nil
 }
 
 func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
