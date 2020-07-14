@@ -6,7 +6,6 @@
 package stats
 
 import (
-	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -90,16 +89,14 @@ func (c *Concentrator) Run() {
 
 	log.Debug("Starting concentrator")
 
-	for i := 0; i < runtime.NumCPU(); i++ {
-		go func() {
-			for {
-				select {
-				case i := <-c.In:
-					c.addNow(i, time.Now().UnixNano())
-				}
+	go func() {
+		for {
+			select {
+			case i := <-c.In:
+				c.addNow(i, time.Now().UnixNano())
 			}
-		}()
-	}
+		}
+	}()
 	for {
 		select {
 		case <-flushTicker.C:
