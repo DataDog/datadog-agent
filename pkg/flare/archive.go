@@ -248,9 +248,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip install_info: %s", err)
 	}
 
-	err = zipPerformanceProfile(tempDir, hostname)
-	if err != nil {
-		log.Errorf("Could not collect performance profile: %s", err)
+	if profile {
+		err = zipPerformanceProfile(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not collect performance profile: %s", err)
+		}
 	}
 
 	// gets files infos and write the permissions.log file
