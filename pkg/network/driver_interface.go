@@ -14,7 +14,6 @@ import "C"
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"net"
 	"sync/atomic"
 	"unsafe"
