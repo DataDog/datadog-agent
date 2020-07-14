@@ -56,10 +56,9 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 
 // DriverInterface holds all necessary information for interacting with the windows driver
 type DriverInterface struct {
-	driverFlowHandle  *DriverHandle
-	driverStatsHandle *DriverHandle
+	driverFlowHandle      *DriverHandle
+	driverStatsHandle     *DriverHandle
 	enableMonotonicCounts bool
-
 
 	path       string
 	totalFlows int64
@@ -68,7 +67,7 @@ type DriverInterface struct {
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
 	dc := &DriverInterface{
-		path:   deviceName,
+		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
 	}
 
