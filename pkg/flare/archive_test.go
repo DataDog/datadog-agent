@@ -32,8 +32,7 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
-	opts := InitOptions(true, false)
-	filePath, err := createArchive(zipFilePath, opts, SearchPaths{}, "")
+	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -54,11 +53,10 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	pprofURL = ts.URL
+	goroutinePprofURL = ts.URL
 
 	zipFilePath := getArchivePath()
-	opts := InitOptions(true, false)
-	filePath, err := createArchive(zipFilePath, opts, SearchPaths{}, "")
+	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -102,8 +100,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
 	zipFilePath := getArchivePath()
-	opts := InitOptions(true, false)
-	filePath, err := createArchive(zipFilePath, opts, SearchPaths{}, "")
+	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -157,8 +154,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	zipFilePath := getArchivePath()
-	opts := InitOptions(true, false)
-	filePath, err := createArchive(zipFilePath, opts, SearchPaths{"": "./test/confd"}, "")
+	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
 
@@ -186,8 +182,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 
 	common.SetupConfig("./test")
 	zipFilePath := getArchivePath()
-	opts := InitOptions(true, false)
-	filePath, err := createArchive(zipFilePath, opts, SearchPaths{"": "./test/confd"}, "")
+	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
 
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)

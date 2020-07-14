@@ -150,9 +150,8 @@ func requestArchive(logFile string) (string, error) {
 
 func createArchive(logFile string) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	opts := flare.InitOptions(forceLocal, enableProfiling)
-
-	filePath, e := flare.CreateArchive(opts, common.GetDistPath(), common.PyChecksPath, logFile)
+	flare.SetProfiling(enableProfiling)
+	filePath, e := flare.CreateArchive(forceLocal, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 		return "", e

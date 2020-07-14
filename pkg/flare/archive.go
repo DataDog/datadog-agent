@@ -20,10 +20,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime/pprof"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -48,9 +46,13 @@ const (
 )
 
 var (
-	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
+	goroutinePprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
 		config.Datadog.GetString("expvar_port"))
 	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
+		config.Datadog.GetString("expvar_port"))
+	cpuPprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=120",
+		config.Datadog.GetString("expvar_port"))
+	heapPprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap",
 		config.Datadog.GetString("expvar_port"))
 
 	// Match .yaml and .yml to ship configuration files in the flare.
@@ -71,8 +73,7 @@ var (
 		},
 	}
 
-	// Mutex for performance profiling, because it may clash with other profiling if it's configured.
-	mu sync.Mutex
+	profile = false
 )
 
 // SearchPaths is just an alias for a map of strings
@@ -89,32 +90,23 @@ type filePermsInfo struct {
 	group string
 }
 
-// Options are the options when creating a flare through the CLI.
-type Options struct {
-	local   bool
-	profile bool
-}
-
-// InitOptions initializes a new flare options struct.
-func InitOptions(forceLocal bool, enableProfiling bool) *Options {
-	return &Options{
-		local:   forceLocal,
-		profile: enableProfiling,
-	}
+// SetProfiling enables or disables CPU and HEAP profiling during flare.
+func SetProfiling(enableProfiling bool) {
+	profile = enableProfiling
 }
 
 // CreateArchive packages up the files
-func CreateArchive(opts *Options, distPath, pyChecksPath, logFilePath string) (string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(zipFilePath, opts, confSearchPaths, logFilePath)
+	return createArchive(zipFilePath, local, confSearchPaths, logFilePath)
 }
 
-func createArchive(zipFilePath string, opts *Options, confSearchPaths SearchPaths, logFilePath string) (string, error) {
+func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -132,7 +124,7 @@ func createArchive(zipFilePath string, opts *Options, confSearchPaths SearchPath
 
 	permsInfos := make(permissionsInfos)
 
-	if opts.local {
+	if local {
 		err = writeLocal(tempDir, hostname)
 		if err != nil {
 			return "", err
@@ -256,6 +248,11 @@ func createArchive(zipFilePath string, opts *Options, confSearchPaths SearchPath
 		log.Errorf("Could not zip install_info: %s", err)
 	}
 
+	err = zipPerformanceProfile(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not collect performance profile: %s", err)
+	}
+
 	// gets files infos and write the permissions.log file
 	if err := permsInfos.commit(tempDir, hostname, os.ModePerm); err != nil {
 		log.Errorf("Could not write permissions.log file: %s", err)
@@ -266,14 +263,27 @@ func createArchive(zipFilePath string, opts *Options, confSearchPaths SearchPath
 		return "", err
 	}
 
-	if opts.profile {
-		err = zipPerformanceProfiles(tempDir, hostname)
-		if err != nil {
-			log.Errorf("Could not zip performance profile data: %s", err)
-		}
+	return zipFilePath, nil
+}
+
+func zipPerformanceProfile(tempDir, hostname string) error {
+	// Two heap profiles for diff
+	err := zipHTTPCallContent(tempDir, hostname, "heap.profile", heapPprofURL)
+	if err != nil {
+		return err
 	}
 
-	return zipFilePath, nil
+	err = zipHTTPCallContent(tempDir, hostname, "cpu.profile", cpuPprofURL)
+	if err != nil {
+		return err
+	}
+
+	err = zipHTTPCallContent(tempDir, hostname, "heap.profile", heapPprofURL)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func createTempDir() (string, error) {
@@ -303,7 +313,7 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -388,7 +398,7 @@ func zipExpVar(tempDir, hostname string) error {
 				return err
 			}
 
-			w, err := newRedactingWriter(f)
+			w, err := newRedactingWriter(f, os.ModePerm, true)
 			if err != nil {
 				return err
 			}
@@ -416,7 +426,7 @@ func zipExpVar(tempDir, hostname string) error {
 		apmPort = v
 	}
 	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -450,7 +460,7 @@ func zipExpVar(tempDir, hostname string) error {
 func zipSystemProbeStats(tempDir, hostname string) error {
 	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
-	sysProbeWriter, err := newRedactingWriter(sysProbeFile)
+	sysProbeWriter, err := newRedactingWriter(sysProbeFile, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -476,7 +486,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		return err
 	}
 
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -527,7 +537,7 @@ func zipSecrets(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -553,7 +563,7 @@ func zipDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -604,7 +614,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -624,7 +634,7 @@ func zipTaggerList(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -676,7 +686,7 @@ func zipHealth(tempDir, hostname string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -715,7 +725,7 @@ func zipTelemetry(tempDir, hostname string) error {
 }
 
 func zipStackTraces(tempDir, hostname string) error {
-	return zipHTTPCallContent(tempDir, hostname, routineDumpFilename, pprofURL)
+	return zipHTTPCallContent(tempDir, hostname, routineDumpFilename, goroutinePprofURL)
 }
 
 // zipHTTPCallContent does a GET HTTP call to the given url and
@@ -743,7 +753,7 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 		return err
 	}
 
-	w, err := newRedactingWriter(f)
+	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
@@ -752,84 +762,6 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	_, err = io.Copy(w, resp.Body)
 
 	return err
-}
-
-func zipPerformanceProfiles(tempDir, hostname string) error {
-	// Taking two Heap profiles for diff
-
-	if err := writeHeapProfile(tempDir, hostname); err != nil {
-		return err
-	}
-
-	if rtLoaderEnabled() && config.Datadog.GetBool("memtrack_enabled") {
-		err := writePyHeapProfile(tempDir, hostname)
-		log.Warnf("Error getting first sample of python stats: %s\n", err)
-	}
-
-	if err := writeCPUProfile(tempDir, hostname); err != nil {
-		return err
-	}
-
-	if err := writeHeapProfile(tempDir, hostname); err != nil {
-		return err
-	}
-
-	if rtLoaderEnabled() && config.Datadog.GetBool("memtrack_enabled") {
-		err := writePyHeapProfile(tempDir, hostname)
-		log.Warnf("Error getting first sample of python stats: %s\n", err)
-	}
-
-	return nil
-}
-
-func writeCPUProfile(tempDir, hostname string) error {
-	// Acquire lock so no one else does CPU profile
-	//mu.Lock()
-	//defer mu.Unlock()
-
-	f := filepath.Join(tempDir, hostname, "profile", "cpu.prof")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	w, err := newRedactingWriter(f)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	if err := pprof.StartCPUProfile(w); err != nil {
-		return err
-	}
-	time.Sleep(120 * time.Second)
-	pprof.StopCPUProfile()
-
-	return nil
-}
-
-func writeHeapProfile(tempDir, hostname string) error {
-	// Acquire lock so no one else does Heap Profile
-	//mu.Lock()
-	//defer mu.Unlock()
-
-	f := filepath.Join(tempDir, hostname, "profile", "heap.prof")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	w, err := newRedactingWriter(f)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	if err := pprof.WriteHeapProfile(w); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
@@ -858,7 +790,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					return err
 				}
 
-				w, err := newRedactingWriter(f)
+				w, err := newRedactingWriter(f, os.ModePerm, true)
 				if err != nil {
 					return err
 				}
@@ -893,7 +825,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 	return nil
 }
 
-func newRedactingWriter(f string) (*RedactingWriter, error) {
+func newRedactingWriter(f string, p os.FileMode, buffered bool) (*RedactingWriter, error) {
 	w, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return nil, err
@@ -951,7 +883,7 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 			return err
 		}
 
-		w, err := newRedactingWriter(f)
+		w, err := newRedactingWriter(f, os.ModePerm, true)
 		if err != nil {
 			return err
 		}
