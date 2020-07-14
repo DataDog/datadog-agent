@@ -784,8 +784,8 @@ func zipPerformanceProfiles(tempDir, hostname string) error {
 
 func writeCPUProfile(tempDir, hostname string) error {
 	// Acquire lock so no one else does CPU profile
-	mu.Lock()
-	defer mu.Unlock()
+	//mu.Lock()
+	//defer mu.Unlock()
 
 	f := filepath.Join(tempDir, hostname, "profile", "cpu.prof")
 	err := ensureParentDirsExist(f)
@@ -810,8 +810,8 @@ func writeCPUProfile(tempDir, hostname string) error {
 
 func writeHeapProfile(tempDir, hostname string) error {
 	// Acquire lock so no one else does Heap Profile
-	mu.Lock()
-	defer mu.Unlock()
+	//mu.Lock()
+	//defer mu.Unlock()
 
 	f := filepath.Join(tempDir, hostname, "profile", "heap.prof")
 	err := ensureParentDirsExist(f)
