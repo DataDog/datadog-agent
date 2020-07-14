@@ -53,5 +53,9 @@ func writePyHeapProfile(tempDir, hostname string) error {
 }
 
 func rtLoaderEnabled() bool {
-	return python.GetRtLoader()
+	if python.GetRtLoader() == nil {
+		return false
+	}
+
+	return true
 }
