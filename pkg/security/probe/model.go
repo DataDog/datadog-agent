@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os/user"
 	"path"
 	"regexp"
@@ -740,7 +739,6 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 36 {
 		return 0, NotEnoughData
 	}
-	log.Debugf("%d", data)
 	e.SrcMountID = byteOrder.Uint32(data[0:4])
 	// padding
 	e.SrcInode = byteOrder.Uint64(data[8:16])
