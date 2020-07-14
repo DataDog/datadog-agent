@@ -59,17 +59,18 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 type DriverInterface struct {
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
-	config            *ebpf.Config
+	enableMonotonicCounts bool
+
 
 	path       string
 	totalFlows int64
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(config *ebpf.Config) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:   deviceName,
-		config: config,
+		enableMonotonicCounts: enableMonotonicCounts,
 	}
 
 	err := dc.setupFlowHandle()
@@ -209,9 +210,9 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 			if isFlowClosed(pfd.flags) {
 				// Closed Connection
-				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd, di.config.EnableMonotonicCount))
+				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd, di.enableMonotonicCounts))
 			} else {
-				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.config.EnableMonotonicCount))
+				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.enableMonotonicCount))
 			}
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
