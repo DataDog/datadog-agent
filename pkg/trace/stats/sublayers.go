@@ -241,7 +241,7 @@ func (c *SublayerCalculator) computeExecDurations(nSpans int) {
 //
 // Step 1: Find all time intervals to consider (set of start/end time
 //         of spans). For each timestamp, store the spanIdx, parentIdx and if it's the start or end of a span.
-// if the parent span is not in the trace, parent idx is set to len(trace)
+// if the parent span is not in the trace, parent idx is set to unknownSpan
 //
 //         [(0, span start, span idx 0, parent idx 7), (10, span start, span idx 1, parent idx 0), ...
 //             (150, span end, span idx 6, parent idx 5)]
