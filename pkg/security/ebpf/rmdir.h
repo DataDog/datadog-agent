@@ -25,16 +25,36 @@ int kprobe__vfs_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
-    // In a container, vfs_rmdir can be called multiple times to handle the different layers of the overlay filesystem.
-    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-    if (syscall->rmdir.path_key.ino)
-        return 0;
+    struct path_key_t key = {};
+    struct dentry *dentry = NULL;
+    if (syscall->type == EVENT_RMDIR) {
+        // In a container, vfs_rmdir can be called multiple times to handle the different layers of the overlay filesystem.
+        // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
+        if (syscall->rmdir.path_key.ino)
+            return 0;
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    syscall->rmdir.path_key.ino = get_dentry_ino(dentry);
-    syscall->rmdir.overlay_numlower = get_overlay_numlower(dentry);
-    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    resolve_dentry(dentry, syscall->rmdir.path_key);
+        dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+        syscall->rmdir.path_key.ino = get_dentry_ino(dentry);
+        syscall->rmdir.overlay_numlower = get_overlay_numlower(dentry);
+        // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+        key = syscall->rmdir.path_key;
+    }
+    if (syscall->type == EVENT_UNLINK) {
+        // In a container, vfs_unlink can be called multiple times to handle the different layers of the overlay filesystem.
+        // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
+        if (syscall->unlink.path_key.ino)
+            return 0;
+
+        // we resolve all the information before the file is actually removed
+        dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+        syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
+        syscall->unlink.path_key.ino = get_dentry_ino(dentry);
+        // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+        key = syscall->unlink.path_key;
+    }
+    if (dentry != NULL) {
+        resolve_dentry(dentry, key);
+    }
 
     return 0;
 }
