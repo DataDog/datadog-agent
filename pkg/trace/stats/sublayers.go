@@ -18,7 +18,7 @@ const (
 	defaultSublayersCalculatorMaxSpans = 10000
 	// unknownSpan represents a span that is not in the trace
 	unknownSpan = -1
-	// inactiveSpan is when a span is not active (opened and with no direct opened children, see ComputeSublayers)
+	// inactiveSpan is when a span is not active (open and with no direct open children, see ComputeSublayers)
 	inactiveSpan = -1
 )
 
@@ -48,7 +48,7 @@ func (v SublayerValue) GoString() string {
 type SublayerCalculator struct {
 	activeSpans      []int
 	activeSpansIndex []int
-	openedSpans      []bool
+	openSpans        []bool
 	nChildren        []int
 	execDuration     []float64
 	parentIdx        []int
@@ -69,7 +69,7 @@ func (c *SublayerCalculator) initFields(maxSpans int) {
 	c.maxSpans = maxSpans
 	c.activeSpans=      make([]int, maxSpans)
 	c.activeSpansIndex= make([]int, maxSpans)
-	c.openedSpans=      make([]bool, maxSpans)
+	c.openSpans =      make([]bool, maxSpans)
 	c.nChildren=        make([]int, maxSpans)
 	c.execDuration =          make([]float64, maxSpans)
 	c.parentIdx=        make([]int, maxSpans)
@@ -85,7 +85,7 @@ func (c *SublayerCalculator) reset(n int) {
 	for i := 0; i < n; i++ {
 		c.activeSpansIndex[i] = inactiveSpan
 		c.activeSpans[i] = 0
-		c.openedSpans[i] = false
+		c.openSpans[i] = false
 		c.nChildren[i] = 0
 		c.execDuration[i] = 0
 	}
@@ -144,16 +144,15 @@ func (c *SublayerCalculator) computeParentIdx(trace pb.Trace) {
 // Let's define a few terms to make the algorithm clearer.
 // For a given timestamp:
 //
-// Opened Span: The Span has started before this timestamp, and ends after this timestamp.
-// Closed Span: not(Opened Span)
-// Number of Children of a Span: At a given timestamp, number of direct children spans that are currently opened
-// Active Span: a Span is active at a given timestamp, if it is opened and if it has no opened children at the timestamp
+// Open Span: The Span has started before this timestamp, and ends after this timestamp.
+// Number of Children of a Span: At a given timestamp, number of direct children spans that are currently open
+// Active Span: a Span is active at a given timestamp, if it is open and if it has no open children at the timestamp
 // Exec duration: for each period where the span is active, its Exec Duration increases by deltaT/numberOfActiveSpans
 //     so if a span is active during 20ms, in parallel with an other span active at the same time, its exec duration will be 10ms
 //
 // The algorithm goes through all the timestamps of the trace. During this traversal, it needs to:
-// Keep track of which are the opened spans
-// Keep track of the active spans (opened, and with no direct opened children)
+// Keep track of which are the open spans
+// Keep track of the active spans (open, and with no direct open children)
 // Keep track of the number of children for each span at any given timestamp
 // For each period between two timestamps, it knows which were the active spans. And it increases the exec duration for them by
 // (interval duration / nActiveSpans)
@@ -202,16 +201,16 @@ func (c *SublayerCalculator) computeExecDurations(nSpans int) {
 				deactivate(tp.parentIdx)
 				c.nChildren[tp.parentIdx]++
 			}
-			c.openedSpans[tp.spanIdx] = true
+			c.openSpans[tp.spanIdx] = true
 			if c.nChildren[tp.spanIdx] == 0 {
 				activate(tp.spanIdx)
 			}
 		} else {
-			c.openedSpans[tp.spanIdx] = false
+			c.openSpans[tp.spanIdx] = false
 			deactivate(tp.spanIdx)
 			if tp.parentIdx != unknownSpan {
 				c.nChildren[tp.parentIdx]--
-				if c.openedSpans[tp.parentIdx] && c.nChildren[tp.parentIdx] == 0 {
+				if c.openSpans[tp.parentIdx] && c.nChildren[tp.parentIdx] == 0 {
 					activate(tp.parentIdx)
 				}
 			}
