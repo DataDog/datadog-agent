@@ -228,7 +228,7 @@ var AllHookPoints = []*HookPoint{
 		}},
 		EventTypes: map[string]Capabilities{
 			"mkdir": Capabilities{},
-			"link": Capabilities{},
+			"link":  Capabilities{},
 		},
 	},
 	{
@@ -251,7 +251,7 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/vfs_rmdir",
 		}},
 		EventTypes: map[string]Capabilities{
-			"rmdir": Capabilities{},
+			"rmdir":  Capabilities{},
 			"unlink": Capabilities{},
 		},
 	},
@@ -641,6 +641,7 @@ func (p *Probe) handleEvent(data []byte) {
 		}
 	default:
 		log.Errorf("Unsupported event type %d\n", eventType)
+		return
 	}
 
 	p.stats.PerEventType[eventType]++
