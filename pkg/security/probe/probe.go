@@ -252,6 +252,7 @@ var AllHookPoints = []*HookPoint{
 		}},
 		EventTypes: map[string]Capabilities{
 			"rmdir": Capabilities{},
+			"unlink": Capabilities{},
 		},
 	},
 	{

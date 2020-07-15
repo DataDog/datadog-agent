@@ -69,4 +69,27 @@ func TestUnlink(t *testing.T) {
 			t.Errorf("expected unlink event, got %s", event.GetType())
 		}
 	}
+
+	testDir, testDirPtr, err := test.Path("test-rmdir")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := syscall.Mkdir(testDir, 0777); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testDir)
+
+	if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
+		t.Fatal(err)
+	}
+
+	event, _, err = test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		if event.GetType() != "unlink" {
+			t.Errorf("expected unlink event, got %s", event.GetType())
+		}
+	}
 }
