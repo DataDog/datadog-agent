@@ -78,7 +78,6 @@ func TestUnlink(t *testing.T) {
 	if err := syscall.Mkdir(testDir, 0777); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(testDir)
 
 	if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
 		t.Fatal(err)
