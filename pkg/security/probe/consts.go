@@ -33,6 +33,8 @@ const (
 	FileMountEventType
 	// FileUmountEventType - Umount event
 	FileUmountEventType
+	// internalEventType - used internally to get the maximum number of event. Has to be the last one
+	maxEventType
 )
 
 func (t ProbeEventType) String() string {
