@@ -540,6 +540,15 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 			Field: field,
 		}, nil
 
+	case "unlink.flags":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Unlink.Flags) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Unlink.Flags) },
+
+			Field: field,
+		}, nil
+
 	case "unlink.inode":
 
 		return &eval.IntEvaluator{
@@ -834,6 +843,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Unlink.ResolveInode(e.resolvers), nil
 
+	case "unlink.flags":
+
+		return int(e.Unlink.Flags), nil
+
 	case "unlink.inode":
 
 		return int(e.Unlink.Inode), nil
@@ -1040,6 +1053,9 @@ func (e *Event) GetFieldTags(field eval.Field) ([]string, error) {
 	case "unlink.filename":
 		return []string{}, nil
 
+	case "unlink.flags":
+		return []string{}, nil
+
 	case "unlink.inode":
 		return []string{}, nil
 
@@ -1238,6 +1254,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "unlink", nil
 
 	case "unlink.filename":
+		return "unlink", nil
+
+	case "unlink.flags":
 		return "unlink", nil
 
 	case "unlink.inode":
@@ -1497,6 +1516,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "unlink.filename":
 
 		return reflect.String, nil
+
+	case "unlink.flags":
+
+		return reflect.Int, nil
 
 	case "unlink.inode":
 
@@ -1997,6 +2020,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Unlink.PathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
+		return nil
+
+	case "unlink.flags":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Unlink.Flags = uint32(v)
 		return nil
 
 	case "unlink.inode":

@@ -10,11 +10,16 @@ struct unlink_event_t {
     unsigned long inode;
     int mount_id;
     int overlay_numlower;
+    int flags;
+    int padding;
 };
 
-int trace__sys_unlink() {
+int trace__sys_unlink(int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
+        .unlink = {
+            .flags = flags,
+        }
     };
     cache_syscall(&syscall);
 
@@ -22,11 +27,19 @@ int trace__sys_unlink() {
 }
 
 SYSCALL_KPROBE(unlink) {
-    return trace__sys_unlink();
+    return trace__sys_unlink(0);
 }
 
 SYSCALL_KPROBE(unlinkat) {
-    return trace__sys_unlink();
+    int flags;
+#if USE_SYSCALL_WRAPPER
+    ctx = (struct pt_regs *) ctx->di;
+    bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
+#else
+    flags = (int) PT_REGS_PARM3(ctx);
+#endif
+
+    return trace__sys_unlink(flags);
 }
 
 SEC("kprobe/vfs_unlink")
@@ -65,6 +78,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         .mount_id = syscall->unlink.path_key.mount_id,
         .inode = syscall->unlink.path_key.ino,
         .overlay_numlower = syscall->unlink.overlay_numlower,
+        .flags = syscall->unlink.flags,
     };
 
     fill_process_data(&event.process);
