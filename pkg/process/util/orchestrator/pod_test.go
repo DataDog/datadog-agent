@@ -739,3 +739,15 @@ func TestGenerateUniqueStaticPodHash(t *testing.T) {
 
 	assert.Equal(t, uniqueHash, uniqueHashAgain)
 }
+
+func TestGenerateUniqueStaticPodHashHardCoded(t *testing.T) {
+	hostName := "agent-dev-tim"
+	podName := "nginxP"
+	namespace := "kube-system"
+	clusterName := "something"
+
+	uniqueHash := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
+	expectedHash := "b9d79449507ade06"
+
+	assert.Equal(t, uniqueHash, expectedHash)
+}
