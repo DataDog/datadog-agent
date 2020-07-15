@@ -92,16 +92,24 @@ var OpenHookPoints = []*HookPoint{
 			for field, values := range approvers {
 				switch field {
 				case "process.filename":
-					return handleProcessFilename(probe, true, stringValues(values)...)
+					if err := handleProcessFilename(probe, true, stringValues(values)...); err != nil {
+						return err
+					}
 
 				case "open.basename":
-					return handleBasenameFilters(probe, true, stringValues(values)...)
+					if err := handleBasenameFilters(probe, true, stringValues(values)...); err != nil {
+						return err
+					}
 
 				case "open.filename":
-					return handleFilenameFilters(probe, true, stringValues(values)...)
+					if err := handleFilenameFilters(probe, true, stringValues(values)...); err != nil {
+						return err
+					}
 
 				case "open.flags":
-					return handleFlagsFilters(probe, true, intValues(values)...)
+					if err := handleFlagsFilters(probe, true, intValues(values)...); err != nil {
+						return err
+					}
 
 				default:
 					return errors.New("field unknown")
