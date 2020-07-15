@@ -209,6 +209,11 @@ func handleFilenameFilters(probe *Probe, approve bool, values ...string) error {
 	}
 
 	for _, value := range values {
+		// do not use dentry error placeholder as filter
+		if value == DentryPathKeyNotFound {
+			continue
+		}
+
 		basename := path.Base(value)
 		if err := handleBasenameFilter(probe, approve, basename); err != nil {
 			return err
