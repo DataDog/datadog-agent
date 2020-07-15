@@ -112,7 +112,7 @@ func (a *Agent) Run() {
 }
 
 func (a *Agent) work() {
-	sublayerCalculator := stats.NewSublayersCalculator()
+	sublayerCalculator := stats.NewSublayerCalculator()
 	for {
 		select {
 		case t, ok := <-a.In:
