@@ -67,13 +67,13 @@ func NewSublayerCalculator() *SublayerCalculator {
 // it should be called every time we receive a trace with more than maxSpans spans
 func (c *SublayerCalculator) initFields(maxSpans int) {
 	c.maxSpans = maxSpans
-	c.activeSpans=      make([]int, maxSpans)
-	c.activeSpansIndex= make([]int, maxSpans)
-	c.openSpans =      make([]bool, maxSpans)
-	c.nChildren=        make([]int, maxSpans)
-	c.execDuration =          make([]float64, maxSpans)
-	c.parentIdx=        make([]int, maxSpans)
-	c.timestamps=       make(timestampArray, 2*maxSpans)
+	c.activeSpans = make([]int, maxSpans)
+	c.activeSpansIndex = make([]int, maxSpans)
+	c.openSpans = make([]bool, maxSpans)
+	c.nChildren = make([]int, maxSpans)
+	c.execDuration = make([]float64, maxSpans)
+	c.parentIdx = make([]int, maxSpans)
+	c.timestamps = make(timestampArray, 2*maxSpans)
 }
 
 // reset initializes structures of the sublayer calculator to prepare the computation of sublayer metrics
@@ -96,8 +96,8 @@ func (c *SublayerCalculator) reset(n int) {
 // of storing a pointer to the span to be able to reuse the sublayer calculator arrays
 type timestamp struct {
 	spanStart bool
-	spanIdx    int
-	parentIdx  int
+	spanIdx   int
+	parentIdx int
 	ts        int64
 }
 
@@ -117,7 +117,7 @@ func (t timestampArray) Less(i, j int) bool {
 func (c *SublayerCalculator) buildTimestamps(trace pb.Trace) {
 	for i, span := range trace {
 		c.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start}
-		c.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start+span.Duration}
+		c.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start + span.Duration}
 	}
 	sort.Sort(c.timestamps[:2*len(trace)])
 }
@@ -217,7 +217,6 @@ func (c *SublayerCalculator) computeExecDurations(nSpans int) {
 		}
 	}
 }
-
 
 // ComputeSublayers extracts sublayer values by type and service for a trace
 //
@@ -330,7 +329,6 @@ func (c *SublayerCalculator) computeDurationByAttrNew(trace pb.Trace, selector a
 	}
 	return durations
 }
-
 
 // SetSublayersOnSpan takes some sublayers and pins them on the given span.Metrics
 func SetSublayersOnSpan(span *pb.Span, values []SublayerValue) {
