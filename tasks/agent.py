@@ -234,6 +234,7 @@ def build(
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, iot=iot, windows_sysprobe=windows_sysprobe)
 
+
 @task
 def refresh_assets(ctx, build_tags, development=True, iot=False, windows_sysprobe=False):
     """
