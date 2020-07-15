@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync/atomic"
 
 	"github.com/pkg/errors"
 
@@ -24,12 +23,6 @@ const MetricPrefix = "datadog.agent.runtime_security"
 
 type EventHandler interface {
 	HandleEvent(event *Event)
-}
-
-type EventsStats struct {
-	Lost         uint64
-	Received     uint64
-	PerEventType map[ProbeEventType]uint64
 }
 
 type Stats struct {
@@ -517,16 +510,22 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		}
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.lost", int64(p.stats.Lost), nil, 1.0); err != nil {
+	if err := statsdClient.Count(MetricPrefix+".events.lost", p.stats.GetAndResetLost(), nil, 1.0); err != nil {
 		return err
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.received", int64(p.stats.Received), nil, 1.0); err != nil {
+	if err := statsdClient.Count(MetricPrefix+".events.received", p.stats.GetAndResetReceived(), nil, 1.0); err != nil {
 		return err
 	}
 
-	for eventType, count := range p.stats.PerEventType {
-		if err := statsdClient.Count(MetricPrefix+".events."+eventType.String(), int64(count), nil, 1.0); err != nil {
+	for i := range p.stats.PerEventType {
+		if i == 0 {
+			continue
+		}
+
+		eventType := ProbeEventType(i)
+		key := MetricPrefix + ".events." + eventType.String()
+		if err := statsdClient.Count(key, p.stats.GetAndResetEventCount(eventType), nil, 1.0); err != nil {
 			return err
 		}
 	}
@@ -543,18 +542,14 @@ func (p *Probe) GetStats() (stats Stats, err error) {
 	return stats, err
 }
 
-func (p *Probe) ResetStats() {
-	p.stats = EventsStats{}
-}
-
 func (p *Probe) handleLostEvents(count uint64) {
 	log.Warnf("Lost %d events\n", count)
-	atomic.AddUint64(&p.stats.Lost, count)
+	p.stats.CountLost(int64(count))
 }
 
 func (p *Probe) handleEvent(data []byte) {
 	log.Debugf("Handling dentry event (len %d)", len(data))
-	atomic.AddUint64(&p.stats.Received, 1)
+	p.stats.CountReceived(1)
 
 	offset := 0
 	event := NewEvent(p.resolvers)
@@ -644,7 +639,7 @@ func (p *Probe) handleEvent(data []byte) {
 		return
 	}
 
-	p.stats.PerEventType[eventType]++
+	p.stats.CountEventType(eventType, 1)
 
 	log.Debugf("Dispatching event %+v\n", event)
 	p.DispatchEvent(event)
@@ -877,9 +872,6 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		onDiscardersFncs: make(map[string][]onDiscarderFnc),
 		enableFilters:    config.EnableKernelFilters,
 		tables:           make(map[string]eprobe.Table),
-		stats: EventsStats{
-			PerEventType: make(map[ProbeEventType]uint64),
-		},
 	}
 
 	p.Probe = &eprobe.Probe{
