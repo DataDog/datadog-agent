@@ -22,7 +22,7 @@
 				     ##__VA_ARGS__);			\
 		})
 
-#define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES
+#define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
 
 enum event_type
 {
