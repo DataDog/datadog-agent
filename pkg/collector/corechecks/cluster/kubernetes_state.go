@@ -229,7 +229,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 			if transform, found := metricTransformers[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
 					// TODO: implement metric transformer functions
-					transform(sender, metricFamily.Name, m.Val, k.joinLabels(m.Labels, metricsToGet))
+					transform(sender, metricFamily.Name, m, k.joinLabels(m.Labels, metricsToGet))
 				}
 				continue
 			}
