@@ -240,7 +240,7 @@ func TestComputeSublayers(t *testing.T) {
 			},
 		},
 	}
-	c := NewSublayersCalculator(1000)
+	c := NewSublayersCalculator()
 
 	for _, test := range tests {
 		values := c.ComputeSublayers(test.trace)
@@ -317,7 +317,7 @@ func BenchmarkComputeNewSublayers(b *testing.B) {
 		span(6, 1, "rpc1", "rpc", 60, 60),
 		span(7, 6, "alert", "rpc", 110, 40),
 	}
-	c := NewSublayersCalculator(1000)
+	c := NewSublayersCalculator()
 
 	b.ResetTimer()
 	b.ReportAllocs()

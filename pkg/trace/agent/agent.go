@@ -30,7 +30,6 @@ const (
 	// tagContainersTags specifies the name of the tag which holds key/value
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
-	defaultSublayersCalculatorMaxSpans = 10000
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -113,7 +112,7 @@ func (a *Agent) Run() {
 }
 
 func (a *Agent) work() {
-	sublayerCalculator := stats.NewSublayersCalculator(1000)
+	sublayerCalculator := stats.NewSublayersCalculator()
 	for {
 		select {
 		case t, ok := <-a.In:

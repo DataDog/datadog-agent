@@ -12,6 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
+const (
+	// defaultSublayersCalculatorMaxSpans is the maximum trace size in spans the calculator can process.
+	// if a bigger trace comes, the calculator will re-allocate bigger arrays.
+	defaultSublayersCalculatorMaxSpans = 10000
+)
+
 // SublayerValue is just a span-metric placeholder for a given sublayer val
 type SublayerValue struct {
 	Metric string
@@ -44,9 +50,9 @@ type SublayerCalculator struct {
 	maxSpans         int
 }
 
-func NewSublayersCalculator(maxSpans int) *SublayerCalculator {
+func NewSublayersCalculator() *SublayerCalculator {
 	c := &SublayerCalculator{}
-	c.initFields(maxSpans)
+	c.initFields(defaultSublayersCalculatorMaxSpans)
 	return c
 }
 

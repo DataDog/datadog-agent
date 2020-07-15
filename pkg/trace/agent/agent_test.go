@@ -98,7 +98,7 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Trace{
 			Spans:  pb.Trace{span},
 			Source: &info.Tags{},
-		}, agentstats.NewSublayersCalculator(1000))
+		}, agentstats.NewSublayersCalculator())
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -133,14 +133,14 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Trace{
 			Spans:  pb.Trace{spanValid},
 			Source: &info.Tags{},
-		}, agentstats.NewSublayersCalculator(1000))
+		}, agentstats.NewSublayersCalculator())
 		assert.EqualValues(0, stats.TracesFiltered)
 		assert.EqualValues(0, stats.SpansFiltered)
 
 		agnt.Process(&api.Trace{
 			Spans:  pb.Trace{spanInvalid, spanInvalid},
 			Source: &info.Tags{},
-		}, agentstats.NewSublayersCalculator(1000))
+		}, agentstats.NewSublayersCalculator())
 		assert.EqualValues(1, stats.TracesFiltered)
 		assert.EqualValues(2, stats.SpansFiltered)
 	})
@@ -163,7 +163,7 @@ func TestProcess(t *testing.T) {
 			Spans:         pb.Trace{span},
 			Source:        &info.Tags{},
 			ContainerTags: "A:B,C",
-		}, agentstats.NewSublayersCalculator(1000))
+		}, agentstats.NewSublayersCalculator())
 
 		assert.Equal(t, "A:B,C", span.Meta[tagContainersTags])
 	})
@@ -206,7 +206,7 @@ func TestProcess(t *testing.T) {
 			agnt.Process(&api.Trace{
 				Spans:  pb.Trace{span},
 				Source: &info.Tags{},
-			}, agentstats.NewSublayersCalculator(1000))
+			}, agentstats.NewSublayersCalculator())
 		}
 
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -533,7 +533,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 		ta.Process(&api.Trace{
 			Spans:  testutil.RandomTrace(10, 8),
 			Source: &info.Tags{},
-		}, agentstats.NewSublayersCalculator(1000))
+		}, agentstats.NewSublayersCalculator())
 	}
 }
 
