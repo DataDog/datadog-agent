@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -144,9 +145,33 @@ func mountOptionsParser(mountOptions string) map[string]string {
 	return opts
 }
 
+//GetEnv retrieves the environment variable key. If it does not exist it returns the default.
+func GetEnv(key string, dfault string, combineWith ...string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		value = dfault
+	}
+
+	switch len(combineWith) {
+	case 0:
+		return value
+	case 1:
+		return filepath.Join(value, combineWith[0])
+	default:
+		all := make([]string, len(combineWith)+1)
+		all[0] = value
+		copy(all[1:], combineWith)
+		return filepath.Join(all...)
+	}
+}
+
+func HostProc(combineWith ...string) string {
+	return GetEnv("HOST_PROC", "/proc", combineWith...)
+}
+
 // GetMounts - Retrieves mountinfo information from `/proc/self/mountinfo`.
 func GetMounts() ([]*MountInfo, error) {
-	f, err := os.Open("/proc/self/mountinfo")
+	f, err := os.Open(HostProc("/self/mountinfo"))
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +181,7 @@ func GetMounts() ([]*MountInfo, error) {
 
 // GetProcMounts - Retrieves mountinfo information from a processes' `/proc/<pid>/mountinfo`.
 func GetProcMounts(pid uint32) ([]*MountInfo, error) {
-	f, err := os.Open(fmt.Sprintf("/proc/%v/mountinfo", pid))
+	f, err := os.Open(HostProc(fmt.Sprintf("/proc/%v/mountinfo", pid)))
 	if err != nil {
 		return nil, err
 	}
