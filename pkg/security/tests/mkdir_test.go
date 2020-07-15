@@ -11,7 +11,7 @@ import (
 
 func TestMkdir(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `mkdir.filename == "{{.Root}}/test-mkdir" || mkdir.filename == "{{.Root}}/testat-mkdir" || (event.type == "mkdir" && event.retval == EPERM)`,
 	}
 

@@ -10,7 +10,7 @@ import (
 
 func TestRename(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `rename.old_filename == "{{.Root}}/test-rename" && rename.new_filename == "{{.Root}}/test2-rename"`,
 	}
 

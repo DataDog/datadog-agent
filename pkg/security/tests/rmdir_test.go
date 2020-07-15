@@ -10,7 +10,7 @@ import (
 
 func TestRmdir(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `rmdir.filename == "{{.Root}}/test-rmdir"`,
 	}
 

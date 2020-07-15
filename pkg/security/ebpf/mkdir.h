@@ -63,6 +63,10 @@ int kprobe__security_path_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
+    // In a container, vfs_mkdir can be called multiple times to handle the different layers of the overlay filesystem.
+    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
+    if (syscall->mkdir.dentry)
+        return 0;
 
     syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);
     syscall->mkdir.path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.dir);

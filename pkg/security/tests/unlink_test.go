@@ -10,7 +10,7 @@ import (
 
 func TestUnlink(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/testat-unlink"`,
 	}
 

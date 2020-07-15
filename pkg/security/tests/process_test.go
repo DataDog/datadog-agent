@@ -22,7 +22,7 @@ func TestProcess(t *testing.T) {
 	}
 
 	ruleDef := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: fmt.Sprintf(`process.user == "%s" && process.name == "%s" && open.filename == "/etc/hosts"`, currentUser.Name, path.Base(executable)),
 	}
 
@@ -42,7 +42,7 @@ func TestProcess(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else {
-		if rule.ID != "test-rule" {
+		if rule.ID != "test_rule" {
 			t.Errorf("expected rule 'test-rule' to be triggered, got %s", rule.ID)
 		}
 	}

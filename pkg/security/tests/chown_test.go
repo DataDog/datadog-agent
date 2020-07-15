@@ -10,12 +10,12 @@ import (
 
 func TestChown(t *testing.T) {
 	ruleDef := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `chown.filename == "{{.Root}}/test-chown"`,
 	}
 
 	ruleDef2 := &policy.RuleDefinition{
-		ID:         "test-rule2",
+		ID:         "test_rule2",
 		Expression: `chown.filename == "{{.Root}}/test-symlink"`,
 	}
 
@@ -124,8 +124,8 @@ func TestChown(t *testing.T) {
 			t.Errorf("expected chown event, got %s", event.GetType())
 		}
 
-		if rule.ID != "test-rule2" {
-			t.Errorf("expected triggered rule test-rule, got %s", rule.ID)
+		if rule.ID != "test_rule2" {
+			t.Errorf("expected triggered rule test_rule2, got %s", rule.ID)
 		}
 
 		if user := event.Chown.UID; user != 103 {

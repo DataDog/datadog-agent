@@ -13,7 +13,7 @@ import (
 
 func TestOpen(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
 	}
 
@@ -77,7 +77,7 @@ func benchmarkOpenSameFile(b *testing.B, enableFilters bool, rules ...*policy.Ru
 
 func BenchmarkOpenNoApprover(b *testing.B) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
@@ -86,7 +86,7 @@ func BenchmarkOpenNoApprover(b *testing.B) {
 
 func BenchmarkOpenWithApprover(b *testing.B) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
@@ -142,7 +142,7 @@ func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*policy.
 
 func BenchmarkFind(b *testing.B) {
 	benchmarkFind(b, 128, 8, &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	})
 }

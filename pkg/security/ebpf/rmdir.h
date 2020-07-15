@@ -25,6 +25,10 @@ int kprobe__vfs_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
+    // In a container, vfs_rmdir can be called multiple times to handle the different layers of the overlay filesystem.
+    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
+    if (syscall->rmdir.path_key.ino)
+        return 0;
 
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
     syscall->rmdir.path_key.ino = get_dentry_ino(dentry);
