@@ -94,7 +94,7 @@ func TestFileCheck(t *testing.T) {
 				},
 			}),
 			validate: func(t *testing.T, kv event.Data) {
-				owner, ok := kv["owner"]
+				owner, ok := kv["owner"].(string)
 				assert.True(t, ok)
 				parts := strings.SplitN(owner, ":", 2)
 				assert.Equal(t, parts[0], "root")

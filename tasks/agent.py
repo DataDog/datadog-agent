@@ -109,6 +109,7 @@ def build(
     arch='x64',
     exclude_rtloader=False,
     go_mod="vendor",
+    windows_sysprobe=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -226,16 +227,16 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
     # On Linux and MacOS, render the system-probe configuration file template
-    if sys.platform != 'win32':
+    if sys.platform != 'win32' or windows_sysprobe:
         cmd = "go run ./pkg/config/render_config.go system-probe ./pkg/config/config_template.yaml ./cmd/agent/dist/system-probe.yaml"
         ctx.run(cmd, env=env)
 
     if not skip_assets:
-        refresh_assets(ctx, build_tags, development=development, iot=iot)
+        refresh_assets(ctx, build_tags, development=development, iot=iot, windows_sysprobe=windows_sysprobe)
 
 
 @task
-def refresh_assets(ctx, build_tags, development=True, iot=False):
+def refresh_assets(ctx, build_tags, development=True, iot=False, windows_sysprobe=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -259,7 +260,7 @@ def refresh_assets(ctx, build_tags, development=True, iot=False):
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
     # System probe not supported on windows
-    if sys.platform.startswith('linux'):
+    if sys.platform.startswith('linux') or windows_sysprobe:
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 

@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,6 +36,7 @@ var opts struct {
 	pidFilePath string
 	debug       bool
 	version     bool
+	console     bool // windows only; execute on console rather than via SCM
 }
 
 // Version info sourced from build flags
@@ -50,7 +50,7 @@ var (
 
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
-func runAgent() {
+func runAgent(exit <-chan struct{}) {
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
@@ -138,10 +138,7 @@ func runAgent() {
 		}
 	}()
 
-	// Handles signals, which tells us whether we should exit.
-	e := make(chan struct{})
-	go util.HandleSignals(e)
-	<-e
+	<-exit
 }
 
 func gracefulExit() {

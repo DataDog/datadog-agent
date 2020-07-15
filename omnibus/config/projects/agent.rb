@@ -142,6 +142,10 @@ package :msi do
   if ENV['SIGN_PFX']
     signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
   end
+  include_sysprobe = "false"
+  if not windows_arch_i386? and ENV['WINDOWS_DDFILTER_DRIVER'] and not ENV['WINDOWS_DDFILTER_DRIVER'].empty?
+    include_sysprobe = "true"
+  end
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
@@ -150,6 +154,7 @@ package :msi do
     'IncludePython2' => "#{with_python_runtime? '2'}",
     'IncludePython3' => "#{with_python_runtime? '3'}",
     'Platform' => "#{arch}",
+    'IncludeSysprobe' => "#{include_sysprobe}",
   })
 end
 
@@ -175,6 +180,12 @@ if linux?
   dependency 'system-probe'
 end
 
+# Additional software
+if windows?
+  if ENV['WINDOWS_DDFILTER_DRIVER'] and not ENV['WINDOWS_DDFILTER_DRIVER'].empty?
+    dependency 'datadog-windows-filter-driver'
+  end
+end
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
 

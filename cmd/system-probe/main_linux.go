@@ -4,6 +4,8 @@ package main
 
 import (
 	"flag"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func main() {
@@ -13,5 +15,8 @@ func main() {
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
 
-	runAgent()
+	// Handles signals, which tells us whether we should exit.
+	exit := make(chan struct{})
+	go util.HandleSignals(exit)
+	runAgent(exit)
 }
