@@ -181,7 +181,7 @@ func GetMounts() ([]*MountInfo, error) {
 
 // GetProcMounts - Retrieves mountinfo information from a processes' `/proc/<pid>/mountinfo`.
 func GetProcMounts(pid uint32) ([]*MountInfo, error) {
-	f, err := os.Open(HostProc(fmt.Sprintf("/proc/%v/mountinfo", pid)))
+	f, err := os.Open(HostProc(fmt.Sprintf("/%v/mountinfo", pid)))
 	if err != nil {
 		return nil, err
 	}
