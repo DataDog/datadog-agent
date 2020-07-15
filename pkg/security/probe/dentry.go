@@ -12,6 +12,10 @@ import (
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 )
 
+const (
+	DentryPathKeyNotFound = "error: dentry path key not found"
+)
+
 type DentryResolver struct {
 	probe     *eprobe.Probe
 	pathnames eprobe.Table
@@ -90,7 +94,7 @@ func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (filename string
 	// Fetch path recursively
 	for !done {
 		if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
-			filename = "*ERROR*" + filename
+			filename = DentryPathKeyNotFound
 			break
 		}
 
