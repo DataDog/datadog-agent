@@ -10,7 +10,7 @@ import (
 
 func TestChmod(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `chmod.filename == "{{.Root}}/test-chmod"`,
 	}
 

@@ -27,7 +27,7 @@ func (h *stressEventHandler) HandleEvent(event *sprobe.Event) {
 
 func BenchmarkE2EOpen(b *testing.B) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
 	}
 

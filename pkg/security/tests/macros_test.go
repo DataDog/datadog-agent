@@ -21,7 +21,7 @@ func TestMacros(t *testing.T) {
 
 	rules := []*policy.RuleDefinition{
 		{
-			ID:         "test-rule",
+			ID:         "test_rule",
 			Expression: `testmacro in testmacro2 && mkdir.filename in testmacro2`,
 		},
 	}

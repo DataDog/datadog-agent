@@ -80,7 +80,7 @@ func waitForOpenDiscarder(test *testProbe, filename string) (*probe.Event, error
 
 func TestOpenBasenameApproverFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/test-oba-1"`,
 	}
 
@@ -115,7 +115,7 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 
 func TestOpenBasenameDiscarderFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.basename == "test-obd-1"`,
 	}
 
@@ -153,7 +153,7 @@ func TestOpenBasenameDiscarderFilter(t *testing.T) {
 
 func TestOpenFlagsApproverFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.flags & (O_CREAT | O_TRUNC) > 0`,
 	}
 
@@ -197,7 +197,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 
 func TestOpenProcessInodeApproverFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `open.filename =~ "{{.Root}}/test-oba-1" && process.filename == "/bin/cat"`,
 	}
 

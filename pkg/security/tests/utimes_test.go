@@ -12,7 +12,7 @@ import (
 
 func TestUtime(t *testing.T) {
 	ruleDef := &policy.RuleDefinition{
-		ID:         "test-rule",
+		ID:         "test_rule",
 		Expression: `utimes.filename == "{{.Root}}/test-utime"`,
 	}
 

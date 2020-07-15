@@ -3,11 +3,6 @@
 
 #include "syscalls.h"
 
-/*
-  chown syscalls call chown_common that performs many checks
-  which then calls security_path_chown
-*/
-
 struct chown_event_t {
     struct event_t event;
     struct process_data_t process;

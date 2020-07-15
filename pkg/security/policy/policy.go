@@ -45,7 +45,7 @@ type Policy struct {
 	Macros []*MacroDefinition
 }
 
-var ruleIDPattern = `^([a-z]*_*)*$`
+var ruleIDPattern = `^([a-zA-Z0-9]*_*)*$`
 
 func checkRuleID(ruleID string) bool {
 	pattern := regexp.MustCompile(ruleIDPattern)

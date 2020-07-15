@@ -3,11 +3,6 @@
 
 #include "syscalls.h"
 
-/*
-  chmod syscalls call chmod_common that performs many checks
-  which then calls security_path_chmod
-*/
-
 struct chmod_event_t {
     struct event_t event;
     struct process_data_t process;
