@@ -432,12 +432,14 @@ type UnlinkEvent struct {
 	OverlayNumLower int32  `field:"overlay_num_lower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
+	Flags           uint32 `field:"flags"`
 }
 
 func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"flags":%d,`, e.Flags)
 	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
 	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
@@ -448,13 +450,15 @@ func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 }
 
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 20 {
 		return 0, NotEnoughData
 	}
 	e.Inode = byteOrder.Uint64(data[0:8])
 	e.MountID = byteOrder.Uint32(data[8:12])
 	e.OverlayNumLower = int32(byteOrder.Uint32(data[12:16]))
-	return 16, nil
+	e.Flags = byteOrder.Uint32(data[16:20])
+
+	return 20, nil
 }
 
 func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
@@ -705,11 +709,11 @@ func (e *UtimesEvent) ResolveContainerPath(resolvers *Resolvers) string {
 }
 
 type LinkEvent struct {
-	SrcMountID            uint32 `field:"-"`
-	SrcInode              uint64 `field:"src_inode"`
-	SrcPathnameStr        string `field:"src_filename" handler:"ResolveSrcInode,string"`
-	SrcContainerPath      string `field:"src_container_path" handler:"ResolveSrcContainerPath,string"`
-	SrcOverlayNumLower    int32  `field:"src_overlay_num_lower"`
+	SrcMountID         uint32 `field:"-"`
+	SrcInode           uint64 `field:"src_inode"`
+	SrcPathnameStr     string `field:"src_filename" handler:"ResolveSrcInode,string"`
+	SrcContainerPath   string `field:"src_container_path" handler:"ResolveSrcContainerPath,string"`
+	SrcOverlayNumLower int32  `field:"src_overlay_num_lower"`
 	NewMountID         uint32 `field:"-"`
 	NewInode           uint64 `field:"new_inode"`
 	NewPathnameStr     string `field:"new_filename" handler:"ResolveNewInode,string"`
