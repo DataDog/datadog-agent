@@ -6,6 +6,8 @@
 package eval
 
 import (
+	"errors"
+
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/alecthomas/participle/lexer/ebnf"
@@ -40,10 +42,16 @@ var (
 	iterableParser = participle.MustBuild(&IterableExpression{}, expressionOptions...)
 
 	pathParser = participle.MustBuild(&PathExpression{}, expressionOptions...)
+
+	// ErrEmptyExpression is returned for empty string used as expression input
+	ErrEmptyExpression = errors.New("invalid empty expression")
 )
 
 // ParseExpression parses Expression from a string
 func ParseExpression(s string) (*Expression, error) {
+	if len(s) == 0 {
+		return nil, ErrEmptyExpression
+	}
 	expr := &Expression{}
 	err := expressionParser.ParseString(s, expr)
 	if err != nil {
@@ -54,6 +62,9 @@ func ParseExpression(s string) (*Expression, error) {
 
 // ParseIterable parses IterableExpression from a string
 func ParseIterable(s string) (*IterableExpression, error) {
+	if len(s) == 0 {
+		return nil, ErrEmptyExpression
+	}
 	expr := &IterableExpression{}
 	err := iterableParser.ParseString(s, expr)
 	if err != nil {
@@ -64,6 +75,9 @@ func ParseIterable(s string) (*IterableExpression, error) {
 
 // ParsePath parses PathExpression from a string
 func ParsePath(s string) (*PathExpression, error) {
+	if len(s) == 0 {
+		return nil, ErrEmptyExpression
+	}
 	expr := &PathExpression{}
 	err := pathParser.ParseString(s, expr)
 	if err != nil {
