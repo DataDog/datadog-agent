@@ -3,6 +3,18 @@
 
 #include "syscalls.h"
 #include "process.h"
+#include "unlink_filter.h"
+
+#define UNLINK_PREFIX_SIZE 32
+
+struct bpf_map_def SEC("maps/unlink_prefix_discarders") unlink_prefix_discarders = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = UNLINK_PREFIX_FILTER_SIZE,
+    .value_size = sizeof(struct filter_t),
+    .max_entries = 256,
+    .pinning = 0,
+    .namespace = "",
+};
 
 struct unlink_event_t {
     struct event_t event;
@@ -14,7 +26,15 @@ struct unlink_event_t {
     int padding;
 };
 
-int trace__sys_unlink(int flags) {
+int __attribute__((always_inline)) trace__sys_unlink(const char *pathname, int flags) {
+    struct unlink_prefix_t prefix = {};
+    bpf_probe_read_str(&prefix, sizeof(prefix), (void *)pathname);
+    
+    struct filter_t *filter = bpf_map_lookup_elem(&unlink_prefix_discarders, &prefix);
+    if (filter) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .unlink = {
@@ -27,19 +47,32 @@ int trace__sys_unlink(int flags) {
 }
 
 SYSCALL_KPROBE(unlink) {
-    return trace__sys_unlink(0);
+    const char *pathname;
+
+#if USE_SYSCALL_WRAPPER
+    ctx = (struct pt_regs *) ctx->di;
+    bpf_probe_read(&pathname, sizeof(pathname), &PT_REGS_PARM1(ctx));
+#else
+    pathname = (const char *) PT_REGS_PARM1(ctx);
+#endif
+
+    return trace__sys_unlink(pathname, 0);
 }
 
 SYSCALL_KPROBE(unlinkat) {
+    const char *pathname;
     int flags;
+
 #if USE_SYSCALL_WRAPPER
     ctx = (struct pt_regs *) ctx->di;
+    bpf_probe_read(&pathname, sizeof(pathname), &PT_REGS_PARM1(ctx));
     bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
 #else
+    pathname = (const char *) PT_REGS_PARM1(ctx);
     flags = (int) PT_REGS_PARM3(ctx);
 #endif
 
-    return trace__sys_unlink(flags);
+    return trace__sys_unlink(pathname, flags);
 }
 
 SEC("kprobe/vfs_unlink")

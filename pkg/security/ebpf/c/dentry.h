@@ -61,7 +61,7 @@ int __attribute__((always_inline)) get_inode_mount_id(struct inode *dir) {
     struct list_head s_mounts;
     bpf_probe_read(&s_mounts, sizeof(s_mounts), &spb->s_mounts);
 
-    bpf_probe_read(&mount_id, sizeof(int), (void *) s_mounts.next + 172);
+    bpf_probe_read(&mount_id, sizeof(int), (void *)s_mounts.next + 172);
     // bpf_probe_read(&mount_id, sizeof(int), &((struct mount *) s_mounts.next)->mnt_id);
 
     return mount_id;
@@ -155,7 +155,7 @@ struct dentry * __attribute__((always_inline)) get_inode_mountpoint(struct inode
     bpf_probe_read(&s_mounts, sizeof(s_mounts), &spb->s_mounts);
 
     // bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *) s_mounts.next - offsetof(struct mount, mnt_instance) + offsetof(struct mount, mnt_mountpoint));
-    bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *) s_mounts.next - 88);
+    bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *)s_mounts.next - 88);
 
     return mountpoint;
 }
@@ -226,7 +226,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
         }
 
         bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
-        bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void*) qstr.name);
+        bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
             next_key.ino = 0;

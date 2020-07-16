@@ -25,7 +25,7 @@ struct bpf_map_def SEC("maps/open_basename_approvers") open_basename_approvers =
 };
 
 struct bpf_map_def SEC("maps/open_basename_discarders") open_basename_discarders = {
-    .type = BPF_MAP_TYPE_HASH,
+    .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = BASENAME_FILTER_SIZE,
     .value_size = sizeof(struct filter_t),
     .max_entries = 256,
