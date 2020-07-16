@@ -40,6 +40,9 @@ func TestMountResolver(t *testing.T) {
 							0,
 							"overlay",
 							"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
+							0,
+							0,
+							"",
 							[16]byte{},
 						},
 					},
@@ -49,7 +52,7 @@ func TestMountResolver(t *testing.T) {
 						127,
 						0,
 						"",
-						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/diff",
+						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
 					},
 					{
@@ -110,6 +113,9 @@ func TestMountResolver(t *testing.T) {
 							0,
 							"ext4",
 							"/",
+							0,
+							0,
+							"",
 							[16]byte{},
 						},
 					},
@@ -122,6 +128,9 @@ func TestMountResolver(t *testing.T) {
 							0,
 							"sysfs",
 							"/sys",
+							0,
+							0,
+							"",
 							[16]byte{},
 						},
 					},
@@ -134,6 +143,9 @@ func TestMountResolver(t *testing.T) {
 							0,
 							"tmpfs",
 							"/fs/cgroup",
+							0,
+							0,
+							"",
 							[16]byte{},
 						},
 					},
@@ -211,6 +223,9 @@ func TestMountResolver(t *testing.T) {
 							0,
 							"ext4",
 							"/",
+							0,
+							0,
+							"",
 							[16]byte{},
 						},
 					},
@@ -223,6 +238,9 @@ func TestMountResolver(t *testing.T) {
 							0,
 							"overlay",
 							"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
+							0,
+							0,
+							"",
 							[16]byte{},
 						},
 					},
@@ -235,6 +253,9 @@ func TestMountResolver(t *testing.T) {
 							0,
 							"bind",
 							"/",
+							0,
+							0,
+							"",
 							[16]byte{},
 						},
 					},
@@ -247,6 +268,9 @@ func TestMountResolver(t *testing.T) {
 							0,
 							"proc",
 							"proc",
+							0,
+							0,
+							"",
 							[16]byte{},
 						},
 					},
@@ -314,7 +338,7 @@ func TestMountResolver(t *testing.T) {
 				}
 			}
 			for _, testC := range tt.args.cases {
-				cp, p, err := mr.GetMountPath(testC.mountID, testC.numlower)
+				cp, p, _, err := mr.GetMountPath(testC.mountID, testC.numlower)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
