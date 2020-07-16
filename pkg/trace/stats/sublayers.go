@@ -96,10 +96,10 @@ func (a *activeSpanSet) resize(capacity int) {
 // Re-using arrays reduces the number of allocations
 // A sublayer metric is the execution duration of a given type / service in a trace
 // The metrics generated are detailed here: https://docs.datadoghq.com/tracing/guide/metrics_namespace/#duration-by
-// The arrays in this structure are updated as the computeExecDurations traverses all the sorted timestamp of a trace.
+// The arrays in this structure are updated as the computeExecDurations traverses all the sorted timestamps of a trace.
 // They are indexed by the span index in the trace (for eg, openSpans[0] == true means that the first span of the trace is open)
 type SublayerCalculator struct {
-	// openSpans holds whether each span is opened. A span is opened if it has started, but hasn't ended yet.
+	// openSpans holds whether each span is open. A span is open if it has started, but hasn't ended yet.
 	openSpans []bool
 	// nChildren is the number of direct children spans that are currently open
 	nChildren []int
@@ -123,7 +123,7 @@ func NewSublayerCalculator() *SublayerCalculator {
 	return c
 }
 
-// resize initialized allocates arrays of the sublayer calculator
+// resize allocates arrays of the sublayer calculator
 // it should be called every time we receive a trace with more spans than the capacity of the calculator
 func (c *SublayerCalculator) resize(capacity int) {
 	c.capacity = capacity
@@ -171,7 +171,7 @@ func (t sortableTimestamps) Less(i, j int) bool {
 
 // computeExecDuration computes the exec duration of each span in the trace
 //
-// The algorithm works in 3 steps:
+// The algorithm consists of 3 steps:
 // 1. Build the mapping from span index --> parent index
 // 2. Build the array of timestamps to consider (the start and ends of each span) and sort the array
 // 3. Traverse the timestamps, and build the execution duration of each span during the traversal.
