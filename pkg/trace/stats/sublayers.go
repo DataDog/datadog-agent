@@ -39,11 +39,11 @@ func (v SublayerValue) GoString() string {
 	return v.String()
 }
 
-// activeSpans is a set of active spans. We could use a map of span Indexes for that.
+// activeSpans is a set of active spans. We could use a map of spans for that.
 // But in order to re-use arrays and reduce allocations, we use two arrays.
-// in spans, we store the active spans indexes. If span 0, 2 and 5 are active, spans = [0, 2, 5, ...]
-// in indexes, we store the index in activeSpans of each span. For this case, indexes[0] = 0,
-// indexes[2] = 1 and indexes[5] = 2
+// in spans, we store the active spans indexes. If span 0, 2 and 5 are active, spans = [0, 2, 5]
+// in indexes, we store the index in the array spans of each span.
+// For this case, indexes[0] = 0, indexes[2] = 1 and indexes[5] = 2
 type activeSpanSet struct {
 	// capacity of the set. Also, the set can only contain numbers in [0;capacity[
 	capacity int
@@ -93,21 +93,27 @@ func (a *activeSpanSet) resize(capacity int) {
 }
 
 // SublayerCalculator holds arrays used to compute sublayer metrics.
-// A sublayer metric is the execution duration a given type / service takes of a trace
 // Re-using arrays reduces the number of allocations
+// A sublayer metric is the execution duration of a given type / service in a trace
+// The metrics generated are detailed here: https://docs.datadoghq.com/tracing/guide/metrics_namespace/#duration-by
+// The arrays in this structure are updated as the computeExecDurations traverses all the sorted timestamp of a trace.
+// They are indexed by the span index in the trace (for eg, openSpans[0] == true means that the first span of the trace is open)
 type SublayerCalculator struct {
 	// openSpans holds whether each span is opened. A span is opened if it has started, but hasn't ended yet.
 	openSpans []bool
-	// nChildren is the Number of Children of a Span: At a given timestamp, number of direct children spans that are currently open
+	// nChildren is the number of direct children spans that are currently open
 	nChildren []int
 	// activeSpans is a set active spans. A span is active at a given timestamp, if it is open and if it has no open children.
 	activeSpans *activeSpanSet
-	// Exec duration: for each period where the span is active, its Exec Duration increases by deltaT/numberOfActiveSpans
-	//     so if a span is active during 20ms, in parallel with an other span active at the same time, its exec duration will be 10ms
+	// Exec duration: for each period where the span is active, its Exec Duration increases by periodDuration/numberOfActiveSpans
+	//     so if a span is active during 20ms, in parallel with another span active at the same time, its exec duration will be 10ms
 	execDuration []float64
-	parentIdx    []int
-	timestamps   sortableTimestamps
-	capacity     int
+	// parentIdx stores the mapping: span index --> parent index
+	parentIdx []int
+	// timestamps are the sorted timestamps (starts and ends of each span) of a trace
+	timestamps sortableTimestamps
+	// capacity specifies the maximum trace size in spans the calculator can process without re-allocations
+	capacity int
 }
 
 // NewSublayerCalculator returns a new SublayerCalculator.
@@ -165,15 +171,15 @@ func (t sortableTimestamps) Less(i, j int) bool {
 
 // computeExecDuration computes the exec duration of each span in the trace
 //
-// the algorithm does a traversal of all ordered timestamps (start and end of each span) in the trace
-// during this traversal, it needs to:
-// Keep track of which are the open spans
-// Keep track of the active spans (open, and with no direct open children)
-// Keep track of the number of children for each span at any given timestamp
-// For each period between two timestamps, it knows which were the active spans. And it increases the exec duration for them by
-// (interval duration / nActiveSpans)
+// The algorithm works in 3 steps:
+// 1. Build the mapping from span index --> parent index
+// 2. Build the array of timestamps to consider (the start and ends of each span) and sort the array
+// 3. Traverse the timestamps, and build the execution duration of each span during the traversal.
+//    For each timestamp:
+//    - Increase the exec duration for all the active spans by (previousPeriodDuration / numberOfActiveSpans)
+//    - Update the set of active spans
 func (c *SublayerCalculator) computeExecDurations(trace pb.Trace) {
-	// builds the mapping spanIdx --> parentIdx
+	// Step 1: Build the mapping spanIdx --> parentIdx
 	idToIdx := make(map[uint64]int, len(trace))
 	for idx, span := range trace {
 		idToIdx[span.SpanID] = idx
@@ -186,14 +192,14 @@ func (c *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 		}
 	}
 
-	// build all trace timestamps and sorts them
+	// Step 2: Build all trace timestamps and sorts them
 	for i, span := range trace {
 		c.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start}
 		c.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start + span.Duration}
 	}
 	sort.Sort(c.timestamps[:2*len(trace)])
 
-	// compute execution duration of each span
+	// Step 3: Compute the execution duration of each span
 	for j := 0; j < len(trace)*2; j++ {
 		tp := c.timestamps[j]
 		var timeIncr float64
@@ -240,31 +246,24 @@ func (c *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 //       <-5------------------->
 //                         <--6-------------------->
 //                                             <-7------------->
-// idx 0 id 1: service=web-server, type=web,   parent=nil
-// idx 1 id 2: service=pg,         type=db,    parent=1
-// idx 2 3: service=render,     type=web,   parent=1
-// idx 3 4: service=pg-read,    type=db,    parent=2
-// idx 4 5: service=redis,      type=cache, parent=1
-// idx 5 6: service=rpc1,       type=rpc,   parent=1
-// idx 6 7: service=alert,      type=rpc,   parent=6
+// id 1: service=web-server, type=web,   parent=nil
+// id 2: service=pg,         type=db,    parent=1
+// id 3: service=render,     type=web,   parent=1
+// id 4: service=pg-read,    type=db,    parent=2
+// id 5: service=redis,      type=cache, parent=1
+// id 6: service=rpc1,       type=rpc,   parent=1
+// id 7: service=alert,      type=rpc,   parent=6
 //
-// Step 1: Find all time intervals to consider (set of start/end time
-//         of spans). For each timestamp, store the spanIdx, parentIdx and if it's the start or end of a span.
-// if the parent span is not in the trace, parent idx is set to -1
-//
-//         [(0, span start, span idx 0, parent idx 7), (10, span start, span idx 1, parent idx 0), ...
-//             (150, span end, span idx 6, parent idx 5)]
-//
-// Step 2: Compute the exec duration of each span of the trace.
-// For a period of time when a span is active, the exec duration is defined as: duration/number of active spans during that period
+// Step 1: Compute the exec duration of each span of the trace.
+// For a period of time when a span is active, the exec duration is defined as: periodDuration / numberOfActiveSpans during that period
 //
 //         {
-//             idx 0 (spanID 1): 10/1 (between tp 0 and 10) + 10/2 (between tp 120 and 130) = 15,
+//             spanID 1: 10/1 (between tp 0 and 10) + 10/2 (between tp 120 and 130) = 15,
 //             ...
-//             idx 6 (spanID 7): 10/2 (between tp 110 and 120) + 10/2 (between tp 120 and 130) + 20/1 (between tp 130 and 150),
+//             spanID 7: 10/2 (between tp 110 and 120) + 10/2 (between tp 120 and 130) + 20/1 (between tp 130 and 150),
 //         }
 //
-// Step 3: Build a service and type duration mapping by:
+// Step 2: Build a service and type duration mapping by:
 //         1. iterating over each span
 //         2. add to the span's type and service duration the
 //            duration portion
