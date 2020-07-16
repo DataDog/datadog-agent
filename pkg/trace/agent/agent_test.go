@@ -8,7 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
-	agentstats "github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -35,10 +35,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 )
-
-type mockSamplerEngine struct {
-	engine sampler.Engine
-}
 
 func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
 	return &Sampler{engine: testutil.NewMockEngine(wantSampled, wantRate)}
@@ -98,7 +94,7 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Trace{
 			Spans:  pb.Trace{span},
 			Source: &info.Tags{},
-		}, agentstats.NewSublayerCalculator())
+		}, stats.NewSublayerCalculator())
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -127,22 +123,22 @@ func TestProcess(t *testing.T) {
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 
-		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
 		agnt.Process(&api.Trace{
 			Spans:  pb.Trace{spanValid},
 			Source: &info.Tags{},
-		}, agentstats.NewSublayerCalculator())
-		assert.EqualValues(0, stats.TracesFiltered)
-		assert.EqualValues(0, stats.SpansFiltered)
+		}, stats.NewSublayerCalculator())
+		assert.EqualValues(0, want.TracesFiltered)
+		assert.EqualValues(0, want.SpansFiltered)
 
 		agnt.Process(&api.Trace{
 			Spans:  pb.Trace{spanInvalid, spanInvalid},
 			Source: &info.Tags{},
-		}, agentstats.NewSublayerCalculator())
-		assert.EqualValues(1, stats.TracesFiltered)
-		assert.EqualValues(2, stats.SpansFiltered)
+		}, stats.NewSublayerCalculator())
+		assert.EqualValues(1, want.TracesFiltered)
+		assert.EqualValues(2, want.SpansFiltered)
 	})
 
 	t.Run("ContainerTags", func(t *testing.T) {
@@ -163,7 +159,7 @@ func TestProcess(t *testing.T) {
 			Spans:         pb.Trace{span},
 			Source:        &info.Tags{},
 			ContainerTags: "A:B,C",
-		}, agentstats.NewSublayerCalculator())
+		}, stats.NewSublayerCalculator())
 
 		assert.Equal(t, "A:B,C", span.Meta[tagContainersTags])
 	})
@@ -206,7 +202,7 @@ func TestProcess(t *testing.T) {
 			agnt.Process(&api.Trace{
 				Spans:  pb.Trace{span},
 				Source: &info.Tags{},
-			}, agentstats.NewSublayerCalculator())
+			}, stats.NewSublayerCalculator())
 		}
 
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -533,7 +529,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 		ta.Process(&api.Trace{
 			Spans:  testutil.RandomTrace(10, 8),
 			Source: &info.Tags{},
-		}, agentstats.NewSublayerCalculator())
+		}, stats.NewSublayerCalculator())
 	}
 }
 
