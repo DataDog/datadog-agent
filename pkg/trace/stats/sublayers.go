@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	// defaultSublayersCalculatorMaxSpans is the maximum trace size in spans the calculator can process.
-	// if a bigger trace comes, the calculator will re-allocate bigger arrays.
-	defaultSublayersCalculatorMaxSpans = 10000
+	// defaultCalculatorSpanCapacity specifies the maximum trace size in spans that the calculator
+	// can process without re-allocating.
+	defaultCalculatorSpanCapacity = 10000
 	// unknownSpan represents a span that is not in the trace
 	unknownSpan = -1
 	// inactiveSpan is when a span is not active (open and with no direct open children, see ComputeSublayers)
@@ -44,6 +44,7 @@ func (v SublayerValue) GoString() string {
 }
 
 // SublayerCalculator holds arrays used to compute sublayer metrics.
+// A sublayer metric is the execution duration a given type / service takes of a trace
 // Re-using arrays reduces the number of allocations
 type SublayerCalculator struct {
 	activeSpans      []int
@@ -53,33 +54,33 @@ type SublayerCalculator struct {
 	execDuration     []float64
 	parentIdx        []int
 	timestamps       timestampArray
-	maxSpans         int
+	capacity         int
 }
 
 // NewSublayerCalculator returns a new SublayerCalculator used to compute sublayer metrics
 func NewSublayerCalculator() *SublayerCalculator {
 	c := &SublayerCalculator{}
-	c.initFields(defaultSublayersCalculatorMaxSpans)
+	c.initFields(defaultCalculatorSpanCapacity)
 	return c
 }
 
 // initFields initialized all arrays of the sublayer calculator
-// it should be called every time we receive a trace with more than maxSpans spans
-func (c *SublayerCalculator) initFields(maxSpans int) {
-	c.maxSpans = maxSpans
-	c.activeSpans = make([]int, maxSpans)
-	c.activeSpansIndex = make([]int, maxSpans)
-	c.openSpans = make([]bool, maxSpans)
-	c.nChildren = make([]int, maxSpans)
-	c.execDuration = make([]float64, maxSpans)
-	c.parentIdx = make([]int, maxSpans)
-	c.timestamps = make(timestampArray, 2*maxSpans)
+// it should be called every time we receive a trace with more than capacity spans
+func (c *SublayerCalculator) initFields(capacity int) {
+	c.capacity = capacity
+	c.activeSpans = make([]int, capacity)
+	c.activeSpansIndex = make([]int, capacity)
+	c.openSpans = make([]bool, capacity)
+	c.nChildren = make([]int, capacity)
+	c.execDuration = make([]float64, capacity)
+	c.parentIdx = make([]int, capacity)
+	c.timestamps = make(timestampArray, 2*capacity)
 }
 
 // reset initializes structures of the sublayer calculator to prepare the computation of sublayer metrics
 // for a trace with max n spans
 func (c *SublayerCalculator) reset(n int) {
-	if c.maxSpans < n {
+	if c.capacity < n {
 		c.initFields(n)
 	}
 	for i := 0; i < n; i++ {
