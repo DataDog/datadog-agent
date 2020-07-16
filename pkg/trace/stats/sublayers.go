@@ -56,7 +56,7 @@ type SublayerCalculator struct {
 	maxSpans         int
 }
 
-// NewSublayerCalculator returns a new SublayerCalculator used to compute sublayer metrics
+// NewSublayerCalculator returns a new SublayerCalculator.
 func NewSublayerCalculator() *SublayerCalculator {
 	c := &SublayerCalculator{}
 	c.initFields(defaultSublayersCalculatorMaxSpans)
