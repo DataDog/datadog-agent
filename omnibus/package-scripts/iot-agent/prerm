@@ -78,8 +78,6 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         *)
         ;;
     esac
-else
-    echo "[ FAILED ]\tYour system is currently not supported by this script.";
 fi
 
 exit 0
