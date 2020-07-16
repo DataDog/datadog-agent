@@ -57,7 +57,7 @@ type SublayerCalculator struct {
 	capacity         int
 }
 
-// NewSublayerCalculator returns a new SublayerCalculator used to compute sublayer metrics
+// NewSublayerCalculator returns a new SublayerCalculator.
 func NewSublayerCalculator() *SublayerCalculator {
 	c := &SublayerCalculator{}
 	c.initFields(defaultCalculatorSpanCapacity)
