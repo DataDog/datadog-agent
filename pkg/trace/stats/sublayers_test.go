@@ -286,7 +286,7 @@ func TestSetSublayersOnSpan(t *testing.T) {
 	}, span.Metrics)
 }
 
-func BenchmarkComputeNewSublayers(b *testing.B) {
+func BenchmarkComputeSublayers(b *testing.B) {
 	span := func(id, parentId uint64, service, spanType string, start, duration int64) *pb.Span {
 		return &pb.Span{
 			TraceID:  1,
