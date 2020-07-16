@@ -2,8 +2,8 @@ package features
 
 import (
 	"encoding/json"
+	config "github.com/StackVista/stackstate-agent/pkg/features/config"
 	"github.com/StackVista/stackstate-agent/pkg/httpclient"
-	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	log "github.com/cihub/seelog"
 	"reflect"
 	"sync"
@@ -11,7 +11,7 @@ import (
 
 // Features represents features supported by the StackState backend
 type Features struct {
-	config      *config.AgentConfig
+	config      *config.FeaturesConfig
 	client      *httpclient.RetryableHttpClient
 	features    map[string]bool
 	retriesLeft int
@@ -19,12 +19,13 @@ type Features struct {
 }
 
 // NewFeatures returns a Features type given the config
-func NewFeatures(conf *config.AgentConfig) *Features {
+func NewFeatures() *Features {
+	conf := config.MakeFeaturesConfig()
 	return &Features{
 		config:      conf,
-		client:      httpclient.NewStackStateClient(conf),
+		client:      httpclient.NewStackStateClient(),
 		features:    make(map[string]bool),
-		retriesLeft: conf.FeaturesConfig.MaxRetries,
+		retriesLeft: conf.MaxRetries,
 	}
 }
 
@@ -38,7 +39,7 @@ func (f *Features) Stop() {}
 
 // getSupportedFeatures returns the features supported by the StackState API
 func (f *Features) getSupportedFeatures() {
-	if response := f.client.GetWithRetry("features", f.config.FeaturesConfig.FeatureRequestTickerDuration, f.config.FeaturesConfig.MaxRetries); response.Err == nil {
+	if response := f.client.GetWithRetry("features", f.config.FeatureRequestTickerDuration, f.config.MaxRetries); response.Err == nil {
 		var data interface{}
 		// Parse json
 		err := json.Unmarshal(response.Body, &data)

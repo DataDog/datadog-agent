@@ -1,7 +1,8 @@
 package features
 
 import (
-	"github.com/StackVista/stackstate-agent/pkg/trace/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	featuresConfig "github.com/StackVista/stackstate-agent/pkg/features/config"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
@@ -39,24 +40,21 @@ func TestFeaturesWithRetries(t *testing.T) {
 		}),
 	)
 
-	conf := config.New()
-	conf.Endpoints = []*config.Endpoint{
-		{Host: featuresTestServer.URL},
-	}
-	conf.FeaturesConfig.FeatureRequestTickerDuration = 200 * time.Millisecond
-	conf.FeaturesConfig.MaxRetries = 10
-
-	features := NewFeatures(conf)
+	config.Datadog.Set("sts_url", featuresTestServer.URL)
+	config.Datadog.Set("features.retry_interval_millis", 200)
+	config.Datadog.Set("features.max_retries", 10)
+	conf := featuresConfig.MakeFeaturesConfig()
+	features := NewFeatures()
 
 	// assert feature not supported before fetched
 	assert.False(t, features.FeatureEnabled("some-test-feature"))
 
 	done := make(chan bool)
 	// assert feature supported after fetch completed
-	backendAvailable := time.After(conf.FeaturesConfig.FeatureRequestTickerDuration * 3)
+	backendAvailable := time.After(conf.FeatureRequestTickerDuration * 3)
 	timeout := time.After(2 * time.Second)
 	assertFunc := func() {
-		assert.True(t, features.GetRetriesLeft() <= 7, "assert we had at least 3 retries in the test scenario, only got: %d", conf.FeaturesConfig.MaxRetries-features.GetRetriesLeft())
+		assert.True(t, features.GetRetriesLeft() <= 7, "assert we had at least 3 retries in the test scenario, only got: %d", conf.MaxRetries-features.GetRetriesLeft())
 		assert.True(t, features.FeatureEnabled("some-test-feature"), "assert that the feature is enabled, so we got the response from the backend")
 		done <- true
 	}

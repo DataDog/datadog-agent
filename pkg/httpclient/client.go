@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/StackVista/stackstate-agent/pkg/trace/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/info"
 	"github.com/StackVista/stackstate-agent/pkg/trace/watchdog"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -13,20 +13,22 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 )
 
-// GET
+// GET is used for HTTP GET calls
 const GET = "GET"
 
-// POST
+// POST is used for HTTP POST calls
 const POST = "POST"
 
-// PUT
+// PUT is used for HTTP PUT calls
 const PUT = "PUT"
 
+// HttpResponse is used to represent the response from the request
 type HttpResponse struct {
 	Response    *http.Response
 	Body        []byte
@@ -34,37 +36,70 @@ type HttpResponse struct {
 	Err         error
 }
 
+// ClientHost specifies an host that the client communicates with.
+type ClientHost struct {
+	APIKey string `json:"-"` // never marshal this
+	Host   string
+
+	// NoProxy will be set to true when the proxy setting for the trace API endpoint
+	// needs to be ignored (e.g. it is part of the "no_proxy" list in the yaml settings).
+	NoProxy           bool
+	ProxyURL          *url.URL
+	SkipSSLValidation bool
+}
+
 // RetryableHttpClient creates a http client to communicate to StackState
 type RetryableHttpClient struct {
-	*config.Endpoint
+	*ClientHost
 	*http.Client
 	mux sync.Mutex
 }
 
 // NewStackStateClient returns a RetryableHttpClient containing a http.Client configured with the Agent options.
-func NewStackStateClient(conf *config.AgentConfig) *RetryableHttpClient {
-	endpoint := conf.Endpoints[0]
-	return retryableHttpClient(conf, endpoint)
+func NewStackStateClient() *RetryableHttpClient {
+	return retryableHttpClient("sts_url")
 }
 
 // NewStackStateClient returns a RetryableHttpClient containing a http.Client configured with the Agent options.
-func NewHttpClient(conf *config.AgentConfig, endpoint *config.Endpoint) *RetryableHttpClient {
-	return retryableHttpClient(conf, endpoint)
+func NewHttpClient(baseUrlConfigKey string) *RetryableHttpClient {
+	return retryableHttpClient(baseUrlConfigKey)
 }
 
-func retryableHttpClient(conf *config.AgentConfig, endpoint *config.Endpoint) *RetryableHttpClient {
-	client := newClient(conf, false)
-	if endpoint.NoProxy {
-		client = newClient(conf, true)
+func retryableHttpClient(baseUrlConfigKey string) *RetryableHttpClient {
+	host := &ClientHost{}
+	if hostUrl := config.Datadog.GetString(baseUrlConfigKey); hostUrl != "" {
+		host.Host = hostUrl
 	}
+
+	proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
+	noProxy := make(map[string]bool, len(proxyList))
+	for _, host := range proxyList {
+		// map of hosts that need to be skipped by proxy
+		noProxy[host] = true
+	}
+	host.NoProxy = noProxy[host.Host]
+
+	if addr := config.Datadog.GetString("proxy.https"); addr != "" {
+		url, err := url.Parse(addr)
+		if err == nil {
+			host.ProxyURL = url
+		} else {
+			log.Errorf("Failed to parse proxy URL from proxy.https configuration: %s", err)
+		}
+	}
+
+	if config.Datadog.IsSet("skip_ssl_validation") {
+		host.SkipSSLValidation = config.Datadog.GetBool("skip_ssl_validation")
+	}
+
 	return &RetryableHttpClient{
-		Client:   client,
-		Endpoint: endpoint,
+		ClientHost: host,
+		Client:     newClient(host),
 	}
 }
 
 // newClient returns a http.Client configured with the Agent options.
-func newClient(conf *config.AgentConfig, ignoreProxy bool) *http.Client {
+func newClient(host *ClientHost) *http.Client {
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -74,13 +109,13 @@ func newClient(conf *config.AgentConfig, ignoreProxy bool) *http.Client {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: conf.SkipSSLValidation},
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: host.SkipSSLValidation},
 	}
-	if conf.ProxyURL != nil && !ignoreProxy {
-		log.Infof("configuring proxy through: %s", conf.ProxyURL.String())
-		transport.Proxy = http.ProxyURL(conf.ProxyURL)
+	if host.ProxyURL != nil && !host.NoProxy {
+		log.Infof("configuring proxy through: %s", host.ProxyURL.String())
+		transport.Proxy = http.ProxyURL(host.ProxyURL)
 	}
-	return &http.Client{Timeout: conf.FeaturesConfig.HTTPRequestTimeoutDuration, Transport: transport}
+	return &http.Client{Timeout: 30 * time.Second, Transport: transport}
 }
 
 // Get performs a GET request to some path
