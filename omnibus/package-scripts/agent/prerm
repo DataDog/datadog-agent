@@ -133,7 +133,7 @@ remove_version_history()
 
     if [ -f "$INSTALL_DIR/run/version-history.json" ]; then
         echo "Removing version history file"
-        rm "$INSTALL_DIR/run/version-history.json"
+        rm "$INSTALL_DIR/run/version-history.json" || true
     fi
 }
 
