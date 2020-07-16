@@ -19,9 +19,9 @@ System Probe is running
 {{- end }}
 
 
-{{- if .state.clients }}
+{{- if .network_tracer.state.clients }}
 
-  Connection Clients: {{ len .state.clients }}
+  Connection Clients: {{ len .network_tracer.state.clients }}
 
 {{- end }}
 
