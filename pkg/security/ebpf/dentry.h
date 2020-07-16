@@ -100,6 +100,12 @@ struct vfsmount * __attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
     return (struct vfsmount *)((void *)mnt + 32);
 }
 
+struct dentry * __attribute__((always_inline)) get_vfsmount_dentry(struct vfsmount *mnt) {
+    struct dentry *dentry;
+    bpf_probe_read(&dentry, sizeof(dentry), &mnt->mnt_root);
+    return dentry;
+}
+
 struct super_block * __attribute__((always_inline)) get_vfsmount_sb(struct vfsmount *mnt) {
     struct super_block *sb;
     bpf_probe_read(&sb, sizeof(sb), &mnt->mnt_sb);
