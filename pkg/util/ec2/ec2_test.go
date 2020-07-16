@@ -30,6 +30,7 @@ func resetPackageVars() {
 	config.Datadog.Set("ec2_metadata_timeout", initialTimeout)
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
+	token = ec2Token{}
 }
 
 func TestIsDefaultHostname(t *testing.T) {
@@ -379,10 +380,20 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	assert.Equal(t, "", requestWithoutToken.Header.Get("X-aws-ec2-metadata-token"))
 	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
-	assert.Equal(t, "60", requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+	assert.Equal(t, "21600", requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
 	assert.Equal(t, http.MethodPut, requestForToken.Method)
 	assert.Equal(t, "/", requestForToken.RequestURI)
 	assert.Equal(t, token, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
 	assert.Equal(t, "/local-ipv4", requestWithToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithToken.Method)
+
+	// Ensure token has been cached
+	ips, err = GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ipv4}, ips)
+	// Unchanged
+	assert.Equal(t, "1", requestForToken.Header.Get("X-sequence"))
+	// Incremented
+	assert.Equal(t, "3", requestWithoutToken.Header.Get("X-sequence"))
+	assert.Equal(t, "4", requestWithToken.Header.Get("X-sequence"))
 }
