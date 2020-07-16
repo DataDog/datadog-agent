@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os/user"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,11 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-)
-
-var (
-	containerPathDiffPrefix   = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/diff)`)
-	containerPathMergedPrefix = regexp.MustCompile(`^(/var/lib/docker/overlay2/)[0-9a-f]{64}(/merged)`)
 )
 
 var NotEnoughData = errors.New("not enough data")
@@ -87,23 +81,12 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *ChmodEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
+				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
+			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.PathnameStr, containerPath) {
-				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
 		}
 	}
 	return e.PathnameStr
@@ -111,13 +94,9 @@ func (e *ChmodEvent) ResolveInode(resolvers *Resolvers) string {
 
 func (e *ChmodEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.ContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
 		}
 	}
 	return e.ContainerPath
@@ -163,23 +142,12 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *ChownEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
+				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
+			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.PathnameStr, containerPath) {
-				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
 		}
 	}
 	return e.PathnameStr
@@ -187,7 +155,7 @@ func (e *ChownEvent) ResolveInode(resolvers *Resolvers) string {
 
 func (e *ChownEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
@@ -228,23 +196,12 @@ func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 func (e *OpenEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
+				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
+			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.PathnameStr, containerPath) {
-				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
 		}
 	}
 	return e.PathnameStr
@@ -252,7 +209,7 @@ func (e *OpenEvent) ResolveInode(resolvers *Resolvers) string {
 
 func (e *OpenEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
@@ -320,23 +277,12 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *MkdirEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
+				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
+			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.PathnameStr, containerPath) {
-				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
 		}
 	}
 	return e.PathnameStr
@@ -344,7 +290,7 @@ func (e *MkdirEvent) ResolveInode(resolvers *Resolvers) string {
 
 func (e *MkdirEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
@@ -380,23 +326,12 @@ func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 func (e *RmdirEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
+				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
+			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.PathnameStr, containerPath) {
-				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
 		}
 	}
 	return e.PathnameStr
@@ -404,7 +339,7 @@ func (e *RmdirEvent) ResolveInode(resolvers *Resolvers) string {
 
 func (e *RmdirEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
@@ -464,23 +399,12 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
+				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
+			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.PathnameStr, containerPath) {
-				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
 		}
 	}
 	return e.PathnameStr
@@ -488,7 +412,7 @@ func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
 
 func (e *UnlinkEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
@@ -551,23 +475,12 @@ func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
 	if len(e.SrcPathnameStr) == 0 {
 		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcMountID, e.SrcRandomInode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.SrcPathnameStr, rootPath) && rootPath != "/" {
+				e.SrcPathnameStr = strings.Replace(e.SrcPathnameStr, rootPath, "", 1)
+			}
 			e.SrcPathnameStr = path.Join(mountPath, e.SrcPathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.SrcPathnameStr, containerPath) {
-				e.SrcPathnameStr = strings.Replace(e.SrcPathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.SrcPathnameStr) {
-				e.SrcContainerPath = containerPathDiffPrefix.FindString(e.SrcPathnameStr)
-				e.SrcPathnameStr = containerPathDiffPrefix.ReplaceAllString(e.SrcPathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.SrcPathnameStr) {
-				e.SrcContainerPath = containerPathMergedPrefix.FindString(e.SrcPathnameStr)
-				e.SrcPathnameStr = containerPathMergedPrefix.ReplaceAllString(e.SrcPathnameStr, "")
-			}
 		}
 	}
 	return e.SrcPathnameStr
@@ -575,7 +488,7 @@ func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
 
 func (e *RenameEvent) ResolveSrcContainerPath(resolvers *Resolvers) string {
 	if len(e.SrcContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
 		if err == nil {
 			e.SrcContainerPath = containerPath
 		}
@@ -590,23 +503,12 @@ func (e *RenameEvent) ResolveSrcContainerPath(resolvers *Resolvers) string {
 func (e *RenameEvent) ResolveTargetInode(resolvers *Resolvers) string {
 	if len(e.TargetPathnameStr) == 0 {
 		e.TargetPathnameStr = resolvers.DentryResolver.Resolve(e.TargetMountID, e.TargetInode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.TargetPathnameStr, rootPath) && rootPath != "/" {
+				e.TargetPathnameStr = strings.Replace(e.TargetPathnameStr, rootPath, "", 1)
+			}
 			e.TargetPathnameStr = path.Join(mountPath, e.TargetPathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.TargetPathnameStr, containerPath) {
-				e.TargetPathnameStr = strings.Replace(e.TargetPathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.TargetPathnameStr) {
-				e.TargetContainerPath = containerPathDiffPrefix.FindString(e.TargetPathnameStr)
-				e.TargetPathnameStr = containerPathDiffPrefix.ReplaceAllString(e.TargetPathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.TargetPathnameStr) {
-				e.TargetContainerPath = containerPathMergedPrefix.FindString(e.TargetPathnameStr)
-				e.TargetPathnameStr = containerPathMergedPrefix.ReplaceAllString(e.TargetPathnameStr, "")
-			}
 		}
 	}
 	return e.TargetPathnameStr
@@ -614,7 +516,7 @@ func (e *RenameEvent) ResolveTargetInode(resolvers *Resolvers) string {
 
 func (e *RenameEvent) ResolveTargetContainerPath(resolvers *Resolvers) string {
 	if len(e.TargetContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
 		if err == nil {
 			e.TargetContainerPath = containerPath
 		}
@@ -672,23 +574,12 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *UtimesEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
+				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
+			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.PathnameStr, containerPath) {
-				e.PathnameStr = strings.Replace(e.PathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathDiffPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathDiffPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.PathnameStr) {
-				e.ContainerPath = containerPathMergedPrefix.FindString(e.PathnameStr)
-				e.PathnameStr = containerPathMergedPrefix.ReplaceAllString(e.PathnameStr, "")
-			}
 		}
 	}
 	return e.PathnameStr
@@ -696,7 +587,7 @@ func (e *UtimesEvent) ResolveInode(resolvers *Resolvers) string {
 
 func (e *UtimesEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
@@ -756,23 +647,12 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 func (e *LinkEvent) ResolveSrcInode(resolvers *Resolvers) string {
 	if len(e.SrcPathnameStr) == 0 {
 		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcMountID, e.SrcInode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.SrcPathnameStr, rootPath) && rootPath != "/" {
+				e.SrcPathnameStr = strings.Replace(e.SrcPathnameStr, rootPath, "", 1)
+			}
 			e.SrcPathnameStr = path.Join(mountPath, e.SrcPathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.SrcPathnameStr, containerPath) {
-				e.SrcPathnameStr = strings.Replace(e.SrcPathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.SrcPathnameStr) {
-				e.SrcContainerPath = containerPathDiffPrefix.FindString(e.SrcPathnameStr)
-				e.SrcPathnameStr = containerPathDiffPrefix.ReplaceAllString(e.SrcPathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.SrcPathnameStr) {
-				e.SrcContainerPath = containerPathMergedPrefix.FindString(e.SrcPathnameStr)
-				e.SrcPathnameStr = containerPathMergedPrefix.ReplaceAllString(e.SrcPathnameStr, "")
-			}
 		}
 	}
 	return e.SrcPathnameStr
@@ -780,7 +660,7 @@ func (e *LinkEvent) ResolveSrcInode(resolvers *Resolvers) string {
 
 func (e *LinkEvent) ResolveSrcContainerPath(resolvers *Resolvers) string {
 	if len(e.SrcContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
 		if err == nil {
 			e.SrcContainerPath = containerPath
 		}
@@ -795,23 +675,12 @@ func (e *LinkEvent) ResolveSrcContainerPath(resolvers *Resolvers) string {
 func (e *LinkEvent) ResolveNewInode(resolvers *Resolvers) string {
 	if len(e.NewPathnameStr) == 0 {
 		e.NewPathnameStr = resolvers.DentryResolver.Resolve(e.NewMountID, e.NewInode)
-		containerPath, mountPath, err := resolvers.MountResolver.GetMountPath(e.NewMountID, e.NewOverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.NewMountID, e.NewOverlayNumLower)
 		if err == nil {
+			if strings.HasPrefix(e.NewPathnameStr, rootPath) && rootPath != "/" {
+				e.NewPathnameStr = strings.Replace(e.NewPathnameStr, rootPath, "", 1)
+			}
 			e.NewPathnameStr = path.Join(mountPath, e.NewPathnameStr)
-		}
-		if containerPath != "" {
-			if strings.HasPrefix(e.NewPathnameStr, containerPath) {
-				e.NewPathnameStr = strings.Replace(e.NewPathnameStr, containerPath, "", 1)
-			}
-		} else {
-			if containerPathDiffPrefix.MatchString(e.NewPathnameStr) {
-				e.NewContainerPath = containerPathDiffPrefix.FindString(e.NewPathnameStr)
-				e.NewPathnameStr = containerPathDiffPrefix.ReplaceAllString(e.NewPathnameStr, "")
-			}
-			if containerPathMergedPrefix.MatchString(e.NewPathnameStr) {
-				e.NewContainerPath = containerPathMergedPrefix.FindString(e.NewPathnameStr)
-				e.NewPathnameStr = containerPathMergedPrefix.ReplaceAllString(e.NewPathnameStr, "")
-			}
 		}
 	}
 	return e.NewPathnameStr
@@ -819,7 +688,7 @@ func (e *LinkEvent) ResolveNewInode(resolvers *Resolvers) string {
 
 func (e *LinkEvent) ResolveNewContainerPath(resolvers *Resolvers) string {
 	if len(e.NewContainerPath) == 0 {
-		containerPath, _, err := resolvers.MountResolver.GetMountPath(e.NewMountID, e.NewOverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.NewMountID, e.NewOverlayNumLower)
 		if err == nil {
 			e.NewContainerPath = containerPath
 		}
@@ -838,7 +707,10 @@ type MountEvent struct {
 	ParentMountID uint32
 	ParentInode   uint64
 	FSType        string
-	ParentPathStr string
+	MountPointStr string
+	RootMountID   uint32
+	RootInode     uint64
+	RootStr       string
 
 	FSTypeRaw [16]byte
 }
@@ -846,9 +718,12 @@ type MountEvent struct {
 func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"parent_path":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"mount_point":"%s",`, e.ResolveMountPoint(resolvers))
 	fmt.Fprintf(&buf, `"parent_mount_id":%d,`, e.ParentMountID)
 	fmt.Fprintf(&buf, `"parent_inode":%d,`, e.ParentInode)
+	fmt.Fprintf(&buf, `"root_inode":%d,`, e.RootInode)
+	fmt.Fprintf(&buf, `"root_mount_id":%d,`, e.RootInode)
+	fmt.Fprintf(&buf, `"root":"%s",`, e.ResolveRoot(resolvers))
 	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.NewMountID)
 	fmt.Fprintf(&buf, `"new_group_id":%d,`, e.NewGroupID)
 	fmt.Fprintf(&buf, `"new_device":%d,`, e.NewDevice)
@@ -859,7 +734,7 @@ func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 }
 
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 56 {
 		return 0, NotEnoughData
 	}
 
@@ -868,19 +743,28 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.NewDevice = byteOrder.Uint32(data[8:12])
 	e.ParentMountID = byteOrder.Uint32(data[12:16])
 	e.ParentInode = byteOrder.Uint64(data[16:24])
+	e.RootInode = byteOrder.Uint64(data[24:32])
+	e.RootMountID = byteOrder.Uint32(data[32:36])
 
-	if err := binary.Read(bytes.NewBuffer(data[24:40]), byteOrder, &e.FSTypeRaw); err != nil {
-		return 24, err
+	if err := binary.Read(bytes.NewBuffer(data[40:56]), byteOrder, &e.FSTypeRaw); err != nil {
+		return 40, err
 	}
 
-	return 40, nil
+	return 56, nil
 }
 
-func (e *MountEvent) ResolveInode(resolvers *Resolvers) string {
-	if len(e.ParentPathStr) == 0 {
-		e.ParentPathStr = resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode)
+func (e *MountEvent) ResolveMountPoint(resolvers *Resolvers) string {
+	if len(e.MountPointStr) == 0 {
+		e.MountPointStr = resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode)
 	}
-	return e.ParentPathStr
+	return e.MountPointStr
+}
+
+func (e *MountEvent) ResolveRoot(resolvers *Resolvers) string {
+	if len(e.RootStr) == 0 {
+		e.RootStr = resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode)
+	}
+	return e.RootStr
 }
 
 func (e *MountEvent) GetFSType() string {

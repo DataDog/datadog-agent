@@ -13,6 +13,9 @@ struct mount_event_t {
     dev_t new_device;
     int parent_mount_id;
     unsigned long parent_ino;
+    unsigned long root_ino;
+    int root_mount_id;
+    u32 padding;
     char fstype[FSTYPE_LEN];
 };
 
@@ -38,6 +41,12 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
     syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM2(ctx);
     syscall->mount.dest_mountpoint = (struct mountpoint *)PT_REGS_PARM3(ctx);
 
+    // resolve root dentry
+    struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
+    syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
+    syscall->mount.root_key.ino = get_dentry_ino(dentry);
+    resolve_dentry(dentry, syscall->mount.root_key);
+
     return 0;
 }
 
@@ -50,6 +59,12 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
     syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM1(ctx);
     syscall->mount.dest_mountpoint = (struct mountpoint *)PT_REGS_PARM2(ctx);
     syscall->mount.src_mnt = (struct mount *)PT_REGS_PARM3(ctx);
+
+    // resolve root dentry
+    struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
+    syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
+    syscall->mount.root_key.ino = get_dentry_ino(dentry);
+    resolve_dentry(dentry, syscall->mount.root_key);
 
     return 0;
 }
@@ -74,6 +89,8 @@ SYSCALL_KRETPROBE(mount) {
         .new_device = get_mount_dev(syscall->mount.src_mnt),
         .parent_mount_id = path_key.mount_id,
         .parent_ino = path_key.ino,
+        .root_ino = syscall->mount.root_key.ino,
+        .root_mount_id = syscall->mount.root_key.mount_id,
     };
     bpf_probe_read_str(&event.fstype, FSTYPE_LEN, syscall->mount.fstype);
 

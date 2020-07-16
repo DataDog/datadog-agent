@@ -3,7 +3,6 @@ package probe
 import (
 	"os"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,18 +106,11 @@ func newMountEventFromMountInfo(mnt *utils.MountInfo) (*MountEvent, error) {
 		}
 	}
 
-	// prepare path
-	var path string
-	if strings.HasSuffix(mnt.MountPoint, mnt.Root) {
-		path = strings.TrimSuffix(mnt.MountPoint, mnt.Root)
-	} else {
-		path = mnt.MountPoint
-	}
-
 	// create a MountEvent out of the parsed MountInfo
 	return &MountEvent{
 		ParentMountID: uint32(mnt.ParentID),
-		ParentPathStr: path,
+		MountPointStr: mnt.MountPoint,
+		RootStr:       mnt.Root,
 		NewMountID:    uint32(mnt.MountID),
 		NewGroupID:    uint32(groupID),
 		NewDevice:     uint32(unix.Mkdev(uint32(major), uint32(minor))),
@@ -156,16 +148,6 @@ func (m *Mount) DFS(mask map[uint32]bool) []*Mount {
 	return mounts
 }
 
-func sanitizeContainerPath(eventPath string) string {
-	// Look for the first container ID and remove everything that comes after
-	r, _ := regexp.Compile("[0-9a-f]{64}")
-	loc := r.FindStringIndex(eventPath)
-	if len(loc) == 2 {
-		return eventPath[:loc[1]]
-	}
-	return ""
-}
-
 // newMount - Creates a new Mount from a mount event and sets / updates its parent
 func newMount(e *MountEvent, parent *Mount, group *OverlayGroup) *Mount {
 	m := Mount{
@@ -173,9 +155,9 @@ func newMount(e *MountEvent, parent *Mount, group *OverlayGroup) *Mount {
 		parent:     parent,
 		peerGroup:  group,
 	}
-	eventPath := e.ParentPathStr
-	if e.GetFSType() == "overlay" {
-		m.containerMountPath = sanitizeContainerPath(eventPath)
+	eventPath := e.MountPointStr
+	if e.GetFSType() == "overlay" && eventPath != "/" {
+		m.containerMountPath = eventPath
 	}
 	if parent != nil {
 		if strings.HasPrefix(eventPath, parent.mountPath) {
@@ -189,8 +171,8 @@ func newMount(e *MountEvent, parent *Mount, group *OverlayGroup) *Mount {
 		parent.children = append(parent.children, &m)
 	}
 	if m.containerMountPath == "" {
-		if group != nil && group.parent != nil && group.parent.NewMountID != e.NewMountID && group.parent.GetFSType() == "overlay" {
-			m.containerMountPath = sanitizeContainerPath(group.parent.mountPath)
+		if group != nil && group.parent != nil && group.parent.NewMountID != e.NewMountID && group.parent.GetFSType() == "overlay" && group.parent.mountPath != "/" {
+			m.containerMountPath = group.parent.mountPath
 		}
 	}
 	return &m
@@ -428,25 +410,22 @@ func (mr *MountResolver) insert(e *MountEvent, allowResync bool) {
 
 // GetMountPath - Returns the path of a mount identified by its mount ID. The first path is the container mount path if
 // it exists
-func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, string, error) {
+func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, string, string, error) {
 	mr.lock.RLock()
 	defer mr.lock.RUnlock()
 	m, ok := mr.mounts[mountID]
 	if !ok {
 		if mountID == 0 {
-			return "", "", nil
+			return "", "", "", nil
 		}
 		if !ok {
-			return "", "", ErrMountNotFound
+			return "", "", "", ErrMountNotFound
 		}
 	}
-	if m.containerMountPath != "" {
-		if numlower == 0 {
-			return path.Join(m.containerMountPath, "diff"), m.mountPath, nil
-		}
-		return path.Join(m.containerMountPath, "merged"), m.mountPath, nil
-	}
-	return "", m.mountPath, nil
+	// The containerMountPath will always refer to the merged layer of the overlay filesystem (when there is one)
+	// Look at the numlower field of the event to differentiate merged / diff layers
+	// (numlower == 0 => diff | numlower > 0 => merged, therefore the file is from the original container)
+	return m.containerMountPath, m.mountPath, m.RootStr, nil
 }
 
 // NewMountResolver - Instantiates a new mount resolver

@@ -622,8 +622,10 @@ func (p *Probe) handleEvent(data []byte) {
 			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		// Resolve event inode
-		event.Mount.ResolveInode(p.resolvers)
+		// Resolve mount point
+		event.Mount.ResolveMountPoint(p.resolvers)
+		// Resolve root
+		event.Mount.ResolveRoot(p.resolvers)
 		// Insert new mount point in cache
 		p.resolvers.MountResolver.Insert(&event.Mount)
 	case FileUmountEventType:
