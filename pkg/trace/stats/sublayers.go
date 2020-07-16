@@ -288,10 +288,11 @@ func (c *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
 		c.resize(len(trace))
 	}
 	c.clear(len(trace))
-	durationsByService := c.computeDurationByAttrNew(
+	c.computeExecDurations(trace)
+	durationsByService := c.computeDurationByAttr(
 		trace, func(s *pb.Span) string { return s.Service },
 	)
-	durationsByType := c.computeDurationByAttrNew(
+	durationsByType := c.computeDurationByAttr(
 		trace, func(s *pb.Span) string { return s.Type },
 	)
 
@@ -328,7 +329,7 @@ func (c *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
 // returning an attribute for a given span
 type attrSelector func(*pb.Span) string
 
-func (c *SublayerCalculator) computeDurationByAttrNew(trace pb.Trace, selector attrSelector) map[string]float64 {
+func (c *SublayerCalculator) computeDurationByAttr(trace pb.Trace, selector attrSelector) map[string]float64 {
 	durations := make(map[string]float64)
 	for i, span := range trace {
 		key := selector(span)
