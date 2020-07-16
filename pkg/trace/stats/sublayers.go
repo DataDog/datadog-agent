@@ -118,7 +118,7 @@ type SublayerCalculator struct {
 
 // NewSublayerCalculator returns a new SublayerCalculator.
 func NewSublayerCalculator() *SublayerCalculator {
-	c := &SublayerCalculator{}
+	c := &SublayerCalculator{activeSpans: &activeSpanSet{}}
 	c.resize(defaultCalculatorSpanCapacity)
 	return c
 }
