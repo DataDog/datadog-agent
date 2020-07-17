@@ -129,8 +129,8 @@ typedef char *(*cb_read_persistent_cache_t)(char *);
 typedef char *(*cb_obfuscate_sql_t)(char *, char **);
 
 // _util
-// (argv, argc, raise, stdout, stderr, ret_code, exception)
-typedef void (*cb_get_subprocess_output_t)(char **, char **, char **, int *, char **);
+// (argv, env, stdout, stderr, ret_code, exception)
+typedef void (*cb_get_subprocess_output_t)(char **, char **, char **, char **, int *, char **);
 
 // CGO API
 //
