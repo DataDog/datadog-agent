@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -12,9 +13,9 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/module"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	aconfig "github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -36,7 +37,7 @@ type Module struct {
 	rateLimiter  *RateLimiter
 }
 
-func (m *Module) Register(server *grpc.Server) error {
+func (m *Module) Register(httpMux *http.ServeMux) error {
 	ln, err := net.Listen("unix", m.config.SocketPath)
 	if err != nil {
 		return errors.Wrap(err, "unable to register security runtime module")
@@ -184,11 +185,16 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 	return m.ruleSet
 }
 
-func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
+func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 	config, err := config.NewConfig()
 	if err != nil {
-		log.Errorf("invalid security module configuration: %s", err)
+		log.Errorf("invalid security runtime module configuration: %s", err)
 		return nil, err
+	}
+
+	if !config.Enabled {
+		log.Infof("security runtime module disabled")
+		return nil, api.ErrNotEnabled
 	}
 
 	var statsdClient *statsd.Client
@@ -222,7 +228,7 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		rateLimiter:  NewRateLimiter(ruleSet.ListRuleIDs()),
 	}
 
-	api.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
+	sapi.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)
 
 	return m, nil
 }

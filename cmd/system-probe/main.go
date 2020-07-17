@@ -28,6 +28,7 @@ var factories = []api.Factory{
 	modules.NetworkTracer,
 	modules.TCPQueueLength,
 	modules.OOMKillProbe,
+	modules.SecurityRuntime,
 }
 
 // Flag values
