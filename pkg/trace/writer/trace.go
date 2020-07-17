@@ -145,6 +145,7 @@ func (w *TraceWriter) Run() {
 
 func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 	if pkg.Empty() {
+		panic("empty")
 		return
 	}
 

@@ -33,6 +33,8 @@ type Span interface {
 	Error() int32
 	SetError(x int32)
 
+	MsgSize() int
+
 	WriteProto(w io.Writer) error
 
 	DebugString() string

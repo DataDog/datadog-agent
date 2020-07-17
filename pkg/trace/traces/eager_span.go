@@ -105,6 +105,10 @@ func (e *EagerSpan) SetError(x int32) {
 	e.Span.Error = x
 }
 
+func (e *EagerSpan) MsgSize() int {
+	return e.Span.Size()
+}
+
 func (e *EagerSpan) WriteProto(w io.Writer) error {
 	// TODO: This is inefficient and allocates.
 	marshaled, err := proto.Marshal(&e.Span)

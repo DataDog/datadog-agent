@@ -108,5 +108,9 @@ func (t *Trace) WriteAsSpans(w io.Writer) error {
 }
 
 func (t *Trace) MsgSize() int {
-	return 0
+	size := 0
+	for _, s := range t.Spans {
+		size += s.MsgSize()
+	}
+	return size
 }
