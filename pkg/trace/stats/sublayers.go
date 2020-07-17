@@ -44,8 +44,8 @@ func (v SublayerValue) GoString() string {
 type spanState struct {
 	// open is true if the span has started, but hasn't ended yet.
 	open bool
-	// nChildren is the number of direct children spans that are currently open
-	nChildren int
+	// nOpenChildren is the number of direct children spans that are currently open
+	nOpenChildren int
 	// active is true if the span is open and has no open children.
 	active bool
 	// execDuration is the sum of the execDuration for the span since the start of the trace.
@@ -84,23 +84,20 @@ type SublayerCalculator struct {
 // NewSublayerCalculator returns a new SublayerCalculator.
 func NewSublayerCalculator() *SublayerCalculator {
 	s := &SublayerCalculator{}
-	s.resize(defaultCalculatorSpanCapacity)
+	s.reset(defaultCalculatorSpanCapacity)
 	return s
 }
 
-// resize allocates arrays of the sublayer calculator
-// it should be called every time we receive a trace with more spans than the capacity of the calculator
-func (s *SublayerCalculator) resize(capacity int) {
-	s.spanStates = make([]spanState, capacity)
-	s.timestamps = make(sortableTimestamps, 2*capacity)
-}
-
-// clear clears structures of the sublayer calculator to prepare the computation of sublayer metrics
-// for a trace with max n spans
-func (s *SublayerCalculator) clear(n int) {
+// reset clears structures of the sublayer calculator to prepare the computation of sublayer metrics for a trace with max n spans.
+// if the capacity of the calculator is too small, it re-allocates new arrays
+func (s *SublayerCalculator) reset(n int) {
+	if n > len(s.spanStates) {
+		s.spanStates = make([]spanState, n)
+		s.timestamps = make(sortableTimestamps, 2*n)
+	}
 	for i := 0; i < n; i++ {
 		s.spanStates[i].open = false
-		s.spanStates[i].nChildren = 0
+		s.spanStates[i].nOpenChildren = 0
 		s.spanStates[i].active = false
 		s.spanStates[i].execDuration = 0
 	}
@@ -170,10 +167,10 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 					s.spanStates[tp.parentIdx].deactivate(traceExecDuration)
 					nActiveSpans--
 				}
-				s.spanStates[tp.parentIdx].nChildren++
+				s.spanStates[tp.parentIdx].nOpenChildren++
 			}
 			s.spanStates[tp.spanIdx].open = true
-			if s.spanStates[tp.spanIdx].nChildren == 0 && !s.spanStates[tp.spanIdx].active {
+			if s.spanStates[tp.spanIdx].nOpenChildren == 0 && !s.spanStates[tp.spanIdx].active {
 				s.spanStates[tp.spanIdx].activate(traceExecDuration)
 				nActiveSpans++
 			}
@@ -184,8 +181,8 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 				nActiveSpans--
 			}
 			if tp.parentIdx != -1 {
-				s.spanStates[tp.parentIdx].nChildren--
-				if s.spanStates[tp.parentIdx].open && s.spanStates[tp.parentIdx].nChildren == 0 && !s.spanStates[tp.parentIdx].active {
+				s.spanStates[tp.parentIdx].nOpenChildren--
+				if s.spanStates[tp.parentIdx].open && s.spanStates[tp.parentIdx].nOpenChildren == 0 && !s.spanStates[tp.parentIdx].active {
 					s.spanStates[tp.parentIdx].activate(traceExecDuration)
 					nActiveSpans++
 				}
@@ -243,10 +240,7 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 //             rpc: 55,
 //         }
 func (s *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
-	if len(trace) > len(s.spanStates) {
-		s.resize(len(trace))
-	}
-	s.clear(len(trace))
+	s.reset(len(trace))
 	s.computeExecDurations(trace)
 	durationsByService := s.computeDurationByAttr(
 		trace, func(s *pb.Span) string { return s.Service },
