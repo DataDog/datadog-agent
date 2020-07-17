@@ -377,8 +377,8 @@ func GetConditionMessage(p *v1.Pod) string {
 }
 
 // this should generate a unique id because:
-// postName + namespace = unique per host
-// postName + namespace + host + clustername = unique
+// podName + namespace = unique per host
+// podName + namespace + host + clustername = unique
 func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) string {
 	h := fnv.New64()
 	_, _ = h.Write([]byte(host))
