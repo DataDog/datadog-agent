@@ -694,7 +694,7 @@ run_dogstatsd_arm_size_test:
 
   script:
     - inv -e system-probe.build --go-version=$SYSTEM_PROBE_GO_VERSION --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
-    - inv -e system-probe.test --only-check-bpf-bytes --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
+    - inv -e system-probe.test --only-check-bpf-bytes
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
 
 build_system-probe-x64:
