@@ -29,17 +29,17 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen15-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen15-godeps-{{ .Branch }}-
-          - gen15-godeps-master-
+          - gen16-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen16-godeps-{{ .Branch }}-
+          - gen16-godeps-master-
     - save_cache: &save_deps
-        key: gen15-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen16-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
-          - v4-repo-{{ .Revision }}
+          - v5-repo-{{ .Revision }}
     - save_cache: &save_source
-        key: v4-repo-{{ .Revision }}
+        key: v5-repo-{{ .Revision }}
 
 jobs:
   checkout_code:
