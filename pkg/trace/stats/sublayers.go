@@ -56,6 +56,18 @@ type spanState struct {
 	activationTraceExecDuration float64
 }
 
+// activate activates a span and saves the traceExecDuration at activation.
+func (s *spanState) activate(traceExecDuration float64) {
+	s.active = true
+	s.activationTraceExecDuration = traceExecDuration
+}
+
+// deactivate deactivates a span and updates the execDuration of the span.
+func (s *spanState) deactivate(traceExecDuration float64) {
+	s.active = false
+	s.execDuration += traceExecDuration - s.activationTraceExecDuration
+}
+
 // SublayerCalculator holds arrays used to compute sublayer metrics.
 // Re-using arrays reduces the number of allocations
 // A sublayer metric is the execution duration of a given type / service in a trace
@@ -146,22 +158,6 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 	// Step 3: Compute the execution duration of each span
 	traceExecDuration := float64(0)
 	nActiveSpans := 0
-	activateSpan := func(idx int) {
-		if s.spanStates[idx].active {
-			return
-		}
-		nActiveSpans++
-		s.spanStates[idx].active = true
-		s.spanStates[idx].activationTraceExecDuration = traceExecDuration
-	}
-	deactivateSpan := func(idx int) {
-		if !s.spanStates[idx].active {
-			return
-		}
-		nActiveSpans--
-		s.spanStates[idx].active = false
-		s.spanStates[idx].execDuration += traceExecDuration - s.spanStates[idx].activationTraceExecDuration
-	}
 	for j := 0; j < len(trace)*2; j++ {
 		tp := s.timestamps[j]
 		if nActiveSpans > 0 {
@@ -169,20 +165,28 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 		}
 		if tp.spanStart {
 			if tp.parentIdx != -1 {
-				deactivateSpan(tp.parentIdx)
+				if s.spanStates[tp.parentIdx].active {
+					s.spanStates[tp.parentIdx].deactivate(traceExecDuration)
+					nActiveSpans--
+				}
 				s.spanStates[tp.parentIdx].nChildren++
 			}
 			s.spanStates[tp.spanIdx].open = true
-			if s.spanStates[tp.spanIdx].nChildren == 0 {
-				activateSpan(tp.spanIdx)
+			if s.spanStates[tp.spanIdx].nChildren == 0 && !s.spanStates[tp.spanIdx].active {
+				s.spanStates[tp.spanIdx].activate(traceExecDuration)
+				nActiveSpans++
 			}
 		} else {
 			s.spanStates[tp.spanIdx].open = false
-			deactivateSpan(tp.spanIdx)
+			if s.spanStates[tp.spanIdx].active {
+				s.spanStates[tp.spanIdx].deactivate(traceExecDuration)
+				nActiveSpans--
+			}
 			if tp.parentIdx != -1 {
 				s.spanStates[tp.parentIdx].nChildren--
-				if s.spanStates[tp.parentIdx].open && s.spanStates[tp.parentIdx].nChildren == 0 {
-					activateSpan(tp.parentIdx)
+				if s.spanStates[tp.parentIdx].open && s.spanStates[tp.parentIdx].nChildren == 0 && !s.spanStates[tp.parentIdx].active {
+					s.spanStates[tp.parentIdx].activate(traceExecDuration)
+					nActiveSpans++
 				}
 			}
 		}

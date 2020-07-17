@@ -141,7 +141,7 @@ func TestComputeSublayers(t *testing.T) {
 				span(7, 1, "rpc3", "rpc", 80, 10),
 			},
 			[]SublayerValue{
-				sublayerValueService("rpc1", 30),
+				sublayerValueService("rpc1", 29),
 				sublayerValueService("rpc2", 25),
 				sublayerValueService("rpc3", 10),
 				sublayerValueService("web-server", 35),
