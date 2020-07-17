@@ -28,7 +28,7 @@ func HasTopLevel(s traces.Span) bool {
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasured(s traces.Span) bool {
 	// TODO: Fix me.
-	return false
+	return true
 	// return s.Metrics[measuredKey] == 1
 }
 
