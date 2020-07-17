@@ -43,6 +43,8 @@ from .test import (
 )
 from .build_tags import audit_tag_impact
 
+from .pipeline import trigger_pipeline
+
 # the root namespace
 ns = Collection()
 
@@ -69,6 +71,7 @@ ns.add_task(make_kitchen_gitlab_yml)
 ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
 ns.add_task(install_shellcheck)
+ns.add_task(trigger_pipeline)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

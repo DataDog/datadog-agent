@@ -2,8 +2,8 @@ import platform
 import functools
 import sys
 
-from gitlab import Gitlab
-from color import color_str
+from .gitlab import Gitlab
+from .color import color_str
 
 from time import sleep, time
 
