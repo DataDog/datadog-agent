@@ -873,6 +873,41 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+{{- if .SecurityModule }}
+
+##########################################
+## Security Agent Runtime Configuration ##
+##########################################
+
+# runtime_security_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Security Runtime Module.
+  #
+  # enabled: false
+
+  ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
+  ## The full path to the location of the unix socket where security runtime module is accessed.
+  #
+  # socket: /opt/datadog-agent/run/runtime-security.sock
+
+  ## @param policies - custom object - optional
+  ## Policy names and their policy rules.
+  #
+  # policies:
+    # - name: default-policies
+    #   files:
+    #     - /etc/datadog-agent/security_agent.d/runtime-policies.yaml
+
+  ## @param syscall_monitor - custom object - optional
+  ## Syscall monitoring
+  #
+  # syscall_monitor:
+  
+    ## @param enabled - boolean - optional - default: false
+    ## Set to true to enable the Syscall monitoring.
+    #
+    #  enabled: false
+{{ end -}}
 {{ end -}}
 {{- if .Dogstatsd }}
 
