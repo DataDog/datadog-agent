@@ -35,7 +35,7 @@ def trigger_agent_pipeline(
 
     # Override the environment to release the binaries to (prod or staging)
     if windows_update_latest is not None:
-        args["WINDOWS_DO_NOT_UPDATE_LATEST"] = str(not windows_update_latest)
+        args["WINDOWS_DO_NOT_UPDATE_LATEST"] = str(not windows_update_latest).lower()
 
     print(
         "Creating pipeline for datadog-agent on branch {} with args:\n{}".format(
@@ -49,17 +49,18 @@ def trigger_agent_pipeline(
     raise RuntimeError("Invalid response from Gitlab: {}".format(result))
 
 
-def ui_loop(callable, timeout_sec):
+def loop(callable, timeout_sec):
     need_newline = False
     start = time()
+    job_status = dict()
     try:
         while True:
-            res = callable()
+            res, job_status = callable(job_status)
             if res:
                 return res
             if time() - start > timeout_sec:
                 raise ErrorMsg("Timed out.")
-            sys.stdout.write(color_str(".", "orange"))
+
             sys.stdout.flush()
             need_newline = True
             sleep(3)
@@ -76,7 +77,7 @@ def wait_for_pipeline_id(
 
     f = functools.partial(pipeline_status, gitlab, proj, pipeline_id,)
 
-    ui_loop(f, timeout_sec)
+    loop(f, timeout_sec)
 
 
 def latest_job_from_name(jobs, job_name):
@@ -85,9 +86,58 @@ def latest_job_from_name(jobs, job_name):
     return sorted(relevant_jobs, key=lambda x: x["created_at"], reverse=True)[0]
 
 
-def pipeline_status(gitlab, proj, pipeline_id):
+def print_job_status(job):
+    def print_job(name, stage, color, finish_date, duration, status):
+        print(
+            color_str(
+                "[{finish_date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]".format(
+                    name=name,
+                    stage=stage,
+                    finish_date=finish_date,
+                    m=(duration // 60),
+                    s=(duration % 60),
+                    status=status,
+                ),
+                color,
+            )
+        )
+
+    name = job['name']
+    stage = job['stage']
+    finish_date = job['finished_at']
+    allow_failure = job['allow_failure']
+    duration = job['duration']
+    status = job['status']
+    if status == 'success':
+        job_status = 'succeeded'
+        color = 'green'
+    elif status == 'failed':
+        if allow_failure:
+            job_status = 'failed (allowed to fail)'
+            color = 'orange'
+        else:
+            job_status = 'failed'
+            color = 'red'
+    elif status == 'canceled':
+        job_status = 'canceled'
+        color = 'grey'
+
+    print_job(name, stage, color, finish_date, duration, job_status)
+
+
+def update_job_status(jobs, job_status):
+    for job in jobs:
+        if job['status'] in ['success', 'canceled', 'failed']:
+            if job_status.get(job['name'], None) is None:
+                job_status[job['name']] = (job['status'], job['allow_failure'])
+                print_job_status(job)
+    return job_status
+
+
+def pipeline_status(gitlab, proj, pipeline_id, job_status):
     jobs = gitlab.jobs(proj, pipeline_id)
 
+    job_status = update_job_status(jobs, job_status)
     # check pipeline status
     pipestatus = gitlab.pipeline(proj, pipeline_id)["status"].lower().strip()
 
@@ -110,6 +160,8 @@ def pipeline_status(gitlab, proj, pipeline_id):
 
     if pipestatus not in ["created", "running", "pending"]:
         raise ErrorMsg("Error: pipeline status {}".format(pipestatus.title()))
+
+    return False, job_status
 
 
 def print_pipeline_link(project, pipeline_id):
