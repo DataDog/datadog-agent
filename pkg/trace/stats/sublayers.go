@@ -182,7 +182,7 @@ func (c *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 		idToIdx[span.SpanID] = idx
 	}
 
-	// Step 2: Build all trace timestamps and sorts them
+	// Step 2: Build all trace timestamps and sort them
 	for i, span := range trace {
 		parentIdx := -1
 		if idx, ok := idToIdx[span.ParentID]; ok {
