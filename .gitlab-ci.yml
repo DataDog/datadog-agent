@@ -112,16 +112,16 @@ variables:
 # run job only when triggered by an external tool (ex: Jenkins). This is used
 # for jobs that run both on nightlies and tags
 .if_triggered: &if_triggered
-  if: $CI_PIPELINE_SOURCE == "trigger"
+  if: $DEPLOY_AGENT == "true"
 
 .if_triggered_6: &if_triggered_6
-  if: $CI_PIPELINE_SOURCE == "trigger" && $RELEASE_VERSION_6 != ""
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != ""
 
 .if_triggered_7: &if_triggered_7
-  if: $CI_PIPELINE_SOURCE == "trigger" && $RELEASE_VERSION_7 != ""
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
 
 .if_not_triggered: &if_not_triggered
-  if: $CI_PIPELINE_SOURCE != "trigger"
+  if: $DEPLOY_AGENT != "true"
 
 # anchor to trigger test kitchen setup, run, and cleanup (so all stages
 # are run if one stage is run).  Triggers as defined:
@@ -133,10 +133,10 @@ variables:
 #        it can be triggered by requesting a specific build)
 #
 .if_test_kitchen_triggered: &if_test_kitchen_triggered
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "web"
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web"
 
 .if_not_test_kitchen_triggered: &if_not_test_kitchen_triggered
-  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "web"
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web"
 
 # true only when triggered by an external tool (ex: Jenkins) and when
 # RELEASE_VERSION_X is NOT "nightly". In this setting we are building either a
@@ -144,28 +144,28 @@ variables:
 # artifacts should be uploaded to our staging repository.
 .if_triggered_on_tag_6: &if_triggered_on_tag_6
   # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $CI_PIPELINE_SOURCE == "trigger" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
 
 .if_not_triggered_on_tag_6: &if_not_triggered_on_tag_6
   # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $CI_PIPELINE_SOURCE != "trigger" || $RELEASE_VERSION_6 == "nightly" || $RELEASE_VERSION_6 == ""
+  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_6 == "nightly" || $RELEASE_VERSION_6 == ""
 
 .if_triggered_on_tag_7: &if_triggered_on_tag_7
   # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $CI_PIPELINE_SOURCE == "trigger" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
 
 .if_not_triggered_on_tag_7: &if_not_triggered_on_tag_7
   # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $CI_PIPELINE_SOURCE != "trigger" || $RELEASE_VERSION_7 == "nightly-a7" || $RELEASE_VERSION_7 == ""
+  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_7 == "nightly-a7" || $RELEASE_VERSION_7 == ""
 
 # true only when triggered by an external tool (ex: Jenkins) and when
 # RELEASE_VERSION_X is "nightly". In this setting we build from master and update
 # the nightly build for windows, linux and docker.
 .if_triggered_on_nightly: &if_triggered_on_nightly
-  if: $CI_PIPELINE_SOURCE == "trigger" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
 
 .if_not_triggered_on_nightly: &if_not_triggered_on_nightly
-  if: $CI_PIPELINE_SOURCE != "trigger" || $RELEASE_VERSION_6 != "nightly" || $RELEASE_VERSION_7 != "nightly-a7"
+  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_6 != "nightly" || $RELEASE_VERSION_7 != "nightly-a7"
 
 # true only when RELEASE_VERSION_X is not set
 .if_version_6: &if_version_6
@@ -188,7 +188,7 @@ fail_on_non_triggered_tag:
   script:
     - env | grep CI_
     - echo CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE CI_COMMIT_TAG=$CI_COMMIT_TAG
-    - '[[ $CI_COMMIT_TAG == dca-* || $CI_COMMIT_TAG == "" || $CI_PIPELINE_SOURCE != "push" ]]'
+    - '[[ $CI_COMMIT_TAG == dca-* || $CI_COMMIT_TAG == "" || $DEPLOY_AGENT == "true" ]]'
 
 #
 # deps_build
@@ -4094,11 +4094,11 @@ notify-on-success:
 
     AUTHOR=$(git show -s --format="%an" HEAD)
 
-    if [ "$CI_PIPELINE_SOURCE" = "push" ]; then
-      MESSAGE_TEXT=":host-green: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+    if [ "$DEPLOY_AGENT" = "true" ]; then
+      MESSAGE_TEXT=":host-green: :merged: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     else
-      MESSAGE_TEXT=":host-green: :jenkinsparty: Triggered pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      MESSAGE_TEXT=":host-green: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     fi
     postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
@@ -4127,11 +4127,11 @@ notify-on-failure:
 
     AUTHOR=$(git show -s --format="%an" HEAD)
 
-    if [ "$CI_PIPELINE_SOURCE" = "push" ]; then
-      MESSAGE_TEXT=":host-red: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+    if [ "$DEPLOY_AGENT" = "true" ]; then
+      MESSAGE_TEXT=":host-red: :merged: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     else
-      MESSAGE_TEXT=":host-red: :angryjenkins: Triggered pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+      MESSAGE_TEXT=":host-red: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     fi
     postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
