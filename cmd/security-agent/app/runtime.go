@@ -23,7 +23,7 @@ import (
 var (
 	runtimeCmd = &cobra.Command{
 		Use:   "runtime",
-		Short: "Runtime Agent utility commands",
+		Short: "Security Agent runtime features utility commands",
 	}
 
 	checkPoliciesCmd = &cobra.Command{
