@@ -330,7 +330,7 @@ func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
 	})
 }
 
-func (r *HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+func (r *HTTPReceiver) decodeTraces(v Version, req *http.Request) ([]traces.Trace, error) {
 	if v == v01 {
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
@@ -338,10 +338,12 @@ func (r *HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, er
 		}
 		return tracesFromSpans(spans), nil
 	}
-	var traces pb.Traces
-	if err := decodeRequest(req, &traces); err != nil {
-		return nil, err
+
+	traces, err := decodeRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("decodeTraces: error decoding request: %v", err)
 	}
+
 	return traces, nil
 }
 
@@ -420,12 +422,12 @@ func (r *HTTPReceiver) processTraces(ts *info.TagStats, containerID string, trac
 	for _, trace := range traces {
 		numSpans := len(trace.Spans)
 
-		atomic.AddInt64(&ts.SpansReceived, int64(spans))
+		atomic.AddInt64(&ts.SpansReceived, int64(numSpans))
 
 		err := normalizeTrace(ts, trace)
 		if err != nil {
 			log.Debug("Dropping invalid trace: %s", err)
-			atomic.AddInt64(&ts.SpansDropped, int64(spans))
+			atomic.AddInt64(&ts.SpansDropped, int64(numSpans))
 			continue
 		}
 
@@ -560,40 +562,62 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest msgp.Decodable) error {
+func decodeRequest(req *http.Request) ([]traces.Trace, error) {
+
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		return msgp.Decode(req.Body, dest)
+		var dest pb.Traces
+		if err := msgp.Decode(req.Body, &dest); err != nil {
+			return nil, fmt.Errorf("decodeRequest: error decoding msgpack request: %v", err)
+		}
+		return pbToTraces(dest), nil
 	case "application/protobuf":
-		// TODO: Use the lazy span implementation.
+		panic("TODO: Use lazy spans")
 	case "application/json":
 		fallthrough
 	case "text/json":
 		fallthrough
 	case "":
-		return json.NewDecoder(req.Body).Decode(dest)
+		var dest pb.Traces
+		if err := json.NewDecoder(req.Body).Decode(&dest); err != nil {
+			return nil, fmt.Errorf("decodeRequest: error decoding JSON request: %v", err)
+		}
+		return pbToTraces(dest), nil
 	default:
+		var dest pb.Traces
 		// do our best
-		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
-			if err2 := msgp.Decode(req.Body, dest); err2 != nil {
-				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
+			if err2 := msgp.Decode(req.Body, &dest); err2 != nil {
+				return nil, fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
 			}
 		}
-		return nil
+		return pbToTraces(dest), nil
 	}
 }
 
-func tracesFromSpans(spans []pb.Span) pb.Traces {
-	traces := pb.Traces{}
-	byID := make(map[uint64][]*pb.Span)
-	for _, s := range spans {
-		byID[s.TraceID] = append(byID[s.TraceID], &s)
+func pbToTraces(pbTraces pb.Traces) []traces.Trace {
+	currTraces := make([]traces.Trace, 0, len(pbTraces))
+	for _, t := range pbTraces {
+		eagerSpans := make([]traces.Span, 0, len(t))
+		for _, s := range t {
+			eagerSpans = append(eagerSpans, traces.NewEagerSpan(*s))
+		}
+		currTraces = append(currTraces, traces.NewTrace(eagerSpans))
 	}
-	for _, t := range byID {
-		traces = append(traces, t)
+	return currTraces
+}
+
+func tracesFromSpans(spans []pb.Span) []traces.Trace {
+	var currTraces []traces.Trace
+	byID := make(map[uint64][]traces.Span)
+	for _, s := range spans {
+		byID[s.TraceID] = append(byID[s.TraceID], traces.NewEagerSpan(s))
+	}
+	for _, traceSpans := range byID {
+		currTraces = append(currTraces, traces.NewTrace(traceSpans))
 	}
 
-	return traces
+	return currTraces
 }
 
 // getContainerTag returns container and orchestrator tags belonging to containerID. If containerID

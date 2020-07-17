@@ -116,7 +116,7 @@ func normalize(ts *info.TagStats, s traces.Span) error {
 	parentID := s.ParentID()
 	if parentID == s.TraceID() && parentID == s.SpanID() {
 		parentID = 0
-		log.Debugf("span.normalize: `ParentID`, `TraceID` and `SpanID` are the same; `ParentID` set to 0: %d", s.TraceID)
+		log.Debugf("span.normalize: `ParentID`, `TraceID` and `SpanID` are the same; `ParentID` set to 0: %d", s.TraceID())
 	}
 	s.SetParentID(parentID)
 

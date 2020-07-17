@@ -18,6 +18,22 @@ func NewTrace(spans []Span) Trace {
 	}
 }
 
+func EagerTracesToPBTrace(eagerTraces []Trace) pb.Traces {
+	pbTraces := pb.Traces{}
+	for _, t := range eagerTraces {
+		pbTraces = append(pbTraces, EagerTraceToPBTrace(t))
+	}
+	return pbTraces
+}
+
+func EagerTraceToPBTrace(t Trace) pb.Trace {
+	trace := pb.Trace{}
+	for _, s := range t.Spans {
+		trace = append(trace, &s.(*EagerSpan).Span)
+	}
+	return trace
+}
+
 func (t *Trace) WriteAsAPITrace(w io.Writer, traceID uint64, start, end int64) error {
 	if len(t.Spans) == 0 {
 		return nil
