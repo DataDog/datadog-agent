@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"sync"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -12,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"sync"
 )
 
 // DDClient - Datadog Log client
@@ -62,7 +63,7 @@ func (ddc *DDClient) Run(wg *sync.WaitGroup) {
 	// Sets up the auditor
 	ddc.auditor = auditor.New(
 		coreconfig.Datadog.GetString("security_agent_config.run_path"),
-		health.Register("runtime-security-agent"))
+		health.RegisterLiveness("runtime-security-agent"))
 	ddc.auditor.Start()
 	defer ddc.auditor.Stop()
 
