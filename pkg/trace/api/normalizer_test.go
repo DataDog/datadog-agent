@@ -176,9 +176,9 @@ func TestNormalizeEmptyResource(t *testing.T) {
 func TestNormalizeTraceIDPassThru(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
-	before := s.TraceID
+	before := s.TraceID()
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, before, s.TraceID)
+	assert.Equal(t, before, s.TraceID())
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -193,9 +193,9 @@ func TestNormalizeTraceIDPassThru(t *testing.T) {
 func TestNormalizeSpanIDPassThru(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
-	before := s.SpanID
+	before := s.SpanID()
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, before, s.SpanID)
+	assert.Equal(t, before, s.SpanID())
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -211,9 +211,9 @@ func TestNormalizeStart(t *testing.T) {
 	t.Run("pass-through", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpan()
-		before := s.Start
+		before := s.Start()
 		assert.NoError(t, normalize(ts, s))
-		assert.Equal(t, before, s.Start)
+		assert.Equal(t, before, s.Start())
 		assert.Equal(t, newTagStats(), ts)
 	})
 
@@ -244,9 +244,9 @@ func TestNormalizeStart(t *testing.T) {
 func TestNormalizeDurationPassThru(t *testing.T) {
 	ts := newTagStats()
 	s := newTestSpan()
-	before := s.Duration
+	before := s.Duration()
 	assert.NoError(t, normalize(ts, s))
-	assert.Equal(t, before, s.Duration)
+	assert.Equal(t, before, s.Duration())
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -446,7 +446,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 		ts := newTagStats()
 		span := newTestSpan()
 
-		// span.Resource = invalidUTF8
+		span.SetResource(invalidUTF8)
 
 		err := normalize(ts, span)
 
