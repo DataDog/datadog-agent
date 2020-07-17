@@ -759,7 +759,6 @@ func TestTCPCollectionDisabled(t *testing.T) {
 func TestUDPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
 	cfg := NewDefaultConfig()
-	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()

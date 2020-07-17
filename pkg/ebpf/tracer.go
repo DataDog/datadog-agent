@@ -137,27 +137,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("error guessing offsets: %s", err)
 	}
 
-	// In linux kernel version 4.17(?) they added architecture specific calling conventions to syscalls within the kernel.
-	// When attaching a kprobe to the `__x64_sys_` prefixed syscall, all the arguments are behind an additional layer of
-	// indirection. We are detecting this at runtime, and setting the constant `use_indirect_syscall` so the kprobe code
-	// accesses the arguments correctly.
-	//
-	// For example:
-	// int domain;
-	// struct pt_regs *_ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
-	// bpf_probe_read(&domain, sizeof(domain), &(PT_REGS_PARM1(_ctx)));
-	//
-	// Instead of:
-	// int domain = PT_REGS_PARM1(ctx);
-	//
-	syscallName, err := manager.GetSyscallFnName("socket")
-	if err == nil && strings.HasPrefix(syscallName, "__x64_sys_") {
-		mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
-			Name:  "use_indirect_syscall",
-			Value: uint64(1),
-		})
-	}
-
 	closedChannelSize := defaultClosedChannelSize
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
@@ -166,7 +145,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	m := bytecode.NewManager(perfHandler)
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes(pre410Kernel)
+	enabledProbes := config.EnabledProbes(pre410Kernel)
 	for probeName := range enabledProbes {
 		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(probeName))
 	}
@@ -274,7 +253,7 @@ func overrideProbeSectionNames(m *manager.Manager) {
 		if !p.Enabled {
 			continue
 		}
-		if override, ok := bytecode.KProbeOverrides[bytecode.KProbeName(p.Section)]; ok {
+		if override, ok := bytecode.KProbeOverrides[bytecode.ProbeName(p.Section)]; ok {
 			p.Section = string(override)
 		}
 	}
@@ -789,7 +768,7 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 	return network.OUTGOING
 }
 
-func isSysCall(name bytecode.KProbeName) bool {
+func isSysCall(name bytecode.ProbeName) bool {
 	parts := strings.Split(string(name), "/")
 	if len(parts) != 2 {
 		return false

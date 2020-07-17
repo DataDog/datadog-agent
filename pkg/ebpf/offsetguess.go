@@ -176,8 +176,8 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 	return nil, errors.New("unstable TCP socket params")
 }
 
-func offsetGuessProbes(c *Config) []bytecode.KProbeName {
-	probes := []bytecode.KProbeName{bytecode.TCPGetInfo}
+func offsetGuessProbes(c *Config) []bytecode.ProbeName {
+	probes := []bytecode.ProbeName{bytecode.TCPGetInfo}
 	if c.CollectIPv6Conns {
 		probes = append(probes, bytecode.TCPv6Connect, bytecode.TCPv6ConnectReturn)
 	}
