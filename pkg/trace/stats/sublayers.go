@@ -39,108 +39,58 @@ func (v SublayerValue) GoString() string {
 	return v.String()
 }
 
-// activeSpans is a set of active spans. We could use a map of spans for that.
-// But in order to re-use arrays and reduce allocations, we use two arrays.
-// in spans, we store the active spans indexes. If span 0, 2 and 5 are active, spans = [0, 2, 5]
-// in indexes, we store the index in the array spans of each span.
-// For this case, indexes[0] = 0, indexes[2] = 1 and indexes[5] = 2
-type activeSpanSet struct {
-	// capacity of the set. Also, the set can only contain numbers in [0;capacity[
-	capacity int
-	// size of the set. Current number of elements
-	size int
-	// spans are the elements of the set
-	spans []int
-	// indexes[i] contains the index in spans of element i. It is used when removing elements
-	indexes []int
-}
-
-// add adds element to the set if it's not already in it
-func (a *activeSpanSet) add(spanIdx int) {
-	if a.indexes[spanIdx] == -1 {
-		a.indexes[spanIdx] = a.size
-		a.spans[a.size] = spanIdx
-		a.size++
-	}
-}
-
-// remove removes element from the set if it's in it
-func (a *activeSpanSet) remove(spanIdx int) {
-	i := a.indexes[spanIdx]
-	if i != -1 {
-		a.indexes[a.spans[a.size-1]] = i
-		a.spans[i] = a.spans[a.size-1]
-		a.size--
-		a.indexes[spanIdx] = -1
-	}
-
-}
-
-// clear clears the set. It prepares it to hold maximum n elements
-func (a *activeSpanSet) clear(n int) {
-	a.size = 0
-	for i := 0; i < n; i++ {
-		a.indexes[i] = -1
-		a.spans[i] = 0
-	}
-}
-
-// resize updates the capacity of the set
-func (a *activeSpanSet) resize(capacity int) {
-	a.capacity = capacity
-	a.spans = make([]int, capacity)
-	a.indexes = make([]int, capacity)
+// spanState holds the state of span at a given timestamp in a trace.
+type spanState struct {
+	// open is true if the span has started, but hasn't ended yet.
+	open bool
+	// nChildren is the number of direct children spans that are currently open
+	nChildren int
+	// active is true if the span is open and has no open children.
+	active bool
+	// execDuration is the sum of the execDuration for the span since the start of the trace.
+	// For each period where the span is active, its Exec Duration increases by periodDuration/numberOfActiveSpans
+	//     so if a span is active during 20ms, in parallel with another span active at the same time, its exec duration will be 10ms
+	execDuration float64
+	// activationTraceExecDuration is the execDuration of a trace at the time the span was activated.
+	// When the span is deactivated, we increase the execDuration of the span by currentTraceExecDuration - activationTraceExecDuration
+	activationTraceExecDuration float64
 }
 
 // SublayerCalculator holds arrays used to compute sublayer metrics.
 // Re-using arrays reduces the number of allocations
 // A sublayer metric is the execution duration of a given type / service in a trace
 // The metrics generated are detailed here: https://docs.datadoghq.com/tracing/guide/metrics_namespace/#duration-by
-// The arrays in this structure are updated as the computeExecDurations traverses all the sorted timestamps of a trace.
-// They are indexed by the span index in the trace (for eg, openSpans[0] == true means that the first span of the trace is open)
 type SublayerCalculator struct {
-	// openSpans holds whether each span is open. A span is open if it has started, but hasn't ended yet.
-	openSpans []bool
-	// nChildren is the number of direct children spans that are currently open
-	nChildren []int
-	// activeSpans is a set active spans. A span is active at a given timestamp, if it is open and if it has no open children.
-	activeSpans *activeSpanSet
-	// Exec duration: for each period where the span is active, its Exec Duration increases by periodDuration/numberOfActiveSpans
-	//     so if a span is active during 20ms, in parallel with another span active at the same time, its exec duration will be 10ms
-	execDuration []float64
+	// spanStates holds the state of each span as the computeExecDurations traverses all the sorted timestamps of a trace.
+	// It is indexed by the span index in the trace (for eg, spanState[0].open == true means that the first span of the trace is open)
+	spanStates []spanState
 	// timestamps are the sorted timestamps (starts and ends of each span) of a trace
 	timestamps sortableTimestamps
-	// capacity specifies the maximum trace size in spans the calculator can process without re-allocations
-	capacity int
 }
 
 // NewSublayerCalculator returns a new SublayerCalculator.
 func NewSublayerCalculator() *SublayerCalculator {
-	c := &SublayerCalculator{activeSpans: &activeSpanSet{}}
-	c.resize(defaultCalculatorSpanCapacity)
-	return c
+	s := &SublayerCalculator{}
+	s.resize(defaultCalculatorSpanCapacity)
+	return s
 }
 
 // resize allocates arrays of the sublayer calculator
 // it should be called every time we receive a trace with more spans than the capacity of the calculator
-func (c *SublayerCalculator) resize(capacity int) {
-	c.capacity = capacity
-	c.openSpans = make([]bool, capacity)
-	c.nChildren = make([]int, capacity)
-	c.execDuration = make([]float64, capacity)
-	c.timestamps = make(sortableTimestamps, 2*capacity)
-	c.activeSpans.resize(capacity)
+func (s *SublayerCalculator) resize(capacity int) {
+	s.spanStates = make([]spanState, capacity)
+	s.timestamps = make(sortableTimestamps, 2*capacity)
 }
 
 // clear clears structures of the sublayer calculator to prepare the computation of sublayer metrics
 // for a trace with max n spans
-func (c *SublayerCalculator) clear(n int) {
+func (s *SublayerCalculator) clear(n int) {
 	for i := 0; i < n; i++ {
-		c.openSpans[i] = false
-		c.nChildren[i] = 0
-		c.execDuration[i] = 0
+		s.spanStates[i].open = false
+		s.spanStates[i].nChildren = 0
+		s.spanStates[i].active = false
+		s.spanStates[i].execDuration = 0
 	}
-	c.activeSpans.clear(n)
 }
 
 // timestamp stores a point in time where a span might have started or ended.
@@ -173,9 +123,9 @@ func (t sortableTimestamps) Less(i, j int) bool {
 // 2. Build the array of timestamps to consider (the start and ends of each span) and sort the array
 // 3. Traverse the timestamps, and build the execution duration of each span during the traversal.
 //    For each timestamp:
-//    - Increase the exec duration for all the active spans by (previousPeriodDuration / numberOfActiveSpans)
-//    - Update the set of active spans
-func (c *SublayerCalculator) computeExecDurations(trace pb.Trace) {
+//    - Increase the trace exec duration by (previousPeriodDuration / numberOfActiveSpans)
+//    - Update the span states
+func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 	// Step 1: Build the mapping spanID --> spanIdx
 	idToIdx := make(map[uint64]int, len(trace))
 	for idx, span := range trace {
@@ -188,40 +138,51 @@ func (c *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 		if idx, ok := idToIdx[span.ParentID]; ok {
 			parentIdx = idx
 		}
-		c.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: parentIdx, ts: span.Start}
-		c.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: parentIdx, ts: span.Start + span.Duration}
+		s.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: parentIdx, ts: span.Start}
+		s.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: parentIdx, ts: span.Start + span.Duration}
 	}
-	sort.Sort(c.timestamps[:2*len(trace)])
+	sort.Sort(s.timestamps[:2*len(trace)])
 
 	// Step 3: Compute the execution duration of each span
-	for j := 0; j < len(trace)*2; j++ {
-		tp := c.timestamps[j]
-		var timeIncr float64
-		if c.activeSpans.size > 0 {
-			timeIncr = float64(tp.ts - c.timestamps[j-1].ts)
+	traceExecDuration := float64(0)
+	nActiveSpans := 0
+	activateSpan := func(idx int) {
+		if s.spanStates[idx].active {
+			return
 		}
-		if timeIncr > 0 {
-			timeIncr /= float64(c.activeSpans.size)
-			for i := 0; i < c.activeSpans.size; i++ {
-				c.execDuration[c.activeSpans.spans[i]] += timeIncr
-			}
+		nActiveSpans++
+		s.spanStates[idx].active = true
+		s.spanStates[idx].activationTraceExecDuration = traceExecDuration
+	}
+	deactivateSpan := func(idx int) {
+		if !s.spanStates[idx].active {
+			return
+		}
+		nActiveSpans--
+		s.spanStates[idx].active = false
+		s.spanStates[idx].execDuration += traceExecDuration - s.spanStates[idx].activationTraceExecDuration
+	}
+	for j := 0; j < len(trace)*2; j++ {
+		tp := s.timestamps[j]
+		if nActiveSpans > 0 {
+			traceExecDuration += float64(tp.ts-s.timestamps[j-1].ts) / float64(nActiveSpans)
 		}
 		if tp.spanStart {
 			if tp.parentIdx != -1 {
-				c.activeSpans.remove(tp.parentIdx)
-				c.nChildren[tp.parentIdx]++
+				deactivateSpan(tp.parentIdx)
+				s.spanStates[tp.parentIdx].nChildren++
 			}
-			c.openSpans[tp.spanIdx] = true
-			if c.nChildren[tp.spanIdx] == 0 {
-				c.activeSpans.add(tp.spanIdx)
+			s.spanStates[tp.spanIdx].open = true
+			if s.spanStates[tp.spanIdx].nChildren == 0 {
+				activateSpan(tp.spanIdx)
 			}
 		} else {
-			c.openSpans[tp.spanIdx] = false
-			c.activeSpans.remove(tp.spanIdx)
+			s.spanStates[tp.spanIdx].open = false
+			deactivateSpan(tp.spanIdx)
 			if tp.parentIdx != -1 {
-				c.nChildren[tp.parentIdx]--
-				if c.openSpans[tp.parentIdx] && c.nChildren[tp.parentIdx] == 0 {
-					c.activeSpans.add(tp.parentIdx)
+				s.spanStates[tp.parentIdx].nChildren--
+				if s.spanStates[tp.parentIdx].open && s.spanStates[tp.parentIdx].nChildren == 0 {
+					activateSpan(tp.parentIdx)
 				}
 			}
 		}
@@ -276,16 +237,16 @@ func (c *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 //             db: 55,
 //             rpc: 55,
 //         }
-func (c *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
-	if len(trace) > c.capacity {
-		c.resize(len(trace))
+func (s *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
+	if len(trace) > len(s.spanStates) {
+		s.resize(len(trace))
 	}
-	c.clear(len(trace))
-	c.computeExecDurations(trace)
-	durationsByService := c.computeDurationByAttr(
+	s.clear(len(trace))
+	s.computeExecDurations(trace)
+	durationsByService := s.computeDurationByAttr(
 		trace, func(s *pb.Span) string { return s.Service },
 	)
-	durationsByType := c.computeDurationByAttr(
+	durationsByType := s.computeDurationByAttr(
 		trace, func(s *pb.Span) string { return s.Type },
 	)
 
@@ -322,14 +283,14 @@ func (c *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
 // returning an attribute for a given span
 type attrSelector func(*pb.Span) string
 
-func (c *SublayerCalculator) computeDurationByAttr(trace pb.Trace, selector attrSelector) map[string]float64 {
+func (s *SublayerCalculator) computeDurationByAttr(trace pb.Trace, selector attrSelector) map[string]float64 {
 	durations := make(map[string]float64)
 	for i, span := range trace {
 		key := selector(span)
 		if key == "" {
 			continue
 		}
-		durations[key] += c.execDuration[i]
+		durations[key] += s.spanStates[i].execDuration
 	}
 	return durations
 }
