@@ -6,16 +6,16 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	traces "github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
-	Trace         pb.Trace
+	Trace         traces.Trace
 	WeightedTrace stats.WeightedTrace
-	Root          *pb.Span
+	Root          traces.Span
 	Env           string
 	Sublayers     stats.SublayerMap
 }

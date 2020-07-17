@@ -23,11 +23,19 @@ func newServiceLookup() *serviceKeyCatalog {
 	}
 }
 
+// TODO: What is this for? I don't understand why we need a mapping of unhashed values to their hash
+// when we can just generate the hash on the fly. Perf maybe?
 func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 	hash := svcSig.Hash()
 	cat.mu.Lock()
-	cat.lookup[svcSig] = hash
-	cat.mu.Unlock()
+	defer cat.mu.Unlock()
+
+	_, ok := cat.lookup[svcSig]
+	if ok {
+		return hash
+	}
+
+	cat.lookup[svcSig.SafeForMap()] = hash
 	return hash
 }
 

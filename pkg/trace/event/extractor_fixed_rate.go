@@ -8,8 +8,8 @@ package event
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // fixedRateExtractor is an event extractor that decides whether to extract APM events from spans based on
@@ -37,12 +37,12 @@ func NewFixedRateExtractor(rateByServiceAndName map[string]map[string]float64) E
 // on the rateByServiceAndName map passed in the constructor. The extracted event is returned along with the associated
 // extraction rate and a true value. If no extraction happened, false is returned as the third value and the others
 // are invalid.
-func (e *fixedRateExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
-	operations, ok := e.rateByServiceAndName[strings.ToLower(s.Service)]
+func (e *fixedRateExtractor) Extract(s traces.Span, priority sampler.SamplingPriority) (float64, bool) {
+	operations, ok := e.rateByServiceAndName[strings.ToLower(s.UnsafeService())]
 	if !ok {
 		return 0, false
 	}
-	extractionRate, ok := operations[strings.ToLower(s.Name)]
+	extractionRate, ok := operations[strings.ToLower(s.UnsafeName())]
 	if !ok {
 		return 0, false
 	}

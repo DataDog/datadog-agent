@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -69,7 +69,7 @@ func (s *maxEPSSampler) Stop() {
 
 // Sample determines whether or not we should sample the provided event in order to ensure no more than maxEPS events
 // are sampled every second.
-func (s *maxEPSSampler) Sample(event *pb.Span) (sampled bool, rate float64) {
+func (s *maxEPSSampler) Sample(event traces.Span) (sampled bool, rate float64) {
 	// Count that we saw a new event
 	s.rateCounter.Count()
 	rate = 1.0
@@ -77,7 +77,7 @@ func (s *maxEPSSampler) Sample(event *pb.Span) (sampled bool, rate float64) {
 	if currentEPS > s.maxEPS {
 		rate = s.maxEPS / currentEPS
 	}
-	sampled = sampler.SampleByRate(event.TraceID, rate)
+	sampled = sampler.SampleByRate(event.TraceID(), rate)
 	return
 }
 

@@ -4,7 +4,10 @@ import "io"
 
 type Span interface {
 	TraceID() uint64
+	SetTraceID(x uint64)
+
 	SpanID() uint64
+	SetSpanID(x uint64)
 
 	UnsafeService() string
 	SetService(s string)
@@ -26,6 +29,9 @@ type Span interface {
 
 	UnsafeType() string
 	SetType(s string)
+
+	Error() int32
+	SetError(x int32)
 
 	WriteProto(w io.Writer) error
 

@@ -16,13 +16,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 func TestUDS(t *testing.T) {
 	sockPath := "/tmp/test-trace.sock"
-	payload := msgpTraces(t, pb.Traces{testutil.RandomTrace(10, 20)})
+	payload := msgpTraces(t, []traces.Trace{testutil.RandomTrace(10, 20)})
 	client := http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,

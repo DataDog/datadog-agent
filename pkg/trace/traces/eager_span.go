@@ -24,8 +24,16 @@ func (e *EagerSpan) TraceID() uint64 {
 	return e.Span.TraceID
 }
 
+func (e *EagerSpan) SetTraceID(x uint64) {
+	e.Span.TraceID = x
+}
+
 func (e *EagerSpan) SpanID() uint64 {
 	return e.Span.SpanID
+}
+
+func (e *EagerSpan) SetSpanID(x uint64) {
+	e.Span.SpanID = x
 }
 
 func (e *EagerSpan) UnsafeService() string {
@@ -86,6 +94,15 @@ func (e *EagerSpan) UnsafeType() string {
 
 func (e *EagerSpan) SetType(s string) {
 	e.Span.Type = s
+}
+
+func (e *EagerSpan) Error() int32 {
+	// This operation is actually safe in this implementation, but callers should behave like its not.
+	return e.Span.Error
+}
+
+func (e *EagerSpan) SetError(x int32) {
+	e.Span.Error = x
 }
 
 func (e *EagerSpan) WriteProto(w io.Writer) error {

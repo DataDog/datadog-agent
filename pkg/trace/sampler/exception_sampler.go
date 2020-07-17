@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"golang.org/x/time/rate"
 )
@@ -62,11 +62,11 @@ func NewExceptionSampler() *ExceptionSampler {
 }
 
 // Add samples a trace and returns true if trace was sampled (should be kept)
-func (e *ExceptionSampler) Add(env string, root *pb.Span, t pb.Trace) (sampled bool) {
+func (e *ExceptionSampler) Add(env string, root traces.Span, t traces.Trace) (sampled bool) {
 	return e.add(time.Now(), env, root, t)
 }
 
-func (e *ExceptionSampler) add(now time.Time, env string, root *pb.Span, t pb.Trace) (sampled bool) {
+func (e *ExceptionSampler) add(now time.Time, env string, root traces.Span, t traces.Trace) (sampled bool) {
 	if priority, ok := GetSamplingPriority(root); priority > 0 && ok {
 		e.handlePriorityTrace(now, env, t)
 		return false
@@ -79,9 +79,9 @@ func (e *ExceptionSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-func (e *ExceptionSampler) handlePriorityTrace(now time.Time, env string, t pb.Trace) {
+func (e *ExceptionSampler) handlePriorityTrace(now time.Time, env string, t traces.Trace) {
 	expire := now.Add(priorityTTL)
-	for _, s := range t {
+	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
 		}
@@ -89,10 +89,10 @@ func (e *ExceptionSampler) handlePriorityTrace(now time.Time, env string, t pb.T
 	}
 }
 
-func (e *ExceptionSampler) handleTrace(now time.Time, env string, t pb.Trace) bool {
+func (e *ExceptionSampler) handleTrace(now time.Time, env string, t traces.Trace) bool {
 	var sampled bool
 	expire := now.Add(defaultTTL)
-	for _, s := range t {
+	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
 		}
@@ -106,17 +106,17 @@ func (e *ExceptionSampler) handleTrace(now time.Time, env string, t pb.Trace) bo
 }
 
 // addSpan adds a span to the seenSpans with an expire time.
-func (e *ExceptionSampler) addSpan(expire time.Time, env string, s *pb.Span) {
-	shardSig := ServiceSignature{env, s.Service}.Hash()
+func (e *ExceptionSampler) addSpan(expire time.Time, env string, s traces.Span) {
+	shardSig := ServiceSignature{env, s.UnsafeService()}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	ss.add(expire, s)
 }
 
 // sampleSpan samples a span if it's not in the seenSpan set. If the span is sampled
 // it's added to the seenSpans set.
-func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
+func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s traces.Span) bool {
 	var sampled bool
-	shardSig := ServiceSignature{env, s.Service}.Hash()
+	shardSig := ServiceSignature{env, s.UnsafeService()}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	sig := ss.sign(s)
 	expire, ok := ss.getExpire(sig)
@@ -125,7 +125,8 @@ func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) boo
 		if sampled {
 			ss.add(now.Add(defaultTTL), s)
 			atomic.AddInt64(&e.hits, 1)
-			traceutil.SetMetric(s, exceptionKey, 1)
+			// TODO: Fix me.
+			// traceutil.SetMetric(s, exceptionKey, 1)
 		} else {
 			atomic.AddInt64(&e.misses, 1)
 		}
@@ -164,7 +165,7 @@ type seenSpans struct {
 	totalSamplerShrinks *int64
 }
 
-func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
+func (ss *seenSpans) add(expire time.Time, s traces.Span) {
 	sig := ss.sign(s)
 	storedExpire, ok := ss.getExpire(sig)
 	if ok && expire.Sub(storedExpire) < ttlRenewalPeriod {
@@ -203,7 +204,7 @@ func (ss *seenSpans) getExpire(h spanHash) (time.Time, bool) {
 	return expire, ok
 }
 
-func (ss *seenSpans) sign(s *pb.Span) spanHash {
+func (ss *seenSpans) sign(s traces.Span) spanHash {
 	h := computeSpanHash(s, "", true)
 	if ss.shrunk {
 		h = h % spanHash(cardinalityLimit)

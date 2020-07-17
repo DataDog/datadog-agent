@@ -18,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -146,7 +146,7 @@ func (a *Agent) loop() {
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(t *api.Trace) {
-	if len(t.Spans) == 0 {
+	if len(t.Spans.Spans) == 0 {
 		log.Debugf("Skipping received empty trace")
 		return
 	}
@@ -160,6 +160,7 @@ func (a *Agent) Process(t *api.Trace) {
 	ts := a.Receiver.Stats.GetTagStats(*t.Source)
 
 	// Extract priority early, as later goroutines might manipulate the Metrics map in parallel which isn't safe.
+	// TODO: Fix me.
 	priority, hasPriority := sampler.GetSamplingPriority(root)
 
 	// Depending on the sampling priority, count that trace differently.
@@ -180,12 +181,12 @@ func (a *Agent) Process(t *api.Trace) {
 	if !a.Blacklister.Allows(root) {
 		log.Debugf("Trace rejected by blacklister. root: %v", root)
 		atomic.AddInt64(&ts.TracesFiltered, 1)
-		atomic.AddInt64(&ts.SpansFiltered, int64(len(t.Spans)))
+		atomic.AddInt64(&ts.SpansFiltered, int64(len(t.Spans.Spans)))
 		return
 	}
 
 	// Extra sanitization steps of the trace.
-	for _, span := range t.Spans {
+	for _, span := range t.Spans.Spans {
 		a.obfuscator.Obfuscate(span)
 		Truncate(span)
 	}
@@ -211,7 +212,8 @@ func (a *Agent) Process(t *api.Trace) {
 	traceutil.ComputeTopLevel(t.Spans)
 
 	subtraces := stats.ExtractSubtraces(t.Spans, root)
-	sublayers := make(map[*pb.Span][]stats.SublayerValue)
+	// TODO: Use SpanID as map key instead of pointer?
+	sublayers := make(map[traces.Span][]stats.SublayerValue)
 	for _, subtrace := range subtraces {
 		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
 		sublayers[subtrace.Root] = subtraceSublayers
@@ -256,7 +258,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 	ss.Events = events
 
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
-	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
+	atomic.AddInt64(&ts.EventsSampled, int64(len(events.Spans)))
 
 	if !ss.Empty() {
 		a.Out <- &ss
@@ -296,9 +298,9 @@ func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) (sampled bool, rate flo
 	return a.ScoreSampler.Add(pt)
 }
 
-func traceContainsError(trace pb.Trace) bool {
-	for _, span := range trace {
-		if span.Error != 0 {
+func traceContainsError(trace traces.Trace) bool {
+	for _, span := range trace.Spans {
+		if span.Error() != 0 {
 			return true
 		}
 	}

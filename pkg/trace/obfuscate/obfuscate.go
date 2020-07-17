@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
@@ -59,8 +59,8 @@ func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 
 // Obfuscate may obfuscate span's properties based on its type and on the Obfuscator's
 // configuration.
-func (o *Obfuscator) Obfuscate(span *pb.Span) {
-	switch span.Type {
+func (o *Obfuscator) Obfuscate(span traces.Span) {
+	switch span.UnsafeType() {
 	case "sql", "cassandra":
 		o.obfuscateSQL(span)
 	case "redis":

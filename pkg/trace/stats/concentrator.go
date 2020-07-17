@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -116,7 +116,9 @@ func (c *Concentrator) Stop() {
 }
 
 // SublayerMap maps spans to their sublayer values.
-type SublayerMap map[*pb.Span][]SublayerValue
+//
+// TODO: Is this safe? Shoudl we use span ID instead?
+type SublayerMap map[traces.Span][]SublayerValue
 
 // Input contains input for the concentractor.
 type Input struct {
@@ -132,7 +134,7 @@ func (c *Concentrator) addNow(i *Input, now int64) {
 		if !(s.TopLevel || s.Measured) {
 			continue
 		}
-		end := s.Start + s.Duration
+		end := s.Start() + s.Duration()
 		btime := end - end%c.bsize
 
 		// If too far in the past, count in the oldest-allowed time bucket instead.

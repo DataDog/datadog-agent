@@ -7,7 +7,7 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,41 +32,43 @@ const (
 
 // Truncate checks that the span resource, meta and metrics are within the max length
 // and modifies them if they are not
-func Truncate(s *pb.Span) {
+func Truncate(s traces.Span) {
 	// Resource
-	if len(s.Resource) > MaxResourceLen {
-		s.Resource = traceutil.TruncateUTF8(s.Resource, MaxResourceLen)
-		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", MaxResourceLen, s.Resource)
+	if len(s.UnsafeResource()) > MaxResourceLen {
+		s.SetResource(traceutil.TruncateUTF8(s.UnsafeResource(), MaxResourceLen))
+		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", MaxResourceLen, s.UnsafeResource())
 	}
+
+	// TODO: Fix me.
 	// Error - Nothing to do
 	// Optional data, Meta & Metrics can be nil
 	// Soft fail on those
-	for k, v := range s.Meta {
-		modified := false
+	// for k, v := range s.Meta {
+	// 	modified := false
 
-		if len(k) > MaxMetaKeyLen {
-			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
-			delete(s.Meta, k)
-			k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
-			modified = true
-		}
+	// 	if len(k) > MaxMetaKeyLen {
+	// 		log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
+	// 		delete(s.Meta, k)
+	// 		k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
+	// 		modified = true
+	// 	}
 
-		if len(v) > MaxMetaValLen {
-			v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
-			modified = true
-		}
+	// 	if len(v) > MaxMetaValLen {
+	// 		v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
+	// 		modified = true
+	// 	}
 
-		if modified {
-			s.Meta[k] = v
-		}
-	}
-	for k, v := range s.Metrics {
-		if len(k) > MaxMetricsKeyLen {
-			log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
-			delete(s.Metrics, k)
-			k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
+	// 	if modified {
+	// 		s.Meta[k] = v
+	// 	}
+	// }
+	// for k, v := range s.Metrics {
+	// 	if len(k) > MaxMetricsKeyLen {
+	// 		log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
+	// 		delete(s.Metrics, k)
+	// 		k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
 
-			s.Metrics[k] = v
-		}
-	}
+	// 		s.Metrics[k] = v
+	// 	}
+	// }
 }

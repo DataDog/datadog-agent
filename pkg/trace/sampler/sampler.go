@@ -21,7 +21,7 @@ package sampler
 import (
 	"math"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 const (
@@ -72,105 +72,117 @@ const (
 
 // GetSamplingPriority returns the value of the sampling priority metric set on this span and a boolean indicating if
 // such a metric was actually found or not.
-func GetSamplingPriority(s *pb.Span) (SamplingPriority, bool) {
-	p, ok := getMetric(s, KeySamplingPriority)
-	return SamplingPriority(p), ok
+func GetSamplingPriority(s traces.Span) (SamplingPriority, bool) {
+	// TODO: Fix me.
+	// p, ok := getMetric(s, KeySamplingPriority)
+	// return SamplingPriority(p), ok
+	return PriorityNone, false
 }
 
 // SetSamplingPriority sets the sampling priority value on this span, overwriting any previously set value.
-func SetSamplingPriority(s *pb.Span, priority SamplingPriority) {
+func SetSamplingPriority(s traces.Span, priority SamplingPriority) {
 	setMetric(s, KeySamplingPriority, float64(priority))
 }
 
 // GetGlobalRate gets the cumulative sample rate of the trace to which this span belongs to.
-func GetGlobalRate(s *pb.Span) float64 {
-	return getMetricDefault(s, KeySamplingRateGlobal, 1.0)
+func GetGlobalRate(s traces.Span) float64 {
+	// TODO: Fix me.
+	// return getMetricDefault(s, KeySamplingRateGlobal, 1.0)
+	return 1.0
 }
 
 // SetGlobalRate sets the cumulative sample rate of the trace to which this span belongs to.
-func SetGlobalRate(s *pb.Span, rate float64) {
+func SetGlobalRate(s traces.Span, rate float64) {
 	setMetric(s, KeySamplingRateGlobal, rate)
 }
 
 // AddGlobalRate updates the cumulative sample rate of the trace to which this span belongs to with the provided
 // rate which is assumed to belong to an independent sampler. The combination is done by simple multiplications.
-func AddGlobalRate(s *pb.Span, rate float64) {
-	setMetric(s, KeySamplingRateGlobal, GetGlobalRate(s)*rate)
+func AddGlobalRate(s traces.Span, rate float64) {
+	// TODO: Fix me.
+	// setMetric(s, KeySamplingRateGlobal, GetGlobalRate(s)*rate)
 }
 
 // GetClientRate gets the rate at which the trace this span belongs to was sampled by the tracer.
 // NOTE: This defaults to 1 if no rate is stored.
-func GetClientRate(s *pb.Span) float64 {
+func GetClientRate(s traces.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateClient, 1.0)
 }
 
 // SetClientRate sets the rate at which the trace this span belongs to was sampled by the tracer.
-func SetClientRate(s *pb.Span, rate float64) {
+func SetClientRate(s traces.Span, rate float64) {
 	if rate < 1 {
 		setMetric(s, KeySamplingRateClient, rate)
 	} else {
 		// We assume missing value is 1 to save bandwidth (check getter).
-		delete(s.Metrics, KeySamplingRateClient)
+		// TODO: Fix me.
+		// delete(s.Metrics, KeySamplingRateClient)
 	}
 }
 
 // GetPreSampleRate returns the rate at which the trace this span belongs to was sampled by the agent's presampler.
 // NOTE: This defaults to 1 if no rate is stored.
-func GetPreSampleRate(s *pb.Span) float64 {
+func GetPreSampleRate(s traces.Span) float64 {
 	return getMetricDefault(s, KeySamplingRatePreSampler, 1.0)
 }
 
 // SetPreSampleRate sets the rate at which the trace this span belongs to was sampled by the agent's presampler.
-func SetPreSampleRate(s *pb.Span, rate float64) {
+func SetPreSampleRate(s traces.Span, rate float64) {
 	if rate < 1 {
 		setMetric(s, KeySamplingRatePreSampler, rate)
 	} else {
 		// We assume missing value is 1 to save bandwidth (check getter).
-		delete(s.Metrics, KeySamplingRatePreSampler)
+		// TODO: Fix me.
+		// delete(s.Metrics, KeySamplingRatePreSampler)
 	}
 }
 
 // GetEventExtractionRate gets the rate at which the trace from which we extracted this event was sampled at the tracer.
 // This defaults to 1 if no rate is stored.
-func GetEventExtractionRate(s *pb.Span) float64 {
+func GetEventExtractionRate(s traces.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateEventExtraction, 1.0)
 }
 
 // SetEventExtractionRate sets the rate at which the trace from which we extracted this event was sampled at the tracer.
-func SetEventExtractionRate(s *pb.Span, rate float64) {
+func SetEventExtractionRate(s traces.Span, rate float64) {
 	if rate < 1 {
 		setMetric(s, KeySamplingRateEventExtraction, rate)
 	} else {
 		// reduce bandwidth, default is assumed 1.0 in backend
-		delete(s.Metrics, KeySamplingRateEventExtraction)
+		// TODO: Fix me.
+		// delete(s.Metrics, KeySamplingRateEventExtraction)
 	}
 }
 
 // GetMaxEPSRate gets the rate at which this event was sampled by the max eps event sampler.
-func GetMaxEPSRate(s *pb.Span) float64 {
+func GetMaxEPSRate(s traces.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateMaxEPSSampler, 1.0)
 }
 
 // SetMaxEPSRate sets the rate at which this event was sampled by the max eps event sampler.
-func SetMaxEPSRate(s *pb.Span, rate float64) {
+func SetMaxEPSRate(s traces.Span, rate float64) {
 	if rate < 1 {
 		setMetric(s, KeySamplingRateMaxEPSSampler, rate)
 	} else {
 		// reduce bandwidth, default is assumed 1.0 in backend
-		delete(s.Metrics, KeySamplingRateMaxEPSSampler)
+		// TODO: Fix me.
+		// delete(s.Metrics, KeySamplingRateMaxEPSSampler)
 	}
 }
 
-func getMetric(s *pb.Span, k string) (float64, bool) {
-	if s.Metrics == nil {
-		return 0, false
-	}
-	val, ok := s.Metrics[k]
-	return val, ok
+func getMetric(s traces.Span, k string) (float64, bool) {
+	return 0, false
+
+	// TODO: Fix me.
+	// if s.Metrics == nil {
+	// 	return 0, false
+	// }
+	// val, ok := s.Metrics[k]
+	// return val, ok
 }
 
 // getMetricDefault gets a value in the span Metrics map or default if no value is stored there.
-func getMetricDefault(s *pb.Span, k string, def float64) float64 {
+func getMetricDefault(s traces.Span, k string, def float64) float64 {
 	if val, ok := getMetric(s, k); ok {
 		return val
 	}
@@ -178,9 +190,10 @@ func getMetricDefault(s *pb.Span, k string, def float64) float64 {
 }
 
 // setMetric sets a value in the span Metrics map.
-func setMetric(s *pb.Span, key string, val float64) {
-	if s.Metrics == nil {
-		s.Metrics = make(map[string]float64)
-	}
-	s.Metrics[key] = val
+func setMetric(s traces.Span, key string, val float64) {
+	// TODO: Fix me
+	// if s.Metrics == nil {
+	// 	s.Metrics = make(map[string]float64)
+	// }
+	// s.Metrics[key] = val
 }

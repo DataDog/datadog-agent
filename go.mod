@@ -143,6 +143,7 @@ require (
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
 	go.etcd.io/bbolt v1.3.4 // indirect
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
+	go.opencensus.io v0.22.2
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e

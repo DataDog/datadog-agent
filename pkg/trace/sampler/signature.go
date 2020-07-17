@@ -9,8 +9,7 @@ import (
 	"hash/fnv"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // Signature is a hash representation of trace or a service, used to identify
@@ -30,12 +29,12 @@ func sortHashes(hashes []spanHash)         { sort.Sort(spanHashSlice(hashes)) }
 // computeSignatureWithRootAndEnv generates the signature of a trace knowing its root
 // Signature based on the hash of (env, service, name, resource, is_error) for the root, plus the set of
 // (env, service, name, is_error) of each span.
-func computeSignatureWithRootAndEnv(trace pb.Trace, root *pb.Span, env string) Signature {
+func computeSignatureWithRootAndEnv(trace traces.Trace, root traces.Span, env string) Signature {
 	rootHash := computeSpanHash(root, env, true)
-	spanHashes := make([]spanHash, 0, len(trace))
+	spanHashes := make([]spanHash, 0, len(trace.Spans))
 
-	for i := range trace {
-		spanHashes = append(spanHashes, computeSpanHash(trace[i], env, false))
+	for i := range trace.Spans {
+		spanHashes = append(spanHashes, computeSpanHash(trace.Spans[i], env, false))
 	}
 
 	// Now sort, dedupe then merge all the hashes to build the signature
@@ -56,6 +55,13 @@ func computeSignatureWithRootAndEnv(trace pb.Trace, root *pb.Span, env string) S
 // ServiceSignature represents a unique way to identify a service.
 type ServiceSignature struct{ Name, Env string }
 
+func (s *ServiceSignature) SafeForMap() ServiceSignature {
+	safe := *s // Shallow clone.
+	safe.Name = string([]byte(safe.Name))
+	safe.Env = string([]byte(safe.Env))
+	return safe
+}
+
 // Hash generates the signature of a trace with minimal information such as
 // service and env, this is typically used by distributed sampling based on
 // priority, and used as a key to store the desired rate for a given
@@ -72,22 +78,25 @@ func (s ServiceSignature) String() string {
 	return "service:" + s.Name + ",env:" + s.Env
 }
 
-func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
+func computeSpanHash(span traces.Span, env string, withResource bool) spanHash {
 	h := fnv.New32a()
 	h.Write([]byte(env))
-	h.Write([]byte(span.Service))
-	h.Write([]byte(span.Name))
-	h.Write([]byte{byte(span.Error)})
+	h.Write([]byte(span.UnsafeService()))
+	h.Write([]byte(span.UnsafeName()))
+	h.Write([]byte{byte(span.Error())})
 	if withResource {
-		h.Write([]byte(span.Resource))
+		h.Write([]byte(span.UnsafeResource()))
 	}
-	code, ok := traceutil.GetMeta(span, KeyHTTPStatusCode)
-	if ok {
-		h.Write([]byte(code))
-	}
-	typ, ok := traceutil.GetMeta(span, KeyErrorType)
-	if ok {
-		h.Write([]byte(typ))
-	}
+
+	// TODO: Fix me.
+	// code, ok := traceutil.GetMeta(span, KeyHTTPStatusCode)
+	// if ok {
+	// 	h.Write([]byte(code))
+	// }
+	// typ, ok := traceutil.GetMeta(span, KeyErrorType)
+	// if ok {
+	// 	h.Write([]byte(typ))
+	// }
+
 	return spanHash(h.Sum32())
 }

@@ -6,8 +6,8 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // metricBasedExtractor is an event extractor that decides whether to extract APM events from spans based on
@@ -26,18 +26,21 @@ func NewMetricBasedExtractor() Extractor {
 //
 // NOTE: If priority is UserKeep (manually sampled) any extraction rate bigger than 0 is upscaled to 1 to ensure no
 // extraction sampling is done on this event.
-func (e *metricBasedExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
-	if len(s.Metrics) == 0 {
-		// metric not set
-		return 0, false
-	}
-	extractionRate, ok := s.Metrics[sampler.KeySamplingRateEventExtraction]
-	if !ok {
-		return 0, false
-	}
-	if extractionRate > 0 && priority >= sampler.PriorityUserKeep {
-		// If the trace has been manually sampled, we keep all matching spans
-		extractionRate = 1
-	}
-	return extractionRate, true
+func (e *metricBasedExtractor) Extract(s traces.Span, priority sampler.SamplingPriority) (float64, bool) {
+	return 0, false
+
+	// TODO: fix me.
+	// if len(s.Metrics) == 0 {
+	// 	// metric not set
+	// 	return 0, false
+	// }
+	// extractionRate, ok := s.Metrics[sampler.KeySamplingRateEventExtraction]
+	// if !ok {
+	// 	return 0, false
+	// }
+	// if extractionRate > 0 && priority >= sampler.PriorityUserKeep {
+	// 	// If the trace has been manually sampled, we keep all matching spans
+	// 	extractionRate = 1
+	// }
+	// return extractionRate, true
 }

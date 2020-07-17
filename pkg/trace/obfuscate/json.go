@@ -9,17 +9,18 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // obfuscateJSON obfuscates the given span's tag using the given obfuscator. If the obfuscator is
 // nil it is considered disabled.
-func (o *Obfuscator) obfuscateJSON(span *pb.Span, tag string, obfuscator *jsonObfuscator) {
-	if obfuscator == nil || span.Meta == nil || span.Meta[tag] == "" {
-		// obfuscator is disabled or tag is not present
-		return
-	}
-	span.Meta[tag], _ = obfuscator.obfuscate([]byte(span.Meta[tag]))
+func (o *Obfuscator) obfuscateJSON(span traces.Span, tag string, obfuscator *jsonObfuscator) {
+	// TODO: Fix me.
+	// if obfuscator == nil || span.Meta == nil || span.Meta[tag] == "" {
+	// 	// obfuscator is disabled or tag is not present
+	// 	return
+	// }
+	// span.Meta[tag], _ = obfuscator.obfuscate([]byte(span.Meta[tag]))
 	// we should accept whatever the obfuscator returns, even if it's an error: a parsing
 	// error simply means that the JSON was invalid, meaning that we've only obfuscated
 	// as much of it as we could. It is safe to accept the output, even if partial.

@@ -8,7 +8,7 @@ package obfuscate
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // redisTruncationMark is used as suffix by tracing libraries to indicate that a
@@ -25,8 +25,8 @@ var redisCompoundCommandSet = map[string]bool{
 // TODO(gbbr): Refactor this method to use the tokenizer and
 // remove "compactWhitespaces". This method is buggy when commands
 // contain quoted strings with newlines.
-func (*Obfuscator) quantizeRedis(span *pb.Span) {
-	query := compactWhitespaces(span.Resource)
+func (*Obfuscator) quantizeRedis(span traces.Span) {
+	query := compactWhitespaces(span.UnsafeResource())
 
 	var resource strings.Builder
 	truncated := false
@@ -81,46 +81,47 @@ func (*Obfuscator) quantizeRedis(span *pb.Span) {
 		resource.WriteString(" ...")
 	}
 
-	span.Resource = strings.Trim(resource.String(), " ")
+	span.SetResource(strings.Trim(resource.String(), " "))
 }
 
 const redisRawCommand = "redis.raw_command"
 
 // obfuscateRedis obfuscates arguments inside the given span's "redis.raw_command" tag, if it exists
 // and is non-empty.
-func (*Obfuscator) obfuscateRedis(span *pb.Span) {
-	if span.Meta == nil || span.Meta[redisRawCommand] == "" {
-		// nothing to do
-		return
-	}
-	t := newRedisTokenizer([]byte(span.Meta[redisRawCommand]))
-	var (
-		str  strings.Builder
-		cmd  string
-		args []string
-	)
-	for {
-		tok, typ, done := t.scan()
-		switch typ {
-		case redisTokenCommand:
-			// new command starting
-			if cmd != "" {
-				// a previous command was buffered, obfuscate it
-				obfuscateRedisCmd(&str, cmd, args...)
-				str.WriteByte('\n')
-			}
-			cmd = tok
-			args = args[:0]
-		case redisTokenArgument:
-			args = append(args, tok)
-		}
-		if done {
-			// last command
-			obfuscateRedisCmd(&str, cmd, args...)
-			break
-		}
-	}
-	span.Meta[redisRawCommand] = str.String()
+func (*Obfuscator) obfuscateRedis(span traces.Span) {
+	// TODO: Fix me.
+	// if span.Meta == nil || span.Meta[redisRawCommand] == "" {
+	// 	// nothing to do
+	// 	return
+	// }
+	// t := newRedisTokenizer([]byte(span.Meta[redisRawCommand]))
+	// var (
+	// 	str  strings.Builder
+	// 	cmd  string
+	// 	args []string
+	// )
+	// for {
+	// 	tok, typ, done := t.scan()
+	// 	switch typ {
+	// 	case redisTokenCommand:
+	// 		// new command starting
+	// 		if cmd != "" {
+	// 			// a previous command was buffered, obfuscate it
+	// 			obfuscateRedisCmd(&str, cmd, args...)
+	// 			str.WriteByte('\n')
+	// 		}
+	// 		cmd = tok
+	// 		args = args[:0]
+	// 	case redisTokenArgument:
+	// 		args = append(args, tok)
+	// 	}
+	// 	if done {
+	// 		// last command
+	// 		obfuscateRedisCmd(&str, cmd, args...)
+	// 		break
+	// 	}
+	// }
+	// span.Meta[redisRawCommand] = str.String()
 }
 
 func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {

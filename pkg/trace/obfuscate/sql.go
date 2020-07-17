@@ -15,8 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -306,39 +305,41 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	}, nil
 }
 
-func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
+func (o *Obfuscator) obfuscateSQL(span traces.Span) {
 	tags := []string{"type:sql"}
 	defer func() {
 		metrics.Count("datadog.trace_agent.obfuscations", 1, tags, 1)
 	}()
-	if span.Resource == "" {
+	if span.UnsafeResource() == "" {
 		tags = append(tags, "outcome:empty-resource")
 		return
 	}
-	oq, err := o.ObfuscateSQLString(span.Resource)
+	oq, err := o.ObfuscateSQLString(span.UnsafeResource())
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
-		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
-		if span.Meta == nil {
-			span.Meta = make(map[string]string, 1)
-		}
-		if _, ok := span.Meta[sqlQueryTag]; !ok {
-			span.Meta[sqlQueryTag] = span.Resource
-		}
-		span.Resource = nonParsableResource
+		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.UnsafeResource())
+		// TODO: Fix me.
+		// if span.Meta == nil {
+		// 	span.Meta = make(map[string]string, 1)
+		// }
+		// if _, ok := span.Meta[sqlQueryTag]; !ok {
+		// 	span.Meta[sqlQueryTag] = span.Resource
+		// }
+		span.SetResource(nonParsableResource)
 		tags = append(tags, "outcome:error")
 		return
 	}
 
 	tags = append(tags, "outcome:success")
-	span.Resource = oq.Query
+	span.SetResource(oq.Query)
 
-	if len(oq.TablesCSV) > 0 {
-		traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
-	}
-	if span.Meta != nil && span.Meta[sqlQueryTag] != "" {
-		// "sql.query" tag already set by user, do not change it.
-		return
-	}
-	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
+	// TODO: Fix me.
+	// if len(oq.TablesCSV) > 0 {
+	// 	traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
+	// }
+	// if span.Meta != nil && span.Meta[sqlQueryTag] != "" {
+	// 	// "sql.query" tag already set by user, do not change it.
+	// 	return
+	// }
+	// traceutil.SetMeta(span, sqlQueryTag, oq.Query)
 }

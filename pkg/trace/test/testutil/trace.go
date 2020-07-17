@@ -8,14 +8,13 @@ package testutil
 import (
 	"math/rand"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // genNextLevel generates a new level for the trace tree structure,
 // having maxSpans as the max number of spans for this level
-func genNextLevel(prevLevel []*pb.Span, maxSpans int) []*pb.Span {
-	var spans []*pb.Span
+func genNextLevel(prevLevel []traces.Span, maxSpans int) []traces.Span {
+	var spans []traces.Span
 	numSpans := rand.Intn(maxSpans) + 1
 
 	// the spans have to be "nested" in the previous level
@@ -42,23 +41,23 @@ func genNextLevel(prevLevel []*pb.Span, maxSpans int) []*pb.Span {
 		}
 		numSpans -= childSpans
 
-		timeLeft := prev.Duration
+		timeLeft := prev.Duration()
 
 		// create the spans
-		curSpans := make([]*pb.Span, 0, childSpans)
+		curSpans := make([]traces.Span, 0, childSpans)
 		for j := 0; j < childSpans && timeLeft > 0; j++ {
 			news := RandomSpan()
-			news.TraceID = prev.TraceID
-			news.ParentID = prev.SpanID
+			news.SetTraceID(prev.TraceID())
+			news.SetParentID(prev.SpanID())
 
 			// distribute durations in prev span
 			// random start
 			randStart := rand.Int63n(timeLeft)
-			news.Start = prev.Start + randStart
+			news.SetStart(prev.Start() + randStart)
 			// random duration
 			timeLeft -= randStart
-			news.Duration = rand.Int63n(timeLeft) + 1
-			timeLeft -= news.Duration
+			news.SetDuration(rand.Int63n(timeLeft) + 1)
+			timeLeft -= news.Duration()
 
 			curSpans = append(curSpans, news)
 		}
@@ -71,16 +70,16 @@ func genNextLevel(prevLevel []*pb.Span, maxSpans int) []*pb.Span {
 
 // RandomTrace generates a random trace with a depth from 1 to
 // maxLevels of spans. Each level has at most maxSpans items.
-func RandomTrace(maxLevels, maxSpans int) pb.Trace {
-	t := pb.Trace{RandomSpan()}
+func RandomTrace(maxLevels, maxSpans int) traces.Trace {
+	t := traces.NewTrace([]traces.Span{RandomSpan()})
 
 	prevLevel := t
 	maxDepth := 1 + rand.Intn(maxLevels)
 
 	for i := 0; i < maxDepth; i++ {
-		if len(prevLevel) > 0 {
-			prevLevel = genNextLevel(prevLevel, maxSpans)
-			t = append(t, prevLevel...)
+		if len(prevLevel.Spans) > 0 {
+			prevLevel = traces.NewTrace(genNextLevel(prevLevel.Spans, maxSpans))
+			t.Spans = append(t.Spans, prevLevel.Spans...)
 		}
 	}
 
@@ -107,10 +106,10 @@ func GetTestTraces(traceN, size int, realisticIDs bool) []traces.Trace {
 				// Need to have different span IDs else traces are rejected
 				// because they are not correct (indeed, a trace with several
 				// spans boasting the same span ID is not valid)
-				span.SpanID += uint64(j)
-				span.TraceID = traceID
+				span.SetSpanID(span.SpanID() + uint64(j))
+				span.SetTraceID(traceID)
 			}
-			trace.Spans = append(trace.Spans, traces.NewEagerSpan(*span))
+			trace.Spans = append(trace.Spans, span)
 		}
 		gen = append(gen, trace)
 	}
