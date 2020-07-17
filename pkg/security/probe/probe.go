@@ -472,26 +472,7 @@ func (p *Probe) Start() error {
 		}
 	}
 
-	if err := ebpfProbe.Load(); err != nil {
-		return nil, err
-	}
-	p.Probe = ebpfProbe
-
-	if err := p.initLRUTables(); err != nil {
-		return nil, err
-	}
-
-	dentryResolver, err := NewDentryResolver(ebpfProbe)
-	if err != nil {
-		return nil, err
-	}
-
-	p.resolvers = &Resolvers{
-		DentryResolver: dentryResolver,
-		MountResolver:  NewMountResolver(),
-	}
-
-	return p, nil
+	return p.Probe.Start()
 }
 
 func (p *Probe) SetEventHandler(handler EventHandler) {
@@ -869,6 +850,16 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 	return applier.GetReport(), nil
 }
 
+// Snapshot - Snapshot runs the different snapshot functions of the resolvers that require to sync with the current
+// state of the system
+func (p *Probe) Snapshot() error {
+	// Sync with the current mount points of the system
+	if err := p.resolvers.MountResolver.SyncCache(0); err != nil {
+		return errors.Wrap(err, "couldn't sync mount points of the host")
+	}
+	return nil
+}
+
 func NewProbe(config *config.Config) (*Probe, error) {
 	p := &Probe{
 		config:           config,
@@ -889,19 +880,10 @@ func NewProbe(config *config.Config) (*Probe, error) {
 
 	p.resolvers = &Resolvers{
 		DentryResolver: dentryResolver,
+		MountResolver:  NewMountResolver(),
 	}
 
 	return p, nil
-}
-
-// Snapshot - Snapshot runs the different snapshot functions of the resolvers that require to sync with the current
-// state of the system
-func (p *Probe) Snapshot() error {
-	// Sync with the current mount points of the system
-	if err := p.resolvers.MountResolver.SyncCache(0); err != nil {
-		return errors.Wrap(err, "couldn't sync mount points of the host")
-	}
-	return nil
 }
 
 func init() {

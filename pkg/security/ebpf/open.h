@@ -120,24 +120,16 @@ SYSCALL_KPROBE(openat) {
     return trace__sys_openat(flags, mode);
 }
 
-SEC("kprobe/vfs_open")
-int kprobe__vfs_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
-    if (!syscall)
-        return 0;
+int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *syscall) {
+    struct open_basename_t basename = {};
+    get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
 
-    // NOTE(safchain) could be moved only if pass_to_userspace == 1
-    syscall->open.dir = (struct path *)PT_REGS_PARM1(ctx);
-    syscall->open.dentry = get_path_dentry(syscall->open.dir);
-    syscall->open.path_key = get_key(syscall->open.dentry, syscall->open.dir);
-
-    // array key index 0
-    u32 ak0 = 0;
-
-    struct policy_t zero = {.mode = ACCEPT};
-    struct policy_t *policy = bpf_map_lookup_elem(&open_policy, &ak0);
-    if (!policy) {
-        policy = &zero;
+    struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
+    if (filter) {
+#ifdef DEBUG
+        printk("kprobe/vfs_open basename %s approved\n", basename.value);
+#endif
+        return 1;
     }
     return 0;
 }
@@ -145,7 +137,7 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
 int __attribute__((always_inline)) discard_by_basename(struct syscall_cache_t *syscall) {
     struct open_basename_t basename = {};
     get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
-    
+
     struct filter_t *filter = bpf_map_lookup_elem(&open_basename_discarders, &basename);
     if (filter) {
 #ifdef DEBUG
@@ -193,8 +185,10 @@ int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache
 }
 
 int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    // NOTE(safchain) could be move only if pass_to_userspace == 1
-    syscall->open.dentry = get_path_dentry((struct path *)PT_REGS_PARM1(ctx));
+    // NOTE(safchain) could be moved only if pass_to_userspace == 1
+    syscall->open.dir = (struct path *)PT_REGS_PARM1(ctx);
+    syscall->open.dentry = get_path_dentry(syscall->open.dir);
+    syscall->open.path_key = get_key(syscall->open.dentry, syscall->open.dir);
 
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 
@@ -248,8 +242,12 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
+    int retval = PT_REGS_RC(ctx);
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
     struct open_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
+        .event.retval = retval,
         .event.type = EVENT_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),
         .flags = syscall->open.flags,

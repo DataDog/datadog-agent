@@ -37,6 +37,7 @@ enum event_type
     EVENT_UTIME,
     EVENT_MOUNT,
     EVENT_UMOUNT,
+    EVENT_EXEC,
 };
 
 struct event_t {
