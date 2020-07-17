@@ -7,6 +7,7 @@ package stats
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -263,7 +264,7 @@ func (s *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
 		values = append(values, SublayerValue{
 			Metric: "_sublayers.duration.by_service",
 			Tag:    Tag{"sublayer_service", service},
-			Value:  float64(int64(duration)),
+			Value:  math.Round(duration),
 		})
 	}
 
@@ -271,7 +272,7 @@ func (s *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
 		values = append(values, SublayerValue{
 			Metric: "_sublayers.duration.by_type",
 			Tag:    Tag{"sublayer_type", spanType},
-			Value:  float64(int64(duration)),
+			Value:  math.Round(duration),
 		})
 	}
 
