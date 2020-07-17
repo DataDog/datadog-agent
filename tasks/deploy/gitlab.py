@@ -5,8 +5,6 @@ import re
 import sys
 from urllib.parse import quote
 
-import requests
-
 errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 __all__ = ["Gitlab"]
@@ -40,17 +38,6 @@ class Gitlab(object):
     def project(self, project_name):
         path = "/projects/%s" % quote(project_name, safe="")
         return self.make_request(path, json=True)
-
-    def trigger_pipeline(self, project_name, ref, params=None):
-        """ref must be a branch or tag, not a commit."""
-        if params is None:
-            params = {}
-
-        data = {"ref": ref, "token": self._trigger_token(project_name)}
-        for k, v in params.items():
-            data["variables[%s]" % k] = v
-        path = "/projects/%s/trigger/pipeline" % quote(project_name, safe="")
-        return self.make_request(path, data=data, json=True)
 
     def create_pipeline(self, project_name, ref, variables=None):
         """ref must be a branch or tag, not a commit."""
@@ -94,6 +81,8 @@ class Gitlab(object):
         return resp.read()
 
     def make_request(self, path, headers=None, data=None, json=False):
+        import requests
+
         url = self.BASE_URL + path
 
         headers = dict(headers or [])

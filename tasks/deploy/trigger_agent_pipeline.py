@@ -42,20 +42,20 @@ def trigger_agent_pipeline(
             ref, "\n".join(["  - {}: {}".format(k, args[k]) for k in args])
         )
     )
-    result = Gitlab().create_pipeline("22", ref, args)
+    result = Gitlab().create_pipeline("DataDog/datadog-agent", ref, args)
 
     if result and "id" in result:
         return result["id"]
     raise RuntimeError("Invalid response from Gitlab: {}".format(result))
 
 
-def loop(callable, timeout_sec):
+def loop(callable, ref, timeout_sec):
     need_newline = False
     start = time()
     job_status = dict()
     try:
         while True:
-            res, job_status = callable(job_status)
+            res, job_status = callable(job_status, ref)
             if res:
                 return res
             if time() - start > timeout_sec:
@@ -70,14 +70,14 @@ def loop(callable, timeout_sec):
 
 
 def wait_for_pipeline_id(
-    proj, pipeline_id, timeout_sec, commit=None, skip_wait_coverage=False, wait_for_job="",
+    proj, pipeline_id, timeout_sec, ref=None, skip_wait_coverage=False, wait_for_job="",
 ):
     gitlab = Gitlab()
     gitlab.test_project_found(proj)
 
     f = functools.partial(pipeline_status, gitlab, proj, pipeline_id,)
 
-    loop(f, timeout_sec)
+    loop(f, ref, timeout_sec)
 
 
 def latest_job_from_name(jobs, job_name):
@@ -88,7 +88,7 @@ def latest_job_from_name(jobs, job_name):
 
 def print_job_status(job):
     def print_job(name, stage, color, finish_date, duration, status):
-        print(
+        return print(
             color_str(
                 "[{finish_date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]".format(
                     name=name,
@@ -118,6 +118,7 @@ def print_job_status(job):
         else:
             job_status = 'failed'
             color = 'red'
+            notify("Job failure", "Job {} failed.".format(name))
     elif status == 'canceled':
         job_status = 'canceled'
         color = 'grey'
@@ -134,7 +135,7 @@ def update_job_status(jobs, job_status):
     return job_status
 
 
-def pipeline_status(gitlab, proj, pipeline_id, job_status):
+def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
     jobs = gitlab.jobs(proj, pipeline_id)
 
     job_status = update_job_status(jobs, job_status)
@@ -142,21 +143,29 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status):
     pipestatus = gitlab.pipeline(proj, pipeline_id)["status"].lower().strip()
 
     if pipestatus == "success":
-        return True
-
-    if pipestatus == "failed":
-        for job in jobs:
-            if job["status"] in ["failed", "canceled"]:
-                url = "https://gitlab.ddbuild.io/{}/-/jobs/{}".format(proj, job["id"])
-                raise ErrorMsg("Job {}: {}".format(job["status"], url))
-        raise ErrorMsg(
-            "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} failed, despite no failed or canceled jobs...".format(
-                proj, pipeline_id
+        print(
+            color_str(
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} succeeded".format(proj, pipeline_id, ref),
+                "green",
             )
         )
+        return True, job_status
+
+    if pipestatus == "failed":
+        print(
+            color_str(
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} failed".format(proj, pipeline_id, ref), "red"
+            )
+        )
+        return True, job_status
 
     if pipestatus == "canceled":
-        raise ErrorMsg("Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} was canceled.".format(proj, pipeline_id))
+        print(
+            color_str(
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} was canceled".format(proj, pipeline_id, ref),
+                "grey",
+            )
+        )
 
     if pipestatus not in ["created", "running", "pending"]:
         raise ErrorMsg("Error: pipeline status {}".format(pipestatus.title()))
@@ -166,23 +175,19 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status):
 
 def print_pipeline_link(project, pipeline_id):
     status(
-        "Pipeline Link: " + color_str("https://gitlab.ddbuild.io/%s/pipelines/%d" % (project, pipeline_id), "green",)
+        "Pipeline Link: "
+        + color_str("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green",)
     )
 
 
 def wait_for_pipeline(
-    pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
+    pipeline_id, ref, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
 ):
-    start = time()
-
-    print_pipeline_link("22", pipeline_id)
+    print_pipeline_link("DataDog/datadog-agent", pipeline_id)
 
     status("Waiting for pipeline to finish. Exiting won't cancel it.")
 
-    wait_for_pipeline_id("22", pipeline_id, pipeline_finish_timeout_sec)
-
-    wait_sec = time() - start  # not called duration because pipeline may already have been running
-    print(color_str("Done in %ds!" % (wait_sec,), "green"))
+    wait_for_pipeline_id("DataDog/datadog-agent", pipeline_id, pipeline_finish_timeout_sec, ref=ref)
 
     return pipeline_id
 
@@ -218,8 +223,6 @@ def notify(title, info_text, sound=True):
             toaster.show_toast(title, info_text, icon_path=None, duration=10)
         except Exception:
             pass
-    ## Always do console notification
-    print("%s: %s" % (title, info_text))
 
 
 class ErrorMsg(Exception):

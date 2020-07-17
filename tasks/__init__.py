@@ -14,6 +14,7 @@ from . import (
     docker,
     dogstatsd,
     installcmd,
+    pipeline,
     process_agent,
     pylauncher,
     release,
@@ -43,7 +44,6 @@ from .test import (
 )
 from .build_tags import audit_tag_impact
 
-from .pipeline import trigger_pipeline
 
 # the root namespace
 ns = Collection()
@@ -71,7 +71,6 @@ ns.add_task(make_kitchen_gitlab_yml)
 ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
 ns.add_task(install_shellcheck)
-ns.add_task(trigger_pipeline)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -84,6 +83,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
+ns.add_collection(pipeline)
 ns.add_collection(pylauncher)
 ns.add_collection(selinux)
 ns.add_collection(systray)
