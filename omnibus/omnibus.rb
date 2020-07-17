@@ -1,9 +1,13 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
-windows_arch :x86_64
+if ENV["WINDOWS_BUILD_32_BIT"]
+    windows_arch :x86
+else
+    windows_arch :x86_64
+end
 # Don't append a timestamp to the package version
 append_timestamp false
 
@@ -29,3 +33,4 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
 
   end
 end
+use_git_caching false

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package config
 
 import (
@@ -13,9 +18,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/osutil"
-	"github.com/StackVista/stackstate-agent/pkg/trace/writer/backoff"
-	writerconfig "github.com/StackVista/stackstate-agent/pkg/trace/writer/config"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
@@ -89,32 +92,19 @@ type ReplaceRule struct {
 	Repl string `mapstructure:"repl"`
 }
 
-type traceWriter struct {
-	MaxSpansPerPayload     int                    `mapstructure:"max_spans_per_payload"`
-	FlushPeriod            float64                `mapstructure:"flush_period_seconds"`
-	UpdateInfoPeriod       int                    `mapstructure:"update_info_period_seconds"`
-	QueueablePayloadSender queueablePayloadSender `mapstructure:"queue"`
-}
+// WriterConfig specifies configuration for an API writer.
+type WriterConfig struct {
+	// ConnectionLimit specifies the maximum number of concurrent outgoing
+	// connections allowed for the sender.
+	ConnectionLimit int `mapstructure:"connection_limit"`
 
-type serviceWriter struct {
-	UpdateInfoPeriod       int                    `mapstructure:"update_info_period_seconds"`
-	FlushPeriod            int                    `mapstructure:"flush_period_seconds"`
-	QueueablePayloadSender queueablePayloadSender `mapstructure:"queue"`
-}
+	// QueueSize specifies the maximum number or payloads allowed to be queued
+	// in the sender.
+	QueueSize int `mapstructure:"queue_size"`
 
-type statsWriter struct {
-	MaxEntriesPerPayload   int                    `mapstructure:"max_entries_per_payload"`
-	UpdateInfoPeriod       int                    `mapstructure:"update_info_period_seconds"`
-	QueueablePayloadSender queueablePayloadSender `mapstructure:"queue"`
-}
-
-type queueablePayloadSender struct {
-	MaxAge            int   `mapstructure:"max_age_seconds"`
-	MaxQueuedBytes    int64 `mapstructure:"max_bytes"`
-	MaxQueuedPayloads int   `mapstructure:"max_payloads"`
-	BackoffDuration   int   `mapstructure:"exp_backoff_max_duration_seconds"`
-	BackoffBase       int   `mapstructure:"exp_backoff_base_milliseconds"`
-	BackoffGrowth     int   `mapstructure:"exp_backoff_growth_base"`
+	// FlushPeriodSeconds specifies the frequency at which the writer's buffer
+	// will be flushed to the sender, in seconds. Fractions are permitted.
+	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
 }
 
 type features struct {
@@ -150,24 +140,29 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			log.Infof("'site' and 'apm_dd_url' are both set, using endpoint: %q", host)
 		}
 	}
-	for url, keys := range config.Datadog.GetStringMapStringSlice("apm_config.additional_endpoints") {
-		if len(keys) == 0 {
-			log.Errorf("'additional_endpoints' entries must have at least one API key present")
-			continue
-		}
-		for _, key := range keys {
-			c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
+	if config.Datadog.IsSet("apm_config.additional_endpoints") {
+		for url, keys := range config.Datadog.GetStringMapStringSlice("apm_config.additional_endpoints") {
+			if len(keys) == 0 {
+				log.Errorf("'additional_endpoints' entries must have at least one API key present")
+				continue
+			}
+			for _, key := range keys {
+				key = config.SanitizeAPIKey(key)
+				c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
+			}
 		}
 	}
 
-	proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
-	noProxy := make(map[string]bool, len(proxyList))
-	for _, host := range proxyList {
-		// map of hosts that need to be skipped by proxy
-		noProxy[host] = true
-	}
-	for _, e := range c.Endpoints {
-		e.NoProxy = noProxy[e.Host]
+	if config.Datadog.IsSet("proxy.no_proxy") {
+		proxyList := config.Datadog.GetStringSlice("proxy.no_proxy")
+		noProxy := make(map[string]bool, len(proxyList))
+		for _, host := range proxyList {
+			// map of hosts that need to be skipped by proxy
+			noProxy[host] = true
+		}
+		for _, e := range c.Endpoints {
+			e.NoProxy = noProxy[e.Host]
+		}
 	}
 	if addr := config.Datadog.GetString("proxy.https"); addr != "" {
 		url, err := url.Parse(addr)
@@ -189,9 +184,24 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	if config.Datadog.IsSet("apm_config.env") {
 		c.DefaultEnv = config.Datadog.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", c.DefaultEnv)
+	} else if config.Datadog.IsSet("env") {
+		c.DefaultEnv = config.Datadog.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", c.DefaultEnv)
+	} else if config.Datadog.IsSet("tags") {
+		for _, tag := range config.Datadog.GetStringSlice("tags") {
+			if strings.HasPrefix(tag, "env:") {
+				c.DefaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", c.DefaultEnv, tag)
+				break
+			}
+		}
 	}
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
+	}
+	if config.Datadog.IsSet("apm_config.receiver_socket") {
+		c.ReceiverSocket = config.Datadog.GetString("apm_config.receiver_socket")
 	}
 	if config.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = config.Datadog.GetInt("apm_config.connection_limit")
@@ -207,6 +217,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	if config.Datadog.IsSet("apm_config.ignore_resources") {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice("apm_config.ignore_resources")
+	}
+	if k := "apm_config.max_payload_size"; config.Datadog.IsSet(k) {
+		c.MaxRequestBytes = config.Datadog.GetInt64(k)
 	}
 
 	if config.Datadog.IsSet("apm_config.replace_tags") {
@@ -253,14 +266,19 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_memory") {
 		c.MaxMemory = config.Datadog.GetFloat64("apm_config.max_memory")
 	}
-	if config.Datadog.IsSet("apm_config.max_connections") {
-		c.MaxConnections = config.Datadog.GetInt("apm_config.max_connections")
-	}
 
-	// undocumented
-	c.ServiceWriterConfig = readServiceWriterConfigYaml()
-	c.StatsWriterConfig = readStatsWriterConfigYaml()
-	c.TraceWriterConfig = readTraceWriterConfigYaml()
+	// undocumented writers
+	for key, cfg := range map[string]*WriterConfig{
+		"apm_config.trace_writer": c.TraceWriter,
+		"apm_config.stats_writer": c.StatsWriter,
+	} {
+		if err := config.Datadog.UnmarshalKey(key, cfg); err != nil {
+			log.Errorf("Error reading writer config %q: %v", key, err)
+		}
+	}
+	if config.Datadog.IsSet("apm_config.connection_reset_interval") {
+		c.ConnectionResetInterval = getDuration(config.Datadog.GetInt("apm_config.connection_reset_interval"))
+	}
 
 	// undocumented deprecated
 	if config.Datadog.IsSet("apm_config.analyzed_rate_by_service") {
@@ -282,7 +300,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		for key, rate := range rateBySpan {
 			serviceName, operationName, err := parseServiceAndOp(key)
 			if err != nil {
-				log.Errorf("Error when parsing names", err)
+				log.Errorf("Error parsing names: %v", err)
 				continue
 			}
 
@@ -298,7 +316,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.DDAgentBin = config.Datadog.GetString("apm_config.dd_agent_bin")
 	}
 
-	return c.loadDeprecatedValues()
+	if err := c.loadDeprecatedValues(); err != nil {
+		return err
+	}
+
+	if strings.ToLower(c.LogLevel) == "debug" && !config.Datadog.IsSet("apm_config.log_throttling") {
+		// if we are in "debug mode" and log throttling behavior was not
+		// set by the user, disable it
+		c.LogThrottling = false
+	}
+
+	return nil
 }
 
 // loadDeprecatedValues loads a set of deprecated values which are kept for
@@ -319,8 +347,8 @@ func (c *AgentConfig) loadDeprecatedValues() error {
 		}
 		c.ExtraAggregators = append(c.ExtraAggregators, aggs...)
 	}
-	if !cfg.GetBool("apm_config.log_throttling") {
-		c.LogThrottlingEnabled = false
+	if cfg.IsSet("apm_config.log_throttling") {
+		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
 	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))
@@ -349,125 +377,6 @@ func (c *AgentConfig) addReplaceRule(tag, pattern, repl string) {
 		Re:      re,
 		Repl:    repl,
 	})
-}
-
-func readInterpreterConfigYaml() *interpreterconfig.Config {
-	ini := interpreterconfig.Config{}
-	conf := interpreterconfig.DefaultInterpreterConfig()
-
-	err := config.Datadog.UnmarshalKey("apm_config.span_interpreter", &ini)
-	if err == nil {
-		if ini.ServiceIdentifiers != nil {
-			conf.ServiceIdentifiers = ini.ServiceIdentifiers
-		}
-	}
-
-	return conf
-}
-
-func readServiceWriterConfigYaml() writerconfig.ServiceWriterConfig {
-	w := serviceWriter{}
-	c := writerconfig.DefaultServiceWriterConfig()
-
-	if err := config.Datadog.UnmarshalKey("apm_config.service_writer", &w); err == nil {
-		if w.FlushPeriod > 0 {
-			c.FlushPeriod = getDuration(w.FlushPeriod)
-		}
-		if w.UpdateInfoPeriod > 0 {
-			c.UpdateInfoPeriod = getDuration(w.UpdateInfoPeriod)
-		}
-		c.SenderConfig = readQueueablePayloadSenderConfigYaml(w.QueueablePayloadSender)
-	}
-	return c
-}
-
-func readStatsWriterConfigYaml() writerconfig.StatsWriterConfig {
-	w := statsWriter{}
-	c := writerconfig.DefaultStatsWriterConfig()
-
-	if err := config.Datadog.UnmarshalKey("apm_config.stats_writer", &w); err == nil {
-		if w.MaxEntriesPerPayload > 0 {
-			c.MaxEntriesPerPayload = w.MaxEntriesPerPayload
-		}
-		if w.UpdateInfoPeriod > 0 {
-			c.UpdateInfoPeriod = getDuration(w.UpdateInfoPeriod)
-		}
-		c.SenderConfig = readQueueablePayloadSenderConfigYaml(w.QueueablePayloadSender)
-	}
-	return c
-}
-
-func readTraceWriterConfigYaml() writerconfig.TraceWriterConfig {
-	w := traceWriter{}
-	c := writerconfig.DefaultTraceWriterConfig()
-
-	if err := config.Datadog.UnmarshalKey("apm_config.trace_writer", &w); err == nil {
-		if w.MaxSpansPerPayload > 0 {
-			c.MaxSpansPerPayload = w.MaxSpansPerPayload
-		}
-		if w.FlushPeriod > 0 {
-			c.FlushPeriod = time.Duration(w.FlushPeriod*1000) * time.Millisecond
-		}
-		if w.UpdateInfoPeriod > 0 {
-			c.UpdateInfoPeriod = getDuration(w.UpdateInfoPeriod)
-		}
-		c.SenderConfig = readQueueablePayloadSenderConfigYaml(w.QueueablePayloadSender)
-	}
-	return c
-}
-
-func readFeaturesConfigYaml() featuresconfig.FeaturesConfig {
-	w := features{}
-	c := featuresconfig.DefaultFeaturesConfig()
-
-	if err := config.Datadog.UnmarshalKey("apm_config.features", &w); err == nil {
-		if w.MaxRetries > 0 {
-			c.MaxRetries = w.MaxRetries
-		}
-		if w.HTTPRequestTimeoutSecs > 0 {
-			c.HTTPRequestTimeoutDuration = time.Duration(w.HTTPRequestTimeoutSecs) * time.Second
-		}
-		if w.RetryIntervalSecs > 0 {
-			c.FeatureRequestTickerDuration = time.Duration(w.RetryIntervalSecs) * time.Second
-		}
-	}
-	return c
-}
-
-func readQueueablePayloadSenderConfigYaml(yc queueablePayloadSender) writerconfig.QueuablePayloadSenderConf {
-	c := writerconfig.DefaultQueuablePayloadSenderConf()
-
-	if yc.MaxAge != 0 {
-		c.MaxAge = getDuration(yc.MaxAge)
-	}
-
-	if yc.MaxQueuedBytes != 0 {
-		c.MaxQueuedBytes = yc.MaxQueuedBytes
-	}
-
-	if yc.MaxQueuedPayloads != 0 {
-		c.MaxQueuedPayloads = yc.MaxQueuedPayloads
-	}
-
-	c.ExponentialBackoff = readExponentialBackoffConfigYaml(yc)
-
-	return c
-}
-
-func readExponentialBackoffConfigYaml(yc queueablePayloadSender) backoff.ExponentialConfig {
-	c := backoff.DefaultExponentialConfig()
-
-	if yc.BackoffDuration > 0 {
-		c.MaxDuration = getDuration(yc.BackoffDuration)
-	}
-	if yc.BackoffBase > 0 {
-		c.Base = time.Duration(yc.BackoffBase) * time.Millisecond
-	}
-	if yc.BackoffGrowth > 0 {
-		c.GrowthBase = yc.BackoffGrowth
-	}
-
-	return c
 }
 
 // compileReplaceRules compiles the regular expressions found in the replace rules.

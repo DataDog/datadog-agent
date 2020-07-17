@@ -1,0 +1,5 @@
+*.msi
+*.wixpdb
+*.wixobj
+*.wxs
+resources

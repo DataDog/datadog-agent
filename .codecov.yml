@@ -1,8 +1,4 @@
-comment:
-  layout: "diff, flags, files"
-  behavior: default
-  branches: null
-
+comment: off
 
 coverage:
   range: 20..100
@@ -10,6 +6,7 @@ coverage:
   precision: 2
 
   status:
+    project: off
     patch:
       default:
         target: '30'

@@ -564,7 +564,7 @@ release_deb:
     - deps_deb
     - build_deb
   script:
-    - source .gitlab-scripts/setup_env.sh
+  stage: testkitchen_cleanup
     - apt-get install -y apt-utils libtool debsigs
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_RELEASE_BUCKET stable
@@ -574,17 +574,332 @@ release_deb:
   only:
     - tags
     - triggers
+    - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
+    - docker push $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
+    # Pull base image(s) with content trust enabled
+    # FIXME: Use Python 3 when python3-pip is available in docker image
+    - python2 -m pip install -r requirements.txt
+    - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/$ARCH/Dockerfile
+    # Build testing stage if provided
+    - test "$TESTING_ARG" && docker build --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
+    # Build release stage and push to ECR
+    - docker build $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --pull --tag $TARGET_TAG $BUILD_CONTEXT
+    - docker push $TARGET_TAG
 
+.docker_build_job_definition_amd64: &docker_build_job_definition_amd64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:v1907756-26d65dc-18.09.6
+  tags: ["runner:docker", "size:large"]
+  variables:
+    ARCH: amd64
+
+.docker_build_job_definition_arm64: &docker_build_job_definition_arm64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:v1903032-53399bc-18.09.6-arm64
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+
+# build the agent6 image
+build_agent6:
+  rules:
+    - <<: *if_version_6
+      when: on_success
+  extends: .docker_build_job_definition_amd64
+  needs:
+    - job: agent_deb-x64-a6
+      artifacts: false
 release_rpm:
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    TAG_SUFFIX: -6
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+docker_build_agent6_arm64:
+  rules:
+    - <<: *if_version_6
+      when: on_success
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_arm64
+  needs:
+    - job: agent_deb-arm64-a6
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -6
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
+
+# build the agent6 jmx image
+build_agent6_jmx:
+  rules:
+    - <<: *if_version_6
+      when: on_success
+  extends: .docker_build_job_definition_amd64
+  needs:
+    - job: agent_deb-x64-a6
+      artifacts: false
   stage: release
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_ARTIFACT_GLOB: datadog-agent_6*_amd64.deb
+    TAG_SUFFIX: -jmx
+    BUILD_ARG: --build-arg WITH_JMX=true
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+# build agent6 py2 jmx image
+docker_build_agent6_jmx_arm64:
+  rules:
+    - <<: *if_version_6
+      when: on_success
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_arm64
+  needs:
+    - job: agent_deb-arm64-a6
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    BUILD_ARTIFACT_GLOB: datadog-agent_6*arm64.deb
+    TAG_SUFFIX: -6-jmx
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
+
+# TESTING ONLY: This image is for internal testing purposes, not customer facing.
+# build agent6 jmx unified image (including python3)
+docker_build_agent6_py2py3_jmx:
+  rules:
+    - <<: *if_version_6
+      when: on_success
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_amd64
+  needs:
+    - job: agent_deb-x64-a6
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -6-py2py3-jmx
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
+
+# build agent7 image
+docker_build_agent7:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_amd64
+  needs:
+    - job: agent_deb-x64-a7
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+
+docker_build_agent7_arm64:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_arm64
+  needs:
+    - job: agent_deb-arm64-a7
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
+
+# build agent7 jmx image
+docker_build_agent7_jmx:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_amd64
+  needs:
+    - job: agent_deb-x64-a7
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-jmx
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+
+docker_build_agent7_jmx_arm64:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_arm64
+  needs:
+    - job: agent_deb-arm64-a7
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-jmx
+    BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
+    TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
+
+# build agent7_windows image
+docker_build_agent7_windows1809:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  stage: image_build
+  before_script: [ "# noop" ] # Override top level entry
+  needs:
+    - windows_msi_x64-a7
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 --build-arg WITH_JMX=false
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
+    - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker push ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker rmi ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+docker_build_agent7_windows1809_jmx:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  stage: image_build
+  before_script: [ "# noop" ] # Override top level entry
+  needs:
+    - windows_msi_x64-a7
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-jmx
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 --build-arg WITH_JMX=true
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
+    - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker push ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker rmi ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+# build agent7_windows image
+docker_build_agent7_windows1909:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  stage: image_build
+  before_script: [ "# noop" ] # Override top level entry
+  needs:
+    - windows_msi_x64-a7
+  tags: ["runner:windows-docker", "windowsversion:1909"]
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1909 --build-arg WITH_JMX=false
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
+    - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker push ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker rmi ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+docker_build_agent7_windows1909_jmx:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  stage: image_build
+  before_script: [ "# noop" ] # Override top level entry
+  needs:
+    - windows_msi_x64-a7
+  tags: ["runner:windows-docker", "windowsversion:1909"]
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-jmx
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1909 --build-arg WITH_JMX=true
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
+    - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker push ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker rmi ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+build_cluster_agent:
+  extends: .docker_build_job_definition_amd64
+  needs:
+    - job: cluster_agent-build_amd64
+      artifacts: false
+    IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+build_cluster_agent_arm64:
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_arm64
+  needs:
+    - job: cluster_agent-build_arm64
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
+
+build_dogstatsd:
+  extends: .docker_build_job_definition_amd64
+  needs:
+    - job: build_dogstatsd_static-deb_x64
+      artifacts: false
+    IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
   dependencies:
+twistlock_scan:
+  rules:
+    - <<: *if_version_6
     - build_rpm
+    SRC_AGENT: *agent_ecr
+    SRC_DSD: *dogstatsd_ecr
+    SRC_DCA: *cluster-agent_ecr
   before_script:
     - mkdir -p /go/src/github.com/StackVista
     - ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
   script:
-    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_rpm_package.sh
-    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package_rpm.sh $STS_AWS_RELEASE_BUCKET_YUM stable
+    - scan ${SRC_AGENT}:${SRC_TAG}
+    - scan ${SRC_AGENT}:${SRC_TAG}-jmx
+    - scan ${SRC_DSD}:${SRC_TAG}
+    - scan ${SRC_DCA}:${SRC_TAG}
+.docker_tag_job_definition: &docker_tag_job_definition
+  rules:
+    - <<: *if_version_7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
+  dependencies: [] # Don't download Gitlab artefacts
+  allow_failure: true # Don't block the pipeline
+  variables:
+    SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
   when: manual
   only:
     - tags

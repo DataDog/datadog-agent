@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 package corechecks
 
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
-	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check/defaults"
 )
 
 var (
@@ -37,13 +37,13 @@ func TestCommonConfigure(t *testing.T) {
 	}
 	mockSender := mocksender.NewMockSender(mycheck.ID())
 
-	err := mycheck.CommonConfigure([]byte(defaultsInstance))
+	err := mycheck.CommonConfigure([]byte(defaultsInstance), "test")
 	assert.NoError(t, err)
-	assert.Equal(t, check.DefaultCheckInterval, mycheck.Interval())
+	assert.Equal(t, defaults.DefaultCheckInterval, mycheck.Interval())
 	mockSender.AssertNumberOfCalls(t, "DisableDefaultHostname", 0)
 
 	mockSender.On("DisableDefaultHostname", true).Return().Once()
-	err = mycheck.CommonConfigure([]byte(customInstance))
+	err = mycheck.CommonConfigure([]byte(customInstance), "test")
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
 	mycheck.BuildID([]byte(customInstance), []byte(initConfig))
@@ -61,7 +61,7 @@ func TestCommonConfigureCustomID(t *testing.T) {
 	mockSender := mocksender.NewMockSender(mycheck.ID())
 
 	mockSender.On("DisableDefaultHostname", true).Return().Once()
-	err := mycheck.CommonConfigure([]byte(customInstance))
+	err := mycheck.CommonConfigure([]byte(customInstance), "test")
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
 	mycheck.BuildID([]byte(customInstance), []byte(initConfig))

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package autodiscovery
 
@@ -17,6 +17,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/listeners"
+        "github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers/names" 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/scheduler"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"
@@ -115,6 +116,7 @@ type AutoConfigTestSuite struct {
 func (suite *AutoConfigTestSuite) SetupSuite() {
 	suite.originalListeners = listeners.ServiceListenerFactories
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",
@@ -342,4 +344,43 @@ func TestRemoveTemplate(t *testing.T) {
 	// Remove the template, config should be removed too
 	ac.removeConfigTemplates([]integration.Config{tpl})
 	assert.Len(t, ac.GetLoadedConfigs(), 1)
+}
+
+func TestGetLoadedConfigNotInitialized(t *testing.T) {
+	ac := AutoConfig{}
+	cfgs := ac.GetLoadedConfigs()
+	require.Len(t, cfgs, 0)
+}
+
+func TestCheckOverride(t *testing.T) {
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	tpl := integration.Config{
+		Name:          "redis",
+		ADIdentifiers: []string{"redis"},
+		Provider:      names.File,
+	}
+
+	// check must be overridden (same check)
+	ac.processNewService(&dummyService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+		ADIdentifiers: []string{"redis"},
+		CheckNames:    []string{"redis"},
+	})
+	assert.Len(t, ac.resolveTemplate(tpl), 0)
+
+	// check must be overridden (empty config)
+	ac.processNewService(&dummyService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+		ADIdentifiers: []string{"redis"},
+		CheckNames:    []string{""},
+	})
+	assert.Len(t, ac.resolveTemplate(tpl), 0)
+
+	// check must be scheduled (different checks)
+	ac.processNewService(&dummyService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+		ADIdentifiers: []string{"redis"},
+		CheckNames:    []string{"tcp_check"},
+	})
+	assert.Len(t, ac.resolveTemplate(tpl), 1)
 }

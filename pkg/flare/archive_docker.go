@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -52,7 +52,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		return err
 	}
 	var out bytes.Buffer
-	json.Indent(&out, jsonStats, "", "\t")
+	json.Indent(&out, jsonStats, "", "\t") //nolint:errcheck
 	serialized := out.Bytes()
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
@@ -124,7 +124,7 @@ func trimCommand(command string) string {
 	if cutoff > 0 {
 		// Add a trailing space between cmd and … to
 		// differentiate removed args vs max length
-		cutoff += 1
+		cutoff++
 	} else {
 		cutoff = len(command)
 	}

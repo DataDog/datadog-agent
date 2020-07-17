@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build linux
 
@@ -195,7 +195,7 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 }
 
 func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCountersStat) {
-	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name)}
+	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name), fmt.Sprintf("device_name:%s", interfaceIO.Name)}
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
 	sender.Rate("system.net.packets_in.count", float64(interfaceIO.PacketsRecv), "", tags)
@@ -276,8 +276,8 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 }
 
 // Configure configures the network checks
-func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data) error {
-	err := c.CommonConfigure(rawInstance)
+func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(rawInstance, source)
 	if err != nil {
 		return err
 	}

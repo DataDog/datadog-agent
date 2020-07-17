@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build ec2
 
@@ -11,28 +11,35 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
-// GetTags grabs the host tags from the EC2 api
-func GetTags() ([]string, error) {
-	tags := []string{}
+// declare these as vars not const to ease testing
+var (
+	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
+	tagsCacheKey        = cache.BuildAgentKey("ec2", "GetTags")
+)
 
+func fetchEc2Tags() ([]string, error) {
 	instanceIdentity, err := getInstanceIdentity()
 	if err != nil {
-		return tags, err
+		return nil, err
 	}
 
 	iamParams, err := getSecurityCreds()
 	if err != nil {
-		return tags, err
+		return nil, err
 	}
 
-	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyId,
+	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyID,
 		iamParams.SecretAccessKey,
 		iamParams.Token)
 
@@ -41,38 +48,63 @@ func GetTags() ([]string, error) {
 		Credentials: awsCreds,
 	})
 	if err != nil {
-		return tags, fmt.Errorf("unable to get aws session, %s", err)
+		return nil, fmt.Errorf("unable to get aws session, %s", err)
 	}
 
 	connection := ec2.New(awsSess)
-	grabbedTags, err := connection.DescribeTags(&ec2.DescribeTagsInput{
+	ec2Tags, err := connection.DescribeTags(&ec2.DescribeTagsInput{
 		Filters: []*ec2.Filter{{
 			Name: aws.String("resource-id"),
 			Values: []*string{
-				aws.String(instanceIdentity.InstanceId),
+				aws.String(instanceIdentity.InstanceID),
 			},
 		}},
 	})
+
 	if err != nil {
-		return tags, fmt.Errorf("unable to get tags from aws, %s", err)
+		return nil, err
 	}
 
-	for _, tag := range grabbedTags.Tags {
+	tags := []string{}
+	for _, tag := range ec2Tags.Tags {
 		tags = append(tags, fmt.Sprintf("%s:%s", *tag.Key, *tag.Value))
 	}
+	return tags, nil
+}
+
+// for testing purposes
+var fetchTags = fetchEc2Tags
+
+// GetTags grabs the host tags from the EC2 api
+func GetTags() ([]string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
+	tags, err := fetchTags()
+	if err != nil {
+		if ec2Tags, found := cache.Cache.Get(tagsCacheKey); found {
+			log.Infof("unable to get tags from aws, returning cached tags: %s", err)
+			return ec2Tags.([]string), nil
+		}
+		return nil, log.Warnf("unable to get tags from aws and cache is empty: %s", err)
+	}
+
+	// save tags to the cache in case we exceed quotas later
+	cache.Cache.Set(tagsCacheKey, tags, cache.NoExpiration)
 
 	return tags, nil
 }
 
 type ec2Identity struct {
 	Region     string
-	InstanceId string
+	InstanceID string
 }
 
 func getInstanceIdentity() (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := getResponse(instanceIdentityURL)
+	res, err := doHTTPRequest(instanceIdentityURL, http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -92,7 +124,7 @@ func getInstanceIdentity() (*ec2Identity, error) {
 }
 
 type ec2SecurityCred struct {
-	AccessKeyId     string
+	AccessKeyID     string
 	SecretAccessKey string
 	Token           string
 }
@@ -105,7 +137,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole + "/")
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -124,7 +156,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 }
 
 func getIAMRole() (string, error) {
-	res, err := getResponse(metadataURL + "/iam/security-credentials/")
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}

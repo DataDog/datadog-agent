@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package sampler
 
 import (
@@ -6,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/cihub/seelog"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +23,7 @@ const (
 
 func getTestPriorityEngine() *PriorityEngine {
 	// Disable debug logs in these tests
-	log.UseLogger(log.Disabled)
+	seelog.UseLogger(seelog.Disabled)
 
 	// No extra fixed sampling, no maximum TPS
 	extraRate := 1.0
@@ -121,13 +126,33 @@ func TestPrioritySampleTracerWeight(t *testing.T) {
 	env := defaultEnv
 
 	s := getTestPriorityEngine()
-	clientRate := 0.33
+	clientRate := 0.25
 	for i := 0; i < 10; i++ {
 		trace, root := getTestTraceWithService(t, "my-service", s)
 		SetSamplingPriority(root, SamplingPriority(i%2))
 		root.Metrics[SamplingPriorityRateKey] = clientRate
 		_, rate := s.Sample(trace, root, env)
 		assert.Equal(clientRate, rate)
+	}
+}
+func TestPrioritySampleThresholdTo1(t *testing.T) {
+	assert := assert.New(t)
+	env := defaultEnv
+
+	s := getTestPriorityEngine()
+	for i := 0; i < 1e2; i++ {
+		trace, root := getTestTraceWithService(t, "my-service", s)
+		SetSamplingPriority(root, SamplingPriority(i%2))
+		_, rate := s.Sample(trace, root, env)
+		assert.Equal(1.0, rate)
+	}
+	for i := 0; i < 1e3; i++ {
+		trace, root := getTestTraceWithService(t, "my-service", s)
+		SetSamplingPriority(root, SamplingPriority(i%2))
+		_, rate := s.Sample(trace, root, env)
+		if rate < 1 {
+			assert.True(rate < prioritySamplingRateThresholdTo1)
+		}
 	}
 }
 
@@ -160,6 +185,7 @@ func TestMaxTPSByService(t *testing.T) {
 		periods     = 500
 	)
 
+	s.Sampler.rateThresholdTo1 = 1
 	for _, tc := range testCases {
 		t.Logf("testing maxTPS=%0.1f tps=%0.1f", tc.maxTPS, tc.tps)
 		s.Sampler.maxTPS = tc.maxTPS

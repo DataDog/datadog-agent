@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package collector
 
@@ -14,6 +14,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/collector/loaders"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
@@ -60,7 +61,6 @@ func InitCheckScheduler(collector *Collector) *CheckScheduler {
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	checks := s.GetChecksFromConfigs(configs, true)
 	for _, c := range checks {
-		log.Infof("Scheduling check %s", c)
 		_, err := s.collector.RunCheck(c)
 		if err != nil {
 			log.Errorf("Unable to run Check %s: %v", c, err)
@@ -73,8 +73,8 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !isCheckConfig(config) {
-			// skip non check configs.
+		if !config.IsCheckConfig() || config.HasFilter(containers.MetricsFilter) {
+			// skip non check and excluded configs.
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
@@ -131,22 +131,35 @@ func (s *CheckScheduler) AddLoader(loader check.Loader) {
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
 func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
-	for _, loader := range s.loaders {
-		res, err := loader.Load(config)
-		if err == nil {
-			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-			errorStats.removeLoaderErrors(config.Name)
-			return res, nil
+	checks := []check.Check{}
+	numLoaders := len(s.loaders)
+
+	for _, instance := range config.Instances {
+		errors := []string{}
+
+		for _, loader := range s.loaders {
+			c, err := loader.Load(config, instance)
+			if err == nil {
+				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+				errorStats.removeLoaderErrors(config.Name)
+				checks = append(checks, c)
+				break
+			} else {
+				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+				errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
+			}
 		}
-		// Check if some check instances were loaded correctly (can occur if there's multiple check instances)
-		if len(res) != 0 {
-			return res, nil
+
+		if len(errors) == numLoaders {
+			log.Debugf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
 		}
-		errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
-	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
+	if len(checks) == 0 {
+		return checks, fmt.Errorf("unable to load any check from config '%s'", config.Name)
+	}
+
+	return checks, nil
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
@@ -174,8 +187,12 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 
 	var allChecks []check.Check
 	for _, config := range configs {
-		if !isCheckConfig(config) {
+		if !config.IsCheckConfig() {
 			// skip non check configs.
+			continue
+		}
+		if config.HasFilter(containers.MetricsFilter) {
+			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", config.Name)
 			continue
 		}
 		configDigest := config.Digest()
@@ -194,11 +211,6 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	}
 
 	return allChecks
-}
-
-// isCheckConfig returns true if the config is a node-agent check configuration,
-func isCheckConfig(config integration.Config) bool {
-	return config.ClusterCheck == false && len(config.Instances) > 0
 }
 
 // GetLoaderErrors returns the check loader errors

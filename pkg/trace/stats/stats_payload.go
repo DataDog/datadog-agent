@@ -1,9 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package stats
 
 import (
-	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Payload represents the payload to be flushed to the stats endpoint
@@ -13,17 +20,16 @@ type Payload struct {
 	Stats    []Bucket `json:"stats"`
 }
 
-// EncodePayload encodes the stats payload as json/gzip.
-func EncodePayload(payload *Payload) ([]byte, error) {
-	var b bytes.Buffer
-	var err error
-
-	gz, err := gzip.NewWriterLevel(&b, gzip.BestSpeed)
+// EncodePayload encodes the payload as Gzipped JSON into w.
+func EncodePayload(w io.Writer, payload *Payload) error {
+	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = json.NewEncoder(gz).Encode(payload)
-	gz.Close()
-
-	return b.Bytes(), err
+	defer func() {
+		if err := gz.Close(); err != nil {
+			log.Errorf("Error closing gzip stream when writing stats payload: %v", err)
+		}
+	}()
+	return json.NewEncoder(gz).Encode(payload)
 }

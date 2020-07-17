@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    System-probe s6 services: ensure that the system-probe binary is bundled
+    before trying to run it / stop it.
+    This is to ensure that the s6-services definitions will be backward compatible
+    with older builds that didn't have the system-probe yet.

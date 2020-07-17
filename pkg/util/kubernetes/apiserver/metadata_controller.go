@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -81,7 +81,6 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	}
 
 	go wait.Until(m.worker, time.Second, stopCh)
-
 	<-stopCh
 }
 
@@ -111,7 +110,8 @@ func (m *MetadataController) addNode(obj interface{}) {
 		return
 	}
 
-	_ = m.store.getOrCreate(node.Name)
+	bundle := m.store.getCopyOrNew(node.Name)
+	m.store.set(node.Name, bundle)
 
 	log.Debugf("Detected node %s", node.Name)
 }
@@ -245,16 +245,13 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 	svc := endpoints.Name
 	namespace := endpoints.Namespace
 	for nodeName, ns := range nodeToPods {
-		metaBundle := m.store.getOrCreate(nodeName)
-
-		metaBundle.m.Lock()
+		metaBundle := m.store.getCopyOrNew(nodeName)
 		metaBundle.Services.Delete(namespace, svc) // cleanup pods deleted from the service
 		for _, pods := range ns {
 			for podName := range pods {
 				metaBundle.Services.Set(namespace, podName, svc)
 			}
 		}
-		metaBundle.m.Unlock()
 
 		m.store.set(nodeName, metaBundle)
 	}
@@ -270,17 +267,16 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {
-		metaBundle, ok := m.store.get(node.Name)
+		oldBundle, ok := m.store.get(node.Name)
 		if !ok {
 			// Nothing to delete.
 			continue
 		}
+		newMetaBundle := newMetadataMapperBundle()
+		newMetaBundle.DeepCopy(oldBundle)
+		newMetaBundle.Services.Delete(namespace, svc)
 
-		metaBundle.m.Lock()
-		metaBundle.Services.Delete(namespace, svc)
-		metaBundle.m.Unlock()
-
-		m.store.set(node.Name, metaBundle)
+		m.store.set(node.Name, newMetaBundle)
 	}
 	return nil
 }
@@ -294,7 +290,7 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 
-	metaBundle, ok := metaBundleInterface.(*MetadataMapperBundle)
+	metaBundle, ok := metaBundleInterface.(*metadataMapperBundle)
 	if !ok {
 		return nil, fmt.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}

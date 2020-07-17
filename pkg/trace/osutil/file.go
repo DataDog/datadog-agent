@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package osutil
 
 import (
@@ -5,7 +10,7 @@ import (
 	"os"
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/flags"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // Exists reports whether the given path exists.
@@ -29,9 +34,9 @@ func Exit(msg string) {
 func Exitf(format string, args ...interface{}) {
 	if flags.Info || flags.Version {
 		fmt.Printf(format, args...)
-		fmt.Print("")
+		fmt.Println("")
 	} else {
-		log.Errorf(format, args...)
+		log.Criticalf(format, args...)
 		log.Flush()
 	}
 	os.Exit(1)

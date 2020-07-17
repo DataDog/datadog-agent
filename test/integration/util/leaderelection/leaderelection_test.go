@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build docker
 // +build kubeapiserver
@@ -30,6 +30,7 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/telemetry"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/StackVista/stackstate-agent/test/integration/utils"
@@ -69,6 +70,7 @@ func TestSuiteAPIServer(t *testing.T) {
 
 func (suite *apiserverSuite) SetupTest() {
 	leaderelection.ResetGlobalLeaderEngine()
+	telemetry.Reset()
 
 	tick := time.NewTicker(time.Millisecond * 500)
 	timeout := time.NewTicker(setupTimeout)
@@ -118,6 +120,7 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
 	leaderelection.ResetGlobalLeaderEngine()
+	telemetry.Reset()
 
 	leader, err := leaderelection.GetCustomLeaderEngine(holderIdentity, time.Second*30)
 	require.Nil(suite.T(), err)

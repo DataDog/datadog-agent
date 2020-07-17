@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // Package common provides a set of common symbols needed by different packages,
 // to avoid circular dependencies.
@@ -9,7 +9,6 @@ package common
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -24,11 +23,15 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/config/legacy"
 )
 
+// TransformationFunc type represents transformation applicable to byte slices
+type TransformationFunc func(rawData []byte) ([]byte, error)
+
 // ImportConfig imports the agent5 configuration into the agent6 yaml config
 func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
+	configConverter := config.NewConfigConverter()
 	const cfgExt = ".yaml"
 	const dirExt = ".d"
 
@@ -51,7 +54,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 
 	// setup the configuration system
 	config.Datadog.AddConfigPath(newConfigDir)
-	err = config.Load()
+	_, err = config.Load()
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
@@ -63,9 +66,67 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// merge current agent configuration with the converted data
-	err = legacy.FromAgentConfig(agentConfig)
+	err = legacy.FromAgentConfig(agentConfig, configConverter)
 	if err != nil {
 		return fmt.Errorf("unable to convert configuration data from %s: %v", datadogConfPath, err)
+	}
+
+	// move existing config files to the new configuration directory
+	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Fprintln(color.Output,
+				fmt.Sprintf("%s does not exist, no config files to import.",
+					color.BlueString(filepath.Join(oldConfigDir, "conf.d"))),
+			)
+		} else {
+			return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
+		}
+	}
+
+	tr := []TransformationFunc{relocateMinCollectionInterval}
+
+	for _, f := range files {
+		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
+			continue
+		}
+		checkName := strings.TrimSuffix(f.Name(), cfgExt)
+
+		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
+		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
+
+		if f.Name() == "docker_daemon.yaml" {
+			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.d", "conf.yaml"), force, configConverter)
+			if err != nil {
+				return err
+			}
+			continue
+		} else if f.Name() == "docker.yaml" {
+			// if people upgrade from a very old version of the agent who ship the old docker check.
+			fmt.Fprintln(
+				color.Output,
+				fmt.Sprintf("Ignoring %s, old docker check has been deprecated.", color.YellowString(src)),
+			)
+			continue
+		} else if f.Name() == "kubernetes.yaml" {
+			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.d", "conf.yaml"), force, configConverter)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err := copyFile(src, dst, force, tr); err != nil {
+			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
+		}
+
+		fmt.Fprintln(
+			color.Output,
+			fmt.Sprintf("Copied %s over the new %s directory",
+				color.BlueString("conf.d/"+f.Name()),
+				color.BlueString(checkName+dirExt),
+			),
+		)
 	}
 
 	// backup the original datadog.yaml to datadog.yaml.bak
@@ -98,59 +159,17 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		),
 	)
 
-	// move existing config files to the new configuration directory
-	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
-	if err != nil {
-		return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
-	}
-
-	for _, f := range files {
-		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
-			continue
-		}
-		checkName := strings.TrimSuffix(f.Name(), cfgExt)
-
-		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
-		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
-
-		if f.Name() == "docker_daemon.yaml" {
-			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.yaml"), force)
-			if err != nil {
-				return err
-			}
-			continue
-		} else if f.Name() == "docker.yaml" {
-			// if people upgrade from a very old version of the agent who ship the old docker check.
-			fmt.Fprintln(
-				color.Output,
-				fmt.Sprintf("Ignoring %s, old docker check has been deprecated.", color.YellowString(src)),
-			)
-			continue
-		} else if f.Name() == "kubernetes.yaml" {
-			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.yaml"), force)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		if err := copyFile(src, dst, force); err != nil {
-			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
-		}
-
-		fmt.Fprintln(
-			color.Output,
-			fmt.Sprintf("Copied %s over the new %s directory",
-				color.BlueString("conf.d/"+f.Name()),
-				color.BlueString(checkName+dirExt),
-			),
-		)
-	}
-
 	// move existing config templates to the new auto_conf directory
 	autoConfFiles, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
 	if err != nil {
-		return fmt.Errorf("unable to list auto_conf files from %s: %v", oldConfigDir, err)
+		if os.IsNotExist(err) {
+			fmt.Fprintln(color.Output,
+				fmt.Sprintf("%s does not exist, no auto_conf files to import.",
+					color.BlueString(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))),
+			)
+		} else {
+			return fmt.Errorf("unable to list auto_conf files from %s: %v", oldConfigDir, err)
+		}
 	}
 
 	for _, f := range autoConfFiles {
@@ -162,7 +181,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		src := filepath.Join(oldConfigDir, "conf.d", "auto_conf", f.Name())
 		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "auto_conf"+cfgExt)
 
-		if err := copyFile(src, dst, force); err != nil {
+		if err := copyFile(src, dst, force, tr); err != nil {
 			fmt.Fprintf(os.Stderr, "unable to copy %s to %s: %v\n", src, dst, err)
 			continue
 		}
@@ -201,8 +220,8 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	return nil
 }
 
-// Copy the src file to dst. File attributes won't be copied.
-func copyFile(src, dst string, overwrite bool) error {
+// Copy the src file to dst. File attributes won't be copied. Apply all TransformationFunc while copying.
+func copyFile(src, dst string, overwrite bool, transformations []TransformationFunc) error {
 	// if the file exists check whether we can overwrite
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
 		if overwrite {
@@ -216,28 +235,25 @@ func copyFile(src, dst string, overwrite bool) error {
 		}
 	}
 
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
 	// Create necessary destination directories
-	err = os.MkdirAll(filepath.Dir(dst), 0750)
+	err := os.MkdirAll(filepath.Dir(dst), 0750)
 	if err != nil {
 		return err
 	}
 
-	out, err := os.Create(dst)
+	data, err := ioutil.ReadFile(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to read file %s : %s", src, err)
 	}
-	defer out.Close()
 
-	_, err = io.Copy(out, in)
-	if err != nil {
-		return err
+	for _, transformation := range transformations {
+		data, err = transformation(data)
+		if err != nil {
+			return fmt.Errorf("unable to convert file %s : %s", src, err)
+		}
 	}
+
+	ioutil.WriteFile(dst, data, 0640) //nolint:errcheck
 
 	ddGroup, errGroup := user.LookupGroup("dd-agent")
 	ddUser, errUser := user.LookupId("dd-agent")
@@ -255,18 +271,18 @@ func copyFile(src, dst string, overwrite bool) error {
 			return fmt.Errorf("Couldn't convert dd-agent user ID: %s into an int: %s", ddUser.Uid, err)
 		}
 
-		err = out.Chown(ddUID, ddGID)
+		err = os.Chown(dst, ddUID, ddGID)
 		if err != nil {
 			return fmt.Errorf("Couldn't change the file permissions for this check. Error: %s", err)
 		}
 	}
 
-	err = out.Chmod(0640)
+	err = os.Chmod(dst, 0640)
 	if err != nil {
 		return err
 	}
 
-	return out.Close()
+	return nil
 }
 
 // configTraceAgent extracts trace-agent specific info and dump to its own config file
@@ -285,4 +301,35 @@ func configTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool
 	}
 
 	return legacy.ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath)
+}
+
+func relocateMinCollectionInterval(rawData []byte) ([]byte, error) {
+	data := make(map[interface{}]interface{})
+	if err := yaml.Unmarshal(rawData, &data); err != nil {
+		return nil, fmt.Errorf("error while unmarshalling Yaml : %v", err)
+	}
+
+	if _, ok := data["init_config"]; ok {
+		if initConfig, ok := data["init_config"].(map[interface{}]interface{}); ok {
+			if _, ok := initConfig["min_collection_interval"]; ok {
+				if minCollectionInterval, ok := initConfig["min_collection_interval"].(int); ok {
+					delete(initConfig, "min_collection_interval")
+					insertMinCollectionInterval(data, minCollectionInterval)
+				}
+			}
+		}
+	}
+	return yaml.Marshal(data)
+}
+
+func insertMinCollectionInterval(rawData map[interface{}]interface{}, interval int) {
+	if _, ok := rawData["instances"]; ok {
+		if instances, ok := rawData["instances"].([]interface{}); ok {
+			for _, rawInstance := range instances {
+				if instance, ok := rawInstance.(map[interface{}]interface{}); ok {
+					instance["min_collection_interval"] = interval
+				}
+			}
+		}
+	}
 }

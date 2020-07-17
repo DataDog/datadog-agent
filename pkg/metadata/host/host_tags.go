@@ -8,6 +8,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/ec2"
 	"github.com/StackVista/stackstate-agent/pkg/util/gce"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	k8s "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
@@ -52,6 +53,11 @@ func getHostTags() *tags {
 	hostTags := make([]string, 0, len(rawHostTags))
 	hostTags = appendToHostTags(hostTags, rawHostTags)
 
+	env := config.Datadog.GetString("env")
+	if env != "" {
+		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
+	}
+
 	if config.Datadog.GetBool("collect_ec2_tags") {
 		ec2Tags, err := ec2.GetTags()
 		if err != nil {
@@ -59,6 +65,16 @@ func getHostTags() *tags {
 		} else {
 			hostTags = appendToHostTags(hostTags, ec2Tags)
 		}
+	}
+
+	clusterName := clustername.GetClusterName()
+	if len(clusterName) != 0 {
+		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
+		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+			clusterNameTags = append(clusterNameTags, "cluster_name:"+clusterName)
+			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+		}
+		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
 	k8sTags, err := k8s.GetTags()

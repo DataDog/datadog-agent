@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build linux windows darwin
 
@@ -13,13 +13,14 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/metadata/gohai"
 	"github.com/StackVista/stackstate-agent/pkg/metadata/host"
 	"github.com/StackVista/stackstate-agent/pkg/metadata/resources"
+	"github.com/StackVista/stackstate-agent/pkg/util"
 )
 
 // GetPayload returns the complete metadata payload as seen in Agent v5
-func GetPayload(hostname string) *Payload {
-	cp := common.GetPayload(hostname)
-	hp := host.GetPayload(hostname)
-	rp := resources.GetPayload(hostname)
+func GetPayload(hostnameData util.HostnameData) *Payload {
+	cp := common.GetPayload(hostnameData.Hostname)
+	hp := host.GetPayload(hostnameData)
+	rp := resources.GetPayload(hostnameData.Hostname)
 
 	p := &Payload{
 		CommonPayload: CommonPayload{*cp},

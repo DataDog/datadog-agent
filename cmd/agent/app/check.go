@@ -1,42 +1,62 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/StackVista/stackstate-agent/pkg/batcher"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 
+	"github.com/StackVista/stackstate-agent/cmd/agent/app/standalone"
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/metadata"
 	"github.com/StackVista/stackstate-agent/pkg/serializer"
 	"github.com/StackVista/stackstate-agent/pkg/status"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 )
 
 var (
-	checkRate  bool
-	checkTimes int
-	checkPause int
-	checkName  string
-	checkDelay int
-	logLevel   string
-	formatJSON bool
+	checkRate            bool
+	checkTimes           int
+	checkPause           int
+	checkName            string
+	checkDelay           int
+	logLevel             string
+	formatJSON           bool
+	breakPoint           string
+	fullSketches         bool
+	profileMemory        bool
+	profileMemoryDir     string
+	profileMemoryFrames  string
+	profileMemoryGC      string
+	profileMemoryCombine string
+	profileMemorySort    string
+	profileMemoryLimit   string
+	profileMemoryDiff    string
+	profileMemoryFilters string
+	profileMemoryUnit    string
+	profileMemoryVerbose string
 )
-
-// Make the check cmd aggregator never flush by setting a very high interval
-const checkCmdFlushInterval = time.Hour
 
 func init() {
 	AgentCmd.AddCommand(checkCmd)
@@ -44,9 +64,26 @@ func init() {
 	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice with a 1sec-pause between the 2 runs")
 	checkCmd.Flags().IntVarP(&checkTimes, "check-times", "t", 1, "number of times to run the check")
 	checkCmd.Flags().IntVar(&checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
-	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
-	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
+	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
+	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
 	checkCmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
+	checkCmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
+	checkCmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
+	checkCmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
+	config.Datadog.BindPFlag("cmd.check.fullsketches", checkCmd.Flags().Lookup("full-sketches")) //nolint:errcheck
+
+	// Power user flags - mark as hidden
+	createHiddenStringFlag(&profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
+	createHiddenStringFlag(&profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
+	createHiddenStringFlag(&profileMemoryGC, "m-gc", "", "whether or not to run the garbage collector to remove noise")
+	createHiddenStringFlag(&profileMemoryCombine, "m-combine", "", "whether or not to aggregate over all traceback frames")
+	createHiddenStringFlag(&profileMemorySort, "m-sort", "", "what to sort by between: lineno | filename | traceback")
+	createHiddenStringFlag(&profileMemoryLimit, "m-limit", "", "the maximum number of sorted results to show")
+	createHiddenStringFlag(&profileMemoryDiff, "m-diff", "", "how to order diff results between: absolute | positive")
+	createHiddenStringFlag(&profileMemoryFilters, "m-filters", "", "comma-separated list of file path glob patterns to filter by")
+	createHiddenStringFlag(&profileMemoryUnit, "m-unit", "", "the binary unit to represent memory usage (kib, mb, etc.). the default is dynamic")
+	createHiddenStringFlag(&profileMemoryVerbose, "m-verbose", "", "whether or not to include potentially noisy sources")
+
 	checkCmd.SetArgs([]string{"checkName"})
 }
 
@@ -55,44 +92,20 @@ var checkCmd = &cobra.Command{
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		overrides := make(map[string]interface{})
+		resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, confFilePath, logLevel, "off")
+		if err != nil {
+			fmt.Printf("Cannot initialize command: %v\n", err)
+			return err
+		}
 
 		if flagNoColor {
 			color.NoColor = true
 		}
 
-		if logLevel != "" {
-			// Python calls config.Datadog.GetString("log_level")
-			overrides["log_level"] = logLevel
-		}
-
-		// Global Agent configuration
-		config.SetOverrides(overrides)
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			fmt.Printf("Cannot setup config, exiting: %v\n", err)
-			return err
-		}
-
-		if logLevel == "" {
-			if confFilePath != "" {
-				logLevel = config.Datadog.GetString("log_level")
-			} else {
-				logLevel = "off"
-			}
-		}
-
-		// Setup logger
-		err = config.SetupLogger(logLevel, "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
-		}
-
 		if len(args) != 0 {
 			checkName = args[0]
 		} else {
-			cmd.Help()
+			cmd.Help() //nolint:errcheck
 			return nil
 		}
 
@@ -103,10 +116,137 @@ var checkCmd = &cobra.Command{
 		}
 
 		s := serializer.NewSerializer(common.Forwarder)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
-		batcher.InitBatcher(&printingAgentV1Serializer{}, hostname, "agent", config.GetMaxCapacity())
+		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
-		cs := collector.GetChecksByNameForConfigs(checkName, common.AC.GetAllConfigs())
+
+		if config.Datadog.GetBool("inventories_enabled") {
+			metadata.SetupInventoriesExpvar(common.AC, common.Coll)
+		}
+
+		allConfigs := common.AC.GetAllConfigs()
+
+		// make sure the checks in cs are not JMX checks
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
+			if conf.Name != checkName {
+				continue
+			}
+
+			if check.IsJMXConfig(*conf) {
+				// we'll mimic the check command behavior with JMXFetch by running
+				// it with the JSON reporter and the list_with_metrics command.
+				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+				selectedChecks := []string{checkName}
+				if checkRate {
+					if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						return fmt.Errorf("while running the jmx check: %v", err)
+					}
+				} else {
+					if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						return fmt.Errorf("while running the jmx check: %v", err)
+					}
+				}
+
+				instances := []integration.Data{}
+
+				// Retain only non-JMX instances for later
+				for _, instance := range conf.Instances {
+					if check.IsJMXInstance(conf.Name, instance, conf.InitConfig) {
+						continue
+					}
+					instances = append(instances, instance)
+				}
+
+				if len(instances) == 0 {
+					fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", checkName)
+					return nil
+				}
+
+				conf.Instances = instances
+			}
+		}
+
+		if profileMemory {
+			// If no directory is specified, make a temporary one
+			if profileMemoryDir == "" {
+				profileMemoryDir, err = ioutil.TempDir("", "datadog-agent-memory-profiler")
+				if err != nil {
+					return err
+				}
+
+				defer func() {
+					cleanupErr := os.RemoveAll(profileMemoryDir)
+					if cleanupErr != nil {
+						fmt.Printf("%s\n", cleanupErr)
+					}
+				}()
+			}
+
+			for idx := range allConfigs {
+				conf := &allConfigs[idx]
+				if conf.Name != checkName {
+					continue
+				}
+
+				var data map[string]interface{}
+
+				err = yaml.Unmarshal(conf.InitConfig, &data)
+				if err != nil {
+					return err
+				}
+
+				if data == nil {
+					data = make(map[string]interface{})
+				}
+
+				data["profile_memory"] = profileMemoryDir
+				err = populateMemoryProfileConfig(data)
+				if err != nil {
+					return err
+				}
+
+				y, _ := yaml.Marshal(data)
+				conf.InitConfig = y
+
+				break
+			}
+		} else if breakPoint != "" {
+			breakPointLine, err := strconv.Atoi(breakPoint)
+			if err != nil {
+				fmt.Printf("breakpoint must be an integer\n")
+				return err
+			}
+
+			for idx := range allConfigs {
+				conf := &allConfigs[idx]
+				if conf.Name != checkName {
+					continue
+				}
+
+				var data map[string]interface{}
+
+				err = yaml.Unmarshal(conf.InitConfig, &data)
+				if err != nil {
+					return err
+				}
+
+				if data == nil {
+					data = make(map[string]interface{})
+				}
+
+				data["set_breakpoint"] = breakPointLine
+
+				y, _ := yaml.Marshal(data)
+				conf.InitConfig = y
+
+				break
+			}
+		}
+
+		cs := collector.GetChecksByNameForConfigs(checkName, allConfigs)
+
+		// something happened while getting the check(s), display some info.
 		if len(cs) == 0 {
 			for check, error := range autodiscovery.GetConfigErrors() {
 				if checkName == check {
@@ -137,7 +277,6 @@ var checkCmd = &cobra.Command{
 		}
 
 		var instancesData []interface{}
-
 		for _, c := range cs {
 			s := runCheck(c, agg)
 
@@ -149,7 +288,10 @@ var checkCmd = &cobra.Command{
 				var collectorData map[string]interface{}
 
 				collectorJSON, _ := status.GetCheckStatusJSON(c, s)
-				json.Unmarshal(collectorJSON, &collectorData)
+				err = json.Unmarshal(collectorJSON, &collectorData)
+				if err != nil {
+					return err
+				}
 
 				checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})[checkName].(map[string]interface{})
 
@@ -161,10 +303,64 @@ var checkCmd = &cobra.Command{
 				}
 
 				instanceData := map[string]interface{}{
-					"aggregator": aggregatorData,
-					"runner":     runnerData,
+					"aggregator":  aggregatorData,
+					"runner":      runnerData,
+					"inventories": collectorData["inventories"],
 				}
 				instancesData = append(instancesData, instanceData)
+			} else if profileMemory {
+				// Every instance will create its own directory
+				instanceID := strings.SplitN(string(c.ID()), ":", 2)[1]
+				// Colons can't be part of Windows file paths
+				instanceID = strings.Replace(instanceID, ":", "_", -1)
+				profileDataDir := filepath.Join(profileMemoryDir, checkName, instanceID)
+
+				snapshotDir := filepath.Join(profileDataDir, "snapshots")
+				if _, err := os.Stat(snapshotDir); !os.IsNotExist(err) {
+					snapshots, err := ioutil.ReadDir(snapshotDir)
+					if err != nil {
+						return err
+					}
+
+					numSnapshots := len(snapshots)
+					if numSnapshots > 0 {
+						lastSnapshot := snapshots[numSnapshots-1]
+						snapshotContents, err := ioutil.ReadFile(filepath.Join(snapshotDir, lastSnapshot.Name()))
+						if err != nil {
+							return err
+						}
+
+						color.HiWhite(string(snapshotContents))
+					} else {
+						return fmt.Errorf("no snapshots found in %s", snapshotDir)
+					}
+				} else {
+					return fmt.Errorf("no snapshot data found in %s", profileDataDir)
+				}
+
+				diffDir := filepath.Join(profileDataDir, "diffs")
+				if _, err := os.Stat(diffDir); !os.IsNotExist(err) {
+					diffs, err := ioutil.ReadDir(diffDir)
+					if err != nil {
+						return err
+					}
+
+					numDiffs := len(diffs)
+					if numDiffs > 0 {
+						lastDiff := diffs[numDiffs-1]
+						diffContents, err := ioutil.ReadFile(filepath.Join(diffDir, lastDiff.Name()))
+						if err != nil {
+							return err
+						}
+
+						color.HiCyan(fmt.Sprintf("\n%s\n\n", strings.Repeat("=", 50)))
+						color.HiWhite(string(diffContents))
+					} else {
+						return fmt.Errorf("no diffs found in %s", diffDir)
+					}
+				} else if !singleCheckRun() {
+					return fmt.Errorf("no diff data found in %s", profileDataDir)
+				}
 			} else {
 				printMetrics(agg)
 				checkStatus, _ := status.GetCheckStatus(c, s)
@@ -172,14 +368,25 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
+		if runtime.GOOS == "windows" {
+			standalone.PrintWindowsUserWarning("check")
+		}
+
 		if formatJSON {
 			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
 			instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
 			fmt.Println(string(instancesJSON))
-		} else if checkRate == false && checkTimes < 2 {
-			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
+		} else if singleCheckRun() {
+			if profileMemory {
+				color.Yellow("Check has run only once, to collect diff data run the check multiple times with the -t/--check-times flag.")
+			} else {
+				color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
+			}
 		}
 
+		if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
+			return errors.New("tracemalloc is enabled but unavailable with python version 2")
+		}
 		return nil
 	},
 }
@@ -212,24 +419,13 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-type printingAgentV1Serializer struct{}
-
-func (printingAgentV1Serializer) SendJSONToV1Intake(data interface{}) error {
-	fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Topology")))
-	j, _ := json.MarshalIndent(data, "", "  ")
-	fmt.Println(string(j))
-	return nil
-}
-
 func printMetrics(agg *aggregator.BufferedAggregator) {
-	series := agg.GetSeries()
+	series, sketches := agg.GetSeriesAndSketches()
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
 		j, _ := json.MarshalIndent(series, "", "  ")
 		fmt.Println(string(j))
 	}
-
-	sketches := agg.GetSketches()
 	if len(sketches) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
@@ -254,18 +450,16 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	aggData := make(map[string]interface{})
 
-	series := agg.GetSeries()
+	series, sketches := agg.GetSeriesAndSketches()
 	if len(series) != 0 {
 		// Workaround to get the raw sequence of metrics, see:
 		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
 		var data map[string]interface{}
 		sj, _ := json.Marshal(series)
-		json.Unmarshal(sj, &data)
+		json.Unmarshal(sj, &data) //nolint:errcheck
 
 		aggData["metrics"] = data["series"]
 	}
-
-	sketches := agg.GetSketches()
 	if len(sketches) != 0 {
 		aggData["sketches"] = sketches
 	}
@@ -281,4 +475,85 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	}
 
 	return aggData
+}
+
+func singleCheckRun() bool {
+	return checkRate == false && checkTimes < 2
+}
+
+func createHiddenStringFlag(p *string, name string, value string, usage string) {
+	checkCmd.Flags().StringVar(p, name, value, usage)
+	checkCmd.Flags().MarkHidden(name) //nolint:errcheck
+}
+
+func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
+	if profileMemoryFrames != "" {
+		profileMemoryFrames, err := strconv.Atoi(profileMemoryFrames)
+		if err != nil {
+			return fmt.Errorf("--m-frames must be an integer")
+		}
+		initConfig["profile_memory_frames"] = profileMemoryFrames
+	}
+
+	if profileMemoryGC != "" {
+		profileMemoryGC, err := strconv.Atoi(profileMemoryGC)
+		if err != nil {
+			return fmt.Errorf("--m-gc must be an integer")
+		}
+
+		initConfig["profile_memory_gc"] = profileMemoryGC
+	}
+
+	if profileMemoryCombine != "" {
+		profileMemoryCombine, err := strconv.Atoi(profileMemoryCombine)
+		if err != nil {
+			return fmt.Errorf("--m-combine must be an integer")
+		}
+
+		if profileMemoryCombine != 0 && profileMemorySort == "traceback" {
+			return fmt.Errorf("--m-combine cannot be sorted (--m-sort) by traceback")
+		}
+
+		initConfig["profile_memory_combine"] = profileMemoryCombine
+	}
+
+	if profileMemorySort != "" {
+		if profileMemorySort != "lineno" && profileMemorySort != "filename" && profileMemorySort != "traceback" {
+			return fmt.Errorf("--m-sort must one of: lineno | filename | traceback")
+		}
+		initConfig["profile_memory_sort"] = profileMemorySort
+	}
+
+	if profileMemoryLimit != "" {
+		profileMemoryLimit, err := strconv.Atoi(profileMemoryLimit)
+		if err != nil {
+			return fmt.Errorf("--m-limit must be an integer")
+		}
+		initConfig["profile_memory_limit"] = profileMemoryLimit
+	}
+
+	if profileMemoryDiff != "" {
+		if profileMemoryDiff != "absolute" && profileMemoryDiff != "positive" {
+			return fmt.Errorf("--m-diff must one of: absolute | positive")
+		}
+		initConfig["profile_memory_diff"] = profileMemoryDiff
+	}
+
+	if profileMemoryFilters != "" {
+		initConfig["profile_memory_filters"] = profileMemoryFilters
+	}
+
+	if profileMemoryUnit != "" {
+		initConfig["profile_memory_unit"] = profileMemoryUnit
+	}
+
+	if profileMemoryVerbose != "" {
+		profileMemoryVerbose, err := strconv.Atoi(profileMemoryVerbose)
+		if err != nil {
+			return fmt.Errorf("--m-verbose must be an integer")
+		}
+		initConfig["profile_memory_verbose"] = profileMemoryVerbose
+	}
+
+	return nil
 }

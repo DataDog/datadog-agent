@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package sampler
 
 import (
@@ -6,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,13 +19,13 @@ const defaultEnv = "none"
 
 func getTestScoreEngine() *ScoreEngine {
 	// Disable debug logs in these tests
-	log.UseLogger(log.Disabled)
+	seelog.UseLogger(seelog.Disabled)
 
 	// No extra fixed sampling, no maximum TPS
 	extraRate := 1.0
 	maxTPS := 0.0
 
-	return NewScoreEngine(extraRate, maxTPS)
+	return NewErrorsEngine(extraRate, maxTPS)
 }
 
 func getTestTrace() (pb.Trace, *pb.Span) {
@@ -50,6 +55,25 @@ func TestExtraSampleRate(t *testing.T) {
 	s.Sampler.extraRate = 0.33
 
 	assert.Equal(s.Sampler.GetSampleRate(trace, root, signature), s.Sampler.extraRate*sRate)
+}
+
+func TestErrorSampleThresholdTo1(t *testing.T) {
+	assert := assert.New(t)
+	env := defaultEnv
+
+	s := getTestScoreEngine()
+	for i := 0; i < 1e2; i++ {
+		trace, root := getTestTrace()
+		_, rate := s.Sample(trace, root, env)
+		assert.Equal(1.0, rate)
+	}
+	for i := 0; i < 1e3; i++ {
+		trace, root := getTestTrace()
+		_, rate := s.Sample(trace, root, env)
+		if rate < 1 {
+			assert.True(rate < errorSamplingRateThresholdTo1)
+		}
+	}
 }
 
 func TestMaxTPS(t *testing.T) {

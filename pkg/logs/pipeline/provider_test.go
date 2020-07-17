@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package pipeline
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -13,7 +14,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
-	"github.com/StackVista/stackstate-agent/pkg/logs/client"
 )
 
 type ProviderTestSuite struct {
@@ -23,12 +23,12 @@ type ProviderTestSuite struct {
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	suite.a = auditor.New("", health.Register("fake"))
+	suite.a = auditor.New("", health.RegisterLiveness("fake"))
 	suite.p = &provider{
 		numberOfPipelines: 3,
 		auditor:           suite.a,
 		pipelines:         []*Pipeline{},
-		endpoints:         client.NewEndpoints(client.Endpoint{}, nil),
+		endpoints:         config.NewEndpoints(config.Endpoint{}, nil, true, false, 0),
 	}
 }
 

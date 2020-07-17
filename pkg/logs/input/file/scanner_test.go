@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
 
@@ -63,7 +63,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	sleepDuration := 20 * time.Millisecond
 	suite.s = NewScanner(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
-	status.CreateSources([]*config.LogSource{suite.source})
+	status.InitStatus(config.CreateSources([]*config.LogSource{suite.source}))
 	suite.s.scan()
 }
 
@@ -216,7 +216,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	scanner.activeSources = append(scanner.activeSources, source)
 	status.Clear()
-	status.CreateSources([]*config.LogSource{source})
+	status.InitStatus(config.CreateSources([]*config.LogSource{source}))
 	defer status.Clear()
 
 	// create file
@@ -238,6 +238,58 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	assert.Equal(t, "hello", string(msg.Content))
 	msg = <-tailer.outputChan
 	assert.Equal(t, "world", string(msg.Content))
+}
+
+func TestScannerTailFromTheBeginning(t *testing.T) {
+	var err error
+	var path string
+	var file *os.File
+	var tailer *Tailer
+	var msg *message.Message
+
+	testDir, err := ioutil.TempDir("", "log-scanner-test-")
+	path = fmt.Sprintf("%s/test.log", testDir)
+	assert.Nil(t, err)
+
+	// create scanner
+	openFilesLimit := 2
+	sleepDuration := 20 * time.Millisecond
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, TailingMode: "beginning"})
+	// scanner.activeSources = append(scanner.activeSources, source)
+	status.Clear()
+	status.InitStatus(config.CreateSources([]*config.LogSource{source}))
+	defer status.Clear()
+
+	// create file
+	file, err = os.Create(path)
+	assert.Nil(t, err)
+
+	// add content before starting the tailer
+	_, err = file.WriteString("Once\n")
+	assert.Nil(t, err)
+	_, err = file.WriteString("Upon\n")
+	assert.Nil(t, err)
+
+	// test scan from the beginning, it shall read previously written strings
+	scanner.addSource(source)
+	assert.Equal(t, 1, len(scanner.tailers))
+
+	// add content after starting the tailer
+	_, err = file.WriteString("A\n")
+	assert.Nil(t, err)
+	_, err = file.WriteString("Time\n")
+	assert.Nil(t, err)
+
+	tailer = scanner.tailers[path]
+	msg = <-tailer.outputChan
+	assert.Equal(t, "Once", string(msg.Content))
+	msg = <-tailer.outputChan
+	assert.Equal(t, "Upon", string(msg.Content))
+	msg = <-tailer.outputChan
+	assert.Equal(t, "A", string(msg.Content))
+	msg = <-tailer.outputChan
+	assert.Equal(t, "Time", string(msg.Content))
 }
 
 func TestScannerScanWithTooManyFiles(t *testing.T) {
@@ -268,7 +320,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	scanner.activeSources = append(scanner.activeSources, source)
 	status.Clear()
-	status.CreateSources([]*config.LogSource{source})
+	status.InitStatus(config.CreateSources([]*config.LogSource{source}))
 	defer status.Clear()
 
 	// test at scan

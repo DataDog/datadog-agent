@@ -1,9 +1,8 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
-
-// +build windows,!novet
+// Copyright 2016-2020 Datadog, Inc.
+// +build windows,!dovet
 
 package winutil
 
@@ -12,8 +11,11 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
+import "path/filepath"
 
 // GUID is representation of the C GUID structure
 type GUID struct {
@@ -63,9 +65,7 @@ func CoTaskMemFree(pv uintptr) {
 	return
 }
 
-// GetProgramDataDir returns the current programdatadir, usually
-// c:\programdata
-func GetProgramDataDir() (path string, err error) {
+func getDefaultProgramDataDir() (path string, err error) {
 	var retstr uintptr
 	err = SHGetKnownFolderPath(&FOLDERIDProgramData, 0, 0, &retstr)
 	if err == nil {
@@ -74,6 +74,35 @@ func GetProgramDataDir() (path string, err error) {
 		// the path = windows.UTF16ToString... returns a
 		// go vet: "possible misuse of unsafe.Pointer"
 		path = windows.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
+		path = filepath.Join(path, "Datadog")
 	}
+	return
+}
+
+// GetProgramDataDir returns the current programdatadir, usually
+// c:\programdata\Datadog
+func GetProgramDataDir() (path string, err error) {
+	return GetProgramDataDirForProduct("Datadog Agent")
+}
+
+// GetProgramDataDirForProduct returns the current programdatadir, usually
+// c:\programdata\Datadog given a product key name
+func GetProgramDataDirForProduct(product string) (path string, err error) {
+	keyname := "SOFTWARE\\Datadog\\" + product
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		keyname,
+		registry.ALL_ACCESS)
+	if err != nil {
+		// otherwise, unexpected error
+		log.Warnf("Windows installation key root not found, using default program data dir %s", keyname)
+		return getDefaultProgramDataDir()
+	}
+	defer k.Close()
+	val, _, err := k.GetStringValue("ConfigRoot")
+	if err != nil {
+		log.Warnf("Windows installation key config not found, using default program data dir", keyname)
+		return getDefaultProgramDataDir()
+	}
+	path = val
 	return
 }

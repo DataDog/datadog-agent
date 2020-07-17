@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    For NTP check, add the option `use_local_defined_servers`. 
+    When `use_local_defined_servers` is true, use the ntp servers defined in the current host otherwise use the hosts defined in the configuration.

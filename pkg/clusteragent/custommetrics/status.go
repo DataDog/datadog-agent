@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -20,9 +20,15 @@ import (
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
 	if !config.Datadog.GetBool("external_metrics_provider.enabled") {
-		status["Disabled"] = "The external metrics provider is not enabled on the cluster-agent"
+		status["Disabled"] = "The external metrics provider is not enabled on the Cluster Agent"
 		return status
 	}
+
+	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+		status["NoStatus"] = "External metrics provider uses DatadogMetric - Check status directly from Kubernetes with: `kubectl get datadogmetric`"
+		return status
+	}
+
 	configMapName := GetConfigmapName()
 	configMapNamespace := common.GetResourcesNamespace()
 	status["Cmname"] = fmt.Sprintf("%s/%s", configMapNamespace, configMapName)
@@ -46,7 +52,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	valid := 0
 	for _, metric := range bundle.External {
 		if metric.Valid {
-			valid += 1
+			valid++
 		}
 	}
 	externalStatus["Valid"] = valid

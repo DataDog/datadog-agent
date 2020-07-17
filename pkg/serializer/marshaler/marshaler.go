@@ -1,9 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package marshaler
+
+import jsoniter "github.com/json-iterator/go"
 
 // Marshaler is an interface for metrics that are able to serialize themselves to JSON and protobuf
 type Marshaler interface {
@@ -15,9 +17,9 @@ type Marshaler interface {
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
 type StreamJSONMarshaler interface {
 	Marshaler
-	JSONHeader() []byte
+	WriteHeader(*jsoniter.Stream) error
+	WriteFooter(*jsoniter.Stream) error
+	WriteItem(*jsoniter.Stream, int) error
 	Len() int
-	JSONItem(i int) ([]byte, error)
 	DescribeItem(i int) string
-	JSONFooter() []byte
 }

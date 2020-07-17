@@ -5,7 +5,7 @@ The Datadog Agent is currently split in four binaries running cooperatively:
   - the main `agent`, collecting metrics, events and logs
   - the `trace-agent`, collecting APM traces
   - the `process-agent`, collecting live container and process data
-  - the `network-tracer`, collecting network data, accessible by the process-agent
+  - the `system-probe`, collecting network data, accessible by the process-agent
 
 In order to provide an all-in-one image, we are including a process supervisor.
 We are using [`s6`](https://skarnet.org/software/s6/s6-svc.html) via the
@@ -36,7 +36,7 @@ The supported way to pass envvars to the agent is to set container envvars.
 The image starts four services:
 
 - `agent` is the main agent. The container will exit if it stops.
-- `trace-agent`, `process-agent`, and `network-tracer` are auxiliary services.
+- `trace-agent`, `process-agent`, and `system-probe` are auxiliary services.
 They will be restarted after crashing, but not if exiting normally (for example, the
 `trace-agent` will disable itself if `DD_APM_ENABLED` is false).
 

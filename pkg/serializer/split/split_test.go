@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package split
 
@@ -99,7 +99,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 		if p == nil {
 			continue
 		}
-		compressedSize += len([]byte(*p))
+		compressedSize += len(*p)
 	}
 	if compressedSize > 3600000 {
 		panic(fmt.Sprintf("expecting no more than 3.6 MB, got %d", compressedSize))

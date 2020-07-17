@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed a few edge cases that could lead to service checks payloads being rejected by Datadog's intake for being too big

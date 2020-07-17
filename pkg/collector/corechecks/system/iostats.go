@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package system
 
@@ -13,6 +13,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const (
@@ -23,8 +24,8 @@ const (
 )
 
 // Configure the IOstats check
-func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.Data) error {
-	if err := c.CommonConfigure(data); err != nil {
+func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.Data, source string) error {
+	if err := c.CommonConfigure(data, source); err != nil {
 		return err
 	}
 
@@ -41,6 +42,15 @@ func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.
 			c.blacklist, err = regexp.Compile(regex)
 		}
 	}
+
+	if lowercaseDeviceTagOption, ok := conf["lowercase_device_tag"]; ok {
+		if lowercaseDeviceTag, ok := lowercaseDeviceTagOption.(bool); ok {
+			c.lowercaseDeviceTag = lowercaseDeviceTag
+		} else {
+			log.Warn("Can't cast value of 'lowercase_device_tag' option to boolean: ", lowercaseDeviceTagOption)
+		}
+	}
+
 	return err
 }
 

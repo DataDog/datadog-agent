@@ -1,0 +1,6 @@
+enhancements:
+  - |
+    Add an option to exclude log files by name when wildcarding
+    directories. The option is named ``exclude_paths``, it can be
+    added for each custom log collection configuration file.
+    The option accepts a list of glob.

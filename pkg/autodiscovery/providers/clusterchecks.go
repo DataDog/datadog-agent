@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package providers
 
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+        "github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util"
@@ -21,7 +22,7 @@ const defaultGraceDuration = 60 * time.Second
 // ClusterChecksConfigProvider implements the ConfigProvider interface
 // for the cluster check feature.
 type ClusterChecksConfigProvider struct {
-	dcaClient      *clusteragent.DCAClient
+	dcaClient      clusteragent.DCAClientInterface
 	graceDuration  time.Duration
 	heartbeat      time.Time
 	lastChange     int64
@@ -38,12 +39,21 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 	}
 
 	c.nodeName, _ = util.GetHostname()
+	if config.Datadog.GetBool("cloud_foundry") {
+		boshID := config.Datadog.GetString("bosh_id")
+		if boshID == "" {
+			log.Warn("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
+		} else {
+			c.nodeName = boshID
+		}
+	}
+
 	if cfg.GraceTimeSeconds > 0 {
 		c.graceDuration = time.Duration(cfg.GraceTimeSeconds) * time.Second
 	}
 
 	// Register in the cluster agent as soon as possible
-	c.IsUpToDate()
+	c.IsUpToDate() //nolint:errcheck
 
 	return c, nil
 }
@@ -58,7 +68,7 @@ func (c *ClusterChecksConfigProvider) initClient() error {
 
 // String returns a string representation of the ClusterChecksConfigProvider
 func (c *ClusterChecksConfigProvider) String() string {
-	return ClusterChecks
+	return names.ClusterChecks
 }
 
 func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {

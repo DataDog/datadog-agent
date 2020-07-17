@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -68,7 +68,7 @@ func (d *DockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 			log.Warnf("can't resolve image name %s: %s", imageName, err)
 		}
 	}
-	if d.cfg.filter.IsExcluded(containerName, imageName) {
+	if d.cfg.filter.IsExcluded(containerName, imageName, "") {
 		log.Tracef("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil
 	}

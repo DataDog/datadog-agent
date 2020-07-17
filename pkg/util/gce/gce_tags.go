@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build gce
 
@@ -11,29 +11,63 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Slice of attributes to exclude from the tags (because they're too long, useless or sensitive)
-var excludedAttributes = []string{"kube-env", "startup-script", "shutdown-script", "configure-sh",
-	"sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"}
+var (
+	tagsCacheKey = cache.BuildAgentKey("gce", "GetTags")
+)
+
+type gceMetadata struct {
+	Instance gceInstanceMetadata
+	Project  gceProjectMetadata
+}
+
+type gceInstanceMetadata struct {
+	ID          int64
+	Tags        []string
+	Zone        string
+	MachineType string
+	Hostname    string
+	Attributes  map[string]string
+}
+
+type gceProjectMetadata struct {
+	ProjectID        string
+	NumericProjectID int64
+}
+
+func getCachedTags(err error) ([]string, error) {
+	if gceTags, found := cache.Cache.Get(tagsCacheKey); found {
+		log.Infof("unable to get tags from gce, returning cached tags: %s", err)
+		return gceTags.([]string), nil
+	}
+	return nil, log.Warnf("unable to get tags from gce and cache is empty: %s", err)
+}
 
 // GetTags gets the tags from the GCE api
 func GetTags() ([]string, error) {
-	tags := []string{}
+
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	}
 
 	metadataResponse, err := getResponse(metadataURL + "/?recursive=true")
 	if err != nil {
-		return tags, err
+		return getCachedTags(err)
 	}
 
 	metadata := gceMetadata{}
 
 	err = json.Unmarshal([]byte(metadataResponse), &metadata)
 	if err != nil {
-		return tags, err
+		return getCachedTags(err)
 	}
 
-	tags = metadata.Instance.Tags
+	tags := metadata.Instance.Tags
 	if metadata.Instance.Zone != "" {
 		ts := strings.Split(metadata.Instance.Zone, "/")
 		tags = append(tags, fmt.Sprintf("zone:%s", ts[len(ts)-1]))
@@ -63,11 +97,16 @@ func GetTags() ([]string, error) {
 		}
 	}
 
+	// save tags to the cache in case we exceed quotas later
+	cache.Cache.Set(tagsCacheKey, tags, cache.NoExpiration)
+
 	return tags, nil
 }
 
 // isAttributeExcluded returns whether the attribute key should be excluded from the tags
 func isAttributeExcluded(attr string) bool {
+
+	excludedAttributes := config.Datadog.GetStringSlice("exclude_gce_tags")
 	for _, excluded := range excludedAttributes {
 		if attr == excluded {
 			return true

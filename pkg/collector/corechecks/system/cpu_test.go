@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build !windows
 
 package system
@@ -27,7 +27,6 @@ var (
 			Steal:     0,
 			Guest:     0,
 			GuestNice: 0,
-			Stolen:    0,
 		},
 	}
 	secondSample = []cpu.TimesStat{
@@ -43,7 +42,6 @@ var (
 			Steal:     2,
 			Guest:     0,
 			GuestNice: 0,
-			Stolen:    0,
 		},
 	}
 )
@@ -77,7 +75,7 @@ func TestCPUCheckLinux(t *testing.T) {
 	times = CPUTimes
 	cpuInfo = CPUInfo
 	cpuCheck := new(CPUCheck)
-	cpuCheck.Configure(nil, nil)
+	cpuCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(cpuCheck.ID())
 

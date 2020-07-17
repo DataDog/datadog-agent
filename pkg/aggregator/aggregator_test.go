@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package aggregator
 
@@ -18,6 +18,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/serializer"
+	"github.com/StackVista/stackstate-agent/pkg/util/flavor"
 	"github.com/StackVista/stackstate-agent/pkg/version"
 )
 
@@ -27,7 +28,7 @@ var checkID2 check.ID = "2"
 func TestRegisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil, "", "agent")
+	agg := InitAggregator(nil, "")
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
@@ -44,7 +45,7 @@ func TestRegisterCheckSampler(t *testing.T) {
 func TestDeregisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil, "", "agent")
+	agg := InitAggregator(nil, "")
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
@@ -59,7 +60,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "resolved-hostname", "agent")
+	agg := InitAggregator(nil, "resolved-hostname")
 
 	agg.addServiceCheck(metrics.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -88,7 +89,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 
 func TestAddEventDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "resolved-hostname", "agent")
+	agg := InitAggregator(nil, "resolved-hostname")
 
 	agg.addEvent(metrics.Event{
 		// only populate required fields
@@ -134,7 +135,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 
 func TestSetHostname(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "hostname", "agent")
+	agg := InitAggregator(nil, "hostname")
 	assert.Equal(t, "hostname", agg.hostname)
 	sender, err := GetSender(checkID1)
 	require.NoError(t, err)
@@ -150,7 +151,7 @@ func TestSetHostname(t *testing.T) {
 func TestDefaultData(t *testing.T) {
 	resetAggregator()
 	s := &serializer.MockSerializer{}
-	agg := InitAggregator(s, "hostname", "agent")
+	agg := InitAggregator(s, "hostname")
 	start := time.Now()
 
 	s.On("SendServiceChecks", metrics.ServiceChecks{{
@@ -161,14 +162,14 @@ func TestDefaultData(t *testing.T) {
 	}}).Return(nil).Times(1)
 
 	series := metrics.Series{&metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
@@ -177,7 +178,7 @@ func TestDefaultData(t *testing.T) {
 
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.flush(start)
+	agg.flush(start, false)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 }
@@ -185,7 +186,7 @@ func TestDefaultData(t *testing.T) {
 func TestRecurentSeries(t *testing.T) {
 	resetAggregator()
 	s := &serializer.MockSerializer{}
-	agg := NewBufferedAggregator(s, "hostname", "agent", DefaultFlushInterval)
+	agg := NewBufferedAggregator(s, "hostname", DefaultFlushInterval)
 
 	// Add two recurrentSeries
 	AddRecurrentSeries(&metrics.Serie{
@@ -227,14 +228,14 @@ func TestRecurentSeries(t *testing.T) {
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "non default SourceTypeName",
 	}, &metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
@@ -244,14 +245,14 @@ func TestRecurentSeries(t *testing.T) {
 	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.flush(start)
+	agg.flush(start, false)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
 	// Assert that recurrentSeries are sent on each flushed
 	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
-	agg.flush(start)
+	agg.flush(start, false)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 

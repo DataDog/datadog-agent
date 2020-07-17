@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package autodiscovery
 
@@ -61,7 +61,7 @@ func (pd *configPoller) start(ac *AutoConfig) {
 		return
 	}
 	pd.stopChan = make(chan struct{})
-	pd.healthHandle = health.Register(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
+	pd.healthHandle = health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
 	pd.isPolling = true
 	go pd.poll(ac)
 }
@@ -73,7 +73,7 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 		select {
 		case <-pd.healthHandle.C:
 		case <-pd.stopChan:
-			pd.healthHandle.Deregister()
+			pd.healthHandle.Deregister() //nolint:errcheck
 			ticker.Stop()
 			return
 		case <-ticker.C:

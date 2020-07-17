@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build containerd
 
@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/events"
+	"github.com/containerd/containerd/oci"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,8 +32,10 @@ type mockItf struct {
 	mockMetadata    func() (containerd.Version, error)
 	mockImageSize   func(ctn containerd.Container) (int64, error)
 	mockTaskMetrics func(ctn containerd.Container) (*types.Metric, error)
+	mockTaskPids    func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 	mockInfo        func(ctn containerd.Container) (containers.Container, error)
 	mockNamespace   func() string
+	mockSpec        func(ctn containerd.Container) (*oci.Spec, error)
 }
 
 func (m *mockItf) ImageSize(ctn containerd.Container) (int64, error) {
@@ -45,6 +48,10 @@ func (m *mockItf) Info(ctn containerd.Container) (containers.Container, error) {
 
 func (m *mockItf) TaskMetrics(ctn containerd.Container) (*types.Metric, error) {
 	return m.mockTaskMetrics(ctn)
+}
+
+func (m *mockItf) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+	return m.mockTaskPids(ctn)
 }
 
 func (m *mockItf) Metadata() (containerd.Version, error) {
@@ -61,6 +68,10 @@ func (m *mockItf) Containers() ([]containerd.Container, error) {
 
 func (m *mockItf) GetEvents() containerd.EventService {
 	return m.mockEvents()
+}
+
+func (m *mockItf) Spec(ctn containerd.Container) (*oci.Spec, error) {
+	return m.mockSpec(ctn)
 }
 
 type mockEvt struct {

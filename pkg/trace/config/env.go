@@ -1,16 +1,23 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
-func applyEnv() {
+// loadEnv loads all known environment variables into the global config.
+func loadEnv() {
 	// Warning: do not use BindEnv to bind config variables. They will be overridden
 	// when using the legacy config loader.
 	for _, override := range []struct{ env, key string }{
@@ -31,6 +38,7 @@ func applyEnv() {
 		{"DD_APM_ENV", "apm_config.env"},
 		{"DD_APM_NON_LOCAL_TRAFFIC", "apm_config.apm_non_local_traffic"},
 		{"DD_APM_DD_URL", "apm_config.apm_dd_url"},
+		{"DD_APM_CONNECTION_RESET_INTERVAL", "apm_config.connection_reset_interval"},
 		{"DD_RECEIVER_PORT", "apm_config.receiver_port"}, // deprecated
 		{"DD_APM_RECEIVER_PORT", "apm_config.receiver_port"},
 		{"DD_MAX_EPS", "apm_config.max_events_per_second"}, // deprecated
@@ -38,6 +46,8 @@ func applyEnv() {
 		{"DD_MAX_TPS", "apm_config.max_traces_per_second"}, // deprecated
 		{"DD_APM_MAX_TPS", "apm_config.max_traces_per_second"},
 		{"DD_APM_MAX_MEMORY", "apm_config.max_memory"},
+		{"DD_APM_MAX_CPU_PERCENT", "apm_config.max_cpu_percent"},
+		{"DD_APM_RECEIVER_SOCKET", "apm_config.receiver_socket"},
 	} {
 		if v := os.Getenv(override.env); v != "" {
 			config.Datadog.Set(override.key, v)
@@ -49,7 +59,7 @@ func applyEnv() {
 	} {
 		if v := os.Getenv(envKey); v != "" {
 			if r, err := splitString(v, ','); err != nil {
-				log.Warn("%q value not loaded: %v", envKey, err)
+				log.Warnf("%q value not loaded: %v", envKey, err)
 			} else {
 				config.Datadog.Set("apm_config.ignore_resources", r)
 			}
@@ -61,6 +71,22 @@ func applyEnv() {
 			config.Datadog.Set("apm_config.analyzed_spans", analyzedSpans)
 		} else {
 			log.Errorf("Bad format for %s it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v", "DD_APM_ANALYZED_SPANS", err)
+		}
+	}
+	if v := os.Getenv("DD_APM_REPLACE_TAGS"); v != "" {
+		replaceTags, err := parseReplaceTags(v)
+		if err == nil {
+			config.Datadog.Set("apm_config.replace_tags", replaceTags)
+		} else {
+			log.Errorf("Bad format for %s it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "DD_APM_REPLACE_TAGS", err)
+		}
+	}
+	if v := os.Getenv("DD_APM_ADDITIONAL_ENDPOINTS"); v != "" {
+		ap := make(map[string][]string)
+		if err := json.Unmarshal([]byte(v), &ap); err != nil {
+			log.Errorf(`Could not parse DD_APM_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://trace.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
+		} else {
+			config.Datadog.Set("apm_config.additional_endpoints", ap)
 		}
 	}
 }
@@ -93,4 +119,13 @@ func parseAnalyzedSpans(env string) (analyzedSpans map[string]float64, err error
 		analyzedSpans[name] = rate
 	}
 	return
+}
+
+func parseReplaceTags(env string) ([]map[string]string, error) {
+	var replaceTags []map[string]string
+	err := json.Unmarshal([]byte(env), &replaceTags)
+	if err != nil {
+		return nil, err
+	}
+	return replaceTags, nil
 }

@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-agent-install
 # Recipe:: _install_windows_base
 #
-# Copyright (C) 2019 Datadog
+# Copyright (C) 2019-2020 Datadog
 #
 # All rights reserved - Do Not Redistribute
 #
@@ -10,14 +10,19 @@
 package_retries = node['dd-agent-install']['agent_package_retries']
 package_retry_delay = node['dd-agent-install']['agent_package_retry_delay']
 dd_agent_version = node['dd-agent-install']['windows_version']
+dd_agent_filename = node['dd-agent-install']['windows_agent_filename']
 
-if dd_agent_version
-  dd_agent_installer_basename = "datadog-agent-#{dd_agent_version}-1-x86_64"
+if dd_agent_filename
+  dd_agent_installer_basename = dd_agent_filename
 else
-  dd_agent_installer_basename = "datadog-agent-6.0.0-beta.latest.amd64"
+  if dd_agent_version
+    dd_agent_installer_basename = "datadog-agent-#{dd_agent_version}-1-x86_64"
+  else
+    dd_agent_installer_basename = "datadog-agent-6.0.0-beta.latest.amd64"
+  end
 end
 
-temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli')
+temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 
 dd_agent_installer = "#{dd_agent_installer_basename}.msi"
 temp_file = "#{temp_file_basename}.msi"
@@ -50,6 +55,8 @@ remote_file temp_file do
 end
 
 execute "install-agent" do
-  command "start /wait #{temp_file} #{install_options}"
+  command "echo %TIME% && start /wait msiexec /q /i #{temp_file} #{install_options} && echo %TIME% && sc interrogate datadogagent 2>&1"
+  status_out = `sc interrogate datadogagent 2>&1`
+  puts status_out
   action :run
 end

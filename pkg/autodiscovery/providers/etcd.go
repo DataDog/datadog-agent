@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build etcd
 
@@ -14,10 +14,11 @@ import (
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/coreos/etcd/client"
+	"go.etcd.io/etcd/client"
 	"golang.org/x/net/context"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers/names"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
@@ -62,6 +63,11 @@ func (p *EtcdConfigProvider) Collect() ([]integration.Config, error) {
 	identifiers := p.getIdentifiers(p.templateDir)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
+
+		for idx := range templates {
+			templates[idx].Source = "etcd:" + id
+		}
+
 		configs = append(configs, templates...)
 	}
 	return configs, nil
@@ -135,7 +141,7 @@ func (p *EtcdConfigProvider) getCheckNames(key string) ([]string, error) {
 	return parseCheckNames(rawNames)
 }
 
-func (p *EtcdConfigProvider) getJSONValue(key string) ([]integration.Data, error) {
+func (p *EtcdConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
 	rawValue, err := p.getEtcdValue(key)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't get key %s from etcd: %s", key, err)
@@ -187,7 +193,7 @@ func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 
 // String returns a string representation of the EtcdConfigProvider
 func (p *EtcdConfigProvider) String() string {
-	return Etcd
+	return names.Etcd
 }
 
 // hasTemplateFields verifies that a node array contains

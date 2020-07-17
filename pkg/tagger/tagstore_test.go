@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package tagger
 
@@ -91,6 +91,30 @@ func (s *StoreTestSuite) TestLookup() {
 	assert.Equal(s.T(), hashHigh, hashLow)
 	assert.Equal(s.T(), hashHigh, hashOrch)
 	assert.Equal(s.T(), "a8db65bfc184cd6d", hashHigh)
+}
+
+func (s *StoreTestSuite) TestLookupStandard() {
+	s.store.processTagInfo(&collectors.TagInfo{
+		Source:       "source1",
+		Entity:       "test",
+		LowCardTags:  []string{"tag", "env:dev"},
+		StandardTags: []string{"env:dev"},
+	})
+	s.store.processTagInfo(&collectors.TagInfo{
+		Source:       "source2",
+		Entity:       "test",
+		LowCardTags:  []string{"tag", "service:foo"},
+		StandardTags: []string{"service:foo"},
+	})
+
+	standard, err := s.store.lookupStandard("test")
+	assert.Nil(s.T(), err)
+	assert.Len(s.T(), standard, 2)
+	assert.Contains(s.T(), standard, "env:dev")
+	assert.Contains(s.T(), standard, "service:foo")
+
+	_, err = s.store.lookupStandard("not found")
+	assert.NotNil(s.T(), err)
 }
 
 func (s *StoreTestSuite) TestLookupNotPresent() {

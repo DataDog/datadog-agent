@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -42,7 +42,7 @@ func (suite *InsecureTestSuite) TestHTTP() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "http://127.0.0.1:10255", ku.GetKubeletApiEndpoint())
+	assert.Equal(suite.T(), "http://127.0.0.1:10255", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet("/healthz")
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), 200, code)
@@ -54,8 +54,9 @@ func (suite *InsecureTestSuite) TestHTTP() {
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), 0, len(podList))
+	// we don't consider null podlist as valid
+	require.Error(suite.T(), err)
+	assert.Nil(suite.T(), podList)
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -74,7 +75,7 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
+	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet("/healthz")
 	assert.Equal(suite.T(), 200, code)
 	require.NoError(suite.T(), err)
@@ -86,8 +87,9 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), 0, len(podList))
+	// we don't consider null podlist as valid
+	require.Error(suite.T(), err)
+	assert.Nil(suite.T(), podList)
 
 	require.EqualValues(suite.T(),
 		map[string]string{

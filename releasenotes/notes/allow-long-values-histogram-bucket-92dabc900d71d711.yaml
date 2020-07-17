@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The `submit_histogram_bucket` API now accepts long integers as input values.

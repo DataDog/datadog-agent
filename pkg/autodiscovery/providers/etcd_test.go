@@ -1,18 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build etcd
 
 package providers
 
 import (
-	"github.com/coreos/etcd/client"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.etcd.io/etcd/client"
 	"golang.org/x/net/context"
-	"testing"
 )
 
 type etcdTest struct {
@@ -21,8 +22,8 @@ type etcdTest struct {
 
 func (m *etcdTest) Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error) {
 	args := m.Called(ctx, key, opts)
-	resp, resp_ok := args.Get(0).(*client.Response)
-	if resp_ok {
+	resp, respOK := args.Get(0).(*client.Response)
+	if respOK {
 		return resp, nil
 	}
 	return nil, args.Error(1)
@@ -99,10 +100,10 @@ func TestGetIdentifiers(t *testing.T) {
 	resp.Node = badConf
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil)
 
-	err_array := etcd.getIdentifiers("/datadog/check_configs")
+	errArray := etcd.getIdentifiers("/datadog/check_configs")
 
-	assert.Len(t, err_array, 0)
-	assert.Equal(t, err_array, []string{})
+	assert.Len(t, errArray, 0)
+	assert.Equal(t, errArray, []string{})
 
 	backend.AssertExpectations(t)
 }

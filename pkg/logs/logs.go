@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package logs
 
@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/StackVista/stackstate-agent/pkg/logs/sender"
+	"github.com/StackVista/stackstate-agent/pkg/logs/metrics"
+
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
+	"github.com/StackVista/stackstate-agent/pkg/logs/client/http"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/scheduler"
 	"github.com/StackVista/stackstate-agent/pkg/logs/service"
@@ -25,6 +27,16 @@ const (
 	invalidEndpoints       = "invalid_endpoints"
 )
 
+// Transport is the transport used by logs-agent, i.e TCP or HTTP
+type Transport string
+
+const (
+	// TransportHTTP indicates logs-agent is using HTTP transport
+	TransportHTTP Transport = "HTTP"
+	// TransportTCP indicates logs-agent is using TCP transport
+	TransportTCP Transport = "TCP"
+)
+
 var (
 	// isRunning indicates whether logs-agent is running or not
 	isRunning int32
@@ -33,6 +45,8 @@ var (
 	// scheduler is plugged to autodiscovery to collect integration configs
 	// and schedule log collection for different kind of inputs
 	adScheduler *scheduler.Scheduler
+	// CurrentTransport is the current transport used by logs-agent, i.e TCP or HTTP
+	CurrentTransport Transport
 )
 
 // Start starts logs-agent
@@ -48,22 +62,30 @@ func Start() error {
 	// setup the config scheduler
 	adScheduler = scheduler.NewScheduler(sources, services)
 
-	// setup the status
-	status.Init(&isRunning, sources)
-
 	// setup the server config
-	endpoints, err := sender.BuildEndpoints()
+	httpConnectivity := config.HTTPConnectivityFailure
+	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
+		httpConnectivity = http.CheckConnectivity(endpoints.Main)
+	}
+	endpoints, err := config.BuildEndpoints(httpConnectivity)
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
-		status.AddGlobalWarning(invalidEndpoints, message)
+		status.AddGlobalError(invalidEndpoints, message)
 		return errors.New(message)
 	}
+	CurrentTransport = TransportTCP
+	if endpoints.UseHTTP {
+		CurrentTransport = TransportHTTP
+	}
+
+	// setup the status
+	status.Init(&isRunning, endpoints, sources, metrics.LogsExpvars)
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules()
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
-		status.AddGlobalWarning(invalidProcessingRules, message)
+		status.AddGlobalError(invalidProcessingRules, message)
 		return errors.New(message)
 	}
 

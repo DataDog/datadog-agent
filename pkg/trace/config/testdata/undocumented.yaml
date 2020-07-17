@@ -5,31 +5,17 @@ apm_config:
   dd_agent_bin: /path/to/bin
   max_traces_per_second: 100.0
   max_events_per_second: 1000.0
+  connection_reset_interval: 120
   receiver_port: 25
   max_cpu_percent: 7
-  max_connections: 50
+  max_connections: 50 # deprecated
   max_memory: 30000000
   trace_writer:
-    max_spans_per_payload: 11
-    flush_period_seconds: 22
-    update_info_period_seconds: 33
-    queue:
-      max_age_seconds: 15
-      max_bytes: 2048
-      max_payloads: 100
-  service_writer:
-    update_info_period_seconds: 44
-    flush_period_seconds: 55
-    queue:
-      max_age_seconds: 15
-      max_bytes: 2048
-      max_payloads: 100
+    connection_limit: 1
+    queue_size: 2
   stats_writer:
-    update_info_period_seconds: 66
-    queue:
-      max_age_seconds: 15
-      max_bytes: 2048
-      max_payloads: 100
+    connection_limit: 5
+    queue_size: 6
   analyzed_rate_by_service:
     db: 1
     web: 0.9

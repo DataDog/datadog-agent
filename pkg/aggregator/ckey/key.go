@@ -1,20 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package ckey
 
 import (
-	"encoding/hex"
-	"fmt"
 	"sort"
-	"sync"
 
-	"github.com/DataDog/mmh3"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/twmb/murmur3"
 )
-
-const byteSize = 16
 
 // ContextKey is a non-cryptographic hash that allows to
 // aggregate metrics from a same context together.
@@ -23,86 +19,65 @@ const byteSize = 16
 // allocations from the intake to reduce GC pressure on high
 // volumes.
 //
-// It uses the 128bit murmur3 hash, that is already successfully
-// used on other products. 128bit is probably overkill for avoiding
-// collisions, but it's better to err on the safe side, as we do not
-// have a collision mitigation mechanism.
-type ContextKey [byteSize]byte
+// Having int64/uint64 context keys mean that we will get better performances
+// from the Go runtime while using them as map keys. This is thanks to the fast-path
+// methods for map access and map assign with int64 keys.
+// See for instance runtime.mapassign_fast64 or runtime.mapaccess2_fast64.
+//
+// Note that Agent <= 6.19.0 were using a 128 bits hash, we've switched
+// to 64 bits for better performances (map access) and because 128 bits were overkill
+// in the first place.
+// Note that we've benchmarked against xxhash64 which should be slightly faster,
+// but the Go compiler is not inlining xxhash sum methods whereas it is inlining
+// the murmur3 implementation, providing better performances overall.
+// Note that benchmarks against fnv1a did not provide better performances (no inlining).
+type ContextKey uint64
 
-// hashPool is a reusable pool of murmur hasher objects
-// to avoid allocating
-var hashPool = sync.Pool{
-	New: func() interface{} {
-		return &mmh3.HashWriter128{}
-	},
+// KeyGenerator generates key
+// Not safe for concurrent usage
+type KeyGenerator struct {
+	buf []byte
+}
+
+// NewKeyGenerator creates a new key generator
+func NewKeyGenerator() *KeyGenerator {
+	return &KeyGenerator{
+		buf: make([]byte, 0, 1024),
+	}
 }
 
 // Generate returns the ContextKey hash for the given parameters.
 // The tags array is sorted in place to avoid heap allocations.
-func Generate(name, hostname string, tags []string) ContextKey {
-	mmh := hashPool.Get().(*mmh3.HashWriter128)
-	mmh.Reset()
-	defer hashPool.Put(mmh)
+func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
+	g.buf = g.buf[:0]
 
 	// Sort the tags in place. For typical tag slices, we use
-	// the in-place section sort to avoid heap allocations.
+	// the in-place insertion sort to avoid heap allocations.
 	// We default to stdlib's sort package for longer slices.
-	if len(tags) < 20 {
-		selectionSort(tags)
+	// See `pkg/util/sort.go` for info on the threshold.
+	if len(tags) < util.InsertionSortThreshold {
+		util.InsertionSort(tags)
 	} else {
 		sort.Strings(tags)
 	}
 
-	mmh.WriteString(name)
-	mmh.WriteString(",")
-	for _, t := range tags {
-		mmh.WriteString(t)
-		mmh.WriteString(",")
+	g.buf = append(g.buf, name...)
+	g.buf = append(g.buf, ',')
+	for i := 0; i < len(tags); i++ {
+		g.buf = append(g.buf, tags[i]...)
+		g.buf = append(g.buf, ',')
 	}
-	mmh.WriteString(hostname)
+	g.buf = append(g.buf, hostname...)
 
-	var hash [byteSize]byte
-	mmh.Sum(hash[0:0])
-	return hash
+	return ContextKey(murmur3.Sum64(g.buf))
 }
 
-// Compare returns an integer comparing two strings lexicographically.
-// The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
-func Compare(a, b ContextKey) int {
-	for i := 0; i < byteSize; i++ {
-		switch {
-		case a[i] > b[i]:
-			return 1
-		case a[i] < b[i]:
-			return -1
-		default: // equality, compare next byte
-			continue
-		}
-	}
-	return 0
+// Equals returns whether the two context keys are equal or not.
+func Equals(a, b ContextKey) bool {
+	return a == b
 }
 
 // IsZero returns true if the key is at zero value
 func (k ContextKey) IsZero() bool {
-	for _, b := range k {
-		if b != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// String returns the hexadecimal representation of the key
-func (k ContextKey) String() string {
-	return hex.EncodeToString(k[:])
-}
-
-// Parse returns a ContextKey instanciated with the value decoded as hexa
-func Parse(src string) (ContextKey, error) {
-	if hex.DecodedLen(len(src)) != byteSize {
-		return ContextKey{}, fmt.Errorf("invalid source length, expected %d bytes", byteSize)
-	}
-	var key ContextKey
-	_, err := hex.Decode(key[:], []byte(src))
-	return key, err
+	return k == 0
 }

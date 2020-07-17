@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -26,12 +26,12 @@ const configPath = "com.datadoghq.ad.logs"
 
 // Container represents a container to tail logs from.
 type Container struct {
-	container types.Container
+	container types.ContainerJSON
 	service   *service.Service
 }
 
 // NewContainer returns a new Container
-func NewContainer(container types.Container, service *service.Service) *Container {
+func NewContainer(container types.ContainerJSON, service *service.Service) *Container {
 	return &Container{
 		container: container,
 		service:   service,
@@ -73,7 +73,6 @@ func (c *Container) getShortImageName() (string, error) {
 		log.Debugf("Cannot get DockerUtil: %v", err)
 		return shortName, err
 	}
-
 	imageName := c.container.Image
 	imageName, err = du.ResolveImageName(imageName)
 	if err != nil {
@@ -139,7 +138,7 @@ const tagSeparator = ":"
 // The imageFilter must respect the format '[<repository>/]image[:<tag>]'.
 func (c *Container) isImageMatch(imageFilter string) bool {
 	// Trim digest if present
-	split := strings.SplitN(c.container.Image, digestPrefix, 2)
+	split := strings.SplitN(c.container.Config.Image, digestPrefix, 2)
 	image := split[0]
 	if !strings.Contains(imageFilter, tagSeparator) {
 		// trim tag if present
@@ -158,7 +157,7 @@ func (c *Container) isNameMatch(nameFilter string) bool {
 		log.Warn("used invalid name to filter containers: ", nameFilter)
 		return false
 	}
-	for _, name := range c.container.Names {
+	if name := c.container.Name; name != "" {
 		if re.MatchString(name) {
 			return true
 		}
@@ -177,7 +176,7 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 		})
 		// If we have exactly two parts, check there is a container label that matches both.
 		// Otherwise fall back to checking the whole label exists as a key.
-		if _, exists := c.container.Labels[label]; exists || len(parts) == 2 && c.container.Labels[parts[0]] == parts[1] {
+		if _, exists := c.container.Config.Labels[label]; exists || len(parts) == 2 && c.container.Config.Labels[parts[0]] == parts[1] {
 			return true
 		}
 	}

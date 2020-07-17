@@ -1,6 +1,0 @@
-LIBRARY customaction
-
-EXPORTS
-	DllMain
-	AddDatadogSecretUser
-	RemoveDatadogSecretUser

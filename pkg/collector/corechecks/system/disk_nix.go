@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
 
@@ -9,6 +9,7 @@ package system
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/shirou/gopsutil/disk"
 
@@ -85,6 +86,7 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 			deviceName = partition.Device
 		}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
 
 		tags = c.applyDeviceTags(partition.Device, partition.Mountpoint, tags)
 
@@ -101,7 +103,9 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	}
 	for deviceName, ioCounter := range iomap {
 
-		tags := []string{fmt.Sprintf("device:%s", deviceName)}
+		tags := []string{}
+		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
 
 		tags = c.applyDeviceTags(deviceName, "", tags)
 
@@ -139,8 +143,8 @@ func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOC
 }
 
 // Configure the disk check
-func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
 	}

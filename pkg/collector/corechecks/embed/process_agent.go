@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build process
 // +build darwin freebsd
@@ -17,33 +17,30 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/telemetry"
 	"github.com/StackVista/stackstate-agent/pkg/util/executable"
-
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
-type processAgentInitConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
-}
-
 type processAgentCheckConf struct {
-	BinPath  string `yaml:"bin_path,omitempty"`
-	ConfPath string `yaml:"conf_path,omitempty"`
+	BinPath string `yaml:"bin_path,omitempty"`
 }
 
 // ProcessAgentCheck keeps track of the running command
 type ProcessAgentCheck struct {
-	enabled     bool
 	binPath     string
 	commandOpts []string
 	running     uint32
 	stop        chan struct{}
 	stopDone    chan struct{}
+	source      string
+	telemetry   bool
 }
 
 func (c *ProcessAgentCheck) String() string {
@@ -52,6 +49,10 @@ func (c *ProcessAgentCheck) String() string {
 
 func (c *ProcessAgentCheck) Version() string {
 	return ""
+}
+
+func (c *ProcessAgentCheck) ConfigSource() string {
+	return c.source
 }
 
 // Run executes the check with retries
@@ -66,11 +67,6 @@ func (c *ProcessAgentCheck) Run() error {
 
 // run executes the check
 func (c *ProcessAgentCheck) run() error {
-	if !c.enabled {
-		log.Info("Not running process_agent because 'enabled' is false in init_config")
-		return nil
-	}
-
 	select {
 	// poll the stop channel once to make sure no stop was requested since the last call to `run`
 	case <-c.stop:
@@ -132,17 +128,12 @@ func (c *ProcessAgentCheck) run() error {
 }
 
 // Configure the ProcessAgentCheck
-func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	// handle the case when the agent is disabled via the old `datadog.conf` file
-	if enabled := config.Datadog.GetBool("process_agent_enabled"); !enabled {
-		return fmt.Errorf("Process Agent disabled through main configuration file")
+func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	// only log whether process check is enabled or not but don't return early, because we still need to initialize "binPath", "source" and
+	// start up process-agent. Ultimately it's up to process-agent to decide whether to run or not based on the config
+	if enabled := config.Datadog.GetBool("process_config.enabled"); !enabled {
+		log.Info("live process monitoring is disabled through main configuration file")
 	}
-
-	var initConf processAgentInitConfig
-	if err := yaml.Unmarshal(initConfig, &initConf); err != nil {
-		return err
-	}
-	c.enabled = initConf.Enabled
 
 	var checkConf processAgentCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
@@ -166,6 +157,15 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 		c.binPath = defaultBinPath
 	}
 
+	// be explicit about the config file location
+	configFile := config.Datadog.ConfigFileUsed()
+	c.commandOpts = []string{}
+	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
+		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
+	}
+
+	c.source = source
+	c.telemetry = telemetry.IsCheckEnabled("process_agent")
 	return nil
 }
 
@@ -181,6 +181,11 @@ func (c *ProcessAgentCheck) Interval() time.Duration {
 // ID returns the name of the check since there should be only one instance running
 func (c *ProcessAgentCheck) ID() check.ID {
 	return "PROCESS_AGENT"
+}
+
+// IsTelemetryEnabled returns if the telemetry is enabled for this check
+func (c *ProcessAgentCheck) IsTelemetryEnabled() bool {
+	return c.telemetry
 }
 
 // Stop sends a termination signal to the process-agent process

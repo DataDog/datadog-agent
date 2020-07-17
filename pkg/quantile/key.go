@@ -13,8 +13,14 @@ const (
 	minKey = uvneginf + 1
 )
 
-// A Key represets a quantized version of a float64. See Config for more details
+// A Key represents a quantized version of a float64. See Config for more details
 type Key int16
+
+// A KeyCount represents a Key and an associated count
+type KeyCount struct {
+	k Key
+	n uint
+}
 
 // IsInf returns true if the key represents +/-Inf
 func (k Key) IsInf() bool {

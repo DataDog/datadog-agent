@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package docker
 
@@ -51,6 +51,7 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",
@@ -119,7 +120,7 @@ func doRun(m *testing.M) int {
 	var dockerCfg = []byte(dockerCfgString)
 	var dockerInitCfg = []byte("")
 	dockerCheck = containers.DockerFactory()
-	dockerCheck.Configure(dockerCfg, dockerInitCfg)
+	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())

@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
 package kubelet
 
-import "time"
+import (
+	"time"
+)
 
 // Pod contains fields for unmarshalling a Pod
 type Pod struct {
@@ -44,6 +46,7 @@ type Spec struct {
 	HostNetwork bool            `json:"hostNetwork,omitempty"`
 	NodeName    string          `json:"nodeName,omitempty"`
 	Containers  []ContainerSpec `json:"containers,omitempty"`
+	Volumes     []VolumeSpec    `json:"volumes,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
@@ -52,6 +55,7 @@ type ContainerSpec struct {
 	Image          string              `json:"image,omitempty"`
 	Ports          []ContainerPortSpec `json:"ports,omitempty"`
 	ReadinessProbe *ContainerProbe     `json:"readinessProbe,omitempty"`
+	Env            []EnvVar            `json:"env,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
@@ -67,13 +71,45 @@ type ContainerProbe struct {
 	InitialDelaySeconds int `json:"initialDelaySeconds"`
 }
 
+// EnvVar represents an environment variable present in a Container.
+type EnvVar struct {
+	// Name of the environment variable. Must be a C_IDENTIFIER.
+	Name string `json:"name"`
+	// Value of the environment variable.
+	Value string `json:"value,omitempty"`
+}
+
+// VolumeSpec contains fields for unmarshalling a Pod.Spec.Volumes
+type VolumeSpec struct {
+	Name string `json:"name"`
+	// Only try to retrieve persistent volume claim to tag statefulsets
+	PersistentVolumeClaim *PersistentVolumeClaimSpec `json:"persistentVolumeClaim,omitempty"`
+}
+
+// PersistentVolumeClaimSpec contains fields for unmarshalling a Pod.Spec.Volumes.PersistentVolumeClaim
+type PersistentVolumeClaimSpec struct {
+	ClaimName string `json:"claimName"`
+}
+
 // Status contains fields for unmarshalling a Pod.Status
 type Status struct {
-	Phase      string            `json:"phase,omitempty"`
-	HostIP     string            `json:"hostIP,omitempty"`
-	PodIP      string            `json:"podIP,omitempty"`
-	Containers []ContainerStatus `json:"containerStatuses,omitempty"`
-	Conditions []Conditions      `json:"conditions,omitempty"`
+	Phase          string            `json:"phase,omitempty"`
+	HostIP         string            `json:"hostIP,omitempty"`
+	PodIP          string            `json:"podIP,omitempty"`
+	Containers     []ContainerStatus `json:"containerStatuses,omitempty"`
+	InitContainers []ContainerStatus `json:"initContainerStatuses,omitempty"`
+	AllContainers  []ContainerStatus
+	Conditions     []Conditions `json:"conditions,omitempty"`
+}
+
+// GetAllContainers returns the list of init and regular containers
+// the list is created lazily assuming container statuses are not modified
+func (s *Status) GetAllContainers() []ContainerStatus {
+	if len(s.AllContainers) > 0 {
+		return s.AllContainers
+	}
+	s.AllContainers = append(s.InitContainers, s.Containers...)
+	return s.AllContainers
 }
 
 // Conditions contains fields for unmarshalling a Pod.Status.Conditions
@@ -89,6 +125,11 @@ type ContainerStatus struct {
 	ID    string         `json:"containerID"`
 	Ready bool           `json:"ready"`
 	State ContainerState `json:"state"`
+}
+
+// IsPending returns if the container doesn't have an ID
+func (c *ContainerStatus) IsPending() bool {
+	return c.ID == ""
 }
 
 // ContainerState holds a possible state of container.
@@ -112,6 +153,7 @@ type ContainerStateRunning struct {
 
 // ContainerStateTerminated is a terminated state of a container.
 type ContainerStateTerminated struct {
-	ExitCode  int32     `json:"exitCode"`
-	StartedAt time.Time `json:"startedAt"`
+	ExitCode   int32     `json:"exitCode"`
+	StartedAt  time.Time `json:"startedAt"`
+	FinishedAt time.Time `json:"finishedAt"`
 }

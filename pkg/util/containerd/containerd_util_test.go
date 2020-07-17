@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build containerd
 
@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/containerd/cgroups"
+	v1 "github.com/containerd/cgroups/stats/v1"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cio"
@@ -62,8 +62,7 @@ func (t *mockTaskStruct) Metrics(ctx context.Context) (*types.Metric, error) {
 }
 
 type mockImage struct {
-	imageName string
-	size      int64
+	size int64
 	containerd.Image
 }
 
@@ -106,12 +105,12 @@ func TestImageSize(t *testing.T) {
 
 func TestTaskMetrics(t *testing.T) {
 	mockUtil := ContainerdUtil{}
-	typeurl.Register(&cgroups.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.
+	typeurl.Register(&v1.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.
 
 	tests := []struct {
 		name            string
-		typeUrl         string
-		values          cgroups.Metrics
+		typeURL         string
+		values          v1.Metrics
 		error           string
 		taskMetricError error
 		expected        *cgroups.Metrics
@@ -122,8 +121,8 @@ func TestTaskMetrics(t *testing.T) {
 			cgroups.Metrics{Memory: &cgroups.MemoryStat{Cache: 100}},
 			"",
 			nil,
-			&cgroups.Metrics{
-				Memory: &cgroups.MemoryStat{
+			&v1.Metrics{
+				Memory: &v1.MemoryStat{
 					Cache: 100,
 				},
 			},
@@ -131,11 +130,11 @@ func TestTaskMetrics(t *testing.T) {
 		{
 			"type not registered",
 			"io.containerd.cgroups.v1.Doge",
-			cgroups.Metrics{Memory: &cgroups.MemoryStat{Cache: 10}},
+			v1.Metrics{Memory: &v1.MemoryStat{Cache: 10}},
 			"type with url io.containerd.cgroups.v1.Doge: not found",
 			nil,
-			&cgroups.Metrics{
-				Memory: &cgroups.MemoryStat{
+			&v1.Metrics{
+				Memory: &v1.MemoryStat{
 					Cache: 10,
 				},
 			},
@@ -180,6 +179,7 @@ func TestTaskMetrics(t *testing.T) {
 			} else {
 				require.Equal(t, test.expected, metricAny.(*cgroups.Metrics))
 			}
+			require.Equal(t, test.expected, metricAny.(*v1.Metrics))
 		})
 	}
 }

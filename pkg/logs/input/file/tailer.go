@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package file
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -14,12 +15,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	logParser "github.com/StackVista/stackstate-agent/pkg/logs/parser"
+	lineParser "github.com/StackVista/stackstate-agent/pkg/logs/parser"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/docker"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/kubernetes"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/tag"
 )
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
@@ -29,17 +33,19 @@ const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
-	path     string
-	fullpath string
-	file     *os.File
-	tags     []string
-
 	readOffset    int64
 	decodedOffset int64
 
-	outputChan chan *message.Message
-	decoder    *decoder.Decoder
-	source     *config.LogSource
+	path           string
+	fullpath       string
+	file           *os.File
+	isWildcardPath bool
+	tags           []string
+
+	outputChan  chan *message.Message
+	decoder     *decoder.Decoder
+	source      *config.LogSource
+	tagProvider tag.Provider
 
 	sleepDuration time.Duration
 
@@ -48,26 +54,46 @@ type Tailer struct {
 	didFileRotate int32
 	stop          chan struct{}
 	done          chan struct{}
+
+	forwardContext context.Context
+	stopForward    context.CancelFunc
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
-	var parser logParser.Parser
-	if source.GetSourceType() == config.ContainerdType {
-		parser = containerdFileParser
-	} else {
-		parser = logParser.NoopParser
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
+	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
+	var parser lineParser.Parser
+	switch source.GetSourceType() {
+	case config.KubernetesSourceType:
+		parser = kubernetes.Parser
+	case config.DockerSourceType:
+		parser = docker.JSONParser
+	default:
+		parser = lineParser.NoopParser
 	}
+	var tagProvider tag.Provider
+	if source.Config.Identifier != "" {
+		tagProvider = tag.NewProvider(source.Config.Identifier)
+	} else {
+		tagProvider = tag.NoopProvider
+	}
+
+	forwardContext, stopForward := context.WithCancel(context.Background())
+
 	return &Tailer{
-		path:          path,
-		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source, parser),
-		source:        source,
-		readOffset:    0,
-		sleepDuration: sleepDuration,
-		closeTimeout:  defaultCloseTimeout,
-		stop:          make(chan struct{}, 1),
-		done:          make(chan struct{}, 1),
+		path:           path,
+		outputChan:     outputChan,
+		decoder:        decoder.InitializeDecoder(source, parser),
+		source:         source,
+		tagProvider:    tagProvider,
+		readOffset:     0,
+		sleepDuration:  sleepDuration,
+		closeTimeout:   defaultCloseTimeout,
+		stop:           make(chan struct{}, 1),
+		done:           make(chan struct{}, 1),
+		isWildcardPath: isWildcardPath,
+		forwardContext: forwardContext,
+		stopForward:    stopForward,
 	}
 }
 
@@ -93,30 +119,6 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	return nil
 }
 
-// setup sets up the file tailer
-func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.path)
-	if err != nil {
-		return err
-	}
-
-	// adds metadata to enable users to filter logs by filename
-	t.tags = []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
-
-	log.Info("Opening ", t.path)
-	f, err := openFile(fullpath)
-	if err != nil {
-		return err
-	}
-
-	t.file = f
-	ret, _ := f.Seek(offset, whence)
-	t.readOffset = ret
-	t.decodedOffset = ret
-
-	return nil
-}
-
 // readForever lets the tailer tail the content of a file
 // until it is closed or the tailer is stopped.
 func (t *Tailer) readForever() {
@@ -127,24 +129,23 @@ func (t *Tailer) readForever() {
 			// stop reading data from file
 			return
 		default:
-			// keep reading data from file
-			inBuf := make([]byte, 4096)
-			n, err := t.file.Read(inBuf)
-			if err != nil && err != io.EOF {
-				// an unexpected error occurred, stop the tailor
-				t.source.Status.Error(err)
-				log.Error("Unexpected error occurred while reading file: ", err)
+			if n, err := t.read(); err != nil {
 				return
-			}
-			if n == 0 {
+			} else if n == 0 {
 				// wait for new data to come
 				t.wait()
-				continue
 			}
-			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-			t.incrementReadOffset(n)
 		}
 	}
+}
+
+// buildTailerTags groups the file tag, directory (if wildcard path) and user tags
+func (t *Tailer) buildTailerTags() []string {
+	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
+	if t.isWildcardPath {
+		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.path)))
+	}
+	return tags
 }
 
 // StartFromBeginning lets the tailer start tailing its file
@@ -174,6 +175,7 @@ func (t *Tailer) StopAfterFileRotation() {
 func (t *Tailer) startStopTimer() {
 	stopTimer := time.NewTimer(t.closeTimeout)
 	<-stopTimer.C
+	t.stopForward()
 	t.stop <- struct{}{}
 }
 
@@ -189,7 +191,7 @@ func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
 		atomic.StoreInt32(&t.shouldStop, 1)
-		t.done <- struct{}{}
+		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
 		offset := t.decodedOffset + int64(output.RawDataLen)
@@ -202,9 +204,16 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.source)
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
-		origin.SetTags(t.tags)
-		output.Origin = origin
-		t.outputChan <- output
+		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
+
+		// Make the write to the output chan cancellable to be able to stop the tailer
+		// after a file rotation when it is stuck on it.
+		// We don't return directly to keep the same shutdown sequence that in the
+		// normal case.
+		select {
+		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status):
+		case <-t.forwardContext.Done():
+		}
 	}
 }
 
@@ -212,9 +221,21 @@ func (t *Tailer) incrementReadOffset(n int) {
 	atomic.AddInt64(&t.readOffset, int64(n))
 }
 
+// SetReadOffset sets the position of the last byte read in the
+// file
+func (t *Tailer) SetReadOffset(off int64) {
+	atomic.StoreInt64(&t.readOffset, off)
+}
+
 // GetReadOffset returns the position of the last byte read in file
 func (t *Tailer) GetReadOffset() int64 {
 	return atomic.LoadInt64(&t.readOffset)
+}
+
+// SetDecodedOffset sets the position of the last byte decoded in the
+// file
+func (t *Tailer) SetDecodedOffset(off int64) {
+	atomic.StoreInt64(&t.decodedOffset, off)
 }
 
 // shouldTrackOffset returns whether the tailer should track the file offset or not

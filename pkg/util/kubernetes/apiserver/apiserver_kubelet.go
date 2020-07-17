@@ -1,18 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2018-2020 Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
 package apiserver
 
 import (
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NodeMetadataMapping only fetch the endpoints from Kubernetes apiserver and add the metadataMapper of the
@@ -51,28 +52,30 @@ func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointLis
 		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
 
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deleted key. Then compute again.
+		cacheData, found := cache.Cache.Get(nodeNameCacheKey)        // We get the old one with the dead pods. if diff reset metabundle and deleted key. Then compute again.
 		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
 
+		newMetaBundle := newMetadataMapperBundle()
 		if !found {
-			metaBundle = newMetadataMapperBundle()
 			cache.Cache.Set(freshness, len(pods), metadataMapExpire)
 		}
 
 		// We want to churn the cache every `metadataMapExpire` and if the number of entries varies between 2 runs..
 		// If a pod is killed and rescheduled during a run, we will only keep the old entry for another run, which is acceptable.
 		if found && freshnessCache != len(pods) || !freshnessFound {
-			cache.Cache.Delete(nodeNameCacheKey)
-			metaBundle = newMetadataMapperBundle()
 			cache.Cache.Set(freshness, len(pods), metadataMapExpire)
 			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
+		} else {
+			oldMetadataBundle, ok := cacheData.(*metadataMapperBundle)
+			if ok {
+				newMetaBundle.DeepCopy(oldMetadataBundle)
+			}
 		}
 
-		err := metaBundle.(*MetadataMapperBundle).mapServices(nodeName, pods, *endpointList)
-		if err != nil {
+		if err := newMetaBundle.mapServices(nodeName, pods, *endpointList); err != nil {
 			log.Errorf("Could not map the services on node %s: %s", node.Name, err.Error())
 			continue
 		}
-		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)
+		cache.Cache.Set(nodeNameCacheKey, newMetaBundle, metadataMapExpire)
 	}
 }

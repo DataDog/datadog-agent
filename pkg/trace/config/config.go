@@ -1,10 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package config
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
-	featuresconfig "github.com/StackVista/stackstate-agent/pkg/features/config"
-	interpreterconfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -13,11 +19,9 @@ import (
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
-	"github.com/StackVista/stackstate-agent/pkg/config/legacy"
-	"github.com/StackVista/stackstate-agent/pkg/trace/flags"
-	"github.com/StackVista/stackstate-agent/pkg/trace/osutil"
-	writerconfig "github.com/StackVista/stackstate-agent/pkg/trace/writer/config"
-	log "github.com/cihub/seelog"
+	coreconfig "github.com/StackVista/stackstate-agent/pkg/config"
+	httputils "github.com/StackVista/stackstate-agent/pkg/util/http"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 var (
@@ -69,27 +73,28 @@ type AgentConfig struct {
 	// Receiver
 	ReceiverHost    string
 	ReceiverPort    int
-	ConnectionLimit int // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
+	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
-	ServiceWriterConfig writerconfig.ServiceWriterConfig
-	StatsWriterConfig   writerconfig.StatsWriterConfig
-	TraceWriterConfig   writerconfig.TraceWriterConfig
+	StatsWriter             *WriterConfig
+	TraceWriter             *WriterConfig
+	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
 	StatsdHost string
 	StatsdPort int
 
 	// logging
-	LogLevel             string
-	LogFilePath          string
-	LogThrottlingEnabled bool
+	LogLevel      string
+	LogFilePath   string
+	LogThrottling bool
 
 	// watchdog
 	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
 	MaxCPU           float64       // MaxCPU is the max UserAvg CPU the program should consume
-	MaxConnections   int           // (deprecated) MaxConnections is the threshold (opened TCP connections) above which program panics and exits, to be restarted
 	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
 
 	// http/s proxying
@@ -108,7 +113,7 @@ type AgentConfig struct {
 	AnalyzedSpansByService      map[string]map[string]float64
 
 	// infrastructure agent binary
-	DDAgentBin string // DDAgentBin will be "" for Agent5 scenarios
+	DDAgentBin string
 
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
@@ -128,7 +133,7 @@ func New() *AgentConfig {
 		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
 		BucketInterval:   time.Duration(10) * time.Second,
-		ExtraAggregators: []string{"http.status_code"},
+		ExtraAggregators: []string{"http.status_code", "version"},
 
 		ExtraSampleRate: 1.0,
 		MaxTPS:          10,
@@ -136,38 +141,46 @@ func New() *AgentConfig {
 
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,
-		ConnectionLimit: 2000,
+		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
-		ServiceWriterConfig: writerconfig.DefaultServiceWriterConfig(),
-		StatsWriterConfig:   writerconfig.DefaultStatsWriterConfig(),
-		TraceWriterConfig:   writerconfig.DefaultTraceWriterConfig(),
+		StatsWriter:             new(WriterConfig),
+		TraceWriter:             new(WriterConfig),
+		ConnectionResetInterval: 0, // disabled
 
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
 
-		LogLevel:             "INFO",
-		LogFilePath:          DefaultLogFilePath,
-		LogThrottlingEnabled: true,
+		LogLevel:      "INFO",
+		LogFilePath:   DefaultLogFilePath,
+		LogThrottling: true,
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
-		MaxConnections:   200, // in practice, rarely goes over 20
-		WatchdogInterval: time.Minute,
+		WatchdogInterval: 10 * time.Second,
 
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 
-		InterpreterConfig: interpreterconfig.DefaultInterpreterConfig(),
-
-		FeaturesConfig: featuresconfig.DefaultFeaturesConfig(),
+		DDAgentBin: defaultDDAgentBin,
 	}
+}
+
+// APIKey returns the first (main) endpoint's API key.
+func (c *AgentConfig) APIKey() string {
+	if len(c.Endpoints) == 0 {
+		return ""
+	}
+	return c.Endpoints[0].APIKey
 }
 
 // Validate validates if the current configuration is good for the agent to start with.
 func (c *AgentConfig) validate() error {
 	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {
 		return ErrMissingAPIKey
+	}
+	if c.DDAgentBin == "" {
+		return errors.New("agent binary path not set")
 	}
 	if c.Hostname == "" {
 		if err := c.acquireHostname(); err != nil {
@@ -185,23 +198,10 @@ var fallbackHostnameFunc = os.Hostname
 // tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
 // set, otherwise falling back to os.Hostname.
 func (c *AgentConfig) acquireHostname() error {
-	var cmd *exec.Cmd
-	if c.DDAgentBin != "" {
-		// Agent 6
-		cmd = exec.Command(c.DDAgentBin, "hostname")
-		cmd.Env = []string{}
-	} else {
-		// Most likely Agent 5. Try and obtain the hostname using the Agent's
-		// Python environment, which will cover several additional installation
-		// scenarios such as GCE, EC2, Kube, Docker, etc. In these scenarios
-		// Go's os.Hostname will not be able to obtain the correct host. Do not
-		// remove!
-		cmd = exec.Command(defaultDDAgentPy, "-c", "from utils.hostname import get_hostname; print get_hostname()")
-		cmd.Env = []string{defaultDDAgentPyEnv}
-	}
 	var out bytes.Buffer
-	cmd.Stdout = &out
+	cmd := exec.Command(c.DDAgentBin, "hostname")
 	cmd.Env = append(os.Environ(), cmd.Env...) // needed for Windows
+	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
 	if err != nil || c.Hostname == "" {
@@ -211,6 +211,32 @@ func (c *AgentConfig) acquireHostname() error {
 		err = ErrMissingHostname
 	}
 	return err
+}
+
+// HTTPClient returns a new http.Client to be used for outgoing connections to the
+// Datadog API.
+func (c *AgentConfig) HTTPClient() *http.Client {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
+		// below field values are from http.DefaultTransport (go1.12)
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	if p := coreconfig.GetProxies(); p != nil {
+		transport.Proxy = httputils.GetProxyTransportFunc(p)
+	}
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+	}
 }
 
 // Load returns a new configuration based on the given path. The path must not necessarily exist
@@ -225,38 +251,30 @@ func Load(path string) (*AgentConfig, error) {
 	} else {
 		log.Infof("Loaded configuration: %s", cfg.ConfigPath)
 	}
-	applyEnv()
+	loadEnv()
+	if err := config.ResolveSecrets(config.Datadog, filepath.Base(path)); err != nil {
+		// resolve secrets now that we've finished loading from all sources (file, flags & env)
+		return cfg, err
+	}
 	cfg.applyDatadogConfig()
 	return cfg, cfg.validate()
 }
 
 func prepareConfig(path string) (*AgentConfig, error) {
-	cfgPath := path
-	if cfgPath == flags.DefaultConfigPath && !osutil.Exists(cfgPath) && osutil.Exists(agent5Config) {
-		// attempting to load inexistent default path, but found existing Agent 5
-		// legacy config - try using it
-		log.Warnf("Attempting to use Agent 5 configuration: %s", agent5Config)
-		cfgPath = agent5Config
-	}
 	cfg := New()
-	switch filepath.Ext(cfgPath) {
-	case ".ini", ".conf":
-		ac, err := legacy.GetAgentConfig(cfgPath)
-		if err != nil {
-			return cfg, err
-		}
-		if err := legacy.FromAgentConfig(ac); err != nil {
-			return cfg, err
-		}
-	case ".yaml":
-		config.Datadog.SetConfigFile(cfgPath)
-		if err := config.Load(); err != nil {
-			return cfg, err
-		}
-		cfg.DDAgentBin = defaultDDAgentBin
-	default:
-		return cfg, errors.New("unrecognised file extension (need .yaml, .ini or .conf)")
+	config.Datadog.SetConfigFile(path)
+	// we'll resolve secrets later, after loading environment variable values too,
+	// in order to make sure that any potential secret references present in environment
+	// variables get counted.
+	if _, err := config.LoadWithoutSecret(); err != nil {
+		return cfg, err
 	}
-	cfg.ConfigPath = cfgPath
+	cfg.ConfigPath = path
 	return cfg, nil
+}
+
+// HasFeature returns true if the feature f is present. Features are values
+// of the DD_APM_FEATURES environment variable.
+func HasFeature(f string) bool {
+	return strings.Contains(os.Getenv("DD_APM_FEATURES"), f)
 }

@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 // Package obfuscate implements quantizing and obfuscating of tags and resources for
 // a set of spans matching a certain criteria.
 package obfuscate
 
 import (
 	"bytes"
+	"sync/atomic"
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
@@ -13,20 +19,35 @@ import (
 // concurrent use.
 type Obfuscator struct {
 	opts  *config.ObfuscationConfig
-	sql   *sqlObfuscator
 	es    *jsonObfuscator // nil if disabled
 	mongo *jsonObfuscator // nil if disabled
+	// sqlLiteralEscapes reports whether we should treat escape characters literally or as escape characters.
+	// A non-zero value means 'yes'. Different SQL engines behave in different ways and the tokenizer needs
+	// to be generic.
+	// Not safe for concurrent use.
+	sqlLiteralEscapes int32
 }
 
-// NewObfuscator creates a new Obfuscator.
+// SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
+func (o *Obfuscator) SetSQLLiteralEscapes(ok bool) {
+	if ok {
+		atomic.StoreInt32(&o.sqlLiteralEscapes, 1)
+	} else {
+		atomic.StoreInt32(&o.sqlLiteralEscapes, 0)
+	}
+}
+
+// SQLLiteralEscapes reports whether escape characters should be treated literally by the SQL obfuscator.
+func (o *Obfuscator) SQLLiteralEscapes() bool {
+	return atomic.LoadInt32(&o.sqlLiteralEscapes) == 1
+}
+
+// NewObfuscator creates a new obfuscator from the provided config
 func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 	if cfg == nil {
 		cfg = new(config.ObfuscationConfig)
 	}
-	o := Obfuscator{
-		opts: cfg,
-		sql:  newSQLObfuscator(),
-	}
+	o := Obfuscator{opts: cfg}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES)
 	}

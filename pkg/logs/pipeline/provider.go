@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package pipeline
 
@@ -28,7 +28,7 @@ type provider struct {
 	auditor           *auditor.Auditor
 	outputChan        chan *message.Message
 	processingRules   []*config.ProcessingRule
-	endpoints         *client.Endpoints
+	endpoints         *config.Endpoints
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
@@ -36,7 +36,7 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
 		auditor:             auditor,

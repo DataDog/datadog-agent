@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package info
 
 import (
@@ -44,6 +49,7 @@ func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func testServer(t *testing.T) *httptest.Server {
+	t.Helper()
 	server := httptest.NewServer(&testServerHandler{t: t})
 	t.Logf("test server (serving fake yet valid data) listening on %s", server.URL)
 	return server
@@ -115,7 +121,7 @@ func testInit(t *testing.T) *config.AgentConfig {
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	return conf
 }
@@ -131,22 +137,25 @@ func TestInfo(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
 	assert.NoError(err)
 	info := buf.String()
+	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := ioutil.ReadFile("./testdata/okay.info")
+	re := regexp.MustCompile(`\r\n`)
+	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
 	assert.NoError(err)
-	assert.Equal(string(expectedInfo), info)
+	assert.Equal(expectedInfoString, info)
 }
 
 func TestHideAPIKeys(t *testing.T) {
@@ -157,7 +166,7 @@ func TestHideAPIKeys(t *testing.T) {
 	assert.NotEqual("", js)
 	var got config.AgentConfig
 	err := json.Unmarshal([]byte(js), &got)
-	assert.Nil(err)
+	assert.NoError(err)
 	assert.NotEmpty(conf.Endpoints[0].APIKey)
 	assert.Empty(got.Endpoints[0].APIKey)
 }
@@ -173,22 +182,24 @@ func TestWarning(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
-	assert.Nil(err)
+	assert.NoError(err)
 	info := buf.String()
 
 	expectedWarning, err := ioutil.ReadFile("./testdata/warning.info")
+	re := regexp.MustCompile(`\r\n`)
+	expectedWarningString := re.ReplaceAllString(string(expectedWarning), "\n")
 	assert.NoError(err)
-	assert.Equal(string(expectedWarning), info)
+	assert.Equal(expectedWarningString, info)
 
 	t.Logf("Info:\n%s\n", info)
 }
@@ -203,14 +214,14 @@ func TestNotRunning(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	server.Close()
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
@@ -244,12 +255,12 @@ func TestError(t *testing.T) {
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
-	assert.Nil(err)
+	assert.NoError(err)
 
 	hostPort := strings.Split(url.Host, ":")
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
-	assert.Nil(err)
+	assert.NoError(err)
 	conf.ReceiverPort = port
 
 	var buf bytes.Buffer
@@ -281,11 +292,11 @@ func TestInfoReceiverStats(t *testing.T) {
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
-		Stats{TracesReceived: 23, TracesDropped: 2, TracesBytes: 3244, SpansReceived: 213, SpansDropped: 14},
+		Stats{TracesReceived: 23, TracesBytes: 3244, SpansReceived: 213, SpansDropped: 14},
 	}
 	t2 := &TagStats{
 		Tags{Lang: "go"},
-		Stats{ServicesReceived: 4, ServicesBytes: 1543},
+		Stats{},
 	}
 	stats.Stats = map[Tags]*TagStats{
 		t1.Tags: t1,
@@ -346,7 +357,7 @@ func TestInfoConfig(t *testing.T) {
 	assert.NotEqual("", js)
 	var confCopy config.AgentConfig
 	err := json.Unmarshal([]byte(js), &confCopy)
-	assert.Nil(err)
+	assert.NoError(err)
 	for i, e := range confCopy.Endpoints {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields

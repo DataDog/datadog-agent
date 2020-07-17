@@ -1,0 +1,18 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Starting with this version, the containerized Agent never chooses the OS hostname as its hostname when it is running in a dedicated UTS namespace.
+    This is done in order to avoid picking container IDs or kubernetes POD names as hostnames, since these identifiers do not reflect the identity of the host they run on.
+
+    This change only affects you if your agent is currently using a container ID or a kubernetes POD name as hostname.
+    The hostname of the agent can be checked with ``agent hostname``.
+    If the output stays stable when the container or POD of the agent is destroyed and recreated, you're not impacted by this change.
+    If the output changes, it means that the agent was unable to talk to EC2/GKE metadata server, it was unable to get the k8s node name from the kubelet, it was unable to get the hostname from the docker daemon and it is running in its dedicated UTS namespace.
+    Under those conditions, you should set explicitly define the host name to be used by the agent in its configuration file.

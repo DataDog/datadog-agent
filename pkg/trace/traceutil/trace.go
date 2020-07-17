@@ -1,8 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package traceutil
 
 import (
+	"math"
+
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // GetEnv returns the meta value for the "env" key for
@@ -46,7 +53,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 
 	// Here, if the trace is valid, we should have len(parentIDToChild) == 1
 	if len(parentIDToChild) != 1 {
-		log.Debugf("didn't reliably find the root span for traceID:%v", t[0].TraceID)
+		log.Debugf("Didn't reliably find the root span for traceID:%v", t[0].TraceID)
 	}
 
 	// Have a safe bahavior if that's not the case
@@ -59,9 +66,10 @@ func GetRoot(t pb.Trace) *pb.Span {
 	return t[len(t)-1]
 }
 
-// APITrace returns an APITrace from the trace, as required by the Datadog API.
+// APITrace returns an APITrace from t, as required by the Datadog API.
+// It also returns an estimated size in bytes.
 func APITrace(t pb.Trace) *pb.APITrace {
-	var earliest, latest int64
+	earliest, latest := int64(math.MaxInt64), int64(0)
 	for _, s := range t {
 		start := s.Start
 		if start < earliest {

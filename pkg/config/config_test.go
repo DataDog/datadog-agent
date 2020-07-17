@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package config
 
 import (
 	"bytes"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -17,15 +18,17 @@ import (
 
 func setupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	InitConfig(conf)
 	return conf
 }
 
 func setupConfFromYAML(yamlConfig string) Config {
-	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := setupConf()
 	conf.SetConfigType("yaml")
-	conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
-	initConfig(conf)
+	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
+	if e != nil {
+		log.Println(e)
+	}
 	return conf
 }
 
@@ -37,6 +40,7 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsSet("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
+	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba"}, config.GetStringSlice("cloud_provider_metadata"))
 }
 
 func TestDefaultSite(t *testing.T) {
@@ -78,6 +82,24 @@ api_key: fakeapikey
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+}
+
+func TestUnknownKeysWarning(t *testing.T) {
+	yamlBase := `
+site: datadoghq.eu
+`
+	confBase := setupConfFromYAML(yamlBase)
+	assert.Len(t, findUnknownKeys(confBase), 0)
+
+	yamlWithUnknownKeys := `
+site: datadoghq.eu
+unknown_key.unknown_subkey: true
+`
+	confWithUnknownKeys := setupConfFromYAML(yamlWithUnknownKeys)
+	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 1)
+
+	confWithUnknownKeys.SetKnown("unknown_key.*")
+	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 0)
 }
 
 func TestSiteEnvVar(t *testing.T) {
@@ -198,6 +220,29 @@ additional_endpoints:
 			"fakeapikey",
 			"fakeapikey2",
 			"fakeapikey3",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestGetMultipleEndpointsEnvVar(t *testing.T) {
+	os.Setenv("DD_API_KEY", "fakeapikey")
+	os.Setenv("DD_ADDITIONAL_ENDPOINTS", "{\"https://foo.datadoghq.com\": [\"someapikey\"]}")
+	defer os.Unsetenv("DD_API_KEY")
+	defer os.Unsetenv("DD_ADDITIONAL_ENDPOINTS")
+
+	testConfig := setupConf()
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://foo.datadoghq.com": {
+			"someapikey",
+		},
+		"https://app.datadoghq.com": {
+			"fakeapikey",
 		},
 	}
 
@@ -377,6 +422,39 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	newURL, err = AddAgentVersionToDomain("https://app.myproxy.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://app.myproxy.com", newURL)
+}
+
+func TestIsCloudProviderEnabled(t *testing.T) {
+	holdValue := Datadog.Get("cloud_provider_metadata")
+	defer Datadog.Set("cloud_provider_metadata", holdValue)
+
+	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	assert.True(t, IsCloudProviderEnabled("AWS"))
+	assert.True(t, IsCloudProviderEnabled("GCP"))
+	assert.True(t, IsCloudProviderEnabled("Alibaba"))
+	assert.True(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{"aws"})
+	assert.True(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{})
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
 }
 
 func TestEnvNestedConfig(t *testing.T) {
@@ -576,23 +654,23 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
-func TestSanitizeAPIKey(t *testing.T) {
+func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := setupConf()
 
 	config.Set("api_key", "foo")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", " \n  foo   \n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
 
@@ -604,7 +682,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := setupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	err := load(conf, "datadog_secrets.yaml")
+	_, err := load(conf, "datadog_secrets.yaml", true)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{
@@ -613,4 +691,151 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
+}
+
+func TestNumWorkers(t *testing.T) {
+	config := setupConf()
+
+	config.Set("python_version", "2")
+	config.Set("tracemalloc_debug", true)
+	config.Set("check_runners", 4)
+
+	setNumWorkers(config)
+	workers := config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("tracemalloc_debug", false)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("python_version", "3")
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("tracemalloc_debug", true)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, 1)
+}
+
+// TestOverrides validates that the config overrides system works well.
+func TestApplyOverrides(t *testing.T) {
+	assert := assert.New(t)
+
+	datadogYaml := `
+dd_url: "https://app.datadoghq.eu"
+api_key: fakeapikey
+
+external_config:
+  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
+`
+	AddOverrides(map[string]interface{}{
+		"api_key": "overrided",
+	})
+
+	config := setupConfFromYAML(datadogYaml)
+	applyOverrides(config)
+
+	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
+	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
+
+	AddOverrides(map[string]interface{}{
+		"dd_url": "http://localhost",
+	})
+	applyOverrides(config)
+
+	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
+	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
+}
+
+func TestDogstatsdMappingProfilesOk(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+  - name: "airflow"
+    prefix: "airflow."
+    mappings:
+      - match: "airflow.job.duration_sec.*.*"
+        name: "airflow.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+      - match: "airflow.job.size.*.*"
+        name: "airflow.job.size"
+        tags:
+          foo: "$1"
+          bar: "$2"
+  - name: "profile2"
+    prefix: "profile2."
+    mappings:
+      - match: "profile2.hello.*"
+        name: "profile2.hello"
+        tags:
+          foo: "$1"
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	expectedProfiles := []MappingProfile{
+		{
+			Name:   "airflow",
+			Prefix: "airflow.",
+			Mappings: []MetricMapping{
+				{
+					Match: "airflow.job.duration_sec.*.*",
+					Name:  "airflow.job.duration",
+					Tags:  map[string]string{"job_type": "$1", "job_name": "$2"},
+				},
+				{
+					Match: "airflow.job.size.*.*",
+					Name:  "airflow.job.size",
+					Tags:  map[string]string{"foo": "$1", "bar": "$2"},
+				},
+			},
+		},
+		{
+			Name:   "profile2",
+			Prefix: "profile2.",
+			Mappings: []MetricMapping{
+				{
+					Match: "profile2.hello.*",
+					Name:  "profile2.hello",
+					Tags:  map[string]string{"foo": "$1"},
+				},
+			},
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedProfiles, profiles)
+}
+
+func TestDogstatsdMappingProfilesEmpty(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	var expectedProfiles []MappingProfile
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedProfiles, profiles)
+}
+
+func TestDogstatsdMappingProfilesError(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+  - abc
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	expectedErrorMsg := "Could not parse dogstatsd_mapper_profiles"
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), expectedErrorMsg)
+	assert.Empty(t, profiles)
 }

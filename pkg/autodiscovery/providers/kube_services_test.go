@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -22,14 +22,17 @@ import (
 
 func TestParseKubeServiceAnnotations(t *testing.T) {
 	for _, tc := range []struct {
+		name        string
 		service     *v1.Service
 		expectedOut []integration.Config
 	}{
 		{
+			name:        "nil input",
 			service:     nil,
 			expectedOut: nil,
 		},
 		{
+			name: "valid service annotations only",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					UID: types.UID("test"),
@@ -43,15 +46,16 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			expectedOut: []integration.Config{
 				{
 					Name:          "http_check",
-					ADIdentifiers: []string{"kube_service://test"},
+					ADIdentifiers: []string{"kube_service_uid://test"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 					ClusterCheck:  true,
+					Source:        "kube_services:kube_service_uid://test",
 				},
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			cfgs, _ := parseServiceAnnotations([]*v1.Service{tc.service})
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})

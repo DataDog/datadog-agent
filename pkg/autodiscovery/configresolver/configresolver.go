@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package configresolver
 
@@ -12,10 +12,12 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/listeners"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers/names"
 )
 
 type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
@@ -24,8 +26,51 @@ var templateVariables = map[string]variableGetter{
 	"host":     getHost,
 	"pid":      getPid,
 	"port":     getPort,
-	"env":      getEnvvar,
 	"hostname": getHostname,
+	"extra":    getExtra,
+}
+
+// SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
+func SubstituteTemplateVariables(config *integration.Config, getters map[string]variableGetter, svc listeners.Service) error {
+	for i := 0; i < len(config.Instances); i++ {
+		vars := config.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			if f, found := getters[string(v.Name)]; found {
+				resolvedVar, err := f(v.Key, svc)
+				if err != nil {
+					return err
+				}
+				// init config vars are replaced by the first found
+				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, resolvedVar, -1)
+				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, resolvedVar, -1)
+			}
+		}
+	}
+	return nil
+}
+
+// SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment variables
+func SubstituteTemplateEnvVars(config *integration.Config) error {
+	var retErr error
+	for i := 0; i < len(config.Instances); i++ {
+		vars := config.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			if "env" == string(v.Name) {
+				resolvedVar, err := getEnvvar(v.Key)
+				if err != nil {
+					log.Warnf("variable not replaced: %s", err)
+					if retErr == nil {
+						retErr = err
+					}
+					continue
+				}
+				// init config vars are replaced by the first found
+				config.InitConfig = bytes.Replace(config.InitConfig, v.Raw, resolvedVar, -1)
+				config.Instances[i] = bytes.Replace(config.Instances[i], v.Raw, resolvedVar, -1)
+			}
+		}
+	}
+	return retErr
 }
 
 // Resolve takes a template and a service and generates a config with
@@ -33,45 +78,78 @@ var templateVariables = map[string]variableGetter{
 func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
-		Name:          tpl.Name,
-		Instances:     make([]integration.Data, len(tpl.Instances)),
-		InitConfig:    make(integration.Data, len(tpl.InitConfig)),
-		MetricConfig:  tpl.MetricConfig,
-		LogsConfig:    tpl.LogsConfig,
-		ADIdentifiers: tpl.ADIdentifiers,
-		ClusterCheck:  tpl.ClusterCheck,
-		Provider:      tpl.Provider,
-		Entity:        svc.GetEntity(),
-		CreationTime:  svc.GetCreationTime(),
+		Name:            tpl.Name,
+		Instances:       make([]integration.Data, len(tpl.Instances)),
+		InitConfig:      make(integration.Data, len(tpl.InitConfig)),
+		MetricConfig:    tpl.MetricConfig,
+		LogsConfig:      tpl.LogsConfig,
+		ADIdentifiers:   tpl.ADIdentifiers,
+		ClusterCheck:    tpl.ClusterCheck,
+		Provider:        tpl.Provider,
+		Entity:          svc.GetEntity(),
+		CreationTime:    svc.GetCreationTime(),
+		NodeName:        tpl.NodeName,
+		Source:          tpl.Source,
+		MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+		LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
 
-	tags, err := svc.GetTags()
-	if err != nil {
-		return resolvedConfig, err
-	}
-	for i := 0; i < len(tpl.Instances); i++ {
-		// Copy original content from template
-		vars := tpl.GetTemplateVariablesForInstance(i)
-		for _, v := range vars {
-			if f, found := templateVariables[string(v.Name)]; found {
-				resolvedVar, err := f(v.Key, svc)
-				if err != nil {
-					return integration.Config{}, err
-				}
-				// init config vars are replaced by the first found
-				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v.Raw, resolvedVar, -1)
-				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v.Raw, resolvedVar, -1)
+	// Ignore the config from file if it's overridden by an empty config
+	// or by a different config for the same check
+	if tpl.Provider == names.File && svc.GetCheckNames() != nil {
+		checkNames := svc.GetCheckNames()
+		lenCheckNames := len(checkNames)
+		if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
+			// Empty check names on k8s annotations or docker labels override the check config from file
+			// Used to deactivate unneeded OOTB autodiscovery checks defined in files
+			// The checkNames slice is considered empty also if it contains one single empty string
+			return resolvedConfig, fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
+		}
+		for _, checkName := range checkNames {
+			if tpl.Name == checkName {
+				// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or docker labels)
+				return resolvedConfig, fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
 			}
 		}
-		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
-		if err != nil {
-			return resolvedConfig, err
+
+	}
+
+	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
+		return resolvedConfig, errors.New("unable to resolve, service not ready")
+	}
+
+	if err := SubstituteTemplateVariables(&resolvedConfig, templateVariables, svc); err != nil {
+		return resolvedConfig, err
+	}
+
+	if err := SubstituteTemplateEnvVars(&resolvedConfig); err != nil {
+		// We add the service name to the error here, since SubstituteTemplateEnvVars doesn't know about that
+		return resolvedConfig, fmt.Errorf("%s, skipping service %s", err, svc.GetEntity())
+	}
+
+	if !tpl.IgnoreAutodiscoveryTags {
+		if err := addServiceTags(&resolvedConfig, svc); err != nil {
+			return resolvedConfig, fmt.Errorf("unable to add tags for service '%s', err: %s", svc.GetEntity(), err)
 		}
 	}
 
 	return resolvedConfig, nil
+}
+
+func addServiceTags(resolvedConfig *integration.Config, svc listeners.Service) error {
+	tags, err := svc.GetTags()
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(resolvedConfig.Instances); i++ {
+		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
@@ -166,14 +244,23 @@ func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	return []byte(name), nil
 }
 
-// getEnvvar returns a system environment variable if found
-func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
-	if len(tplVar) == 0 {
-		return nil, fmt.Errorf("envvar name is missing, skipping service %s", svc.GetEntity())
+// getExtra returns specific data
+func getExtra(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	value, err := svc.GetExtraConfig(tplVar)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get extra info for service %s, skipping config - %s", svc.GetEntity(), err)
 	}
-	value, found := os.LookupEnv(string(tplVar))
+	return value, nil
+}
+
+// getEnvvar returns a system environment variable if found
+func getEnvvar(envVar []byte) ([]byte, error) {
+	if len(envVar) == 0 {
+		return nil, fmt.Errorf("envvar name is missing")
+	}
+	value, found := os.LookupEnv(string(envVar))
 	if !found {
-		return nil, fmt.Errorf("failed to retrieve envvar %s, skipping service %s", tplVar, svc.GetEntity())
+		return nil, fmt.Errorf("failed to retrieve envvar %s", envVar)
 	}
 	return []byte(value), nil
 }

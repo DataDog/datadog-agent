@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package processor
 
@@ -113,6 +113,19 @@ func TestMask(t *testing.T) {
 	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("The credit card 4323124312341234 was used to buy some time"), &source, ""))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("The credit card [masked_credit_card] was used to buy some time"), redactedMessage)
+
+	source = newSource("mask_sequences", "${1}[masked_value]", "([Dd]ata_?values=)\\S+")
+	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("New data added to Datavalues=123456 on prod"), &source, ""))
+	assert.Equal(t, true, shouldProcess)
+	assert.Equal(t, []byte("New data added to Datavalues=[masked_value] on prod"), redactedMessage)
+
+	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("New data added to data_values=123456 on prod"), &source, ""))
+	assert.Equal(t, true, shouldProcess)
+	assert.Equal(t, []byte("New data added to data_values=[masked_value] on prod"), redactedMessage)
+
+	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("New data added to data_values= on prod"), &source, ""))
+	assert.Equal(t, true, shouldProcess)
+	assert.Equal(t, []byte("New data added to data_values= on prod"), redactedMessage)
 }
 
 func TestTruncate(t *testing.T) {
@@ -141,6 +154,5 @@ func newSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
 }
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
-	origin := message.NewOrigin(source)
-	return message.NewMessage(content, origin, status)
+	return message.NewMessageWithSource(content, status, source)
 }

@@ -23,7 +23,7 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
             echo "Deleting stackstate-agent user"
             deluser stackstate-agent --quiet
             echo "Deleting stackstate-agent group"
-            getent group stackstate-agent >/dev/null && delgroup stackstate-agent --quiet || true
+            (getent group stackstate-agent >/dev/null && delgroup stackstate-agent --quiet) || true
             echo "Force-deleting $INSTALL_DIR"
             rm -rf $INSTALL_DIR
             rm -rf $LOG_DIR
@@ -45,7 +45,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         ;;
     esac
 else
-    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+    echo "[ FAILED ]\tYour system is currently not supported by this script.";
 fi
 
 exit 0

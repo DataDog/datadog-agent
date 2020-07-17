@@ -26,26 +26,6 @@ func buildStore(t *testing.T, dsl string) *sparseStore {
 }
 
 func TestStore(t *testing.T) {
-	t.Run("MemSize", func(t *testing.T) {
-		// empty store
-		const (
-			emptySize = 32
-			binSize   = 4
-		)
-		s := buildStore(t, "")
-		s.bins = nil
-
-		used, allocated := s.MemSize()
-		require.Equal(t, emptySize, used)
-		require.Equal(t, emptySize, allocated)
-
-		s.bins = make([]bin, 1, 2)
-		used, allocated = s.MemSize()
-
-		require.Equal(t, emptySize+binSize, used)
-		require.Equal(t, emptySize+2*binSize, allocated)
-	})
-
 	t.Run("merge", func(t *testing.T) {
 		type mt struct {
 			s, o, exp string
@@ -179,8 +159,6 @@ func TestStore(t *testing.T) {
 			c("0:1 0:max 0:max", "0:3 0:max 0:max", 0, 0),
 			c("1:1 3:1 4:1 5:1 6:1 7:1", "1:1 2:1 3:2 4:1 5:1 6:1 7:1", 2, 3),
 			c("1:1 3:1", "1:1 2:3 3:1", 2, 2, 2),
-			c("1:1", "0:3 0:max 1:1", make([]Key, maxBinWidth+3)...),
-			c("", "0:1 0:max 0:max", make([]Key, maxBinWidth*2+1)...),
 			c("0:max-3", "0:2 0:max", make([]Key, 5)...),
 		} {
 			// TODO|TEST: that we never exceed binLimit.

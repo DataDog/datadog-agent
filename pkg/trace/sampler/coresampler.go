@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package sampler
 
 import (
 	"math"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/trace/atomic"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 	"github.com/StackVista/stackstate-agent/pkg/trace/watchdog"
 )
@@ -18,6 +24,9 @@ const (
 	initialSignatureScoreOffset float64       = 1
 	minSignatureScoreOffset     float64       = 0.01
 	defaultSignatureScoreSlope  float64       = 3
+	// defaultSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
+	// If this is surpassed, the rate is set to 1.
+	defaultSamplingRateThresholdTo1 float64 = 1
 )
 
 // EngineType represents the type of a sampler engine.
@@ -55,14 +64,16 @@ type Sampler struct {
 	extraRate float64
 	// Maximum limit to the total number of traces per second to sample
 	maxTPS float64
+	// rateThresholdTo1 is the value above which all computed sampling rates will be set to 1
+	rateThresholdTo1 float64
 
 	// Sample any signature with a score lower than scoreSamplingOffset
 	// It is basically the number of similar traces per second after which we start sampling
-	signatureScoreOffset *atomicFloat64
+	signatureScoreOffset *atomic.Float64
 	// Logarithm slope for the scoring function
-	signatureScoreSlope *atomicFloat64
+	signatureScoreSlope *atomic.Float64
 	// signatureScoreFactor = math.Pow(signatureScoreSlope, math.Log10(scoreSamplingOffset))
-	signatureScoreFactor *atomicFloat64
+	signatureScoreFactor *atomic.Float64
 
 	exit chan struct{}
 }
@@ -73,9 +84,10 @@ func newSampler(extraRate float64, maxTPS float64) *Sampler {
 		Backend:              NewMemoryBackend(defaultDecayPeriod, defaultDecayFactor),
 		extraRate:            extraRate,
 		maxTPS:               maxTPS,
-		signatureScoreOffset: newFloat64(0),
-		signatureScoreSlope:  newFloat64(0),
-		signatureScoreFactor: newFloat64(0),
+		rateThresholdTo1:     defaultSamplingRateThresholdTo1,
+		signatureScoreOffset: atomic.NewFloat(0),
+		signatureScoreSlope:  atomic.NewFloat(0),
+		signatureScoreFactor: atomic.NewFloat(0),
 
 		exit: make(chan struct{}),
 	}
@@ -134,9 +146,7 @@ func (s *Sampler) RunAdjustScoring() {
 
 // GetSampleRate returns the sample rate to apply to a trace.
 func (s *Sampler) GetSampleRate(trace pb.Trace, root *pb.Span, signature Signature) float64 {
-	rate := s.GetSignatureSampleRate(signature) * s.extraRate
-
-	return rate
+	return s.loadRate(s.GetSignatureSampleRate(signature) * s.extraRate)
 }
 
 // GetMaxTPSSampleRate returns an extra sample rate to apply if we are above maxTPS.
@@ -151,6 +161,10 @@ func (s *Sampler) GetMaxTPSSampleRate() float64 {
 	}
 
 	return maxTPSrate
+}
+
+func (s *Sampler) setRateThresholdTo1(r float64) {
+	s.rateThresholdTo1 = r
 }
 
 // CombineRates merges two rates from Sampler1, Sampler2. Both samplers law are independent,

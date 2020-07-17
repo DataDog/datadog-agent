@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // Package agent implements the api endpoints for the `/agent` prefix.
 // This group of endpoints is meant to provide high-level functionalities
@@ -11,6 +11,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"sort"
 
@@ -22,7 +23,7 @@ import (
 	"github.com/StackVista/stackstate-agent/cmd/agent/gui"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
-	"github.com/StackVista/stackstate-agent/pkg/collector/py"
+
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/flare"
 	"github.com/StackVista/stackstate-agent/pkg/secrets"
@@ -32,17 +33,18 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/StackVista/stackstate-agent/pkg/version"
+
 	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", getVersion).Methods("GET")
+func SetupHandlers(r *mux.Router) *mux.Router {
+	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
@@ -50,22 +52,20 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
-	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
+	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
+
+	return r
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
-	w.Write(j)
-}
-
-func getVersion(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	av, _ := version.New(version.AgentVersion, version.Commit)
-	j, _ := json.Marshal(av)
 	w.Write(j)
 }
 
@@ -77,18 +77,6 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 		hname = ""
 	}
 	j, _ := json.Marshal(hname)
-	w.Write(j)
-}
-
-func getPythonStatus(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	pyStats, err := py.GetPythonInterpreterMemoryUsage()
-	if err != nil {
-		log.Warnf("Error getting python stats: %s\n", err) // or something like this
-		http.Error(w, err.Error(), 500)
-	}
-
-	j, _ := json.Marshal(pyStats)
 	w.Write(j)
 }
 
@@ -172,6 +160,51 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
+func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for the Dogstatsd stats.")
+
+	if !config.Datadog.GetBool("use_dogstatsd") {
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{
+			"error":      "Dogstatsd not enabled in the Agent configuration",
+			"error_type": "no server",
+		})
+		w.WriteHeader(400)
+		w.Write(body)
+		return
+	}
+
+	if !config.Datadog.GetBool("dogstatsd_metrics_stats_enable") {
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{
+			"error":      "Dogstatsd metrics stats not enabled in the Agent configuration",
+			"error_type": "not enabled",
+		})
+		w.WriteHeader(400)
+		w.Write(body)
+		return
+	}
+
+	// Weird state that should not happen: dogstatsd is enabled
+	// but the server has not been successfully initialized.
+	// Return no data.
+	if common.DSD == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{}`))
+		return
+	}
+
+	jsonStats, err := common.DSD.GetJSONDebugStats()
+	if err != nil {
+		log.Errorf("Error getting marshalled Dogstatsd stats: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonStats)
+}
+
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the formatted status. Making formatted status.")
 	s, err := status.GetAndFormatStatus()
@@ -187,7 +220,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
-	h := health.GetStatus()
+	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
 		log.Debugf("Healthcheck failed on: %v", h.Unhealthy)
@@ -210,6 +243,13 @@ func getCSRFToken(w http.ResponseWriter, r *http.Request) {
 
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
+
+	if common.AC == nil {
+		log.Errorf("Trying to use /config-check before the agent has been initialized.")
+		body, _ := json.Marshal(map[string]string{"error": "agent not initialized"})
+		http.Error(w, string(body), 503)
+		return
+	}
 
 	configs := common.AC.GetLoadedConfigs()
 	configSlice := make([]integration.Config, 0)
@@ -235,7 +275,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
-func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+func getFullRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		log.Errorf("Unable to marshal runtime config response: %s", err)
@@ -243,7 +283,80 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(runtimeConfig)
+
+	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
+	if err != nil {
+		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(scrubbed)
+}
+
+func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+	log.Infof("Got a request to read a setting value: %s", setting)
+
+	val, err := settings.GetRuntimeSetting(setting)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		switch err.(type) {
+		case *settings.SettingNotFoundError:
+			http.Error(w, string(body), 400)
+		default:
+			http.Error(w, string(body), 500)
+		}
+		return
+	}
+	body, err := json.Marshal(map[string]interface{}{"value": val})
+	if err != nil {
+		log.Errorf("Unable to marshal runtime setting value response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(body)
+}
+
+func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+	log.Infof("Got a request to change a setting: %s", setting)
+	r.ParseForm() //nolint:errcheck
+	value := html.UnescapeString(r.Form.Get("value"))
+
+	if err := settings.SetRuntimeSetting(setting, value); err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		switch err.(type) {
+		case *settings.SettingNotFoundError:
+			http.Error(w, string(body), 400)
+		default:
+			http.Error(w, string(body), 500)
+		}
+		return
+	}
+}
+
+func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
+
+	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
+	for name, setting := range settings.RuntimeSettings() {
+		configurableSettings[name] = settings.RuntimeSettingResponse{
+			Description: setting.Description(),
+			Hidden:      setting.Hidden(),
+		}
+	}
+	body, err := json.Marshal(configurableSettings)
+	if err != nil {
+		log.Errorf("Unable to marshal runtime configurable settings list response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(body)
 }
 
 func getTaggerList(w http.ResponseWriter, r *http.Request) {

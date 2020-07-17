@@ -1,36 +1,81 @@
 package metrics
 
 import (
-	"errors"
+	"bytes"
+	"encoding/json"
 
 	"github.com/DataDog/agent-payload/gogen"
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/ckey"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/quantile"
 	"github.com/StackVista/stackstate-agent/pkg/serializer/marshaler"
+	"github.com/StackVista/stackstate-agent/pkg/util/common"
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
-	Name       string
-	Tags       []string
-	Host       string
-	Interval   int64
-	Points     []SketchPoint
-	ContextKey ckey.ContextKey
+	Name       string          `json:"metric"`
+	Tags       []string        `json:"tags"`
+	Host       string          `json:"host"`
+	Interval   int64           `json:"interval"`
+	Points     []SketchPoint   `json:"points"`
+	ContextKey ckey.ContextKey `json:"-"`
 }
 
 // A SketchPoint represents a quantile sketch at a specific time
 type SketchPoint struct {
-	Sketch *quantile.Sketch
-	Ts     int64
+	Sketch *quantile.Sketch `json:"sketch"`
+	Ts     int64            `json:"ts"`
 }
 
 // A SketchSeriesList implements marshaler.Marshaler
 type SketchSeriesList []SketchSeries
 
-// MarshalJSON is not supported for sketches.
-func (SketchSeriesList) MarshalJSON() ([]byte, error) {
-	return nil, errors.New("sketches don't support json encoding")
+// MarshalJSON serializes sketch series to JSON.
+// Quite slow, but hopefully this method is called only in the `agent check` command
+func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
+	// We use this function to customize generated JSON
+	// This function, only used when displaying `bins`, is especially slow
+	// As `StructToMap` function is using reflection to return a generic map[string]interface{}
+	customSketchSeries := func(srcSl SketchSeriesList) []interface{} {
+		dstSl := make([]interface{}, 0, len(srcSl))
+
+		for _, ss := range srcSl {
+			ssMap := common.StructToMap(ss)
+			for i, sketchPoint := range ss.Points {
+				if sketchPoint.Sketch != nil {
+					sketch := ssMap["points"].([]interface{})[i].(map[string]interface{})
+					count, bins := sketchPoint.Sketch.GetRawBins()
+					sketch["binsCount"] = count
+					sketch["bins"] = bins
+				}
+			}
+
+			dstSl = append(dstSl, ssMap)
+		}
+
+		return dstSl
+	}
+
+	// use an alias to avoid infinite recursion while serializing a SketchSeriesList
+	if config.Datadog.GetBool("cmd.check.fullsketches") {
+		data := map[string]interface{}{
+			"sketches": customSketchSeries(sl),
+		}
+
+		reqBody := &bytes.Buffer{}
+		err := json.NewEncoder(reqBody).Encode(data)
+		return reqBody.Bytes(), err
+	}
+
+	type SketchSeriesAlias SketchSeriesList
+	data := map[string]SketchSeriesAlias{
+		"sketches": SketchSeriesAlias(sl),
+	}
+
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(data)
+	return reqBody.Bytes(), err
 }
 
 // Marshal encodes this series list.
@@ -86,7 +131,7 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.Marshaler, error
 		} else {
 			end = len(sl)
 		}
-		newSL := SketchSeriesList(sl[n:end])
+		newSL := sl[n:end]
 		splitPayloads[i] = newSL
 		n += batchSize
 	}

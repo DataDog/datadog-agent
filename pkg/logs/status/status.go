@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package status
 
@@ -16,6 +16,7 @@ import (
 var (
 	builder  *Builder
 	warnings *config.Messages
+	errors   *config.Messages
 )
 
 // Source provides some information about a logs source.
@@ -35,21 +36,27 @@ type Integration struct {
 
 // Status provides some information about logs-agent.
 type Status struct {
-	IsRunning    bool          `json:"is_running"`
-	Integrations []Integration `json:"integrations"`
-	Warnings     []string      `json:"warnings"`
+	IsRunning     bool             `json:"is_running"`
+	Endpoints     []string         `json:"endpoints"`
+	StatusMetrics map[string]int64 `json:"metrics"`
+	Integrations  []Integration    `json:"integrations"`
+	Errors        []string         `json:"errors"`
+	Warnings      []string         `json:"warnings"`
+	UseHTTP       bool             `json:"use_http"`
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *int32, sources *config.LogSources) {
+func Init(isRunning *int32, endpoints *config.Endpoints, sources *config.LogSources, logExpVars *expvar.Map) {
 	warnings = config.NewMessages()
-	builder = NewBuilder(isRunning, sources, warnings)
+	errors = config.NewMessages()
+	builder = NewBuilder(isRunning, endpoints, sources, warnings, errors, logExpVars)
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.
 func Clear() {
 	builder = nil
 	warnings = nil
+	errors = nil
 }
 
 // Get returns the status of the logs-agent computed on the fly.
@@ -77,7 +84,17 @@ func RemoveGlobalWarning(key string) {
 	}
 }
 
+// AddGlobalError an error message for the status display (errors will stop the agent)
+func AddGlobalError(key string, errorMessage string) {
+	if errors != nil {
+		errors.AddMessage(key, errorMessage)
+	}
+}
+
 func init() {
+	metrics.LogsExpvars.Set("Errors", expvar.Func(func() interface{} {
+		return strings.Join(Get().Errors, ", ")
+	}))
 	metrics.LogsExpvars.Set("Warnings", expvar.Func(func() interface{} {
 		return strings.Join(Get().Warnings, ", ")
 	}))

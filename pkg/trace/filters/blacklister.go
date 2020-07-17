@@ -1,10 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package filters
 
 import (
 	"regexp"
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // Blacklister holds a list of regular expressions which will match resources
@@ -35,7 +40,7 @@ func compileRules(exprs []string) []*regexp.Regexp {
 	for _, entry := range exprs {
 		rule, err := regexp.Compile(entry)
 		if err != nil {
-			log.Errorf("invalid resource filter: %q", entry)
+			log.Errorf("Invalid resource filter: %q", entry)
 			continue
 		}
 		list = append(list, rule)

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package test
 
 import (
@@ -107,7 +112,7 @@ func (s *Runner) Post(traceList pb.Traces) error {
 	if err := msgp.Encode(&buf, traceList); err != nil {
 		return err
 	}
-	addr := fmt.Sprintf("http://%s/v0.3/traces", s.agent.Addr())
+	addr := fmt.Sprintf("http://%s/v0.4/traces", s.agent.Addr())
 	req, err := http.NewRequest("POST", addr, &buf)
 	if err != nil {
 		return err

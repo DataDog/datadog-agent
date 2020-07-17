@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -18,10 +18,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	configJSON bool
-)
-
 func init() {
 	ClusterAgentCmd.AddCommand(configCommand)
 }
@@ -31,17 +27,27 @@ var configCommand = &cobra.Command{
 	Short: "Print the runtime configuration of a running cluster agent",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
+		// we'll search for a config file named `datadog-cluster.yaml`
 		config.Datadog.SetConfigName("datadog-cluster")
 		err := common.SetupConfig(confPath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
 		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		err = util.SetAuthToken()
 		if err != nil {
 			return err
-		}
-		if flagNoColor {
-			color.NoColor = true
 		}
 
 		runtimeConfig, err := requestConfig()
@@ -61,7 +67,7 @@ func requestConfig() (string, error) {
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
 			return "", fmt.Errorf(e)

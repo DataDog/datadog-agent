@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build docker
 
@@ -12,16 +12,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/tagger/utils"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
-	"github.com/StackVista/stackstate-agent/pkg/util/docker"
-	"github.com/StackVista/stackstate-agent/pkg/util/ecs"
+	v2 "github.com/StackVista/stackstate-agent/pkg/util/ecs/metadata/v2"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // parseMetadata parses the task metadata and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
-func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool) ([]*TagInfo, error) {
+func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 
@@ -29,17 +29,43 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 		return output, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
 	}
 
+	c.doOnceOrchScope.Do(func() {
+		tags := utils.NewTagList()
+		tags.AddOrchestrator("task_arn", meta.TaskARN)
+		low, orch, high, standard := tags.Compute()
+		info := &TagInfo{
+			Source:               ecsFargateCollectorName,
+			Entity:               OrchestratorScopeEntityID,
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		}
+		output = append(output, info)
+	})
+
 	for _, ctr := range meta.Containers {
 		if c.expire.Update(ctr.DockerID, now) || parseAll {
 			tags := utils.NewTagList()
 
 			// cluster
-			tags.AddLow("cluster_name", parseECSClusterName(meta.ClusterName))
+			clusterName := parseECSClusterName(meta.ClusterName)
+			if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+				tags.AddLow("cluster_name", clusterName)
+			}
+			tags.AddLow("ecs_cluster_name", clusterName)
 
 			// aws region from cluster arn
 			region := parseFargateRegion(meta.ClusterName)
 			if region != "" {
 				tags.AddLow("region", region)
+			}
+
+			// the AvailabilityZone metadata is only available for
+			// Fargate tasks using platform version 1.4 or later
+			availabilityZone := meta.AvailabilityZone
+			if availabilityZone != "" {
+				tags.AddLow("availability_zone", availabilityZone)
 			}
 
 			// task
@@ -67,18 +93,28 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 			}
 
 			for labelName, labelValue := range ctr.Labels {
+				switch labelName {
+				case dockerLabelEnv:
+					tags.AddStandard(tagKeyEnv, labelValue)
+				case dockerLabelVersion:
+					tags.AddStandard(tagKeyVersion, labelValue)
+				case dockerLabelService:
+					tags.AddStandard(tagKeyService, labelValue)
+				}
+
 				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
 					tags.AddAuto(tagName, labelValue)
 				}
 			}
 
-			low, orch, high := tags.Compute()
+			low, orch, high, standard := tags.Compute()
 			info := &TagInfo{
 				Source:               ecsFargateCollectorName,
-				Entity:               docker.ContainerIDToEntityName(string(ctr.DockerID)),
+				Entity:               containers.BuildTaggerEntityName(ctr.DockerID),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
+				StandardTags:         standard,
 			}
 			output = append(output, info)
 		}
@@ -92,9 +128,9 @@ func parseECSClusterName(value string) string {
 	if strings.Contains(value, "/") {
 		parts := strings.Split(value, "/")
 		return parts[len(parts)-1]
-	} else {
-		return value
 	}
+
+	return value
 }
 
 func parseFargateRegion(arn string) string {

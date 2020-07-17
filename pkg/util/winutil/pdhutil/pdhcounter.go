@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build windows
 
 package pdhutil
@@ -99,6 +99,7 @@ func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstance
 	}
 	path, err := p.MakeCounterPath("", counterName, "", allcounters)
 	if err != nil {
+		log.Warnf("Failed pdhEnumObjectItems %v", err)
 		return nil, err
 	}
 	winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)

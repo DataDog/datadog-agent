@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package containers
 
@@ -22,6 +22,8 @@ func TestSplitImageName(t *testing.T) {
 	}{
 		// Empty
 		{"", "", "", "", fmt.Errorf("empty image name")},
+		// A sha256 string
+		{"sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0", "", "", "", fmt.Errorf("invalid image name (is a sha256)")},
 		// Shortest possibility
 		{"alpine", "alpine", "alpine", "", nil},
 		// Historical docker format

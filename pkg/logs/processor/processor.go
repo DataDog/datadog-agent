@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package processor
 
@@ -53,11 +53,13 @@ func (p *Processor) run() {
 	}()
 	for msg := range p.inputChan {
 		metrics.LogsDecoded.Add(1)
+		metrics.TlmLogsDecoded.Inc()
 		if shouldProcess, redactedMsg := p.applyRedactingRules(msg); shouldProcess {
 			metrics.LogsProcessed.Add(1)
+			metrics.TlmLogsProcessed.Inc()
 
 			// Encode the message to its final format
-			content, err := p.encoder.encode(msg, redactedMsg)
+			content, err := p.encoder.Encode(msg, redactedMsg)
 			if err != nil {
 				log.Error("unable to encode msg ", err)
 				continue
@@ -84,7 +86,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 				return false, nil
 			}
 		case config.MaskSequences:
-			content = rule.Regex.ReplaceAllLiteral(content, rule.Placeholder)
+			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
 		}
 	}
 	return true, content

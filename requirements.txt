@@ -1,9 +1,8 @@
 # python development requirements for Agent 6
-invoke==1.2.0
+invoke==1.0.0
 reno==2.9.2
-docker==3.0.1
-requests==2.21.0
-PyYAML==3.13
+dulwich==0.19.16
+docker==3.7.3
+requests==2.23.0
+PyYAML==5.3.1
 toml==0.9.4
-dulwich>=0.15.0,<0.20.0
-six>=1.9.0,<1.15.0

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build containerd
 
@@ -19,6 +19,7 @@ import (
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/oci"
 )
 
 const (
@@ -38,9 +39,11 @@ type ContainerdItf interface {
 	GetEvents() containerd.EventService
 	Info(ctn containerd.Container) (containers.Container, error)
 	ImageSize(ctn containerd.Container) (int64, error)
+	Spec(ctn containerd.Container) (*oci.Spec, error)
 	Metadata() (containerd.Version, error)
 	Namespace() string
 	TaskMetrics(ctn containerd.Container) (*types.Metric, error)
+	TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -68,12 +71,12 @@ func GetContainerdUtil() (ContainerdItf, error) {
 			globalContainerdUtil.socketPath = containerdDefaultSocketPath
 		}
 		// Initialize the client in the connect method
-		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
-			Name:          "containerdutil",
-			AttemptMethod: globalContainerdUtil.connect,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:              "containerdutil",
+			AttemptMethod:     globalContainerdUtil.connect,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	})
 	if err := globalContainerdUtil.initRetry.TriggerRetry(); err != nil {
@@ -161,6 +164,15 @@ func (c *ContainerdUtil) Info(ctn containerd.Container) (containers.Container, e
 	return ctn.Info(ctxNamespace)
 }
 
+// Spec interfaces with the containerd api to get container OCI Spec
+func (c *ContainerdUtil) Spec(ctn containerd.Container) (*oci.Spec, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	return ctn.Spec(ctxNamespace)
+}
+
 // TaskMetrics interfaces with the containerd api to get the metrics from a container
 func (c *ContainerdUtil) TaskMetrics(ctn containerd.Container) (*types.Metric, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
@@ -173,4 +185,18 @@ func (c *ContainerdUtil) TaskMetrics(ctn containerd.Container) (*types.Metric, e
 	}
 
 	return t.Metrics(ctxNamespace)
+}
+
+// TaskPids interfaces with the containerd api to get the pids from a container
+func (c *ContainerdUtil) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	t, errTask := ctn.Task(ctxNamespace, nil)
+	if errTask != nil {
+		return nil, errTask
+	}
+
+	return t.Pids(ctxNamespace)
 }

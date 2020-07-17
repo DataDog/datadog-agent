@@ -1,13 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package containers
 
 import (
 	"errors"
 	"strings"
+)
+
+var (
+	// ErrEmptyImage is returned when image name argument is empty
+	ErrEmptyImage = errors.New("empty image name")
+	// ErrImageIsSha256 is returned when image name argument is a sha256
+	ErrImageIsSha256 = errors.New("invalid image name (is a sha256)")
 )
 
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
@@ -18,7 +25,10 @@ import (
 func SplitImageName(image string) (string, string, string, error) {
 	// See TestSplitImageName for supported formats (number 6 will surprise you!)
 	if image == "" {
-		return "", "", "", errors.New("empty image name")
+		return "", "", "", ErrEmptyImage
+	}
+	if strings.HasPrefix(image, "sha256:") {
+		return "", "", "", ErrImageIsSha256
 	}
 	long := image
 	if pos := strings.LastIndex(long, "@sha"); pos > 0 {

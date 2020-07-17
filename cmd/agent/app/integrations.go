@@ -1,16 +1,18 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
-// +build cpython
+// +build python
 
 package app
 
 import (
 	"archive/zip"
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -22,88 +24,45 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/executable"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
-	constraintsFile     = "final_constraints.txt"
-	datadogPkgPattern   = "datadog-.*"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
-	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
-	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
-	yamlFilePattern          = "[\\w_]+\\.yaml.*"
-	downloaderModule         = "datadog_checks.downloader"
-	disclaimer               = "For your security, only use this to install wheels containing an Agent integration " +
+	downloaderModule    = "datadog_checks.downloader"
+	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
+	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
+	integrationVersionScript = `
+import pkg_resources
+try:
+	print(pkg_resources.get_distribution('%s').version)
+except pkg_resources.DistributionNotFound:
+	pass
+`
 )
 
 var (
-	allowRoot    bool
-	verbose      int
-	useSysPython bool
-	versionOnly  bool
-	localWheel   bool
+	datadogPkgNameRe    = regexp.MustCompile("datadog-.*")
+	yamlFileNameRe      = regexp.MustCompile("[\\w_]+\\.yaml.*")
+	wheelPackageNameRe  = regexp.MustCompile("Name: (\\S+)")           // e.g. Name: datadog-postgres
+	versionSpecifiersRe = regexp.MustCompile("([><=!]{1,2})([0-9.]*)") // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
+
+	allowRoot           bool
+	verbose             int
+	useSysPython        bool
+	versionOnly         bool
+	localWheel          bool
+	thirdParty          bool
+	rootDir             string
+	pythonMajorVersion  string
+	pythonMinorVersion  string
+	reqAgentReleasePath string
+	constraintsPath     string
 )
-
-type integrationVersion struct {
-	major int
-	minor int
-	fix   int
-}
-
-// Parse a version string.
-// Return the version, or nil empty string
-func parseVersion(version string) (*integrationVersion, error) {
-	var major, minor, fix int
-	if version == "" {
-		return nil, nil
-	}
-	_, err := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &fix)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse version string %s: %v", version, err)
-	}
-	return &integrationVersion{major, minor, fix}, nil
-}
-
-func (v *integrationVersion) String() string {
-	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.fix)
-}
-
-func (v *integrationVersion) isAboveOrEqualTo(otherVersion *integrationVersion) bool {
-	if otherVersion == nil {
-		return true
-	}
-
-	if v.major > otherVersion.major {
-		return true
-	} else if v.major < otherVersion.major {
-		return false
-	}
-
-	if v.minor > otherVersion.minor {
-		return true
-	} else if v.minor < otherVersion.minor {
-		return false
-	}
-
-	if v.fix > otherVersion.fix {
-		return true
-	} else if v.fix < otherVersion.fix {
-		return false
-	}
-
-	return true
-}
-
-func (v *integrationVersion) equals(otherVersion *integrationVersion) bool {
-	if otherVersion == nil {
-		return false
-	}
-
-	return v.major == otherVersion.major && v.minor == otherVersion.minor && v.fix == otherVersion.fix
-}
 
 func init() {
 	AgentCmd.AddCommand(integrationCmd)
@@ -114,13 +73,17 @@ func init() {
 	integrationCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
+	integrationCmd.PersistentFlags().StringVarP(&pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
 
 	// Power user flags - mark as hidden
-	integrationCmd.PersistentFlags().MarkHidden("use-sys-python")
+	integrationCmd.PersistentFlags().MarkHidden("use-sys-python") //nolint:errcheck
 
 	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 	installCmd.Flags().BoolVarP(
 		&localWheel, "local-wheel", "w", false, fmt.Sprintf("install an agent check from a locally available wheel file. %s", disclaimer),
+	)
+	installCmd.Flags().BoolVarP(
+		&thirdParty, "third-party", "t", false, "install a community or vendor-contributed integration",
 	)
 }
 
@@ -162,13 +125,104 @@ var showCmd = &cobra.Command{
 	RunE:  show,
 }
 
+func loadPythonInfo() error {
+	rootDir, _ = executable.Folder()
+	for {
+		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
+		if _, err := os.Lstat(agentReleaseFile); err == nil {
+			reqAgentReleasePath = agentReleaseFile
+			break
+		}
+
+		parentDir := filepath.Dir(rootDir)
+		if parentDir == rootDir {
+			return fmt.Errorf("unable to locate %s", reqAgentReleaseFile)
+		}
+
+		rootDir = parentDir
+	}
+
+	if err := common.SetupConfig(confFilePath); err != nil {
+		fmt.Printf("Cannot setup config, exiting: %v\n", err)
+		return err
+	}
+
+	if pythonMajorVersion == "" {
+		pythonMajorVersion = config.Datadog.GetString("python_version")
+	}
+
+	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", pythonMajorVersion))
+	if _, err := os.Lstat(constraintsPath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func detectPythonMinorVersion() error {
+	if pythonMinorVersion == "" {
+		pythonPath, err := getCommandPython()
+		if err != nil {
+			return err
+		}
+
+		versionCmd := exec.Command(pythonPath, "-c", pythonMinorVersionScript)
+		minorVersion, err := versionCmd.Output()
+		if err != nil {
+			return err
+		}
+
+		pythonMinorVersion = strings.TrimSpace(string(minorVersion))
+	}
+
+	return nil
+}
+
+func getIntegrationName(packageName string) string {
+	switch packageName {
+	case "datadog-checks-base":
+		return "base"
+	case "datadog-checks-downloader":
+		return "downloader"
+	case "datadog-go-metro":
+		return "go-metro"
+	default:
+		return strings.TrimSpace(strings.Replace(strings.TrimPrefix(packageName, "datadog-"), "-", "_", -1))
+	}
+}
+
+func normalizePackageName(packageName string) string {
+	return strings.Replace(packageName, "_", "-", -1)
+}
+
+func semverToPEP440(version *semver.Version) string {
+	pep440 := fmt.Sprintf("%d.%d.%d", version.Major, version.Minor, version.Patch)
+	if version.PreRelease == "" {
+		return pep440
+	}
+	parts := strings.SplitN(string(version.PreRelease), ".", 2)
+	preReleaseType := parts[0]
+	preReleaseNumber := ""
+	if len(parts) == 2 {
+		preReleaseNumber = parts[1]
+	}
+	switch preReleaseType {
+	case "alpha":
+		pep440 = fmt.Sprintf("%sa%s", pep440, preReleaseNumber)
+	case "beta":
+		pep440 = fmt.Sprintf("%sb%s", pep440, preReleaseNumber)
+	default:
+		pep440 = fmt.Sprintf("%src%s", pep440, preReleaseNumber)
+	}
+	return pep440
+}
+
 func getCommandPython() (string, error) {
 	if useSysPython {
 		return pythonBin, nil
 	}
 
-	here, _ := executable.Folder()
-	pyPath := filepath.Join(here, relPyPath)
+	pyPath := filepath.Join(rootDir, getRelPyPath())
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -187,12 +241,7 @@ func validateArgs(args []string, local bool) error {
 	}
 
 	if !local {
-		exp, err := regexp.Compile(datadogPkgPattern)
-		if err != nil {
-			return fmt.Errorf("internal error: %v", err)
-		}
-
-		if !exp.MatchString(args[0]) {
+		if !datadogPkgNameRe.MatchString(args[0]) {
 			return fmt.Errorf("invalid package name - this manager only handles datadog packages")
 		}
 	} else {
@@ -209,11 +258,7 @@ func validateArgs(args []string, local bool) error {
 	return nil
 }
 
-func pip(args []string) error {
-	if !allowRoot && !authorizedUser() {
-		return errors.New("Please use this tool as the agent-running user")
-	}
-
+func pip(args []string, stdout io.Writer, stderr io.Writer) error {
 	if flagNoColor {
 		color.NoColor = true
 	}
@@ -238,26 +283,26 @@ func pip(args []string) error {
 	pipCmd := exec.Command(pythonPath, args...)
 
 	// forward the standard output to stdout
-	stdout, err := pipCmd.StdoutPipe()
+	pipStdout, err := pipCmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
 	go func() {
-		in := bufio.NewScanner(stdout)
+		in := bufio.NewScanner(pipStdout)
 		for in.Scan() {
-			fmt.Println(in.Text())
+			fmt.Fprintf(stdout, "%s\n", in.Text())
 		}
 	}()
 
 	// forward the standard error to stderr
-	stderr, err := pipCmd.StderrPipe()
+	pipStderr, err := pipCmd.StderrPipe()
 	if err != nil {
 		return err
 	}
 	go func() {
-		in := bufio.NewScanner(stderr)
+		in := bufio.NewScanner(pipStderr)
 		for in.Scan() {
-			fmt.Fprintf(os.Stderr, "%s\n", color.RedString(in.Text()))
+			fmt.Fprintf(stderr, "%s\n", color.RedString(in.Text()))
 		}
 	}()
 
@@ -270,15 +315,18 @@ func pip(args []string) error {
 }
 
 func install(cmd *cobra.Command, args []string) error {
-	if err := validateArgs(args, localWheel); err != nil {
+	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
-	here, err := executable.Folder()
+	err := validateUser(allowRoot)
 	if err != nil {
 		return err
 	}
-	constraintsPath := filepath.Join(here, relConstraintsPath)
+
+	if err := validateArgs(args, localWheel); err != nil {
+		return err
+	}
 
 	pipArgs := []string{
 		"install",
@@ -296,13 +344,38 @@ func install(cmd *cobra.Command, args []string) error {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
 		// Verify that the wheel depends on `datadog_checks_base` to decide if it's an agent check or not
+		wheelPath := args[0]
+
 		fmt.Println(disclaimer)
-		if ok, err := validateBaseDependency(args[0], nil); err != nil {
-			return fmt.Errorf("error while reading the wheel %s: %v", args[0], err)
+		if ok, err := validateBaseDependency(wheelPath, nil); err != nil {
+			return fmt.Errorf("error while reading the wheel %s: %v", wheelPath, err)
 		} else if !ok {
-			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", args[0])
+			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", wheelPath)
 		}
-		return pip(append(pipArgs, args[0]))
+
+		// Parse the package name from metadata contained within the zip file
+		integration, err := parseWheelPackageName(wheelPath)
+		if err != nil {
+			return err
+		}
+		integration = normalizePackageName(strings.TrimSpace(integration))
+
+		// Install the wheel
+		if err := pip(append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
+			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
+		}
+
+		// Move configuration files
+		if err := moveConfigurationFilesOf(integration); err != nil {
+			fmt.Printf("Installed %s from %s\n", integration, wheelPath)
+			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+		}
+
+		fmt.Println(color.GreenString(fmt.Sprintf(
+			"Successfully completed the installation of %s", integration,
+		)))
+
+		return nil
 	}
 
 	// Additional verification for installation
@@ -311,47 +384,51 @@ func install(cmd *cobra.Command, args []string) error {
 	}
 
 	intVer := strings.Split(args[0], "==")
-	integration := strings.Replace(strings.TrimSpace(intVer[0]), "_", "-", -1)
+	integration := normalizePackageName(strings.TrimSpace(intVer[0]))
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
-	versionToInstall, err := parseVersion(strings.TrimSpace(intVer[1]))
+	versionToInstall, err := semver.NewVersion(strings.TrimSpace(intVer[1]))
 	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
-	currentVersion, err := installedVersion(integration)
+	currentVersion, found, err := installedVersion(integration)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
-
-	if versionToInstall.equals(currentVersion) {
+	if found && versionToInstall.Equal(*currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
 		return nil
 	}
 
-	minVersion, err := minAllowedVersion(integration)
+	minVersion, found, err := minAllowedVersion(integration)
 	if err != nil {
 		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
 	}
-	if !versionToInstall.isAboveOrEqualTo(minVersion) {
+	if found && versionToInstall.LessThan(*minVersion) {
 		return fmt.Errorf(
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
 			versionToInstall, integration, minVersion,
 		)
 	}
 
+	rootLayoutType := "core"
+	if thirdParty {
+		rootLayoutType = "extras"
+	}
+
 	// Download the wheel
-	wheelPath, err := downloadWheel(integration, versionToInstall.String())
+	wheelPath, err := downloadWheel(integration, semverToPEP440(versionToInstall), rootLayoutType)
 	if err != nil {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 	}
 
 	// Verify datadog_checks_base is compatible with the requirements
-	shippedBaseVersion, err := installedVersion("datadog-checks-base")
+	shippedBaseVersion, found, err := installedVersion("datadog-checks-base")
 	if err != nil {
 		return fmt.Errorf("unable to get the version of datadog_checks_base: %v", err)
 	}
-	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); err != nil {
+	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); found && err != nil {
 		return fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err)
 	} else if !ok {
 		return fmt.Errorf(
@@ -361,7 +438,7 @@ func install(cmd *cobra.Command, args []string) error {
 	}
 
 	// Install the wheel
-	if err := pip(append(pipArgs, wheelPath)); err != nil {
+	if err := pip(append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
@@ -377,30 +454,49 @@ func install(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func downloadWheel(integration, version string) (string, error) {
+func downloadWheel(integration, version, rootLayoutType string) (string, error) {
 	pyPath, err := getCommandPython()
 	if err != nil {
 		return "", err
 	}
+
 	args := []string{
 		"-m", downloaderModule,
 		integration,
 		"--version", version,
+		"--type", rootLayoutType,
 	}
 	if verbose > 0 {
 		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
 	}
+
 	downloaderCmd := exec.Command(pyPath, args...)
-	// Change the working directory to one the Datadog Agent can read, so that we
-	// can switch to temporary working directories, and back, for in-toto.
-	downloaderCmd.Dir, _ = executable.Folder()
-	downloaderCmd.Env = os.Environ()
+
+	// We do all of the following so that when we call our downloader, which will
+	// in turn call in-toto, which will in turn call Python to inspect the wheel,
+	// we will use our embedded Python.
+	// First, get the current PATH as an array.
+	pathArr := filepath.SplitList(os.Getenv("PATH"))
+	// Get the directory of our embedded Python.
+	pythonDir := filepath.Dir(pyPath)
+	// Prepend this dir to PATH array.
+	pathArr = append([]string{pythonDir}, pathArr...)
+	// Build a new PATH string from the array.
+	pathStr := strings.Join(pathArr, string(os.PathListSeparator))
+	// Make a copy of the current environment.
+	environ := os.Environ()
+	// Walk over the copy of the environment, and replace PATH.
+	for key, value := range environ {
+		if strings.HasPrefix(value, "PATH=") {
+			environ[key] = "PATH=" + pathStr
+			// NOTE: Don't break so that we replace duplicate PATH-s, too.
+		}
+	}
+	// Now, while downloaderCmd itself won't use the new PATH, any child process,
+	// such as in-toto subprocesses, will.
+	downloaderCmd.Env = environ
 
 	// Proxy support
-	if err := common.SetupConfig(confFilePath); err != nil {
-		fmt.Printf("Cannot setup config, exiting: %v\n", err)
-		return "", err
-	}
 	proxies := config.GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
@@ -454,7 +550,42 @@ func downloadWheel(integration, version string) (string, error) {
 	return wheelPath, nil
 }
 
-func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (bool, error) {
+func parseWheelPackageName(wheelPath string) (string, error) {
+	reader, err := zip.OpenReader(wheelPath)
+	if err != nil {
+		return "", fmt.Errorf("error operning archive file: %v", err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if strings.HasSuffix(file.Name, "METADATA") {
+			fileReader, err := file.Open()
+			if err != nil {
+				return "", err
+			}
+			defer fileReader.Close()
+
+			scanner := bufio.NewScanner(fileReader)
+			for scanner.Scan() {
+				line := scanner.Text()
+
+				matches := wheelPackageNameRe.FindStringSubmatch(line)
+				if matches == nil {
+					continue
+				}
+
+				return matches[1], nil
+			}
+			if err := scanner.Err(); err != nil {
+				return "", err
+			}
+		}
+	}
+
+	return "", fmt.Errorf("package name not found in wheel: %s", wheelPath)
+}
+
+func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool, error) {
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return false, err
@@ -476,11 +607,7 @@ func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (
 						// Simply trying to verify that the base package is a dependency
 						return true, nil
 					}
-					exp, err := regexp.Compile(versionSpecifiersPattern)
-					if err != nil {
-						return false, fmt.Errorf("internal error: %v", err)
-					}
-					matches := exp.FindAllStringSubmatch(line, -1)
+					matches := versionSpecifiersRe.FindAllStringSubmatch(line, -1)
 
 					if matches == nil {
 						// base check not pinned, so it is compatible with whatever version we pass
@@ -490,7 +617,7 @@ func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (
 					compatible := true
 					for _, groups := range matches {
 						comp := groups[1]
-						version, err := parseVersion(groups[2])
+						version, err := semver.NewVersion(groups[2])
 						if err != nil {
 							return false, fmt.Errorf("unable to parse version specifier %s in %s: %v", groups[0], line, err)
 						}
@@ -507,49 +634,56 @@ func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (
 	return false, nil
 }
 
-func validateRequirement(version *integrationVersion, comp string, versionReq *integrationVersion) bool {
+func validateRequirement(version *semver.Version, comp string, versionReq *semver.Version) bool {
 	// Check for cases defined here: https://www.python.org/dev/peps/pep-0345/#version-specifiers
 	switch comp {
 	case "<": // version < versionReq
-		return !version.isAboveOrEqualTo(versionReq)
+		return version.LessThan(*versionReq)
 	case "<=": // version <= versionReq
-		return versionReq.isAboveOrEqualTo(version)
+		return !versionReq.LessThan(*version)
 	case ">": // version > versionReq
-		return !versionReq.isAboveOrEqualTo(version)
+		return versionReq.LessThan(*version)
 	case ">=": // version >= versionReq
-		return version.isAboveOrEqualTo(versionReq)
+		return !version.LessThan(*versionReq)
 	case "==": // version == versionReq
-		return version.equals(versionReq)
+		return version.Equal(*versionReq)
 	case "!=": // version != versionReq
-		return !version.equals(versionReq)
+		return !version.Equal(*versionReq)
 	default:
 		return false
 	}
 }
 
-func minAllowedVersion(integration string) (*integrationVersion, error) {
-	here, _ := executable.Folder()
-	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
+func minAllowedVersion(integration string) (*semver.Version, bool, error) {
+	lines, err := ioutil.ReadFile(reqAgentReleasePath)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	version, err := getVersionFromReqLine(integration, string(lines))
+	version, found, err := getVersionFromReqLine(integration, string(lines))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return version, nil
+	return version, found, nil
 }
 
-// Return the version of an installed integration, or nil if the integration isn't installed
-func installedVersion(integration string) (*integrationVersion, error) {
+// Return the version of an installed integration and whether or not it was found
+func installedVersion(integration string) (*semver.Version, bool, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	freezeCmd := exec.Command(pythonPath, "-mpip", "freeze", "--no-cache-dir")
-	output, err := freezeCmd.Output()
+	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
+	if err != nil {
+		return nil, false, fmt.Errorf("Error validating integration name: %s", err)
+	}
+	if !validName {
+		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
+	}
+
+	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))
+	output, err := pythonCmd.Output()
 
 	if err != nil {
 		errMsg := ""
@@ -559,75 +693,60 @@ func installedVersion(integration string) (*integrationVersion, error) {
 			errMsg = err.Error()
 		}
 
-		return nil, fmt.Errorf("error executing pip freeze: %s", errMsg)
+		return nil, false, fmt.Errorf("error executing python: %s", errMsg)
 	}
 
-	version, err := getVersionFromReqLine(integration, string(output))
+	outputStr := strings.TrimSpace(string(output))
+	if outputStr == "" {
+		return nil, false, nil
+	}
+
+	version, err := semver.NewVersion(outputStr)
 	if err != nil {
-		return nil, err
+		return nil, true, fmt.Errorf("error parsing version %s: %s", version, err)
 	}
 
-	return version, nil
+	return version, true, nil
 }
 
 // Parse requirements lines to get a package version.
-// Returns the version if found, or nil if package not present
-func getVersionFromReqLine(integration string, lines string) (*integrationVersion, error) {
+// Returns the version and whether or not it was found
+func getVersionFromReqLine(integration string, lines string) (*semver.Version, bool, error) {
 	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {
-		return nil, fmt.Errorf("internal error: %v", err)
+		return nil, false, fmt.Errorf("internal error: %v", err)
 	}
 
 	groups := exp.FindAllStringSubmatch(lines, 2)
 	if groups == nil {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	if len(groups) > 1 {
-		return nil, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
+		return nil, true, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
 	}
 
-	version, err := parseVersion(groups[0][1])
+	version, err := semver.NewVersion(groups[0][1])
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
-	return version, nil
-}
-
-func pipCheck() error {
-	pythonPath, err := getCommandPython()
-	if err != nil {
-		return err
-	}
-
-	checkCmd := exec.Command(pythonPath, "-mpip", "check", "--no-cache-dir")
-	output, err := checkCmd.CombinedOutput()
-
-	if err == nil {
-		// Clean python environment
-		return nil
-	}
-
-	if _, ok := err.(*exec.ExitError); ok {
-		return fmt.Errorf("error executing pip check: %v", string(output))
-	}
-
-	return fmt.Errorf("error executing pip check: %v", err)
+	return version, true, nil
 }
 
 func moveConfigurationFilesOf(integration string) error {
 	confFolder := config.Datadog.GetString("confd_path")
-	check := strings.TrimPrefix(integration, "datadog-")
-	if check != "go-metro" {
-		check = strings.Replace(check, "-", "_", -1)
-	}
+	check := getIntegrationName(integration)
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
 	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {
 		return err
 	}
 
-	here, _ := executable.Folder()
-	confFileSrc := filepath.Join(here, relChecksPath, check, "data")
+	relChecksPath, err := getRelChecksPath()
+	if err != nil {
+		return err
+	}
+	confFileSrc := filepath.Join(rootDir, relChecksPath, check, "data")
+
 	return moveConfigurationFiles(confFileSrc, confFileDest)
 }
 
@@ -637,15 +756,27 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		return err
 	}
 
-	exp, err := regexp.Compile(yamlFilePattern)
-	if err != nil {
-		return fmt.Errorf("internal error: %v", err)
-	}
 	errorMsg := ""
 	for _, file := range files {
 		filename := file.Name()
+
+		// Copy SNMP profiles
+		if filename == "profiles" {
+			profileDest := filepath.Join(dstFolder, "profiles")
+			if err = os.MkdirAll(profileDest, 0755); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError creating directory for SNMP profiles %s: %v", errorMsg, profileDest, err)
+				continue
+			}
+			profileSrc := filepath.Join(srcFolder, "profiles")
+			if err = moveConfigurationFiles(profileSrc, profileDest); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError moving SNMP profiles from %s to %s: %v", errorMsg, profileSrc, profileDest, err)
+				continue
+			}
+			continue
+		}
+
 		// Replace existing file
-		if !exp.MatchString(filename) {
+		if !yamlFileNameRe.MatchString(filename) {
 			continue
 		}
 		src := filepath.Join(srcFolder, filename)
@@ -671,6 +802,15 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func remove(cmd *cobra.Command, args []string) error {
+	if err := loadPythonInfo(); err != nil {
+		return err
+	}
+
+	err := validateUser(allowRoot)
+	if err != nil {
+		return err
+	}
+
 	if err := validateArgs(args, false); err != nil {
 		return err
 	}
@@ -682,24 +822,50 @@ func remove(cmd *cobra.Command, args []string) error {
 	pipArgs = append(pipArgs, args...)
 	pipArgs = append(pipArgs, "-y")
 
-	return pip(pipArgs)
+	return pip(pipArgs, os.Stdout, os.Stderr)
 }
 
 func freeze(cmd *cobra.Command, args []string) error {
+	if err := loadPythonInfo(); err != nil {
+		return err
+	}
 
 	pipArgs := []string{
 		"freeze",
 	}
 
-	return pip(pipArgs)
+	pipStdo := bytes.NewBuffer(nil)
+	err := pip(pipArgs, io.Writer(pipStdo), os.Stderr)
+	if err != nil {
+		return err
+	}
+
+	pythonLibs := strings.Split(pipStdo.String(), "\n")
+
+	// The agent integration freeze command should only show datadog packages and nothing else
+	for i := range pythonLibs {
+		if strings.HasPrefix(pythonLibs[i], "datadog-") {
+			fmt.Println(pythonLibs[i])
+		}
+	}
+	return nil
 }
 
 func show(cmd *cobra.Command, args []string) error {
-	packageName := strings.Replace(args[0], "_", "-", -1)
+	if err := loadPythonInfo(); err != nil {
+		return err
+	}
 
-	version, err := installedVersion(packageName)
+	if err := validateArgs(args, false); err != nil {
+		return err
+	}
+	packageName := normalizePackageName(args[0])
+
+	version, found, err := installedVersion(packageName)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
+	} else if !found {
+		return fmt.Errorf("could not get current version of %s: not installed", packageName)
 	}
 
 	if version == nil {
@@ -711,10 +877,7 @@ func show(cmd *cobra.Command, args []string) error {
 		// Print only the version for easier parsing
 		fmt.Println(version)
 	} else {
-		msg := `Package %s:
-Installed version: %s
-`
-		fmt.Printf(msg, packageName, version)
+		fmt.Printf("Package %s:\nInstalled version: %s\n", packageName, version)
 	}
 
 	return nil

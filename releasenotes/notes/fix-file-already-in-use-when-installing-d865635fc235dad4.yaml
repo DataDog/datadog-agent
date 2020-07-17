@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix 'vcruntime140.dll is being held in use by the following process'

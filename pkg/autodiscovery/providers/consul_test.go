@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build consul
 
@@ -54,8 +54,8 @@ func (m *consulKVMock) Keys(prefix, separator string, q *consul.QueryOptions) ([
 
 func (m *consulKVMock) List(prefix string, q *consul.QueryOptions) (consul.KVPairs, *consul.QueryMeta, error) {
 	args := m.Called(prefix, q)
-	kvpairs, kvpairs_ok := args.Get(0).(consul.KVPairs)
-	if kvpairs_ok {
+	kvpairs, kvpairsOK := args.Get(0).(consul.KVPairs)
+	if kvpairsOK {
 		return kvpairs, nil, nil
 	}
 	return nil, nil, args.Error(2)
@@ -260,6 +260,7 @@ func TestConsulCollect(t *testing.T) {
 	assert.Equal(t, "consul", res[0].ADIdentifiers[0])
 	assert.Equal(t, "consul", res[0].Name)
 	assert.Equal(t, "{}", string(res[0].InitConfig))
+	assert.Equal(t, "consul:consul", res[0].Source)
 	require.Len(t, res[0].Instances, 1)
 	assert.Equal(t, "{\"host\":\"localhost\",\"port\":4500}", string(res[0].Instances[0]))
 
@@ -267,6 +268,7 @@ func TestConsulCollect(t *testing.T) {
 	assert.Equal(t, "nginx", res[1].ADIdentifiers[0])
 	assert.Equal(t, "nginx", res[1].Name)
 	assert.Equal(t, "{}", string(res[1].InitConfig))
+	assert.Equal(t, "consul:nginx", res[1].Source)
 	require.Len(t, res[1].Instances, 1)
 	assert.Equal(t, "{\"host\":\"localhost\",\"port\":21}", string(res[1].Instances[0]))
 
@@ -274,6 +276,7 @@ func TestConsulCollect(t *testing.T) {
 	assert.Equal(t, "nginx", res[2].ADIdentifiers[0])
 	assert.Equal(t, "haproxy", res[2].Name)
 	assert.Equal(t, "{}", string(res[2].InitConfig))
+	assert.Equal(t, "consul:nginx", res[2].Source)
 	require.Len(t, res[2].Instances, 1)
 	assert.Equal(t, "{\"pool\":{\"server\":\"foo\"},\"port\":\"21\"}", string(res[2].Instances[0]))
 

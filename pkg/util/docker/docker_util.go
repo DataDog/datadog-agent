@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -9,20 +9,22 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	dderrors "github.com/stackstate/datadog-agent/pkg/errors"
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
-	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers/providers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"
 )
@@ -54,7 +56,7 @@ func (d *DockerUtil) init() error {
 	// Major failure risk is here, do that first
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	defer cancel()
-	cli, err := connectToDocker(ctx)
+	cli, err := ConnectToDocker(ctx)
 	if err != nil {
 		return err
 	}
@@ -80,31 +82,20 @@ func (d *DockerUtil) init() error {
 	return nil
 }
 
-// connectToDocker connects to docker and negociates the API version
-func connectToDocker(ctx context.Context) (*client.Client, error) {
-	cli, err := client.NewEnvClient()
+// ConnectToDocker connects to docker and negotiates the API version
+func ConnectToDocker(ctx context.Context) (*client.Client, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
 	}
-	clientVersion := cli.ClientVersion()
-	cli.UpdateClientVersion("") // Hit unversionned endpoint first
-
-	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
-	v, err := cli.ServerVersion(ctx)
-	if err != nil || v.APIVersion == "" {
-		return nil, fmt.Errorf("could not determine docker server API version: %s", err)
-	}
-	serverVersion := v.APIVersion
-
-	if versions.LessThan(serverVersion, clientVersion) {
-		log.Debugf("Docker server APIVersion ('%s') is lower than the client ('%s'): using version from the server",
-			serverVersion, clientVersion)
-		cli.UpdateClientVersion(serverVersion)
-	} else {
-		cli.UpdateClientVersion(clientVersion)
+	// Looks like docker is not actually doing a call to server when `NewClient` is called
+	// Forcing it to verify server availability by calling Info()
+	_, err = cli.Info(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	log.Debugf("Successfully connected to Docker server version %s", v.Version)
+	log.Debugf("Successfully connected to Docker server")
 
 	return cli, nil
 }
@@ -194,26 +185,92 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 
 		// Try RepoTags first and fall back to RepoDigest otherwise.
 		if len(r.RepoTags) > 0 {
+			sort.Strings(r.RepoTags)
 			d.imageNameBySha[image] = r.RepoTags[0]
 		} else if len(r.RepoDigests) > 0 {
 			// Digests formatted like quay.io/foo/bar@sha256:hash
+			sort.Strings(r.RepoDigests)
 			sp := strings.SplitN(r.RepoDigests[0], "@", 2)
 			d.imageNameBySha[image] = sp[0]
 		} else {
+			log.Debugf("No information in image/inspect to resolve: %s", image)
 			d.imageNameBySha[image] = image
 		}
 	}
 	return d.imageNameBySha[image], nil
 }
 
+// ResolveImageNameFromContainer will resolve the container sha image name to their user-friendly name.
+// It is similar to ResolveImageName except it tries to match the image to the container Config.Image.
+// For non-sha names we will just return the name as-is.
+func (d *DockerUtil) ResolveImageNameFromContainer(co types.ContainerJSON) (string, error) {
+	image := co.Image
+	if !strings.Contains(image, "sha256:") {
+		return image, nil
+	}
+
+	d.Lock()
+	defer d.Unlock()
+	if _, ok := d.imageNameBySha[image]; !ok {
+		ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+		defer cancel()
+		r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
+		if err != nil {
+			// Only log errors that aren't "not found" because some images may
+			// just not be available in docker inspect.
+			if !client.IsErrNotFound(err) {
+				return image, err
+			}
+			d.imageNameBySha[image] = image
+		}
+
+		imageName := getBestImageName(r, co.Config.Image)
+		if imageName != "" {
+			d.imageNameBySha[image] = imageName
+		}
+	}
+	return d.imageNameBySha[image], nil
+}
+
+func getBestImageName(r types.ImageInspect, configImage string) string {
+	var imageName string
+	// Try RepoTags first and fall back to RepoDigest otherwise.
+	if len(r.RepoTags) == 1 {
+		imageName = r.RepoTags[0]
+	} else if len(r.RepoTags) > 1 {
+		// If one of the RepoTags is the tag used to run the image, then set that
+		// as the image tag. Otherwise, use the first one (random)
+		for _, t := range r.RepoTags {
+			if t == configImage {
+				imageName = t
+				break
+			}
+		}
+		if imageName == "" {
+			sort.Strings(r.RepoTags)
+			imageName = r.RepoTags[0]
+		}
+	} else if len(r.RepoDigests) > 0 {
+		// Digests formatted like quay.io/foo/bar@sha256:hash
+		sort.Strings(r.RepoDigests)
+		sp := strings.SplitN(r.RepoDigests[0], "@", 2)
+		imageName = sp[0]
+	}
+	return imageName
+}
+
 // Inspect returns a docker inspect object for a given container ID.
 // It tries to locate the container in the inspect cache before making the docker inspect call
-// TODO: try sized inspect if withSize=false and unsized key cache misses
 func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, error) {
 	cacheKey := GetInspectCacheKey(id, withSize)
 	var container types.ContainerJSON
 
 	cached, hit := cache.Cache.Get(cacheKey)
+	// Try to get sized hit if we got a miss and withSize=false
+	if !hit && !withSize {
+		cached, hit = cache.Cache.Get(GetInspectCacheKey(id, true))
+	}
+
 	if hit {
 		container, ok := cached.(types.ContainerJSON)
 		if !ok {
@@ -225,6 +282,9 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	defer cancel()
 	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
+	if client.IsErrNotFound(err) {
+		return container, dderrors.NewNotFound(fmt.Sprintf("docker container %s", id))
+	}
 	if err != nil {
 		return container, err
 	}
@@ -238,10 +298,9 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 	return container, nil
 }
 
-// Inspect detect the container ID we are running in and returns the inspect contents.
+// InspectSelf returns the inspect content of the container the current agent is running in
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	prefix := config.Datadog.GetString("container_cgroup_prefix")
-	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
+	cID, err := providers.ContainerImpl().GetAgentCID()
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}
@@ -269,4 +328,19 @@ func (d *DockerUtil) AllContainerLabels() (map[string]map[string]string, error) 
 	}
 
 	return labelMap, nil
+}
+
+func (d *DockerUtil) GetContainerStats(containerID string) (*types.StatsJSON, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
+	stats, err := d.cli.ContainerStats(ctx, containerID, false)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
+	}
+	containerStats := &types.StatsJSON{}
+	err = json.NewDecoder(stats.Body).Decode(&containerStats)
+	if err != nil {
+		return nil, fmt.Errorf("error listing containers: %s", err)
+	}
+	return containerStats, nil
 }

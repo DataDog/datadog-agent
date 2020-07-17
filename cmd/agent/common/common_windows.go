@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package common
 
@@ -10,15 +10,17 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
-	"path/filepath"
-
 	"github.com/StackVista/stackstate-agent/pkg/config"
-
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/winutil"
+
+	// Init packages
+	_ "github.com/StackVista/stackstate-agent/pkg/util/containers/providers/windows"
+
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
@@ -49,9 +51,9 @@ var (
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		DefaultConfPath = filepath.Join(pd, "Datadog")
-		DefaultLogFile = filepath.Join(pd, "Datadog", "logs", "agent.log")
-		DefaultDCALogFile = filepath.Join(pd, "Datadog", "logs", "cluster-agent.log")
+		DefaultConfPath = pd
+		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
+		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
 	} else {
 		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
 	}
@@ -111,7 +113,7 @@ func GetViewsPath() string {
 			return ""
 		}
 		viewsPath = filepath.Join(s, "bin", "agent", "dist", "views")
-		log.Debug("ViewsPath is now %s", viewsPath)
+		log.Debugf("ViewsPath is now %s", viewsPath)
 	}
 	return viewsPath
 }
@@ -125,7 +127,7 @@ func CheckAndUpgradeConfig() error {
 		return nil
 	}
 	config.Datadog.AddConfigPath(DefaultConfPath)
-	err := config.Load()
+	_, err := config.Load()
 	if err == nil {
 		// was able to read config, check for api key
 		if config.Datadog.GetString("api_key") != "" {
@@ -148,12 +150,12 @@ func ImportRegistryConfig() error {
 			return nil
 		}
 		// otherwise, unexpected error
-		log.Warnf("Unexpected error getting registry config: %s", err)
+		log.Warnf("Unexpected error getting registry config %s", err.Error())
 		return err
 	}
 	defer k.Close()
 
-	err = SetupConfig("")
+	err = SetupConfigWithoutSecrets("", "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
@@ -170,19 +172,19 @@ func ImportRegistryConfig() error {
 
 	var val string
 
-	if val, _, err = k.GetStringValue("api_key"); err == nil {
+	if val, _, err = k.GetStringValue("api_key"); err == nil && val != "" {
 		overrides["api_key"] = val
 		log.Debug("Setting API key")
 	} else {
 		log.Debug("API key not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("tags"); err == nil {
+	if val, _, err = k.GetStringValue("tags"); err == nil && val != "" {
 		overrides["tags"] = strings.Split(val, ",")
 		log.Debugf("Setting tags %s", val)
 	} else {
 		log.Debug("Tags not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("hostname"); err == nil {
+	if val, _, err = k.GetStringValue("hostname"); err == nil && val != "" {
 		overrides["hostname"] = val
 		log.Debugf("Setting hostname %s", val)
 	} else {
@@ -269,7 +271,7 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
-		overrides["logs_dd_url"] = val
+		overrides["logs_config.logs_dd_url"] = val
 		log.Debugf("Setting logs_config.dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
@@ -280,16 +282,20 @@ func ImportRegistryConfig() error {
 		overrides["apm_config.apm_dd_url"] = val
 		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
 	}
-	if val, _, err = k.GetStringValue("skip_ssl_validation"); err == nil && val != "" {
-		config.Datadog.Set("skip_ssl_validation", val)
-		log.Debugf("Setting skip_ssl_validation to %s", val)
+	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
+		overrides["python_version"] = val
+		log.Debugf("Setting python version to %s", val)
+	}
+	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
+		overrides["hostname_fqdn"] = val
+		log.Debugf("Setting hostname_fqdn to %s", val)
 	}
 
 	// apply overrides to the config
-	config.SetOverrides(overrides)
+	config.AddOverrides(overrides)
 
 	// build the global agent configuration
-	err = SetupConfig("")
+	err = SetupConfigWithoutSecrets("", "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build docker
 
@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
-	"github.com/StackVista/stackstate-agent/pkg/util/ecs"
+	ecsutil "github.com/StackVista/stackstate-agent/pkg/util/ecs"
 )
 
 const (
@@ -23,7 +23,7 @@ type ECSFargateCollector struct{}
 
 // Detect tries to connect to the ECS metadata API
 func (c *ECSFargateCollector) Detect() error {
-	if ecs.IsFargateInstance() {
+	if ecsutil.IsFargateInstance() {
 		return nil
 	}
 	return fmt.Errorf("failed to connect to task metadata API")
@@ -31,12 +31,12 @@ func (c *ECSFargateCollector) Detect() error {
 
 // List gets all running containers
 func (c *ECSFargateCollector) List() ([]*containers.Container, error) {
-	return ecs.ListContainers()
+	return ecsutil.ListContainersInCurrentTask()
 }
 
 // UpdateMetrics updates metrics on an existing list of containers
 func (c *ECSFargateCollector) UpdateMetrics(cList []*containers.Container) error {
-	return ecs.UpdateContainerMetrics(cList)
+	return ecsutil.UpdateContainerMetrics(cList)
 }
 
 func ecsFargateFactory() Collector {

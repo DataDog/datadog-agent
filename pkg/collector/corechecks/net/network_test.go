@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build linux
 
@@ -64,7 +64,7 @@ func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 
 func TestDefaultConfiguration(t *testing.T) {
 	check := NetworkCheck{}
-	check.Configure([]byte(``), []byte(``))
+	check.Configure([]byte(``), []byte(``), "test")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
 	assert.Equal(t, []string(nil), check.config.instance.ExcludedInterfaces)
@@ -80,7 +80,7 @@ excluded_interfaces:
     - lo0
 excluded_interface_re: "eth.*"
 `)
-	err := check.Configure(rawInstanceConfig, []byte(``))
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	assert.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
@@ -266,7 +266,7 @@ func TestNetworkCheck(t *testing.T) {
 collect_connection_state: true
 `)
 
-	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
+	err := networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -281,7 +281,7 @@ collect_connection_state: true
 
 	var customTags []string
 
-	eth0Tags := []string{"device:eth0"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -289,7 +289,7 @@ collect_connection_state: true
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
 
-	lo0Tags := []string{"device:lo0"}
+	lo0Tags := []string{"device:lo0", "device_name:lo0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", lo0Tags)
@@ -378,7 +378,7 @@ excluded_interfaces:
     - lo0
 `)
 
-	networkCheck.Configure(rawInstanceConfig, []byte(``))
+	networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 
@@ -390,7 +390,7 @@ excluded_interfaces:
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	eth0Tags := []string{"device:eth0"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -398,7 +398,7 @@ excluded_interfaces:
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
 
-	lo0Tags := []string{"device:lo0"}
+	lo0Tags := []string{"device:lo0", "device_name:lo0"}
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", lo0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", lo0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", lo0Tags)
@@ -448,7 +448,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 excluded_interface_re: "eth[0-9]"
 `)
 
-	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
+	err := networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -461,7 +461,7 @@ excluded_interface_re: "eth[0-9]"
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	eth0Tags := []string{"device:eth0"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -469,7 +469,7 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
 
-	eth1Tags := []string{"device:eth1"}
+	eth1Tags := []string{"device:eth1", "device_name:eth1"}
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", eth1Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", eth1Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", eth1Tags)
@@ -477,7 +477,7 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(20), "", eth1Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(21), "", eth1Tags)
 
-	lo0Tags := []string{"device:lo0"}
+	lo0Tags := []string{"device:lo0", "device_name:lo0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(22), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(23), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(24), "", lo0Tags)

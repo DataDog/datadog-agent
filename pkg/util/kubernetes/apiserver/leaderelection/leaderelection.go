@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -9,7 +9,6 @@ package leaderelection
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"sync"
@@ -21,9 +20,13 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"context"
+
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/telemetry"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"
 )
@@ -31,7 +34,7 @@ import (
 const (
 	defaultLeaderLeaseDuration = 60 * time.Second
 	defaultLeaseName           = "datadog-leader-election"
-	clientTimeout              = 2 * time.Second
+	getLeaderTimeout           = 10 * time.Second
 )
 
 var (
@@ -58,6 +61,9 @@ type LeaderEngine struct {
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
+
+	// leaderMetric indicates whether this instance is leader
+	leaderMetric telemetry.Gauge
 }
 
 func newLeaderEngine() *LeaderEngine {
@@ -65,6 +71,7 @@ func newLeaderEngine() *LeaderEngine {
 		LeaseName:       defaultLeaseName,
 		LeaderNamespace: common.GetResourcesNamespace(),
 		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
+		leaderMetric:    metrics.NewLeaderMetric(),
 	}
 }
 
@@ -72,6 +79,7 @@ func newLeaderEngine() *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
+	telemetry.Reset()
 }
 
 // GetLeaderEngine returns a leader engine client with default parameters.
@@ -85,12 +93,12 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 		globalLeaderEngine = newLeaderEngine()
 		globalLeaderEngine.HolderIdentity = holderIdentity
 		globalLeaderEngine.LeaseDuration = ttl
-		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
-			Name:          "leaderElection",
-			AttemptMethod: globalLeaderEngine.init,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:              "leaderElection",
+			AttemptMethod:     globalLeaderEngine.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	err := globalLeaderEngine.initRetry.TriggerRetry()
@@ -145,6 +153,15 @@ func (le *LeaderEngine) init() error {
 	return nil
 }
 
+// StartLeaderElectionRun starts the runLeaderElection once
+func (le *LeaderEngine) StartLeaderElectionRun() {
+	le.once.Do(
+		func() {
+			go le.runLeaderElection()
+		},
+	)
+}
+
 // EnsureLeaderElectionRuns start the Leader election process if not already running,
 // return nil if the process is effectively running
 func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
@@ -156,15 +173,10 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 		return nil
 	}
 
-	le.once.Do(
-		func() {
-			go le.runLeaderElection()
-		},
-	)
+	le.StartLeaderElectionRun()
 
-	timeoutDuration := clientTimeout * 2
-	timeout := time.After(timeoutDuration)
-	tick := time.NewTicker(time.Millisecond * 500)
+	timeout := time.After(getLeaderTimeout)
+	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
 		log.Tracef("Waiting for new leader identity...")
@@ -177,7 +189,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 				return nil
 			}
 		case <-timeout:
-			return fmt.Errorf("leader election still not running, timeout after %s", timeoutDuration)
+			return fmt.Errorf("leader election still not running, timeout after %s", getLeaderTimeout)
 		}
 	}
 }
@@ -185,8 +197,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 func (le *LeaderEngine) runLeaderElection() {
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
-
-		le.leaderElector.Run()
+		le.leaderElector.Run(context.Background())
 		log.Info("Leader election lost")
 	}
 }
@@ -250,12 +261,4 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 		return led, err
 	}
 	return led, nil
-}
-
-func init() {
-	// Avoid logging glog from the k8s.io package
-	flag.Lookup("stderrthreshold").Value.Set("FATAL")
-	//Convinces goflags that we have called Parse() to avoid noisy logs.
-	//OSS Issue: kubernetes/kubernetes#17162.
-	flag.CommandLine.Parse([]string{})
 }

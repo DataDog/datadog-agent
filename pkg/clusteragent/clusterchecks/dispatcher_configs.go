@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -10,6 +10,8 @@ package clusterchecks
 import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	le "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
 // getAllConfigs returns all configurations known to the store, for reporting
@@ -46,16 +48,19 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	// Register config
 	digest := config.Digest()
 	d.store.digestToConfig[digest] = config
+	for _, instance := range config.Instances {
+		d.store.idToDigest[check.BuildID(config.Name, instance, config.InitConfig)] = digest
+	}
 
 	// No target node specified: store in danglingConfigs
 	if targetNodeName == "" {
-		danglingConfigs.Inc()
+		danglingConfigs.Inc(le.JoinLeaderValue)
 		d.store.danglingConfigs[digest] = config
 		return
 	}
 
 	currentNode, foundCurrent := d.store.getNodeStore(d.store.digestToNode[digest])
-	targetNode := d.store.getOrCreateNodeStore(targetNodeName)
+	targetNode := d.store.getOrCreateNodeStore(targetNodeName, "")
 
 	// Dispatch to target node
 	targetNode.Lock()
@@ -82,6 +87,12 @@ func (d *dispatcher) removeConfig(digest string) {
 	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
 	delete(d.store.danglingConfigs, digest)
+
+	for k, v := range d.store.idToDigest {
+		if v == digest {
+			delete(d.store.idToDigest, k)
+		}
+	}
 
 	// Remove from node configs if assigned
 	if found {
@@ -112,7 +123,7 @@ func (d *dispatcher) retrieveAndClearDangling() []integration.Config {
 	defer d.store.Unlock()
 	configs := makeConfigArray(d.store.danglingConfigs)
 	d.store.clearDangling()
-	danglingConfigs.Set(0)
+	danglingConfigs.Set(0, le.JoinLeaderValue)
 	return configs
 }
 
@@ -148,4 +159,13 @@ func (d *dispatcher) patchConfiguration(in integration.Config) (integration.Conf
 	}
 
 	return out, nil
+}
+
+// getConfigAndDigest returns config and digest of a check by checkID
+func (d *dispatcher) getConfigAndDigest(checkID string) (integration.Config, string) {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	digest := d.store.idToDigest[check.ID(checkID)]
+	return d.store.digestToConfig[digest], digest
 }

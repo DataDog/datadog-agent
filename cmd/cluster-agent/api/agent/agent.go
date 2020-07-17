@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // Package agent implements the api endpoints for the `/agent` prefix.
 // This group of endpoints is meant to provide high-level functionalities
@@ -20,7 +20,7 @@ import (
 	"github.com/StackVista/stackstate-agent/cmd/agent/api/response"
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 	"github.com/StackVista/stackstate-agent/cmd/agent/common/signals"
-	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/api/v1"
+	v1 "github.com/StackVista/stackstate-agent/cmd/cluster-agent/api/v1"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
@@ -73,7 +73,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	av, err := version.New(version.AgentVersion, version.Commit)
+	av, err := version.Agent()
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
@@ -122,6 +122,13 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
+
+	if common.AC == nil {
+		log.Errorf("Trying to use /config-check before the agent has been initialized.")
+		body, _ := json.Marshal(map[string]string{"error": "agent not initialized"})
+		http.Error(w, string(body), 503)
+		return
+	}
 
 	configs := common.AC.GetLoadedConfigs()
 	configSlice := make([]integration.Config, 0)

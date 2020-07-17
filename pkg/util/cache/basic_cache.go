@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"fmt"
 	"sync"
 	"time"
 )
@@ -21,24 +20,29 @@ func NewBasicCache() *BasicCache {
 }
 
 // Add adds value to cache for specified key
-func (b *BasicCache) Add(k string, v interface{}) {
+// Returns true if the value was added/changed, or false if it was already there.
+// If the value was added/changed, it updates the modified timestamp
+func (b *BasicCache) Add(k string, v interface{}) bool {
 	b.m.Lock()
 	defer b.m.Unlock()
 
-	b.cache[k] = v
-	b.modified = time.Now().Unix()
+	current, found := b.cache[k]
+	if !found || current != v {
+		b.cache[k] = v
+		b.modified = time.Now().Unix()
+		return true
+	}
+	return false
 }
 
-// Get gets interface for specified key or error
-func (b *BasicCache) Get(k string) (interface{}, error) {
+// Get gets interface for specified key and a boolean that's false when the key is not found
+func (b *BasicCache) Get(k string) (interface{}, bool) {
 	b.m.RLock()
 	defer b.m.RUnlock()
 
-	if v, ok := b.cache[k]; ok {
-		return v, nil
-	}
+	v, found := b.cache[k]
 
-	return nil, fmt.Errorf("item not in cache")
+	return v, found
 }
 
 // Remove removes an entry from the cache if it exists

@@ -1,15 +1,18 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package traceutil
 
 import "github.com/StackVista/stackstate-agent/pkg/trace/pb"
 
 const (
-	// TraceMetricsKey is a tag key which, if set to true,
-	// ensures all statistics are computed for this span.
-	// [FIXME] *not implemented yet*
-	TraceMetricsKey = "datadog.trace_metrics"
-
 	// This is a special metric, it's 1 if the span is top-level, 0 if not.
 	topLevelKey = "_top_level"
+
+	// measuredKey is a special metric flag that marks a span for trace metrics calculation.
+	measuredKey = "_dd.measured"
 )
 
 // HasTopLevel returns true if span is top-level.
@@ -17,9 +20,9 @@ func HasTopLevel(s *pb.Span) bool {
 	return s.Metrics[topLevelKey] == 1
 }
 
-// HasForceMetrics returns true if statistics computation should be forced for this span.
-func HasForceMetrics(s *pb.Span) bool {
-	return s.Meta[TraceMetricsKey] == "true"
+// IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
+func IsMeasured(s *pb.Span) bool {
+	return s.Metrics[measuredKey] == 1
 }
 
 // SetTopLevel sets the top-level attribute of the span.
@@ -33,12 +36,30 @@ func SetTopLevel(s *pb.Span, topLevel bool) {
 	}
 	// Setting the metrics value, so that code downstream in the pipeline
 	// can identify this as top-level without recomputing everything.
-	setMetric(s, topLevelKey, 1)
+	SetMetric(s, topLevelKey, 1)
 }
 
-func setMetric(s *pb.Span, key string, val float64) {
+// SetMetric sets the metric at key to the val on the span s.
+func SetMetric(s *pb.Span, key string, val float64) {
 	if s.Metrics == nil {
 		s.Metrics = make(map[string]float64)
 	}
 	s.Metrics[key] = val
+}
+
+// SetMeta sets the metadata at key to the val on the span s.
+func SetMeta(s *pb.Span, key, val string) {
+	if s.Meta == nil {
+		s.Meta = make(map[string]string)
+	}
+	s.Meta[key] = val
+}
+
+// GetMeta gets the metadata value in the span Meta map.
+func GetMeta(s *pb.Span, key string) (string, bool) {
+	if s.Meta == nil {
+		return "", false
+	}
+	val, ok := s.Meta[key]
+	return val, ok
 }

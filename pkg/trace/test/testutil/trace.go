@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package testutil
 
 import (
@@ -51,7 +56,7 @@ func genNextLevel(prevLevel []*pb.Span, maxSpans int) []*pb.Span {
 			news.Start = prev.Start + randStart
 			// random duration
 			timeLeft -= randStart
-			news.Duration = rand.Int63n(timeLeft)
+			news.Duration = rand.Int63n(timeLeft) + 1
 			timeLeft -= news.Duration
 
 			curSpans = append(curSpans, news)
@@ -81,9 +86,9 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 	return t
 }
 
-// GetTestTrace returns a []Trace that is composed by ``traceN`` number
+// GetTestTraces returns a []Trace that is composed by ``traceN`` number
 // of traces, each one composed by ``size`` number of spans.
-func GetTestTrace(traceN, size int, realisticIDs bool) pb.Traces {
+func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 	traces := pb.Traces{}
 
 	r := rand.New(rand.NewSource(42))

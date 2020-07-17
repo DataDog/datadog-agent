@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -14,6 +14,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers/names"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 )
@@ -27,7 +28,7 @@ const (
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeletConfigProvider struct {
-	kubelet *kubelet.KubeUtil
+	kubelet kubelet.KubeUtilInterface
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
@@ -38,7 +39,7 @@ func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvi
 
 // String returns a string representation of the KubeletConfigProvider
 func (k *KubeletConfigProvider) String() string {
-	return Kubernetes
+	return names.Kubernetes
 }
 
 // Collect retrieves templates from the kubelet's pdolist, builds Config objects and returns them
@@ -89,12 +90,16 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 				legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
 		}
 
-		for _, container := range pod.Status.Containers {
+		for _, container := range pod.Status.GetAllContainers() {
 			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, container.Name))
 
 			for _, err := range errors {
 				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
+			}
+
+			for idx := range c {
+				c[idx].Source = "kubelet:" + container.ID
 			}
 
 			configs = append(configs, c...)

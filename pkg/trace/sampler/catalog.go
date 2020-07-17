@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package sampler
 
 import "sync"
@@ -30,8 +35,8 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 // the signatures.
 func (cat *serviceKeyCatalog) ratesByService(rates map[Signature]float64, totalScore float64) map[ServiceSignature]float64 {
 	rbs := make(map[ServiceSignature]float64, len(rates)+1)
-	defer cat.mu.Unlock()
 	cat.mu.Lock()
+	defer cat.mu.Unlock()
 	for key, sig := range cat.lookup {
 		if rate, ok := rates[sig]; ok {
 			rbs[key] = rate

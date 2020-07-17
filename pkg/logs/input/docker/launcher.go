@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -11,14 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/client"
-
 	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input"
 	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
 	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
 	"github.com/StackVista/stackstate-agent/pkg/logs/service"
-	"github.com/StackVista/stackstate-agent/pkg/tagger"
+	dockerutil "github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
@@ -37,16 +36,22 @@ type Launcher struct {
 	activeSources      []*config.LogSource
 	pendingContainers  map[string]*Container
 	tailers            map[string]*Tailer
-	cli                *client.Client
 	registry           auditor.Registry
 	stop               chan struct{}
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
+	readTimeout        time.Duration               // client read timeout to set on the created tailer
+	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry bool) (*Launcher, error) {
+	if !shouldRetry {
+		if _, err := dockerutil.GetDockerUtil(); err != nil {
+			return nil, err
+		}
+	}
 	launcher := &Launcher{
 		pipelineProvider:   pipelineProvider,
 		tailers:            make(map[string]*Tailer),
@@ -55,34 +60,16 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		stop:               make(chan struct{}),
 		erroredContainerID: make(chan string),
 		lock:               &sync.Mutex{},
+		readTimeout:        readTimeout,
+		serviceNameFunc:    input.ServiceNameFromTags,
 	}
-	err := launcher.setup()
-	if err != nil {
-		return nil, err
-	}
-	// Sources and services are added after the setup to avoid creating
-	// a channel that will lock the scheduler in case of setup failure
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
 	launcher.addedSources = sources.GetAddedForType(config.DockerType)
 	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
-	launcher.addedServices = services.GetAddedServices(service.Docker)
-	launcher.removedServices = services.GetRemovedServices(service.Docker)
+	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
+	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
 	return launcher, nil
-}
-
-// setup initializes the docker client and the tagger,
-// returns an error if it fails.
-func (l *Launcher) setup() error {
-	var err error
-	// create a new docker client
-	l.cli, err = NewClient()
-	if err != nil {
-		return err
-	}
-	// initialize the tagger
-	tagger.Init()
-	return nil
 }
 
 // Start starts the Launcher
@@ -95,9 +82,15 @@ func (l *Launcher) Start() {
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
+	l.lock.Lock()
+	var containerIDs []string
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
-		l.removeTailer(tailer.ContainerID)
+		containerIDs = append(containerIDs, tailer.ContainerID)
+	}
+	l.lock.Unlock()
+	for _, containerID := range containerIDs {
+		l.removeTailer(containerID)
 	}
 	stopper.Stop()
 }
@@ -109,7 +102,12 @@ func (l *Launcher) run() {
 		select {
 		case service := <-l.addedServices:
 			// detected a new container running on the host,
-			dockerContainer, err := GetContainer(l.cli, service.Identifier)
+			dockerutil, err := dockerutil.GetDockerUtil()
+			if err != nil {
+				log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", service.Identifier, err)
+				continue
+			}
+			dockerContainer, err := dockerutil.Inspect(service.Identifier, false)
 			if err != nil {
 				log.Warnf("Could not find container with id: %v", err)
 				continue
@@ -167,7 +165,11 @@ func (l *Launcher) run() {
 
 // overrideSource create a new source with the image short name if the source is ContainerCollectAll
 func (l *Launcher) overrideSource(container *Container, source *config.LogSource) *config.LogSource {
+	standardService := l.serviceNameFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(container.container.ID))
 	if source.Name != config.ContainerCollectAll {
+		if source.Config.Service == "" && standardService != "" {
+			source.Config.Service = standardService
+		}
 		return source
 	}
 
@@ -182,26 +184,43 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		return source
 	}
 
+	return newOverridenSource(standardService, shortName, source.Status)
+}
+
+// newOverridenSource is separated from overrideSource for testing purpose
+func newOverridenSource(standardService, shortName string, status *config.LogStatus) *config.LogSource {
+	var serviceName string
+	if standardService != "" {
+		serviceName = standardService
+	} else {
+		serviceName = shortName
+	}
+
 	overridenSource := config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
 		Type:    config.DockerType,
-		Service: shortName,
+		Service: serviceName,
 		Source:  shortName,
 	})
-	overridenSource.Status = source.Status
+	overridenSource.Status = status
 	return overridenSource
 }
 
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	containerID := container.service.Identifier
-	if _, isTailed := l.tailers[containerID]; isTailed {
+	if _, isTailed := l.getTailer(containerID); isTailed {
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
 		return
 	}
 
 	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
 	overridenSource := l.overrideSource(container, source)
-	tailer := NewTailer(l.cli, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+	dockerutil, err := dockerutil.GetDockerUtil()
+	if err != nil {
+		log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", containerID, err)
+		return
+	}
+	tailer := NewTailer(dockerutil, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.readTimeout)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
@@ -223,7 +242,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
-	if tailer, isTailed := l.tailers[containerID]; isTailed {
+	if tailer, isTailed := l.getTailer(containerID); isTailed {
 		// No-op if the tailer source came from AD
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
@@ -238,17 +257,26 @@ func (l *Launcher) restartTailer(containerID string) {
 	cumulatedBackoff := 0 * time.Second
 	var source *config.LogSource
 
-	oldTailer, exists := l.tailers[containerID]
-	if exists {
+	if oldTailer, exists := l.getTailer(containerID); exists {
 		source = oldTailer.source
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
 		}
 		oldTailer.Stop()
 		l.removeTailer(containerID)
+	} else {
+		log.Warnf("Unable to restart tailer, old source not found, keeping previous one, container: %s", containerID)
+		return
 	}
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+	dockerutil, err := dockerutil.GetDockerUtil()
+	if err != nil {
+		// This cannot happen since, if we have a tailer to restart, it means that we created
+		// it earlier and we couldn't have created it if the docker client wasn't initialized.
+		log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", containerID, err)
+		return
+	}
+	tailer := NewTailer(dockerutil, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.readTimeout)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), service.Before)
@@ -288,4 +316,11 @@ func (l *Launcher) removeTailer(containerID string) {
 	l.lock.Lock()
 	delete(l.tailers, containerID)
 	l.lock.Unlock()
+}
+
+func (l *Launcher) getTailer(containerID string) (*Tailer, bool) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	tailer, exist := l.tailers[containerID]
+	return tailer, exist
 }

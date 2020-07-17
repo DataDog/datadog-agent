@@ -9,6 +9,6 @@
 features:
   - |
     You can add extra listeners and config providers via the ``DD_EXTRA_LISTENERS`` and
-    ``DD_EXTRA_CONFIG_PROVIDERS`` enviroment variables. They will be added on top of the
+    ``DD_EXTRA_CONFIG_PROVIDERS`` environment variables. They will be added on top of the
     ones defined in the ``listeners`` and ``config_providers`` section of the datadog.yaml
     configuration file.

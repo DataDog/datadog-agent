@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build cri
 
@@ -9,14 +9,17 @@ package containers
 
 import (
 	"testing"
+	"time"
 
-	pb "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers/cri/crimock"
+	"github.com/stretchr/testify/mock"
 )
 
-func TestCRIprocessContainerStats(t *testing.T) {
+func TestCriGenerateMetrics(t *testing.T) {
 	criCheck := &CRICheck{
 		CheckBase: core.NewCheckBase(criCheckName),
 		instance: &CRIConfig{
@@ -31,10 +34,15 @@ func TestCRIprocessContainerStats(t *testing.T) {
 		},
 	}
 
-	mocked := mocksender.NewMockSender(criCheck.ID())
-	mocked.On("Gauge", "cri.mem.rss", float64(0), "", []string{"runtime:fakeruntime"})
-	mocked.On("Rate", "cri.cpu.usage", float64(0), "", []string{"runtime:fakeruntime"})
-	mocked.On("Gauge", "cri.disk.used", float64(0), "", []string{"runtime:fakeruntime"})
-	mocked.On("Gauge", "cri.disk.inodes", float64(0), "", []string{"runtime:fakeruntime"})
-	criCheck.processContainerStats(mocked, "fakeruntime", stats)
+	mockedCriUtil := new(crimock.MockCRIClient)
+	mockedCriUtil.On("GetContainerStatus", "cri://foobar").Return(&pb.ContainerStatus{
+		StartedAt: time.Now().UnixNano() - int64(42*time.Second),
+	}, nil)
+	mockedSender := mocksender.NewMockSender(criCheck.ID())
+	mockedSender.On("Gauge", "cri.mem.rss", float64(0), "", []string{"runtime:fakeruntime"})
+	mockedSender.On("Rate", "cri.cpu.usage", float64(0), "", []string{"runtime:fakeruntime"})
+	mockedSender.On("Gauge", "cri.disk.used", float64(0), "", []string{"runtime:fakeruntime"})
+	mockedSender.On("Gauge", "cri.disk.inodes", float64(0), "", []string{"runtime:fakeruntime"})
+	mockedSender.On("Gauge", "cri.uptime", mock.MatchedBy(func(uptime float64) bool { return uptime >= 42.0 }), "", []string{"runtime:fakeruntime"})
+	criCheck.generateMetrics(mockedSender, stats, mockedCriUtil)
 }

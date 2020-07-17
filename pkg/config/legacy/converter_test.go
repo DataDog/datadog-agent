@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package legacy
 
@@ -59,43 +59,43 @@ func TestBuildProxySettings(t *testing.T) {
 		"https": "http://myuser:mypass@foobar.baz:8080",
 	}
 
-	value, err := buildProxySettings(agentConfig)
+	value, err := BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Empty(t, value)
 
 	// malformed url
 	agentConfig["proxy_host"] = "http://notanurl{}"
-	_, err = buildProxySettings(agentConfig)
+	_, err = BuildProxySettings(agentConfig)
 	assert.NotNil(t, err)
 
 	agentConfig["proxy_host"] = "foobar.baz"
 
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyHost, value)
 
 	agentConfig["proxy_port"] = "8080"
 
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyNoUser, value)
 
 	// the password alone should not be considered without an user
 	agentConfig["proxy_password"] = "mypass"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyPass, value)
 
 	// the user alone is ok
 	agentConfig["proxy_password"] = ""
 	agentConfig["proxy_user"] = "myuser"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyOnlyUser, value)
 
 	agentConfig["proxy_password"] = "mypass"
 	agentConfig["proxy_user"] = "myuser"
-	value, err = buildProxySettings(agentConfig)
+	value, err = BuildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, proxyWithUser, value)
 }
@@ -200,13 +200,15 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 }
 
 func TestDefaultValues(t *testing.T) {
+	configConverter := config.NewConfigConverter()
 	agentConfig := make(Config)
-	FromAgentConfig(agentConfig)
+	FromAgentConfig(agentConfig, configConverter)
 	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
 }
 
 func TestTraceIgnoreResources(t *testing.T) {
 	require := require.New(t)
+	configConverter := config.NewConfigConverter()
 
 	cases := []struct {
 		config   string
@@ -221,7 +223,7 @@ func TestTraceIgnoreResources(t *testing.T) {
 	for _, c := range cases {
 		cfg := make(Config)
 		cfg["trace.ignore.resource"] = c.config
-		err := FromAgentConfig(cfg)
+		err := FromAgentConfig(cfg, configConverter)
 		require.NoError(err)
 		require.Equal(c.expected, config.Datadog.GetStringSlice("apm_config.ignore_resources"))
 
@@ -230,9 +232,10 @@ func TestTraceIgnoreResources(t *testing.T) {
 
 func TestConverter(t *testing.T) {
 	require := require.New(t)
+	configConverter := config.NewConfigConverter()
 	cfg, err := GetAgentConfig("./tests/datadog.conf")
 	require.NoError(err)
-	err = FromAgentConfig(cfg)
+	err = FromAgentConfig(cfg, configConverter)
 	require.NoError(err)
 	c := config.Datadog
 
@@ -274,39 +277,18 @@ func TestConverter(t *testing.T) {
 
 	// int values
 	for k, v := range map[string]int{
-		"apm_config.bucket_size_seconds":                                   5,    // trace.concentrator.bucket_size_seconds
-		"apm_config.receiver_port":                                         8126, // trace.receiver.receiver_port
-		"apm_config.connection_limit":                                      2000, // trace.receiver.connection_limit
-		"apm_config.receiver_timeout":                                      4,    // trace.receiver.timeout
-		"apm_config.max_connections":                                       40,   // trace.watchdog.max_connections
-		"apm_config.watchdog_check_delay":                                  5,    // trace.watchdog.check_delay_seconds
-		"apm_config.extra_sample_rate":                                     1,
-		"dogstatsd_port":                                                   8125,
-		"apm_config.service_writer.flush_period_seconds":                   1,
-		"apm_config.service_writer.update_info_period_seconds":             1,
-		"apm_config.service_writer.queue.max_age_seconds":                  1,
-		"apm_config.service_writer.queue.max_bytes":                        456,
-		"apm_config.service_writer.queue.max_payloads":                     4,
-		"apm_config.service_writer.queue.exp_backoff_max_duration_seconds": 4,
-		"apm_config.service_writer.queue.exp_backoff_base_milliseconds":    1,
-		"apm_config.service_writer.queue.exp_backoff_growth_base":          2,
-		"apm_config.stats_writer.max_entries_per_payload":                  10,
-		"apm_config.stats_writer.update_info_period_seconds":               2,
-		"apm_config.stats_writer.queue.max_age_seconds":                    1,
-		"apm_config.stats_writer.queue.max_bytes":                          456,
-		"apm_config.stats_writer.queue.max_payloads":                       4,
-		"apm_config.stats_writer.queue.exp_backoff_max_duration_seconds":   4,
-		"apm_config.stats_writer.queue.exp_backoff_base_milliseconds":      1,
-		"apm_config.stats_writer.queue.exp_backoff_growth_base":            2,
-		"apm_config.trace_writer.max_spans_per_payload":                    100,
-		"apm_config.trace_writer.flush_period_seconds":                     3,
-		"apm_config.trace_writer.update_info_period_seconds":               2,
-		"apm_config.trace_writer.queue.max_age_seconds":                    1,
-		"apm_config.trace_writer.queue.max_bytes":                          456,
-		"apm_config.trace_writer.queue.max_payloads":                       4,
-		"apm_config.trace_writer.queue.exp_backoff_max_duration_seconds":   4,
-		"apm_config.trace_writer.queue.exp_backoff_base_milliseconds":      1,
-		"apm_config.trace_writer.queue.exp_backoff_growth_base":            2,
+		"apm_config.bucket_size_seconds":           5,    // trace.concentrator.bucket_size_seconds
+		"apm_config.receiver_port":                 8126, // trace.receiver.receiver_port
+		"apm_config.connection_limit":              2000, // trace.receiver.connection_limit
+		"apm_config.receiver_timeout":              4,    // trace.receiver.timeout
+		"apm_config.max_connections":               40,   // trace.watchdog.max_connections
+		"apm_config.watchdog_check_delay":          5,    // trace.watchdog.check_delay_seconds
+		"apm_config.extra_sample_rate":             1,
+		"dogstatsd_port":                           8125,
+		"apm_config.stats_writer.connection_limit": 3,
+		"apm_config.stats_writer.queue_size":       4,
+		"apm_config.trace_writer.connection_limit": 5,
+		"apm_config.trace_writer.queue_size":       6,
 	} {
 		require.True(c.IsSet(k), k)
 		require.Equal(v, c.GetInt(k), k)
@@ -337,11 +319,11 @@ func TestConverter(t *testing.T) {
 
 func TestExtractURLAPIKeys(t *testing.T) {
 	configConverter := config.NewConfigConverter()
-	defer func(*config.LegacyConfigConverter) {
+	defer func() {
 		configConverter.Set("dd_url", "")
 		configConverter.Set("api_key", "")
 		configConverter.Set("additional_endpoints", nil)
-	}(configConverter)
+	}()
 	agentConfig := make(Config)
 
 	// empty
@@ -349,28 +331,28 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	agentConfig["api_key"] = ""
 	err := extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "", config.Datadog.Get("api_key"))
-	assert.Nil(t, config.Datadog.Get("additional_endpoints"))
+	assert.Equal(t, "", config.Datadog.GetString("dd_url"))
+	assert.Equal(t, "", config.Datadog.GetString("api_key"))
+	assert.Empty(t, config.Datadog.GetStringMapStringSlice("additional_endpoints"))
 
 	// one url and one key
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
-	assert.Nil(t, config.Datadog.Get("additional_endpoints"))
+	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
+	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
+	assert.Empty(t, config.Datadog.GetStringMapStringSlice("additional_endpoints"))
 
 	// multiple dd_url and api_key
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
+	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
+	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
 
-	endpoints := config.Datadog.Get("additional_endpoints").(map[string][]string)
+	endpoints := config.Datadog.GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, 2, len(endpoints))
 	assert.Equal(t, []string{"abcdef", "secret_key"}, endpoints["https://datadoghq.com"])
 	assert.Equal(t, []string{"secret_key2"}, endpoints["https://staging.com"])

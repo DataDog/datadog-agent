@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build linux
 
@@ -57,8 +57,8 @@ func testUDSOriginDetection(t *testing.T) {
 
 	// Start DSD
 	packetsChannel := make(chan listeners.Packets)
-	packetPool := listeners.NewPacketPool(mockConfig.GetInt("dogstatsd_buffer_size"))
-	s, err := listeners.NewUDSListener(packetsChannel, packetPool)
+	sharedPacketPool := listeners.NewPacketPool(32)
+	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPool)
 	require.Nil(t, err)
 
 	go s.Listen()
@@ -89,8 +89,8 @@ func testUDSOriginDetection(t *testing.T) {
 		packet := packets[0]
 		require.NotNil(t, packet)
 		require.Equal(t, "custom_counter1:1|c", string(packet.Contents))
-		require.Equal(t, fmt.Sprintf("containerd://%s", containerId), packet.Origin)
-		packetPool.Put(packet)
+		require.Equal(t, fmt.Sprintf("container_id://%s", containerId), packet.Origin)
+		sharedPacketPool.Put(packet)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

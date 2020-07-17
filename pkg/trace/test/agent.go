@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package test
 
 import (
@@ -13,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/viper"
+	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -74,9 +79,9 @@ func (s *agentRunner) Run(conf []byte) error {
 		case <-timeout:
 			return fmt.Errorf("agent: timed out waiting for start, log:\n%s", s.Log())
 		default:
-			if strings.Contains(s.log.String(), "listening for traces at") {
+			if strings.Contains(s.log.String(), "Listening for traces at") {
 				if s.verbose {
-					log.Print("agent: listening for traces")
+					log.Print("agent: Listening for traces")
 				}
 				return nil
 			}
@@ -162,7 +167,7 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	if !v.IsSet("apm_config.trace_writer.flush_period_seconds") {
 		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1)
 	}
-	v.Set("log_level", "info")
+	v.Set("log_level", "debug")
 	out, err := yaml.Marshal(v.AllSettings())
 	if err != nil {
 		return "", err

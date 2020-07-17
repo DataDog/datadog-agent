@@ -1,0 +1,9 @@
+api_key: apikey_20
+
+process_agent_enabled: true
+process_config:
+  enabled: 'disabled'
+  queue_size: 10
+  intervals:
+      container: 8
+      process: 30

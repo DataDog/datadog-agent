@@ -1,4 +1,4 @@
-## Provides sane defaults, to be overriden by environment variables
+## Provides sane defaults, to be overridden by environment variables
 
 # Required for probe.sh
 health_port: 5555

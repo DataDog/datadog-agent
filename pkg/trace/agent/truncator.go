@@ -1,13 +1,27 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package agent
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/trace/traceutil"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
+// MaxResourceLen the maximum length the resource can have
+var MaxResourceLen = 5000
+
+func init() {
+	if config.HasFeature("big_resource") {
+		MaxResourceLen = 15000
+	}
+}
+
 const (
-	// MaxResourceLen the maximum length the resource can have
-	MaxResourceLen = 5000
 	// MaxMetaKeyLen the maximum length of metadata key
 	MaxMetaKeyLen = 100
 	// MaxMetaValLen the maximum length of metadata value
@@ -21,10 +35,9 @@ const (
 func Truncate(s *pb.Span) {
 	// Resource
 	if len(s.Resource) > MaxResourceLen {
-		s.Resource = s.Resource[:MaxResourceLen]
+		s.Resource = traceutil.TruncateUTF8(s.Resource, MaxResourceLen)
 		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", MaxResourceLen, s.Resource)
 	}
-
 	// Error - Nothing to do
 	// Optional data, Meta & Metrics can be nil
 	// Soft fail on those
@@ -34,12 +47,12 @@ func Truncate(s *pb.Span) {
 		if len(k) > MaxMetaKeyLen {
 			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
 			delete(s.Meta, k)
-			k = k[:MaxMetaKeyLen] + "..."
+			k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
 			modified = true
 		}
 
 		if len(v) > MaxMetaValLen {
-			v = v[:MaxMetaValLen] + "..."
+			v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
 			modified = true
 		}
 
@@ -47,12 +60,11 @@ func Truncate(s *pb.Span) {
 			s.Meta[k] = v
 		}
 	}
-
 	for k, v := range s.Metrics {
 		if len(k) > MaxMetricsKeyLen {
 			log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
 			delete(s.Metrics, k)
-			k = k[:MaxMetricsKeyLen] + "..."
+			k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
 
 			s.Metrics[k] = v
 		}

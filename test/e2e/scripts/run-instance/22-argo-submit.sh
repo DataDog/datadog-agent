@@ -17,12 +17,15 @@ cd "$(dirname $0)"
 
 AGENT_DAEMONSET=$(cat << EOF
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: datadog-agent
   namespace: default
 spec:
+  selector:
+    matchLabels:
+      app: datadog-agent
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 1

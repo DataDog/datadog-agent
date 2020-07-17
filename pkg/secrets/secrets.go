@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
-// +build !windows
+// +build secrets
 
 package secrets
 
@@ -22,10 +22,12 @@ var (
 	// list of handles and where they were found
 	secretOrigin map[string]common.StringSet
 
-	secretBackendCommand       string
-	secretBackendArguments     []string
-	secretBackendTimeout       = 5
-	secretBackendOutputMaxSize = 1024
+	secretBackendCommand   string
+	secretBackendArguments []string
+	secretBackendTimeout   = 5
+
+	// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
+	SecretBackendOutputMaxSize = 1024 * 1024
 )
 
 func init() {
@@ -40,7 +42,7 @@ func Init(command string, arguments []string, timeout int, maxSize int) {
 	secretBackendCommand = command
 	secretBackendArguments = arguments
 	secretBackendTimeout = timeout
-	secretBackendOutputMaxSize = maxSize
+	SecretBackendOutputMaxSize = maxSize
 }
 
 type walkerCallback func(string) (string, error)
@@ -123,7 +125,6 @@ var secretFetcher = fetchSecret
 // "secret_backend_command" once if all secrets aren't present in the cache.
 func Decrypt(data []byte, origin string) ([]byte, error) {
 	if data == nil || secretBackendCommand == "" {
-		log.Debugf("No data to decrypt or no secretBackendCommand set: skipping")
 		return data, nil
 	}
 
@@ -196,7 +197,6 @@ func GetDebugInfo() (*SecretInfo, error) {
 	if secretBackendCommand == "" {
 		return nil, fmt.Errorf("No secret_backend_command set: secrets feature is not enabled")
 	}
-
 	info := &SecretInfo{ExecutablePath: secretBackendCommand}
 	info.populateRights()
 

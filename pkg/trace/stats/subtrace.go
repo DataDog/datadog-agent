@@ -1,9 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package stats
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 	"github.com/StackVista/stackstate-agent/pkg/trace/traceutil"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // Subtrace represents the combination of a root span and the trace consisting of all its descendant spans
@@ -47,9 +52,9 @@ func (s *stack) Pop() *spanAndAncestors {
 	return value
 }
 
-// ExtractTopLevelSubtraces extracts all subtraces rooted in a toplevel span,
-// ComputeTopLevel should be called before.
-func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
+// ExtractSubtraces extracts all subtraces rooted in top-level/measured spans.
+// ComputeTopLevel should be called before so that top-level spans are identified.
+func ExtractSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 	if root == nil {
 		return []Subtrace{}
 	}
@@ -63,9 +68,9 @@ func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 
 	// We do a DFS on the trace to record the toplevel ancesters of each span
 	for current := next.Pop(); current != nil; current = next.Pop() {
-		// We do not extract subtraces for toplevel spans that have no children
-		// since these are not interresting
-		if traceutil.HasTopLevel(current.Span) && len(childrenMap[current.Span.SpanID]) > 0 {
+		// We do not extract subtraces for top-level/measured spans that have no children
+		// since these are not interesting
+		if (traceutil.HasTopLevel(current.Span) || traceutil.IsMeasured(current.Span)) && len(childrenMap[current.Span.SpanID]) > 0 {
 			current.Ancestors = append(current.Ancestors, current.Span)
 		}
 		visited[current.Span] = true

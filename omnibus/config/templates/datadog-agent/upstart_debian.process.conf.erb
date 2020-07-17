@@ -16,7 +16,7 @@ env STS_LOG_TO_CONSOLE=false
 setuid root
 
 script
-  exec <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/stackstate.yaml --network-config=<%= etc_dir %>/network-tracer.yaml --pid=<%= install_dir %>/run/process-agent.pid
+  exec <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --network-config=<%= etc_dir %>/network-tracer.yaml --pid=<%= install_dir %>/run/process-agent.pid
 end script
 
 post-stop script

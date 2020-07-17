@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package app
 
@@ -28,22 +28,30 @@ var secretInfoCommand = &cobra.Command{
 	Short: "Print information about decrypted secrets in configuration.",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := common.SetupConfig(confFilePath); err != nil {
-			fmt.Printf("unable to set up global agent configuration: %v", err)
-			return nil
-		}
-
-		if err := util.SetAuthToken(); err != nil {
-			fmt.Printf("%s", err)
-			return nil
-		}
 
 		if flagNoColor {
 			color.NoColor = true
 		}
 
+		err := common.SetupConfigWithoutSecrets(confFilePath, "")
+		if err != nil {
+			fmt.Printf("unable to set up global agent configuration: %v\n", err)
+			return nil
+		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
+		if err := util.SetAuthToken(); err != nil {
+			fmt.Println(err)
+			return nil
+		}
+
 		if err := showSecretInfo(); err != nil {
-			fmt.Printf("%s", err)
+			fmt.Println(err)
 			return nil
 		}
 		return nil
@@ -52,12 +60,16 @@ var secretInfoCommand = &cobra.Command{
 
 func showSecretInfo() error {
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/secrets", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/secrets", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
 			return fmt.Errorf("%s", e)

@@ -1,28 +1,15 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'pathname'
 
 name 'datadog-agent'
 
-# STS: Add some dependencies to make this run late in the build, this will avoid early
-# omnibus cache invalidation
-dependency 'six'
-dependency 'protobuf-py'
-dependency 'nfsiostat'
-unless windows?
-  dependency 'sysstat'
-  dependency 'curl'
-end
-
-# Actual dependencies
-dependency 'python'
-unless windows?
-  dependency 'net-snmp-lib'
-end
+dependency "python2" if with_python_runtime? "2"
+dependency "python3" if with_python_runtime? "3"
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -33,18 +20,52 @@ relative_path 'src/github.com/StackVista/stackstate-agent'
 build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  etc_dir = "/etc/stackstate-agent"
-  env = {
-    'GOPATH' => gopath.to_path,
-    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-  }
+  etc_dir = "/etc/datadog-agent"
+  if windows?
+    env = {
+        'GOPATH' => gopath.to_path,
+        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+        "Python2_ROOT_DIR" => "#{windows_safe_path(python_2_embedded)}",
+        "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
+        "CMAKE_INSTALL_PREFIX" => "#{windows_safe_path(python_2_embedded)}",
+    }
+    major_version_arg = "%MAJOR_VERSION%"
+    py_runtimes_arg = "%PY_RUNTIMES%"
+  else
+    env = {
+        'GOPATH' => gopath.to_path,
+        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+        "Python2_ROOT_DIR" => "#{install_dir}/embedded",
+        "Python3_ROOT_DIR" => "#{install_dir}/embedded",
+        "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+        "CGO_CFLAGS" => "-I#{install_dir}/embedded/include",
+        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+    }
+    major_version_arg = "$MAJOR_VERSION"
+    py_runtimes_arg = "$PY_RUNTIMES"
+  end
+
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
+  # cgosymbolizer must be patched on SLES11 builders - PR upstream pending merge
+  if suse?
+    patch :source => "0001-sles-sys-types.h-must-be-included-here-to-build.patch", :plevel => 1,
+          :acceptable_output => "Reversed (or previously applied) patch detected",
+          :target => "#{gopath.to_path}/src/github.com/DataDog/datadog-agent/vendor/github.com/ianlancetaylor/cgosymbolizer/symbolizer.c"
+  end
+
   # we assume the go deps are already installed before running omnibus
-  command "invoke -e agent.build --rebuild --use-embedded-libs --no-development", env: env
   if windows?
-    command "invoke -e systray.build --rebuild --use-embedded-libs --no-development", env: env
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
+    command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --no-development --arch #{platform}", env: env
+  else
+    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e rtloader.install"
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
   end
 
   if osx?
@@ -53,40 +74,68 @@ build do
     conf_dir = "#{install_dir}/etc/stackstate-agent"
   end
   mkdir conf_dir
+  mkdir "#{install_dir}/bin"
   unless windows?
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
   end
 
-  # if windows?
-  #   mkdir "../../extra_package_files/EXAMPLECONFSLOCATION"
-  #   copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
-  # end
-
   ## build the custom action library required for the install
   if windows?
-    command "invoke customaction.build"
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
+    unless windows_arch_i386?
+      command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
+      command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
+    end
   end
 
   # move around bin and config files
-  move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/stackstate.yaml.example"
-  move 'bin/agent/dist/network-tracer.yaml', "#{conf_dir}/network-tracer.yaml.example"
+  move 'bin/agent/dist/stackstate.yaml', "#{conf_dir}/stackstate.yaml.example"
+  move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
-
-  copy 'bin', install_dir
-
+  copy 'bin/agent', "#{install_dir}/bin/"
 
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
-    command "invoke trace-agent.build", :env => env
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform}", :env => env
 
     if windows?
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/StackVista/stackstate-agent/bin/agent"
     else
       copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
     end
+  end
+
+  if windows?
+    platform = windows_arch_i386? ? "x86" : "x64"
+    # Build the process-agent with the correct go version for windows
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform}", :env => env
+
+    copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  else
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", :env => env
+    copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
+  end
+
+  # Add SELinux policy for system-probe
+  if debian? || redhat?
+    mkdir "#{conf_dir}/selinux"
+    command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+  end
+
+  # Security agent
+  if windows?
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
+
+    copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  else
+    command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
+    copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
   end
 
   if linux?
@@ -99,12 +148,16 @@ build do
           dest: "#{install_dir}/scripts/stackstate-agent-process.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.network.conf.erb",
-          dest: "#{install_dir}/scripts/stackstate-agent-network.conf",
+      erb source: "upstart_debian.sysprobe.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-network.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.trace.conf.erb",
           dest: "#{install_dir}/scripts/stackstate-agent-trace.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "upstart_debian.security.conf.erb",
+          dest: "#{install_dir}/scripts/stackstate-agent-security.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.erb",
@@ -115,12 +168,12 @@ build do
           dest: "#{install_dir}/scripts/stackstate-agent-process",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.network.erb",
-          dest: "#{install_dir}/scripts/stackstate-agent-network",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.trace.erb",
           dest: "#{install_dir}/scripts/stackstate-agent-trace",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_debian.security.erb",
+          dest: "#{install_dir}/scripts/stackstate-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat? || suse?
@@ -134,13 +187,35 @@ build do
           dest: "#{install_dir}/scripts/stackstate-agent-process.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.network.conf.erb",
-          dest: "#{install_dir}/scripts/stackstate-agent-network.conf",
+      erb source: "upstart_redhat.sysprobe.conf.erb",
+          dest: "#{install_dir}/scripts/stackstate-agent-sysprobe.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.trace.conf.erb",
           dest: "#{install_dir}/scripts/stackstate-agent-trace.conf",
           mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "upstart_redhat.security.conf.erb",
+          dest: "#{install_dir}/scripts/stackstate-agent-security.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+    end
+    if suse?
+      erb source: "sysvinit_suse.erb",
+          dest: "#{install_dir}/scripts/stackstate-agent",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_suse.process.erb",
+          dest: "#{install_dir}/scripts/stackstate-agent-process",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_suse.trace.erb",
+          dest: "#{install_dir}/scripts/stackstate-agent-trace",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_suse.security.erb",
+          dest: "#{install_dir}/scripts/stackstate-agent-security",
+          mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
 
@@ -152,12 +227,16 @@ build do
         dest: "#{install_dir}/scripts/stackstate-agent-process.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.network.service.erb",
-        dest: "#{install_dir}/scripts/stackstate-agent-network.service",
+    erb source: "systemd.sysprobe.service.erb",
+        dest: "#{install_dir}/scripts/stackstate-agent-sysprobe.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.trace.service.erb",
         dest: "#{install_dir}/scripts/stackstate-agent-trace.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.security.service.erb",
+        dest: "#{install_dir}/scripts/stackstate-agent-security.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
   end

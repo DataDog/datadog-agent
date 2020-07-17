@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package forwarder
 
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ var (
 )
 
 func TestNewDefaultForwarder(t *testing.T) {
-	forwarder := NewDefaultForwarder(keysPerDomains)
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.NumberOfWorkers)
@@ -48,7 +49,7 @@ func TestNewDefaultForwarder(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	forwarder := NewDefaultForwarder(monoKeysDomains)
+	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
 	err := forwarder.Start()
 	defer forwarder.Stop()
 
@@ -59,19 +60,39 @@ func TestStart(t *testing.T) {
 	assert.NotNil(t, forwarder.Start())
 }
 
-func TestStop(t *testing.T) {
-	forwarder := NewDefaultForwarder(keysPerDomains)
+func TestStopWithoutPurgingTransaction(t *testing.T) {
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
+	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.Set("forwarder_stop_timeout", 0)
+
+	testStop(t)
+}
+
+func TestStopWithPurgingTransaction(t *testing.T) {
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
+	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.Set("forwarder_stop_timeout", 1)
+
+	testStop(t)
+}
+
+func testStop(t *testing.T) {
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
 	assert.Equal(t, Stopped, forwarder.State())
 	forwarder.Stop() // this should be a noop
 	forwarder.Start()
+	domainForwarders := forwarder.domainForwarders
 	forwarder.Stop()
 	assert.Equal(t, Stopped, forwarder.State())
 	assert.Nil(t, forwarder.healthChecker)
 	assert.Len(t, forwarder.domainForwarders, 0)
+	for _, df := range domainForwarders {
+		assert.Equal(t, Stopped, df.internalState)
+	}
 }
 
 func TestSubmitIfStopped(t *testing.T) {
-	forwarder := NewDefaultForwarder(monoKeysDomains)
+	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
 
 	require.NotNil(t, forwarder)
 	require.Equal(t, Stopped, forwarder.State())
@@ -83,8 +104,8 @@ func TestSubmitIfStopped(t *testing.T) {
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
-	forwarder := NewDefaultForwarder(keysPerDomains)
-	endpoint := "/api/foo"
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	endpoint := endpoint{"/api/foo", "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
 	payloads := Payloads{&p1, &p2}
@@ -97,14 +118,15 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
 	assert.Equal(t, testVersionDomain, transactions[2].Domain)
 	assert.Equal(t, testVersionDomain, transactions[3].Domain)
-	assert.Equal(t, endpoint, transactions[0].Endpoint)
-	assert.Equal(t, endpoint, transactions[1].Endpoint)
-	assert.Equal(t, endpoint, transactions[2].Endpoint)
-	assert.Equal(t, endpoint, transactions[3].Endpoint)
-	assert.Len(t, transactions[0].Headers, 3)
+	assert.Equal(t, endpoint.route, transactions[0].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[1].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[2].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[3].Endpoint)
+	assert.Len(t, transactions[0].Headers, 4)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
+	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
 	assert.Equal(t, p1, *(transactions[0].Payload))
 	assert.Equal(t, p1, *(transactions[1].Payload))
 	assert.Equal(t, p2, *(transactions[2].Payload))
@@ -119,8 +141,8 @@ func TestCreateHTTPTransactions(t *testing.T) {
 }
 
 func TestSendHTTPTransactions(t *testing.T) {
-	forwarder := NewDefaultForwarder(keysPerDomains)
-	endpoint := "/api/foo"
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	endpoint := endpoint{"/api/foo", "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
 	headers := make(http.Header)
@@ -137,7 +159,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 }
 
 func TestSubmitV1Intake(t *testing.T) {
-	forwarder := NewDefaultForwarder(monoKeysDomains)
+	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
 	forwarder.Start()
 	defer forwarder.Stop()
 
@@ -180,11 +202,11 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(map[string][]string{
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
 		ts.URL:     {"api_key1", "api_key2"},
 		"invalid":  {},
 		"invalid2": nil,
-	})
+	}))
 
 	f.Start()
 	defer f.Stop()
@@ -209,4 +231,209 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	// - 2 requests to check the validity of the two api_key
 	ts.Close()
 	assert.Equal(t, int64(22), requests)
+}
+
+func TestTransactionEventHandlers(t *testing.T) {
+	requests := int64(0)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requests, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	mockConfig := config.Mock()
+	ddURL := mockConfig.Get("dd_url")
+	mockConfig.Set("dd_url", ts.URL)
+	defer mockConfig.Set("dd_url", ddURL)
+
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
+		ts.URL: {"api_key1"},
+	}))
+
+	_ = f.Start()
+	defer f.Stop()
+
+	data := []byte("data payload 1")
+	payload := Payloads{&data}
+	headers := http.Header{}
+	headers.Set("key", "value")
+
+	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	require.Len(t, transactions, 1)
+
+	attempts := int64(0)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+		assert.Equal(t, http.StatusOK, statusCode)
+		wg.Done()
+	}
+	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+		atomic.AddInt64(&attempts, 1)
+	}
+
+	err := f.sendHTTPTransactions(transactions)
+	require.NoError(t, err)
+
+	wg.Wait()
+
+	assert.Equal(t, int64(1), atomic.LoadInt64(&attempts))
+}
+
+func TestTransactionEventHandlersOnRetry(t *testing.T) {
+	requests := int64(0)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(v1ValidateEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc(metadataEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+		if v := atomic.AddInt64(&requests, 1); v == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	mockConfig := config.Mock()
+	ddURL := mockConfig.Get("dd_url")
+	mockConfig.Set("dd_url", ts.URL)
+	defer mockConfig.Set("dd_url", ddURL)
+
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
+		ts.URL: {"api_key1"},
+	}))
+
+	_ = f.Start()
+	defer f.Stop()
+
+	data := []byte("data payload 1")
+	payload := Payloads{&data}
+	headers := http.Header{}
+	headers.Set("key", "value")
+
+	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	require.Len(t, transactions, 1)
+
+	attempts := int64(0)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+		assert.Equal(t, http.StatusOK, statusCode)
+		wg.Done()
+	}
+	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+		atomic.AddInt64(&attempts, 1)
+	}
+
+	err := f.sendHTTPTransactions(transactions)
+	require.NoError(t, err)
+
+	wg.Wait()
+
+	assert.Equal(t, int64(2), atomic.LoadInt64(&attempts))
+}
+
+func TestTransactionEventHandlersNotRetryable(t *testing.T) {
+	requests := int64(0)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(v1ValidateEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc(metadataEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requests, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	mockConfig := config.Mock()
+	ddURL := mockConfig.Get("dd_url")
+	mockConfig.Set("dd_url", ts.URL)
+	defer mockConfig.Set("dd_url", ddURL)
+
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
+		ts.URL: {"api_key1"},
+	}))
+
+	_ = f.Start()
+	defer f.Stop()
+
+	data := []byte("data payload 1")
+	payload := Payloads{&data}
+	headers := http.Header{}
+	headers.Set("key", "value")
+
+	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	require.Len(t, transactions, 1)
+
+	attempts := int64(0)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+		assert.Equal(t, http.StatusInternalServerError, statusCode)
+		wg.Done()
+	}
+	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+		atomic.AddInt64(&attempts, 1)
+	}
+
+	transactions[0].retryable = false
+
+	err := f.sendHTTPTransactions(transactions)
+	require.NoError(t, err)
+
+	wg.Wait()
+
+	assert.Equal(t, int64(1), atomic.LoadInt64(&requests))
+	assert.Equal(t, int64(1), atomic.LoadInt64(&attempts))
+}
+
+func TestProcessLikePayloadResponseTimeout(t *testing.T) {
+	requests := int64(0)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requests, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	mockConfig := config.Mock()
+	ddURL := mockConfig.Get("dd_url")
+	numWorkers := mockConfig.Get("forwarder_num_workers")
+	responseTimeout := defaultResponseTimeout
+
+	defaultResponseTimeout = 5 * time.Second
+	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.Set("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
+	defer func() {
+		mockConfig.Set("dd_url", ddURL)
+		mockConfig.Set("forwarder_num_workers", numWorkers)
+		defaultResponseTimeout = responseTimeout
+	}()
+
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
+		ts.URL: {"api_key1"},
+	}))
+
+	_ = f.Start()
+	defer f.Stop()
+
+	data := []byte("data payload 1")
+	payload := Payloads{&data}
+	headers := http.Header{}
+	headers.Set("key", "value")
+
+	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	require.Len(t, transactions, 1)
+
+	responses, err := f.submitProcessLikePayload(metadataEndpoint, payload, headers, true)
+	require.NoError(t, err)
+
+	_, ok := <-responses
+	require.False(t, ok) // channel should have been closed without receiving any responses
 }

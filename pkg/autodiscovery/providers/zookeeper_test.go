@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build zk
 
@@ -27,12 +27,12 @@ type zkTest struct {
 
 func (m *zkTest) Get(key string) ([]byte, *zk.Stat, error) {
 	args := m.Called(key)
-	array, arr_ok := args.Get(0).([]byte)
-	stats, stats_ok := args.Get(1).(*zk.Stat)
-	if arr_ok && stats_ok {
+	array, arrOK := args.Get(0).([]byte)
+	stats, statsOK := args.Get(1).(*zk.Stat)
+	if arrOK && statsOK {
 		return array, stats, args.Error(2)
 	}
-	if arr_ok {
+	if arrOK {
 		return array, nil, args.Error(2)
 	}
 	return nil, nil, args.Error(2)
@@ -40,12 +40,12 @@ func (m *zkTest) Get(key string) ([]byte, *zk.Stat, error) {
 
 func (m *zkTest) Children(key string) ([]string, *zk.Stat, error) {
 	args := m.Called(key)
-	array, arr_ok := args.Get(0).([]string)
-	stats, stats_ok := args.Get(1).(*zk.Stat)
-	if arr_ok && stats_ok {
+	array, arrOK := args.Get(0).([]string)
+	stats, statsOK := args.Get(1).(*zk.Stat)
+	if arrOK && statsOK {
 		return array, stats, args.Error(2)
 	}
-	if arr_ok {
+	if arrOK {
 		return array, nil, args.Error(2)
 	}
 	return nil, nil, args.Error(2)
@@ -160,6 +160,7 @@ func TestZKCollect(t *testing.T) {
 	assert.Len(t, res[0].ADIdentifiers, 1)
 	assert.Equal(t, "/datadog/check_configs/config_folder_1", res[0].ADIdentifiers[0])
 	assert.Equal(t, "first_name", res[0].Name)
+	assert.Equal(t, "zookeeper:/datadog/check_configs/config_folder_1", res[0].Source)
 	assert.Equal(t, "{}", string(res[0].InitConfig))
 	require.Len(t, res[0].Instances, 1)
 	assert.Equal(t, "{}", string(res[0].Instances[0]))
@@ -167,6 +168,7 @@ func TestZKCollect(t *testing.T) {
 	assert.Len(t, res[1].ADIdentifiers, 1)
 	assert.Equal(t, "/datadog/check_configs/config_folder_1", res[1].ADIdentifiers[0])
 	assert.Equal(t, "second_name", res[1].Name)
+	assert.Equal(t, "zookeeper:/datadog/check_configs/config_folder_1", res[1].Source)
 	assert.Equal(t, "{}", string(res[1].InitConfig))
 	require.Len(t, res[1].Instances, 1)
 	assert.Equal(t, "{}", string(res[1].Instances[0]))
@@ -174,6 +176,7 @@ func TestZKCollect(t *testing.T) {
 	assert.Len(t, res[2].ADIdentifiers, 1)
 	assert.Equal(t, "/datadog/check_configs/config_folder_2", res[2].ADIdentifiers[0])
 	assert.Equal(t, "third_name", res[2].Name)
+	assert.Equal(t, "zookeeper:/datadog/check_configs/config_folder_2", res[2].Source)
 	assert.Equal(t, "{}", string(res[2].InitConfig))
 	require.Len(t, res[2].Instances, 1)
 	assert.Equal(t, "{}", string(res[2].Instances[0]))

@@ -1,17 +1,26 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package api
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/StackVista/stackstate-agent/pkg/trace/info"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/trace/traceutil"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const (
@@ -21,9 +30,10 @@ const (
 	MaxNameLen = 500
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
-	// MaxEndDateOffset the maximum amount of time in the future we
-	// tolerate for span end dates
-	MaxEndDateOffset = 10 * time.Minute
+	// DefaultServiceName is the default name we assign a service if it's missing and we have no reasonable fallback
+	DefaultServiceName = "unnamed-service"
+	// DefaultSpanName is the default name we assign a span if it's missing and we have no reasonable fallback
+	DefaultSpanName = "unnamed_operation"
 )
 
 var (
@@ -31,42 +41,65 @@ var (
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 )
 
-// normalize makes sure a Span is properly initialized and encloses the minimum required info
-func normalize(s *pb.Span) error {
-	// Service
+// normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
+// is invalid beyond repair
+func normalize(ts *info.TagStats, s *pb.Span) error {
+	fallbackServiceName := DefaultServiceName
+	if ts.Lang != "" {
+		fallbackServiceName = fmt.Sprintf("unnamed-%s-service", ts.Lang)
+	}
+	if s.TraceID == 0 {
+		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
+		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
+	}
+	if s.SpanID == 0 {
+		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
+		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
+	}
 	if s.Service == "" {
-		return errors.New("empty `Service`")
+		atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
+		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", fallbackServiceName, s)
+		s.Service = fallbackServiceName
 	}
 	if len(s.Service) > MaxServiceLen {
-		return fmt.Errorf("`Service` too long (%d chars max): %s", MaxServiceLen, s.Service)
+		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
+		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", MaxServiceLen, s)
+		s.Service = traceutil.TruncateUTF8(s.Service, MaxServiceLen)
 	}
 	// service should comply with Datadog tag normalization as it's eventually a tag
 	svc := normalizeTag(s.Service)
 	if svc == "" {
-		return fmt.Errorf("invalid `Service`: %q", s.Service)
+		atomic.AddInt64(&ts.SpansMalformed.ServiceInvalid, 1)
+		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, fallbackServiceName, s)
+		svc = fallbackServiceName
 	}
 	s.Service = svc
 
-	// Name
 	if s.Name == "" {
-		return errors.New("empty `Name`")
+		atomic.AddInt64(&ts.SpansMalformed.SpanNameEmpty, 1)
+		log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s: %s", DefaultSpanName, s)
+		s.Name = DefaultSpanName
 	}
 	if len(s.Name) > MaxNameLen {
-		return fmt.Errorf("`Name` too long (%d chars max): %s", MaxNameLen, s.Name)
+		atomic.AddInt64(&ts.SpansMalformed.SpanNameTruncate, 1)
+		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", MaxServiceLen, s)
+		s.Name = traceutil.TruncateUTF8(s.Name, MaxNameLen)
 	}
 	// name shall comply with Datadog metric name normalization
 	name, ok := normMetricNameParse(s.Name)
 	if !ok {
-		return fmt.Errorf("invalid `Name`: %s", s.Name)
+		atomic.AddInt64(&ts.SpansMalformed.SpanNameInvalid, 1)
+		log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s: %s", DefaultSpanName, s)
+		name = DefaultSpanName
 	}
 	s.Name = name
 
-	// Resource
-	resource := toUTF8(s.Resource)
 	if s.Resource == "" {
-		return fmt.Errorf("`Resource` is invalid UTF-8: %q", resource)
+		atomic.AddInt64(&ts.SpansMalformed.ResourceEmpty, 1)
+		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
+		s.Resource = s.Name
 	}
-	s.Resource = resource
+	s.Resource = toUTF8(s.Resource)
 
 	// ParentID, TraceID and SpanID set in the client could be the same
 	// Supporting the ParentID == TraceID == SpanID for the root span, is compliant
@@ -81,51 +114,50 @@ func normalize(s *pb.Span) error {
 	// Start & Duration as nanoseconds timestamps
 	// if s.Start is very little, less than year 2000 probably a unit issue so discard
 	// (or it is "le bug de l'an 2000")
+	if s.Duration < 0 {
+		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
+		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0: %s", s)
+		s.Duration = 0
+	}
+	if s.Duration > math.MaxInt64-s.Start {
+		atomic.AddInt64(&ts.SpansMalformed.InvalidDuration, 1)
+		log.Debugf("Fixing malformed trace. Duration is too large and causes overflow (reason:invalid_duration), setting span.duration=0: %s", s)
+		s.Duration = 0
+	}
 	if s.Start < Year2000NanosecTS {
-		return fmt.Errorf("invalid `Start` (must be nanosecond epoch): %d", s.Start)
+		atomic.AddInt64(&ts.SpansMalformed.InvalidStartDate, 1)
+		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now(): %s", s)
+		now := time.Now().UnixNano()
+		s.Start = now - s.Duration
+		if s.Start < 0 {
+			s.Start = now
+		}
 	}
 
-	// If the end date is too far away in the future, it's probably a mistake.
-	if s.Start+s.Duration > time.Now().Add(MaxEndDateOffset).UnixNano() {
-		return fmt.Errorf("invalid `Start`+`Duration`: too far in the future")
-	}
-
-	if s.Duration <= 0 {
-		return fmt.Errorf("invalid `Duration`: %d", s.Duration)
-	}
-
-	// ParentID set on the client side, no way of checking
-
-	// Type
 	s.Type = toUTF8(s.Type)
 	if len(s.Type) > MaxTypeLen {
-		return fmt.Errorf("`Type` too long (%d chars max): %s", MaxTypeLen, s.Type)
+		atomic.AddInt64(&ts.SpansMalformed.TypeTruncate, 1)
+		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
+		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
 	}
-
 	for k, v := range s.Meta {
 		utf8K := toUTF8(k)
-
 		if k != utf8K {
 			delete(s.Meta, k)
 			k = utf8K
 		}
-
 		s.Meta[k] = toUTF8(v)
 	}
-
-	// Environment
 	if env, ok := s.Meta["env"]; ok {
 		s.Meta["env"] = normalizeTag(env)
 	}
-
-	// Status Code
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
+			atomic.AddInt64(&ts.SpansMalformed.InvalidHTTPStatusCode, 1)
+			log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
 			delete(s.Meta, "http.status_code")
-			log.Debugf("Drop invalid meta `http.status_code`: %s", sc)
 		}
 	}
-
 	return nil
 }
 
@@ -136,30 +168,27 @@ func normalize(s *pb.Span) error {
 // * rejects traces where at least one span cannot be normalized
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
-//   - an error string if the trace needs to be dropped
-func normalizeTrace(t pb.Trace) error {
+//   - a reason tag explaining the reason the traces failed normalization
+func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	if len(t) == 0 {
-		return errors.New("empty trace")
+		atomic.AddInt64(&ts.TracesDropped.EmptyTrace, 1)
+		return errors.New("trace is empty (reason:empty_trace)")
 	}
 
 	spanIDs := make(map[uint64]struct{})
-	traceID := t[0].TraceID
+	firstSpan := t[0]
 
 	for _, span := range t {
-		if span.TraceID == 0 {
-			return errors.New("empty `TraceID`")
+		if span.TraceID != firstSpan.TraceID {
+			atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
+			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
 		}
-		if span.SpanID == 0 {
-			return errors.New("empty `SpanID`")
+		if err := normalize(ts, span); err != nil {
+			return err
 		}
 		if _, ok := spanIDs[span.SpanID]; ok {
-			return fmt.Errorf("duplicate `SpanID` %v (span %v)", span.SpanID, span)
-		}
-		if span.TraceID != traceID {
-			return fmt.Errorf("foreign span in trace (Name:TraceID) %s:%x != %s:%x", t[0].Name, t[0].TraceID, span.Name, span.TraceID)
-		}
-		if err := normalize(span); err != nil {
-			return fmt.Errorf("invalid span (SpanID:%d): %v", span.SpanID, err)
+			atomic.AddInt64(&ts.SpansMalformed.DuplicateSpanID, 1)
+			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
 		}
 		spanIDs[span.SpanID] = struct{}{}
 	}
@@ -266,106 +295,115 @@ func toUTF8(s string) string {
 
 const maxTagLength = 200
 
-// normalizeTag applies some normalization to ensure the tags match the
-// backend requirements
-func normalizeTag(tag string) string {
-	if len(tag) == 0 {
+// normalizeTag applies some normalization to ensure the tags match the backend requirements.
+func normalizeTag(v string) string {
+	// the algorithm works by creating a set of cuts marking start and end offsets in v
+	// that have to be replaced with underscore (_)
+	if len(v) == 0 {
 		return ""
 	}
 	var (
-		trim   int      // start character (if trimming)
-		wiping bool     // true when the previous character has been discarded
-		wipe   [][2]int // sections to discard: (start, end) pairs
-		chars  int      // number of characters processed
+		trim  int      // start character (if trimming)
+		cuts  [][2]int // sections to discard: (start, end) pairs
+		chars int      // number of characters processed
 	)
 	var (
-		i int  // current byte
-		c rune // current rune
+		i    int  // current byte
+		r    rune // current rune
+		jump int  // tracks how many bytes the for range advances on its next iteration
 	)
-	norm := []byte(tag)
-	for i, c = range tag {
+	tag := []byte(v)
+	for i, r = range v {
+		jump = utf8.RuneLen(r) // next i will be i+jump
+		if r == utf8.RuneError {
+			// On invalid UTF-8, the for range advances only 1 byte (see: https://golang.org/ref/spec#For_range (point 2)).
+			// However, utf8.RuneError is equivalent to unicode.ReplacementChar so we should rely on utf8.DecodeRune to tell
+			// us whether this is an actual error or just a unicode.ReplacementChar that was present in the string.
+			_, width := utf8.DecodeRune(tag[i:])
+			jump = width
+		}
+		// fast path; all letters (and colons) are ok
+		switch {
+		case r >= 'a' && r <= 'z' || r == ':':
+			chars++
+			goto end
+		case r >= 'A' && r <= 'Z':
+			// lower-case
+			tag[i] += 'a' - 'A'
+			chars++
+			goto end
+		}
+		if unicode.IsUpper(r) {
+			// lowercase this character
+			if low := unicode.ToLower(r); utf8.RuneLen(r) == utf8.RuneLen(low) {
+				// but only if the width of the lowercased character is the same;
+				// there are some rare edge-cases where this is not the case, such
+				// as \u017F (ſ)
+				utf8.EncodeRune(tag[i:], low)
+				r = low
+			}
+		}
+		switch {
+		case unicode.IsLetter(r):
+			chars++
+		case chars == 0:
+			// this character can not start the string, trim
+			trim = i + jump
+			goto end
+		case unicode.IsDigit(r) || r == '.' || r == '/' || r == '-':
+			chars++
+		default:
+			// illegal character
+			if n := len(cuts); n > 0 && cuts[n-1][1] >= i {
+				// merge intersecting cuts
+				cuts[n-1][1] += jump
+			} else {
+				// start a new cut
+				cuts = append(cuts, [2]int{i, i + jump})
+			}
+		}
+	end:
+		if i+jump >= 2*maxTagLength {
+			// bail early if the tag contains a lot of non-letter/digit characters.
+			// If a tag is test🍣🍣[...]🍣, then it's unlikely to be a properly formatted tag
+			break
+		}
 		if chars >= maxTagLength {
 			// we've reached the maximum
 			break
 		}
-		// fast path; all letters (and colons) are ok
-		switch {
-		case c >= 'a' && c <= 'z' || c == ':':
-			chars++
-			wiping = false
-			continue
-		case c >= 'A' && c <= 'Z':
-			// lower-case
-			norm[i] += 'a' - 'A'
-			chars++
-			wiping = false
-			continue
-		}
-
-		if utf8.ValidRune(c) && unicode.IsUpper(c) {
-			// lowercase this character
-			if low := unicode.ToLower(c); utf8.RuneLen(c) == utf8.RuneLen(low) {
-				// but only if the width of the lowercased character is the same;
-				// there are some rare edge-cases where this is not the case, such
-				// as \u017F (ſ)
-				utf8.EncodeRune(norm[i:], low)
-				c = low
-			}
-		}
-		switch {
-		case unicode.IsLetter(c):
-			chars++
-			wiping = false
-		case chars == 0:
-			// this character can not start the string, trim
-			trim = i + utf8.RuneLen(c)
-			continue
-		case unicode.IsDigit(c) || c == '.' || c == '/' || c == '-':
-			chars++
-			wiping = false
-		default:
-			// illegal character
-			if !wiping {
-				// start a new cut
-				wipe = append(wipe, [2]int{i, i + utf8.RuneLen(c)})
-				wiping = true
-			} else {
-				// lengthen current cut
-				wipe[len(wipe)-1][1] += utf8.RuneLen(c)
-			}
-		}
 	}
 
-	norm = norm[trim : i+utf8.RuneLen(c)] // trim start and end
-	if len(wipe) == 0 {
+	tag = tag[trim : i+jump] // trim start and end
+	if len(cuts) == 0 {
 		// tag was ok, return it as it is
-		return string(norm)
+		return string(tag)
 	}
 	delta := trim // cut offsets delta
-	for _, cut := range wipe {
+	for _, cut := range cuts {
 		// start and end of cut, including delta from previous cuts:
 		start, end := cut[0]-delta, cut[1]-delta
 
-		if end >= len(norm) {
+		if end >= len(tag) {
 			// this cut includes the end of the string; discard it
 			// completely and finish the loop.
-			norm = norm[:start]
+			tag = tag[:start]
 			break
 		}
 		// replace the beginning of the cut with '_'
-		norm[start] = '_'
+		tag[start] = '_'
 		if end-start == 1 {
 			// nothing to discard
 			continue
 		}
 		// discard remaining characters in the cut
-		copy(norm[start+1:], norm[end:])
+		copy(tag[start+1:], tag[end:])
 
 		// shorten the slice
-		norm = norm[:len(norm)-(end-start)+1]
+		tag = tag[:len(tag)-(end-start)+1]
 
 		// count the new delta for future cuts
 		delta += cut[1] - cut[0] - 1
 	}
-	return string(norm)
+	return string(tag)
 }

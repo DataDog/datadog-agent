@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package utils
 
@@ -22,7 +22,6 @@ type Expire struct {
 }
 
 // NewExpire creates a new Expire object. Called when a Collector is started.
-// Only used for the ECS collector to start with.
 func NewExpire(expiryDuration time.Duration) (*Expire, error) {
 	if expiryDuration.Seconds() <= 0.0 {
 		return nil, errors.New("expiryDuration must be above 0")

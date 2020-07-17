@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build ignore
 
@@ -19,7 +19,10 @@ import (
 type context struct {
 	Common            bool
 	Agent             bool
+	Python            bool // Sub-option of Agent
+	BothPythonPresent bool // Sub-option of Agent - Python
 	Metadata          bool
+	Profiling         bool
 	Dogstatsd         bool
 	LogsAgent         bool
 	JMX               bool
@@ -33,40 +36,57 @@ type context struct {
 	Containerd        bool
 	CRI               bool
 	ProcessAgent      bool
-	NetworkTracer     bool
+	SystemProbe       bool
 	KubeApiServer     bool
 	TraceAgent        bool
 	ClusterChecks     bool
+	CloudFoundryBBS   bool
 }
 
 func mkContext(buildType string) context {
 	buildType = strings.ToLower(buildType)
 
+	agentContext := context{
+		Common:            true,
+		Agent:             true,
+		Python:            true,
+		Metadata:          true,
+		Profiling:         false, // NOTE: hidden for now
+		Dogstatsd:         true,
+		LogsAgent:         true,
+		JMX:               true,
+		Autoconfig:        true,
+		Logging:           true,
+		Autodiscovery:     true,
+		DockerTagging:     true,
+		KubernetesTagging: true,
+		ECS:               true,
+		Containerd:        true,
+		CRI:               true,
+		ProcessAgent:      true,
+		TraceAgent:        true,
+		Kubelet:           true,
+		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
+	}
+
 	switch buildType {
-	case "agent":
+	case "agent-py3":
+		return agentContext
+	case "agent-py2py3":
+		agentContext.BothPythonPresent = true
+		return agentContext
+	case "iot-agent":
 		return context{
-			Common:            true,
-			Agent:             true,
-			Metadata:          true,
-			Dogstatsd:         true,
-			LogsAgent:         true,
-			JMX:               true,
-			Autoconfig:        true,
-			Logging:           true,
-			Autodiscovery:     true,
-			DockerTagging:     true,
-			KubernetesTagging: true,
-			ECS:               true,
-			Containerd:        true,
-			CRI:               true,
-			ProcessAgent:      true,
-			TraceAgent:        true,
-			Kubelet:           true,
-			KubeApiServer:     true, // TODO: remove when phasing out from node-agent
+			Common:    true,
+			Agent:     true,
+			Metadata:  true,
+			Dogstatsd: true,
+			LogsAgent: true,
+			Logging:   true,
 		}
-	case "network-tracer":
+	case "system-probe":
 		return context{
-			NetworkTracer: true,
+			SystemProbe: true,
 		}
 	case "dogstatsd":
 		return context{
@@ -85,6 +105,13 @@ func mkContext(buildType string) context {
 			Logging:       true,
 			KubeApiServer: true,
 			ClusterChecks: true,
+		}
+	case "dcacf":
+		return context{
+			Common:          true,
+			Logging:         true,
+			ClusterChecks:   true,
+			CloudFoundryBBS: true,
 		}
 	}
 

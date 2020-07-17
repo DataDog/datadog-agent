@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Agent check command displays the distribution metrics.
+    The Agent status command displays histogram bucket samples.

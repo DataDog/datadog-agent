@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package check
 
@@ -24,8 +24,8 @@ func Identify(check Check, instance integration.Data, initConfig integration.Dat
 // BuildID returns an unique ID for a check name and its configuration
 func BuildID(checkName string, instance, initConfig integration.Data) ID {
 	h := fnv.New64()
-	h.Write([]byte(instance))
-	h.Write([]byte(initConfig))
+	h.Write([]byte(instance))   //nolint:errcheck
+	h.Write([]byte(initConfig)) //nolint:errcheck
 	name := instance.GetNameForInstance()
 
 	if name != "" {

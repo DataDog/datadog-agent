@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add mapping feature to dogstatsd to convert parts of dogstatsd/statsd
+    metric names to tags using mapping rules in dogstatsd using wildcard and
+    regex patterns.

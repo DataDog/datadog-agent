@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package metrics
 
@@ -42,8 +42,8 @@ func TestConfigureDefault(t *testing.T) {
 func TestConfigure(t *testing.T) {
 	mockConfig := config.Mock()
 
-	aggregatesBk := config.Datadog.Get("histogram_aggregates")
-	percentilesBk := config.Datadog.Get("histogram_percentiles")
+	aggregatesBk := config.Datadog.GetStringSlice("histogram_aggregates")
+	percentilesBk := config.Datadog.GetStringSlice("histogram_percentiles")
 	defer func() {
 		mockConfig.Set("histogram_aggregates", aggregatesBk)
 		mockConfig.Set("histogram_percentiles", percentilesBk)

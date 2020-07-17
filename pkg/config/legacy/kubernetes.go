@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package legacy
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -86,13 +87,13 @@ func (k kubeDeprecations) print() {
 // ImportKubernetesConf reads the configuration from the kubernetes check (agent5)
 // and create the configuration for the new kubelet check (agent 6) and moves
 // relevant options to datadog.yaml
-func ImportKubernetesConf(src, dst string, overwrite bool) error {
-	_, err := importKubernetesConfWithDeprec(src, dst, overwrite)
+func ImportKubernetesConf(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) error {
+	_, err := importKubernetesConfWithDeprec(src, dst, overwrite, converter)
 	return err
 }
 
 // Deprecated options are listed in the kubeDeprecations return value, for testing
-func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprecations, error) {
+func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) (kubeDeprecations, error) {
 	fmt.Printf("%s\n", warningNewKubeCheck)
 	deprecations := make(kubeDeprecations)
 
@@ -106,7 +107,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 		return deprecations, nil
 	}
 	if len(c.Instances) > 1 {
-		fmt.Printf("Warning: %s contains more than one instance: converting only the first one", src)
+		fmt.Printf("Warning: %s contains more than one instance: converting only the first one\n", src)
 	}
 
 	// kubelet.yaml (only tags for now)
@@ -132,6 +133,11 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 			return deprecations, fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
+	// Create necessary destination dir
+	err = os.MkdirAll(filepath.Dir(dst), 0750)
+	if err != nil {
+		return deprecations, err
+	}
 	if err := ioutil.WriteFile(dst, data, 0640); err != nil {
 		return deprecations, fmt.Errorf("Could not write new kubelet configuration to %s: %s", dst, err)
 	}
@@ -143,57 +149,52 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 		return deprecations, fmt.Errorf("Could not Unmarshal instances from %s: %s", src, err)
 	}
 
-	configConverter := config.NewConfigConverter()
-
 	if instance.KubeletPort > 0 {
-		configConverter.Set("kubernetes_http_kubelet_port", instance.KubeletPort)
-		configConverter.Set("kubernetes_https_kubelet_port", instance.KubeletPort)
+		converter.Set("kubernetes_http_kubelet_port", instance.KubeletPort)
+		converter.Set("kubernetes_https_kubelet_port", instance.KubeletPort)
 	}
 	if len(instance.KubeletHost) > 0 {
-		configConverter.Set("kubernetes_kubelet_host", instance.KubeletHost)
+		converter.Set("kubernetes_kubelet_host", instance.KubeletHost)
 	}
 	if len(instance.KubeletClientCrt) > 0 {
-		configConverter.Set("kubelet_client_crt", instance.KubeletClientCrt)
+		converter.Set("kubelet_client_crt", instance.KubeletClientCrt)
 	}
 	if len(instance.KubeletClientKey) > 0 {
-		configConverter.Set("kubelet_client_key", instance.KubeletClientKey)
+		converter.Set("kubelet_client_key", instance.KubeletClientKey)
 	}
 	if len(instance.KubeletCACert) > 0 {
-		configConverter.Set("kubelet_client_ca", instance.KubeletCACert)
+		converter.Set("kubelet_client_ca", instance.KubeletCACert)
 	}
 	if len(instance.KubeletTokenPath) > 0 {
-		configConverter.Set("kubelet_auth_token_path", instance.KubeletTokenPath)
+		converter.Set("kubelet_auth_token_path", instance.KubeletTokenPath)
 	}
 	if len(instance.NodeLabelsToTags) > 0 {
-		configConverter.Set("kubernetes_node_labels_as_tags", instance.NodeLabelsToTags)
+		converter.Set("kubernetes_node_labels_as_tags", instance.NodeLabelsToTags)
 	}
 
 	// We need to verify the kubelet_tls_verify is actually present before
 	// changing the secure `true` default
 	if verify, err := strconv.ParseBool(instance.KubeletTLSVerify); err == nil {
-		configConverter.Set("kubelet_tls_verify", verify)
+		converter.Set("kubelet_tls_verify", verify)
 	}
 
 	// Implicit default in Agent5 was true
 	if verify, err := strconv.ParseBool(instance.CollectServiceTags); err == nil {
-		configConverter.Set("kubernetes_collect_service_tags", verify)
+		converter.Set("kubernetes_collect_service_tags", verify)
 	} else {
-		configConverter.Set("kubernetes_collect_service_tags", true)
+		converter.Set("kubernetes_collect_service_tags", true)
 	}
 
 	// Temporarily in main datadog.yaml, will move to DCA
 	// Booleans are always imported as zero value is false
-	configConverter.Set("collect_kubernetes_events", instance.CollectEvents)
-	configConverter.Set("collect_kubernetes_metrics", instance.CollectMetrics)
-	configConverter.Set("collect_kubernetes_topology", instance.CollectTopology)
-	configConverter.Set("collect_kubernetes_timeout", instance.CollectTimeout)
-	configConverter.Set("leader_election", instance.LeaderCandidate)
+	converter.Set("collect_kubernetes_events", instance.CollectEvents)
+	converter.Set("leader_election", instance.LeaderCandidate)
 
 	if instance.LeaderLeaseDuration > 0 {
-		configConverter.Set("leader_lease_duration", instance.LeaderLeaseDuration)
+		converter.Set("leader_lease_duration", instance.LeaderLeaseDuration)
 	}
 	if instance.ServiceTagUpdateTag > 0 {
-		configConverter.Set("kubernetes_service_tag_update_freq", instance.ServiceTagUpdateTag)
+		converter.Set("kubernetes_service_tag_update_freq", instance.ServiceTagUpdateTag)
 	}
 
 	// Deprecations

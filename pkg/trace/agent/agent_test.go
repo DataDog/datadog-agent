@@ -1,28 +1,38 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package agent
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/trace/event"
-	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
-	"github.com/StackVista/stackstate-agent/pkg/trace/traceutil"
-	log "github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
-
+	"github.com/StackVista/stackstate-agent/pkg/trace/api"
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
+	"github.com/StackVista/stackstate-agent/pkg/trace/event"
 	"github.com/StackVista/stackstate-agent/pkg/trace/info"
 	"github.com/StackVista/stackstate-agent/pkg/trace/obfuscate"
+	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 	"github.com/StackVista/stackstate-agent/pkg/trace/sampler"
 	"github.com/StackVista/stackstate-agent/pkg/trace/test/testutil"
+	"github.com/StackVista/stackstate-agent/pkg/trace/traceutil"
+	"github.com/StackVista/stackstate-agent/pkg/trace/writer"
+	ddlog "github.com/StackVista/stackstate-agent/pkg/util/log"
+
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
+	"github.com/tinylib/msgp/msgp"
 )
 
 type mockSamplerEngine struct {
@@ -31,69 +41,6 @@ type mockSamplerEngine struct {
 
 func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
 	return &Sampler{engine: testutil.NewMockEngine(wantSampled, wantRate)}
-}
-
-func TestWatchdog(t *testing.T) {
-	if testing.Short() {
-		return
-	}
-
-	conf := config.New()
-	conf.Endpoints[0].APIKey = "apikey_2"
-	conf.MaxMemory = 1e7
-	conf.WatchdogInterval = time.Millisecond
-
-	// save the global mux aside, we don't want to break other tests
-	defaultMux := http.DefaultServeMux
-	http.DefaultServeMux = http.NewServeMux()
-
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, conf)
-
-	defer func() {
-		cancelFunc()
-		// We need to manually close the receiver as the Run() func
-		// should have been broken and interrupted by the watchdog panic
-		agnt.Receiver.Stop()
-		http.DefaultServeMux = defaultMux
-	}()
-
-	var killed bool
-	defer func() {
-		if r := recover(); r != nil {
-			killed = true
-			switch v := r.(type) {
-			case string:
-				if strings.HasPrefix(v, "exceeded max memory") {
-					t.Logf("watchdog worked, trapped the right error: %s", v)
-					runtime.GC() // make sure we clean up after allocating all this
-					return
-				}
-			}
-			t.Fatalf("unexpected error: %v", r)
-		}
-	}()
-
-	// allocating a lot of memory
-	buf := make([]byte, 2*int64(conf.MaxMemory))
-	buf[0] = 1
-	buf[len(buf)-1] = 1
-
-	// override the default die, else our test would stop, use a plain panic() instead
-	oldDie := dieFunc
-	defer func() { dieFunc = oldDie }()
-	dieFunc = func(format string, args ...interface{}) {
-		panic(fmt.Sprintf(format, args...))
-	}
-
-	// after some time, the watchdog should kill this
-	agnt.Run()
-
-	// without this. runtime could be smart and free memory before we Run()
-	buf[0] = 2
-	buf[len(buf)-1] = 2
-
-	assert.True(t, killed)
 }
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
@@ -147,7 +94,10 @@ func TestProcess(t *testing.T) {
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
-		agnt.Process(pb.Trace{span})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{span},
+			Source: &info.Tags{},
+		})
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -179,13 +129,42 @@ func TestProcess(t *testing.T) {
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
-		agnt.Process(pb.Trace{spanValid})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{spanValid},
+			Source: &info.Tags{},
+		})
 		assert.EqualValues(0, stats.TracesFiltered)
 		assert.EqualValues(0, stats.SpansFiltered)
 
-		agnt.Process(pb.Trace{spanInvalid, spanInvalid})
+		agnt.Process(&api.Trace{
+			Spans:  pb.Trace{spanInvalid, spanInvalid},
+			Source: &info.Tags{},
+		})
 		assert.EqualValues(1, stats.TracesFiltered)
 		assert.EqualValues(2, stats.SpansFiltered)
+	})
+
+	t.Run("ContainerTags", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		span := &pb.Span{
+			Resource: "INSERT INTO db VALUES (1, 2, 3)",
+			Type:     "sql",
+			Start:    time.Now().Unix(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		agnt.Process(&api.Trace{
+			Spans:         pb.Trace{span},
+			Source:        &info.Tags{},
+			ContainerTags: "A:B,C",
+		})
+
+		assert.Equal(t, "A:B,C", span.Meta[tagContainersTags])
 	})
 
 	t.Run("Stats/Priority", func(t *testing.T) {
@@ -223,7 +202,10 @@ func TestProcess(t *testing.T) {
 			if key != sampler.PriorityNone {
 				sampler.SetSamplingPriority(span, key)
 			}
-			agnt.Process(pb.Trace{span})
+			agnt.Process(&api.Trace{
+				Spans:  pb.Trace{span},
+				Source: &info.Tags{},
+			})
 		}
 
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -251,16 +233,9 @@ func TestSampling(t *testing.T) {
 		wantRate    float64
 		wantSampled bool
 	}{
-		"score and priority rate": {
-			hasPriority:  true,
-			scoreRate:    0.5,
-			priorityRate: 0.6,
-			wantRate:     sampler.CombineRates(0.5, 0.6),
-		},
 		"score only rate": {
-			scoreRate:    0.5,
-			priorityRate: 0.1,
-			wantRate:     0.5,
+			scoreRate: 0.5,
+			wantRate:  0.5,
 		},
 		"error and priority rate": {
 			hasErrors:      true,
@@ -277,15 +252,14 @@ func TestSampling(t *testing.T) {
 			scoreSampled: true,
 			wantSampled:  true,
 		},
-		"score sampled priority not sampled": {
+		"priority not sampled": {
 			hasPriority:     true,
 			scoreSampled:    true,
 			prioritySampled: false,
-			wantSampled:     true,
+			wantSampled:     false,
 		},
-		"score not sampled priority sampled": {
+		"priority sampled": {
 			hasPriority:     true,
-			scoreSampled:    false,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
@@ -361,7 +335,7 @@ func TestSampling(t *testing.T) {
 				sampler.SetSamplingPriority(pt.Root, 1)
 			}
 
-			sampled, rate := a.sample(pt)
+			sampled, rate := a.runSamplers(pt)
 			assert.EqualValues(t, tt.wantRate, rate)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
@@ -463,7 +437,7 @@ type eventProcessorTestCase struct {
 
 func testEventProcessorFromConf(t *testing.T, conf *config.AgentConfig, testCase eventProcessorTestCase) {
 	t.Run(testCase.name, func(t *testing.T) {
-		processor := eventProcessorFromConf(conf)
+		processor := newEventProcessor(conf)
 		processor.Start()
 
 		actualEPS := generateTraffic(processor, testCase.serviceName, testCase.opName, testCase.extractionRate,
@@ -550,26 +524,15 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	ta := NewAgent(ctx, c)
-	log.UseLogger(log.Disabled)
+	seelog.UseLogger(seelog.Disabled)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ta.Process(testutil.RandomTrace(10, 8))
-	}
-}
-
-func BenchmarkWatchdog(b *testing.B) {
-	conf := config.New()
-	conf.Endpoints[0].APIKey = "apikey_2"
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
-	ta := NewAgent(ctx, conf)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ta.watchdog()
+		ta.Process(&api.Trace{
+			Spans:  testutil.RandomTrace(10, 8),
+			Source: &info.Tags{},
+		})
 	}
 }
 
@@ -580,4 +543,148 @@ func formatTrace(t pb.Trace) pb.Trace {
 		Truncate(span)
 	}
 	return t
+}
+
+func BenchmarkThroughput(b *testing.B) {
+	env, ok := os.LookupEnv("DD_TRACE_TEST_FOLDER")
+	if !ok {
+		b.SkipNow()
+	}
+
+	ddlog.SetupDatadogLogger(seelog.Disabled, "") // disable logging
+
+	folder := filepath.Join(env, "benchmarks")
+	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+		ext := filepath.Ext(path)
+		if ext != ".msgp" {
+			return nil
+		}
+		b.Run(info.Name(), benchThroughput(path))
+		return nil
+	})
+}
+
+func benchThroughput(file string) func(*testing.B) {
+	return func(b *testing.B) {
+		data, count, err := tracesFromFile(file)
+		if err != nil {
+			b.Fatal(err)
+		}
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "irrelevant"
+
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		http.DefaultServeMux = &http.ServeMux{}
+		agnt := NewAgent(ctx, cfg)
+		defer cancelFunc()
+
+		// start the agent without the trace and stats writers; we will be draining
+		// these channels ourselves in the benchmarks, plus we don't want the writers
+		// resource usage to show up in the results.
+		agnt.Out = make(chan *writer.SampledSpans)
+		go agnt.Run()
+
+		// wait for receiver to start:
+		for {
+			resp, err := http.Get("http://localhost:8126/v0.4/traces")
+			if err != nil {
+				time.Sleep(time.Millisecond)
+				continue
+			}
+			if resp.StatusCode == 400 {
+				break
+			}
+		}
+
+		// drain every other channel to avoid blockage.
+		exit := make(chan bool)
+		go func() {
+			defer close(exit)
+			for {
+				select {
+				case <-agnt.Concentrator.Out:
+				case <-exit:
+					return
+				}
+			}
+		}()
+
+		b.ResetTimer()
+		b.SetBytes(int64(len(data)))
+
+		for i := 0; i < b.N; i++ {
+			req, err := http.NewRequest("PUT", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
+			if err != nil {
+				b.Fatal(err)
+			}
+			req.Header.Set("Content-Type", "application/msgpack")
+			w := httptest.NewRecorder()
+
+			// create the request by calling directly into the Handler;
+			// we are not interested in benchmarking HTTP latency. This
+			// also ensures we avoid potential connection failures that
+			// would make the benchmarks inconsistent.
+			http.DefaultServeMux.ServeHTTP(w, req)
+			if w.Code != 200 {
+				b.Fatalf("%d: %v", i, w.Body.String())
+			}
+
+			var got int
+			timeout := time.After(1 * time.Second)
+		loop:
+			for {
+				select {
+				case <-agnt.Out:
+					got++
+					if got == count {
+						// processed everything!
+						break loop
+					}
+				case <-timeout:
+					// taking too long...
+					b.Fatalf("time out at %d/%d", got, count)
+					break loop
+				}
+			}
+		}
+
+		exit <- true
+		<-exit
+	}
+}
+
+// tracesFromFile extracts raw msgpack data from the given file, modifying each trace
+// to have sampling.priority=2 to guarantee consistency. It also returns the amount of
+// traces found and any error in obtaining the information.
+func tracesFromFile(file string) (raw []byte, count int, err error) {
+	if file[0] != '/' {
+		file = filepath.Join(os.Getenv("GOPATH"), file)
+	}
+	in, err := os.Open(file)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer in.Close()
+	// prepare the traces in this file by adding sampling.priority=2
+	// everywhere to ensure consistent sampling assumptions and results.
+	var traces pb.Traces
+	if err := msgp.Decode(in, &traces); err != nil {
+		return nil, 0, err
+	}
+	for _, t := range traces {
+		count++
+		for _, s := range t {
+			if s.Metrics == nil {
+				s.Metrics = map[string]float64{"_sampling_priority_v1": 2}
+			} else {
+				s.Metrics["_sampling_priority_v1"] = 2
+			}
+		}
+	}
+	// re-encode the modified payload
+	var data bytes.Buffer
+	if err := msgp.Encode(&data, traces); err != nil {
+		return nil, 0, err
+	}
+	return data.Bytes(), count, nil
 }

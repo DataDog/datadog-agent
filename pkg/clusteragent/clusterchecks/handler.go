@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/scheduler"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
@@ -32,10 +33,6 @@ const (
 	follower
 )
 
-// leaderIPCallback describes the leader-election method we
-// need and allows to inject a custom one for tests
-type leaderIPCallback func() (string, error)
-
 // pluggableAutoConfig describes the AC methods we use and allows
 // to mock it for tests (see mockedPluggableAutoConfig)
 type pluggableAutoConfig interface {
@@ -49,7 +46,7 @@ type Handler struct {
 	dispatcher           *dispatcher
 	leaderStatusFreq     time.Duration
 	warmupDuration       time.Duration
-	leaderStatusCallback leaderIPCallback
+	leaderStatusCallback types.LeaderIPCallback
 	leadershipChan       chan state
 	m                    sync.RWMutex // Below fields protected by the mutex
 	state                state
@@ -170,8 +167,8 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 		log.Warnf("Could not refresh leadership status: %s", err)
 	}
 
-	healthProbe := health.Register("clusterchecks-leadership")
-	defer health.Deregister(healthProbe)
+	healthProbe := health.RegisterLiveness("clusterchecks-leadership")
+	defer health.Deregister(healthProbe) //nolint:errcheck
 
 	watchTicker := time.NewTicker(h.leaderStatusFreq)
 	defer watchTicker.Stop()

@@ -6,8 +6,6 @@
 IFS=$'\n\t'
 set -euxo pipefail
 
-rm -rf .kitchen/logs/*
-
 # Ensure that the ssh key is never reused between tests
 if [ -f $(pwd)/ssh-key ]; then
   rm ssh-key
@@ -30,9 +28,6 @@ ssh-add "$AZURE_SSH_KEY_PATH"
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
-
-# load chef into the environment
-eval "$(chef shell-init bash)"
 
 # Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
 # If running locally, they should be imported into the environment
@@ -73,31 +68,67 @@ fi
 (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > /root/.azure/credentials
 set -x
 
+# Generate a password to use for the windows servers
+if [ -z ${SERVER_PASSWORD+x} ]; then
+  export SERVER_PASSWORD="$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)0aZ"
+fi
+
+if [[ $# == 0 ]]; then
+  echo "Missing run suite argument. Exiting."
+  exit 1
+fi
+
+if [[ $# == 1 ]]; then
+  echo "Missing major version argument. Exiting."
+  exit 1
+fi
+
+export MAJOR_VERSION=$2
+
 # if the agent version isn't set, grab it
 # This is for the windows agent, as it needs to know the exact right version to grab
 # on linux it can just download the latest version from the package manager
 if [ -z ${AGENT_VERSION+x} ]; then
   pushd ../..
-    export AGENT_VERSION=`inv agent.version --url-safe --git-sha-length=7`
+    export AGENT_VERSION=`inv agent.version --url-safe --git-sha-length=7 --major-version $MAJOR_VERSION`
+    export DD_AGENT_EXPECTED_VERSION=`inv agent.version --url-safe --git-sha-length=7 --major-version $MAJOR_VERSION`
   popd
 fi
 
-# Generate a password to use for the windows servers
-if [ -z ${SERVER_PASSWORD+x} ]; then
-  export SERVER_PASSWORD=$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)
-fi
-
-chef gem install bundler:1.17.3 net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen
-cp .kitchen-azure.yml .kitchen.yml
+cp kitchen-azure-common.yml kitchen.yml
 
 ## check to see if we want the windows-installer tester instead
-if [[ $#  != 0 && $1 == "windows-install-test" ]]; then
-  cp .kitchen-azure-winstall.yml .kitchen.yml
+if [[ $1 == "windows-install-test" ]]; then
+  cat kitchen-azure-winstall.yml >> kitchen.yml
 fi
 
-chef exec kitchen diagnose --no-instances --loader
+if [[ $1 == "chef-test" ]]; then
+  cat kitchen-azure-chef-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "step-by-step-test" ]]; then
+  cat kitchen-azure-step-by-step-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "install-script-test" ]]; then
+  cat kitchen-azure-install-script-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "upgrade5-test" ]]; then
+  cat kitchen-azure-upgrade5-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "upgrade6-test" ]]; then
+  cat kitchen-azure-upgrade6-test.yml >> kitchen.yml
+fi
+
+if [[ $1 == "upgrade7-test" ]]; then
+  cat kitchen-azure-upgrade7-test.yml >> kitchen.yml
+fi
+
+bundle exec kitchen diagnose --no-instances --loader
 
 rm -rf cookbooks
 rm -f Berksfile.lock
-
-chef exec rake dd-agent-azure-parallel[20]
+berks vendor ./cookbooks
+bundle exec kitchen test '^dd*.*-azure$' -c -d always

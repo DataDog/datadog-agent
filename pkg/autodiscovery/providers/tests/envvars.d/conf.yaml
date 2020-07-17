@@ -1,0 +1,6 @@
+init_config:
+  foo: "%%env_test_envvar_key%%"
+
+instances:
+  - bar: "%%env_test_envvar_key%%"
+  - baz: "%%env_test_envvar_not_set%%"

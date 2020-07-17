@@ -1,14 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package stats
 
 import (
+	"runtime"
 	"sort"
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 	"github.com/StackVista/stackstate-agent/pkg/trace/watchdog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // defaultBufferLen represents the default buffer length; the number of bucket size
@@ -33,7 +38,8 @@ type Concentrator struct {
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen int
 
-	OutStats chan []Bucket
+	In  chan *Input
+	Out chan []Bucket
 
 	exit   chan struct{}
 	exitWG *sync.WaitGroup
@@ -54,7 +60,8 @@ func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Conc
 		// TODO: Move to configuration.
 		bufferLen: defaultBufferLen,
 
-		OutStats: out,
+		In:  make(chan *Input, 1000),
+		Out: out,
 
 		exit:   make(chan struct{}),
 		exitWG: &sync.WaitGroup{},
@@ -81,15 +88,25 @@ func (c *Concentrator) Run() {
 	flushTicker := time.NewTicker(time.Duration(c.bsize) * time.Nanosecond)
 	defer flushTicker.Stop()
 
-	log.Debug("starting concentrator")
+	log.Debug("Starting concentrator")
 
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go func() {
+			for {
+				select {
+				case i := <-c.In:
+					c.addNow(i, time.Now().UnixNano())
+				}
+			}
+		}()
+	}
 	for {
 		select {
 		case <-flushTicker.C:
-			c.OutStats <- c.Flush()
+			c.Out <- c.Flush()
 		case <-c.exit:
-			log.Info("exiting concentrator, computing remaining stats")
-			c.OutStats <- c.Flush()
+			log.Info("Exiting concentrator, computing remaining stats")
+			c.Out <- c.Flush()
 			return
 		}
 	}
@@ -111,23 +128,17 @@ type Input struct {
 	Env       string
 }
 
-// Add appends to the proper stats bucket this trace's statistics
-func (c *Concentrator) Add(i *Input) {
-	c.addNow(i, time.Now().UnixNano())
-}
-
 func (c *Concentrator) addNow(i *Input, now int64) {
 	c.mu.Lock()
 
 	for _, s := range i.Trace {
-		// We do not compute stats for non top level spans since this is not surfaced in the UI
-		if !s.TopLevel {
+		if !(s.TopLevel || s.Measured) {
 			continue
 		}
 		end := s.Start + s.Duration
 		btime := end - end%c.bsize
 
-		// // If too far in the past, count in the oldest-allowed time bucket instead.
+		// If too far in the past, count in the oldest-allowed time bucket instead.
 		if btime < c.oldestTs {
 			btime = c.oldestTs
 		}

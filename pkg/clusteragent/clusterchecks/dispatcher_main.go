@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -15,15 +15,22 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
+	"github.com/StackVista/stackstate-agent/pkg/util/clusteragent"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
+
+const firstRunnerStatsMinutes = 2  // collect runner stats after the first 2 minutes
+const secondRunnerStatsMinutes = 5 // collect runner stats after the first 7 minutes
+const finalRunnerStatsMinutes = 10 // collect runner stats endlessly every 10 minutes
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
 	store                 *clusterStore
 	nodeExpirationSeconds int64
 	extraTags             []string
+	clcRunnersClient      clusteragent.CLCRunnerClientInterface
+	advancedDispatching   bool
 }
 
 func newDispatcher() *dispatcher {
@@ -31,13 +38,29 @@ func newDispatcher() *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
+	d.extraTags = config.Datadog.GetStringSlice("cluster_checks.extra_tags")
 
 	clusterTagValue := clustername.GetClusterName()
 	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
-	if clusterTagName != "" && clusterTagValue != "" {
-		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+	if clusterTagValue != "" {
+		if clusterTagName != "" && !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+		}
+		d.extraTags = append(d.extraTags, fmt.Sprintf("kube_cluster_name:%s", clusterTagValue))
 	}
 
+	d.advancedDispatching = config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled")
+	if !d.advancedDispatching {
+		return d
+	}
+
+	var err error
+	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
+	if err != nil {
+		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
+		d.advancedDispatching = false
+	}
 	return d
 }
 
@@ -51,6 +74,16 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 	for _, c := range configs {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
+		}
+		if c.NodeName != "" {
+			// An endpoint check backed by a pod
+			patched, err := d.patchEndpointsConfiguration(c)
+			if err != nil {
+				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				continue
+			}
+			d.addEndpointConfig(patched, c.NodeName)
+			continue
 		}
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
@@ -66,6 +99,15 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	for _, c := range configs {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
+		}
+		if c.NodeName != "" {
+			patched, err := d.patchEndpointsConfiguration(c)
+			if err != nil {
+				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				continue
+			}
+			d.removeEndpointConfig(patched, c.NodeName)
+			continue
 		}
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
@@ -117,14 +159,15 @@ func (d *dispatcher) run(ctx context.Context) {
 	d.store.active = true
 	d.store.Unlock()
 
-	healthProbe := health.Register("clusterchecks-dispatch")
-	defer health.Deregister(healthProbe)
-
-	registerMetrics()
-	defer unregisterMetrics()
+	healthProbe := health.RegisterLiveness("clusterchecks-dispatch")
+	defer health.Deregister(healthProbe) //nolint:errcheck
 
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
+
+	runnerStatsMinutes := firstRunnerStatsMinutes
+	runnerStatsTicker := time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+	defer runnerStatsTicker.Stop()
 
 	for {
 		select {
@@ -140,6 +183,23 @@ func (d *dispatcher) run(ctx context.Context) {
 			if d.shouldDispatchDanling() {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
+			}
+		case <-runnerStatsTicker.C:
+			// Collect stats with an exponential backoff 2 - 5 - 10 minutes
+			if runnerStatsMinutes == firstRunnerStatsMinutes {
+				runnerStatsMinutes = secondRunnerStatsMinutes
+				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+			} else if runnerStatsMinutes == secondRunnerStatsMinutes {
+				runnerStatsMinutes = finalRunnerStatsMinutes
+				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+			}
+
+			// Update runner stats and rebalance if needed
+			if d.advancedDispatching {
+				// Collect CLC runners stats and update cache
+				d.updateRunnersStats()
+				// Rebalance checks distribution
+				d.rebalance()
 			}
 		}
 	}

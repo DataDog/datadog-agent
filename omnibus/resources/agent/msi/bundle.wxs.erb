@@ -22,6 +22,7 @@
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
     <Variable Name="APIKEY" bal:Overridable="yes"/>
+    <Variable Name="SITE" bal:Overridable="yes"/>
     <Variable Name="TAGS" bal:Overridable="yes"/>
     <Variable Name="HOSTNAME" bal:Overridable="yes"/>
     <Variable Name="STS_URL" bal:Overridable="yes"/>
@@ -45,6 +46,7 @@
       </ExePackage>
       <MsiPackage SourceFile="$(var.PackageMsi)">
         <MsiProperty Name="APIKEY" Value="[APIKEY]"/>
+        <MsiProperty Name="SITE" Value="[SITE]"/>
         <MsiProperty Name="TAGS" Value="[TAGS]"/>
         <MsiProperty Name="HOSTNAME" Value="[HOSTNAME]"/>
         <MsiProperty Name="STS_URL" Value="[STS_URL]"/>

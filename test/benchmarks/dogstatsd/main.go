@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package main
 
@@ -135,7 +135,7 @@ func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 }
 
 func initLogging() error {
-	err := config.SetupLogger("info", "", "", false, true, false)
+	err := config.SetupLogger(config.LoggerName("test"), "info", "", "", false, true, false)
 	if err != nil {
 		return fmt.Errorf("Unable to initiate logger: %s", err)
 	}

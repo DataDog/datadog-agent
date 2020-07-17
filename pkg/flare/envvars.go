@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package flare
 
@@ -40,11 +40,25 @@ var envvarNameWhitelist = []string{
 	// Trace agent
 	"DD_APM_ENABLED",
 	"DD_APM_NON_LOCAL_TRAFFIC",
-	"DD_RECEIVER_PORT",
-	"DD_IGNORE_RESOURCE",
+	"DD_RECEIVER_PORT",   // deprecated
+	"DD_IGNORE_RESOURCE", // deprecated
 	"DD_APM_DD_URL",
 	"DD_APM_ANALYZED_SPANS",
-	"DD_CONNECTION_LIMIT",
+	"DD_CONNECTION_LIMIT", // deprecated
+	"DD_APM_CONNECTION_LIMIT",
+	"DD_APM_ENV",
+	"DD_APM_RECEIVER_PORT",
+	"DD_APM_IGNORE_RESOURCES",
+	"DD_MAX_EPS ", // deprecated
+	"DD_APM_MAX_EPS",
+	"DD_APM_TPS", //deprecated
+	"DD_APM_MAX_TPS",
+	"DD_APM_MAX_MEMORY",
+	"DD_APM_MAX_CPU_PERCENT",
+	"DD_APM_FEATURES",
+	"DD_APM_RECEIVER_SOCKET",
+	"DD_APM_REPLACE_TAGS",
+	"DD_APM_ADDITIONAL_ENDPOINTS",
 
 	// Process agent
 	"DD_PROCESS_AGENT_ENABLED",
@@ -62,7 +76,7 @@ var envvarNameWhitelist = []string{
 	"DD_CONTAINER_WHITELIST",
 	"DD_CONTAINER_CACHE_DURATION",
 	"DD_PROCESS_AGENT_CONTAINER_SOURCE",
-	"DD_NETWORK_TRACING_ENABLED",
+	"DD_SYSTEM_PROBE_ENABLED",
 }
 
 func getWhitelistedEnvvars() []string {
@@ -71,8 +85,9 @@ func getWhitelistedEnvvars() []string {
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
 		key := strings.ToUpper(parts[0])
-		if strings.Contains(key, "_KEY") {
+		if strings.Contains(key, "_KEY") || strings.Contains(key, "_AUTH_TOKEN") {
 			// `_key`-suffixed env vars are sensitive: don't track them
+			// `_auth_token`-suffixed env vars are sensitive: don't track them
 			continue
 		}
 		for _, whitelisted := range envVarWhiteList {

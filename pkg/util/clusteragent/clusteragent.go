@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package clusteragent
 
@@ -20,6 +20,8 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/api/security"
 	"github.com/StackVista/stackstate-agent/pkg/api/util"
+	apiv1 "github.com/StackVista/stackstate-agent/pkg/clusteragent/api/v1"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"
 	"github.com/StackVista/stackstate-agent/pkg/version"
@@ -31,19 +33,37 @@ Client to query the Datadog Cluster Agent (DCA) API.
 
 const (
 	authorizationHeaderKey = "Authorization"
+	// RealIPHeader refers to the cluster level check runner ip passed in the request headers
+	RealIPHeader = "X-Real-Ip"
 )
 
 var globalClusterAgentClient *DCAClient
 
 type metadataNames []string
 
+// DCAClientInterface  is required to query the API of Datadog cluster agent
+type DCAClientInterface interface {
+	Version() version.Version
+	ClusterAgentAPIEndpoint() string
+
+	GetVersion() (version.Version, error)
+	GetNodeLabels(nodeName string) (map[string]string, error)
+	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
+	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
+	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
+
+	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
+	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
+	GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error)
+}
+
 // DCAClient is required to query the API of Datadog cluster agent
 type DCAClient struct {
 	// used to setup the DCAClient
 	initRetry retry.Retrier
 
-	ClusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
-	ClusterAgentVersion           string // Version of the cluster-agent we're connected to
+	clusterAgentAPIEndpoint       string          // ${SCHEME}://${clusterAgentHost}:${PORT}
+	ClusterAgentVersion           version.Version // Version of the cluster-agent we're connected to
 	clusterAgentAPIClient         *http.Client
 	clusterAgentAPIRequestHeaders http.Header
 	leaderClient                  *leaderClient
@@ -56,15 +76,15 @@ func resetGlobalClusterAgentClient() {
 }
 
 // GetClusterAgentClient returns or init the DCAClient
-func GetClusterAgentClient() (*DCAClient, error) {
+func GetClusterAgentClient() (DCAClientInterface, error) {
 	if globalClusterAgentClient == nil {
 		globalClusterAgentClient = &DCAClient{}
-		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{
-			Name:          "clusterAgentClient",
-			AttemptMethod: globalClusterAgentClient.init,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:              "clusterAgentClient",
+			AttemptMethod:     globalClusterAgentClient.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {
@@ -77,7 +97,7 @@ func GetClusterAgentClient() (*DCAClient, error) {
 func (c *DCAClient) init() error {
 	var err error
 
-	c.ClusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
+	c.clusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
 	if err != nil {
 		return err
 	}
@@ -89,6 +109,8 @@ func (c *DCAClient) init() error {
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
+	podIP := config.Datadog.GetString("clc_runner_host")
+	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
 	// TODO remove insecure
 	c.clusterAgentAPIClient = util.GetClient(false)
@@ -99,16 +121,27 @@ func (c *DCAClient) init() error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Successfully connected to the Datadog Cluster Agent %v", c.ClusterAgentVersion)
+	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.ClusterAgentVersion.String())
 
 	// Clone the http client in a new client with built-in redirect handler
-	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.ClusterAgentAPIEndpoint)
+	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.clusterAgentAPIEndpoint)
 
 	return nil
 }
 
+// Version returns ClusterAgentVersion already stored in the DCAClient
+func (c *DCAClient) Version() version.Version {
+	return c.ClusterAgentVersion
+}
+
+// ClusterAgentAPIEndpoint returns the Agent API Endpoint URL as a string
+func (c *DCAClient) ClusterAgentAPIEndpoint() string {
+	return c.clusterAgentAPIEndpoint
+}
+
 // getClusterAgentEndpoint provides a validated https endpoint from configuration keys in datadog.yaml:
-// 1st. configuration key "cluster_agent.url", add the https prefix if the scheme isn't specified
+// 1st. configuration key "cluster_agent.url" (or the DD_CLUSTER_AGENT_URL environment variable),
+//      add the https prefix if the scheme isn't specified
 // 2nd. environment variables associated with "cluster_agent.kubernetes_service_name"
 //      ${dcaServiceName}_SERVICE_HOST and ${dcaServiceName}_SERVICE_PORT
 func getClusterAgentEndpoint() (string, error) {
@@ -170,43 +203,38 @@ func getClusterAgentEndpoint() (string, error) {
 }
 
 // GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
-func (c *DCAClient) GetVersion() (string, error) {
+func (c *DCAClient) GetVersion() (version.Version, error) {
 	const dcaVersionPath = "version"
 	var version version.Version
 	var err error
 
 	// https://host:port/version
-	rawURL := fmt.Sprintf("%s/%s", c.ClusterAgentAPIEndpoint, dcaVersionPath)
+	rawURL := fmt.Sprintf("%s/%s", c.clusterAgentAPIEndpoint, dcaVersionPath)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 	req.Header = c.clusterAgentAPIRequestHeaders
 
 	resp, err := c.clusterAgentAPIClient.Do(req)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+		return version, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return version, err
 	}
 
 	err = json.Unmarshal(body, &version)
 
-	if err != nil {
-		return "", err
-	}
-
-	dcaVersion := fmt.Sprintf("%+v", version)
-	return dcaVersion, nil
+	return version, err
 }
 
 // GetNodeLabels returns the node labels from the Cluster Agent.
@@ -216,7 +244,7 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	var labels map[string]string
 
 	// https://host:port/api/v1/tags/node/{nodeName}
-	rawURL := fmt.Sprintf("%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaNodeMeta, nodeName)
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaNodeMeta, nodeName)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
@@ -242,6 +270,101 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	return labels, err
 }
 
+// GetCFAppsMetadataForNode returns the CF application tags from the Cluster Agent.
+func (c *DCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
+	const dcaCFAppsMeta = "api/v1/tags/cf/apps"
+	var err error
+	var tags map[string][]string
+
+	// https://host:port/api/v1/tags/cf/apps/{nodename}
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaCFAppsMeta, nodename)
+
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(body, &tags)
+	return tags, err
+}
+
+// GetPodsMetadataForNode queries the datadog cluster agent to get nodeName registered
+// Kubernetes pods metadata.
+func (c *DCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
+	const dcaMetadataPath = "api/v1/tags/pod"
+	var err error
+
+	if c == nil {
+		return nil, fmt.Errorf("cluster agent's client is not properly initialized")
+	}
+	/* https://host:port/api/v1/tags/pod/{nodeName}
+	response example:
+	{
+		"Nodes": {
+			"node1": {
+				"services": {
+					"default": {
+						"datadog-monitoring-cluster-agent-58f45b9b44-pkxrv": {
+							"datadog-monitoring-cluster-agent": {},
+							"datadog-monitoring-cluster-agent-metrics-api": {}
+						}
+					},
+					"kube-system": {
+						"kube-dns-6b98c9c9bf-ts7gc": {
+							"kube-dns": {}
+						}
+					}
+				}
+			}
+		}
+	}
+	*/
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName)
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	metadataPodPayload := apiv1.NewMetadataResponse()
+	if err = json.Unmarshal(b, metadataPodPayload); err != nil {
+		return nil, err
+	}
+
+	if _, ok := metadataPodPayload.Nodes[nodeName]; !ok {
+		return nil, fmt.Errorf("cluster agent didn't return pods metadata for node: %s", nodeName)
+	}
+	return metadataPodPayload.Nodes[nodeName].Services, nil
+}
+
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
 // Kubernetes metadata.
 func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
@@ -257,7 +380,7 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 	}
 
 	// https://host:port/api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
-	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
+	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return metadataNames, err

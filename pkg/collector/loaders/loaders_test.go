@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package loaders
 
@@ -17,15 +17,24 @@ import (
 
 type LoaderOne struct{}
 
-func (lo LoaderOne) Load(config integration.Config) ([]check.Check, error) { return nil, nil }
+func (lo LoaderOne) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+	var c check.Check
+	return c, nil
+}
 
 type LoaderTwo struct{}
 
-func (lt LoaderTwo) Load(config integration.Config) ([]check.Check, error) { return nil, nil }
+func (lt LoaderTwo) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+	var c check.Check
+	return c, nil
+}
 
 type LoaderThree struct{}
 
-func (lt *LoaderThree) Load(config integration.Config) ([]check.Check, error) { return nil, nil }
+func (lt *LoaderThree) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+	var c check.Check
+	return c, nil
+}
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}

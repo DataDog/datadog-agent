@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package api
 
 import (
@@ -8,8 +13,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +25,8 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 	"github.com/StackVista/stackstate-agent/pkg/trace/sampler"
 	"github.com/StackVista/stackstate-agent/pkg/trace/test/testutil"
+
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 )
@@ -36,9 +45,8 @@ var headerFields = map[string]string{
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
-	rawTraceChan := make(chan pb.Trace, 5000)
-	serviceChan := make(chan pb.ServicesMetadata, 50)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, serviceChan)
+	rawTraceChan := make(chan *Trace, 5000)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan)
 
 	return receiver
 }
@@ -50,22 +58,24 @@ func newTestReceiverConfig() *config.AgentConfig {
 	return conf
 }
 
+func TestMain(m *testing.M) {
+	seelog.UseLogger(seelog.Disabled)
+
+	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
+	killProcess = func(_ string, _ ...interface{}) {}
+
+	os.Exit(m.Run())
+}
+
 func TestReceiverRequestBodyLength(t *testing.T) {
 	assert := assert.New(t)
 
-	// save the global mux aside, we don't want to break other tests
-	defaultMux := http.DefaultServeMux
-	http.DefaultServeMux = http.NewServeMux()
-
 	conf := newTestReceiverConfig()
+	conf.MaxRequestBytes = 2
 	receiver := newTestReceiverFromConfig(conf)
-	receiver.maxRequestBodyLength = 2
-	go receiver.Run()
+	go receiver.Start()
 
-	defer func() {
-		receiver.Stop()
-		http.DefaultServeMux = defaultMux
-	}()
+	defer receiver.Stop()
 
 	url := fmt.Sprintf("http://%s:%d/v0.4/traces",
 		conf.ReceiverHost, conf.ReceiverPort)
@@ -121,7 +131,7 @@ func TestLegacyReceiver(t *testing.T) {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.httpHandleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
 			)
 
 			// send traces to that endpoint without a content-type
@@ -138,9 +148,9 @@ func TestLegacyReceiver(t *testing.T) {
 
 			// now we should be able to read the trace data
 			select {
-			case rt := <-tc.r.Out:
-				assert.Len(rt, 1)
-				span := rt[0]
+			case rt := <-tc.r.out:
+				assert.Len(rt.Spans, 1)
+				span := rt.Spans[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
 				assert.Equal("fennel_is_amazing", span.Service)
@@ -148,7 +158,7 @@ func TestLegacyReceiver(t *testing.T) {
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
-			default:
+			case <-time.After(time.Second):
 				t.Fatalf("no data received")
 			}
 
@@ -169,22 +179,22 @@ func TestReceiverJSONDecoder(t *testing.T) {
 		contentType string
 		traces      []pb.Trace
 	}{
-		{"v02 with empty content-type", newTestReceiverFromConfig(conf), v02, "", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with empty content-type", newTestReceiverFromConfig(conf), v03, "", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with empty content-type", newTestReceiverFromConfig(conf), v04, "", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with application/json", newTestReceiverFromConfig(conf), v02, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with application/json", newTestReceiverFromConfig(conf), v03, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with application/json", newTestReceiverFromConfig(conf), v04, "application/json", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with text/json", newTestReceiverFromConfig(conf), v02, "text/json", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with text/json", newTestReceiverFromConfig(conf), v03, "text/json", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with text/json", newTestReceiverFromConfig(conf), v04, "text/json", testutil.GetTestTrace(1, 1, false)},
+		{"v02 with empty content-type", newTestReceiverFromConfig(conf), v02, "", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with empty content-type", newTestReceiverFromConfig(conf), v03, "", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with empty content-type", newTestReceiverFromConfig(conf), v04, "", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with application/json", newTestReceiverFromConfig(conf), v02, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with application/json", newTestReceiverFromConfig(conf), v03, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with application/json", newTestReceiverFromConfig(conf), v04, "application/json", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with text/json", newTestReceiverFromConfig(conf), v02, "text/json", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with text/json", newTestReceiverFromConfig(conf), v03, "text/json", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with text/json", newTestReceiverFromConfig(conf), v04, "text/json", testutil.GetTestTraces(1, 1, false)},
 	}
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.httpHandleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
 			)
 
 			// send traces to that endpoint without a content-type
@@ -201,9 +211,9 @@ func TestReceiverJSONDecoder(t *testing.T) {
 
 			// now we should be able to read the trace data
 			select {
-			case rt := <-tc.r.Out:
-				assert.Len(rt, 1)
-				span := rt[0]
+			case rt := <-tc.r.out:
+				assert.Len(rt.Spans, 1)
+				span := rt.Spans[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
 				assert.Equal("fennel_is_amazing", span.Service)
@@ -211,7 +221,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
-			default:
+			case <-time.After(time.Second):
 				t.Fatalf("no data received")
 			}
 
@@ -233,17 +243,17 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 		contentType string
 		traces      pb.Traces
 	}{
-		{"v01 with application/msgpack", newTestReceiverFromConfig(conf), v01, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v02 with application/msgpack", newTestReceiverFromConfig(conf), v02, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v03 with application/msgpack", newTestReceiverFromConfig(conf), v03, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
-		{"v04 with application/msgpack", newTestReceiverFromConfig(conf), v04, "application/msgpack", testutil.GetTestTrace(1, 1, false)},
+		{"v01 with application/msgpack", newTestReceiverFromConfig(conf), v01, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v02 with application/msgpack", newTestReceiverFromConfig(conf), v02, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v03 with application/msgpack", newTestReceiverFromConfig(conf), v03, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
+		{"v04 with application/msgpack", newTestReceiverFromConfig(conf), v04, "application/msgpack", testutil.GetTestTraces(1, 1, false)},
 	}
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.httpHandleWithVersion(tc.apiVersion, tc.r.handleTraces)),
+				http.HandlerFunc(tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces)),
 			)
 
 			// send traces to that endpoint using the msgpack content-type
@@ -268,9 +278,9 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 
 				// now we should be able to read the trace data
 				select {
-				case rt := <-tc.r.Out:
-					assert.Len(rt, 1)
-					span := rt[0]
+				case rt := <-tc.r.out:
+					assert.Len(rt.Spans, 1)
+					span := rt.Spans[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
 					assert.Equal("fennel_is_amazing", span.Service)
@@ -278,7 +288,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
-				default:
+				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
 
@@ -290,9 +300,9 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 
 				// now we should be able to read the trace data
 				select {
-				case rt := <-tc.r.Out:
-					assert.Len(rt, 1)
-					span := rt[0]
+				case rt := <-tc.r.out:
+					assert.Len(rt.Spans, 1)
+					span := rt.Spans[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
 					assert.Equal("fennel_is_amazing", span.Service)
@@ -300,7 +310,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
-				default:
+				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
 
@@ -317,174 +327,71 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 }
 
-func TestReceiverServiceJSONDecoder(t *testing.T) {
-	// testing traces without content-type in agent endpoints, it should use JSON decoding
+func TestReceiverDecodingError(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
-	testCases := []struct {
-		name        string
-		r           *HTTPReceiver
-		apiVersion  Version
-		contentType string
-	}{
-		{"v01 with empty content-type", newTestReceiverFromConfig(conf), v01, ""},
-		{"v02 with empty content-type", newTestReceiverFromConfig(conf), v02, ""},
-		{"v03 with empty content-type", newTestReceiverFromConfig(conf), v03, ""},
-		{"v04 with empty content-type", newTestReceiverFromConfig(conf), v04, ""},
-		{"v01 with application/json", newTestReceiverFromConfig(conf), v01, "application/json"},
-		{"v02 with application/json", newTestReceiverFromConfig(conf), v02, "application/json"},
-		{"v03 with application/json", newTestReceiverFromConfig(conf), v03, "application/json"},
-		{"v04 with application/json", newTestReceiverFromConfig(conf), v04, "application/json"},
-		{"v01 with text/json", newTestReceiverFromConfig(conf), v01, "text/json"},
-		{"v02 with text/json", newTestReceiverFromConfig(conf), v02, "text/json"},
-		{"v03 with text/json", newTestReceiverFromConfig(conf), v03, "text/json"},
-		{"v04 with text/json", newTestReceiverFromConfig(conf), v04, "text/json"},
-	}
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(http.HandlerFunc(r.handleWithVersion(v04, r.handleTraces)))
+	data := []byte("} invalid json")
+	client := &http.Client{}
 
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
-			// start testing server
-			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.httpHandleWithVersion(tc.apiVersion, tc.r.handleServices)),
-			)
+	t.Run("no-header", func(t *testing.T) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		assert.NoError(err)
+		req.Header.Set("Content-Type", "application/json")
 
-			// send service to that endpoint using the JSON content-type
-			services := pb.ServicesMetadata{
-				"backend": map[string]string{
-					"app":      "django",
-					"app_type": "web",
-				},
-				"database": map[string]string{
-					"app":      "postgres",
-					"app_type": "db",
-				},
-			}
+		resp, err := client.Do(req)
+		assert.NoError(err)
 
-			data, err := json.Marshal(services)
-			assert.Nil(err)
-			req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
-			assert.Nil(err)
-			req.Header.Set("Content-Type", tc.contentType)
+		assert.Equal(400, resp.StatusCode)
+		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+	})
 
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			assert.Nil(err)
+	t.Run("with-header", func(t *testing.T) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		assert.NoError(err)
+		traceCount := 10
+		req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
+		req.Header.Set("Content-Type", "application/json")
 
-			assert.Equal(200, resp.StatusCode)
+		resp, err := client.Do(req)
+		assert.NoError(err)
 
-			// now we should be able to read the trace data
-			select {
-			case rt := <-tc.r.services:
-				assert.Len(rt, 2)
-				assert.Equal(rt["backend"]["app"], "django")
-				assert.Equal(rt["backend"]["app_type"], "web")
-				assert.Equal(rt["database"]["app"], "postgres")
-				assert.Equal(rt["database"]["app_type"], "db")
-			default:
-				t.Fatalf("no data received")
-			}
-
-			resp.Body.Close()
-			server.Close()
-		})
-	}
+		assert.Equal(400, resp.StatusCode)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+	})
 }
 
-func TestReceiverServiceMsgpackDecoder(t *testing.T) {
-	// testing traces without content-type in agent endpoints, it should use Msgpack decoding
-	// or it should raise a 415 Unsupported media type
-	assert := assert.New(t)
-	conf := newTestReceiverConfig()
-	testCases := []struct {
-		name        string
-		r           *HTTPReceiver
-		apiVersion  Version
-		contentType string
-	}{
-		{"v01 with application/msgpack", newTestReceiverFromConfig(conf), v01, "application/msgpack"},
-		{"v02 with application/msgpack", newTestReceiverFromConfig(conf), v02, "application/msgpack"},
-		{"v03 with application/msgpack", newTestReceiverFromConfig(conf), v03, "application/msgpack"},
-		{"v04 with application/msgpack", newTestReceiverFromConfig(conf), v04, "application/msgpack"},
-	}
+func TestTraceCount(t *testing.T) {
+	req, err := http.NewRequest("GET", "/", nil)
+	assert.NoError(t, err)
 
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
-			// start testing server
-			server := httptest.NewServer(
-				http.HandlerFunc(tc.r.httpHandleWithVersion(tc.apiVersion, tc.r.handleServices)),
-			)
+	t.Run("missing", func(t *testing.T) {
+		for k := range req.Header {
+			delete(req.Header, k)
+		}
+		_, err := traceCount(req)
+		assert.Contains(t, err.Error(), "not found")
+	})
 
-			// send service to that endpoint using the JSON content-type
-			services := pb.ServicesMetadata{
-				"backend": map[string]string{
-					"app":      "django",
-					"app_type": "web",
-				},
-				"database": map[string]string{
-					"app":      "postgres",
-					"app_type": "db",
-				},
-			}
+	t.Run("value-empty", func(t *testing.T) {
+		req.Header.Set(headerTraceCount, "")
+		_, err := traceCount(req)
+		assert.Contains(t, err.Error(), "value not set")
+	})
 
-			// send traces to that endpoint using the Msgpack content-type
-			var buf bytes.Buffer
-			err := msgp.Encode(&buf, services)
-			assert.Nil(err)
-			req, err := http.NewRequest("POST", server.URL, &buf)
-			assert.Nil(err)
-			req.Header.Set("Content-Type", tc.contentType)
+	t.Run("value-bad", func(t *testing.T) {
+		req.Header.Set(headerTraceCount, "qwe")
+		_, err := traceCount(req)
+		assert.Contains(t, err.Error(), "can not be parsed")
+	})
 
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			assert.Nil(err)
-
-			switch tc.apiVersion {
-			case v01:
-				assert.Equal(415, resp.StatusCode)
-			case v02:
-				assert.Equal(415, resp.StatusCode)
-			case v03:
-				assert.Equal(200, resp.StatusCode)
-
-				// now we should be able to read the trace data
-				select {
-				case rt := <-tc.r.services:
-					assert.Len(rt, 2)
-					assert.Equal(rt["backend"]["app"], "django")
-					assert.Equal(rt["backend"]["app_type"], "web")
-					assert.Equal(rt["database"]["app"], "postgres")
-					assert.Equal(rt["database"]["app_type"], "db")
-				default:
-					t.Fatalf("no data received")
-				}
-
-				body, err := ioutil.ReadAll(resp.Body)
-				assert.Nil(err)
-				assert.Equal("OK\n", string(body))
-			case v04:
-				assert.Equal(200, resp.StatusCode)
-
-				// now we should be able to read the trace data
-				select {
-				case rt := <-tc.r.services:
-					assert.Len(rt, 2)
-					assert.Equal(rt["backend"]["app"], "django")
-					assert.Equal(rt["backend"]["app_type"], "web")
-					assert.Equal(rt["database"]["app"], "postgres")
-					assert.Equal(rt["database"]["app_type"], "db")
-				default:
-					t.Fatalf("no data received")
-				}
-
-				body, err := ioutil.ReadAll(resp.Body)
-				assert.Nil(err)
-				assert.Equal("OK\n", string(body))
-			}
-
-			resp.Body.Close()
-			server.Close()
-		})
-	}
+	t.Run("ok", func(t *testing.T) {
+		req.Header.Set(headerTraceCount, "123")
+		count, err := traceCount(req)
+		assert.NoError(t, err)
+		assert.Equal(t, count, int64(123))
+	})
 }
 
 func TestHandleTraces(t *testing.T) {
@@ -492,19 +399,19 @@ func TestHandleTraces(t *testing.T) {
 
 	// prepare the msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(10, 10, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(10, 10, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.httpHandleWithVersion(v04, receiver.handleTraces))
+	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
 
 	for n := 0; n < 10; n++ {
 		// consume the traces channel without doing anything
 		select {
-		case <-receiver.Out:
+		case <-receiver.out:
 		default:
 		}
 
@@ -549,20 +456,20 @@ func (sr *chunkedReader) Read(p []byte) (n int, err error) {
 	return sr.reader.Read(buf)
 }
 
-func TestReceiverPreSamplerCancel(t *testing.T) {
+func TestReceiverRateLimiterCancel(t *testing.T) {
 	assert := assert.New(t)
 
 	var wg sync.WaitGroup
 	var buf bytes.Buffer
 
 	n := 100 // Payloads need to be big enough, else bug is not triggered
-	msgp.Encode(&buf, testutil.GetTestTrace(n, n, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(n, n, true))
 
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
-	receiver.PreSampler.SetRate(0.000001) // Make sure we sample aggressively
+	receiver.RateLimiter.SetTargetRate(0.000001) // Make sure we sample aggressively
 
-	server := httptest.NewServer(http.HandlerFunc(receiver.httpHandleWithVersion(v04, receiver.handleTraces)))
+	server := httptest.NewServer(http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces)))
 
 	defer server.Close()
 	url := server.URL + "/v0.4/traces"
@@ -578,7 +485,7 @@ func TestReceiverPreSamplerCancel(t *testing.T) {
 				reader := &chunkedReader{reader: bytes.NewReader(buf.Bytes())}
 				req, err := http.NewRequest("POST", url, reader)
 				req.Header.Set("Content-Type", "application/msgpack")
-				req.Header.Set(sampler.TraceCountHeader, strconv.Itoa(n))
+				req.Header.Set(headerTraceCount, strconv.Itoa(n))
 				assert.Nil(err)
 
 				resp, err := client.Do(req)
@@ -598,14 +505,14 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 	// prepare the payload
 	// msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(1, 1, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(1, 1, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.httpHandleWithVersion(v04, receiver.handleTraces))
+	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
 
 	// benchmark
 	b.ResetTimer()
@@ -614,7 +521,7 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 		b.StopTimer()
 		// consume the traces channel without doing anything
 		select {
-		case <-receiver.Out:
+		case <-receiver.out:
 		default:
 		}
 
@@ -638,14 +545,14 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 	// prepare the payload
 	// msgpack payload
 	var buf bytes.Buffer
-	msgp.Encode(&buf, testutil.GetTestTrace(1, 1, true))
+	msgp.Encode(&buf, testutil.GetTestTraces(1, 1, true))
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
 
 	// response recorder
-	handler := http.HandlerFunc(receiver.httpHandleWithVersion(v04, receiver.handleTraces))
+	handler := http.HandlerFunc(receiver.handleWithVersion(v04, receiver.handleTraces))
 
 	// benchmark
 	b.ResetTimer()
@@ -654,7 +561,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 		b.StopTimer()
 		// consume the traces channel without doing anything
 		select {
-		case <-receiver.Out:
+		case <-receiver.out:
 		default:
 		}
 
@@ -676,7 +583,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 
 func BenchmarkDecoderJSON(b *testing.B) {
 	assert := assert.New(b)
-	traces := testutil.GetTestTrace(150, 66, true)
+	traces := testutil.GetTestTraces(150, 66, true)
 
 	// json payload
 	payload, err := json.Marshal(traces)
@@ -701,7 +608,7 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 
 	// msgpack payload
 	var buf bytes.Buffer
-	err := msgp.Encode(&buf, testutil.GetTestTrace(150, 66, true))
+	err := msgp.Encode(&buf, testutil.GetTestTraces(150, 66, true))
 	assert.Nil(err)
 
 	// benchmark
@@ -715,4 +622,181 @@ func BenchmarkDecoderMsgpack(b *testing.B) {
 		var traces pb.Traces
 		_ = msgp.Decode(reader, &traces)
 	}
+}
+
+func BenchmarkWatchdog(b *testing.B) {
+	now := time.Now()
+	conf := config.New()
+	conf.Endpoints[0].APIKey = "apikey_2"
+	r := NewHTTPReceiver(conf, nil, nil)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		r.watchdog(now)
+	}
+}
+
+func TestExpvar(t *testing.T) {
+	if testing.Short() {
+		return
+	}
+
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+
+	resp, err := http.Get("http://localhost:8126/debug/vars")
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
+
+	if resp.StatusCode == http.StatusOK {
+		var out map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&out)
+		assert.NoError(t, err, "/debug/vars must return valid json")
+	}
+}
+
+func TestWatchdog(t *testing.T) {
+	t.Run("rate-limit", func(t *testing.T) {
+		if testing.Short() {
+			return
+		}
+		os.Setenv("DD_APM_FEATURES", "429")
+		defer os.Unsetenv("DD_APM_FEATURES")
+
+		conf := config.New()
+		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.MaxMemory = 1e10
+		conf.WatchdogInterval = time.Minute // we trigger manually
+
+		r := newTestReceiverFromConfig(conf)
+		r.Start()
+		defer r.Stop()
+		go func() {
+			for range r.out {
+			}
+		}()
+
+		data := msgpTraces(t, pb.Traces{
+			testutil.RandomTrace(10, 20),
+			testutil.RandomTrace(10, 20),
+			testutil.RandomTrace(10, 20),
+		})
+
+		// first request is accepted
+		r.watchdog(time.Now())
+		resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("got %d", resp.StatusCode)
+		}
+
+		// follow-up requests should trigger a reject
+		r.conf.MaxMemory = 1
+		for tries := 0; tries < 100; tries++ {
+			req, err := http.NewRequest("POST", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", "application/msgpack")
+			req.Header.Set(headerTraceCount, "3")
+			resp, err = http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode == http.StatusTooManyRequests {
+				break // 👍
+			}
+			r.watchdog(time.Now())
+		}
+		if resp.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("didn't close, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("disabling", func(t *testing.T) {
+		cfg := config.New()
+		r := &HTTPReceiver{
+			conf:        cfg,
+			RateLimiter: newRateLimiter(),
+		}
+
+		cfg.MaxMemory = 0
+		cfg.MaxCPU = 0
+		r.watchdog(time.Now())
+		assert.Equal(t, 1.0, r.RateLimiter.TargetRate())
+
+		cfg.MaxMemory = 1
+		r.watchdog(time.Now())
+		assert.NotEqual(t, 1.0, r.RateLimiter.TargetRate())
+	})
+}
+
+func TestOOMKill(t *testing.T) {
+	var kills uint64
+
+	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
+	killProcess = func(format string, a ...interface{}) {
+		if format != "OOM" {
+			t.Fatalf("wrong message: %s", fmt.Sprintf(format, a...))
+		}
+		atomic.AddUint64(&kills, 1)
+	}
+
+	conf := config.New()
+	conf.Endpoints[0].APIKey = "apikey_2"
+	conf.WatchdogInterval = time.Millisecond
+	conf.MaxMemory = 0.5 * 1000 * 1000 // 0.5M
+
+	r := newTestReceiverFromConfig(conf)
+	r.Start()
+	defer r.Stop()
+	go func() {
+		for range r.out {
+		}
+	}()
+
+	var traces pb.Traces
+	for i := 0; i < 20; i++ {
+		traces = append(traces, testutil.RandomTrace(10, 20))
+	}
+	data := msgpTraces(t, traces)
+
+	var wg sync.WaitGroup
+	for tries := 0; tries < 50; tries++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data)); err != nil {
+				t.Fatal(err)
+			}
+		}()
+	}
+	wg.Wait()
+	timeout := time.After(500 * time.Millisecond)
+loop:
+	for {
+		select {
+		case <-timeout:
+			break loop
+		default:
+			if atomic.LoadUint64(&kills) > 1 {
+				return
+			}
+			time.Sleep(conf.WatchdogInterval)
+		}
+	}
+	t.Fatal("didn't get OOM killed")
+}
+
+func msgpTraces(t *testing.T, traces pb.Traces) []byte {
+	var body bytes.Buffer
+	if err := msgp.Encode(&body, traces); err != nil {
+		t.Fatal(err)
+	}
+	return body.Bytes()
 }

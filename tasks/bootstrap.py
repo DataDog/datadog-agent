@@ -3,11 +3,14 @@ Boostrapping related logic goes here
 """
 import os
 import json
+import sys
+
+from .utils import get_gopath
 
 # Bootstrap dependencies description
 BOOTSTRAP_DEPS = "bootstrap.json"
 BOOTSTRAP_ORDER_KEY = "order"
-BOOTSTRAP_SUPPORTED_KINDS = ["go", "python"]
+BOOTSTRAP_SUPPORTED_KINDS = ["go", "python", "shell"]
 BOOTSTRAP_SUPPORTED_STEPS = ["checkout", "install"]
 
 
@@ -21,7 +24,8 @@ def get_deps(key):
 
     return deps.get(key, {})
 
-def process_deps(ctx, target, version, kind, step, verbose=False):
+
+def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
     """
     Process a dependency target.
 
@@ -42,24 +46,23 @@ def process_deps(ctx, target, version, kind, step, verbose=False):
     if kind == "go":
         if step == "checkout":
             # download tools
-            gopath = os.environ.get("GOPATH")
-            if not gopath:
-                for line in ctx.run("go env", hide=True).stdout.splitlines():
-                    [name, value] = line.split("=", 1)
-                    if name == "GOPATH":
-                        gopath = value
-                        break
-            path = os.path.join(gopath, 'src', target)
+            path = os.path.join(get_gopath(ctx), 'src', target)
             if not os.path.exists(path):
-                ctx.run("go get{} -d -u {}".format(verbosity, target))
+                ctx.run("go get{} -d -u {}".format(verbosity, target), env={'GO111MODULE': 'off'})
 
             with ctx.cd(path):
                 # checkout versions
                 ctx.run("git fetch")
                 ctx.run("git checkout {}".format(version))
         elif step == "install":
-            ctx.run("go install{} {}".format(verbosity, target))
+            ctx.run("go install{} {}".format(verbosity, target), env={'GO111MODULE': 'off'})
     elif kind == "python":
         # no checkout needed for python deps
         if step == "install":
             ctx.run("pip install{} {}=={}".format(verbosity, target, version))
+    elif kind == "shell":
+        if step == "install":
+            if sys.platform == 'win32':
+                print("shell dependencies currently unsupported on windows please install manually")
+            else:
+                ctx.run("{}".format(cmd), env={'BOOTSTRAPPED_VERSION': version})

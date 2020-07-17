@@ -1,0 +1,14 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix a panic in the log agent when the auto-discovery reports new containers to monitor
+    and the agent fails to connect to the docker daemon.
+    The main setup where this happened is on ECS Fargate where the ECS auto-discovery is watching
+    for new containers and the docker socket is not available from the datadog agent.
