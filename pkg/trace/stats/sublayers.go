@@ -52,21 +52,21 @@ type spanState struct {
 	// For each period where the span is active, its Exec Duration increases by periodDuration/numberOfActiveSpans
 	//     so if a span is active during 20ms, in parallel with another span active at the same time, its exec duration will be 10ms
 	execDuration float64
-	// activationTraceExecDuration is the execDuration of a trace at the time the span was activated.
-	// When the span is deactivated, we increase the execDuration of the span by currentTraceExecDuration - activationTraceExecDuration
-	activationTraceExecDuration float64
+	// activationExecTime is the execTime of a trace at the time the span was activated.
+	// When the span is deactivated, we increase the execDuration of the span by currentExecTime - activationExecTime
+	activationExecTime float64
 }
 
-// activate activates a span and saves the traceExecDuration at activation.
-func (s *spanState) activate(traceExecDuration float64) {
+// activate activates a span and saves the execTime at activation.
+func (s *spanState) activate(execTime float64) {
 	s.active = true
-	s.activationTraceExecDuration = traceExecDuration
+	s.activationExecTime = execTime
 }
 
 // deactivate deactivates a span and updates the execDuration of the span.
-func (s *spanState) deactivate(traceExecDuration float64) {
+func (s *spanState) deactivate(execTime float64) {
 	s.active = false
-	s.execDuration += traceExecDuration - s.activationTraceExecDuration
+	s.execDuration += execTime - s.activationExecTime
 }
 
 // SublayerCalculator holds arrays used to compute sublayer metrics.
@@ -155,12 +155,13 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 
 	// Step 3: Compute the execution duration of each span
 	state := s.spanStates
-	traceExecDuration := float64(0)
+	// execTime is the execution time since the start of the trace.
+	execTime := float64(0)
 	nActiveSpans := 0
 	for j := 0; j < len(trace)*2; j++ {
 		tp := s.timestamps[j]
 		if nActiveSpans > 0 {
-			traceExecDuration += float64(tp.ts-s.timestamps[j-1].ts) / float64(nActiveSpans)
+			execTime += float64(tp.ts-s.timestamps[j-1].ts) / float64(nActiveSpans)
 		}
 		if tp.spanStart {
 			// a span opens here
@@ -168,7 +169,7 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 				// which has a parent
 				if state[tp.parentIdx].active {
 					// deactivate the parent
-					state[tp.parentIdx].deactivate(traceExecDuration)
+					state[tp.parentIdx].deactivate(execTime)
 					nActiveSpans--
 				}
 				state[tp.parentIdx].nOpenChildren++
@@ -176,7 +177,7 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 			state[tp.spanIdx].open = true
 			if state[tp.spanIdx].nOpenChildren == 0 && !state[tp.spanIdx].active {
 				// activate the span
-				state[tp.spanIdx].activate(traceExecDuration)
+				state[tp.spanIdx].activate(execTime)
 				nActiveSpans++
 			}
 		} else {
@@ -184,7 +185,7 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 			state[tp.spanIdx].open = false
 			if state[tp.spanIdx].active {
 				// deactivate the span
-				state[tp.spanIdx].deactivate(traceExecDuration)
+				state[tp.spanIdx].deactivate(execTime)
 				nActiveSpans--
 			}
 			if tp.parentIdx != -1 {
@@ -192,7 +193,7 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 				state[tp.parentIdx].nOpenChildren--
 				if state[tp.parentIdx].open && state[tp.parentIdx].nOpenChildren == 0 && !state[tp.parentIdx].active {
 					// reactivate the parent
-					state[tp.parentIdx].activate(traceExecDuration)
+					state[tp.parentIdx].activate(execTime)
 					nActiveSpans++
 				}
 			}
