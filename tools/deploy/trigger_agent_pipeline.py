@@ -1,7 +1,13 @@
 import platform
+import functools
+import sys
 
 from gitlab import Gitlab
 from color import color_str
+
+from time import sleep, time
+
+PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 4
 
 
 def trigger_agent_pipeline(
@@ -43,6 +49,92 @@ def trigger_agent_pipeline(
     raise RuntimeError("Invalid response from Gitlab: {}".format(result))
 
 
+def ui_loop(callable, timeout_sec):
+    need_newline = False
+    start = time()
+    try:
+        while True:
+            res = callable()
+            if res:
+                return res
+            if time() - start > timeout_sec:
+                raise ErrorMsg("Timed out.")
+            sys.stdout.write(color_str(".", "orange"))
+            sys.stdout.flush()
+            need_newline = True
+            sleep(3)
+    finally:
+        if need_newline:
+            print("")
+
+
+def wait_for_pipeline_id(
+    proj, pipeline_id, timeout_sec, commit=None, skip_wait_coverage=False, wait_for_job="",
+):
+    gitlab = Gitlab()
+    gitlab.test_project_found(proj)
+
+    f = functools.partial(pipeline_status, gitlab, proj, pipeline_id,)
+
+    ui_loop(f, timeout_sec)
+
+
+def latest_job_from_name(jobs, job_name):
+    relevant_jobs = [job for job in jobs if job["name"] == job_name]
+
+    return sorted(relevant_jobs, key=lambda x: x["created_at"], reverse=True)[0]
+
+
+def pipeline_status(gitlab, proj, pipeline_id):
+    jobs = gitlab.jobs(proj, pipeline_id)
+
+    # check pipeline status
+    pipestatus = gitlab.pipeline(proj, pipeline_id)["status"].lower().strip()
+
+    if pipestatus == "success":
+        return True
+
+    if pipestatus == "failed":
+        for job in jobs:
+            if job["status"] in ["failed", "canceled"]:
+                url = "https://gitlab.ddbuild.io/{}/-/jobs/{}".format(proj, job["id"])
+                raise ErrorMsg("Job {}: {}".format(job["status"], url))
+        raise ErrorMsg(
+            "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} failed, despite no failed or canceled jobs...".format(
+                proj, pipeline_id
+            )
+        )
+
+    if pipestatus == "canceled":
+        raise ErrorMsg("Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} was canceled.".format(proj, pipeline_id))
+
+    if pipestatus not in ["created", "running", "pending"]:
+        raise ErrorMsg("Error: pipeline status {}".format(pipestatus.title()))
+
+
+def print_pipeline_link(project, pipeline_id):
+    status(
+        "Pipeline Link: " + color_str("https://gitlab.ddbuild.io/%s/pipelines/%d" % (project, pipeline_id), "green",)
+    )
+
+
+def wait_for_pipeline(
+    pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
+):
+    start = time()
+
+    print_pipeline_link("22", pipeline_id)
+
+    status("Waiting for pipeline to finish. Exiting won't cancel it.")
+
+    wait_for_pipeline_id("22", pipeline_id, pipeline_finish_timeout_sec)
+
+    wait_sec = time() - start  # not called duration because pipeline may already have been running
+    print(color_str("Done in %ds!" % (wait_sec,), "green"))
+
+    return pipeline_id
+
+
 def status(msg):
     print(color_str(msg, "blue"))
 
@@ -76,3 +168,7 @@ def notify(title, info_text, sound=True):
             pass
     ## Always do console notification
     print("%s: %s" % (title, info_text))
+
+
+class ErrorMsg(Exception):
+    pass
