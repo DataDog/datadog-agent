@@ -167,9 +167,7 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	start := time.Now()
 	deployList, err := o.deployLister.List(labels.Everything())
-	log.Debugf("Listed %d deployments in %s", len(deployList), time.Now().Sub(start))
 	if err != nil {
 		log.Errorf("Unable to list deployments: %s", err)
 		return
@@ -181,9 +179,7 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	start = time.Now()
 	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
-	log.Debugf("Sent %d deployment msg in %s", len(msg), time.Now().Sub(start))
 }
 
 func (o *Controller) processReplicasets() {
@@ -191,9 +187,7 @@ func (o *Controller) processReplicasets() {
 		return
 	}
 
-	start := time.Now()
 	rsList, err := o.rsLister.List(labels.Everything())
-	log.Debugf("Listed %d replica sets in %s", len(rsList), time.Now().Sub(start))
 	if err != nil {
 		log.Errorf("Unable to list replica sets: %s", err)
 		return
@@ -205,9 +199,7 @@ func (o *Controller) processReplicasets() {
 		return
 	}
 
-	start = time.Now()
 	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
-	log.Debugf("Sent %d replica sets msg in %s", len(msg), time.Now().Sub(start))
 }
 
 func (o *Controller) processPods() {
