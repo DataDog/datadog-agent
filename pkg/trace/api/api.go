@@ -570,6 +570,7 @@ func decodeRequest(req *http.Request) ([]traces.Trace, error) {
 		if err := msgp.Decode(req.Body, &dest); err != nil {
 			return nil, fmt.Errorf("decodeRequest: error decoding msgpack request: %v", err)
 		}
+
 		return pbToTraces(dest), nil
 	case "application/protobuf":
 		raw, err := ioutil.ReadAll(req.Body)

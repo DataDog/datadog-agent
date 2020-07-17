@@ -6,9 +6,11 @@ type protoEncoder struct {
 	buf []byte
 }
 
-func newProtoEncoder() *protoEncoder {
-	// TODO: Presize buf.
-	return &protoEncoder{}
+func newProtoEncoder(b []byte) *protoEncoder {
+	b = b[:0]
+	return &protoEncoder{
+		buf: b,
+	}
 }
 
 func (p *protoEncoder) Write(b []byte) (int, error) {

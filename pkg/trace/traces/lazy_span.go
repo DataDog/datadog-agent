@@ -27,6 +27,20 @@ type LazySpan struct {
 	spanType  string
 }
 
+// Service  string             `protobuf:"bytes,1,opt,name=service,proto3" json:"service" msg:"service"`
+// 	Name     string             `protobuf:"bytes,2,opt,name=name,proto3" json:"name" msg:"name"`
+// 	Resource string             `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource" msg:"resource"`
+// 	TraceID  uint64             `protobuf:"varint,4,opt,name=traceID,proto3" json:"trace_id" msg:"trace_id"`
+// 	SpanID   uint64             `protobuf:"varint,5,opt,name=spanID,proto3" json:"span_id" msg:"span_id"`
+// 	ParentID uint64             `protobuf:"varint,6,opt,name=parentID,proto3" json:"parent_id" msg:"parent_id"`
+// 	Start    int64              `protobuf:"varint,7,opt,name=start,proto3" json:"start" msg:"start"`
+// 	Duration int64              `protobuf:"varint,8,opt,name=duration,proto3" json:"duration" msg:"duration"`
+// 	Error    int32              `protobuf:"varint,9,opt,name=error,proto3" json:"error" msg:"error"`
+// 	Meta     map[string]string  `protobuf:"bytes,10,rep,name=meta" json:"meta" msg:"meta" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+// 	Metrics  map[string]float64 `protobuf:"bytes,11,rep,name=metrics" json:"metrics" msg:"metrics" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+// 	Type     string             `protobuf:"bytes,12,opt,name=type,proto3" json:"type" msg:"type"`
+// }
+
 func NewLazySpan(raw []byte) (*LazySpan, error) {
 	// TODO: Don't alloc each time?
 	buffer := codec.NewBuffer(raw)
@@ -108,9 +122,7 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 	if err != nil {
 		return nil, fmt.Errorf("NewLazySpan: error parsing span: %v", err)
 	}
-	return &LazySpan{
-		raw: raw,
-	}, nil
+	return l, nil
 }
 
 func (l *LazySpan) TraceID() uint64 {

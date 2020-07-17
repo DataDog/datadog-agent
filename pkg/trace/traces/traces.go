@@ -78,7 +78,7 @@ func NewLazyTracesFromProto(b []byte) ([]Trace, error) {
 					wireType)
 			}
 
-			spanBytes, err := buf.DecodeRawBytes(false)
+			spanBytes, err := spanBuf.DecodeRawBytes(false)
 			if err != nil {
 				return nil, fmt.Errorf(
 					"NewLazyTraceFromProto: error reading trace bytes: %v", err)

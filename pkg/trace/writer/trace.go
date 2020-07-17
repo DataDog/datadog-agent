@@ -188,7 +188,8 @@ func (w *TraceWriter) flush() {
 
 	log.Debugf("Serializing %d traces and %d APM events.", len(w.traces), len(w.events))
 
-	protoEncoder := newProtoEncoder()
+	// TODO: Reuse this buffer.
+	protoEncoder := newProtoEncoder(make([]byte, 0, w.bufferedSize))
 	protoEncoder.encodeTagAndWireType(1, 2)         // Field 1, wire type 2 (length-delimited)
 	protoEncoder.encodeRawBytes([]byte(w.hostname)) // TODO: Don't alloc.
 
