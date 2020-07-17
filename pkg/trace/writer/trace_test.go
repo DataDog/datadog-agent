@@ -7,7 +7,6 @@ package writer
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io/ioutil"
 	"reflect"
 	"sync"
@@ -162,17 +161,6 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledS
 			t.Fatal("payloads didn't contain given traces")
 		}
 
-		fmt.Println("hmmmmmm1")
-		for _, t := range all.Transactions {
-			fmt.Println("---")
-			fmt.Println(t)
-		}
-
-		fmt.Println("hmmmmmm2")
-		for _, event := range ss.Events.Spans {
-			fmt.Println("---")
-			fmt.Println(event)
-		}
 		for _, event := range ss.Events.Spans {
 			assert.Contains(t, all.Transactions, &event.(*traces.EagerSpan).Span)
 		}
