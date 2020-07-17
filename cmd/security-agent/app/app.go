@@ -97,7 +97,6 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
-	SecurityAgentCmd.AddCommand(runtimeCmd)
 
 	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
@@ -168,16 +167,10 @@ func start(cmd *cobra.Command, args []string) error {
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
-	complianceEnabled := config.Datadog.GetBool("compliance_config.enabled")
-	if complianceEnabled {
-		checkInterval := config.Datadog.GetDuration("compliance_config.check_interval")
-		log.Infof("Running compliance checks every %s", checkInterval.String())
-	} else {
-		log.Info("Datadog compliance agent disabled by config")
-	}
+	stopper := restart.NewSerialStopper()
+	defer stopper.Stop()
 
-	// start runtime security agent
-	if err = startRuntimeSecurity(stopper); err != nil {
+	if err = startCompliance(stopper); err != nil {
 		return err
 	}
 
@@ -190,6 +183,8 @@ func start(cmd *cobra.Command, args []string) error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 	defer srv.Stop()
+
+	log.Infof("Datadog Security Agent is now running.")
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
