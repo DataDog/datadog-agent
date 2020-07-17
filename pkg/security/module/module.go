@@ -38,6 +38,9 @@ type Module struct {
 }
 
 func (m *Module) Register(httpMux *http.ServeMux) error {
+	// force socket cleanup of previous socket not cleanup
+	os.Remove(m.config.SocketPath)
+
 	ln, err := net.Listen("unix", m.config.SocketPath)
 	if err != nil {
 		return errors.Wrap(err, "unable to register security runtime module")
