@@ -207,7 +207,7 @@ fail_on_non_triggered_tag:
     - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
     - mkdir /tmp/bcc/build
     - cd /tmp/bcc/build
-    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib'
+    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
     - make -j 4 #"$(nproc)"
     # Check that libbcc has no references to too recent glibc
     - objdump -p src/cc/libbcc.so | grep GLIBC_2.29 && exit 1
