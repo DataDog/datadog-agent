@@ -65,7 +65,7 @@ func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
 
-func checkDocker(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*CheckReport, error) {
+func checkDocker(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
 	if res.Docker == nil {
 		return nil, fmt.Errorf("expecting docker resource in docker check")
 	}
@@ -85,7 +85,7 @@ func checkDocker(e env.Env, ruleID string, res compliance.Resource, expr *eval.I
 	}
 }
 
-func checkDockerIterator(ruleID string, expr *eval.IterableExpression, docker *compliance.DockerResource, client env.DockerClient) (*CheckReport, error) {
+func checkDockerIterator(ruleID string, expr *eval.IterableExpression, docker *compliance.DockerResource, client env.DockerClient) (*report, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
@@ -121,10 +121,10 @@ func checkDockerIterator(ruleID string, expr *eval.IterableExpression, docker *c
 		return nil, err
 	}
 
-	return instanceResultToCheckReport(result, reportedFields), nil
+	return instanceResultToReport(result, reportedFields), nil
 }
 
-func checkDockerInstance(ruleID string, expr *eval.IterableExpression, docker *compliance.DockerResource, client env.DockerClient) (*CheckReport, error) {
+func checkDockerInstance(ruleID string, expr *eval.IterableExpression, docker *compliance.DockerResource, client env.DockerClient) (*report, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
@@ -171,10 +171,7 @@ func checkDockerInstance(ruleID string, expr *eval.IterableExpression, docker *c
 		return nil, err
 	}
 
-	return &CheckReport{
-		Passed: passed,
-		Data:   instanceToEventData(instance, reportedFields),
-	}, nil
+	return instanceToReport(instance, passed, reportedFields), nil
 }
 
 func dockerTemplateQuery(funcName, obj interface{}) eval.Function {

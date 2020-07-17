@@ -100,23 +100,23 @@ func instanceToEventData(instance *eval.Instance, allowedFields []string) event.
 	return data
 }
 
-// instanceToCheckReport converts an instance and passed status to CheckReport
+// instanceToReport converts an instance and passed status to report
 // filtering out fields not on the allowedFields list
-func instanceToCheckReport(instance *eval.Instance, passed bool, allowedFields []string) *CheckReport {
+func instanceToReport(instance *eval.Instance, passed bool, allowedFields []string) *report {
 	var data event.Data
 
 	if instance != nil {
 		data = instanceToEventData(instance, allowedFields)
 	}
 
-	return &CheckReport{
-		Passed: passed,
-		Data:   data,
+	return &report{
+		passed: passed,
+		data:   data,
 	}
 }
 
-// instanceToCheckReport converts an evaluated instanceResult to CheckReport
+// instanceToReport converts an evaluated instanceResult to report
 // filtering out fields not on the allowedFields list
-func instanceResultToCheckReport(result *eval.InstanceResult, allowedFields []string) *CheckReport {
-	return instanceToCheckReport(result.Instance, result.Passed, allowedFields)
+func instanceResultToReport(result *eval.InstanceResult, allowedFields []string) *report {
+	return instanceToReport(result.Instance, result.Passed, allowedFields)
 }

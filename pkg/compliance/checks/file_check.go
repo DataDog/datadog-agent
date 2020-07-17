@@ -32,7 +32,7 @@ var fileReportedFields = []string{
 	fileFieldGroup,
 }
 
-func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*CheckReport, error) {
+func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -99,7 +99,7 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 		return nil, err
 	}
 
-	return instanceResultToCheckReport(result, fileReportedFields), nil
+	return instanceResultToReport(result, fileReportedFields), nil
 }
 
 func fileQuery(path string, get getter) eval.Function {

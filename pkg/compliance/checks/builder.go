@@ -353,8 +353,7 @@ func (b *builder) isKubernetesNodeEligible(hostSelector *compliance.HostSelector
 }
 
 func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope string, rule *compliance.Rule) *complianceCheck {
-
-	checkable, err := newCheckableList(b, rule.ID, rule.Resources)
+	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
 
 	if err != nil {
 		log.Warnf("%s: check failed to initialize: %v", rule.ID, err)

@@ -27,7 +27,7 @@ var auditReportedFields = []string{
 	auditFieldPermissions,
 }
 
-func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*CheckReport, error) {
+func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
@@ -80,7 +80,7 @@ func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.It
 		return nil, err
 	}
 
-	return instanceResultToCheckReport(result, auditReportedFields), nil
+	return instanceResultToReport(result, auditReportedFields), nil
 }
 
 func resolvePath(e env.Env, path string) (string, error) {

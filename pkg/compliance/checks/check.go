@@ -84,10 +84,10 @@ func (c *complianceCheck) Run() error {
 		data   event.Data
 	)
 
-	result, err := c.checkable.Check(c)
+	report, err := c.checkable.check(c)
 	if err == nil {
-		data = result.Data
-		passed = result.Passed
+		data = report.data
+		passed = report.passed
 	} else {
 		log.Warnf("%s: check run failed: %v", c.ruleID, err)
 	}

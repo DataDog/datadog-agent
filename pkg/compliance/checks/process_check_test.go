@@ -23,7 +23,7 @@ type processFixture struct {
 	resource compliance.Resource
 
 	processes    map[int32]*process.FilledProcess
-	expectReport *CheckReport
+	expectReport *report
 	expectError  error
 }
 
@@ -64,9 +64,9 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--path=foo"},
 				},
 			},
-			expectReport: &CheckReport{
-				Passed: true,
-				Data: event.Data{
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
 					"process.name":    "proc1",
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--path=foo"},
@@ -91,8 +91,8 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--path=foo"},
 				},
 			},
-			expectReport: &CheckReport{
-				Passed: false,
+			expectReport: &report{
+				passed: false,
 			},
 		},
 		{
@@ -109,9 +109,9 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--paths=foo"},
 				},
 			},
-			expectReport: &CheckReport{
-				Passed: false,
-				Data: event.Data{
+			expectReport: &report{
+				passed: false,
+				data: event.Data{
 					"process.name":    "proc1",
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--paths=foo"},

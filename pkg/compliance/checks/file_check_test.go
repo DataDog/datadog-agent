@@ -24,7 +24,7 @@ import (
 
 func TestFileCheck(t *testing.T) {
 	type setupFileFunc func(t *testing.T, env *mocks.Env, file *compliance.File)
-	type validateFunc func(t *testing.T, file *compliance.File, result *CheckReport)
+	type validateFunc func(t *testing.T, file *compliance.File, report *report)
 
 	normalizePath := func(t *testing.T, env *mocks.Env, file *compliance.File) {
 		t.Helper()
@@ -58,10 +58,10 @@ func TestFileCheck(t *testing.T) {
 
 				env.On("NormalizePath", file.Path).Return(filePath)
 			},
-			validate: func(t *testing.T, file *compliance.File, report *CheckReport) {
-				assert.True(t, report.Passed)
-				assert.Equal(t, file.Path, report.Data["file.path"])
-				assert.Equal(t, uint64(0644), report.Data["file.permissions"])
+			validate: func(t *testing.T, file *compliance.File, report *report) {
+				assert.True(t, report.passed)
+				assert.Equal(t, file.Path, report.data["file.path"])
+				assert.Equal(t, uint64(0644), report.data["file.permissions"])
 			},
 		},
 		{
@@ -73,11 +73,11 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.user == "root" && file.group in ["root", "wheel"]`,
 			},
 			setup: normalizePath,
-			validate: func(t *testing.T, file *compliance.File, report *CheckReport) {
-				assert.True(t, report.Passed)
-				assert.Equal(t, "/tmp", report.Data["file.path"])
-				assert.Equal(t, "root", report.Data["file.user"])
-				assert.Contains(t, []string{"root", "wheel"}, report.Data["file.group"])
+			validate: func(t *testing.T, file *compliance.File, report *report) {
+				assert.True(t, report.passed)
+				assert.Equal(t, "/tmp", report.data["file.path"])
+				assert.Equal(t, "root", report.data["file.user"])
+				assert.Contains(t, []string{"root", "wheel"}, report.data["file.group"])
 			},
 		},
 		{
@@ -91,11 +91,11 @@ func TestFileCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("NormalizePath", file.Path).Return("./testdata/file/daemon.json")
 			},
-			validate: func(t *testing.T, file *compliance.File, report *CheckReport) {
-				assert.True(t, report.Passed)
-				assert.Equal(t, "/etc/docker/daemon.json", report.Data["file.path"])
-				assert.NotEmpty(t, report.Data["file.user"])
-				assert.NotEmpty(t, report.Data["file.group"])
+			validate: func(t *testing.T, file *compliance.File, report *report) {
+				assert.True(t, report.passed)
+				assert.Equal(t, "/etc/docker/daemon.json", report.data["file.path"])
+				assert.NotEmpty(t, report.data["file.user"])
+				assert.NotEmpty(t, report.data["file.group"])
 			},
 		},
 		{
@@ -109,11 +109,11 @@ func TestFileCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("NormalizePath", file.Path).Return("./testdata/file/daemon.json")
 			},
-			validate: func(t *testing.T, file *compliance.File, report *CheckReport) {
-				assert.False(t, report.Passed)
-				assert.Equal(t, "/etc/docker/daemon.json", report.Data["file.path"])
-				assert.NotEmpty(t, report.Data["file.user"])
-				assert.NotEmpty(t, report.Data["file.group"])
+			validate: func(t *testing.T, file *compliance.File, report *report) {
+				assert.False(t, report.passed)
+				assert.Equal(t, "/etc/docker/daemon.json", report.data["file.path"])
+				assert.NotEmpty(t, report.data["file.user"])
+				assert.NotEmpty(t, report.data["file.group"])
 			},
 		},
 		{
@@ -129,11 +129,11 @@ func TestFileCheck(t *testing.T) {
 				env.On("EvaluateFromCache", mock.Anything).Return(path, nil)
 				env.On("NormalizePath", path).Return("./testdata/file/daemon.json")
 			},
-			validate: func(t *testing.T, file *compliance.File, report *CheckReport) {
-				assert.True(t, report.Passed)
-				assert.Equal(t, "/etc/docker/daemon.json", report.Data["file.path"])
-				assert.NotEmpty(t, report.Data["file.user"])
-				assert.NotEmpty(t, report.Data["file.group"])
+			validate: func(t *testing.T, file *compliance.File, report *report) {
+				assert.True(t, report.passed)
+				assert.Equal(t, "/etc/docker/daemon.json", report.data["file.path"])
+				assert.NotEmpty(t, report.data["file.user"])
+				assert.NotEmpty(t, report.data["file.group"])
 			},
 		},
 		{
@@ -147,11 +147,11 @@ func TestFileCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("NormalizePath", file.Path).Return("./testdata/file/daemon.json")
 			},
-			validate: func(t *testing.T, file *compliance.File, report *CheckReport) {
-				assert.True(t, report.Passed)
-				assert.Equal(t, "/etc/docker/daemon.json", report.Data["file.path"])
-				assert.NotEmpty(t, report.Data["file.user"])
-				assert.NotEmpty(t, report.Data["file.group"])
+			validate: func(t *testing.T, file *compliance.File, report *report) {
+				assert.True(t, report.passed)
+				assert.Equal(t, "/etc/docker/daemon.json", report.data["file.path"])
+				assert.NotEmpty(t, report.data["file.user"])
+				assert.NotEmpty(t, report.data["file.group"])
 			},
 		},
 		{
@@ -165,11 +165,11 @@ func TestFileCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("NormalizePath", file.Path).Return("./testdata/file/pod.yaml")
 			},
-			validate: func(t *testing.T, file *compliance.File, report *CheckReport) {
-				assert.True(t, report.Passed)
-				assert.Equal(t, "/etc/pod.yaml", report.Data["file.path"])
-				assert.NotEmpty(t, report.Data["file.user"])
-				assert.NotEmpty(t, report.Data["file.group"])
+			validate: func(t *testing.T, file *compliance.File, report *report) {
+				assert.True(t, report.passed)
+				assert.Equal(t, "/etc/pod.yaml", report.data["file.path"])
+				assert.NotEmpty(t, report.data["file.user"])
+				assert.NotEmpty(t, report.data["file.group"])
 			},
 		},
 	}

@@ -27,7 +27,7 @@ func TestAuditCheck(t *testing.T) {
 		rules        []*rule.FileWatchRule
 		resource     compliance.Resource
 		setup        setupEnvFunc
-		expectReport *CheckReport
+		expectReport *report
 		expectError  error
 	}{
 		{
@@ -39,8 +39,8 @@ func TestAuditCheck(t *testing.T) {
 				},
 				Condition: "audit.enabled",
 			},
-			expectReport: &CheckReport{
-				Passed: false,
+			expectReport: &report{
+				passed: false,
 			},
 		},
 		{
@@ -62,9 +62,9 @@ func TestAuditCheck(t *testing.T) {
 				},
 				Condition: `audit.enabled && audit.permissions =~ "w"`,
 			},
-			expectReport: &CheckReport{
-				Passed: true,
-				Data: event.Data{
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
 					"audit.enabled":     true,
 					"audit.path":        "/etc/docker/daemon.json",
 					"audit.permissions": "rwa",
@@ -93,9 +93,9 @@ func TestAuditCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env) {
 				env.On("EvaluateFromCache", mock.Anything).Return("/etc/docker/daemon.json", nil)
 			},
-			expectReport: &CheckReport{
-				Passed: true,
-				Data: event.Data{
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
 					"audit.enabled":     true,
 					"audit.path":        "/etc/docker/daemon.json",
 					"audit.permissions": "rw",

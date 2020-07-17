@@ -32,7 +32,7 @@ var processReportedFields = []string{
 	processFieldCmdLine,
 }
 
-func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*CheckReport, error) {
+func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -76,7 +76,7 @@ func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.Iter
 		return nil, err
 	}
 
-	return instanceResultToCheckReport(result, processReportedFields), nil
+	return instanceResultToReport(result, processReportedFields), nil
 }
 
 func processFlag(flagValues map[string]string) eval.Function {

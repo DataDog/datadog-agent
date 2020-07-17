@@ -22,7 +22,7 @@ func TestGroupCheck(t *testing.T) {
 		etcGroupFile string
 		resource     compliance.Resource
 
-		expectReport *CheckReport
+		expectReport *report
 		expectError  error
 	}{
 		{
@@ -35,9 +35,9 @@ func TestGroupCheck(t *testing.T) {
 				Condition: `"carlos" in group.users`,
 			},
 
-			expectReport: &CheckReport{
-				Passed: true,
-				Data: event.Data{
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
 					"group.name":  "docker",
 					"group.id":    412,
 					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
@@ -54,9 +54,9 @@ func TestGroupCheck(t *testing.T) {
 				Condition: `"carol" in group.users`,
 			},
 
-			expectReport: &CheckReport{
-				Passed: false,
-				Data: event.Data{
+			expectReport: &report{
+				passed: false,
+				data: event.Data{
 					"group.name":  "docker",
 					"group.id":    412,
 					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},

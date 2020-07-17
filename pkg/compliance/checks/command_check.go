@@ -27,7 +27,7 @@ var commandReportedFields = []string{
 	commandFieldExitCode,
 }
 
-func checkCommand(_ env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*CheckReport, error) {
+func checkCommand(_ env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
 	if res.Command == nil {
 		return nil, fmt.Errorf("%s: expecting command resource in command check", ruleID)
 	}
@@ -73,5 +73,5 @@ func checkCommand(_ env.Env, ruleID string, res compliance.Resource, expr *eval.
 		return nil, err
 	}
 
-	return instanceToCheckReport(instance, passed, commandReportedFields), nil
+	return instanceToReport(instance, passed, commandReportedFields), nil
 }
