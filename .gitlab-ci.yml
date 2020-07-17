@@ -2041,11 +2041,14 @@ kitchen_centos_upgrade5_agent-a7:
     - .kitchen_scenario_centos_a7
     - .kitchen_test_upgrade5_agent
 
+# FIXME: Allow failure because tests fail as the disk
+# doesn't have enough space to do the upgrade.
 kitchen_centos_upgrade6_agent-a6:
-  allow_failure: false
+  allow_failure: true
   extends:
     - .kitchen_scenario_centos_a6
     - .kitchen_test_upgrade6_agent
+  retry: 0
 
 kitchen_centos_upgrade6_agent-a7:
   allow_failure: false
