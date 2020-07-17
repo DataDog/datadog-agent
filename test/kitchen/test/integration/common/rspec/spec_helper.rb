@@ -411,7 +411,7 @@ shared_examples_for "an installed Agent" do
       puts "checking file #{msi_path}"
       expect(File).to exist(msi_path)
       output = `powershell -command "get-authenticodesignature #{msi_path}"`
-      signature_hash = "3B79DBE9410471E4FFBDFDAD646A83A1CD47D5AA"
+      signature_hash = "21FE8679BDFB16B879A87DF228003758B62ABF5E"
       expect(output).to include(signature_hash)
       expect(output).to include("Valid")
       expect(output).not_to include("NotSigned")
