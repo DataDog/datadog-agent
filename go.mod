@@ -134,6 +134,7 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tinylib/msgp v1.1.2
+	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31 // indirect
 	github.com/twmb/murmur3 v1.1.3
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/urfave/negroni v1.0.0

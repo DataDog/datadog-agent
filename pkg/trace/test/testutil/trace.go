@@ -9,6 +9,7 @@ import (
 	"math/rand"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // genNextLevel generates a new level for the trace tree structure,
@@ -88,18 +89,18 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 
 // GetTestTraces returns a []Trace that is composed by ``traceN`` number
 // of traces, each one composed by ``size`` number of spans.
-func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
-	traces := pb.Traces{}
-
-	r := rand.New(rand.NewSource(42))
-
+func GetTestTraces(traceN, size int, realisticIDs bool) []traces.Trace {
+	var (
+		gen = make([]traces.Trace, 0, traceN)
+		r   = rand.New(rand.NewSource(42))
+	)
 	for i := 0; i < traceN; i++ {
 		// Calculate a trace ID which is predictable (this is why we seed)
 		// but still spreads on a wide spectrum so that, among other things,
 		// sampling algorithms work in a realistic way.
 		traceID := r.Uint64()
 
-		trace := pb.Trace{}
+		trace := traces.Trace{}
 		for j := 0; j < size; j++ {
 			span := GetTestSpan()
 			if realisticIDs {
@@ -109,9 +110,9 @@ func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 				span.SpanID += uint64(j)
 				span.TraceID = traceID
 			}
-			trace = append(trace, span)
+			trace.Spans = append(trace.Spans, traces.NewEagerSpan(*span))
 		}
-		traces = append(traces, trace)
+		gen = append(gen, trace)
 	}
-	return traces
+	return gen
 }

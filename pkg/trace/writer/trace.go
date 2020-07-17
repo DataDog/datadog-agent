@@ -6,6 +6,7 @@
 package writer
 
 import (
+	"bytes"
 	"compress/gzip"
 	"math"
 	"strings"
@@ -18,11 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 // pathTraces is the target host API path for delivering traces.
@@ -35,14 +34,14 @@ var maxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
 // SampledSpans represents the result of a trace sampling operation.
 type SampledSpans struct {
 	// Trace will contain a trace if it was sampled or be empty if it wasn't.
-	Trace pb.Trace
+	Trace traces.Trace
 	// Events contains all APM events extracted from a trace. If no events were extracted, it will be empty.
-	Events []*pb.Span
+	Events traces.Trace
 }
 
 // Empty returns true if this TracePackage has no data.
 func (ss *SampledSpans) Empty() bool {
-	return len(ss.Trace) == 0 && len(ss.Events) == 0
+	return len(ss.Trace.Spans) == 0 && len(ss.Events.Spans) == 0
 }
 
 // size returns the estimated size of the package.
@@ -50,7 +49,7 @@ func (ss *SampledSpans) size() int {
 	// we use msgpack's Msgsize() heuristic because it is a good indication
 	// of the weight of a span and the msgpack size is relatively close to
 	// the protobuf size, which is expensive to compute.
-	return ss.Trace.Msgsize() + pb.Trace(ss.Events).Msgsize()
+	return ss.Trace.MsgSize() + ss.Events.MsgSize()
 }
 
 // TraceWriter buffers traces and APM events, flushing them to the Datadog API.
@@ -64,9 +63,9 @@ type TraceWriter struct {
 	wg       sync.WaitGroup // waits for gzippers
 	tick     time.Duration  // flush frequency
 
-	traces       []*pb.APITrace // traces buffered
-	events       []*pb.Span     // events buffered
-	bufferedSize int            // estimated buffer size
+	traces       []traceutil.APITrace // traces buffered
+	events       []traces.Span        // events buffered
+	bufferedSize int                  // estimated buffer size
 
 	easylog *logutil.ThrottledLogger
 }
@@ -149,22 +148,22 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 		return
 	}
 
-	atomic.AddInt64(&w.stats.Spans, int64(len(pkg.Trace)))
+	atomic.AddInt64(&w.stats.Spans, int64(len(pkg.Trace.Spans)))
 	atomic.AddInt64(&w.stats.Traces, 1)
-	atomic.AddInt64(&w.stats.Events, int64(len(pkg.Events)))
+	atomic.AddInt64(&w.stats.Events, int64(len(pkg.Events.Spans)))
 
 	size := pkg.size()
 	if size+w.bufferedSize > maxPayloadSize {
 		// reached maximum allowed buffered size
 		w.flush()
 	}
-	if len(pkg.Trace) > 0 {
-		log.Tracef("Handling new trace with %d spans: %v", len(pkg.Trace), pkg.Trace)
-		w.traces = append(w.traces, traceutil.APITrace(pkg.Trace))
+	if len(pkg.Trace.Spans) > 0 {
+		log.Tracef("Handling new trace with %d spans: %v", len(pkg.Trace.Spans), pkg.Trace)
+		w.traces = append(w.traces, traceutil.NewAPITrace(pkg.Trace))
 	}
-	if len(pkg.Events) > 0 {
+	if len(pkg.Events.Spans) > 0 {
 		log.Tracef("Handling new analyzed spans: %v", pkg.Events)
-		w.events = append(w.events, pkg.Events...)
+		w.events = append(w.events, pkg.Events.Spans...)
 	}
 	w.bufferedSize += size
 }
@@ -187,19 +186,44 @@ func (w *TraceWriter) flush() {
 	defer w.resetBuffer()
 
 	log.Debugf("Serializing %d traces and %d APM events.", len(w.traces), len(w.events))
-	tracePayload := pb.TracePayload{
-		HostName:     w.hostname,
-		Env:          w.env,
-		Traces:       w.traces,
-		Transactions: w.events,
-	}
-	b, err := proto.Marshal(&tracePayload)
-	if err != nil {
-		log.Errorf("Failed to serialize payload, data dropped: %v", err)
-		return
+
+	protoEncoder := newProtoEncoder()
+	protoEncoder.encodeTagAndWireType(1, 2)         // Field 1, wire type 2 (length-delimited)
+	protoEncoder.encodeRawBytes([]byte(w.hostname)) // TODO: Don't alloc.
+
+	protoEncoder.encodeTagAndWireType(2, 2)    // Field 2, wire type 2 (length-delimited)
+	protoEncoder.encodeRawBytes([]byte(w.env)) // TODO: Don't alloc.
+
+	for _, trace := range w.traces {
+		protoEncoder.encodeTagAndWireType(3, 2) // Field 3, write type 2 (length-delimited)
+
+		// TODO: This is stupidly inefficient, dont allocate these buffers just to measure their length.
+		buf := bytes.NewBuffer(nil)
+		if err := trace.Trace.WriteAsAPITrace(buf, trace.TraceID, trace.StartTime, trace.EndTime); err != nil {
+			log.Errorf("Failed to write trace as API trace: %v", err)
+			return
+		}
+		protoEncoder.encodeRawBytes(buf.Bytes())
+		// if err := trace.Trace.WriteAsAPITrace(protoEncoder, trace.TraceID, trace.StartTime, trace.EndTime); err != nil {
+		// 	log.Errorf("Failed to write trace as API trace: %v", err)
+		// 	return
+		// }
 	}
 
-	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(b)))
+	for _, span := range w.events {
+		protoEncoder.encodeTagAndWireType(4, 2) // Field 4, write type 2 (length-delimited)
+
+		// TODO: This is stupidly inefficient, dont allocate these buffers just to measure their length.
+		buf := bytes.NewBuffer(nil)
+		if err := span.WriteProto(buf); err != nil {
+			log.Errorf("Failed to write event: %v", err)
+			return
+		}
+
+		protoEncoder.encodeRawBytes(buf.Bytes())
+	}
+
+	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(protoEncoder.buf)))
 	atomic.AddInt64(&w.stats.BytesEstimated, int64(w.bufferedSize))
 
 	w.wg.Add(1)
@@ -218,7 +242,7 @@ func (w *TraceWriter) flush() {
 			log.Errorf("gzip.NewWriterLevel: %d", err)
 			return
 		}
-		if _, err := gzipw.Write(b); err != nil {
+		if _, err := gzipw.Write(protoEncoder.buf); err != nil {
 			log.Errorf("Error gzipping trace payload: %v", err)
 		}
 		if err := gzipw.Close(); err != nil {

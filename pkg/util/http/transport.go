@@ -45,6 +45,16 @@ func CreateHTTPTransport() *http.Transport {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+
+		WriteBufferSize: 1 << 22,
+
+		ReadBufferSize: 1 << 22,
+
+		// // ReadBufferSize specifies the size of the read buffer used
+		// // when reading from the transport.
+		// // If zero, a default (currently 4KB) is used.
+		// ReadBufferSize int
+		// 	Buff
 	}
 
 	if proxies := config.GetProxies(); proxies != nil {

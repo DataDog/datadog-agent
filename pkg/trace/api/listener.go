@@ -115,6 +115,10 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 			return conn, err
 		}
 
+		if err := conn.(*net.TCPConn).SetReadBuffer(1 << 22); err != nil {
+			panic(err)
+		}
+
 		atomic.AddInt32(&sl.lease, -1)
 		atomic.AddUint32(&sl.accepted, 1)
 

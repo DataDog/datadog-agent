@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -409,15 +410,15 @@ type Trace struct {
 	ContainerTags string
 
 	// Spans holds the spans of this trace.
-	Spans pb.Trace
+	Spans traces.Trace
 }
 
-func (r *HTTPReceiver) processTraces(ts *info.TagStats, containerID string, traces pb.Traces) {
+func (r *HTTPReceiver) processTraces(ts *info.TagStats, containerID string, traces []traces.Trace) {
 	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
 
 	containerTags := getContainerTags(containerID)
 	for _, trace := range traces {
-		spans := len(trace)
+		numSpans := len(trace.Spans)
 
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
@@ -563,6 +564,8 @@ func decodeRequest(req *http.Request, dest msgp.Decodable) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
 		return msgp.Decode(req.Body, dest)
+	case "application/protobuf":
+
 	case "application/json":
 		fallthrough
 	case "text/json":

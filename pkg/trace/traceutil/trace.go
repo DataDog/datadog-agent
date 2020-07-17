@@ -9,6 +9,7 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -66,23 +67,30 @@ func GetRoot(t pb.Trace) *pb.Span {
 	return t[len(t)-1]
 }
 
-// APITrace returns an APITrace from t, as required by the Datadog API.
+type APITrace struct {
+	TraceID   uint64
+	Trace     traces.Trace
+	StartTime int64
+	EndTime   int64
+}
+
+// NewAPITrace returns an APITrace from t, as required by the Datadog API.
 // It also returns an estimated size in bytes.
-func APITrace(t pb.Trace) *pb.APITrace {
+func NewAPITrace(t traces.Trace) APITrace {
 	earliest, latest := int64(math.MaxInt64), int64(0)
-	for _, s := range t {
-		start := s.Start
+	for _, s := range t.Spans {
+		start := s.Start()
 		if start < earliest {
 			earliest = start
 		}
-		end := s.Start + s.Duration
+		end := s.Start() + s.Duration()
 		if end > latest {
 			latest = end
 		}
 	}
-	return &pb.APITrace{
-		TraceID:   t[0].TraceID,
-		Spans:     t,
+	return APITrace{
+		TraceID:   t.Spans[0].TraceID(),
+		Trace:     t,
 		StartTime: earliest,
 		EndTime:   latest,
 	}
