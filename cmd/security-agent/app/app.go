@@ -97,6 +97,7 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
+	SecurityAgentCmd.AddCommand(runtimeCmd)
 
 	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
@@ -138,7 +139,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if we have at least one component to start based on config
-	if !coreconfig.Datadog.GetBool("compliance_config.enabled") {
+	if !coreconfig.Datadog.GetBool("compliance_config.enabled") && !coreconfig.Datadog.GetBool("runtime_security_config.enabled") {
 		log.Infof("All security-agent components are deactivated, exiting")
 		return nil
 	}
@@ -171,6 +172,11 @@ func start(cmd *cobra.Command, args []string) error {
 	defer stopper.Stop()
 
 	if err = startCompliance(stopper); err != nil {
+		return err
+	}
+
+	// start runtime security agent
+	if err = startRuntimeSecurity(stopper); err != nil {
 		return err
 	}
 
