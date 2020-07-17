@@ -178,6 +178,17 @@ func (s *Socket) LeaveGroup(group uint32) error {
 	))
 }
 
+func (s *Socket) control(f func(int)) error {
+	rc, err := s.fd.SyscallConn()
+	if err != nil {
+		return err
+	}
+
+	return rc.Control(func(sysfd uintptr) {
+		f(int(sysfd))
+	})
+}
+
 // SetSockoptInt sets a socket option
 func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	// Value must be in range of a C integer.
@@ -186,14 +197,30 @@ func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	}
 
 	var err error
-	ctrlErr := s.conn.Control(func(fd uintptr) {
-		err = unix.SetsockoptInt(int(fd), level, opt, value)
+	doErr := s.control(func(fd int) {
+		err = unix.SetsockoptInt(fd, level, opt, value)
 	})
-	if ctrlErr != nil {
-		return ctrlErr
+
+	if doErr != nil {
+		return doErr
 	}
 
 	return err
+}
+
+// GetSockoptInt gets a socket option
+func (s *Socket) GetSockoptInt(level, opt int) (int, error) {
+	var err error
+	var v int
+	doErr := s.control(func(fd int) {
+		v, err = unix.GetsockoptInt(fd, level, opt)
+	})
+
+	if doErr != nil {
+		return v, doErr
+	}
+
+	return v, err
 }
 
 // SetBPF attaches an assembled BPF program to the socket
