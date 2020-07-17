@@ -204,10 +204,6 @@ func (w *TraceWriter) flush() {
 			return
 		}
 		protoEncoder.encodeRawBytes(buf.Bytes())
-		// if err := trace.Trace.WriteAsAPITrace(protoEncoder, trace.TraceID, trace.StartTime, trace.EndTime); err != nil {
-		// 	log.Errorf("Failed to write trace as API trace: %v", err)
-		// 	return
-		// }
 	}
 
 	for _, span := range w.events {

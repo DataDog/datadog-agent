@@ -565,7 +565,7 @@ func decodeRequest(req *http.Request, dest msgp.Decodable) error {
 	case "application/msgpack":
 		return msgp.Decode(req.Body, dest)
 	case "application/protobuf":
-
+		// TODO: Use the lazy span implementation.
 	case "application/json":
 		fallthrough
 	case "text/json":
