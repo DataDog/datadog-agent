@@ -15,7 +15,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
-	smodule "github.com/DataDog/datadog-agent/cmd/system-probe/module"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -40,6 +40,7 @@ system_probe_config:
   sysprobe_socket: /tmp/test-sysprobe.sock
 
 runtime_security_config:
+  enabled: true
   debug: true
   socket: /tmp/test-security-probe.sock
 {{if not .EnableFilters}}
@@ -78,7 +79,7 @@ type testOpts struct {
 
 type testModule struct {
 	st       *simpleTest
-	module   smodule.Module
+	module   api.Module
 	listener net.Listener
 	events   chan testEvent
 }
