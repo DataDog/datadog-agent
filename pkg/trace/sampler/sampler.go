@@ -76,7 +76,7 @@ func GetSamplingPriority(s traces.Span) (SamplingPriority, bool) {
 	// TODO: Fix me.
 	// p, ok := getMetric(s, KeySamplingPriority)
 	// return SamplingPriority(p), ok
-	return PriorityUserKeep, false
+	return PriorityUserKeep, true
 }
 
 // SetSamplingPriority sets the sampling priority value on this span, overwriting any previously set value.
