@@ -108,8 +108,6 @@ type SublayerCalculator struct {
 	// Exec duration: for each period where the span is active, its Exec Duration increases by periodDuration/numberOfActiveSpans
 	//     so if a span is active during 20ms, in parallel with another span active at the same time, its exec duration will be 10ms
 	execDuration []float64
-	// parentIdx stores the mapping: span index --> parent index
-	parentIdx []int
 	// timestamps are the sorted timestamps (starts and ends of each span) of a trace
 	timestamps sortableTimestamps
 	// capacity specifies the maximum trace size in spans the calculator can process without re-allocations
@@ -130,7 +128,6 @@ func (c *SublayerCalculator) resize(capacity int) {
 	c.openSpans = make([]bool, capacity)
 	c.nChildren = make([]int, capacity)
 	c.execDuration = make([]float64, capacity)
-	c.parentIdx = make([]int, capacity)
 	c.timestamps = make(sortableTimestamps, 2*capacity)
 	c.activeSpans.resize(capacity)
 }
@@ -172,30 +169,27 @@ func (t sortableTimestamps) Less(i, j int) bool {
 // computeExecDuration computes the exec duration of each span in the trace
 //
 // The algorithm consists of 3 steps:
-// 1. Build the mapping from span index --> parent index
+// 1. Build the mapping from span ID --> span Index
 // 2. Build the array of timestamps to consider (the start and ends of each span) and sort the array
 // 3. Traverse the timestamps, and build the execution duration of each span during the traversal.
 //    For each timestamp:
 //    - Increase the exec duration for all the active spans by (previousPeriodDuration / numberOfActiveSpans)
 //    - Update the set of active spans
 func (c *SublayerCalculator) computeExecDurations(trace pb.Trace) {
-	// Step 1: Build the mapping spanIdx --> parentIdx
+	// Step 1: Build the mapping spanID --> spanIdx
 	idToIdx := make(map[uint64]int, len(trace))
 	for idx, span := range trace {
 		idToIdx[span.SpanID] = idx
 	}
-	for idx, span := range trace {
-		if parentIdx, ok := idToIdx[span.ParentID]; ok {
-			c.parentIdx[idx] = parentIdx
-		} else {
-			c.parentIdx[idx] = -1
-		}
-	}
 
 	// Step 2: Build all trace timestamps and sorts them
 	for i, span := range trace {
-		c.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start}
-		c.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: c.parentIdx[i], ts: span.Start + span.Duration}
+		parentIdx := -1
+		if idx, ok := idToIdx[span.ParentID]; ok {
+			parentIdx = idx
+		}
+		c.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: parentIdx, ts: span.Start}
+		c.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: parentIdx, ts: span.Start + span.Duration}
 	}
 	sort.Sort(c.timestamps[:2*len(trace)])
 
