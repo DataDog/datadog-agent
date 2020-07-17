@@ -154,6 +154,7 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 	sort.Sort(s.timestamps[:2*len(trace)])
 
 	// Step 3: Compute the execution duration of each span
+	state := s.spanStates
 	traceExecDuration := float64(0)
 	nActiveSpans := 0
 	for j := 0; j < len(trace)*2; j++ {
@@ -162,28 +163,36 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 			traceExecDuration += float64(tp.ts-s.timestamps[j-1].ts) / float64(nActiveSpans)
 		}
 		if tp.spanStart {
+			// a span opens here
 			if tp.parentIdx != -1 {
-				if s.spanStates[tp.parentIdx].active {
-					s.spanStates[tp.parentIdx].deactivate(traceExecDuration)
+				// which has a parent
+				if state[tp.parentIdx].active {
+					// deactivate the parent
+					state[tp.parentIdx].deactivate(traceExecDuration)
 					nActiveSpans--
 				}
-				s.spanStates[tp.parentIdx].nOpenChildren++
+				state[tp.parentIdx].nOpenChildren++
 			}
-			s.spanStates[tp.spanIdx].open = true
-			if s.spanStates[tp.spanIdx].nOpenChildren == 0 && !s.spanStates[tp.spanIdx].active {
-				s.spanStates[tp.spanIdx].activate(traceExecDuration)
+			state[tp.spanIdx].open = true
+			if state[tp.spanIdx].nOpenChildren == 0 && !state[tp.spanIdx].active {
+				// activate the span
+				state[tp.spanIdx].activate(traceExecDuration)
 				nActiveSpans++
 			}
 		} else {
-			s.spanStates[tp.spanIdx].open = false
-			if s.spanStates[tp.spanIdx].active {
-				s.spanStates[tp.spanIdx].deactivate(traceExecDuration)
+			// a span closes
+			state[tp.spanIdx].open = false
+			if state[tp.spanIdx].active {
+				// deactivate the span
+				state[tp.spanIdx].deactivate(traceExecDuration)
 				nActiveSpans--
 			}
 			if tp.parentIdx != -1 {
-				s.spanStates[tp.parentIdx].nOpenChildren--
-				if s.spanStates[tp.parentIdx].open && s.spanStates[tp.parentIdx].nOpenChildren == 0 && !s.spanStates[tp.parentIdx].active {
-					s.spanStates[tp.parentIdx].activate(traceExecDuration)
+				// which has a parent
+				state[tp.parentIdx].nOpenChildren--
+				if state[tp.parentIdx].open && state[tp.parentIdx].nOpenChildren == 0 && !state[tp.parentIdx].active {
+					// reactivate the parent
+					state[tp.parentIdx].activate(traceExecDuration)
 					nActiveSpans++
 				}
 			}
