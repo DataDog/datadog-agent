@@ -119,11 +119,13 @@ func runAgent(exit <-chan struct{}) {
 		utils.WriteAsJSON(w, stats)
 	})
 
-	err = http.Serve(conn.GetListener(), httpMux)
-	if err != nil {
-		log.Criticalf("Error creating HTTP server: %s", err)
-		cleanupAndExit(1)
-	}
+	go func() {
+		err = http.Serve(conn.GetListener(), httpMux)
+		if err != nil {
+			log.Criticalf("Error creating HTTP server: %s", err)
+			cleanupAndExit(1)
+		}
+	}()
 
 	log.Infof("system probe successfully started")
 
