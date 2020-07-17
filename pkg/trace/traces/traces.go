@@ -66,6 +66,30 @@ func (t *Trace) WriteAsAPITrace(w io.Writer, traceID uint64, start, end int64) e
 		}
 
 		return nil
+	case *LazySpan:
+		encoder := newProtoEncoder()
+		encoder.encodeTagAndWireType(1, 0) // Field 1, varint
+		encoder.encodeVarint(traceID)
+
+		encoder.encodeTagAndWireType(3, 0) // Field 3, varint
+		encoder.encodeVarint(uint64(start))
+
+		encoder.encodeTagAndWireType(4, 0) // Field 3, varint
+		encoder.encodeVarint(uint64(end))
+
+		if _, err := w.Write(encoder.buf); err != nil {
+			return fmt.Errorf("Trace: WriteAsAPITrace: Error writing APITrace scalars: %v", err)
+		}
+
+		for _, s := range t.Spans {
+			if err := s.WriteProto(w); err != nil {
+				return fmt.Errorf(
+					"Trace: WriteAsAPITrace: error writing span: %s, err: %v",
+					s.DebugString(), err)
+			}
+		}
+
+		return nil
 	default:
 		return fmt.Errorf("Trace: WriteAsAPITrace: Unhandled span implementation: %T", t.Spans[0])
 	}
