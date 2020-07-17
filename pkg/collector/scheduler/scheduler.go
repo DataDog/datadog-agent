@@ -131,6 +131,7 @@ func (s *Scheduler) Cancel(id check.ID) error {
 
 	schedulerChecksEntered.Add(-1)
 	if checkName, ok := s.tlmTrackedChecks[id]; ok {
+		delete(s.tlmTrackedChecks, id)
 		tlmChecksEntered.Dec(checkName)
 	}
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
