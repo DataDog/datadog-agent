@@ -422,6 +422,7 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 	if s.mapper != nil && len(sample.tags) == 0 {
 		mapResult := s.mapper.Map(sample.name)
 		if mapResult != nil {
+			log.Tracef("Dogstatsd mapper: metric mapped from `%q` to `%q` with tags `%v`", sample.name, mapResult.Name, mapResult.Tags)
 			sample.name = mapResult.Name
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
