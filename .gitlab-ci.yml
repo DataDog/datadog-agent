@@ -1,4 +1,42 @@
+include: 'https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml'
+
+default:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+
+stages:
+  - fail_on_tag
+  - deps_build
+  - deps_fetch
+  - source_test
+  - binary_build
+  - integration_test
+  - package_build
+  - internal_deploy
+  - check_deploy
+  - testkitchen_deploy
+  - testkitchen_testing
+  - pkg_metrics
+  - image_build
+  - image_deploy
+  - deploy6
+  - deploy7
+  - choco_build
+  - choco_deploy
+  - deploy_invalidate
+  - trigger_release
+  - e2e
+  - testkitchen_cleanup
+  - notify
+
 variables:
+  # The SRC_PATH is in the GOPATH of the builders which
+  # currently is /go
   SRC_PATH: /go/src/github.com/DataDog/datadog-agent
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with

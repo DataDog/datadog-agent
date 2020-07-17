@@ -727,15 +727,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
-	// Datadog security agent
-	config.BindEnvAndSetDefault("security_agent_config.run_path", defaultRunPath)
-	config.BindEnvAndSetDefault("runtime_security_config.enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
-	config.BindEnvAndSetDefault("runtime_security_config.policies", []interface{}{})
-	config.BindEnvAndSetDefault("runtime_security_config.socket", "")
-	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
-	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
-
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)

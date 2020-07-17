@@ -7,16 +7,21 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"strings"
+	"time"
 
 	_ "net/http/pprof"
 
-func main() {
-	// Parse flags
-	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
-	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
-	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 // All System Probe modules should register their factories here
 var factories = []api.Factory{
@@ -25,7 +30,13 @@ var factories = []api.Factory{
 	modules.OOMKillProbe,
 }
 
-	runAgent()
+// Flag values
+var opts struct {
+	configPath  string
+	pidFilePath string
+	debug       bool
+	version     bool
+	console     bool // windows only; execute on console rather than via SCM
 }
 
 // Version info sourced from build flags

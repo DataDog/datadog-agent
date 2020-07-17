@@ -873,22 +873,6 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
-{{- if .SecurityModule }}
-
-##########################################
-## Security Agent Runtime Configuration ##
-##########################################
-
-# runtime_security_config:
-  # debug: false
-  # socket: /opt/datadog-agent/run/runtime-security.sock
-  # policies:
-  #  - name: default-policies
-  #    files:
-  #        - /etc/datadog-agent/security_agent.d/runtime-policies.yaml
-  # syscall_monitor:
-  #   enabled: false
-{{ end -}}
 {{ end -}}
 {{- if .Dogstatsd }}
 
@@ -1759,18 +1743,5 @@ api_key:
   ## PEM-encoded client key used when connecting to the BBS API.
   #
   # key_file: ""
-
-{{ end -}}
-{{- if .SecurityAgent }}
-#######################################################
-## Security Agent - Runtime and Compliance           ##
-#######################################################
-
-# runtime_security_config:
-  # enabled: true
-  # socket: /opt/datadog-agent/run/runtime-security.sock
-
-# compliance_config:
-  # enabled: true
 
 {{ end -}}

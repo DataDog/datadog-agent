@@ -11,7 +11,16 @@ from invoke import task
 from invoke.exceptions import Exit
 from subprocess import check_output, CalledProcessError
 
-from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_go_env
+from .utils import (
+    bin_name,
+    get_build_flags,
+    REPO_PATH,
+    get_version,
+    get_git_branch_name,
+    get_go_version,
+    get_git_commit,
+    get_version_numeric_only,
+)
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -85,14 +94,19 @@ def build(
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
+    goenv = {}
     if go_version:
+        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        for line in lines:
+            for env_var in GIMME_ENV_VARS:
+                if env_var in line:
+                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
-    goenv = get_go_env(ctx, go_version)
+    # extend PATH from gimme with the one from get_build_flags
+    if "PATH" in os.environ and "PATH" in goenv:
+        goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
-
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
@@ -106,11 +120,11 @@ def build(
         build_tags.append(BCC_TAG)
 
     # TODO static option
-    cmd = 'go build {go_mod_opt} {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
     args = {
-        "go_mod_opt": "-mod="+go_mod if go_mod else "",
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
@@ -257,19 +271,6 @@ def object_files(ctx, install=True):
     build_object_files(ctx, install=install)
 
 
-def bundle_static_files(prefix, pkg, go_file, files):
-    assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg {pkg} -prefix '{prefix}' -modtime 1 -o '{go_file}' "
-    for file in files:
-        assets_cmd += " '{file}'".format(file=file)
-
-    return [
-        assets_cmd.format(
-            pkg=pkg,
-            prefix=prefix,
-            go_file=go_file),
-        "gofmt -w -s {go_file}".format(go_file=go_file)
-    ]
-
 def build_object_files(ctx, install=True):
     """build_object_files builds only the eBPF object
     set install to False to disable replacing the assets
@@ -305,6 +306,8 @@ def build_object_files(ctx, install=True):
         '-Werror',
         '-O2',
         '-emit-llvm',
+        '-c',
+        os.path.join(c_dir, "tracer-ebpf.c"),
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -336,69 +339,43 @@ def build_object_files(ctx, install=True):
         for s in subdirs:
             flags.extend(["-isystem", os.path.join(d, s)])
 
-    cmd = "clang {flags} -c {c_file} -o - | llc -march=bpf -filetype=obj -o '{file}'"
+    cmd = "clang {flags} -o - | llc -march=bpf -filetype=obj -o '{file}'"
 
     commands = []
 
     # Build both the standard and debug version
-    tracer_obj_file = os.path.join(c_dir, "tracer-ebpf.o")
-    commands.append(cmd.format(
-        flags=" ".join(flags),
-        c_file=os.path.join(c_dir, "tracer-ebpf.c"),
-        file=tracer_obj_file
-    ))
+    obj_file = os.path.join(c_dir, "tracer-ebpf.o")
+    commands.append(cmd.format(flags=" ".join(flags), file=obj_file))
 
-    tracer_debug_obj_file = os.path.join(c_dir, "tracer-ebpf-debug.o")
-    commands.append(cmd.format(
-        flags=" ".join(flags + ["-DDEBUG=1"]),
-        c_file=os.path.join(c_dir, "tracer-ebpf.c"),
-        file=tracer_debug_obj_file
-    ))
-
-    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf")
-    security_agent_obj_file = os.path.join(security_agent_c_dir, "probe.o")
-    commands.append(cmd.format(
-        flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
-        c_file=os.path.join(security_agent_c_dir, "probe.c"),
-        file=security_agent_obj_file
-    ))
-
-    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "probe-syscall-wrapper.o")
-    commands.append(cmd.format(
-        flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
-        c_file=os.path.join(security_agent_c_dir, "probe.c"),
-        file=security_agent_syscall_wrapper_obj_file
-    ))
+    debug_obj_file = os.path.join(c_dir, "tracer-ebpf-debug.o")
+    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_obj_file))
 
     if install:
-        # Now update the assets stored in the go code
-        commands.append("go get -u github.com/jteeuwen/go-bindata/...")
-
-        commands.extend(
-            bundle_static_files(
-                pkg="bytecode",
-                prefix=c_dir,
-                go_file=os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go"),
-                files=[
-                    tracer_obj_file,
-                    tracer_debug_obj_file,
-                    os.path.join(c_dir, "tcp-queue-length-kern.c"),
-                    os.path.join(c_dir, "tcp-queue-length-kern-user.h")
-                ]
+        assets_cmd = (
+            os.environ["GOPATH"]
+            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
+            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' "
+            + "'{bpf_common_h_file}' '{test_asset_file}' '{test_h_file}'"
+        )
+        go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
+        test_dir = os.path.join(bpf_dir, "testdata")
+        commands.append(
+            assets_cmd.format(
+                c_dir=c_dir,
+                go_file=go_file,
+                obj_file=obj_file,
+                debug_obj_file=debug_obj_file,
+                tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
+                tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
+                oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
+                oom_kill_kern_user_h_file=os.path.join(c_dir, "oom-kill-kern-user.h"),
+                bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
+                test_asset_file=os.path.join(test_dir, "test-asset.c"),
+                test_h_file=os.path.join(test_dir, "test-header.h"),
             )
         )
 
-        commands.extend(
-            bundle_static_files(
-                pkg="probe",
-                prefix=security_agent_c_dir,
-                go_file=os.path.normpath(os.path.join(security_agent_c_dir, "..", "probe", "ebpf.go")),
-                files=[
-                    security_agent_obj_file,
-                    security_agent_syscall_wrapper_obj_file
-                ]
-            )
-        )
+        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
 
     for cmd in commands:
         ctx.run(cmd)

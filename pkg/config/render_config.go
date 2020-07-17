@@ -41,8 +41,6 @@ type context struct {
 	TraceAgent        bool
 	ClusterChecks     bool
 	CloudFoundryBBS   bool
-	SecurityAgent     bool
-	SecurityModule    bool
 }
 
 func mkContext(buildType string) context {
@@ -88,8 +86,7 @@ func mkContext(buildType string) context {
 		}
 	case "system-probe":
 		return context{
-			SystemProbe:    true,
-			SecurityModule: true,
+			SystemProbe: true,
 		}
 	case "dogstatsd":
 		return context{
@@ -115,11 +112,6 @@ func mkContext(buildType string) context {
 			Logging:         true,
 			ClusterChecks:   true,
 			CloudFoundryBBS: true,
-		}
-	case "security-agent":
-		return context{
-			Common:        true,
-			SecurityAgent: true,
 		}
 	}
 
