@@ -6,6 +6,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/richardartoul/molecule/src/codec"
 )
 
 type Trace struct {
@@ -32,6 +33,69 @@ func EagerTraceToPBTrace(t Trace) pb.Trace {
 		trace = append(trace, &s.(*EagerSpan).Span)
 	}
 	return trace
+}
+
+// TODO: Extract out helpers for this.
+func NewLazyTracesFromProto(b []byte) ([]Trace, error) {
+	var (
+		traces  []Trace
+		buf     = codec.NewBuffer(b)
+		spanBuf = codec.NewBuffer(nil)
+	)
+	for !buf.EOF() {
+		_, wireType, err := buf.DecodeTagAndWireType()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("NewLazyTraceFromProto: error decoding tag and wire type: %v", err)
+		}
+		if wireType != 2 {
+			return nil, fmt.Errorf(
+				"NewLazyTraceFromProto: expected wire type 2 (length delimited), but was: %d",
+				wireType)
+		}
+
+		traceBytes, err := buf.DecodeRawBytes(false)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"NewLazyTraceFromProto: error reading trace bytes: %v", err)
+		}
+
+		var spans []Span
+		spanBuf.Reset(traceBytes)
+		for !spanBuf.EOF() {
+			_, wireType, err := spanBuf.DecodeTagAndWireType()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return nil, fmt.Errorf("NewLazyTraceFromProto: error decoding span tag and wire type: %v", err)
+			}
+			if wireType != 2 {
+				return nil, fmt.Errorf(
+					"NewLazyTraceFromProto: expected wire type 2 (length delimited), but was: %d",
+					wireType)
+			}
+
+			spanBytes, err := buf.DecodeRawBytes(false)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"NewLazyTraceFromProto: error reading trace bytes: %v", err)
+			}
+
+			span, err := NewLazySpan(spanBytes)
+			if err != nil {
+				return nil, fmt.Errorf("NewLazyTraceFromProto: error reading span: %v", err)
+			}
+
+			spans = append(spans, span)
+		}
+
+		traces = append(traces, NewTrace(spans))
+	}
+
+	return traces, nil
 }
 
 func (t *Trace) WriteAsAPITrace(w io.Writer, traceID uint64, start, end int64) error {

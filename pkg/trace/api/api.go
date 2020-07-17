@@ -572,7 +572,12 @@ func decodeRequest(req *http.Request) ([]traces.Trace, error) {
 		}
 		return pbToTraces(dest), nil
 	case "application/protobuf":
-		panic("TODO: Use lazy spans")
+		raw, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			return nil, fmt.Errorf("decodeRequest: error reading protobuf request: %v", err)
+		}
+
+		return traces.NewLazyTracesFromProto(raw)
 	case "application/json":
 		fallthrough
 	case "text/json":
