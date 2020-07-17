@@ -102,3 +102,23 @@ def gen_mocks(ctx):
 
     with ctx.cd("./pkg/compliance"):
         ctx.run("./gen_mocks.sh")
+
+
+@task
+def functional_tests(ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output=''):
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+
+    goenv = get_go_env(ctx, go_version)
+    env.update(goenv)
+
+    cmd = 'sudo -E go test {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
+
+    args = {
+        "verbose_opt": "-v" if verbose else "",
+        "race_opt": "-race" if race else "",
+        "output_opt": "-c -o " + output if output else "",
+        "run_opt": "-run "+pattern if pattern else "",
+        "REPO_PATH": REPO_PATH,
+    }
+
+    ctx.run(cmd.format(**args), env=env)
