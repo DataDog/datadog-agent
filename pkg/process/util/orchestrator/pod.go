@@ -9,6 +9,7 @@ package orchestrator
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strconv"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/kubelet/pod"
 )
 
 const (
@@ -46,6 +49,12 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			continue
 		}
 		podModel.Tags = tags
+
+		// static pods "uid" are actually not unique across nodes.
+		// we differ from the k8 uuid format in purpose to differentiate those static pods.
+		if pod.IsStaticPod(podList[p]) {
+			podList[p].UID = types.UID(generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName))
+		}
 
 		// scrub & generate YAML
 		for c := 0; c < len(podList[p].Spec.Containers); c++ {
@@ -365,4 +374,16 @@ func GetConditionMessage(p *v1.Pod) string {
 		}
 	}
 	return ""
+}
+
+// this should generate a unique id because:
+// podName + namespace = unique per host
+// podName + namespace + host + clustername = unique
+func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) string {
+	h := fnv.New64()
+	_, _ = h.Write([]byte(host))
+	_, _ = h.Write([]byte(podName))
+	_, _ = h.Write([]byte(namespace))
+	_, _ = h.Write([]byte(clusterName))
+	return strconv.FormatUint(h.Sum64(), 16)
 }
