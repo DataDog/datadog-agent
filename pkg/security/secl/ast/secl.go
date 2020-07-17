@@ -46,7 +46,7 @@ type Rule struct {
 	Pos  lexer.Position
 	Expr string
 
-	BooleanExpression *BooleanExpression `@@`
+	BooleanExpression *BooleanExpression `parser:"@@"`
 }
 
 func ParseMacro(expr string) (*Macro, error) {
@@ -71,76 +71,76 @@ func ParseMacro(expr string) (*Macro, error) {
 type Macro struct {
 	Pos lexer.Position
 
-	Expression *Expression `@@`
-	Array      *Array      `| @@`
-	Primary    *Primary    `| @@`
+	Expression *Expression `parser:"@@"`
+	Array      *Array      `parser:"| @@"`
+	Primary    *Primary    `parser:"| @@"`
 }
 
 type BooleanExpression struct {
 	Pos lexer.Position
 
-	Expression *Expression `@@`
+	Expression *Expression `parser:"@@"`
 }
 
 type Expression struct {
 	Pos lexer.Position
 
-	Comparison *Comparison        `@@`
-	Op         *string            `[ @( "|" "|" | "&" "&" )`
-	Next       *BooleanExpression `  @@ ]`
+	Comparison *Comparison        `parser:"@@"`
+	Op         *string            `parser:"[ @( \"|\" \"|\" | \"&\" \"&\" )"`
+	Next       *BooleanExpression `parser:"@@ ]"`
 }
 
 type Comparison struct {
 	Pos lexer.Position
 
-	BitOperation     *BitOperation     `@@`
-	ScalarComparison *ScalarComparison `[ @@`
-	ArrayComparison  *ArrayComparison  `| @@ ]`
+	BitOperation     *BitOperation     `parser:"@@"`
+	ScalarComparison *ScalarComparison `parser:"[ @@"`
+	ArrayComparison  *ArrayComparison  `parser:"| @@ ]"`
 }
 
 type ScalarComparison struct {
 	Pos lexer.Position
 
-	Op   *string     `@( ">" | ">" "=" | "<" | "<" "=" | "!" "=" | "=" "=" | "=" "~" | "!" "~" )`
-	Next *Comparison `  @@`
+	Op   *string     `parser:"@( \">\" | \">\" \"=\" | \"<\" | \"<\" \"=\" | \"!\" \"=\" | \"=\" \"=\" | \"=\" \"~\" | \"!\" \"~\" )"`
+	Next *Comparison `parser:"@@"`
 }
 
 type ArrayComparison struct {
 	Pos lexer.Position
 
-	Op    *string ` ( @( "in" | "not" "in" )`
-	Array *Array  `@@ )`
+	Op    *string `parser:"( @( \"in\" | \"not\" \"in\" )"`
+	Array *Array  `parser:"@@ )"`
 }
 
 type BitOperation struct {
 	Pos lexer.Position
 
-	Unary *Unary        `@@`
-	Op    *string       `[ @( "&" | "|" | "^" )`
-	Next  *BitOperation `  @@ ]`
+	Unary *Unary        `parser:"@@"`
+	Op    *string       `parser:"[ @( \"&\" | \"|\" | \"^\" )"`
+	Next  *BitOperation `parser:"@@ ]"`
 }
 
 type Unary struct {
 	Pos lexer.Position
 
-	Op      *string  `  ( @( "!" | "-" | "^" )`
-	Unary   *Unary   `    @@ )`
-	Primary *Primary `| @@`
+	Op      *string  `parser:"( @( \"!\" | \"-\" | \"^\" )"`
+	Unary   *Unary   `parser:"@@ )"`
+	Primary *Primary `parser:"| @@"`
 }
 
 type Primary struct {
 	Pos lexer.Position
 
-	Ident         *string     `@Ident`
-	Number        *int        `| @Int`
-	String        *string     `| @String`
-	SubExpression *Expression `| "(" @@ ")"`
+	Ident         *string     `parser:"@Ident"`
+	Number        *int        `parser:"| @Int"`
+	String        *string     `parser:"| @String"`
+	SubExpression *Expression `parser:"| \"(\" @@ \")\""`
 }
 
 type Array struct {
 	Pos lexer.Position
 
-	Strings []string `"[" @String { "," @String } "]"`
-	Numbers []int    `| "[" @Int { "," @Int } "]"`
-	Ident   *string  `| @Ident`
+	Strings []string `parser:"\"[\" @String { \",\" @String } \"]\""`
+	Numbers []int    `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
+	Ident   *string  `parser:"| @Ident"`
 }
