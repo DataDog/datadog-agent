@@ -53,7 +53,7 @@ driver:
 driver_config:
   subscription_id: <%= ENV['AZURE_SUBSCRIPTION_ID'] %>
   location: <%= location %>
-  os_disk_size_gb: 128
+  os_disk_size_gb: 256
   <% if ENV['DD_PIPELINE_ID'] %>
   azure_resource_group_suffix: pl<%= ENV['DD_PIPELINE_ID'] %>
   <% else %>
