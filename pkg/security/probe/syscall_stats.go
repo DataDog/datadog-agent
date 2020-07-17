@@ -73,7 +73,7 @@ func (i Uint32Key) Bytes() []byte {
 }
 
 func (sm *SyscallMonitor) GetStats() (*SyscallStats, error) {
-	stats := SyscallStats(make(map[Syscall]map[string]uint64))
+	stats := make(SyscallStats)
 	if err := sm.CollectStats(&stats); err != nil {
 		return nil, err
 	}

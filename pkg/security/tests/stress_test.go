@@ -44,7 +44,8 @@ func BenchmarkE2EOpen(b *testing.B) {
 
 	handler := &stressEventHandler{filename: testFile}
 	test.probe.SetEventHandler(handler)
-	test.probe.ResetStats()
+	eventsStats := test.probe.GetEventsStats()
+	eventsStats.GetAndResetLost()
 
 	b.ResetTimer()
 
@@ -59,13 +60,10 @@ func BenchmarkE2EOpen(b *testing.B) {
 		}
 	}
 
-	stats, err := test.probe.GetStats()
-	if err != nil {
-		b.Fatal(err)
-	}
+	lost := eventsStats.GetLost()
 
-	b.ReportMetric(float64(stats.Events.Lost), "lost")
+	b.ReportMetric(float64(lost), "lost")
 	b.ReportMetric(float64(handler.count), "events")
 	b.ReportMetric(100*float64(handler.count)/float64(b.N), "%seen")
-	b.ReportMetric(100*float64(stats.Events.Lost)/float64(b.N), "%lost")
+	b.ReportMetric(100*float64(lost)/float64(b.N), "%lost")
 }

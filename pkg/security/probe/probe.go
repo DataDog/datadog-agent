@@ -26,11 +26,6 @@ type EventHandler interface {
 	HandleEvent(event *Event)
 }
 
-type Stats struct {
-	Events   EventsStats
-	Syscalls *SyscallStats
-}
-
 type KTable struct {
 	Name string
 }
@@ -51,7 +46,7 @@ type Probe struct {
 	onDiscardersFncs map[eval.EventType][]onDiscarderFnc
 	enableFilters    bool
 	tables           map[string]eprobe.Table
-	stats            EventsStats
+	eventsStats      EventsStats
 	syscallMonitor   *SyscallMonitor
 }
 
@@ -492,22 +487,22 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		}
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.lost", p.stats.GetAndResetLost(), nil, 1.0); err != nil {
+	if err := statsdClient.Count(MetricPrefix+".events.lost", p.eventsStats.GetAndResetLost(), nil, 1.0); err != nil {
 		return err
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.received", p.stats.GetAndResetReceived(), nil, 1.0); err != nil {
+	if err := statsdClient.Count(MetricPrefix+".events.received", p.eventsStats.GetAndResetReceived(), nil, 1.0); err != nil {
 		return err
 	}
 
-	for i := range p.stats.PerEventType {
+	for i := range p.eventsStats.PerEventType {
 		if i == 0 {
 			continue
 		}
 
 		eventType := ProbeEventType(i)
 		key := MetricPrefix + ".events." + eventType.String()
-		if err := statsdClient.Count(key, p.stats.GetAndResetEventCount(eventType), nil, 1.0); err != nil {
+		if err := statsdClient.Count(key, p.eventsStats.GetAndResetEventCount(eventType), nil, 1.0); err != nil {
 			return err
 		}
 	}
@@ -515,23 +510,44 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 	return nil
 }
 
-func (p *Probe) GetStats() (stats Stats, err error) {
-	stats.Events = p.stats
-	if p.syscallMonitor != nil {
-		stats.Syscalls, err = p.syscallMonitor.GetStats()
+// GetStats - return Stats according to the system-probe module format
+func (p *Probe) GetStats() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	syscalls, err := p.syscallMonitor.GetStats()
+
+	stats["events"] = map[string]interface{}{
+		"received": p.eventsStats.GetReceived(),
+		"lost":     p.eventsStats.GetLost(),
+		"syscalls": syscalls,
+	}
+
+	perEventType := make(map[string]int64)
+	stats["per_event_type"] = perEventType
+	for i := range p.eventsStats.PerEventType {
+		if i == 0 {
+			continue
+		}
+
+		eventType := ProbeEventType(i)
+		perEventType[eventType.String()] = p.eventsStats.GetEventCount(eventType)
 	}
 
 	return stats, err
 }
 
+func (p *Probe) GetEventsStats() EventsStats {
+	return p.eventsStats
+}
+
 func (p *Probe) handleLostEvents(count uint64) {
 	log.Warnf("Lost %d events\n", count)
-	p.stats.CountLost(int64(count))
+	p.eventsStats.CountLost(int64(count))
 }
 
 func (p *Probe) handleEvent(data []byte) {
 	log.Debugf("Handling dentry event (len %d)", len(data))
-	p.stats.CountReceived(1)
+	p.eventsStats.CountReceived(1)
 
 	offset := 0
 	event := NewEvent(p.resolvers)
@@ -623,7 +639,7 @@ func (p *Probe) handleEvent(data []byte) {
 		return
 	}
 
-	p.stats.CountEventType(eventType, 1)
+	p.eventsStats.CountEventType(eventType, 1)
 
 	log.Debugf("Dispatching event %+v\n", event)
 	p.DispatchEvent(event)

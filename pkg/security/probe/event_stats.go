@@ -8,12 +8,24 @@ type EventsStats struct {
 	PerEventType [maxEventType]int64
 }
 
+func (e *EventsStats) GetLost() int64 {
+	return atomic.LoadInt64(&e.Lost)
+}
+
+func (e *EventsStats) GetReceived() int64 {
+	return atomic.LoadInt64(&e.Received)
+}
+
 func (e *EventsStats) GetAndResetLost() int64 {
 	return atomic.SwapInt64(&e.Lost, 0)
 }
 
 func (e *EventsStats) GetAndResetReceived() int64 {
 	return atomic.SwapInt64(&e.Received, 0)
+}
+
+func (e *EventsStats) GetEventCount(eventType ProbeEventType) int64 {
+	return atomic.LoadInt64(&e.PerEventType[eventType])
 }
 
 func (e *EventsStats) GetAndResetEventCount(eventType ProbeEventType) int64 {
