@@ -3,6 +3,8 @@ package traces
 import (
 	"fmt"
 	"io"
+	"reflect"
+	"unsafe"
 
 	"github.com/richardartoul/molecule"
 	"github.com/richardartoul/molecule/src/codec"
@@ -11,6 +13,7 @@ import (
 // TODO: Implement me with molecule.
 type LazySpan struct {
 	raw []byte
+	enc *protoEncoder
 
 	service string
 	name    string
@@ -22,24 +25,10 @@ type LazySpan struct {
 	start     int64
 	duration  int64
 	spanError int32
-	meta      map[string]string
-	metrics   map[string]float64
-	spanType  string
+	// meta      map[string]string
+	// metrics   map[string]float64
+	spanType string
 }
-
-// Service  string             `protobuf:"bytes,1,opt,name=service,proto3" json:"service" msg:"service"`
-// 	Name     string             `protobuf:"bytes,2,opt,name=name,proto3" json:"name" msg:"name"`
-// 	Resource string             `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource" msg:"resource"`
-// 	TraceID  uint64             `protobuf:"varint,4,opt,name=traceID,proto3" json:"trace_id" msg:"trace_id"`
-// 	SpanID   uint64             `protobuf:"varint,5,opt,name=spanID,proto3" json:"span_id" msg:"span_id"`
-// 	ParentID uint64             `protobuf:"varint,6,opt,name=parentID,proto3" json:"parent_id" msg:"parent_id"`
-// 	Start    int64              `protobuf:"varint,7,opt,name=start,proto3" json:"start" msg:"start"`
-// 	Duration int64              `protobuf:"varint,8,opt,name=duration,proto3" json:"duration" msg:"duration"`
-// 	Error    int32              `protobuf:"varint,9,opt,name=error,proto3" json:"error" msg:"error"`
-// 	Meta     map[string]string  `protobuf:"bytes,10,rep,name=meta" json:"meta" msg:"meta" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-// 	Metrics  map[string]float64 `protobuf:"bytes,11,rep,name=metrics" json:"metrics" msg:"metrics" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
-// 	Type     string             `protobuf:"bytes,12,opt,name=type,proto3" json:"type" msg:"type"`
-// }
 
 func NewLazySpan(raw []byte) (*LazySpan, error) {
 	// TODO: Don't alloc each time?
@@ -47,6 +36,7 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 	// buffer.
 	l := &LazySpan{
 		raw: raw,
+		enc: newProtoEncoder(),
 	}
 	err := molecule.MessageEach(buffer, func(fieldNum int32, value molecule.Value) (bool, error) {
 		switch fieldNum {
@@ -142,21 +132,27 @@ func (l *LazySpan) SetSpanID(x uint64) {
 }
 
 func (l *LazySpan) UnsafeService() string {
-	// This operation is actually safe in this implementation, but callers should behave like its not.
 	return l.service
 }
 
 func (l *LazySpan) SetService(s string) {
+	if s == l.service {
+		return
+	}
 	l.service = s
+	l.appendString(1, s)
 }
 
 func (l *LazySpan) UnsafeName() string {
-	// This operation is actually safe in this implementation, but callers should behave like its not.
 	return l.name
 }
 
 func (l *LazySpan) SetName(s string) {
+	if s == l.name {
+		return
+	}
 	l.name = s
+	l.appendString(2, s)
 }
 
 func (l *LazySpan) UnsafeResource() string {
@@ -165,7 +161,11 @@ func (l *LazySpan) UnsafeResource() string {
 }
 
 func (l *LazySpan) SetResource(s string) {
+	if s == l.resource {
+		return
+	}
 	l.resource = s
+	l.appendString(3, s)
 }
 
 func (l *LazySpan) Duration() int64 {
@@ -198,7 +198,11 @@ func (l *LazySpan) UnsafeType() string {
 }
 
 func (l *LazySpan) SetType(s string) {
+	if s == l.spanType {
+		return
+	}
 	l.spanType = s
+	l.appendString(12, s)
 }
 
 func (l *LazySpan) Error() int32 {
@@ -224,4 +228,20 @@ func (l *LazySpan) WriteProto(w io.Writer) error {
 
 func (l *LazySpan) DebugString() string {
 	return "TODO"
+}
+
+func (l *LazySpan) appendString(fieldNum int32, s string) {
+	l.enc.reset(l.raw)
+	l.enc.encodeTagAndWireType(fieldNum, 2)
+	l.enc.encodeRawBytes(stringToBytes(s))
+	l.raw = l.enc.buf
+}
+
+func stringToBytes(str string) []byte {
+	hdr := *(*reflect.StringHeader)(unsafe.Pointer(&str))
+	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: hdr.Data,
+		Len:  hdr.Len,
+		Cap:  hdr.Len,
+	}))
 }

@@ -34,6 +34,6 @@ func (p *protoEncoder) encodeRawBytes(b []byte) {
 	p.buf = append(p.buf, b...)
 }
 
-func (p *protoEncoder) reset() {
-	p.buf = p.buf[:0]
+func (p *protoEncoder) reset(b []byte) {
+	p.buf = b
 }
