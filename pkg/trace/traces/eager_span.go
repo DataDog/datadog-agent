@@ -60,7 +60,6 @@ func (e *EagerSpan) UnsafeResource() string {
 }
 
 func (e *EagerSpan) SetResource(s string) {
-	fmt.Println("setting resource", s)
 	e.Span.Resource = s
 }
 
