@@ -2,7 +2,6 @@ package traces
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -37,6 +36,12 @@ func TestLazySpanMutate(t *testing.T) {
 	lazy, err := NewLazySpan(marshaled)
 	require.NoError(t, err)
 
+	lazy.SetTraceID(999)
+	lazy.SetSpanID(999)
+	lazy.SetParentID(999)
+	lazy.SetStart(999)
+	lazy.SetDuration(999)
+	lazy.SetError(999)
 	lazy.SetType("new_type")
 	lazy.SetService("new_service")
 	lazy.SetName("new_name")
@@ -48,7 +53,12 @@ func TestLazySpanMutate(t *testing.T) {
 	mutated := pb.Span{}
 	mutated.Unmarshal(buf.Bytes())
 
-	fmt.Println(string(buf.Bytes()))
+	require.Equal(t, uint64(999), mutated.TraceID)
+	require.Equal(t, uint64(999), mutated.SpanID)
+	require.Equal(t, uint64(999), mutated.ParentID)
+	require.Equal(t, int64(999), mutated.Start)
+	require.Equal(t, int64(999), mutated.Duration)
+	require.Equal(t, int32(999), mutated.Error)
 	require.Equal(t, "new_type", mutated.Type)
 	require.Equal(t, "new_service", mutated.Service)
 	require.Equal(t, "new_name", mutated.Name)

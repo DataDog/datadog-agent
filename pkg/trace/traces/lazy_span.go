@@ -10,7 +10,15 @@ import (
 	"github.com/richardartoul/molecule/src/codec"
 )
 
-// TODO: Implement me with molecule.
+// TODO: This is a fairly naive implementation with a few issues:
+//
+// 1. Mutations are implemented as append operations. This is extremely fast, but bloats the output
+//    payload size. This may or may not be acceptable considering how many mutations are performed,
+//    and how good the compression works out, but I expect it to be mostly ok.
+// 2. Multiple mutations of the same field will bloat the output even more even though only the
+//    last mutation will be visible after deserialization. This is actually easy to fix, we just
+//    need to modify the implementation to delay "appending" the mutations until write time.
+// 3. It doesn't handle any of the interal meta/metrics maps (yet).
 type LazySpan struct {
 	raw []byte
 	enc *protoEncoder
@@ -120,7 +128,11 @@ func (l *LazySpan) TraceID() uint64 {
 }
 
 func (l *LazySpan) SetTraceID(x uint64) {
+	if x == l.traceID {
+		return
+	}
 	l.traceID = x
+	l.appendVarint(4, x)
 }
 
 func (l *LazySpan) SpanID() uint64 {
@@ -128,7 +140,11 @@ func (l *LazySpan) SpanID() uint64 {
 }
 
 func (l *LazySpan) SetSpanID(x uint64) {
+	if x == l.spanID {
+		return
+	}
 	l.spanID = x
+	l.appendVarint(5, x)
 }
 
 func (l *LazySpan) UnsafeService() string {
@@ -156,7 +172,6 @@ func (l *LazySpan) SetName(s string) {
 }
 
 func (l *LazySpan) UnsafeResource() string {
-	// This operation is actually safe in this implementation, but callers should behave like its not.
 	return l.resource
 }
 
@@ -172,28 +187,39 @@ func (l *LazySpan) Duration() int64 {
 	return l.duration
 }
 
-func (l *LazySpan) SetDuration(d int64) {
-	l.duration = d
+func (l *LazySpan) SetDuration(x int64) {
+	if x == l.duration {
+		return
+	}
+	l.duration = x
+	l.appendVarint(8, uint64(x))
 }
 
 func (l *LazySpan) ParentID() uint64 {
 	return l.parentID
 }
 
-func (l *LazySpan) SetParentID(id uint64) {
-	l.parentID = id
+func (l *LazySpan) SetParentID(x uint64) {
+	if x == l.parentID {
+		return
+	}
+	l.parentID = x
+	l.appendVarint(6, x)
 }
 
 func (l *LazySpan) Start() int64 {
 	return l.start
 }
 
-func (l *LazySpan) SetStart(d int64) {
-	l.start = d
+func (l *LazySpan) SetStart(x int64) {
+	if x == l.start {
+		return
+	}
+	l.start = x
+	l.appendVarint(7, uint64(x))
 }
 
 func (l *LazySpan) UnsafeType() string {
-	// This operation is actually safe in this implementation, but callers should behave like its not.
 	return l.spanType
 }
 
@@ -206,12 +232,15 @@ func (l *LazySpan) SetType(s string) {
 }
 
 func (l *LazySpan) Error() int32 {
-	// This operation is actually safe in this implementation, but callers should behave like its not.
 	return l.spanError
 }
 
 func (l *LazySpan) SetError(x int32) {
+	if x == l.spanError {
+		return
+	}
 	l.spanError = x
+	l.appendVarint(9, uint64(x))
 }
 
 func (l *LazySpan) MsgSize() int {
@@ -234,6 +263,13 @@ func (l *LazySpan) appendString(fieldNum int32, s string) {
 	l.enc.reset(l.raw)
 	l.enc.encodeTagAndWireType(fieldNum, 2)
 	l.enc.encodeRawBytes(stringToBytes(s))
+	l.raw = l.enc.buf
+}
+
+func (l *LazySpan) appendVarint(fieldNum int32, x uint64) {
+	l.enc.reset(l.raw)
+	l.enc.encodeTagAndWireType(fieldNum, 0)
+	l.enc.encodeVarint(x)
 	l.raw = l.enc.buf
 }
 
