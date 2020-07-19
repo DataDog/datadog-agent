@@ -66,6 +66,7 @@ type TraceWriter struct {
 	traces       []traceutil.APITrace // traces buffered
 	events       []traces.Span        // events buffered
 	bufferedSize int                  // estimated buffer size
+	buf          *bytes.Buffer
 
 	easylog *logutil.ThrottledLogger
 }
@@ -81,6 +82,7 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 		stop:     make(chan struct{}),
 		tick:     5 * time.Second,
 		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		buf:      bytes.NewBuffer(nil),
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -145,7 +147,6 @@ func (w *TraceWriter) Run() {
 
 func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 	if pkg.Empty() {
-		panic("empty")
 		return
 	}
 
@@ -188,8 +189,7 @@ func (w *TraceWriter) flush() {
 
 	log.Debugf("Serializing %d traces and %d APM events.", len(w.traces), len(w.events))
 
-	// TODO: Reuse this buffer.
-	protoEncoder := newProtoEncoder(make([]byte, 0, w.bufferedSize))
+	protoEncoder := newProtoEncoder(make([]byte, 0, w.bufferedSize*2))
 	protoEncoder.encodeTagAndWireType(1, 2)         // Field 1, wire type 2 (length-delimited)
 	protoEncoder.encodeRawBytes([]byte(w.hostname)) // TODO: Don't alloc.
 
@@ -199,26 +199,24 @@ func (w *TraceWriter) flush() {
 	for _, trace := range w.traces {
 		protoEncoder.encodeTagAndWireType(3, 2) // Field 3, write type 2 (length-delimited)
 
-		// TODO: This is stupidly inefficient, dont allocate these buffers just to measure their length.
-		buf := bytes.NewBuffer(nil)
-		if err := trace.Trace.WriteAsAPITrace(buf, trace.TraceID, trace.StartTime, trace.EndTime); err != nil {
+		w.buf.Reset()
+		if err := trace.Trace.WriteAsAPITrace(w.buf, trace.TraceID, trace.StartTime, trace.EndTime); err != nil {
 			log.Errorf("Failed to write trace as API trace: %v", err)
 			return
 		}
-		protoEncoder.encodeRawBytes(buf.Bytes())
+		protoEncoder.encodeRawBytes(w.buf.Bytes())
 	}
 
 	for _, span := range w.events {
 		protoEncoder.encodeTagAndWireType(4, 2) // Field 4, write type 2 (length-delimited)
 
-		// TODO: This is stupidly inefficient, dont allocate these buffers just to measure their length.
-		buf := bytes.NewBuffer(nil)
-		if err := span.WriteProto(buf); err != nil {
+		w.buf.Reset()
+		if err := span.WriteProto(w.buf); err != nil {
 			log.Errorf("Failed to write event: %v", err)
 			return
 		}
 
-		protoEncoder.encodeRawBytes(buf.Bytes())
+		protoEncoder.encodeRawBytes(w.buf.Bytes())
 	}
 
 	atomic.AddInt64(&w.stats.BytesUncompressed, int64(len(protoEncoder.buf)))

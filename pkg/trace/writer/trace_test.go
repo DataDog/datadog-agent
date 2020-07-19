@@ -50,9 +50,7 @@ func TestTraceWriter(t *testing.T) {
 		tw.Stop()
 		// One payload flushes due to overflowing the threshold, and the second one
 		// because of stop.
-		//
-		// TODO: Why did this change from 2 to 1?
-		assert.Equal(t, 1, srv.Accepted())
+		assert.Equal(t, 2, srv.Accepted())
 		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }
