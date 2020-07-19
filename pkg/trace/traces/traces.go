@@ -41,6 +41,9 @@ func NewLazyTracesFromProto(b []byte) ([]Trace, error) {
 		traces  []Trace
 		buf     = codec.NewBuffer(b)
 		spanBuf = codec.NewBuffer(nil)
+
+		subSpanBuf1 = codec.NewBuffer(nil)
+		subSpanBuf2 = codec.NewBuffer(nil)
 	)
 	for !buf.EOF() {
 		_, wireType, err := buf.DecodeTagAndWireType()
@@ -84,7 +87,7 @@ func NewLazyTracesFromProto(b []byte) ([]Trace, error) {
 					"NewLazyTraceFromProto: error reading trace bytes: %v", err)
 			}
 
-			span, err := NewLazySpan(spanBytes)
+			span, err := NewLazySpan(spanBytes, subSpanBuf1, subSpanBuf2)
 			if err != nil {
 				return nil, fmt.Errorf("NewLazyTraceFromProto: error reading span: %v", err)
 			}

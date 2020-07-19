@@ -16,7 +16,7 @@ func TestLazySpanUnmarshal(t *testing.T) {
 	marshaled, err := proto.Marshal(&span)
 	require.NoError(t, err)
 
-	lazy, err := NewLazySpan(marshaled)
+	lazy, err := NewLazySpan(marshaled, nil, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, lazy.TraceID(), span.TraceID)
@@ -47,7 +47,7 @@ func TestLazySpanRoundTrip(t *testing.T) {
 	marshaled, err := proto.Marshal(&span)
 	require.NoError(t, err)
 
-	lazy, err := NewLazySpan(marshaled)
+	lazy, err := NewLazySpan(marshaled, nil, nil)
 	require.NoError(t, err)
 
 	buf := bytes.NewBuffer(nil)
@@ -65,7 +65,7 @@ func TestLazySpanRoundTripMutate(t *testing.T) {
 	marshaled, err := proto.Marshal(&span)
 	require.NoError(t, err)
 
-	lazy, err := NewLazySpan(marshaled)
+	lazy, err := NewLazySpan(marshaled, nil, nil)
 	require.NoError(t, err)
 
 	// Top-level field mutations.

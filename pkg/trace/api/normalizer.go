@@ -274,9 +274,6 @@ func normMetricNameParse(name string) (string, bool) {
 				ptr++
 			}
 		default:
-			if ptr == 0 {
-				fmt.Println("huh", name)
-			}
 			// we skipped all non-alpha chars up front so we have seen at least one
 			switch res[ptr-1] {
 			// no double underscores, no underscores after periods
@@ -339,13 +336,17 @@ func normalizeTag(v string) string {
 		r    rune // current rune
 		jump int  // tracks how many bytes the for range advances on its next iteration
 	)
-	tag := []byte(v)
+	// Lazy init.
+	var tag []byte
 	for i, r = range v {
 		jump = utf8.RuneLen(r) // next i will be i+jump
 		if r == utf8.RuneError {
 			// On invalid UTF-8, the for range advances only 1 byte (see: https://golang.org/ref/spec#For_range (point 2)).
 			// However, utf8.RuneError is equivalent to unicode.ReplacementChar so we should rely on utf8.DecodeRune to tell
 			// us whether this is an actual error or just a unicode.ReplacementChar that was present in the string.
+			if tag == nil {
+				tag = []byte(v)
+			}
 			_, width := utf8.DecodeRune(tag[i:])
 			jump = width
 		}
@@ -356,6 +357,9 @@ func normalizeTag(v string) string {
 			goto end
 		case r >= 'A' && r <= 'Z':
 			// lower-case
+			if tag == nil {
+				tag = []byte(v)
+			}
 			tag[i] += 'a' - 'A'
 			chars++
 			goto end
@@ -366,6 +370,9 @@ func normalizeTag(v string) string {
 				// but only if the width of the lowercased character is the same;
 				// there are some rare edge-cases where this is not the case, such
 				// as \u017F (ſ)
+				if tag == nil {
+					tag = []byte(v)
+				}
 				utf8.EncodeRune(tag[i:], low)
 				r = low
 			}
@@ -401,10 +408,14 @@ func normalizeTag(v string) string {
 		}
 	}
 
+	if tag == nil {
+		tag = []byte(v)
+	}
+
 	tag = tag[trim : i+jump] // trim start and end
 	if len(cuts) == 0 {
 		// tag was ok, return it as it is
-		return string(tag)
+		return v
 	}
 	delta := trim // cut offsets delta
 	for _, cut := range cuts {

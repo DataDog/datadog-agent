@@ -7,9 +7,15 @@ package sampler
 
 import (
 	"hash/fnv"
+	"reflect"
 	"sort"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/traces"
+)
+
+var (
+	commaBytes = []byte{','}
 )
 
 // Signature is a hash representation of trace or a service, used to identify
@@ -68,9 +74,9 @@ func (s *ServiceSignature) SafeForMap() ServiceSignature {
 // service,env tuple.
 func (s ServiceSignature) Hash() Signature {
 	h := fnv.New32a()
-	h.Write([]byte(s.Name))
-	h.Write([]byte{','})
-	h.Write([]byte(s.Env))
+	h.Write(stringToBytes(s.Name))
+	h.Write(commaBytes)
+	h.Write(stringToBytes(s.Env))
 	return Signature(h.Sum32())
 }
 
@@ -80,22 +86,31 @@ func (s ServiceSignature) String() string {
 
 func computeSpanHash(span traces.Span, env string, withResource bool) spanHash {
 	h := fnv.New32a()
-	h.Write([]byte(env))
-	h.Write([]byte(span.UnsafeService()))
-	h.Write([]byte(span.UnsafeName()))
+	h.Write(stringToBytes(env))
+	h.Write(stringToBytes(span.UnsafeService()))
+	h.Write(stringToBytes(span.UnsafeName()))
 	h.Write([]byte{byte(span.Error())})
 	if withResource {
-		h.Write([]byte(span.UnsafeResource()))
+		h.Write(stringToBytes(span.UnsafeResource()))
 	}
 
 	code, ok := span.GetMetaUnsafe(KeyHTTPStatusCode)
 	if ok {
-		h.Write([]byte(code))
+		h.Write(stringToBytes(code))
 	}
 	typ, ok := span.GetMetaUnsafe(KeyErrorType)
 	if ok {
-		h.Write([]byte(typ))
+		h.Write(stringToBytes(typ))
 	}
 
 	return spanHash(h.Sum32())
+}
+
+func stringToBytes(str string) []byte {
+	hdr := *(*reflect.StringHeader)(unsafe.Pointer(&str))
+	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: hdr.Data,
+		Len:  hdr.Len,
+		Cap:  hdr.Len,
+	}))
 }

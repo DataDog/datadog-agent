@@ -31,7 +31,7 @@ const (
 type LazySpan struct {
 	raw []byte
 	buf []byte
-	enc *protoEncoder
+	enc protoEncoder
 
 	// Top-level fields.
 	service   string
@@ -49,15 +49,19 @@ type LazySpan struct {
 	metrics map[string]float64
 }
 
-func NewLazySpan(raw []byte) (*LazySpan, error) {
-	// TODO: Don't alloc each time?
-	buffer := codec.NewBuffer(raw)
+func NewLazySpan(raw []byte, buf1, buf2 *codec.Buffer) (*LazySpan, error) {
+	if buf1 == nil {
+		buf1 = codec.NewBuffer(nil)
+	}
+	if buf2 == nil {
+		buf2 = codec.NewBuffer(nil)
+	}
+
+	buf1.Reset(raw)
 	l := &LazySpan{
 		raw: raw,
-		enc: newProtoEncoder(),
 	}
-	mapBuf := codec.NewBuffer(nil)
-	err := molecule.MessageEach(buffer, func(fieldNum int32, value molecule.Value) (bool, error) {
+	err := molecule.MessageEach(buf1, func(fieldNum int32, value molecule.Value) (bool, error) {
 		switch fieldNum {
 		case 1:
 			service, err := value.AsStringSafe()
@@ -119,13 +123,13 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 				return false, err
 			}
 
-			mapBuf.Reset(metaBytes)
+			buf2.Reset(metaBytes)
 
 			var (
 				key string
 				val string
 			)
-			err = molecule.MessageEach(mapBuf, func(fieldNum int32, value molecule.Value) (bool, error) {
+			err = molecule.MessageEach(buf2, func(fieldNum int32, value molecule.Value) (bool, error) {
 				switch fieldNum {
 				case 1:
 					str, err := value.AsStringUnsafe()
@@ -155,13 +159,13 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 				return false, err
 			}
 
-			mapBuf.Reset(metricBytes)
+			buf2.Reset(metricBytes)
 
 			var (
 				key string
 				val float64
 			)
-			err = molecule.MessageEach(mapBuf, func(fieldNum int32, value molecule.Value) (bool, error) {
+			err = molecule.MessageEach(buf2, func(fieldNum int32, value molecule.Value) (bool, error) {
 				switch fieldNum {
 				case 1:
 					str, err := value.AsStringUnsafe()
