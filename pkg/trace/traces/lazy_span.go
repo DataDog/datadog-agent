@@ -60,19 +60,19 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 	err := molecule.MessageEach(buffer, func(fieldNum int32, value molecule.Value) (bool, error) {
 		switch fieldNum {
 		case 1:
-			service, err := value.AsStringUnsafe()
+			service, err := value.AsStringSafe()
 			if err != nil {
 				return false, err
 			}
 			l.service = service
 		case 2:
-			name, err := value.AsStringUnsafe()
+			name, err := value.AsStringSafe()
 			if err != nil {
 				return false, err
 			}
 			l.name = name
 		case 3:
-			resource, err := value.AsStringUnsafe()
+			resource, err := value.AsStringSafe()
 			if err != nil {
 				return false, err
 			}
@@ -186,7 +186,7 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 			}
 			l.metrics[key] = val
 		case 12:
-			protoType, err := value.AsStringUnsafe()
+			protoType, err := value.AsStringSafe()
 			if err != nil {
 				return false, err
 			}

@@ -200,9 +200,9 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 		if agg != "env" && agg != "resource" && agg != "service" {
 			// TODO: v is stored in the map m, so we may need to convert v to a "safe" string with an
 			// alloc depending on what this map is used for.
-			if v, ok := s.GetMetaUnsafe(agg); ok {
-				m[agg] = v
-			}
+			// if v, ok := s.GetMetaUnsafe(agg); ok {
+			// 	m[agg] = v
+			// }
 		}
 	}
 

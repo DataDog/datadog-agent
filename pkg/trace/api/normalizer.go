@@ -274,6 +274,9 @@ func normMetricNameParse(name string) (string, bool) {
 				ptr++
 			}
 		default:
+			if ptr == 0 {
+				fmt.Println("huh", name)
+			}
 			// we skipped all non-alpha chars up front so we have seen at least one
 			switch res[ptr-1] {
 			// no double underscores, no underscores after periods

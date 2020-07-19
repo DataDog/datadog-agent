@@ -22,7 +22,7 @@ func GetEnv(t traces.Trace) string {
 			if k == "env" {
 				// TODO: Unclear what env will be used for, but we should convert it to a "safe"
 				// string just in case it gets used as a map key or something.
-				env = v
+				// env = v
 				return false
 			}
 
