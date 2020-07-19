@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 const (
@@ -93,9 +93,9 @@ func (s *PriorityEngine) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled bool, rate float64) {
+func (s *PriorityEngine) Sample(trace traces.Trace, root traces.Span, env string) (sampled bool, rate float64) {
 	// Extra safety, just in case one trace is empty
-	if len(trace) == 0 {
+	if len(trace.Spans) == 0 {
 		return false, 0
 	}
 
@@ -116,17 +116,17 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (samp
 		return sampled, 1
 	}
 
-	signature := s.catalog.register(ServiceSignature{root.Service, env})
+	signature := s.catalog.register(ServiceSignature{root.UnsafeService(), env})
 
 	// Update sampler state by counting this trace
 	s.Sampler.Backend.CountSignature(signature)
 
 	// fetching applied sample rate
 	var ok bool
-	rate, ok = root.Metrics[SamplingPriorityRateKey]
+	rate, ok = root.GetMetric(SamplingPriorityRateKey)
 	if !ok || rate > prioritySamplingRateThresholdTo1 {
 		rate = s.Sampler.GetSignatureSampleRate(signature)
-		root.Metrics[SamplingPriorityRateKey] = rate
+		root.SetMetric(SamplingPriorityRateKey, rate)
 	}
 
 	if sampled {

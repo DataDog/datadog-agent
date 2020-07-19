@@ -8,7 +8,7 @@ package filters
 import (
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,9 +19,9 @@ type Blacklister struct {
 }
 
 // Allows returns true if the Blacklister permits this span.
-func (f *Blacklister) Allows(span *pb.Span) bool {
+func (f *Blacklister) Allows(span traces.Span) bool {
 	for _, entry := range f.list {
-		if entry.MatchString(span.Resource) {
+		if entry.MatchString(span.UnsafeResource()) {
 			return false
 		}
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
@@ -115,9 +116,12 @@ func useFlushThreshold(n int) func() {
 func randomSampledSpans(spans, events int) *SampledSpans {
 	realisticIDs := true
 	trace := testutil.GetTestTraces(1, spans, realisticIDs)[0]
+
+	eventsTrace := trace // Shallow copy.
+	eventsTrace.Spans = eventsTrace.Spans[:events]
 	return &SampledSpans{
 		Trace:  trace,
-		Events: trace[:events],
+		Events: eventsTrace,
 	}
 }
 
@@ -142,7 +146,11 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledS
 	for _, ss := range sampledSpans {
 		var found bool
 		for _, trace := range all.Traces {
-			if reflect.DeepEqual(trace.Spans, ([]*pb.Span)(ss.Trace)) {
+			expected := make([]*pb.Span, 0, len(ss.Trace.Spans))
+			for _, span := range ss.Trace.Spans {
+				expected = append(expected, &span.(*traces.EagerSpan).Span)
+			}
+			if reflect.DeepEqual(expected, trace.Spans) {
 				found = true
 				break
 			}
@@ -150,8 +158,9 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledS
 		if !found {
 			t.Fatal("payloads didn't contain given traces")
 		}
-		for _, event := range ss.Events {
-			assert.Contains(t, all.Transactions, event)
+
+		for _, event := range ss.Events.Spans {
+			assert.Contains(t, all.Transactions, &event.(*traces.EagerSpan).Span)
 		}
 	}
 }

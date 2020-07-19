@@ -6,7 +6,7 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -16,24 +16,24 @@ type WeightedSpan struct {
 	TopLevel bool    // Is this span a service top-level or not. Similar to span.TopLevel().
 	Measured bool    // Is this span marked for metrics computation.
 
-	*pb.Span
+	traces.Span
 }
 
 // WeightedTrace is a slice of WeightedSpan pointers.
 type WeightedTrace []*WeightedSpan
 
 // NewWeightedTrace returns a weighted trace, with coefficient required by the concentrator.
-func NewWeightedTrace(trace pb.Trace, root *pb.Span) WeightedTrace {
-	wt := make(WeightedTrace, len(trace))
+func NewWeightedTrace(trace traces.Trace, root traces.Span) WeightedTrace {
+	wt := make(WeightedTrace, len(trace.Spans))
 
 	weight := Weight(root)
 
-	for i := range trace {
+	for i := range trace.Spans {
 		wt[i] = &WeightedSpan{
-			Span:     trace[i],
+			Span:     trace.Spans[i],
 			Weight:   weight,
-			TopLevel: traceutil.HasTopLevel(trace[i]),
-			Measured: traceutil.IsMeasured(trace[i]),
+			TopLevel: traceutil.HasTopLevel(trace.Spans[i]),
+			Measured: traceutil.IsMeasured(trace.Spans[i]),
 		}
 	}
 	return wt
@@ -44,11 +44,12 @@ const keySamplingRateGlobal = "_sample_rate"
 
 // Weight returns the weight of the span as defined for sampling, i.e. the
 // inverse of the sampling rate.
-func Weight(s *pb.Span) float64 {
+func Weight(s traces.Span) float64 {
 	if s == nil {
 		return 1.0
 	}
-	sampleRate, ok := s.Metrics[keySamplingRateGlobal]
+
+	sampleRate, ok := s.GetMetric(keySamplingRateGlobal)
 	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
 		return 1.0
 	}

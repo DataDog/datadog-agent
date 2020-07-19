@@ -198,13 +198,15 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 
 	for _, agg := range aggregators {
 		if agg != "env" && agg != "resource" && agg != "service" {
-			if v, ok := s.Meta[agg]; ok {
-				m[agg] = v
-			}
+			// TODO: v is stored in the map m, so we may need to convert v to a "safe" string with an
+			// alloc depending on what this map is used for.
+			// if v, ok := s.GetMetaUnsafe(agg); ok {
+			// 	m[agg] = v
+			// }
 		}
 	}
 
-	grain, tags := assembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
+	grain, tags := assembleGrain(&sb.keyBuf, env, s.UnsafeResource(), s.UnsafeService(), m)
 	sb.add(s, grain, tags)
 
 	for _, sub := range sublayers {
@@ -216,9 +218,11 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
 	var gs groupedStats
 	var ok bool
 
-	key := statsKey{name: s.Name, aggr: aggr}
+	key := statsKey{name: s.UnsafeName(), aggr: aggr}
 	if gs, ok = sb.data[key]; !ok {
 		gs = newGroupedStats(tags)
+		// Make string "safe". TODO: Is this necessary? If so, make this more efficient (once alloc instead of two).
+		key = statsKey{name: string([]byte(key.name)), aggr: aggr}
 	}
 
 	if s.TopLevel {
@@ -226,18 +230,18 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
 	}
 
 	gs.hits += s.Weight
-	if s.Error != 0 {
+	if s.Error() != 0 {
 		gs.errors += s.Weight
 	}
-	gs.duration += float64(s.Duration) * s.Weight
+	gs.duration += float64(s.Duration()) * s.Weight
 
 	// TODO add for s.Metrics ability to define arbitrary counts and distros, check some config?
 	// alter resolution of duration distro
-	trundur := nsTimestampToFloat(s.Duration)
-	gs.durationDistribution.Insert(trundur, s.SpanID)
+	trundur := nsTimestampToFloat(s.Duration())
+	gs.durationDistribution.Insert(trundur, s.SpanID())
 
-	if s.Error != 0 {
-		gs.errDurationDistribution.Insert(trundur, s.SpanID)
+	if s.Error() != 0 {
+		gs.errDurationDistribution.Insert(trundur, s.SpanID())
 	}
 
 	sb.data[key] = gs
@@ -257,9 +261,11 @@ func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr string, tags TagSet, sub 
 	copy(subTags, tags)
 	subTags[len(tags)] = sub.Tag
 
-	key := statsSubKey{name: s.Name, measure: sub.Metric, aggr: subAggr}
+	key := statsSubKey{name: s.UnsafeName(), measure: sub.Metric, aggr: subAggr}
 	if ss, ok = sb.sublayerData[key]; !ok {
 		ss = newSublayerStats(subTags)
+		// Make string "safe". TODO: Is this necessary? If so, make this more efficient (once alloc instead of two).
+		key = statsSubKey{name: string([]byte(key.name)), measure: sub.Metric, aggr: subAggr}
 	}
 
 	if s.TopLevel {

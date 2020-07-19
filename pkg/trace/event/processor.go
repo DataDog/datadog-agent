@@ -6,8 +6,8 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // Processor is responsible for all the logic surrounding extraction and sampling of APM events from processed traces.
@@ -50,7 +50,7 @@ func (p *Processor) Stop() {
 
 // Process takes a processed trace, extracts events from it and samples them, returning a collection of
 // sampled events along with the total count of extracted events.
-func (p *Processor) Process(root *pb.Span, t pb.Trace) (events []*pb.Span, numExtracted int64) {
+func (p *Processor) Process(root traces.Span, t traces.Trace) (events traces.Trace, numExtracted int64) {
 	if len(p.extractors) == 0 {
 		return
 	}
@@ -63,12 +63,12 @@ func (p *Processor) Process(root *pb.Span, t pb.Trace) (events []*pb.Span, numEx
 	clientSampleRate := sampler.GetClientRate(root)
 	preSampleRate := sampler.GetPreSampleRate(root)
 
-	for _, span := range t {
+	for _, span := range t.Spans {
 		extractionRate, ok := p.extract(span, priority)
 		if !ok {
 			continue
 		}
-		if !sampler.SampleByRate(span.TraceID, extractionRate) {
+		if !sampler.SampleByRate(span.TraceID(), extractionRate) {
 			continue
 		}
 
@@ -87,13 +87,13 @@ func (p *Processor) Process(root *pb.Span, t pb.Trace) (events []*pb.Span, numEx
 			sampler.SetSamplingPriority(span, priority)
 		}
 
-		events = append(events, span)
+		events.Spans = append(events.Spans, span)
 	}
 
 	return events, numExtracted
 }
 
-func (p *Processor) extract(span *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
+func (p *Processor) extract(span traces.Span, priority sampler.SamplingPriority) (float64, bool) {
 	for _, extractor := range p.extractors {
 		if rate, ok := extractor.Extract(span, priority); ok {
 			return rate, ok
@@ -102,7 +102,7 @@ func (p *Processor) extract(span *pb.Span, priority sampler.SamplingPriority) (f
 	return 0, false
 }
 
-func (p *Processor) maxEPSSample(event *pb.Span, priority sampler.SamplingPriority) (sampled bool, rate float64) {
+func (p *Processor) maxEPSSample(event traces.Span, priority sampler.SamplingPriority) (sampled bool, rate float64) {
 	if priority == sampler.PriorityUserKeep {
 		return true, 1
 	}
@@ -111,6 +111,6 @@ func (p *Processor) maxEPSSample(event *pb.Span, priority sampler.SamplingPriori
 
 type eventSampler interface {
 	Start()
-	Sample(event *pb.Span) (sampled bool, rate float64)
+	Sample(event traces.Span) (sampled bool, rate float64)
 	Stop()
 }

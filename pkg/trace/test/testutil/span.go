@@ -13,6 +13,8 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -253,8 +255,8 @@ func RandomSpanType() string {
 }
 
 // RandomSpan generates a wide-variety of spans, useful to test robustness & performance
-func RandomSpan() *pb.Span {
-	return &pb.Span{
+func RandomSpan() traces.Span {
+	return traces.NewEagerSpan(pb.Span{
 		Duration: RandomSpanDuration(),
 		Error:    RandomSpanError(),
 		Resource: RandomSpanResource(),
@@ -267,7 +269,7 @@ func RandomSpan() *pb.Span {
 		Metrics:  RandomSpanMetrics(),
 		ParentID: RandomSpanParentID(),
 		Type:     RandomSpanType(),
-	}
+	})
 }
 
 // RandomWeightedSpan generates a random weighted span, useful for stats tests
@@ -281,8 +283,8 @@ func RandomWeightedSpan() *stats.WeightedSpan {
 }
 
 // GetTestSpan returns a Span with different fields set
-func GetTestSpan() *pb.Span {
-	span := &pb.Span{
+func GetTestSpan() traces.Span {
+	span := traces.NewEagerSpan(pb.Span{
 		TraceID:  42,
 		SpanID:   52,
 		ParentID: 42,
@@ -294,15 +296,15 @@ func GetTestSpan() *pb.Span {
 		Duration: 9223372036854775807,
 		Meta:     map[string]string{"http.host": "192.168.0.1"},
 		Metrics:  map[string]float64{"http.monitor": 41.99},
-	}
-	trace := pb.Trace{span}
+	})
+	trace := traces.NewTrace([]traces.Span{span})
 	traceutil.ComputeTopLevel(trace)
-	return trace[0]
+	return trace.Spans[0]
 }
 
 // TestSpan returns a fix span with hardcoded info, useful for reproducible tests
-func TestSpan() *pb.Span {
-	return &pb.Span{
+func TestSpan() traces.Span {
+	return traces.NewEagerSpan(pb.Span{
 		Duration: 10000000,
 		Error:    0,
 		Resource: "GET /some/raclette",
@@ -320,7 +322,7 @@ func TestSpan() *pb.Span {
 		},
 		ParentID: 1111,
 		Type:     "http",
-	}
+	})
 }
 
 // TestWeightedSpan returns a static test weighted span for reproductive stats tests

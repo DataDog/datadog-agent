@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	_ "github.com/benesch/cgosymbolizer"
 	"github.com/cihub/seelog"
 )
 

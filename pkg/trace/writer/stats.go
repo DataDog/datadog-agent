@@ -6,6 +6,7 @@
 package writer
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"sync/atomic"
@@ -126,6 +127,7 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 		}
 		atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
 
+		fmt.Println("stats sending")
 		sendPayloads(w.senders, req)
 	}
 }

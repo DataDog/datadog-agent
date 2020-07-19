@@ -7,7 +7,7 @@ package filters
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 )
 
 // Replacer is a filter which replaces tag values based on its
@@ -22,26 +22,25 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 }
 
 // Replace replaces all tags matching the Replacer's rules.
-func (f Replacer) Replace(trace pb.Trace) {
+func (f Replacer) Replace(trace traces.Trace) {
 	for _, rule := range f.rules {
 		key, str, re := rule.Name, rule.Repl, rule.Re
-		for _, s := range trace {
+		for _, s := range trace.Spans {
 			switch key {
 			case "*":
-				for k := range s.Meta {
-					s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
-				}
-				s.Resource = re.ReplaceAllString(s.Resource, str)
+				s.ForEachMetaUnsafe(func(k, v string) bool {
+					s.SetMeta(k, re.ReplaceAllString(v, str))
+					return true
+				})
+				s.SetResource(re.ReplaceAllString(s.UnsafeResource(), str))
 			case "resource.name":
-				s.Resource = re.ReplaceAllString(s.Resource, str)
+				s.SetResource(re.ReplaceAllString(s.UnsafeResource(), str))
 			default:
-				if s.Meta == nil {
+				v, ok := s.GetMetaUnsafe(key)
+				if !ok {
 					continue
 				}
-				if _, ok := s.Meta[key]; !ok {
-					continue
-				}
-				s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
+				s.SetMeta(key, re.ReplaceAllString(v, str))
 			}
 		}
 	}

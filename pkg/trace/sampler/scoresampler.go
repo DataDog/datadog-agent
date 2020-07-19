@@ -5,7 +5,9 @@
 
 package sampler
 
-import "github.com/DataDog/datadog-agent/pkg/trace/pb"
+import (
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
+)
 
 const (
 	// errorSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
@@ -53,17 +55,17 @@ func (s *ScoreEngine) Stop() {
 	s.Sampler.Stop()
 }
 
-func applySampleRate(root *pb.Span, rate float64) bool {
+func applySampleRate(root traces.Span, rate float64) bool {
 	initialRate := GetGlobalRate(root)
 	newRate := initialRate * rate
-	traceID := root.TraceID
+	traceID := root.TraceID()
 	return SampleByRate(traceID, newRate)
 }
 
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
-func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled bool, rate float64) {
+func (s *ScoreEngine) Sample(trace traces.Trace, root traces.Span, env string) (sampled bool, rate float64) {
 	// Extra safety, just in case one trace is empty
-	if len(trace) == 0 {
+	if len(trace.Spans) == 0 {
 		return false, 0
 	}
 
