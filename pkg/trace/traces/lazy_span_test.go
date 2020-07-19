@@ -26,9 +26,21 @@ func TestLazySpanUnmarshal(t *testing.T) {
 	require.Equal(t, lazy.UnsafeResource(), span.Resource)
 	require.Equal(t, lazy.Start(), span.Start)
 	require.Equal(t, lazy.Duration(), span.Duration)
+
+	for k, v := range span.Meta {
+		lazyV, ok := lazy.GetMetaUnsafe(k)
+		require.True(t, ok)
+		require.Equal(t, v, lazyV)
+	}
+
+	for k, v := range span.Metrics {
+		lazyV, ok := lazy.GetMetric(k)
+		require.True(t, ok)
+		require.Equal(t, v, lazyV)
+	}
 }
 
-func TestLazySpanMutate(t *testing.T) {
+func TestLazySpanRoundTrip(t *testing.T) {
 	span := newTestSpan()
 	marshaled, err := proto.Marshal(&span)
 	require.NoError(t, err)
@@ -36,6 +48,25 @@ func TestLazySpanMutate(t *testing.T) {
 	lazy, err := NewLazySpan(marshaled)
 	require.NoError(t, err)
 
+	buf := bytes.NewBuffer(nil)
+	require.NoError(t, lazy.WriteProto(buf))
+
+	roundTripped := pb.Span{}
+	roundTripped.Unmarshal(buf.Bytes())
+
+	require.Equal(t, span, roundTripped)
+}
+
+// TODO: Assert on mutations *before* serialization and after serialization/deserialization.
+func TestLazySpanRoundTripMutate(t *testing.T) {
+	span := newTestSpan()
+	marshaled, err := proto.Marshal(&span)
+	require.NoError(t, err)
+
+	lazy, err := NewLazySpan(marshaled)
+	require.NoError(t, err)
+
+	// Top-level field mutations.
 	lazy.SetTraceID(999)
 	lazy.SetSpanID(999)
 	lazy.SetParentID(999)
@@ -46,6 +77,18 @@ func TestLazySpanMutate(t *testing.T) {
 	lazy.SetService("new_service")
 	lazy.SetName("new_name")
 	lazy.SetResource("new_resource")
+
+	// Meta map mutations.
+	// Mutate existing key.
+	lazy.SetMeta("http.host", "new_host")
+	// Add new key/value.
+	lazy.SetMeta("http.new_field", "new_field")
+
+	// Metrics map mutations.
+	// Mutate existing key.
+	lazy.SetMetric("http.monitor", 999.0)
+	// Add new key/value.
+	lazy.SetMetric("http.new_field", 999.0)
 
 	buf := bytes.NewBuffer(nil)
 	require.NoError(t, lazy.WriteProto(buf))
@@ -63,6 +106,19 @@ func TestLazySpanMutate(t *testing.T) {
 	require.Equal(t, "new_service", mutated.Service)
 	require.Equal(t, "new_name", mutated.Name)
 	require.Equal(t, "new_resource", mutated.Resource)
+
+	require.Equal(t, map[string]string{
+		"http.host":      "new_host",
+		"http.port":      "8080",
+		"http.new_field": "new_field",
+	}, mutated.Meta)
+
+	require.Equal(t, map[string]float64{
+		"http.monitor":   999.0,
+		"http.duration":  127.3,
+		"http.new_field": 999.0,
+	}, mutated.Metrics)
+
 }
 
 func newTestSpan() pb.Span {
@@ -76,7 +132,13 @@ func newTestSpan() pb.Span {
 		Resource: "NOT touched because it is going to be hashed",
 		Start:    9223372036854775807,
 		Duration: 9223372036854775807,
-		Meta:     map[string]string{"http.host": "192.168.0.1"},
-		Metrics:  map[string]float64{"http.monitor": 41.99},
+		Meta: map[string]string{
+			"http.host": "192.168.0.1",
+			"http.port": "8080",
+		},
+		Metrics: map[string]float64{
+			"http.monitor":  41.99,
+			"http.duration": 127.3,
+		},
 	}
 }

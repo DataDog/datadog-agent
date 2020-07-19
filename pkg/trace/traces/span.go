@@ -33,6 +33,12 @@ type Span interface {
 	Error() int32
 	SetError(x int32)
 
+	GetMetaUnsafe(s string) (string, bool)
+	SetMeta(k, v string)
+
+	GetMetric(s string) (float64, bool)
+	SetMetric(k string, v float64)
+
 	MsgSize() int
 
 	WriteProto(w io.Writer) error

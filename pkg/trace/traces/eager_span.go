@@ -105,6 +105,24 @@ func (e *EagerSpan) SetError(x int32) {
 	e.Span.Error = x
 }
 
+func (e *EagerSpan) GetMetaUnsafe(s string) (string, bool) {
+	v, ok := e.Span.Meta[s]
+	return v, ok
+}
+
+func (e *EagerSpan) SetMeta(k, v string) {
+	e.Span.Meta[k] = v
+}
+
+func (e *EagerSpan) GetMetric(s string) (float64, bool) {
+	v, ok := e.Span.Metrics[s]
+	return v, ok
+}
+
+func (e *EagerSpan) SetMetric(k string, v float64) {
+	e.Span.Metrics[k] = v
+}
+
 func (e *EagerSpan) MsgSize() int {
 	return e.Span.Size()
 }

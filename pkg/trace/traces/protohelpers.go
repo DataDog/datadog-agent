@@ -29,6 +29,19 @@ func (p *protoEncoder) encodeVarint(x uint64) {
 	p.buf = append(p.buf, uint8(x))
 }
 
+func (p *protoEncoder) encodeFixed64(x uint64) error {
+	p.buf = append(p.buf,
+		uint8(x),
+		uint8(x>>8),
+		uint8(x>>16),
+		uint8(x>>24),
+		uint8(x>>32),
+		uint8(x>>40),
+		uint8(x>>48),
+		uint8(x>>56))
+	return nil
+}
+
 func (p *protoEncoder) encodeRawBytes(b []byte) {
 	p.encodeVarint(uint64(len(b)))
 	p.buf = append(p.buf, b...)

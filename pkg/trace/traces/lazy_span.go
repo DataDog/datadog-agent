@@ -3,11 +3,16 @@ package traces
 import (
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"unsafe"
 
 	"github.com/richardartoul/molecule"
 	"github.com/richardartoul/molecule/src/codec"
+)
+
+const (
+	defaultMapInitSize = 4
 )
 
 // TODO: This is a fairly naive implementation with a few issues:
@@ -19,13 +24,18 @@ import (
 //    last mutation will be visible after deserialization. This is actually easy to fix, we just
 //    need to modify the implementation to delay "appending" the mutations until write time.
 // 3. It doesn't handle any of the interal meta/metrics maps (yet).
+// 4. It stores many of the internal fields as pointer types (string or maps of strings) which will
+//    have G.C overhead. Instead, we could store offsets (integers) into the raw []byte where the
+//    strings are located and convert them unsafely into string views on demand. This would complicate
+//    the implementation slightly, but cause less G.C pressure during the mark phase.
 type LazySpan struct {
 	raw []byte
+	buf []byte
 	enc *protoEncoder
 
-	service string
-	name    string
-
+	// Top-level fields.
+	service   string
+	name      string
 	resource  string
 	traceID   uint64
 	spanID    uint64
@@ -33,19 +43,20 @@ type LazySpan struct {
 	start     int64
 	duration  int64
 	spanError int32
-	// meta      map[string]string
-	// metrics   map[string]float64
-	spanType string
+	spanType  string
+
+	meta    map[string]string
+	metrics map[string]float64
 }
 
 func NewLazySpan(raw []byte) (*LazySpan, error) {
 	// TODO: Don't alloc each time?
 	buffer := codec.NewBuffer(raw)
-	// buffer.
 	l := &LazySpan{
 		raw: raw,
 		enc: newProtoEncoder(),
 	}
+	mapBuf := codec.NewBuffer(nil)
 	err := molecule.MessageEach(buffer, func(fieldNum int32, value molecule.Value) (bool, error) {
 		switch fieldNum {
 		case 1:
@@ -103,9 +114,80 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 			}
 			l.spanError = spanError
 		case 10:
-			// TODO: Handle meta
+			metaBytes, err := value.AsBytesUnsafe()
+			if err != nil {
+				return false, err
+			}
+
+			mapBuf.Reset(metaBytes)
+
+			var (
+				key string
+				val string
+			)
+			err = molecule.MessageEach(mapBuf, func(fieldNum int32, value molecule.Value) (bool, error) {
+				switch fieldNum {
+				case 1:
+					str, err := value.AsStringUnsafe()
+					if err != nil {
+						return false, err
+					}
+					key = str
+				case 2:
+					str, err := value.AsStringUnsafe()
+					if err != nil {
+						return false, err
+					}
+					val = str
+				}
+				return true, nil
+			})
+			if err != nil {
+				return false, err
+			}
+			if l.meta == nil {
+				l.meta = make(map[string]string, defaultMapInitSize)
+			}
+			l.meta[key] = val
 		case 11:
-			// TODO: Handle metrics
+			fmt.Println("111")
+			metricBytes, err := value.AsBytesUnsafe()
+			if err != nil {
+				return false, err
+			}
+
+			mapBuf.Reset(metricBytes)
+
+			var (
+				key string
+				val float64
+			)
+			err = molecule.MessageEach(mapBuf, func(fieldNum int32, value molecule.Value) (bool, error) {
+				switch fieldNum {
+				case 1:
+					str, err := value.AsStringUnsafe()
+					if err != nil {
+						return false, err
+					}
+					key = str
+					fmt.Println("key", key)
+				case 2:
+					double, err := value.AsDouble()
+					if err != nil {
+						return false, err
+					}
+					val = double
+					fmt.Println("val", val)
+				}
+				return true, nil
+			})
+			if err != nil {
+				return false, err
+			}
+			if l.metrics == nil {
+				l.metrics = make(map[string]float64, defaultMapInitSize)
+			}
+			l.metrics[key] = val
 		case 12:
 			protoType, err := value.AsStringUnsafe()
 			if err != nil {
@@ -243,6 +325,34 @@ func (l *LazySpan) SetError(x int32) {
 	l.appendVarint(9, uint64(x))
 }
 
+func (l *LazySpan) GetMetaUnsafe(s string) (string, bool) {
+	v, ok := l.meta[s]
+	return v, ok
+}
+
+func (l *LazySpan) SetMeta(k, v string) {
+	existing, ok := l.meta[k]
+	if ok && existing == v {
+		return
+	}
+	l.meta[k] = v
+	l.appendMeta(k, v)
+}
+
+func (l *LazySpan) GetMetric(s string) (float64, bool) {
+	v, ok := l.metrics[s]
+	return v, ok
+}
+
+func (l *LazySpan) SetMetric(k string, v float64) {
+	existing, ok := l.metrics[k]
+	if ok && existing == v {
+		return
+	}
+	l.metrics[k] = v
+	l.appendMetric(k, v)
+}
+
 func (l *LazySpan) MsgSize() int {
 	return len(l.raw)
 }
@@ -257,6 +367,46 @@ func (l *LazySpan) WriteProto(w io.Writer) error {
 
 func (l *LazySpan) DebugString() string {
 	return "TODO"
+}
+
+func (l *LazySpan) appendMeta(k, v string) {
+	l.buf = l.buf[:0]
+	l.enc.reset(l.buf)
+
+	// Map entry key is field 1 with wire type 2 (length-delimited)
+	l.enc.encodeTagAndWireType(1, 2)
+	l.enc.encodeRawBytes(stringToBytes(k))
+	// Map entry value is field 2 with wire type 2 (length-delimited)
+	l.enc.encodeTagAndWireType(2, 2)
+	l.enc.encodeRawBytes(stringToBytes(v))
+
+	// Capture bytes incase the underlying buf has grown.
+	l.buf = l.enc.buf
+
+	l.enc.reset(l.raw)
+	l.enc.encodeTagAndWireType(10, 2)
+	l.enc.encodeRawBytes(l.buf)
+	l.raw = l.enc.buf
+}
+
+func (l *LazySpan) appendMetric(k string, v float64) {
+	l.buf = l.buf[:0]
+	l.enc.reset(l.buf)
+
+	// Map entry key is field 1 with wire type 2 (length-delimited)
+	l.enc.encodeTagAndWireType(1, 2)
+	l.enc.encodeRawBytes(stringToBytes(k))
+	// Map entry key is field 1 with wire type 1 (fixed 64)
+	l.enc.encodeTagAndWireType(2, 1)
+	l.enc.encodeFixed64(math.Float64bits(v))
+
+	// Capture bytes incase the underlying buf has grown.
+	l.buf = l.enc.buf
+
+	l.enc.reset(l.raw)
+	l.enc.encodeTagAndWireType(11, 2)
+	l.enc.encodeRawBytes(l.buf)
+	l.raw = l.enc.buf
 }
 
 func (l *LazySpan) appendString(fieldNum int32, s string) {
