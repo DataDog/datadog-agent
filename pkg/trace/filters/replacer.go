@@ -28,22 +28,19 @@ func (f Replacer) Replace(trace traces.Trace) {
 		for _, s := range trace.Spans {
 			switch key {
 			case "*":
-				// TODO: Fix me.
-				// for k := range s.Meta {
-				// 	s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
-				// }
+				s.ForEachMetaUnsafe(func(k, v string) bool {
+					s.SetMeta(k, re.ReplaceAllString(v, str))
+					return true
+				})
 				s.SetResource(re.ReplaceAllString(s.UnsafeResource(), str))
 			case "resource.name":
 				s.SetResource(re.ReplaceAllString(s.UnsafeResource(), str))
 			default:
-				// TODO: Fix me.
-				// if s.Meta == nil {
-				// 	continue
-				// }
-				// if _, ok := s.Meta[key]; !ok {
-				// 	continue
-				// }
-				// s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
+				v, ok := s.GetMetaUnsafe(key)
+				if !ok {
+					continue
+				}
+				s.SetMeta(key, re.ReplaceAllString(v, str))
 			}
 		}
 	}

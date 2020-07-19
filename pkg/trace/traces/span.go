@@ -39,11 +39,11 @@ type Span interface {
 
 	GetMetaUnsafe(s string) (string, bool)
 	SetMeta(k, v string)
-	// ForEachMetaUnsafe(MetaIterFunc)
+	ForEachMetaUnsafe(MetaIterFunc)
 
 	GetMetric(s string) (float64, bool)
 	SetMetric(k string, v float64)
-	// ForEachMetric(MetricIterFunc)
+	ForEachMetricUnsafe(MetricIterFunc)
 
 	MsgSize() int
 

@@ -15,12 +15,18 @@ import (
 // obfuscateJSON obfuscates the given span's tag using the given obfuscator. If the obfuscator is
 // nil it is considered disabled.
 func (o *Obfuscator) obfuscateJSON(span traces.Span, tag string, obfuscator *jsonObfuscator) {
-	// TODO: Fix me.
-	// if obfuscator == nil || span.Meta == nil || span.Meta[tag] == "" {
-	// 	// obfuscator is disabled or tag is not present
-	// 	return
-	// }
-	// span.Meta[tag], _ = obfuscator.obfuscate([]byte(span.Meta[tag]))
+	if obfuscator == nil {
+		// obfuscator is disabled or tag is not present
+		return
+	}
+
+	v, ok := span.GetMetaUnsafe(tag)
+	if !ok || v == "" {
+		return
+	}
+
+	obfuscated, _ := obfuscator.obfuscate([]byte(v))
+	span.SetMeta(tag, obfuscated)
 	// we should accept whatever the obfuscator returns, even if it's an error: a parsing
 	// error simply means that the JSON was invalid, meaning that we've only obfuscated
 	// as much of it as we could. It is safe to accept the output, even if partial.

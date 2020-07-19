@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traces"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,19 +61,22 @@ func TestReplacer(t *testing.T) {
 	} {
 		rules := parseRulesFromString(tt.rules)
 		tr := NewReplacer(rules)
-		root := replaceFilterTestSpan(tt.got)
-		childSpan := replaceFilterTestSpan(tt.got)
-		trace := pb.Trace{root, childSpan}
+		root := traces.NewEagerSpan(*replaceFilterTestSpan(tt.got))
+		childSpan := traces.NewEagerSpan(*replaceFilterTestSpan(tt.got))
+		trace := traces.NewTrace([]traces.Span{root, childSpan})
 		tr.Replace(trace)
 		for k, v := range tt.want {
 			switch k {
 			case "resource.name":
 				// test that the filter applies to all spans, not only the root
-				assert.Equal(v, root.Resource)
-				assert.Equal(v, childSpan.Resource)
+				assert.Equal(v, root.UnsafeResource())
+				assert.Equal(v, childSpan.UnsafeResource())
 			default:
-				assert.Equal(v, root.Meta[k])
-				assert.Equal(v, childSpan.Meta[k])
+				replacedV, _ := root.GetMetaUnsafe(k)
+				assert.Equal(v, replacedV)
+
+				replacedV, _ = childSpan.GetMetaUnsafe(k)
+				assert.Equal(v, replacedV)
 			}
 		}
 	}

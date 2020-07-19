@@ -258,18 +258,13 @@ func computeDurationByAttr(timestamps []int64, activeSpansByTs activeSpansMap, s
 
 // SetSublayersOnSpan takes some sublayers and pins them on the given span.Metrics
 func SetSublayersOnSpan(span traces.Span, values []SublayerValue) {
-	// TODO: Fix me.
-	// if span.Metrics == nil {
-	// 	span.Metrics = make(map[string]float64, len(values))
-	// }
+	for _, value := range values {
+		name := value.Metric
 
-	// for _, value := range values {
-	// 	name := value.Metric
+		if value.Tag.Name != "" {
+			name = name + "." + value.Tag.Name + ":" + value.Tag.Value
+		}
 
-	// 	if value.Tag.Name != "" {
-	// 		name = name + "." + value.Tag.Name + ":" + value.Tag.Value
-	// 	}
-
-	// 	span.Metrics[name] = value.Value
-	// }
+		span.SetMetric(name, value.Value)
+	}
 }

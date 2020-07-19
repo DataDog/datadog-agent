@@ -318,13 +318,10 @@ func (o *Obfuscator) obfuscateSQL(span traces.Span) {
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.UnsafeResource())
-		// TODO: Fix me.
-		// if span.Meta == nil {
-		// 	span.Meta = make(map[string]string, 1)
-		// }
-		// if _, ok := span.Meta[sqlQueryTag]; !ok {
-		// 	span.Meta[sqlQueryTag] = span.Resource
-		// }
+		if _, ok := span.GetMetaUnsafe(sqlQueryTag); !ok {
+			span.SetMeta(sqlQueryTag, span.UnsafeResource())
+		}
+
 		span.SetResource(nonParsableResource)
 		tags = append(tags, "outcome:error")
 		return
@@ -333,13 +330,12 @@ func (o *Obfuscator) obfuscateSQL(span traces.Span) {
 	tags = append(tags, "outcome:success")
 	span.SetResource(oq.Query)
 
-	// TODO: Fix me.
-	// if len(oq.TablesCSV) > 0 {
-	// 	traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
-	// }
-	// if span.Meta != nil && span.Meta[sqlQueryTag] != "" {
-	// 	// "sql.query" tag already set by user, do not change it.
-	// 	return
-	// }
-	// traceutil.SetMeta(span, sqlQueryTag, oq.Query)
+	if len(oq.TablesCSV) > 0 {
+		span.SetMeta("sql.tables", oq.TablesCSV)
+	}
+	if v, ok := span.GetMetaUnsafe(sqlQueryTag); ok && v != "" {
+		// "sql.query" tag already set by user, do not change it.
+		return
+	}
+	span.SetMeta(sqlQueryTag, oq.Query)
 }

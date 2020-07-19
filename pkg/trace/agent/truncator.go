@@ -39,36 +39,39 @@ func Truncate(s traces.Span) {
 		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", MaxResourceLen, s.UnsafeResource())
 	}
 
-	// TODO: Fix me.
 	// Error - Nothing to do
 	// Optional data, Meta & Metrics can be nil
 	// Soft fail on those
-	// for k, v := range s.Meta {
-	// 	modified := false
+	s.ForEachMetaUnsafe(func(k, v string) bool {
+		modified := false
 
-	// 	if len(k) > MaxMetaKeyLen {
-	// 		log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
-	// 		delete(s.Meta, k)
-	// 		k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
-	// 		modified = true
-	// 	}
+		if len(k) > MaxMetaKeyLen {
+			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
+			// TODO: Need to delete the old key.
+			k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
+			modified = true
+		}
 
-	// 	if len(v) > MaxMetaValLen {
-	// 		v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
-	// 		modified = true
-	// 	}
+		if len(v) > MaxMetaValLen {
+			v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
+			modified = true
+		}
 
-	// 	if modified {
-	// 		s.Meta[k] = v
-	// 	}
-	// }
-	// for k, v := range s.Metrics {
-	// 	if len(k) > MaxMetricsKeyLen {
-	// 		log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
-	// 		delete(s.Metrics, k)
-	// 		k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
+		if modified {
+			s.SetMeta(k, v)
+		}
 
-	// 		s.Metrics[k] = v
-	// 	}
-	// }
+		return true
+	})
+
+	s.ForEachMetricUnsafe(func(k string, v float64) bool {
+		if len(k) > MaxMetricsKeyLen {
+			log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
+			// TODO: Need to delete the old key.
+			k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
+			s.SetMetric(k, v)
+		}
+
+		return true
+	})
 }

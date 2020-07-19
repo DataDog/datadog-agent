@@ -45,17 +45,14 @@ const keySamplingRateGlobal = "_sample_rate"
 // Weight returns the weight of the span as defined for sampling, i.e. the
 // inverse of the sampling rate.
 func Weight(s traces.Span) float64 {
-	// TODO: Fix me.
-	return 1.0
+	if s == nil {
+		return 1.0
+	}
 
-	// if s == nil {
-	// 	return 1.0
-	// }
+	sampleRate, ok := s.GetMetric(keySamplingRateGlobal)
+	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
+		return 1.0
+	}
 
-	// sampleRate, ok := s.Metrics[keySamplingRateGlobal]
-	// if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
-	// 	return 1.0
-	// }
-
-	// return 1.0 / sampleRate
+	return 1.0 / sampleRate
 }

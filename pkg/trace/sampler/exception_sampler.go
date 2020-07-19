@@ -125,8 +125,7 @@ func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s traces.Span) 
 		if sampled {
 			ss.add(now.Add(defaultTTL), s)
 			atomic.AddInt64(&e.hits, 1)
-			// TODO: Fix me.
-			// traceutil.SetMetric(s, exceptionKey, 1)
+			s.SetMetric(exceptionKey, 1)
 		} else {
 			atomic.AddInt64(&e.misses, 1)
 		}

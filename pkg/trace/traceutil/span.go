@@ -20,49 +20,27 @@ const (
 
 // HasTopLevel returns true if span is top-level.
 func HasTopLevel(s traces.Span) bool {
-	// TODO: Fix me.
-	return true
-	// return s.Metrics[topLevelKey] == 1
+	v, ok := s.GetMetric(topLevelKey)
+	return ok && v == 1
 }
 
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasured(s traces.Span) bool {
-	// TODO: Fix me.
-	return true
-	// return s.Metrics[measuredKey] == 1
+	v, ok := s.GetMetric(measuredKey)
+	return ok && v == 1
 }
 
 // SetTopLevel sets the top-level attribute of the span.
 func SetTopLevel(s traces.Span, topLevel bool) {
-	// TODO: Fix me.
-	// if !topLevel {
-	// 	if s.Metrics == nil {
-	// 		return
-	// 	}
-	// 	delete(s.Metrics, topLevelKey)
-	// 	return
-	// }
-	// // Setting the metrics value, so that code downstream in the pipeline
-	// // can identify this as top-level without recomputing everything.
-	// SetMetric(s, topLevelKey, 1)
-}
+	if !topLevel {
+		// TODO: Actually delete.
+		// delete(s.Metrics, topLevelKey)
+		return
+	}
 
-// SetMetric sets the metric at key to the val on the span s.
-func SetMetric(s traces.Span, key string, val float64) {
-	// TODO: Fix me.
-	// if s.Metrics == nil {
-	// 	s.Metrics = make(map[string]float64)
-	// }
-	// s.Metrics[key] = val
-}
-
-// SetMeta sets the metadata at key to the val on the span s.
-func SetMeta(s traces.Span, key, val string) {
-	// TODO: Fix me.
-	// if s.Meta == nil {
-	// 	s.Meta = make(map[string]string)
-	// }
-	// s.Meta[key] = val
+	// Setting the metrics value, so that code downstream in the pipeline
+	// can identify this as top-level without recomputing everything.
+	s.SetMetric(topLevelKey, 1)
 }
 
 // GetMeta gets the metadata value in the span Meta map.

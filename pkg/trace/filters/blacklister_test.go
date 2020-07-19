@@ -37,7 +37,7 @@ func TestBlacklister(t *testing.T) {
 
 	for _, test := range tests {
 		span := testutil.RandomSpan()
-		span.Resource = test.resource
+		span.SetResource(test.resource)
 		filter := NewBlacklister(test.filter)
 
 		assert.Equal(t, test.expectation, filter.Allows(span))

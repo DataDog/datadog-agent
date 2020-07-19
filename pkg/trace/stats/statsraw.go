@@ -196,14 +196,15 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 
 	m := make(map[string]string)
 
-	// TODO: Fix me.
-	// for _, agg := range aggregators {
-	// 	if agg != "env" && agg != "resource" && agg != "service" {
-	// 		if v, ok := s.Meta[agg]; ok {
-	// 			m[agg] = v
-	// 		}
-	// 	}
-	// }
+	for _, agg := range aggregators {
+		if agg != "env" && agg != "resource" && agg != "service" {
+			// TODO: v is stored in the map m, so we may need to convert v to a "safe" string with an
+			// alloc depending on what this map is used for.
+			if v, ok := s.GetMetaUnsafe(agg); ok {
+				m[agg] = v
+			}
+		}
+	}
 
 	grain, tags := assembleGrain(&sb.keyBuf, env, s.UnsafeResource(), s.UnsafeService(), m)
 	sb.add(s, grain, tags)
@@ -220,7 +221,7 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
 	key := statsKey{name: s.UnsafeName(), aggr: aggr}
 	if gs, ok = sb.data[key]; !ok {
 		gs = newGroupedStats(tags)
-		// Make string "safe". TODO: Is this necessary?
+		// Make string "safe". TODO: Is this necessary? If so, make this more efficient (once alloc instead of two).
 		key = statsKey{name: string([]byte(key.name)), aggr: aggr}
 	}
 
@@ -263,7 +264,7 @@ func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr string, tags TagSet, sub 
 	key := statsSubKey{name: s.UnsafeName(), measure: sub.Metric, aggr: subAggr}
 	if ss, ok = sb.sublayerData[key]; !ok {
 		ss = newSublayerStats(subTags)
-		// TODO: Is this necessary?
+		// Make string "safe". TODO: Is this necessary? If so, make this more efficient (once alloc instead of two).
 		key = statsSubKey{name: string([]byte(key.name)), measure: sub.Metric, aggr: subAggr}
 	}
 

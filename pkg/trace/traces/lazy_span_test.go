@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO: Add tests for meta/metrics iteration.
+
 func TestLazySpanUnmarshal(t *testing.T) {
 	span := newTestSpan()
 	marshaled, err := proto.Marshal(&span)

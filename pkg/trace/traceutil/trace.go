@@ -15,16 +15,25 @@ import (
 // GetEnv returns the meta value for the "env" key for
 // the first trace it finds or an empty string
 func GetEnv(t traces.Trace) string {
-	// TODO: Fix me.
-
 	// exit this on first success
-	// for _, s := range t.Spans {
-	// for k, v := range s.Meta {
-	// 	if k == "env" {
-	// 		return v
-	// 	}
-	// }
-	// }
+	var env string
+	for _, s := range t.Spans {
+		s.ForEachMetaUnsafe(func(k, v string) bool {
+			if k == "env" {
+				// TODO: Unclear what env will be used for, but we should convert it to a "safe"
+				// string just in case it gets used as a map key or something.
+				env = v
+				return false
+			}
+
+			return true
+		})
+
+		if env != "" {
+			return env
+		}
+	}
+
 	return ""
 }
 

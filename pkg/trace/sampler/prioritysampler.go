@@ -122,13 +122,12 @@ func (s *PriorityEngine) Sample(trace traces.Trace, root traces.Span, env string
 	s.Sampler.Backend.CountSignature(signature)
 
 	// fetching applied sample rate
-	// var ok bool
-	// TODO: FIX ME.
-	// rate, ok = root.Metrics[SamplingPriorityRateKey]
-	// if !ok || rate > prioritySamplingRateThresholdTo1 {
-	// 	rate = s.Sampler.GetSignatureSampleRate(signature)
-	// 	root.Metrics[SamplingPriorityRateKey] = rate
-	// }
+	var ok bool
+	rate, ok = root.GetMetric(SamplingPriorityRateKey)
+	if !ok || rate > prioritySamplingRateThresholdTo1 {
+		rate = s.Sampler.GetSignatureSampleRate(signature)
+		root.SetMetric(SamplingPriorityRateKey, rate)
+	}
 
 	if sampled {
 		// Count the trace to allow us to check for the maxTPS limit.

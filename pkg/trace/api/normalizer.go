@@ -156,25 +156,30 @@ func normalize(ts *info.TagStats, s traces.Span) error {
 	}
 	s.SetType(sType)
 
-	// TODO: Fix me.
-	// for k, v := range s.Meta {
-	// 	utf8K := toUTF8(k)
-	// 	if k != utf8K {
-	// 		delete(s.Meta, k)
-	// 		k = utf8K
-	// 	}
-	// 	s.Meta[k] = toUTF8(v)
-	// }
-	// if env, ok := s.Meta["env"]; ok {
-	// 	s.Meta["env"] = normalizeTag(env)
-	// }
-	// if sc, ok := s.Meta["http.status_code"]; ok {
-	// 	if !isValidStatusCode(sc) {
-	// 		atomic.AddInt64(&ts.SpansMalformed.InvalidHTTPStatusCode, 1)
-	// 		log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
-	// 		delete(s.Meta, "http.status_code")
-	// 	}
-	// }
+	s.ForEachMetaUnsafe(func(k, v string) bool {
+		utf8K := toUTF8(k)
+		if k != utf8K {
+			// TODO: Delete old key.
+			// delete(s.Meta, k)
+			k = utf8K
+			s.SetMeta(k, toUTF8(v))
+		}
+
+		if env, ok := s.GetMetaUnsafe("env"); ok {
+			s.SetMeta("env", normalizeTag(env))
+		}
+
+		if sc, ok := s.GetMetaUnsafe("http.status_code"); ok {
+			if !isValidStatusCode(sc) {
+				atomic.AddInt64(&ts.SpansMalformed.InvalidHTTPStatusCode, 1)
+				log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
+				// TODO: Delete.
+				// delete(s.Meta, "http.status_code")
+			}
+		}
+
+		return true
+	})
 	return nil
 }
 

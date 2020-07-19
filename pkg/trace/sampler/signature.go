@@ -88,15 +88,14 @@ func computeSpanHash(span traces.Span, env string, withResource bool) spanHash {
 		h.Write([]byte(span.UnsafeResource()))
 	}
 
-	// TODO: Fix me.
-	// code, ok := traceutil.GetMeta(span, KeyHTTPStatusCode)
-	// if ok {
-	// 	h.Write([]byte(code))
-	// }
-	// typ, ok := traceutil.GetMeta(span, KeyErrorType)
-	// if ok {
-	// 	h.Write([]byte(typ))
-	// }
+	code, ok := span.GetMetaUnsafe(KeyHTTPStatusCode)
+	if ok {
+		h.Write([]byte(code))
+	}
+	typ, ok := span.GetMetaUnsafe(KeyErrorType)
+	if ok {
+		h.Write([]byte(typ))
+	}
 
 	return spanHash(h.Sum32())
 }

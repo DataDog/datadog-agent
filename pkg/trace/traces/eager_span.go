@@ -60,6 +60,7 @@ func (e *EagerSpan) UnsafeResource() string {
 }
 
 func (e *EagerSpan) SetResource(s string) {
+	fmt.Println("setting resource", s)
 	e.Span.Resource = s
 }
 
@@ -114,6 +115,14 @@ func (e *EagerSpan) SetMeta(k, v string) {
 	e.Span.Meta[k] = v
 }
 
+func (e *EagerSpan) ForEachMetaUnsafe(fn MetaIterFunc) {
+	for k, v := range e.Span.Meta {
+		if !fn(k, v) {
+			return
+		}
+	}
+}
+
 func (e *EagerSpan) GetMetric(s string) (float64, bool) {
 	v, ok := e.Span.Metrics[s]
 	return v, ok
@@ -121,6 +130,14 @@ func (e *EagerSpan) GetMetric(s string) (float64, bool) {
 
 func (e *EagerSpan) SetMetric(k string, v float64) {
 	e.Span.Metrics[k] = v
+}
+
+func (e *EagerSpan) ForEachMetricUnsafe(fn MetricIterFunc) {
+	for k, v := range e.Span.Metrics {
+		if !fn(k, v) {
+			return
+		}
+	}
 }
 
 func (e *EagerSpan) MsgSize() int {

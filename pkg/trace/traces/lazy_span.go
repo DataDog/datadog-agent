@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultMapInitSize = 4
+	defaultMapInitSize = 16
 )
 
 // TODO: This is a fairly naive implementation with a few issues:
@@ -150,7 +150,6 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 			}
 			l.meta[key] = val
 		case 11:
-			fmt.Println("111")
 			metricBytes, err := value.AsBytesUnsafe()
 			if err != nil {
 				return false, err
@@ -170,14 +169,12 @@ func NewLazySpan(raw []byte) (*LazySpan, error) {
 						return false, err
 					}
 					key = str
-					fmt.Println("key", key)
 				case 2:
 					double, err := value.AsDouble()
 					if err != nil {
 						return false, err
 					}
 					val = double
-					fmt.Println("val", val)
 				}
 				return true, nil
 			})
@@ -339,6 +336,14 @@ func (l *LazySpan) SetMeta(k, v string) {
 	l.appendMeta(k, v)
 }
 
+func (l *LazySpan) ForEachMetaUnsafe(fn MetaIterFunc) {
+	for k, v := range l.meta {
+		if !fn(k, v) {
+			return
+		}
+	}
+}
+
 func (l *LazySpan) GetMetric(s string) (float64, bool) {
 	v, ok := l.metrics[s]
 	return v, ok
@@ -351,6 +356,14 @@ func (l *LazySpan) SetMetric(k string, v float64) {
 	}
 	l.metrics[k] = v
 	l.appendMetric(k, v)
+}
+
+func (l *LazySpan) ForEachMetricUnsafe(fn MetricIterFunc) {
+	for k, v := range l.metrics {
+		if !fn(k, v) {
+			return
+		}
+	}
 }
 
 func (l *LazySpan) MsgSize() int {

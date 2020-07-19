@@ -89,39 +89,40 @@ const redisRawCommand = "redis.raw_command"
 // obfuscateRedis obfuscates arguments inside the given span's "redis.raw_command" tag, if it exists
 // and is non-empty.
 func (*Obfuscator) obfuscateRedis(span traces.Span) {
-	// TODO: Fix me.
-	// if span.Meta == nil || span.Meta[redisRawCommand] == "" {
-	// 	// nothing to do
-	// 	return
-	// }
-	// t := newRedisTokenizer([]byte(span.Meta[redisRawCommand]))
-	// var (
-	// 	str  strings.Builder
-	// 	cmd  string
-	// 	args []string
-	// )
-	// for {
-	// 	tok, typ, done := t.scan()
-	// 	switch typ {
-	// 	case redisTokenCommand:
-	// 		// new command starting
-	// 		if cmd != "" {
-	// 			// a previous command was buffered, obfuscate it
-	// 			obfuscateRedisCmd(&str, cmd, args...)
-	// 			str.WriteByte('\n')
-	// 		}
-	// 		cmd = tok
-	// 		args = args[:0]
-	// 	case redisTokenArgument:
-	// 		args = append(args, tok)
-	// 	}
-	// 	if done {
-	// 		// last command
-	// 		obfuscateRedisCmd(&str, cmd, args...)
-	// 		break
-	// 	}
-	// }
-	// span.Meta[redisRawCommand] = str.String()
+	v, ok := span.GetMetaUnsafe(redisRawCommand)
+	if !ok || v == "" {
+		return
+	}
+
+	t := newRedisTokenizer([]byte(v))
+	var (
+		str  strings.Builder
+		cmd  string
+		args []string
+	)
+	for {
+		tok, typ, done := t.scan()
+		switch typ {
+		case redisTokenCommand:
+			// new command starting
+			if cmd != "" {
+				// a previous command was buffered, obfuscate it
+				obfuscateRedisCmd(&str, cmd, args...)
+				str.WriteByte('\n')
+			}
+			cmd = tok
+			args = args[:0]
+		case redisTokenArgument:
+			args = append(args, tok)
+		}
+		if done {
+			// last command
+			obfuscateRedisCmd(&str, cmd, args...)
+			break
+		}
+	}
+
+	span.SetMeta(redisRawCommand, str.String())
 }
 
 func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
