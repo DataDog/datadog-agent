@@ -160,7 +160,6 @@ func (a *Agent) Process(t *api.Trace) {
 	ts := a.Receiver.Stats.GetTagStats(*t.Source)
 
 	// Extract priority early, as later goroutines might manipulate the Metrics map in parallel which isn't safe.
-	// TODO: Fix me.
 	priority, hasPriority := sampler.GetSamplingPriority(root)
 
 	// Depending on the sampling priority, count that trace differently.

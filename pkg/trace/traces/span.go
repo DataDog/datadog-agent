@@ -2,6 +2,10 @@ package traces
 
 import "io"
 
+type MetaIterFunc func(k, v string) bool
+
+type MetricIterFunc func(k string, v float64) bool
+
 type Span interface {
 	TraceID() uint64
 	SetTraceID(x uint64)
@@ -35,9 +39,11 @@ type Span interface {
 
 	GetMetaUnsafe(s string) (string, bool)
 	SetMeta(k, v string)
+	// ForEachMetaUnsafe(MetaIterFunc)
 
 	GetMetric(s string) (float64, bool)
 	SetMetric(k string, v float64)
+	// ForEachMetric(MetricIterFunc)
 
 	MsgSize() int
 
