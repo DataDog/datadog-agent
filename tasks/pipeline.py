@@ -27,7 +27,7 @@ def follow(ctx, id=None, ref=None, here=False):
     elif ref:
         wait_for_pipeline(Gitlab().pipelines_for_ref("DataDog/datadog-agent", ref)[0]['id'])
     elif here:
-        ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout
+        ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
         pipelines = Gitlab().pipelines_for_ref("DataDog/datadog-agent", ref)
         if len(pipelines) > 0:
             wait_for_pipeline(pipelines[0]['id'])

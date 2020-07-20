@@ -86,10 +86,14 @@ def loop(callable, ref, timeout_sec):
 
 def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
     jobs = []
-    page = 0
+    page = 1
+
     # Go through all pages
-    while len(results := gitlab.jobs(proj, pipeline_id, page := page + 1)):
+    results = gitlab.jobs(proj, pipeline_id, page)
+    while len(results) != 0:
         jobs.extend(results)
+        results = gitlab.jobs(proj, pipeline_id, page)
+        page += 1
 
     job_status = update_job_status(jobs, job_status)
     # check pipeline status
