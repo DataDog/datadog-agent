@@ -4,6 +4,7 @@ import os
 import getpass
 import contextlib
 import shutil
+import sys
 import tempfile
 
 from invoke import task
@@ -18,6 +19,7 @@ from .utils import (
     get_git_branch_name,
     get_go_version,
     get_git_commit,
+    get_version_numeric_only,
 )
 from .build_tags import get_default_build_tags
 
@@ -31,6 +33,8 @@ BPF_TAG = "linux_bpf"
 BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
+DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
+
 
 @task
 def build(
@@ -43,6 +47,8 @@ def build(
     with_bcc=True,
     go_mod="vendor",
     windows=False,
+    arch="x64",
+    embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
 ):
     """
     Build the system_probe
@@ -52,6 +58,32 @@ def build(
     if not windows:
         build_object_files(ctx, install=True)
 
+    ldflags, gcflags, env = get_build_flags(
+        ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
+    )
+
+    # generate windows resources
+    if sys.platform == 'win32':
+        windres_target = "pe-x86-64"
+        if arch == "x86":
+            print("system probe not supported on x86")
+            raise
+
+        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        maj_ver, min_ver, patch_ver = ver.split(".")
+        resdir = os.path.join(".", "cmd", "system-probe", "windows_resources")
+
+        ctx.run(
+            "windmc --target {target_arch} -r {resdir} {resdir}/system-probe-msg.mc".format(
+                resdir=resdir, target_arch=windres_target
+            )
+        )
+
+        ctx.run(
+            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/system-probe/windows_resources/system-probe.rc --target {target_arch} -O coff -o cmd/process-agent/rsrc.syso".format(
+                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
+            )
+        )
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {
@@ -70,8 +102,6 @@ def build(
                 if env_var in line:
                     goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
-
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:

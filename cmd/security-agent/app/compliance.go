@@ -64,7 +64,7 @@ func eventRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
 	}
 
-	eventArgs.event.Data = map[string]string{}
+	eventArgs.event.Data = event.Data{}
 	for _, d := range eventArgs.data {
 		kv := strings.SplitN(d, ":", 2)
 		if len(kv) != 2 {

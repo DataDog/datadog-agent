@@ -6,15 +6,11 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
 	"os"
 
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -24,10 +20,6 @@ import (
 func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.SecurityAgent)
-
-	// Expose the registered metrics via HTTP.
-	http.Handle("/metrics", telemetry.Handler())
-	go http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("metrics_port")), nil) //nolint:errcheck
 
 	if err := app.SecurityAgentCmd.Execute(); err != nil {
 		log.Error(err)

@@ -179,7 +179,7 @@ func TestProcessMetrics(t *testing.T) {
 			},
 			metricsToGet: []ksmstore.DDMetricsFam{},
 			metricTransformers: map[string]metricTransformerFunc{
-				"kube_pod_status_phase": func(s aggregator.Sender, n string, v float64, t []string) {
+				"kube_pod_status_phase": func(s aggregator.Sender, n string, m ksmstore.DDMetric, t []string) {
 					s.Gauge("kube_pod_status_phase_transformed", 1, "", []string{"transformed:tag"})
 				},
 			},
