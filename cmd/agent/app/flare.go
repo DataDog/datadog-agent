@@ -7,6 +7,7 @@ package app
 
 import (
 	"bytes"
+	"encoding/gob"
 	"fmt"
 	"os"
 
@@ -83,7 +84,7 @@ func makeFlare(caseID string) error {
 		logFile = common.DefaultLogFile
 	}
 
-	var filePath string
+	var filePath []string
 	var err error
 	if forceLocal {
 		filePath, err = createArchive(logFile)
@@ -95,22 +96,24 @@ func makeFlare(caseID string) error {
 		return err
 	}
 
-	if _, err := os.Stat(filePath); err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
+	zipFilePath, err := flare.ZipArchive(filePath)
+
+	if _, err := os.Stat(zipFilePath); err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", zipFilePath)))
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
 		return err
 	}
 
-	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
+	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(zipFilePath)))
 	if !autoconfirm {
 		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [y/N]")
 		if !confirmation {
-			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(filePath)))
+			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(zipFilePath)))
 			return nil
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, caseID, customerEmail)
+	response, e := flare.SendFlare(zipFilePath, caseID, customerEmail)
 	fmt.Println(response)
 	if e != nil {
 		return e
@@ -118,7 +121,7 @@ func makeFlare(caseID string) error {
 	return nil
 }
 
-func requestArchive(logFile string) (string, error) {
+func requestArchive(logFile string) ([]string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -136,25 +139,33 @@ func requestArchive(logFile string) (string, error) {
 		return createArchive(logFile)
 	}
 
-	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	r := bytes.NewBuffer([]byte{})
+	res, e := util.DoPost(c, urlstr, "application/json", r)
 	if e != nil {
-		if r != nil && string(r) != "" {
-			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
+		if res != nil && string(res) != "" {
+			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(res))))
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 		}
 		return createArchive(logFile)
 	}
-	return string(r), nil
+
+	var filePath []string
+	dec := gob.NewDecoder(r)
+	if err := dec.Decode(&filePath); err != nil {
+		fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while decoding the flare file path: %s", color.RedString(err.Error())))
+	}
+
+	return filePath, nil
 }
 
-func createArchive(logFile string) (string, error) {
+func createArchive(logFile string) ([]string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
 	flare.SetProfiling(enableProfiling)
 	filePath, e := flare.CreateArchive(forceLocal, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
-		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
-		return "", e
+		fmt.Printf("The flare directory failed to be created: %s\n", e)
+		return []string{}, e
 	}
 	return filePath, nil
 }

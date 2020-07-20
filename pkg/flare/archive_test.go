@@ -32,7 +32,7 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
+	filePath, err := createArchive(true, SearchPaths{}, "")
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -56,7 +56,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	goroutinePprofURL = ts.URL
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
+	filePath, err := createArchive(true, SearchPaths{}, "")
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -100,7 +100,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
+	filePath, err := createArchive(true, SearchPaths{}, "")
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -136,7 +136,7 @@ func TestZipConfigCheck(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	zipConfigCheck(dir, "")
+	writeConfigCheck(dir, "")
 	content, err := ioutil.ReadFile(filepath.Join(dir, "config-check.log"))
 	if err != nil {
 		log.Fatal(err)
@@ -154,7 +154,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
+	filePath, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
 
@@ -182,7 +182,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 
 	common.SetupConfig("./test")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
+	filePath, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
 
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
@@ -270,7 +270,7 @@ func TestZipTaggerList(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	taggerListURL = s.URL
-	zipTaggerList(dir, "")
+	writeTaggerList(dir, "")
 	content, err := ioutil.ReadFile(filepath.Join(dir, "tagger-list.json"))
 	if err != nil {
 		log.Fatal(err)

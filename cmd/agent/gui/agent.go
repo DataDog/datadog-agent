@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 // Adds the specific handlers for /agent/ endpoints
@@ -138,21 +138,28 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
-		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
-		log.Errorf("Error creating flare zipfile: " + e.Error())
+		w.Write([]byte("Error creating flare directory: " + e.Error()))
+		log.Errorf("Error creating flare directory: " + e.Error())
+		return
+	}
+
+	zipFilePath, e := flare.ZipArchive(filePath)
+	if e != nil {
+		w.Write([]byte("Error creating flare zip: " + e.Error()))
+		log.Errorf("Error creating flare zip: " + e.Error())
 		return
 	}
 
 	// Send the flare
-	res, e := flare.SendFlare(filePath, payload.CaseID, payload.Email)
+	res, e := flare.SendFlare(zipFilePath, payload.CaseID, payload.Email)
 	if e != nil {
-		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error()))
-		log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + e.Error())
+		w.Write([]byte("Flare zipfile successfully created: " + zipFilePath + "<br><br>" + e.Error()))
+		log.Errorf("Flare zipfile successfully created: " + zipFilePath + "\n" + e.Error())
 		return
 	}
 
-	w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + res))
-	log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + res)
+	w.Write([]byte("Flare zipfile successfully created: " + zipFilePath + "<br><br>" + res))
+	log.Errorf("Flare zipfile successfully created: " + zipFilePath + "\n" + res)
 	return
 }
 
