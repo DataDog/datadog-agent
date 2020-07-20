@@ -139,7 +139,7 @@ def update_job_status(jobs, job_status):
         if job_status.get(job['name'], None) is None:
             job_status[job['name']] = job
             # If it's already finished, add it to the jobs to print
-            if job['status'] in ['success', 'canceled', 'failed']:
+            if job['status'] in ['running', 'success', 'canceled', 'failed']:
                 notify[job['id']] = job
         else:
             # There are two reasons why we want tp notify:
@@ -190,7 +190,7 @@ def print_job_status(job):
 
     name = job['name']
     stage = job['stage']
-    finish_date = job['finished_at']
+    date = job['finished_at']
     allow_failure = job['allow_failure']
     duration = job['duration']
     status = job['status']
@@ -215,13 +215,14 @@ def print_job_status(job):
         color = 'grey'
     elif status == 'running':
         job_status = 'started running'
+        date = job['started_at']
         color = 'blue'
     else:
         return False
 
     if job.get('retried_new', None) is not None:
         print_retry(name, job['created_at'])
-    print_job(name, stage, color, finish_date, duration, job_status)
+    print_job(name, stage, color, date, duration, job_status)
     if job.get('retried_old', None) is not None:
         print_retry(name, job['retried_created_at'])
 
