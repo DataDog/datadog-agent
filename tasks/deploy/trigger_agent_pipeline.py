@@ -6,7 +6,7 @@ from .color import color_str
 
 from time import sleep, time
 
-PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 4
+PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
 
 def trigger_agent_pipeline(
@@ -81,7 +81,7 @@ def loop(callable, ref, timeout_sec):
             return res
         if time() - start > timeout_sec:
             raise ErrorMsg("Timed out.")
-        sleep(5)
+        sleep(10)
 
 
 def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
@@ -171,7 +171,7 @@ def update_job_status(jobs, job_status):
 
 def print_job_status(job):
     def print_job(name, stage, color, finish_date, duration, status):
-        return print(
+        print(
             color_str(
                 "[{finish_date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]".format(
                     name=name,
@@ -186,7 +186,7 @@ def print_job_status(job):
         )
 
     def print_retry(name, date):
-        return print(color_str("[{date}] Job {name} was retried".format(date=date, name=name,), "grey",))
+        print(color_str("[{date}] Job {name} was retried".format(date=date, name=name,), "grey",))
 
     name = job['name']
     stage = job['stage']
@@ -208,7 +208,7 @@ def print_job_status(job):
             # Only notify on real (not retried) failures
             # Best-effort, as there can be situations where the retried
             # job didn't get created yet
-            if job.get('retried_old', None) is not None:
+            if job.get('retried_old', None) is None:
                 notify("Job failure", "Job {} failed.".format(name))
     elif status == 'canceled':
         job_status = 'canceled'
