@@ -26,9 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// tagContainersTags specifies the name of the tag which holds key/value
-// pairs representing information about the container (Docker, EC2, etc).
-const tagContainersTags = "_dd.tags.container"
+const (
+	// tagContainersTags specifies the name of the tag which holds key/value
+	// pairs representing information about the container (Docker, EC2, etc).
+	tagContainersTags = "_dd.tags.container"
+)
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
@@ -110,13 +112,14 @@ func (a *Agent) Run() {
 }
 
 func (a *Agent) work() {
+	sublayerCalculator := stats.NewSublayerCalculator()
 	for {
 		select {
 		case t, ok := <-a.In:
 			if !ok {
 				return
 			}
-			a.Process(t)
+			a.Process(t, sublayerCalculator)
 		}
 	}
 
@@ -145,7 +148,7 @@ func (a *Agent) loop() {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(t *api.Trace) {
+func (a *Agent) Process(t *api.Trace, sublayerCalculator *stats.SublayerCalculator) {
 	if len(t.Spans) == 0 {
 		log.Debugf("Skipping received empty trace")
 		return
@@ -203,7 +206,7 @@ func (a *Agent) Process(t *api.Trace) {
 
 	subtraces := stats.ExtractSubtraces(t.Spans, root)
 	for _, subtrace := range subtraces {
-		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
+		subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
 		pt.Sublayers[subtrace.Root] = subtraceSublayers
 		if sampled {
 			stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
