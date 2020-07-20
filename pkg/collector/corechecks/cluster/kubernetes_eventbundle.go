@@ -89,7 +89,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		return metrics.Event{}, errors.New("no event to export")
 	}
 
-	tags := []string{addKindRelatedTag(b.kind, b.name), fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)}
+	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), addKindRelatedTag(b.kind, b.name)}
 
 	hostname := b.nodename
 	if b.nodename != "" {
@@ -141,6 +141,10 @@ func addKindRelatedTag(kind, name string) string {
 		tags = fmt.Sprintf("kube_deployment:%s", name)
 	case "ReplicaSet":
 		tags = fmt.Sprintf("kube_replica_set:%s", name)
+	case "ReplicationController":
+		tags = fmt.Sprintf("kube_replication_controller:%s", name)
+	case "StatefulSet":
+		tags = fmt.Sprintf("kube_stateful_set:%s", name)
 	}
 	return tags
 }
