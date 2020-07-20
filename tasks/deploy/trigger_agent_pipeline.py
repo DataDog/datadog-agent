@@ -2,7 +2,7 @@ import platform
 import functools
 
 from .gitlab import Gitlab
-from .color import color_str
+from .color import color_message
 
 from time import sleep, time
 
@@ -101,7 +101,7 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
 
     if pipestatus == "success":
         print(
-            color_str(
+            color_message(
                 "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} succeeded".format(proj, pipeline_id, ref),
                 "green",
             )
@@ -110,7 +110,7 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
 
     if pipestatus == "failed":
         print(
-            color_str(
+            color_message(
                 "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} failed".format(proj, pipeline_id, ref), "red"
             )
         )
@@ -119,7 +119,7 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
 
     if pipestatus == "canceled":
         print(
-            color_str(
+            color_message(
                 "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} was canceled".format(proj, pipeline_id, ref),
                 "grey",
             )
@@ -172,7 +172,7 @@ def update_job_status(jobs, job_status):
 def print_job_status(job):
     def print_job(name, stage, color, finish_date, duration, status):
         print(
-            color_str(
+            color_message(
                 "[{finish_date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]".format(
                     name=name,
                     stage=stage,
@@ -186,7 +186,7 @@ def print_job_status(job):
         )
 
     def print_retry(name, date):
-        print(color_str("[{date}] Job {name} was retried".format(date=date, name=name,), "grey",))
+        print(color_message("[{date}] Job {name} was retried".format(date=date, name=name,), "grey",))
 
     name = job['name']
     stage = job['stage']
@@ -230,12 +230,12 @@ def print_job_status(job):
 def print_pipeline_link(project, pipeline_id):
     status(
         "Pipeline Link: "
-        + color_str("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green",)
+        + color_message("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green",)
     )
 
 
 def status(msg):
-    print(color_str(msg, "blue"))
+    print(color_message(msg, "blue"))
 
 
 def notify(title, info_text, sound=True):

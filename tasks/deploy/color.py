@@ -1,4 +1,4 @@
-def color_str(str, color):
+def color_message(message, color):
     colors = {
         "blue": "\033[94m",
         "green": "\033[92m",
@@ -8,4 +8,4 @@ def color_str(str, color):
         "bold": "\33[1m",
     }
     endc = "\033[0m"
-    return u"{}{}{}".format(colors[color], str, endc) if color in colors else str
+    return u"{}{}{}".format(colors[color], message, endc) if color in colors else message
