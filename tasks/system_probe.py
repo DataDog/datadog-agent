@@ -33,6 +33,8 @@ BPF_TAG = "linux_bpf"
 BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
+DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
+
 
 @task
 def build(
@@ -46,6 +48,7 @@ def build(
     go_mod="vendor",
     windows=False,
     arch="x64",
+    embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
 ):
     """
     Build the system_probe
@@ -55,7 +58,9 @@ def build(
     if not windows:
         build_object_files(ctx, install=True)
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(
+        ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
+    )
 
     # generate windows resources
     if sys.platform == 'win32':
