@@ -10,7 +10,6 @@ EXCLUDED_FOLDERS = {
     "./cmd/agent/windows/service",
     "./cmd/cluster-agent",
     "./cmd/cluster-agent/app",
-    "./cmd/system-probe",
     "./cmd/systray",
     "./pkg/clusteragent/orchestrator",
     "./pkg/process/config/testdata",
@@ -24,9 +23,6 @@ EXCLUDED_FOLDERS = {
     "./pkg/util/winutil",
     "./pkg/util/winutil/iphelper",
     "./pkg/util/winutil/pdhutil",
-    "./test/benchmarks/aggregator",
-    "./test/benchmarks/dogstatsd",
-    "./test/integration/util/kube_apiserver",
 }
 
 
