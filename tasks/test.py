@@ -468,7 +468,7 @@ def make_simple_gitlab_yml(ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', 
                 del job['only']
 
     out = copy.deepcopy(data)
-    for k,v in data.items():
+    for k,_ in data.items():
         if k not in jobs_processed:
             del out[k]
             continue
