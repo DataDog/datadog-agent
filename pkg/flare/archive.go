@@ -85,6 +85,7 @@ type filePermsInfo struct {
 	group string
 }
 
+// GetArchivePath generates a directory name for the flare zip.
 func GetArchivePath() string {
 	dir := os.TempDir()
 	t := time.Now()
@@ -95,6 +96,7 @@ func GetArchivePath() string {
 	return filePath
 }
 
+// ZipArchive creates a zip for the flare file directory and returns its location.
 func ZipArchive(filePath []string) (string, error) {
 	zipFilePath := GetArchivePath()
 
