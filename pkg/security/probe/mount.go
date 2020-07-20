@@ -31,7 +31,7 @@ var MountHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/attach_recursive_mnt",
 		}},
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 	},
 	{
@@ -40,14 +40,14 @@ var MountHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/propagate_mnt",
 		}},
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 	},
 	{
 		Name:    "sys_mount",
 		KProbes: syscallKprobe("mount"),
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 	},
 	{
@@ -56,7 +56,7 @@ var MountHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/security_sb_umount",
 		}},
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 	},
 	{
@@ -65,7 +65,7 @@ var MountHookPoints = []*HookPoint{
 			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
 		}},
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 	},
 }

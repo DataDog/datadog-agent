@@ -120,7 +120,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 	rs.Evaluate(&ev2)
 
 	expected := map[string]testFieldValues{
-		"open": testFieldValues{
+		"open": {
 			"open.filename": []interface{}{
 				"/usr/local/bin/rootkit",
 			},
@@ -128,7 +128,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 				0,
 			},
 		},
-		"mkdir": testFieldValues{
+		"mkdir": {
 			"mkdir.filename": []interface{}{
 				"/usr/local/bin/rootkit",
 			},
