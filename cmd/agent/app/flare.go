@@ -97,6 +97,9 @@ func makeFlare(caseID string) error {
 	}
 
 	zipFilePath, err := flare.ZipArchive(filePath)
+	if err != nil {
+		return err
+	}
 
 	if _, err := os.Stat(zipFilePath); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", zipFilePath)))
