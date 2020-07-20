@@ -58,22 +58,14 @@ class Gitlab(object):
         return self.make_request(path, json=True)
 
     def pipeline(self, project_name, pipeline_id):
-        path = "/projects/%s/pipelines/%d" % (quote(project_name, safe=""), pipeline_id)
+        path = "/projects/{}/pipelines/{}".format(quote(project_name, safe=""), pipeline_id)
         return self.make_request(path, json=True)
 
-    def jobs(self, project_name, pipeline_id, per_page=100):
-        path = "/projects/%s/pipelines/%d/jobs?per_page=%d" % (quote(project_name, safe=""), pipeline_id, per_page,)
+    def jobs(self, project_name, pipeline_id, page=1, per_page=100):
+        path = "/projects/{}/pipelines/{}/jobs?per_page={}&page={}".format(
+            quote(project_name, safe=""), pipeline_id, per_page, page
+        )
         return self.make_request(path, json=True)
-
-    def failed_jobs(self, project_name, page=1, per_page=100):
-        path = "/projects/%s/jobs?scope[]=failed&per_page=%d&page=%d" % (quote(project_name, safe=""), per_page, page,)
-        return self.make_request(path, json=True)
-
-    def job_failure_allowed(self, project_name, commit, job_name):
-        path = "/projects/%s/repository/commits/%s/statuses?name=%s" % (quote(project_name, safe=""), commit, job_name,)
-        # we are filtering on the job name so we are garanteed to get only one result
-        res = self.make_request(path, json=True)[0]
-        return bool(res.get("allow_failure"))
 
     def trace(self, project_name, job_id):
         path = "/projects/%s/jobs/%d/trace" % (quote(project_name, safe=""), job_id)
