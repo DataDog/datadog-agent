@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-go/statsd"
 )
 
@@ -59,8 +58,8 @@ func (s *SyscallStatsdCollector) Count(process string, syscallId Syscall, count 
 }
 
 type SyscallMonitor struct {
-	bufferSelector     eprobe.Table
-	buffers            [2]eprobe.Table
+	bufferSelector     *ebpf.Table
+	buffers            [2]*ebpf.Table
 	activeKernelBuffer Uint32Key
 }
 
@@ -123,15 +122,13 @@ func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 	return sm.bufferSelector.Set(zeroInt32, sm.activeKernelBuffer.Bytes())
 }
 
-func NewSyscallMonitor(module eprobe.Module, bufferSelector, frontBuffer, backBuffer eprobe.Table) (*SyscallMonitor, error) {
-	if err := module.RegisterTracepoint(&types.Tracepoint{
-		Name: "tracepoint/raw_syscalls/sys_enter",
-	}); err != nil {
+func NewSyscallMonitor(module *ebpf.Module, bufferSelector, frontBuffer, backBuffer *ebpf.Table) (*SyscallMonitor, error) {
+	if err := module.RegisterTracepoint("tracepoint/raw_syscalls/sys_enter"); err != nil {
 		return nil, err
 	}
 
 	return &SyscallMonitor{
 		bufferSelector: bufferSelector,
-		buffers:        [2]eprobe.Table{frontBuffer, backBuffer},
+		buffers:        [2]*ebpf.Table{frontBuffer, backBuffer},
 	}, nil
 }

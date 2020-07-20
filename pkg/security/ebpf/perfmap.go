@@ -1,4 +1,4 @@
-package gobpf
+package ebpf
 
 import (
 	"sync/atomic"
@@ -8,11 +8,19 @@ import (
 )
 
 var (
-	DefaultBufferLength      = 256
-	DefaultClosedChannelSize = 1000
-	DefaultLostEventSize     = 10
+	defaultBufferLength  = 256
+	defaultLostEventSize = 10
 )
 
+// PerfMapHandler represents the handler for events pushed into
+// a perf event array. It gets passed a buffer holding an event.
+type PerfMapHandler func([]byte)
+
+// PerfMapLostHandler represents the handler for lost events of
+// a perf event array. It gets passed the number of lost events.
+type PerfMapLostHandler func(uint64)
+
+// PerfMap represents an eBPF perf event array
 type PerfMap struct {
 	*bpflib.PerfMap
 
@@ -24,6 +32,8 @@ type PerfMap struct {
 	lostCount     int64
 }
 
+// Start the goroutine handling the received and losts events
+// of the perf event array
 func (p *PerfMap) Start() error {
 	p.PollStart()
 
@@ -54,6 +64,7 @@ func (p *PerfMap) Start() error {
 	return nil
 }
 
+// Stop the received and lost events handlers
 func (p *PerfMap) Stop() {
 	p.PollStop()
 }
