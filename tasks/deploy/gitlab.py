@@ -8,10 +8,6 @@ errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 __all__ = ["Gitlab"]
 
-GITLAB_ERROR_BANNER = (
-    "This could mean that you're not connected to Appgate " "or that GitLab is down (check https://gitlab.ddbuild.io)."
-)
-
 
 class Gitlab(object):
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
@@ -31,7 +27,6 @@ class Gitlab(object):
 
         print("Cannot find GitLab project {}".format(project))
         print("If you cannot see it in the GitLab WebUI, you likely need permission.")
-        print("You can make a request for access here: https://datadog.freshservice.com/support/catalog/items/63")
         sys.exit(1)
 
     def project(self, project_name):
@@ -126,7 +121,7 @@ class Gitlab(object):
                 print("Gitlab says: {}".format(r.json()["error_description"]))
                 sys.exit(1)
         except requests.exceptions.Timeout:
-            print("Connection to GitLab ({}) timed out.\n{}".format(url, GITLAB_ERROR_BANNER))
+            print("Connection to GitLab ({}) timed out.".format(url))
             sys.exit(1)
         except requests.exceptions.RequestException as e:
             m = errno_regex.match(str(e))

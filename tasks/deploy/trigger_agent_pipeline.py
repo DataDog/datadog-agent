@@ -41,7 +41,7 @@ def trigger_agent_pipeline(
         args["WINDOWS_DO_NOT_UPDATE_LATEST"] = str(not windows_update_latest).lower()
 
     print(
-        "Creating pipeline for datadog-agent on branch {} with args:\n{}".format(
+        "Creating pipeline for datadog-agent on branch/tag {} with args:\n{}".format(
             ref, "\n".join(["  - {}: {}".format(k, args[k]) for k in args])
         )
     )
