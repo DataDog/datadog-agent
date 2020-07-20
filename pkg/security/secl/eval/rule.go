@@ -138,7 +138,7 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
-	events, err := eventFromFields(model, state)
+	events, err := eventTypesFromFields(model, state)
 	if err != nil {
 		return nil, err
 	}

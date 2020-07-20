@@ -8,6 +8,7 @@ package eval
 import (
 	"reflect"
 	"syscall"
+	"unsafe"
 
 	"github.com/pkg/errors"
 )
@@ -47,7 +48,6 @@ type testEvent struct {
 }
 
 type testModel struct {
-	event *testEvent
 }
 
 func (e *testEvent) GetID() string {
@@ -58,12 +58,12 @@ func (e *testEvent) GetType() string {
 	return e.kind
 }
 
-func (m *testModel) SetEvent(event interface{}) {
-	m.event = event.(*testEvent)
+func (e *testEvent) GetPointer() unsafe.Pointer {
+	return unsafe.Pointer(e)
 }
 
-func (m *testModel) GetEvent() Event {
-	return m.event
+func (m *testModel) NewEvent() Event {
+	return &testEvent{}
 }
 
 func (m *testModel) ValidateField(key string, value FieldValue) error {
@@ -91,63 +91,63 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 	case "process.name":
 
 		return &StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return m.event.process.name },
+			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).process.name },
 			Field:   key,
 		}, nil
 
 	case "process.uid":
 
 		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.process.uid },
+			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).process.uid },
 			Field:   key,
 		}, nil
 
 	case "process.gid":
 
 		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.process.gid },
+			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).process.gid },
 			Field:   key,
 		}, nil
 
 	case "process.is_root":
 
 		return &BoolEvaluator{
-			EvalFnc: func(ctx *Context) bool { return m.event.process.isRoot },
+			EvalFnc: func(ctx *Context) bool { return (*testEvent)(ctx.Object).process.isRoot },
 			Field:   key,
 		}, nil
 
 	case "open.filename":
 
 		return &StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return m.event.open.filename },
+			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).open.filename },
 			Field:   key,
 		}, nil
 
 	case "open.flags":
 
 		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.open.flags },
+			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).open.flags },
 			Field:   key,
 		}, nil
 
 	case "open.mode":
 
 		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.open.mode },
+			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).open.mode },
 			Field:   key,
 		}, nil
 
 	case "mkdir.filename":
 
 		return &StringEvaluator{
-			EvalFnc: func(ctx *Context) string { return m.event.mkdir.filename },
+			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).mkdir.filename },
 			Field:   key,
 		}, nil
 
 	case "mkdir.mode":
 
 		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int { return m.event.mkdir.mode },
+			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).mkdir.mode },
 			Field:   key,
 		}, nil
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
@@ -32,9 +33,10 @@ func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 }
 
 func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
-	model := &testModel{event: event}
+	model := &testModel{}
 
 	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(event))
 
 	opts := NewOptsWithParams(false, testConstants)
 	rule, err := parseRule(expr, model, opts)
@@ -58,17 +60,7 @@ func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) 
 }
 
 func TestStringError(t *testing.T) {
-	event := &testEvent{
-		process: testProcess{
-			name: "/usr/bin/cat",
-			uid:  1,
-		},
-		open: testOpen{
-			filename: "/etc/shadow",
-		},
-	}
-
-	model := &testModel{event: event}
+	model := &testModel{}
 
 	rule, err := parseRule(`process.name != "/usr/bin/vipw" && process.uid != 0 && open.filename == 3`, model, &Opts{})
 	if rule == nil {
@@ -82,17 +74,7 @@ func TestStringError(t *testing.T) {
 }
 
 func TestIntError(t *testing.T) {
-	event := &testEvent{
-		process: testProcess{
-			name: "/usr/bin/cat",
-			uid:  1,
-		},
-		open: testOpen{
-			filename: "/etc/shadow",
-		},
-	}
-
-	model := &testModel{event: event}
+	model := &testModel{}
 
 	rule, err := parseRule(`process.name != "/usr/bin/vipw" && process.uid != "test" && Open.Filename == "/etc/shadow"`, model, &Opts{})
 	if rule == nil {
@@ -106,17 +88,7 @@ func TestIntError(t *testing.T) {
 }
 
 func TestBoolError(t *testing.T) {
-	event := &testEvent{
-		process: testProcess{
-			name: "/usr/bin/cat",
-			uid:  1,
-		},
-		open: testOpen{
-			filename: "/etc/shadow",
-		},
-	}
-
-	model := &testModel{event: event}
+	model := &testModel{}
 
 	rule, err := parseRule(`(process.name != "/usr/bin/vipw") == "test"`, model, &Opts{})
 	if rule == nil {
@@ -445,8 +417,11 @@ func TestPartial(t *testing.T) {
 		{Expr: `open.filename == "test1" && process.is_root`, Field: "process.is_root", IsDiscarder: false},
 	}
 
+	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(&event))
+
 	for _, test := range tests {
-		model := &testModel{event: &event}
+		model := &testModel{}
 		opts := &Opts{Constants: testConstants}
 		rule, err := parseRule(test.Expr, model, opts)
 		if err != nil {
@@ -456,7 +431,7 @@ func TestPartial(t *testing.T) {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
-		result, err := rule.PartialEval(&Context{}, test.Field)
+		result, err := rule.PartialEval(ctx, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
@@ -477,7 +452,7 @@ func TestMacroList(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	model := &testModel{event: &testEvent{}}
+	model := &testModel{}
 
 	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
 		t.Fatalf("%s\n%s", err, macro.Expression)
@@ -495,7 +470,10 @@ func TestMacroList(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if !rule.Eval(&Context{}) {
+	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(&testEvent{}))
+
+	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
 }
@@ -519,7 +497,7 @@ func TestMacroExpression(t *testing.T) {
 		},
 	}
 
-	model := &testModel{event: event}
+	model := &testModel{}
 
 	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
 		t.Fatalf("%s\n%s", err, macro.Expression)
@@ -537,7 +515,10 @@ func TestMacroExpression(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if !rule.Eval(&Context{}) {
+	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(event))
+
+	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
 }
@@ -561,7 +542,7 @@ func TestMacroPartial(t *testing.T) {
 		},
 	}
 
-	model := &testModel{event: event}
+	model := &testModel{}
 
 	if err := macro.GenEvaluator(model, &Opts{}); err != nil {
 		t.Fatalf("%s\n%s", err, macro.Expression)
@@ -583,7 +564,10 @@ func TestMacroPartial(t *testing.T) {
 		t.Fatalf("error while generating partials `%s`: %s", expr, err)
 	}
 
-	result, err := rule.PartialEval(&Context{}, "open.filename")
+	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(event))
+
+	result, err := rule.PartialEval(ctx, "open.filename")
 	if err != nil {
 		t.Fatalf("error while partial evaluating `%s` : %s", expr, err)
 	}
@@ -593,7 +577,7 @@ func TestMacroPartial(t *testing.T) {
 	}
 
 	event.open.filename = "abc"
-	result, err = rule.PartialEval(&Context{}, "open.filename")
+	result, err = rule.PartialEval(ctx, "open.filename")
 	if err != nil {
 		t.Fatalf("error while partial evaluating `%s` : %s", expr, err)
 	}
@@ -628,7 +612,7 @@ func TestNestedMacros(t *testing.T) {
 		},
 	}
 
-	model := &testModel{event: event}
+	model := &testModel{}
 
 	opts := NewOptsWithParams(false, make(map[string]interface{}))
 	opts.Macros = map[string]*Macro{
@@ -651,7 +635,10 @@ func TestNestedMacros(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	if !rule.Eval(&Context{}) {
+	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(event))
+
+	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
 }
@@ -664,7 +651,7 @@ func TestFieldValidator(t *testing.T) {
 }
 
 func BenchmarkComplex(b *testing.B) {
-	event := testEvent{
+	event := &testEvent{
 		process: testProcess{
 			name: "/usr/bin/ls",
 			uid:  1,
@@ -672,6 +659,7 @@ func BenchmarkComplex(b *testing.B) {
 	}
 
 	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(event))
 
 	base := `(process.name == "/usr/bin/ls" && process.uid == 1)`
 	var exprs []string
@@ -682,7 +670,7 @@ func BenchmarkComplex(b *testing.B) {
 
 	expr := strings.Join(exprs, " && ")
 
-	rule, err := parseRule(expr, &testModel{event: &event}, &Opts{})
+	rule, err := parseRule(expr, &testModel{}, &Opts{})
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -697,7 +685,7 @@ func BenchmarkComplex(b *testing.B) {
 }
 
 func BenchmarkPartial(b *testing.B) {
-	event := testEvent{
+	event := &testEvent{
 		process: testProcess{
 			name: "abc",
 			uid:  1,
@@ -705,6 +693,7 @@ func BenchmarkPartial(b *testing.B) {
 	}
 
 	ctx := &Context{}
+	ctx.SetObject(unsafe.Pointer(event))
 
 	base := `(process.name == "/usr/bin/ls" && process.uid != 0)`
 	var exprs []string
@@ -715,7 +704,7 @@ func BenchmarkPartial(b *testing.B) {
 
 	expr := strings.Join(exprs, " && ")
 
-	model := &testModel{event: &event}
+	model := &testModel{}
 
 	rule, err := parseRule(expr, model, &Opts{})
 	if err != nil {

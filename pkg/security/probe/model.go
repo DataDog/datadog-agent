@@ -20,6 +20,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
@@ -34,14 +35,9 @@ type Model struct {
 	event *Event
 }
 
-// SetEvent set the model event
-func (m *Model) SetEvent(event interface{}) {
-	m.event = event.(*Event)
-}
-
-// GetEvent returns the event associated with the model
-func (m *Model) GetEvent() eval.Event {
-	return m.event
+// NewEvent returns a new Event
+func (m *Model) NewEvent() eval.Event {
+	return &Event{}
 }
 
 // ValidateField validates the value of a field
@@ -1163,7 +1159,14 @@ func (e *Event) GetID() string {
 	return e.ID
 }
 
+<<<<<<< HEAD
 // UnmarshalBinary unmarshals a binary representation of itself
+=======
+func (e *Event) GetPointer() unsafe.Pointer {
+	return unsafe.Pointer(e)
+}
+
+>>>>>>> e94a3504c... Decouple model from event
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	offset, err := e.Process.UnmarshalBinary(data)
 	if err != nil {

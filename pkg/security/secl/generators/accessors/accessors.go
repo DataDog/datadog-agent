@@ -332,9 +332,9 @@ var (
 func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	switch field {
 	{{range $Name, $Field := .Fields}}
-	{{$Return := $Field.Name | printf "m.event.%s"}}
+	{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
 	{{if ne $Field.Handler ""}}
-		{{$Return = $Field.Handler | printf "m.event.%s(m.event.resolvers)"}}
+		{{$Return = $Field.Handler | printf "(*Event)(ctx.Object).%s((*Event)(ctx.Object).resolvers)"}}
 	{{end}}
 
 	case "{{$Name}}":

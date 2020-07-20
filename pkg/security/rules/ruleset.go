@@ -98,7 +98,7 @@ func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
 		result = multierror.Append(result, errors.Wrap(err, "couldn't generate partials"))
 	}
 
-	return result
+	return result.ErrorOrNil()
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -186,11 +186,11 @@ func (rs *RuleSet) GetApprovers(eventType eval.EventType, fieldCaps FieldCapabil
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return bucket.GetApprovers(rs.model, rs.eventCtor(), fieldCaps)
+	return bucket.GetApprovers(rs.eventCtor(), fieldCaps)
 }
 
 // IsDiscarder partially evaluates an Event against a field. Currently not thread-safe
-func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field, value interface{}) bool {
+/*func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, value interface{}) bool {
 	// not thread-safe. Restore the previous event after the partial evaluation
 	oldEvent := rs.model.GetEvent()
 	defer rs.model.SetEvent(oldEvent)
@@ -218,16 +218,17 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field, value interfa
 		}
 	}
 	return isDiscarder
-}
+}*/
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	result := false
-	rs.model.SetEvent(event)
 	ctx := &eval.Context{}
+	ctx.SetObject(event.GetPointer())
+
 	eventType := event.GetType()
 	eventID := event.GetID()
 
+	result := false
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return result
