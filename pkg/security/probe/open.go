@@ -29,14 +29,14 @@ var OpenHookPoints = []*HookPoint{
 		Name:    "sys_open",
 		KProbes: syscallKprobe("open"),
 		EventTypes: map[string]Capabilities{
-			"open": Capabilities{},
+			"open": {},
 		},
 	},
 	{
 		Name:    "sys_openat",
 		KProbes: syscallKprobe("openat"),
 		EventTypes: map[string]Capabilities{
-			"open": Capabilities{},
+			"open": {},
 		},
 	},
 	{
@@ -45,7 +45,7 @@ var OpenHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/vfs_open",
 		}},
 		EventTypes: map[string]Capabilities{
-			"open": Capabilities{
+			"open": {
 				"open.filename": {
 					PolicyFlags:     BASENAME_FLAG,
 					FieldValueTypes: eval.ScalarValueType,

@@ -94,58 +94,58 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/security_inode_setattr",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
-			"chmod":  Capabilities{},
-			"chown":  Capabilities{},
-			"utimes": Capabilities{},
+			"chmod":  {},
+			"chown":  {},
+			"utimes": {},
 		},
 	},
 	{
 		Name:    "sys_chmod",
 		KProbes: syscallKprobe("chmod"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"chmod": Capabilities{},
+			"chmod": {},
 		},
 	},
 	{
 		Name:    "sys_fchmod",
 		KProbes: syscallKprobe("fchmod"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"chmod": Capabilities{},
+			"chmod": {},
 		},
 	},
 	{
 		Name:    "sys_fchmodat",
 		KProbes: syscallKprobe("fchmodat"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"chmod": Capabilities{},
+			"chmod": {},
 		},
 	},
 	{
 		Name:    "sys_chown",
 		KProbes: syscallKprobe("chown"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"chown": Capabilities{},
+			"chown": {},
 		},
 	},
 	{
 		Name:    "sys_fchown",
 		KProbes: syscallKprobe("fchown"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"chown": Capabilities{},
+			"chown": {},
 		},
 	},
 	{
 		Name:    "sys_fchownat",
 		KProbes: syscallKprobe("fchownat"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"chown": Capabilities{},
+			"chown": {},
 		},
 	},
 	{
 		Name:    "sys_lchown",
 		KProbes: syscallKprobe("lchown"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"chown": Capabilities{},
+			"chown": {},
 		},
 	},
 	{
@@ -154,12 +154,12 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/mnt_want_write",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
-			"utimes": Capabilities{},
-			"chmod":  Capabilities{},
-			"chown":  Capabilities{},
-			"rmdir":  Capabilities{},
-			"unlink": Capabilities{},
-			"rename": Capabilities{},
+			"utimes": {},
+			"chmod":  {},
+			"chown":  {},
+			"rmdir":  {},
+			"unlink": {},
+			"rename": {},
 		},
 	},
 	{
@@ -168,35 +168,35 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/mnt_want_write_file",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
-			"chown": Capabilities{},
+			"chown": {},
 		},
 	},
 	{
 		Name:    "sys_utime",
 		KProbes: syscallKprobe("utime"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"utimes": Capabilities{},
+			"utimes": {},
 		},
 	},
 	{
 		Name:    "sys_utimes",
 		KProbes: syscallKprobe("utimes"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"utimes": Capabilities{},
+			"utimes": {},
 		},
 	},
 	{
 		Name:    "sys_utimensat",
 		KProbes: syscallKprobe("utimensat"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"utimes": Capabilities{},
+			"utimes": {},
 		},
 	},
 	{
 		Name:    "sys_futimesat",
 		KProbes: syscallKprobe("futimesat"),
 		EventTypes: map[string]Capabilities{
-			"utimes": Capabilities{},
+			"utimes": {},
 		},
 	},
 	{
@@ -205,7 +205,7 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/vfs_mkdir",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
-			"mkdir": Capabilities{},
+			"mkdir": {},
 		},
 	},
 	{
@@ -214,22 +214,22 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/filename_create",
 		}},
 		EventTypes: map[string]Capabilities{
-			"mkdir": Capabilities{},
-			"link":  Capabilities{},
+			"mkdir": {},
+			"link":  {},
 		},
 	},
 	{
 		Name:    "sys_mkdir",
 		KProbes: syscallKprobe("mkdir"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"mkdir": Capabilities{},
+			"mkdir": {},
 		},
 	},
 	{
 		Name:    "sys_mkdirat",
 		KProbes: syscallKprobe("mkdirat"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"mkdir": Capabilities{},
+			"mkdir": {},
 		},
 	},
 	{
@@ -238,15 +238,15 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/vfs_rmdir",
 		}},
 		EventTypes: map[string]Capabilities{
-			"rmdir":  Capabilities{},
-			"unlink": Capabilities{},
+			"rmdir":  {},
+			"unlink": {},
 		},
 	},
 	{
 		Name:    "sys_rmdir",
 		KProbes: syscallKprobe("rmdir"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"rmdir": Capabilities{},
+			"rmdir": {},
 		},
 	},
 	{
@@ -255,21 +255,21 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/vfs_unlink",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": Capabilities{},
+			"unlink": {},
 		},
 	},
 	{
 		Name:    "sys_unlink",
 		KProbes: syscallKprobe("unlink"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": Capabilities{},
+			"unlink": {},
 		},
 	},
 	{
 		Name:    "sys_unlinkat",
 		KProbes: syscallKprobe("unlinkat"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": Capabilities{},
+			"unlink": {},
 		},
 	},
 	{
@@ -278,28 +278,28 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/vfs_rename",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
-			"rename": Capabilities{},
+			"rename": {},
 		},
 	},
 	{
 		Name:    "sys_rename",
 		KProbes: syscallKprobe("rename"),
 		EventTypes: map[string]Capabilities{
-			"rename": Capabilities{},
+			"rename": {},
 		},
 	},
 	{
 		Name:    "sys_renameat",
 		KProbes: syscallKprobe("renameat"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"rename": Capabilities{},
+			"rename": {},
 		},
 	},
 	{
 		Name:    "sys_renameat2",
 		KProbes: syscallKprobe("renameat2"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"rename": Capabilities{},
+			"rename": {},
 		},
 	},
 	{
@@ -308,21 +308,21 @@ var AllHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/vfs_link",
 		}},
 		EventTypes: map[string]Capabilities{
-			"link": Capabilities{},
+			"link": {},
 		},
 	},
 	{
 		Name:    "sys_link",
 		KProbes: syscallKprobe("link"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"link": Capabilities{},
+			"link": {},
 		},
 	},
 	{
 		Name:    "sys_linkat",
 		KProbes: syscallKprobe("linkat"),
 		EventTypes: map[eval.EventType]Capabilities{
-			"link": Capabilities{},
+			"link": {},
 		},
 	},
 }

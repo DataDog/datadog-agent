@@ -13,7 +13,7 @@ var ExecHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/" + getSyscallFnName("execve"),
 		}},
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 	},
 	{
@@ -22,7 +22,7 @@ var ExecHookPoints = []*HookPoint{
 			EntryFunc: "kprobe/" + getSyscallFnName("execveat"),
 		}},
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 		Optional: true,
 	},
@@ -34,7 +34,7 @@ var ExecHookPoints = []*HookPoint{
 			ExitFunc: "kretprobe/do_fork",
 		}},
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 	},
 	{
@@ -43,7 +43,7 @@ var ExecHookPoints = []*HookPoint{
 			ExitFunc: "kprobe/do_exit",
 		}},
 		EventTypes: map[string]Capabilities{
-			"*": Capabilities{},
+			"*": {},
 		},
 	},
 }
