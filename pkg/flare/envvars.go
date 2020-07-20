@@ -100,9 +100,9 @@ func getWhitelistedEnvvars() []string {
 	return found
 }
 
-// zipEnvvars collects whitelisted envvars that can affect the agent's
+// writeEnvvars collects whitelisted envvars that can affect the agent's
 // behaviour while not being handled by viper
-func zipEnvvars(tempDir, hostname string) error {
+func writeEnvvars(tempDir, hostname string) error {
 	envvars := getWhitelistedEnvvars()
 
 	var b bytes.Buffer

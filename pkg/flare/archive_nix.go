@@ -18,11 +18,11 @@ import (
 	"syscall"
 )
 
-func zipCounterStrings(tempDir, hostname string) error {
+func writeCounterStrings(tempDir, hostname string) error {
 	return nil
 }
 
-func zipTypeperfData(tempDir, hostname string) error {
+func writeTypeperfData(tempDir, hostname string) error {
 	return nil
 }
 

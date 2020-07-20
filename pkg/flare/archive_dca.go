@@ -27,7 +27,7 @@ import (
 
 // CreateDCAArchive packages up the files
 func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
-	zipFilePath := getArchivePath()
+	zipFilePath := GetArchivePath()
 	confSearchPaths := SearchPaths{
 		"":     config.Datadog.GetString("confd_path"),
 		"dist": filepath.Join(distPath, "conf.d"),
@@ -87,7 +87,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		return "", err
 	}
 
-	err = zipEnvvars(tempDir, hostname)
+	err = writeEnvvars(tempDir, hostname)
 	if err != nil {
 		return "", err
 	}

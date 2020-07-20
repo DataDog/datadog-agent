@@ -9,6 +9,7 @@
 package agent
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -87,7 +88,13 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 	log.Infof("Making a flare")
 	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
-	if err != nil || filePath == "" {
+
+	if err != nil {
+		log.Errorf("Error creating flare directory: " + err.Error())
+		return
+	}
+
+	if err != nil || len(filePath) == 0 {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
 		} else {
@@ -95,7 +102,11 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, err.Error(), 500)
 	}
-	w.Write([]byte(filePath))
+
+	enc := gob.NewEncoder(w)
+	if err := enc.Encode(filePath); err != nil {
+		log.Errorf("Error while encoding flare file path: %s,", err)
+	}
 }
 
 func componentConfigHandler(w http.ResponseWriter, r *http.Request) {

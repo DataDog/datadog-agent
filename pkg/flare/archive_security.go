@@ -76,7 +76,7 @@ func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath stri
 		return "", err
 	}
 
-	err = zipEnvvars(tempDir, hostname)
+	err = writeEnvvars(tempDir, hostname)
 	if err != nil {
 		return "", err
 	}

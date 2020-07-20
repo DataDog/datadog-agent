@@ -8,6 +8,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/gob"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/fatih/color"
 	"github.com/lxn/win"
 	"golang.org/x/sys/windows"
 )
@@ -196,28 +198,40 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		return
 	}
 
-	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
-	var filePath string
+	r := bytes.NewBuffer([]byte{})
+	res, e := util.DoPost(c, urlstr, "application/json", r)
+	var zipFilePath string
+	var filePath []string
 	if e != nil {
-		if r != nil && string(r) != "" {
-			log.Warnf("The agent ran into an error while making the flare: %s\n", string(r))
+		if res != nil && string(res) != "" {
+			log.Warnf("The agent ran into an error while making the flare: %s\n", string(res))
 		} else {
 			log.Debug("The agent was unable to make the flare.")
 		}
 		log.Debug("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
+		filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
 		if e != nil {
-			log.Errorf("The flare zipfile failed to be created: %s\n", e)
+			log.Errorf("The flare directory failed to be created: %s\n", e)
 			return
 		}
+
 	} else {
-		filePath = string(r)
+		dec := gob.NewDecoder(r)
+		if err := dec.Decode(&filePath); err != nil {
+			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while decoding the flare file path: %s", color.RedString(err.Error())))
+		}
 	}
 
-	log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
+	zipFilePath, e = flare.ZipArchive(filePath)
+	if e != nil {
+		log.Errorf("Error creating flare zip: " + e.Error())
+		return
+	}
 
-	response, e = flare.SendFlare(filePath, caseID, customerEmail)
+	log.Warnf("%s is going to be uploaded to Datadog\n", zipFilePath)
+
+	response, e = flare.SendFlare(zipFilePath, caseID, customerEmail)
 	log.Debug(response)
 	if e != nil {
 		return
