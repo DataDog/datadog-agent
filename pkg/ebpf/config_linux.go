@@ -4,6 +4,7 @@ package ebpf
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
 	"strings"
 )
@@ -44,7 +45,8 @@ func (c *Config) EnabledProbes(pre410Kernel bool) map[bytecode.ProbeName]struct{
 		}
 
 		// try to use tracepoints if available
-		if id, err := manager.GetTracepointID("syscalls", "sys_enter_bind"); err == nil && id != -1 {
+		if id, err := manager.GetTracepointID("syscalls", "sys_enter_bind"); c.EnableTracepoints && err == nil && id != -1 {
+			log.Info("Using a tracepoint to probe bind syscall")
 			enabled[bytecode.TraceSysBindEnter] = struct{}{}
 			enabled[bytecode.TraceSysBindExit] = struct{}{}
 		} else {
@@ -68,7 +70,9 @@ func (c *Config) EnabledProbes(pre410Kernel bool) map[bytecode.ProbeName]struct{
 				enabled[bytecode.SysBind] = struct{}{}
 			}
 		}
-		if id, err := manager.GetTracepointID("syscalls", "sys_enter_socket"); err == nil && id != -1 {
+
+		if id, err := manager.GetTracepointID("syscalls", "sys_enter_socket"); c.EnableTracepoints && err == nil && id != -1 {
+			log.Info("Using a tracepoint to probe socket syscall")
 			enabled[bytecode.TraceSysSocketEnter] = struct{}{}
 			enabled[bytecode.TraceSysSocketExit] = struct{}{}
 		} else {
