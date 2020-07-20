@@ -266,7 +266,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (*writer.SampledSpa
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
 
-	return &ss, ss.Empty()
+	return &ss, !ss.Empty()
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
