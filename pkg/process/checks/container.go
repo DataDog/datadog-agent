@@ -155,12 +155,13 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 		if err != nil {
 			log.Errorf("unable to retrieve tags for container: %s", err)
 			tags = []string{}
-			if ctr.Type == containers.RuntimeNameGarden {
-				// If there is an error retrieving tags, don't send the container for garden. It means it hasn't yet been
-				// discovered by the cluster agent, so avoid sending something with no tags, i.e. no container name, ...
-				log.Debugf("No tags found for app %s, it has probably not been discovered by the DCA, skipping.", ctr.ID)
-				continue
-			}
+		}
+
+		if ctr.Type == containers.RuntimeNameGarden && len(tags) == 0 {
+			// If there is an error retrieving tags, don't send the container for garden. It means it hasn't yet been
+			// discovered by the cluster agent, so avoid sending something with no tags, i.e. no container name, ...
+			log.Debugf("No tags found for app %s, it has probably not been discovered by the DCA, skipping.", ctr.ID)
+			continue
 		}
 
 		containersList = append(containersList, &model.Container{
