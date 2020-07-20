@@ -67,11 +67,6 @@ class Gitlab(object):
         )
         return self.make_request(path, json=True)
 
-    def trace(self, project_name, job_id):
-        path = "/projects/%s/jobs/%d/trace" % (quote(project_name, safe=""), job_id)
-        resp = self.make_request(path)
-        return resp.read()
-
     def make_request(self, path, headers=None, data=None, json=False):
         import requests
 
@@ -126,16 +121,3 @@ class Gitlab(object):
             )
             sys.exit(1)
         return os.environ["GITLAB_TOKEN"]
-
-    def _trigger_token(self, project_name):
-        env_var = "GITLAB_TRIGGER_TOKEN_" + project_name.upper().replace("-", "_").replace("/", "_")
-        if env_var not in os.environ:
-            print(
-                "Please create a trigger at "
-                "https://gitlab.ddbuild.io/%s/settings/ci_cd "
-                "under 'Pipeline triggers', and export it is as %s from your "
-                ".bashrc or equivalent." % (project_name, env_var)
-            )
-            print("Unfortunately this is only accessible to project admins for " "now.")
-            sys.exit(1)
-        return os.environ[env_var]

@@ -1,6 +1,5 @@
 import platform
 import functools
-import sys
 
 from .gitlab import Gitlab
 from .color import color_str
@@ -49,24 +48,16 @@ def trigger_agent_pipeline(
     raise RuntimeError("Invalid response from Gitlab: {}".format(result))
 
 
-def loop(callable, ref, timeout_sec):
-    need_newline = False
-    start = time()
-    job_status = dict()
-    try:
-        while True:
-            res, job_status = callable(job_status, ref)
-            if res:
-                return res
-            if time() - start > timeout_sec:
-                raise ErrorMsg("Timed out.")
+def wait_for_pipeline(
+    pipeline_id=None, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
+):
+    print_pipeline_link("DataDog/datadog-agent", pipeline_id)
 
-            sys.stdout.flush()
-            need_newline = True
-            sleep(5)
-    finally:
-        if need_newline:
-            print("")
+    status("Waiting for pipeline to finish. Exiting won't cancel it.")
+
+    wait_for_pipeline_id("DataDog/datadog-agent", pipeline_id, pipeline_finish_timeout_sec)
+
+    return pipeline_id
 
 
 def wait_for_pipeline_id(
@@ -81,10 +72,97 @@ def wait_for_pipeline_id(
     loop(f, ref, timeout_sec)
 
 
-def latest_job_from_name(jobs, job_name):
-    relevant_jobs = [job for job in jobs if job["name"] == job_name]
+def loop(callable, ref, timeout_sec):
+    start = time()
+    job_status = dict()
+    while True:
+        res, job_status = callable(job_status, ref)
+        if res:
+            return res
+        if time() - start > timeout_sec:
+            raise ErrorMsg("Timed out.")
+        sleep(5)
 
-    return sorted(relevant_jobs, key=lambda x: x["created_at"], reverse=True)[0]
+
+def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
+    jobs = []
+    page = 0
+    # Go through all pages
+    while len(results := gitlab.jobs(proj, pipeline_id, page := page + 1)):
+        jobs.extend(results)
+
+    job_status = update_job_status(jobs, job_status)
+    # check pipeline status
+    pipestatus = gitlab.pipeline(proj, pipeline_id)["status"].lower().strip()
+
+    if pipestatus == "success":
+        print(
+            color_str(
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} succeeded".format(proj, pipeline_id, ref),
+                "green",
+            )
+        )
+        return True, job_status
+
+    if pipestatus == "failed":
+        print(
+            color_str(
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} failed".format(proj, pipeline_id, ref), "red"
+            )
+        )
+        notify("Pipeline failure", "Pipeline {} for {} failed.".format(pipeline_id, ref))
+        return True, job_status
+
+    if pipestatus == "canceled":
+        print(
+            color_str(
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} was canceled".format(proj, pipeline_id, ref),
+                "grey",
+            )
+        )
+        notify("Pipeline canceled", "Pipeline {} for {} was canceled.".format(pipeline_id, ref))
+        return True, job_status
+
+    if pipestatus not in ["created", "running", "pending"]:
+        raise ErrorMsg("Error: pipeline status {}".format(pipestatus.title()))
+
+    return False, job_status
+
+
+def update_job_status(jobs, job_status):
+    notify = {}
+    for job in jobs:
+        if job_status.get(job['name'], None) is None:
+            job_status[job['name']] = job
+            # If it's already finished, add it to the jobs to print
+            if job['status'] in ['success', 'canceled', 'failed']:
+                notify[job['id']] = job
+        else:
+            # There are two reasons why we want tp notify:
+            # - status change on job (when we refresh)
+            # - another job with the same name exists (when a job is retried)
+            # Check for id to see if we're in the first case.
+            old_job = job_status[job['name']]
+            if job['id'] == old_job['id'] and job['status'] != old_job['status']:
+                job_status[job['name']] = job
+                notify[job['id']] = job
+            if job['id'] != old_job['id'] and job['created_at'] > old_job['created_at']:
+                job_status[job['name']] = job
+                # Check if old job already in notification list, to append retry message
+                notify_old_job = notify.get(old_job['id'], None)
+                if notify_old_job is not None:
+                    notify_old_job['retried_old'] = True  # Add message to say the job got retried
+                    notify_old_job['retried_created_at'] = job['created_at']
+                    notify[old_job['id']] = notify_old_job
+                # If not (eg. previous job was notified in last refresh), add retry message to new job
+                else:
+                    job['retried_new'] = True
+                notify[job['id']] = job
+
+    for job in notify.values():
+        print_job_status(job)
+
+    return job_status
 
 
 def print_job_status(job):
@@ -144,104 +222,11 @@ def print_job_status(job):
         print_retry(name, job['retried_created_at'])
 
 
-def update_job_status(jobs, job_status):
-    notify = {}
-    for job in jobs:
-        if job_status.get(job['name'], None) is None:
-            job_status[job['name']] = job
-            # If it's already finished, add it to the jobs to print
-            if job['status'] in ['success', 'canceled', 'failed']:
-                notify[job['id']] = job
-        else:
-            # There are two reasons why we want tp notify:
-            # - status change on job (when we refresh)
-            # - another job with the same name exists (when a job is retried)
-            # Check for id to see if we're in the first case.
-            old_job = job_status[job['name']]
-            if job['id'] == old_job['id'] and job['status'] != old_job['status']:
-                job_status[job['name']] = job
-                notify[job['id']] = job
-            if job['id'] != old_job['id'] and job['created_at'] > old_job['created_at']:
-                job_status[job['name']] = job
-                # Check if old job already in notification list, to append retry message
-                notify_old_job = notify.get(old_job['id'], None)
-                if notify_old_job is not None:
-                    notify_old_job['retried_old'] = True  # Add message to say the job got retried
-                    notify_old_job['retried_created_at'] = job['created_at']
-                    notify[old_job['id']] = notify_old_job
-                # If not (eg. previous job was notified in last refresh), add retry message to new job
-                else:
-                    job['retried_new'] = True
-                notify[job['id']] = job
-
-    for job in notify.values():
-        print_job_status(job)
-
-    return job_status
-
-
-def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
-    jobs = []
-    page = 0
-    # Go through all pages
-    while len(results := gitlab.jobs(proj, pipeline_id, page := page + 1)):
-        jobs.extend(results)
-
-    job_status = update_job_status(jobs, job_status)
-    # check pipeline status
-    pipestatus = gitlab.pipeline(proj, pipeline_id)["status"].lower().strip()
-
-    if pipestatus == "success":
-        print(
-            color_str(
-                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} succeeded".format(proj, pipeline_id, ref),
-                "green",
-            )
-        )
-        return True, job_status
-
-    if pipestatus == "failed":
-        print(
-            color_str(
-                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} failed".format(proj, pipeline_id, ref), "red"
-            )
-        )
-        notify("Pipeline failure", "Pipeline {} for {} failed.".format(pipeline_id, ref))
-        return True, job_status
-
-    if pipestatus == "canceled":
-        print(
-            color_str(
-                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} was canceled".format(proj, pipeline_id, ref),
-                "grey",
-            )
-        )
-        notify("Pipeline canceled", "Pipeline {} for {} was canceled.".format(pipeline_id, ref))
-        return True, job_status
-
-    if pipestatus not in ["created", "running", "pending"]:
-        raise ErrorMsg("Error: pipeline status {}".format(pipestatus.title()))
-
-    return False, job_status
-
-
 def print_pipeline_link(project, pipeline_id):
     status(
         "Pipeline Link: "
         + color_str("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green",)
     )
-
-
-def wait_for_pipeline(
-    pipeline_id=None, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
-):
-    print_pipeline_link("DataDog/datadog-agent", pipeline_id)
-
-    status("Waiting for pipeline to finish. Exiting won't cancel it.")
-
-    wait_for_pipeline_id("DataDog/datadog-agent", pipeline_id, pipeline_finish_timeout_sec)
-
-    return pipeline_id
 
 
 def status(msg):
@@ -265,6 +250,7 @@ def notify(title, info_text, sound=True):
             NSUserNotificationCenter.defaultUserNotificationCenter().scheduleNotification_(notification)
 
         except Exception:
+            print("Could not send MacOS notification. Run 'pip install pyobjc' to get notifications.")
             pass
 
     elif platform.system() == "Windows":
@@ -274,6 +260,7 @@ def notify(title, info_text, sound=True):
             toaster = ToastNotifier()
             toaster.show_toast(title, info_text, icon_path=None, duration=10)
         except Exception:
+            print("Could not send Windows notification. Run 'pip install win10toast' to get notifications.")
             pass
 
 

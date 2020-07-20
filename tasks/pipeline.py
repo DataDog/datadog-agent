@@ -21,8 +21,15 @@ def trigger(
 
 
 @task
-def follow(ctx, id=None, ref=None):
+def follow(ctx, id=None, ref=None, here=False):
     if id:
         wait_for_pipeline(id)
     elif ref:
         wait_for_pipeline(Gitlab().pipelines_for_ref("DataDog/datadog-agent", ref)[0]['id'])
+    elif here:
+        ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout
+        pipelines = Gitlab().pipelines_for_ref("DataDog/datadog-agent", ref)
+        if len(pipelines) > 0:
+            wait_for_pipeline(pipelines[0]['id'])
+        else:
+            print("No pipelines found for {ref}".format(ref=ref))
