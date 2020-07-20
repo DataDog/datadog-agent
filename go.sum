@@ -351,6 +351,7 @@ github.com/docker/go-units v0.3.3/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDD
 github.com/docker/go-units v0.4.0 h1:3uh0PgVws3nIA0Q+MwDC8yjEPf9zjRfZZWXZYDct3Tw=
 github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/docker/libnetwork v0.0.0-20180830151422-a9cd636e3789/go.mod h1:93m0aTqz6z+g32wla4l4WxTrdtvBRmVzYRkYvasA5Z8=
+github.com/docker/spdystream v0.0.0-20160310174837-449fdfce4d96 h1:cenwrSVm+Z7QLSV/BsnenAOcDXdX4cMv4wP0B/5QbPg=
 github.com/docker/spdystream v0.0.0-20160310174837-449fdfce4d96/go.mod h1:Qh8CwZgvJUkLughtfhJv5dyTYa91l1fOUCrgjqmcifM=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
 github.com/dsnet/compress v0.0.1 h1:PlZu0n3Tuv04TzpfPbrnI0HW/YwodEXDS+oPKahKF0Q=
@@ -1689,6 +1690,7 @@ honnef.co/go/tools v0.0.1-2019.2.3/go.mod h1:a3bituU0lyd329TUQxRnasdCoJDkEUEAqEt
 howett.net/plist v0.0.0-20181124034731-591f970eefbb/go.mod h1:vMygbs4qMhSZSc4lCUl2OEE+rDiIIJAIdR4m7MiMcm0=
 k8s.io/api v0.0.0-20191016110408-35e52d86657a h1:VVUE9xTCXP6KUPMf92cQmN88orz600ebexcRRaBTepQ=
 k8s.io/api v0.0.0-20191016110408-35e52d86657a/go.mod h1:/L5qH+AD540e7Cetbui1tuJeXdmNhO8jM6VkXeDdDhQ=
+k8s.io/apiextensions-apiserver v0.0.0-20191016113550-5357c4baaf65 h1:kThoiqgMsSwBdMK/lPgjtYTsEjbUU9nXCA9DyU3feok=
 k8s.io/apiextensions-apiserver v0.0.0-20191016113550-5357c4baaf65/go.mod h1:5BINdGqggRXXKnDgpwoJ7PyQH8f+Ypp02fvVNcIFy9s=
 k8s.io/apimachinery v0.0.0-20191004115801-a2eda9f80ab8 h1:Iieh/ZEgT3BWwbLD5qEKcY06jKuPEl6zC7gPSehoLw4=
 k8s.io/apimachinery v0.0.0-20191004115801-a2eda9f80ab8/go.mod h1:llRdnznGEAqC3DcNm6yEj472xaFVfLM7hnYofMb12tQ=
@@ -1699,6 +1701,7 @@ k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e/go.
 k8s.io/cli-runtime v0.0.0-20191016114015-74ad18325ed5/go.mod h1:sDl6WKSQkDM6zS1u9F49a0VooQ3ycYFBFLqd2jf2Xfo=
 k8s.io/client-go v0.0.0-20191016111102-bec269661e48 h1:C2XVy2z0dV94q9hSSoCuTPp1KOG7IegvbdXuz9VGxoU=
 k8s.io/client-go v0.0.0-20191016111102-bec269661e48/go.mod h1:hrwktSwYGI4JK+TJA3dMaFyyvHVi/aLarVHpbs8bgCU=
+k8s.io/cloud-provider v0.0.0-20191016115326-20453efc2458 h1:rP/89rnWN2l+2b7Jckg4VXi2dhgu7xs3S+1bKWKrqGE=
 k8s.io/cloud-provider v0.0.0-20191016115326-20453efc2458/go.mod h1:O5SO5xcgxrjJV9EC9R/47RuBpbk5YX9URDBlg++FA5o=
 k8s.io/cluster-bootstrap v0.0.0-20191016115129-c07a134afb42/go.mod h1:MzCL6kLExQuHruGaqibd8cugC8nw8QRxm3+lzR5l8SI=
 k8s.io/code-generator v0.0.0-20191004115455-8e001e5d1894/go.mod h1:mJUgkl06XV4kstAnLHAIzJPVCOzVR+ZcfPIv4fUsFCY=
