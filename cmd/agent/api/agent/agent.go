@@ -9,7 +9,6 @@
 package agent
 
 import (
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -103,7 +102,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	enc := gob.NewEncoder(w)
+	enc := json.NewEncoder(w)
 	if err := enc.Encode(filePath); err != nil {
 		log.Errorf("Error while encoding flare file path: %s,", err)
 	}

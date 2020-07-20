@@ -31,8 +31,10 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(true, SearchPaths{}, "")
+	zipFilePath := GetArchivePath()
+	flarePath, err := createArchive(true, SearchPaths{}, "")
+	assert.Nil(t, err)
+	filePath, err := ZipArchive(flarePath)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -55,8 +57,10 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 
 	pprofURL = ts.URL
 
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(true, SearchPaths{}, "")
+	zipFilePath := GetArchivePath()
+	flarePath, err := createArchive(true, SearchPaths{}, "")
+	assert.Nil(t, err)
+	filePath, err := ZipArchive(flarePath)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -99,8 +103,10 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 // The zipfile should be created even if there is no config file.
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(true, SearchPaths{}, "")
+	zipFilePath := GetArchivePath()
+	flarePath, err := createArchive(true, SearchPaths{}, "")
+	assert.Nil(t, err)
+	filePath, err := ZipArchive(flarePath)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -113,7 +119,7 @@ func TestCreateArchiveBadConfig(t *testing.T) {
 }
 
 // Ensure sensitive data is redacted
-func TestZipConfigCheck(t *testing.T) {
+func TestWriteConfigCheck(t *testing.T) {
 	cr := response.ConfigCheckResponse{
 		Configs: make([]integration.Config, 0),
 	}
@@ -136,7 +142,7 @@ func TestZipConfigCheck(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	zipConfigCheck(dir, "")
+	writeConfigCheck(dir, "")
 	content, err := ioutil.ReadFile(filepath.Join(dir, "config-check.log"))
 	if err != nil {
 		log.Fatal(err)
@@ -153,8 +159,10 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	assert.NoError(err, "couldn't create system-probe.yaml")
 	defer os.Remove("./test/system-probe.yaml")
 
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
+	zipFilePath := GetArchivePath()
+	flarePath, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
+	assert.Nil(t, err)
+	filePath, err := ZipArchive(flarePath)
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
 
@@ -181,8 +189,10 @@ func TestIncludeConfigFiles(t *testing.T) {
 	assert := assert.New(t)
 
 	common.SetupConfig("./test")
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
+	zipFilePath := GetArchivePath()
+	flarePath, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
+	assert.Nil(t, err)
+	filePath, err := ZipArchive(flarePath)
 
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
@@ -247,7 +257,7 @@ func TestCleanDirectoryName(t *testing.T) {
 	assert.True(t, !directoryNameFilter.MatchString(cleanedHostname))
 }
 
-func TestZipTaggerList(t *testing.T) {
+func TestWriteTaggerList(t *testing.T) {
 	tagMap := make(map[string]response.TaggerListEntity)
 	tagMap["random_entity_name"] = response.TaggerListEntity{
 		Sources: []string{"docker_source_name"},
@@ -270,7 +280,7 @@ func TestZipTaggerList(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	taggerListURL = s.URL
-	zipTaggerList(dir, "")
+	writeTaggerList(dir, "")
 	content, err := ioutil.ReadFile(filepath.Join(dir, "tagger-list.json"))
 	if err != nil {
 		log.Fatal(err)

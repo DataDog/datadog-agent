@@ -20,7 +20,7 @@ import (
 
 // CreateSecurityAgentArchive packages up the files
 func CreateSecurityAgentArchive(local bool, logFilePath string) (string, error) {
-	zipFilePath := getArchivePath()
+	zipFilePath := GetArchivePath()
 	return createSecurityAgentArchive(zipFilePath, local, logFilePath)
 }
 
@@ -56,12 +56,12 @@ func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath stri
 
 	permsInfos := make(permissionsInfos)
 
-	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
+	err = writeLogFiles(tempDir, hostname, logFilePath, permsInfos)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipConfigFiles(tempDir, hostname, SearchPaths{}, permsInfos)
+	err = writeConfigFiles(tempDir, hostname, SearchPaths{}, permsInfos)
 	if err != nil {
 		return "", err
 	}
@@ -71,7 +71,7 @@ func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath stri
 		return "", err
 	}
 
-	err = zipExpVar(tempDir, hostname)
+	err = writeExpVar(tempDir, hostname)
 	if err != nil {
 		return "", err
 	}

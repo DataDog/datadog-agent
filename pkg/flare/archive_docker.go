@@ -25,7 +25,7 @@ import (
 
 const dockerCommandMaxLength = 29
 
-func zipDockerSelfInspect(tempDir, hostname string) error {
+func writeDockerSelfInspect(tempDir, hostname string) error {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return err
@@ -75,7 +75,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	return err
 }
 
-func zipDockerPs(tempDir, hostname string) error {
+func writeDockerPs(tempDir, hostname string) error {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		// if we can't reach docker, let's do nothing

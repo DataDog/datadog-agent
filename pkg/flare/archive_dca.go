@@ -67,12 +67,12 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 
 	permsInfos := make(permissionsInfos)
 
-	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
+	err = writeLogFiles(tempDir, hostname, logFilePath, permsInfos)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
+	err = writeConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
 	if err != nil {
 		return "", err
 	}
@@ -82,7 +82,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		log.Errorf("Could not zip config check: %s", err)
 	}
 
-	err = zipExpVar(tempDir, hostname)
+	err = writeExpVar(tempDir, hostname)
 	if err != nil {
 		return "", err
 	}
@@ -269,7 +269,7 @@ func zipClusterAgentConfigCheck(tempDir, hostname string) error {
 	GetClusterAgentConfigCheck(writer, true) //nolint:errcheck
 	writer.Flush()
 
-	return writeConfigCheck(tempDir, hostname, b.Bytes())
+	return writeConfigCheckLocal(tempDir, hostname, b.Bytes())
 }
 
 func zipClusterAgentDiagnose(tempDir, hostname string) error {

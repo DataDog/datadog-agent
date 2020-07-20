@@ -8,7 +8,7 @@ package main
 
 import (
 	"bytes"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -217,7 +217,7 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		}
 
 	} else {
-		dec := gob.NewDecoder(r)
+		dec := json.NewDecoder(r)
 		if err := dec.Decode(&filePath); err != nil {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while decoding the flare file path: %s", color.RedString(err.Error())))
 		}

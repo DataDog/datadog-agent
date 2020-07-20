@@ -28,8 +28,11 @@ func TestPermsFile(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
-	zipFilePath := getArchivePath()
-	filePath, err := createArchive(true, SearchPaths{}, "")
+	zipFilePath := GetArchivePath()
+	path, err := createArchive(true, SearchPaths{}, "")
+	assert.Nil(err)
+	filePath, err := ZipArchive(path)
+
 	defer os.Remove(zipFilePath)
 
 	assert.Nil(err)
