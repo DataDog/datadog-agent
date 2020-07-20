@@ -6,7 +6,6 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -110,6 +108,7 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
+
 	// Setup logger
 	syslogURI := coreconfig.GetSyslogURI()
 	logFile := coreconfig.Datadog.GetString("log_file")
@@ -120,9 +119,6 @@ func start(cmd *cobra.Command, args []string) error {
 		// this will prevent any logging on file
 		logFile = ""
 	}
-
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	defer mainCtxCancel() // Calling cancel twice is safe
 
 	err = coreconfig.SetupLogger(
 		loggerName,
@@ -138,19 +134,15 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !coreconfig.Datadog.IsSet("api_key") {
-		log.Critical("no API key configured, exiting")
+	// Check if we have at least one component to start based on config
+	if !coreconfig.Datadog.GetBool("compliance_config.enabled") {
+		log.Infof("All security-agent components are deactivated, exiting")
 		return nil
 	}
 
-	// Setup healthcheck port
-	var healthPort = coreconfig.Datadog.GetInt("health_port")
-	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, healthPort)
-		if err != nil {
-			return log.Errorf("Error starting health port, exiting: %v", err)
-		}
-		log.Debugf("Health check listening on port %d", healthPort)
+	if !coreconfig.Datadog.IsSet("api_key") {
+		log.Critical("no API key configured, exiting")
+		return nil
 	}
 
 	// get hostname
@@ -197,9 +189,6 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Block here until we receive the interrupt signal
 	<-signalCh
-
-	// Cancel the main context to stop components
-	mainCtxCancel()
 
 	if stopCh != nil {
 		close(stopCh)
