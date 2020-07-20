@@ -335,7 +335,7 @@ func TestSampling(t *testing.T) {
 				sampler.SetSamplingPriority(pt.Root, 1)
 			}
 
-			sampled, rate := a.runSamplers(pt)
+			sampled, rate := a.runSamplers(pt, tt.hasPriority)
 			assert.EqualValues(t, tt.wantRate, rate)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
