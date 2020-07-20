@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/docker/docker/api/types"
 
@@ -38,20 +40,19 @@ var (
 	}
 )
 
-func newTestRuleEvent(tags []string, kv compliance.KVMap) *compliance.RuleEvent {
-	return &compliance.RuleEvent{
-		RuleID:       testCheckMeta.ruleID,
-		Framework:    testCheckMeta.framework,
-		Version:      testCheckMeta.version,
+func newTestRuleEvent(tags []string, data event.Data) *event.Event {
+	return &event.Event{
+		AgentRuleID:  testCheckMeta.ruleID,
 		ResourceType: testCheckMeta.resourceType,
 		ResourceID:   testCheckMeta.resourceID,
 		Tags:         tags,
-		Data:         kv,
+		Data:         data,
 	}
 }
 
-func newTestBaseCheck(reporter compliance.Reporter, kind checkKind) baseCheck {
+func newTestBaseCheck(env env.Env, kind checkKind) baseCheck {
 	return baseCheck{
+		Env:       env,
 		id:        check.ID("check-1"),
 		kind:      kind,
 		interval:  time.Minute,
@@ -61,7 +62,6 @@ func newTestBaseCheck(reporter compliance.Reporter, kind checkKind) baseCheck {
 		ruleID:       testCheckMeta.ruleID,
 		resourceType: testCheckMeta.resourceType,
 		resourceID:   testCheckMeta.resourceID,
-		reporter:     reporter,
 	}
 }
 
@@ -150,7 +150,7 @@ func TestDockerImageCheck(t *testing.T) {
 			"Report",
 			newTestRuleEvent(
 				[]string{"check_kind:docker"},
-				compliance.KVMap{
+				event.Data{
 					"image_id":                  image.id,
 					"image_name":                image.name,
 					"image_healthcheck_missing": "true",
@@ -159,9 +159,13 @@ func TestDockerImageCheck(t *testing.T) {
 		).Once()
 	}
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
@@ -212,16 +216,20 @@ func TestDockerNetworkCheck(t *testing.T) {
 		"Report",
 		newTestRuleEvent(
 			[]string{"check_kind:docker"},
-			compliance.KVMap{
+			event.Data{
 				"network_id":                        "e7ed6c335383178f99b61a8a44b82b62abc17b31d68b792180728bf8f2c599ec",
 				"default_bridge_traffic_restricted": "true",
 			},
 		),
 	).Once()
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
@@ -275,16 +283,20 @@ func TestDockerContainerCheck(t *testing.T) {
 		"Report",
 		newTestRuleEvent(
 			[]string{"check_kind:docker"},
-			compliance.KVMap{
+			event.Data{
 				"container_id": "3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87",
 				"privileged":   "true",
 			},
 		),
 	).Once()
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
@@ -320,15 +332,19 @@ func TestDockerInfoCheck(t *testing.T) {
 		"Report",
 		newTestRuleEvent(
 			[]string{"check_kind:docker"},
-			compliance.KVMap{
+			event.Data{
 				"insecure_registries": "127.0.0.0/8",
 			},
 		),
 	).Once()
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 
@@ -364,15 +380,19 @@ func TestDockerVersionCheck(t *testing.T) {
 		"Report",
 		newTestRuleEvent(
 			[]string{"check_kind:docker"},
-			compliance.KVMap{
+			event.Data{
 				"experimental_features": "true",
 			},
 		),
 	).Once()
 
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+	env.On("Reporter").Return(reporter)
+	env.On("DockerClient").Return(client)
+
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
-		client:         client,
+		baseCheck:      newTestBaseCheck(env, checkKindDocker),
 		dockerResource: resource,
 	}
 

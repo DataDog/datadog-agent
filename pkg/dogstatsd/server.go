@@ -205,8 +205,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 		Debug: &dsdServerDebug{
-			Enabled: metricsStatsEnabled,
-			Stats:   make(map[ckey.ContextKey]metricStat),
+			Stats: make(map[ckey.ContextKey]metricStat),
 			metricsCounts: metricsCountBuckets{
 				counts:     [5]uint64{0, 0, 0, 0, 0},
 				metricChan: make(chan struct{}),
@@ -420,9 +419,10 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
 		return metrics.MetricSample{}, err
 	}
-	if s.mapper != nil && len(sample.tags) == 0 {
+	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
 		if mapResult != nil {
+			log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
 			sample.name = mapResult.Name
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}

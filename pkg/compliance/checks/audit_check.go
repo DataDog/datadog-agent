@@ -6,36 +6,26 @@
 package checks
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/elastic/go-libaudit/rule"
 )
 
-// AuditClient defines the interface for interacting with the auditd client
-type AuditClient interface {
-	GetFileWatchRules() ([]*rule.FileWatchRule, error)
-	Close() error
-}
-
 type auditCheck struct {
 	baseCheck
-
-	client AuditClient
-
 	audit *compliance.Audit
 }
 
-func newAuditCheck(baseCheck baseCheck, client AuditClient, audit *compliance.Audit) (*auditCheck, error) {
-
-	if len(audit.Path) == 0 {
-		return nil, errors.New("unable to create audit check without a path")
+func newAuditCheck(baseCheck baseCheck, audit *compliance.Audit) (*auditCheck, error) {
+	if err := audit.Validate(); err != nil {
+		return nil, fmt.Errorf("unable to create audit check for invalid audit resource %w", err)
 	}
+
 	return &auditCheck{
 		baseCheck: baseCheck,
-		client:    client,
 		audit:     audit,
 	}, nil
 }
@@ -43,28 +33,36 @@ func newAuditCheck(baseCheck baseCheck, client AuditClient, audit *compliance.Au
 func (c *auditCheck) Run() error {
 	log.Debugf("%s: running audit check - path %s", c.id, c.audit.Path)
 
-	rules, err := c.client.GetFileWatchRules()
+	rules, err := c.AuditClient().GetFileWatchRules()
 	if err != nil {
 		return err
 	}
 
-	// Scal for the rule matching configured path
+	path := c.audit.Path
+	if path == "" {
+		path, err = c.ResolveValueFrom(c.audit.PathFrom)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Scan for the rule matching configured path
 	for _, r := range rules {
-		if r.Path == c.audit.Path {
-			log.Debugf("%s: audit check - match %s", c.id, c.audit.Path)
-			return c.reportOnRule(r)
+		if r.Path == path {
+			log.Debugf("%s: audit check - match %s", c.id, path)
+			return c.reportOnRule(r, path)
 		}
 	}
 
 	// If no rule found we still report this as "not enabled"
-	return c.reportOnRule(nil)
+	return c.reportOnRule(nil, path)
 }
 
-func (c *auditCheck) reportOnRule(r *rule.FileWatchRule) error {
+func (c *auditCheck) reportOnRule(r *rule.FileWatchRule, path string) error {
 	var (
 		v   string
 		err error
-		kv  = compliance.KVMap{}
+		kv  = event.Data{}
 	)
 
 	for _, field := range c.audit.Report {
@@ -74,7 +72,7 @@ func (c *auditCheck) reportOnRule(r *rule.FileWatchRule) error {
 
 		switch field.Kind {
 		case compliance.PropertyKindAttribute:
-			v, err = c.getAttribute(field.Property, r)
+			v, err = c.getAttribute(field.Property, r, path)
 		default:
 			return ErrPropertyKindNotSupported
 		}
@@ -96,10 +94,10 @@ func (c *auditCheck) reportOnRule(r *rule.FileWatchRule) error {
 	return nil
 }
 
-func (c *auditCheck) getAttribute(name string, r *rule.FileWatchRule) (string, error) {
+func (c *auditCheck) getAttribute(name string, r *rule.FileWatchRule, path string) (string, error) {
 	switch name {
 	case "path":
-		return c.audit.Path, nil
+		return path, nil
 	case "enabled":
 		return fmt.Sprintf("%t", r != nil), nil
 	case "permissions":
