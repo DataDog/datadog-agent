@@ -48,7 +48,7 @@ type spanState struct {
 	nOpenChildren int
 	// active is true if the span is open and has no open children.
 	active bool
-	// execDuration is the sum of the execDuration for the span since the start of the trace.
+	// execDuration is the sum of the execution durations for the span since the start of the trace.
 	// For each period where the span is active, its Exec Duration increases by periodDuration/numberOfActiveSpans
 	//     so if a span is active during 20ms, in parallel with another span active at the same time, its exec duration will be 10ms
 	execDuration float64
@@ -57,20 +57,20 @@ type spanState struct {
 	activationExecTime float64
 }
 
-// activate activates a span and saves the execTime at activation.
+// activate activates a span and saves the given trace execution time at activation.
 func (s *spanState) activate(execTime float64) {
 	s.active = true
 	s.activationExecTime = execTime
 }
 
-// deactivate deactivates a span and updates the execDuration of the span.
+// deactivate marks a span as having become inactive at the given execution time.
 func (s *spanState) deactivate(execTime float64) {
 	s.active = false
 	s.execDuration += execTime - s.activationExecTime
 }
 
 // SublayerCalculator holds arrays used to compute sublayer metrics.
-// Re-using arrays reduces the number of allocations
+// Re-using its fields between calls by sharing the same instance reduces allocations.
 // A sublayer metric is the execution duration of a given type / service in a trace
 // The metrics generated are detailed here: https://docs.datadoghq.com/tracing/guide/metrics_namespace/#duration-by
 type SublayerCalculator struct {
@@ -78,7 +78,7 @@ type SublayerCalculator struct {
 	// It is indexed by the span index in the trace (for eg, spanState[0].open == true means that the first span of the trace is open)
 	spanStates []spanState
 	// timestamps are the sorted timestamps (starts and ends of each span) of a trace
-	timestamps sortableTimestamps
+	timestamps []timestamp
 }
 
 // NewSublayerCalculator returns a new SublayerCalculator.
@@ -93,7 +93,7 @@ func NewSublayerCalculator() *SublayerCalculator {
 func (s *SublayerCalculator) reset(n int) {
 	if n > len(s.spanStates) {
 		s.spanStates = make([]spanState, n)
-		s.timestamps = make(sortableTimestamps, 2*n)
+		s.timestamps = make([]timestamp, 2*n)
 	}
 	for i := 0; i < n; i++ {
 		s.spanStates[i].open = false
@@ -151,7 +151,7 @@ func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
 		s.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: parentIdx, ts: span.Start}
 		s.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: parentIdx, ts: span.Start + span.Duration}
 	}
-	sort.Sort(s.timestamps[:2*len(trace)])
+	sort.Sort(sortableTimestamps(s.timestamps[:2*len(trace)]))
 
 	// Step 3: Compute the execution duration of each span
 	state := s.spanStates

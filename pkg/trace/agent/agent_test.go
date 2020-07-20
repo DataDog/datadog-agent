@@ -8,7 +8,6 @@ package agent
 import (
 	"bytes"
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
