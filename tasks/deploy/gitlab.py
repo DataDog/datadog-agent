@@ -3,7 +3,6 @@ import json
 import os
 import re
 import sys
-from urllib.parse import quote
 
 errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
@@ -36,32 +35,40 @@ class Gitlab(object):
         sys.exit(1)
 
     def project(self, project_name):
-        path = "/projects/%s" % quote(project_name, safe="")
+        from urllib.parse import quote
+
+        path = "/projects/{}".format(quote(project_name, safe=""))
         return self.make_request(path, json=True)
 
     def create_pipeline(self, project_name, ref, variables=None):
         """ref must be a branch or tag, not a commit."""
+        from urllib.parse import quote
+
         if variables is None:
             variables = {}
 
-        path = "/projects/%s/pipeline" % quote(project_name, safe="")
+        path = "/projects/{}/pipeline".format(quote(project_name, safe=""))
         headers = {"Content-Type": "application/json"}
         data = json.dumps({"ref": ref, "variables": [{"key": k, "value": v} for (k, v) in variables.items()],})
         return self.make_request(path, headers=headers, data=data, json=True)
 
     def pipelines_for_ref(self, project_name, ref, per_page=100):
-        path = "/projects/%s/pipelines?ref=%s&per_page=%d" % (
-            quote(project_name, safe=""),
-            quote(ref, safe=""),
-            per_page,
+        from urllib.parse import quote
+
+        path = "/projects/{}/pipelines?ref={}&per_page={}".format(
+            quote(project_name, safe=""), quote(ref, safe=""), per_page,
         )
         return self.make_request(path, json=True)
 
     def pipeline(self, project_name, pipeline_id):
+        from urllib.parse import quote
+
         path = "/projects/{}/pipelines/{}".format(quote(project_name, safe=""), pipeline_id)
         return self.make_request(path, json=True)
 
     def jobs(self, project_name, pipeline_id, page=1, per_page=100):
+        from urllib.parse import quote
+
         path = "/projects/{}/pipelines/{}/jobs?per_page={}&page={}".format(
             quote(project_name, safe=""), pipeline_id, per_page, page
         )
