@@ -433,46 +433,54 @@ def make_kitchen_gitlab_yml(ctx):
 
     data['stages'] = [
         'deps_build',
+        'deps_fetch',
         'binary_build',
         'package_build',
         'testkitchen_deploy',
         'testkitchen_testing',
         'testkitchen_cleanup',
     ]
-    for k, v in data.items():
-        if isinstance(v, dict) and v.get('stage', None) not in ([None] + data['stages']):
-            del data[k]
+    for name, job in data.items():
+        if isinstance(job, dict) and job.get('stage', None) not in ([None] + data['stages']):
+            del data[name]
             continue
         if (
-            isinstance(v, dict)
-            and v.get('stage', None) == 'binary_build'
-            and k != 'build_system-probe-arm64'
-            and k != 'build_system-probe-x64'
-            and k != 'build_system-probe_with-bcc-arm64'
-            and k != 'build_system-probe_with-bcc-x64'
+            isinstance(job, dict)
+            and job.get('stage', None) == 'binary_build'
+            and name != 'build_system-probe-arm64'
+            and name != 'build_system-probe-x64'
+            and name != 'build_system-probe_with-bcc-arm64'
+            and name != 'build_system-probe_with-bcc-x64'
         ):
-            del data[k]
+            del data[name]
             continue
-        if 'except' in v:
-            del v['except']
-        if 'only' in v:
-            del v['only']
-        if len(v) == 0:
-            del data[k]
+        if 'except' in job:
+            del job['except']
+        if 'only' in job:
+            del job['only']
+        if 'rules' in job:
+            del job['rules']
+        if len(job) == 0:
+            del data[name]
             continue
 
-    for k, v in data.items():
-        if 'extends' in v:
-            extended = v['extends']
-            if extended not in data:
-                del data[k]
-        if 'needs' in v:
-            needed = v['needs']
+    for name, job in data.items():
+        if 'extends' in job:
+            extended = job['extends']
+            if not isinstance(extended, list):
+                extended = [extended]
+            for job in extended:
+                if job not in data:
+                    del data[name]
+
+    for _, job in data.items():
+        if 'needs' in job:
+            needed = job['needs']
             new_needed = []
             for n in needed:
                 if n in data:
                     new_needed.append(n)
-            v['needs'] = new_needed
+            job['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
         yaml.dump(data, f, default_style='"')
