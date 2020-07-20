@@ -35,13 +35,19 @@ class Gitlab(object):
         sys.exit(1)
 
     def project(self, project_name):
+        """
+        Gets the project info.
+        """
         from urllib.parse import quote
 
         path = "/projects/{}".format(quote(project_name, safe=""))
         return self.make_request(path, json=True)
 
     def create_pipeline(self, project_name, ref, variables=None):
-        """ref must be a branch or tag, not a commit."""
+        """
+        Create a pipeline targeting a given reference of a project.
+        ref must be a branch or a tag.
+        """
         from urllib.parse import quote
 
         if variables is None:
@@ -53,6 +59,9 @@ class Gitlab(object):
         return self.make_request(path, headers=headers, data=data, json=True)
 
     def pipelines_for_ref(self, project_name, ref, per_page=100):
+        """
+        Gets all pipelines for a given reference
+        """
         from urllib.parse import quote
 
         path = "/projects/{}/pipelines?ref={}&per_page={}".format(
@@ -60,13 +69,32 @@ class Gitlab(object):
         )
         return self.make_request(path, json=True)
 
+    def last_pipeline_for_ref(self, project_name, ref, per_page=100):
+        """
+        Gets the last pipeline for a given reference.
+        per_page cannot exceed 100.
+        """
+        pipelines = self.pipelines_for_ref(project_name, ref, per_page)
+
+        if len(pipelines) == 0:
+            return None
+
+        return sorted(pipelines, key=lambda pipeline: pipeline['created_at'], reverse=True)[0]
+
     def pipeline(self, project_name, pipeline_id):
+        """
+        Gets info for a given pipeline.
+        """
         from urllib.parse import quote
 
         path = "/projects/{}/pipelines/{}".format(quote(project_name, safe=""), pipeline_id)
         return self.make_request(path, json=True)
 
     def jobs(self, project_name, pipeline_id, page=1, per_page=100):
+        """
+        Gets one page of the jobs for a pipeline.
+        per_page cannot exceed 100.
+        """
         from urllib.parse import quote
 
         path = "/projects/{}/pipelines/{}/jobs?per_page={}&page={}".format(
@@ -75,6 +103,9 @@ class Gitlab(object):
         return self.make_request(path, json=True)
 
     def make_request(self, path, headers=None, data=None, json=False):
+        """
+        Utility to make a request to the Gitlab API.
+        """
         import requests
 
         url = self.BASE_URL + path

@@ -16,6 +16,10 @@ def trigger_agent_pipeline(
     branch="nightly",
     windows_update_latest=True,
 ):
+    """
+    Trigger a pipeline to deploy an Agent to staging repos
+    (as specified with the DEPLOY_AGENT arg).
+    """
     args = {}
 
     args["DEPLOY_AGENT"] = "true"
@@ -49,34 +53,41 @@ def trigger_agent_pipeline(
 
 
 def wait_for_pipeline(
-    pipeline_id=None, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
+    project, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
 ):
-    print_pipeline_link("DataDog/datadog-agent", pipeline_id)
+    """
+    Follow a given pipeline, periodically checking the pipeline status
+    and printing changes to the job statuses.
+    """
 
-    status("Waiting for pipeline to finish. Exiting won't cancel it.")
+    print(
+        color_message(
+            "Pipeline Link: "
+            + color_message("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green",),
+            "blue",
+        )
+    )
 
-    wait_for_pipeline_id("DataDog/datadog-agent", pipeline_id, pipeline_finish_timeout_sec)
+    print(color_message("Waiting for pipeline to finish. Exiting won't cancel it.", "blue"))
+
+    gitlab = Gitlab()
+    gitlab.test_project_found(project)
+
+    f = functools.partial(pipeline_status, gitlab, project, pipeline_id,)
+
+    loop_status(f, pipeline_finish_timeout_sec)
 
     return pipeline_id
 
 
-def wait_for_pipeline_id(
-    proj, pipeline_id, timeout_sec, skip_wait_coverage=False, wait_for_job="",
-):
-    gitlab = Gitlab()
-    gitlab.test_project_found(proj)
-
-    ref = gitlab.pipeline(proj, pipeline_id).get('ref', '')
-    f = functools.partial(pipeline_status, gitlab, proj, pipeline_id,)
-
-    loop(f, ref, timeout_sec)
-
-
-def loop(callable, ref, timeout_sec):
+def loop_status(callable, timeout_sec):
+    """
+    Utility to loop a function that takes and returns a status, until it returns True.
+    """
     start = time()
-    job_status = dict()
+    status = dict()
     while True:
-        res, job_status = callable(job_status, ref)
+        res, status = callable(status)
         if res:
             return res
         if time() - start > timeout_sec:
@@ -84,7 +95,11 @@ def loop(callable, ref, timeout_sec):
         sleep(10)
 
 
-def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
+def pipeline_status(gitlab, proj, pipeline_id, job_status):
+    """
+    Checks the pipeline status and updates job statuses.
+    """
+
     jobs = []
     page = 1
 
@@ -97,7 +112,10 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
 
     job_status = update_job_status(jobs, job_status)
     # check pipeline status
-    pipestatus = gitlab.pipeline(proj, pipeline_id)["status"].lower().strip()
+
+    pipeline = gitlab.pipeline(proj, pipeline_id)
+    pipestatus = pipeline["status"].lower().strip()
+    ref = pipeline["ref"]
 
     if pipestatus == "success":
         print(
@@ -106,6 +124,7 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
                 "green",
             )
         )
+        notify("Pipeline success", "Pipeline {} for {} succeeded.".format(pipeline_id, ref))
         return True, job_status
 
     if pipestatus == "failed":
@@ -134,6 +153,9 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status, ref):
 
 
 def update_job_status(jobs, job_status):
+    """
+    Updates job statuses and notify on changes.
+    """
     notify = {}
     for job in jobs:
         if job_status.get(job['name'], None) is None:
@@ -170,6 +192,10 @@ def update_job_status(jobs, job_status):
 
 
 def print_job_status(job):
+    """
+    Prints notifications about job changes.
+    """
+
     def print_job(name, stage, color, finish_date, duration, status):
         print(
             color_message(
@@ -227,18 +253,10 @@ def print_job_status(job):
         print_retry(name, job['retried_created_at'])
 
 
-def print_pipeline_link(project, pipeline_id):
-    status(
-        "Pipeline Link: "
-        + color_message("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green",)
-    )
-
-
-def status(msg):
-    print(color_message(msg, "blue"))
-
-
 def notify(title, info_text, sound=True):
+    """
+    Utility to send an OS-level notification. Supported on MacOS and Windows.
+    """
     if platform.system() == "Darwin":
         try:
             import objc
