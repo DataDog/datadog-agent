@@ -1,8 +1,6 @@
 package probe
 
-import (
-	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
-)
+import "github.com/DataDog/datadog-agent/pkg/security/ebpf"
 
 // ExecTables - eBPF tables used by open's kProbes
 var ExecTables = []KTable{}
@@ -11,7 +9,7 @@ var ExecTables = []KTable{}
 var ExecHookPoints = []*HookPoint{
 	{
 		Name: "sys_execve",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/" + getSyscallFnName("execve"),
 		}},
 		EventTypes: map[string]Capabilities{
@@ -20,7 +18,7 @@ var ExecHookPoints = []*HookPoint{
 	},
 	{
 		Name: "sys_execveat",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/" + getSyscallFnName("execveat"),
 		}},
 		EventTypes: map[string]Capabilities{
@@ -30,7 +28,7 @@ var ExecHookPoints = []*HookPoint{
 	},
 	{
 		Name: "do_fork",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kretprobe/_do_fork",
 		}, {
 			ExitFunc: "kretprobe/do_fork",
@@ -41,7 +39,7 @@ var ExecHookPoints = []*HookPoint{
 	},
 	{
 		Name: "do_exit",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/do_exit",
 		}},
 		EventTypes: map[string]Capabilities{

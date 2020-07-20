@@ -29,6 +29,22 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 
+def get_go_env(ctx, go_version):
+    goenv = {}
+    if go_version:
+        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        for line in lines:
+            for env_var in GIMME_ENV_VARS:
+                if env_var in line:
+                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
+
+    # extend PATH from gimme with the one from get_build_flags
+    if "PATH" in os.environ and "PATH" in goenv:
+        goenv["PATH"] += ":" + os.environ["PATH"]
+
+    return goenv
+
+
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7', arch="x64", go_mod="vendor"):
     """
@@ -105,7 +121,9 @@ def gen_mocks(ctx):
 
 
 @task
-def functional_tests(ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output=''):
+def functional_tests(
+    ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output=''
+):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
     goenv = get_go_env(ctx, go_version)
@@ -117,7 +135,7 @@ def functional_tests(ctx, race=False, verbose=False, go_version=None, arch="x64"
         "verbose_opt": "-v" if verbose else "",
         "race_opt": "-race" if race else "",
         "output_opt": "-c -o " + output if output else "",
-        "run_opt": "-run "+pattern if pattern else "",
+        "run_opt": "-run " + pattern if pattern else "",
         "REPO_PATH": REPO_PATH,
     }
 

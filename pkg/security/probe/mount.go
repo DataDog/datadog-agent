@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
-	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -27,7 +27,7 @@ func IsErrMountNotFound(err error) bool {
 var MountHookPoints = []*HookPoint{
 	{
 		Name: "attach_recursive_mnt",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/attach_recursive_mnt",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -36,7 +36,7 @@ var MountHookPoints = []*HookPoint{
 	},
 	{
 		Name: "propagate_mnt",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/propagate_mnt",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -52,7 +52,7 @@ var MountHookPoints = []*HookPoint{
 	},
 	{
 		Name: "security_sb_umount",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/security_sb_umount",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -61,7 +61,7 @@ var MountHookPoints = []*HookPoint{
 	},
 	{
 		Name: "sys_umount",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
 		}},
 		EventTypes: map[string]Capabilities{

@@ -1,7 +1,7 @@
 #ifndef _DEFS_H_
 #define _DEFS_H_
 
-#include "../../ebpf/c/bpf_helpers.h"
+#include "../../../ebpf/c/bpf_helpers.h"
 
 #if USE_SYSCALL_WRAPPER == 1
   #define SYSCALL_PREFIX "__x64_sys_"

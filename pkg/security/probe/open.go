@@ -8,31 +8,19 @@ import (
 
 	"github.com/pkg/errors"
 
-	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 // OpenTables - eBPF tables used by open's kProbes
-var OpenTables = []KTable{
-	{
-		Name: "open_policy",
-	},
-	{
-		Name: "open_basename_approvers",
-	},
-	{
-		Name: "open_basename_discarders",
-	},
-	{
-		Name: "open_flags_approvers",
-	},
-	{
-		Name: "open_flags_discarders",
-	},
-	{
-		Name: "open_process_inode_approvers",
-	},
+var OpenTables = []string{
+	"open_policy",
+	"open_basename_approvers",
+	"open_basename_discarders",
+	"open_flags_approvers",
+	"open_flags_discarders",
+	"open_process_inode_approvers",
 }
 
 // OpenHookPoints - list of open's kProbes
@@ -53,7 +41,7 @@ var OpenHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_open",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_open",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -140,8 +128,6 @@ var OpenHookPoints = []*HookPoint{
 			default:
 				return errors.New("field unknown")
 			}
-
-			return nil
 		},
 	},
 }

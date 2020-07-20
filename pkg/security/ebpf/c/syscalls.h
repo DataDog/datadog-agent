@@ -1,7 +1,6 @@
 #ifndef _SYSCALLS_H_
 #define _SYSCALLS_H_
 
-#include "../../ebpf/c/bpf_helpers.h"
 #include "filters.h"
 
 #define bpf_printk(fmt, ...)                       \

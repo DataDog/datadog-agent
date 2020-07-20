@@ -1,15 +1,21 @@
-package gobpf
+package ebpf
 
 import (
 	"fmt"
 	"os"
 	"strings"
 	"syscall"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
 )
 
-func (m *Module) RegisterKprobe(k *types.KProbe) error {
+// KProbe describes a Linux Kprobe
+type KProbe struct {
+	Name      string
+	EntryFunc string
+	ExitFunc  string
+}
+
+// RegisterKprobe registers a Kprobe
+func (m *Module) RegisterKprobe(k *KProbe) error {
 	if k.EntryFunc != "" {
 		if err := m.EnableKprobe(k.EntryFunc, 512); err != nil {
 			return fmt.Errorf("failed to load Kprobe %v: %s", k.EntryFunc, err)
@@ -24,7 +30,8 @@ func (m *Module) RegisterKprobe(k *types.KProbe) error {
 	return nil
 }
 
-func (m *Module) UnregisterKprobe(k *types.KProbe) error {
+// UnregisterKprobe unregisters a Kprobe
+func (m *Module) UnregisterKprobe(k *KProbe) error {
 	if k.EntryFunc != "" {
 		funcName := strings.TrimPrefix(k.EntryFunc, "kprobe/")
 		if err := disableKprobe("r" + funcName); err != nil {
@@ -56,7 +63,6 @@ func disableKprobe(eventName string) error {
 			// use the same elf object and both call `Close()`.
 			// The second will encounter the error as the
 			// probe already has been cleared by the first.
-			return nil
 		} else {
 			return fmt.Errorf("cannot write %q to kprobe_events: %v", cmd, err)
 		}

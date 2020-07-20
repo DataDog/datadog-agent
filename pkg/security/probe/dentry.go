@@ -9,7 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 )
 
 const (
@@ -17,8 +17,8 @@ const (
 )
 
 type DentryResolver struct {
-	probe     *eprobe.Probe
-	pathnames eprobe.Table
+	probe     *ebpf.Probe
+	pathnames *ebpf.Table
 }
 
 type PathKey struct {
@@ -140,7 +140,7 @@ func (dr *DentryResolver) Start() error {
 	return nil
 }
 
-func NewDentryResolver(probe *eprobe.Probe) (*DentryResolver, error) {
+func NewDentryResolver(probe *ebpf.Probe) (*DentryResolver, error) {
 	return &DentryResolver{
 		probe: probe,
 	}, nil

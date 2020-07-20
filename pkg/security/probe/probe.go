@@ -10,10 +10,8 @@ import (
 
 	"github.com/iovisor/gobpf/elf"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/gobpf"
-	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,13 +37,13 @@ type onApproversFnc func(probe *Probe, approvers rules.Approvers) error
 type onDiscarderFnc func(probe *Probe, discarder Discarder) error
 
 type Probe struct {
-	*eprobe.Probe
+	*ebpf.Probe
 	config           *config.Config
 	handler          EventHandler
 	resolvers        *Resolvers
 	onDiscardersFncs map[eval.EventType][]onDiscarderFnc
 	enableFilters    bool
-	tables           map[string]eprobe.Table
+	tables           map[string]*ebpf.Table
 	eventsStats      EventsStats
 	syscallMonitor   *SyscallMonitor
 }
@@ -59,7 +57,7 @@ type Capabilities map[eval.Field]Capability
 
 type HookPoint struct {
 	Name            string
-	KProbes         []*eprobe.KProbe
+	KProbes         []*ebpf.KProbe
 	Optional        bool
 	EventTypes      map[eval.EventType]Capabilities
 	OnNewApprovers  onApproversFnc
@@ -82,8 +80,8 @@ func getSyscallFnName(name string) string {
 	return syscallPrefix + name
 }
 
-func syscallKprobe(name string) []*eprobe.KProbe {
-	return []*eprobe.KProbe{{
+func syscallKprobe(name string) []*ebpf.KProbe {
+	return []*ebpf.KProbe{{
 		EntryFunc: "kprobe/" + getSyscallFnName(name),
 		ExitFunc:  "kretprobe/" + getSyscallFnName(name),
 	}}
@@ -92,7 +90,7 @@ func syscallKprobe(name string) []*eprobe.KProbe {
 var AllHookPoints = []*HookPoint{
 	{
 		Name: "security_inode_setattr",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/security_inode_setattr",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
@@ -152,7 +150,7 @@ var AllHookPoints = []*HookPoint{
 	},
 	{
 		Name: "mnt_want_write",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
@@ -166,7 +164,7 @@ var AllHookPoints = []*HookPoint{
 	},
 	{
 		Name: "mnt_want_write_file",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write_file",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
@@ -203,7 +201,7 @@ var AllHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_mkdir",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_mkdir",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
@@ -212,7 +210,7 @@ var AllHookPoints = []*HookPoint{
 	},
 	{
 		Name: "filename_create",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/filename_create",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -236,7 +234,7 @@ var AllHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_rmdir",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_rmdir",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -253,7 +251,7 @@ var AllHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_unlink",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_unlink",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
@@ -276,7 +274,7 @@ var AllHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_rename",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_rename",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
@@ -306,7 +304,7 @@ var AllHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_link",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_link",
 		}},
 		EventTypes: map[string]Capabilities{
@@ -368,32 +366,19 @@ func (p *Probe) NewRuleSet(opts *eval.Opts) *rules.RuleSet {
 	return rules.NewRuleSet(&Model{}, eventCtor, opts)
 }
 
-func (p *Probe) getTableNames() []*types.Table {
-	tables := []*types.Table{
-		{
-			Name: "pathnames",
-		},
-		{
-			Name: "noisy_processes_buffer",
-		},
-		{
-			Name: "noisy_processes_fb",
-		},
-		{
-			Name: "noisy_processes_bb",
-		},
+func (p *Probe) getTableNames() []string {
+	tables := []string{
+		"pathnames",
+		"noisy_processes_buffer",
+		"noisy_processes_fb",
+		"noisy_processes_bb",
 	}
 
-	kTables := OpenTables
-	for _, ktable := range kTables {
-		tables = append(tables, &types.Table{Name: ktable.Name})
-	}
-
-	return tables
+	return append(tables, OpenTables...)
 }
 
 // Table returns either an eprobe Table or a LRU based eprobe Table
-func (p *Probe) Table(name string) eprobe.Table {
+func (p *Probe) Table(name string) *ebpf.Table {
 	if table, exists := p.tables[name]; exists {
 		return table
 	}
@@ -401,8 +386,8 @@ func (p *Probe) Table(name string) eprobe.Table {
 	return p.Probe.Table(name)
 }
 
-func (p *Probe) getPerfMaps() []*types.PerfMap {
-	return []*types.PerfMap{
+func (p *Probe) getPerfMaps() []*ebpf.PerfMapDefinition {
+	return []*ebpf.PerfMapDefinition{
 		{
 			Name:        "events",
 			Handler:     p.handleEvent,
@@ -417,18 +402,18 @@ func (p *Probe) getPerfMaps() []*types.PerfMap {
 }
 
 func (p *Probe) Start() error {
-	asset := "pkg/security/ebpf/probe"
+	asset := "pkg/security/ebpf/c/probe"
 	openSyscall := getSyscallFnName("open")
 	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
 		asset += "-syscall-wrapper"
 	}
 
-	bytecode, err := Asset(asset + ".o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
+	bytecode, err := Asset(asset + ".o") // ioutil.ReadFile("pkg/security/ebpf/c/probe.o")
 	if err != nil {
 		return err
 	}
 
-	p.Module, err = gobpf.NewModuleFromReader(bytes.NewReader(bytecode))
+	p.Module, err = ebpf.NewModuleFromReader(bytes.NewReader(bytecode))
 	if err != nil {
 		return err
 	}
@@ -881,10 +866,10 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		config:           config,
 		onDiscardersFncs: make(map[eval.EventType][]onDiscarderFnc),
 		enableFilters:    config.EnableKernelFilters,
-		tables:           make(map[string]eprobe.Table),
+		tables:           make(map[string]*ebpf.Table),
 	}
 
-	p.Probe = &eprobe.Probe{
+	p.Probe = &ebpf.Probe{
 		Tables:   p.getTableNames(),
 		PerfMaps: p.getPerfMaps(),
 	}
