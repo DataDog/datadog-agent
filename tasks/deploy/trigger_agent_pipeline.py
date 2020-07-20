@@ -196,17 +196,18 @@ def print_job_status(job):
     Prints notifications about job changes.
     """
 
-    def print_job(name, stage, color, finish_date, duration, status):
+    def print_job(name, stage, color, finish_date, duration, status, link):
         print(
             color_message(
-                "[{finish_date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]".format(
+                "[{finish_date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]\n{link}".format(
                     name=name,
                     stage=stage,
                     finish_date=finish_date,
                     m=(duration // 60),
                     s=(duration % 60),
                     status=status,
-                ),
+                    link=link,
+                ).strip(),
                 color,
             )
         )
@@ -216,10 +217,13 @@ def print_job_status(job):
 
     name = job['name']
     stage = job['stage']
-    date = job['finished_at']
     allow_failure = job['allow_failure']
     duration = job['duration']
-    status = job['status']
+    date = job['finished_at']  # Date that is printed in the console log. In most cases, it's when the job finished.
+    status = job['status']  # Gitlab job status
+    job_status = None  # Status string printed in the console
+    link = ''  # Link to the pipeline. Only filled for failing jobs, to be able to quickly go to the failing job.
+    color = 'grey'  # Log output color
 
     if status == 'success':
         job_status = 'succeeded'
@@ -231,6 +235,7 @@ def print_job_status(job):
         else:
             job_status = 'failed'
             color = 'red'
+            link = "Link: {}".format(job['web_url'])
             # Only notify on real (not retried) failures
             # Best-effort, as there can be situations where the retried
             # job didn't get created yet
@@ -246,9 +251,10 @@ def print_job_status(job):
     else:
         return False
 
+    # Some logic to print the retry message in the correct order (before the new job or after the old job)
     if job.get('retried_new', None) is not None:
         print_retry(name, job['created_at'])
-    print_job(name, stage, color, date, duration, job_status)
+    print_job(name, stage, color, date, duration, job_status, link)
     if job.get('retried_old', None) is not None:
         print_retry(name, job['retried_created_at'])
 
