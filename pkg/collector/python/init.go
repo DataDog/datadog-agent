@@ -309,6 +309,7 @@ func Initialize(paths ...string) error {
 
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)))
+		log.Errorf("Could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr))
 		if pyErr != nil {
 			// pyErr tracked when created in rtloader
 			C._free(unsafe.Pointer(pyErr))
