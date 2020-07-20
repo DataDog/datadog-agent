@@ -258,7 +258,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->open.dentry, syscall->open.path_key);
+    resolve_dentry(syscall->open.dentry, syscall->open.path_key, NULL);
 
     send_event(ctx, event);
 

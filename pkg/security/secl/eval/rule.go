@@ -69,6 +69,11 @@ func (r *Rule) Eval(ctx *Context) bool {
 	return r.evaluator.Eval(ctx)
 }
 
+// GetFieldValues returns the values of the given field
+func (r *Rule) GetFieldValues(field Field) []FieldValue {
+	return r.evaluator.FieldValues[field]
+}
+
 // PartialEval - Partial evaluation with the given Field
 func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
 	return r.evaluator.PartialEval(ctx, field)

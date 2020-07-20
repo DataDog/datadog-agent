@@ -1,8 +1,6 @@
 package probe
 
 import (
-	"fmt"
-
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -12,7 +10,7 @@ import (
 // UnlinkTables - eBPF tables used by unlink's kProbes
 var UnlinkTables = []KTable{
 	{
-		Name: "unlink_prefix_discarders",
+		Name: "unlink_path_inode_discarders",
 	},
 }
 
@@ -26,30 +24,15 @@ var UnlinkHookPoints = []*HookPoint{
 		EventTypes: map[eval.EventType]Capabilities{
 			"unlink": {},
 		},
-		OnNewDiscarders: func(rs *rules.RuleSet, probe *Probe, discarder Discarder) error {
-			switch discarder.Field {
+		OnNewDiscarders: func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
+			field := discarder.Field
+
+			switch field {
 			case "unlink.filename":
-				prefix := discarder.Value.(string)
-				if len(prefix) > 32 {
-					prefix = prefix[0:32]
-				}
+				fsEvent := event.Unlink
+				table := "unlink_path_inode_discarders"
 
-				var event Event
-				event.Event.Type = uint64(FileUnlinkEventType)
-
-				if rs.IsDiscarder(&event, "unlink.filename", prefix) {
-					fmt.Printf("->>>>>>>>>>>>>>>>>>>>> DISCARD DANS TA FACE: %s\n", prefix)
-
-					key, err := StringToKey(prefix, UNLINK_PREFIX_FILTER_SIZE)
-					if err != nil {
-						return fmt.Errorf("unable to generate a key for `%s`: %s", prefix, err)
-					}
-
-					table := probe.Table("unlink_prefix_discarders")
-					if err = table.Set(key, zeroInt8); err != nil {
-						return err
-					}
-				}
+				probe.discardParentInode(rs, field, discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
 
 			default:
 				return errors.New("field unknown")

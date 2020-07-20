@@ -18,8 +18,10 @@ import (
 type EventType uint64
 
 const (
+	// UnknownEventType - unknow event
+	UnknownEventType ProbeEventType = iota
 	// FileOpenEventType - File open event
-	FileOpenEventType EventType = iota + 1
+	FileOpenEventType
 	// FileMkdirEventType - Folder creation event
 	FileMkdirEventType
 	// FileLinkEventType - Hard link creation event

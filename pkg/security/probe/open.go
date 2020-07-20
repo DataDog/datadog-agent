@@ -117,7 +117,7 @@ var openHookPoints = []*HookPoint{
 
 			return nil
 		},
-		OnNewDiscarders: func(rs *rules.RuleSet, probe *Probe, discarder Discarder) error {
+		OnNewDiscarders: func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 			switch discarder.Field {
 			case "process.filename":
 				return handleProcessFilename(probe, false, discarder.Value.(string))

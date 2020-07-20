@@ -6,10 +6,7 @@
 package rules
 
 import (
-	"math/rand"
 	"reflect"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -230,27 +227,4 @@ func newTruthTable(rule *eval.Rule, event eval.Event) (*truthTable, error) {
 	}
 
 	return &truthTable, nil
-}
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-func randStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
-}
-
-func notOfValue(value interface{}) (interface{}, error) {
-	switch v := value.(type) {
-	case int:
-		return ^v, nil
-	case string:
-		return randStringRunes(256), nil
-	case bool:
-		return !v, nil
-	}
-
-	return nil, errors.New("value type unknown")
 }

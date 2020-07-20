@@ -6,6 +6,8 @@
 #include <linux/mount.h>
 #include <linux/fs.h>
 
+#include "filters.h"
+
 #define DENTRY_MAX_DEPTH 16
 
 struct path_key_t {
@@ -208,7 +210,7 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 
 #define get_key(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 
-static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key) {
+static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, struct bpf_map_def *discarder_table) {
     struct path_leaf_t map_value = {};
     struct path_key_t next_key = key;
     struct qstr qstr;
@@ -223,6 +225,14 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
         key = next_key;
         if (dentry != d_parent) {
             next_key.ino = get_dentry_ino(d_parent);
+        }
+
+        // discard filename and its parent only in order to limit the number of lookup
+        if (discarder_table && i < 2) {
+            struct filter_t *filter = bpf_map_lookup_elem(discarder_table, &key);
+            if (filter) {
+                return -1;
+            }
         }
 
         bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);

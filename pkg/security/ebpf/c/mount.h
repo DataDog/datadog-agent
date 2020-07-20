@@ -45,7 +45,7 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
-    resolve_dentry(dentry, syscall->mount.root_key);
+    resolve_dentry(dentry, syscall->mount.root_key, NULL);
 
     return 0;
 }
@@ -64,7 +64,7 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
-    resolve_dentry(dentry, syscall->mount.root_key);
+    resolve_dentry(dentry, syscall->mount.root_key, NULL);
 
     return 0;
 }
@@ -99,7 +99,7 @@ SYSCALL_KRETPROBE(mount) {
     }
 
     fill_process_data(&event.process);
-    resolve_dentry(dentry, path_key);
+    resolve_dentry(dentry, path_key, NULL);
 
     send_mountpoints_events(ctx, event);
 

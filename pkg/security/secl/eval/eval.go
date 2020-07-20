@@ -93,12 +93,12 @@ type IntEvaluator struct {
 
 // StringValue returns a string representation of the evaluation result
 func (i *IntEvaluator) StringValue(ctx *Context) string {
-	return fmt.Sprintf("%d", i.EvalFnc(nil))
+	return fmt.Sprintf("%d", i.EvalFnc(ctx))
 }
 
 // Eval returns the result of the evaluation
 func (i *IntEvaluator) Eval(ctx *Context) interface{} {
-	return i.EvalFnc(nil)
+	return i.EvalFnc(ctx)
 }
 
 // StringEvaluator returns a string as result of the evaluation

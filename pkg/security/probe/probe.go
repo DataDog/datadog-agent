@@ -10,6 +10,8 @@ package probe
 import (
 	"bytes"
 	"math"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -39,7 +41,7 @@ type Discarder struct {
 }
 
 type onApproversFnc func(probe *Probe, approvers rules.Approvers) error
-type onDiscarderFnc func(rs *rules.RuleSet, probe *Probe, discarder Discarder) error
+type onDiscarderFnc func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -535,14 +537,14 @@ func (p *Probe) handleEvent(data []byte) {
 
 	read, err := event.Event.UnmarshalBinary(data)
 	if err != nil {
-		log.Errorf("failed to decode event")
+		log.Errorf("failed to decode event: %s", err)
 		return
 	}
 	offset += read
 
 	read, err = event.Process.UnmarshalBinary(data[offset:])
 	if err != nil {
-		log.Errorf("failed to decode process event")
+		log.Errorf("failed to decode process event: %s", err)
 		return
 	}
 	offset += read
@@ -646,7 +648,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 			Value: value,
 		}
 
-		if err = fnc(rs, p, discarder); err != nil {
+		if err = fnc(rs, event, p, discarder); err != nil {
 			return err
 		}
 	}
@@ -778,6 +780,46 @@ func (p *Probe) Snapshot() error {
 		return errors.Wrap(err, "couldn't sync mount points of the host")
 	}
 	return nil
+}
+
+func (p *Probe) discardParentInode(rs *rules.RuleSet, field eval.Field, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
+	dirname := filepath.Dir(filename)
+
+	// check that discarding the dirname we are not going to discard some value
+	// ex: rule /etc/passwd
+	//     discarder /etc/fstab
+	re, err := regexp.Compile("^" + dirname + "/.*$")
+	if err != nil {
+		return false, err
+	}
+
+	values := rs.GetFieldValues(field)
+	for _, value := range values {
+		if re.MatchString(value.Value.(string)) {
+			return false, nil
+		}
+	}
+
+	log.Debugf("Add `%s` as parent discarder", dirname)
+
+	parentMountID, parentInode, err := p.resolvers.DentryResolver.GetParent(mountID, inode)
+	if err != nil {
+		return false, err
+	}
+
+	pathKey := PathKey{mountID: parentMountID, inode: parentInode}
+	key, err := pathKey.Bytes()
+	if err != nil {
+		return false, err
+	}
+
+	var kFilter Uint8KFilter
+	table := p.Table(tableName)
+	if err := table.Set(key, kFilter.Bytes()); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // NewProbe instantiates a new runtime security agent probe

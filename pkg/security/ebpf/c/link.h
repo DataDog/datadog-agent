@@ -51,7 +51,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     syscall->link.src_key = get_key(dentry, syscall->link.target_path);
     syscall->link.target_key = get_key(syscall->link.target_dentry, syscall->link.target_path);
 
-    resolve_dentry(dentry, syscall->link.src_key);
+    resolve_dentry(dentry, syscall->link.src_key, NULL);
     return 0;
 }
 
@@ -77,7 +77,7 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key);
+    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, NULL);
 
     send_event(ctx, event);
 
