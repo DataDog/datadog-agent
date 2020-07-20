@@ -24,9 +24,9 @@ def trigger(
 
 @task
 def follow(ctx, id=None, git_ref=None, here=False):
-    if id:
+    if id is not None:
         wait_for_pipeline("DataDog/datadog-agent", id)
-    elif git_ref:
+    elif git_ref is not None:
         pipeline = Gitlab().last_pipeline_for_ref("DataDog/datadog-agent", git_ref)
         if pipeline is not None:
             wait_for_pipeline("DataDog/datadog-agent", pipeline['id'])
