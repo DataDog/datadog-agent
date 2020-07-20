@@ -3922,6 +3922,8 @@ latest_release_7:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2 --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
 
 .latest_revert_to_previous_release_7:
   rules:
@@ -3934,9 +3936,27 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
-    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest
+      --image datadog/agent-amd64:${RELEASE},linux/amd64
+      --image datadog/agent-amd64:${RELEASE}-win1809,windows/amd64
+      --image datadog/agent-amd64:${RELEASE}-win1909,windows/amd64
+      --image datadog/agent-arm64:${RELEASE},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx
+      --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64
+      --image datadog/agent-amd64:${RELEASE}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${RELEASE}-jmx-win1909,windows/amd64
+      --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7
+      --image datadog/agent-amd64:${RELEASE},linux/amd64
+      --image datadog/agent-amd64:${RELEASE}-win1809,windows/amd64
+      --image datadog/agent-amd64:${RELEASE}-win1909,windows/amd64
+      --image datadog/agent-arm64:${RELEASE},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-jmx
+      --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64
+      --image datadog/agent-amd64:${RELEASE}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${RELEASE}-jmx-win1909,windows/amd64
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
+    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:7
 
 #
 # Use this step to delete a tag of a given image
