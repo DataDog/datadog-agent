@@ -119,18 +119,8 @@ func isParentPathDiscarder(rs *rules.RuleSet, eventType eval.EventType, filename
 	return true, nil
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventType, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
-	isDiscarder, err := isParentPathDiscarder(rs, eventType, filename)
-	if !isDiscarder {
-		return false, err
-	}
-
-	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode)
-	if err != nil {
-		return false, err
-	}
-
-	pathKey := PathKey{mountID: parentMountID, inode: parentInode}
+func discardInode(probe *Probe, mountID uint32, inode uint64, tableName string) (bool, error) {
+	pathKey := PathKey{mountID: mountID, inode: inode}
 	key, err := pathKey.Bytes()
 	if err != nil {
 		return false, err
@@ -143,6 +133,20 @@ func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventTyp
 	}
 
 	return true, nil
+}
+
+func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventType, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
+	isDiscarder, err := isParentPathDiscarder(rs, eventType, filename)
+	if !isDiscarder {
+		return false, err
+	}
+
+	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode)
+	if err != nil {
+		return false, err
+	}
+
+	return discardInode(probe, parentMountID, parentInode, tableName)
 }
 
 func approveBasename(probe *Probe, tableName string, basename string) error {
