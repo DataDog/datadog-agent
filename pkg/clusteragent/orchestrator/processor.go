@@ -63,21 +63,22 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 }
 
 // chunkDeployments formats and chunks the deployments into a slice of chunks using a specific number of chunks.
-func chunkDeployments(deploys []*model.Deployment, chunks, perChunk int) [][]*model.Deployment {
-	chunked := make([][]*model.Deployment, 0, chunks)
-	chunk := make([]*model.Deployment, 0, perChunk)
+func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) [][]*model.Deployment {
+	chunks := make([][]*model.Deployment, 0, chunkCount)
 
-	for _, p := range deploys {
-		chunk = append(chunk, p)
-		if len(chunk) == perChunk {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.Deployment, 0, perChunk)
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(deploys)
 		}
+		chunks = append(chunks, deploys[chunkStart:chunkEnd])
 	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
+
+	return chunks
 }
 
 func processReplicasetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
@@ -124,19 +125,20 @@ func processReplicasetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 }
 
 // chunkReplicasets formats and chunks the replica sets into a slice of chunks using a specific number of chunks.
-func chunkReplicasets(deploys []*model.ReplicaSet, chunks, perChunk int) [][]*model.ReplicaSet {
-	chunked := make([][]*model.ReplicaSet, 0, chunks)
-	chunk := make([]*model.ReplicaSet, 0, perChunk)
+func chunkReplicasets(replicasets []*model.ReplicaSet, chunkSize, chunkCount int) [][]*model.ReplicaSet {
+	chunks := make([][]*model.ReplicaSet, 0, chunkCount)
 
-	for _, p := range deploys {
-		chunk = append(chunk, p)
-		if len(chunk) == perChunk {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.ReplicaSet, 0, perChunk)
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(replicasets)
 		}
+		chunks = append(chunks, replicasets[chunkStart:chunkEnd])
 	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
+
+	return chunks
 }

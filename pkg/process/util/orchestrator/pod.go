@@ -117,21 +117,22 @@ func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
-func chunkPods(pods []*model.Pod, chunks, perChunk int) [][]*model.Pod {
-	chunked := make([][]*model.Pod, 0, chunks)
-	chunk := make([]*model.Pod, 0, perChunk)
+func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
+	chunks := make([][]*model.Pod, 0, chunkCount)
 
-	for _, p := range pods {
-		chunk = append(chunk, p)
-		if len(chunk) == perChunk {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.Pod, 0, perChunk)
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(pods)
 		}
+		chunks = append(chunks, pods[chunkStart:chunkEnd])
 	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
+
+	return chunks
 }
 
 // extractPodMessage extracts pod info into the proto model

@@ -73,7 +73,7 @@ func TestExtractDeployment(t *testing.T) {
 						},
 						{
 							Reason:  "NewReplicaSetAvailable",
-							Message: "ReplicaSet \"orchestrator-intake-6d65b45d4d\" has successfully progressed.",
+							Message: `ReplicaSet "orchestrator-intake-6d65b45d4d" has successfully progressed.`,
 						},
 					},
 				},
@@ -103,7 +103,7 @@ func TestExtractDeployment(t *testing.T) {
 				ReadyReplicas:       2,
 				AvailableReplicas:   2,
 				UnavailableReplicas: 0,
-				ConditionMessage:    "Deployment has minimum availability.ReplicaSet \"orchestrator-intake-6d65b45d4d\" has successfully progressed.",
+				ConditionMessage:    `Deployment has minimum availability.ReplicaSet "orchestrator-intake-6d65b45d4d" has successfully progressed.`,
 			},
 		},
 		"empty deploy": {input: v1.Deployment{}, expected: model.Deployment{Metadata: &model.Metadata{}, ReplicasDesired: 1}},
@@ -116,7 +116,7 @@ func TestExtractDeployment(t *testing.T) {
 				Spec: v1.DeploymentSpec{
 					MinReadySeconds: 600,
 					Strategy: v1.DeploymentStrategy{
-						Type: v1.DeploymentStrategyType("Recreate"),
+						Type: v1.DeploymentStrategyType("RollingUpdate"),
 					},
 				},
 			}, expected: model.Deployment{
@@ -125,7 +125,7 @@ func TestExtractDeployment(t *testing.T) {
 					Name:      "deploy",
 					Namespace: "namespace",
 				},
-				DeploymentStrategy: "Recreate",
+				DeploymentStrategy: "RollingUpdate",
 			},
 		},
 	}

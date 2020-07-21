@@ -26,9 +26,13 @@ func extractDeployment(d *v1.Deployment) *model.Deployment {
 	}
 	deploy.Paused = d.Spec.Paused
 	deploy.DeploymentStrategy = string(d.Spec.Strategy.Type)
-	if deploy.DeploymentStrategy == "RollingUpdate" {
-		deploy.MaxUnavailable = d.Spec.Strategy.RollingUpdate.MaxUnavailable.StrVal
-		deploy.MaxSurge = d.Spec.Strategy.RollingUpdate.MaxSurge.StrVal
+	if deploy.DeploymentStrategy == "RollingUpdate" && d.Spec.Strategy.RollingUpdate != nil {
+		if d.Spec.Strategy.RollingUpdate.MaxUnavailable != nil {
+			deploy.MaxUnavailable = d.Spec.Strategy.RollingUpdate.MaxUnavailable.StrVal
+		}
+		if d.Spec.Strategy.RollingUpdate.MaxSurge != nil {
+			deploy.MaxSurge = d.Spec.Strategy.RollingUpdate.MaxSurge.StrVal
+		}
 	}
 	if d.Spec.Selector != nil {
 		deploy.Selectors = extractLabelSelector(d.Spec.Selector)
