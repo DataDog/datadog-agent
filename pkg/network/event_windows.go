@@ -108,11 +108,11 @@ func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 	}
 
 	cs := ConnectionStats{
-		Source:             srcAddr,
-		Dest:               dstAddr,
+		Source: srcAddr,
+		Dest:   dstAddr,
 		// after lengthy discussion, use the transport bytes in/out.  monotonic
 		// RecvBytes/SentBytes includes the size of the IP header and transport
-		// header, transportBytes is the raw transport data.  At present, 
+		// header, transportBytes is the raw transport data.  At present,
 		// the linux probe only reports the raw transport data.  So do that.
 		MonotonicSentBytes: uint64(flow.transportBytesOut),
 		MonotonicRecvBytes: uint64(flow.transportBytesIn),
