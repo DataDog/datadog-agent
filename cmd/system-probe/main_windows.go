@@ -5,9 +5,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"time"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"

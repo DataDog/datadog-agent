@@ -581,8 +581,8 @@ dogstatsd_mapper_profiles:
 			},
 			expectedSamples: []MetricSample{
 				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
-				{Name: "test.job.duration.my_job_type.my_job_name", Tags: []string{"some:tag"}, Mtype: metrics.GaugeType, Value: 666.0},
-				{Name: "test.job.duration.my_job_type.my_job_name", Tags: []string{"some:tag", "more:tags"}, Mtype: metrics.GaugeType, Value: 666.0},
+				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name", "some:tag"}, Mtype: metrics.GaugeType, Value: 666.0},
+				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name", "some:tag", "more:tags"}, Mtype: metrics.GaugeType, Value: 666.0},
 			},
 			expectedCacheSize: 1000,
 		},

@@ -7,10 +7,16 @@ package stats
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+)
+
+const (
+	// defaultCalculatorSpanCapacity specifies the maximum trace size in spans that the calculator
+	// can process without re-allocating.
+	defaultCalculatorSpanCapacity = 10000
 )
 
 // SublayerValue is just a span-metric placeholder for a given sublayer val
@@ -34,6 +40,167 @@ func (v SublayerValue) GoString() string {
 	return v.String()
 }
 
+// spanState holds the state of span at a given timestamp in a trace.
+type spanState struct {
+	// open is true if the span has started, but hasn't ended yet.
+	open bool
+	// nOpenChildren is the number of direct children spans that are currently open
+	nOpenChildren int
+	// active is true if the span is open and has no open children.
+	active bool
+	// execDuration is the sum of the execution durations for the span since the start of the trace.
+	// For each period where the span is active, its Exec Duration increases by periodDuration/numberOfActiveSpans
+	//     so if a span is active during 20ms, in parallel with another span active at the same time, its exec duration will be 10ms
+	execDuration float64
+	// activationExecTime is the execTime of a trace at the time the span was activated.
+	// When the span is deactivated, we increase the execDuration of the span by currentExecTime - activationExecTime
+	activationExecTime float64
+}
+
+// activate activates a span and saves the given trace execution time at activation.
+func (s *spanState) activate(execTime float64) {
+	s.active = true
+	s.activationExecTime = execTime
+}
+
+// deactivate marks a span as having become inactive at the given execution time.
+func (s *spanState) deactivate(execTime float64) {
+	s.active = false
+	s.execDuration += execTime - s.activationExecTime
+}
+
+// SublayerCalculator holds arrays used to compute sublayer metrics.
+// Re-using its fields between calls by sharing the same instance reduces allocations.
+// A sublayer metric is the execution duration of a given type / service in a trace
+// The metrics generated are detailed here: https://docs.datadoghq.com/tracing/guide/metrics_namespace/#duration-by
+type SublayerCalculator struct {
+	// spanStates holds the state of each span as the computeExecDurations traverses all the sorted timestamps of a trace.
+	// It is indexed by the span index in the trace (for eg, spanState[0].open == true means that the first span of the trace is open)
+	spanStates []spanState
+	// timestamps are the sorted timestamps (starts and ends of each span) of a trace
+	timestamps []timestamp
+}
+
+// NewSublayerCalculator returns a new SublayerCalculator.
+func NewSublayerCalculator() *SublayerCalculator {
+	s := &SublayerCalculator{}
+	s.reset(defaultCalculatorSpanCapacity)
+	return s
+}
+
+// reset clears structures of the sublayer calculator to prepare the computation of sublayer metrics for a trace with max n spans.
+// if the capacity of the calculator is too small, it re-allocates new arrays
+func (s *SublayerCalculator) reset(n int) {
+	if n > len(s.spanStates) {
+		s.spanStates = make([]spanState, n)
+		s.timestamps = make([]timestamp, 2*n)
+	}
+	for i := 0; i < n; i++ {
+		s.spanStates[i].open = false
+		s.spanStates[i].nOpenChildren = 0
+		s.spanStates[i].active = false
+		s.spanStates[i].execDuration = 0
+	}
+}
+
+// timestamp stores a point in time where a span might have started or ended.
+// It contains additionally information such as its own and its parent's indexes
+// in a SublayerCalculator.
+type timestamp struct {
+	// spanStart specifies whether this timestamp is the start of a span.
+	spanStart bool
+	// spanIdx specifies the index of the span in the SublayerCalculator.
+	spanIdx int
+	// parentIdx specifies the index of this span's parent in the SublayerCalculator.
+	parentIdx int
+	// ts is the actual timestamp, as given by (time.Time).UnixNano()
+	ts int64
+}
+
+// sortableTimestamps implements sort.Sort on top of a slice of timestamps.
+type sortableTimestamps []timestamp
+
+func (t sortableTimestamps) Len() int      { return len(t) }
+func (t sortableTimestamps) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t sortableTimestamps) Less(i, j int) bool {
+	return t[i].ts < t[j].ts || (t[i].ts == t[j].ts && t[i].spanStart && !t[j].spanStart)
+}
+
+// computeExecDuration computes the exec duration of each span in the trace
+//
+// The algorithm consists of 3 steps:
+// 1. Build the mapping from span ID --> span Index
+// 2. Build the array of timestamps to consider (the start and ends of each span) and sort the array
+// 3. Traverse the timestamps, and build the execution duration of each span during the traversal.
+//    For each timestamp:
+//    - Increase the trace exec duration by (previousPeriodDuration / numberOfActiveSpans)
+//    - Update the span states
+func (s *SublayerCalculator) computeExecDurations(trace pb.Trace) {
+	// Step 1: Build the mapping spanID --> spanIdx
+	idToIdx := make(map[uint64]int, len(trace))
+	for idx, span := range trace {
+		idToIdx[span.SpanID] = idx
+	}
+
+	// Step 2: Build all trace timestamps and sort them
+	for i, span := range trace {
+		parentIdx := -1
+		if idx, ok := idToIdx[span.ParentID]; ok {
+			parentIdx = idx
+		}
+		s.timestamps[2*i] = timestamp{spanStart: true, spanIdx: i, parentIdx: parentIdx, ts: span.Start}
+		s.timestamps[2*i+1] = timestamp{spanStart: false, spanIdx: i, parentIdx: parentIdx, ts: span.Start + span.Duration}
+	}
+	sort.Sort(sortableTimestamps(s.timestamps[:2*len(trace)]))
+
+	// Step 3: Compute the execution duration of each span
+	state := s.spanStates
+	// execTime is the execution time since the start of the trace.
+	execTime := float64(0)
+	nActiveSpans := 0
+	for j := 0; j < len(trace)*2; j++ {
+		tp := s.timestamps[j]
+		if nActiveSpans > 0 {
+			execTime += float64(tp.ts-s.timestamps[j-1].ts) / float64(nActiveSpans)
+		}
+		if tp.spanStart {
+			// a span opens here
+			if tp.parentIdx != -1 {
+				// which has a parent
+				if state[tp.parentIdx].active {
+					// deactivate the parent
+					state[tp.parentIdx].deactivate(execTime)
+					nActiveSpans--
+				}
+				state[tp.parentIdx].nOpenChildren++
+			}
+			state[tp.spanIdx].open = true
+			if state[tp.spanIdx].nOpenChildren == 0 && !state[tp.spanIdx].active {
+				// activate the span
+				state[tp.spanIdx].activate(execTime)
+				nActiveSpans++
+			}
+		} else {
+			// a span closes
+			state[tp.spanIdx].open = false
+			if state[tp.spanIdx].active {
+				// deactivate the span
+				state[tp.spanIdx].deactivate(execTime)
+				nActiveSpans--
+			}
+			if tp.parentIdx != -1 {
+				// which has a parent
+				state[tp.parentIdx].nOpenChildren--
+				if state[tp.parentIdx].open && state[tp.parentIdx].nOpenChildren == 0 && !state[tp.parentIdx].active {
+					// reactivate the parent
+					state[tp.parentIdx].activate(execTime)
+					nActiveSpans++
+				}
+			}
+		}
+	}
+}
+
 // ComputeSublayers extracts sublayer values by type and service for a trace
 //
 // Description of the algorithm, with the following trace as an example:
@@ -46,48 +213,29 @@ func (v SublayerValue) GoString() string {
 //       <-5------------------->
 //                         <--6-------------------->
 //                                             <-7------------->
-// 1: service=web-server, type=web,   parent=nil
-// 2: service=pg,         type=db,    parent=1
-// 3: service=render,     type=web,   parent=1
-// 4: service=pg-read,    type=db,    parent=2
-// 5: service=redis,      type=cache, parent=1
-// 6: service=rpc1,       type=rpc,   parent=1
-// 7: service=alert,      type=rpc,   parent=6
+// id 1: service=web-server, type=web,   parent=nil
+// id 2: service=pg,         type=db,    parent=1
+// id 3: service=render,     type=web,   parent=1
+// id 4: service=pg-read,    type=db,    parent=2
+// id 5: service=redis,      type=cache, parent=1
+// id 6: service=rpc1,       type=rpc,   parent=1
+// id 7: service=alert,      type=rpc,   parent=6
 //
-// Step 1: Find all time intervals to consider (set of start/end time
-//         of spans):
-//
-//         [0, 10, 15, 20, 50, 60, 70, 80, 110, 120, 130, 150]
-//
-// Step 2: Map each time intervals to a set of "active" spans. A span
-//         is considered active for a given time interval if it has no
-//         direct child span at that time interval. This is done by
-//         iterating over the spans, iterating over each time
-//         intervals, and checking if the span has a child running
-//         during that time interval. If not, it is considered active:
+// Step 1: Compute the exec duration of each span of the trace.
+// For a period of time when a span is active, the exec duration is defined as: periodDuration / numberOfActiveSpans during that period
 //
 //         {
-//             0: [ 1 ],
-//             10: [ 2 ],
-//             15: [ 2, 5 ],
-//             20: [ 4, 5 ],
+//             spanID 1: 10/1 (between tp 0 and 10) + 10/2 (between tp 120 and 130) = 15,
 //             ...
-//             110: [ 7 ],
-//             120: [ 1, 7 ],
-//             130: [ 7 ],
-//             150: [],
+//             spanID 7: 10/2 (between tp 110 and 120) + 10/2 (between tp 120 and 130) + 20/1 (between tp 130 and 150),
 //         }
 //
-// Step 4: Build a service and type duration mapping by:
-//         1. iterating over each time intervals
-//         2. computing the time interval duration portion (time
-//            interval duration / number of active spans)
-//         3. iterate over each active span of that time interval
-//         4. add to the active span's type and service duration the
+// Step 2: Build a service and type duration mapping by:
+//         1. iterating over each span
+//         2. add to the span's type and service duration the
 //            duration portion
-//
 //         {
-//             web-server: 10,
+//             web-server: 15,
 //             render: 15,
 //             pg: 12.5,
 //             pg-read: 15,
@@ -101,15 +249,14 @@ func (v SublayerValue) GoString() string {
 //             db: 55,
 //             rpc: 55,
 //         }
-func ComputeSublayers(trace pb.Trace) []SublayerValue {
-	timestamps := buildTraceTimestamps(trace)
-	activeSpans := buildTraceActiveSpansMapping(trace, timestamps)
-
-	durationsByService := computeDurationByAttr(
-		timestamps, activeSpans, func(s *pb.Span) string { return s.Service },
+func (s *SublayerCalculator) ComputeSublayers(trace pb.Trace) []SublayerValue {
+	s.reset(len(trace))
+	s.computeExecDurations(trace)
+	durationsByService := s.computeDurationByAttr(
+		trace, func(s *pb.Span) string { return s.Service },
 	)
-	durationsByType := computeDurationByAttr(
-		timestamps, activeSpans, func(s *pb.Span) string { return s.Type },
+	durationsByType := s.computeDurationByAttr(
+		trace, func(s *pb.Span) string { return s.Type },
 	)
 
 	// Generate sublayers values
@@ -121,7 +268,7 @@ func ComputeSublayers(trace pb.Trace) []SublayerValue {
 		values = append(values, SublayerValue{
 			Metric: "_sublayers.duration.by_service",
 			Tag:    Tag{"sublayer_service", service},
-			Value:  float64(int64(duration)),
+			Value:  math.Round(duration),
 		})
 	}
 
@@ -129,7 +276,7 @@ func ComputeSublayers(trace pb.Trace) []SublayerValue {
 		values = append(values, SublayerValue{
 			Metric: "_sublayers.duration.by_type",
 			Tag:    Tag{"sublayer_type", spanType},
-			Value:  float64(int64(duration)),
+			Value:  math.Round(duration),
 		})
 	}
 
@@ -141,117 +288,19 @@ func ComputeSublayers(trace pb.Trace) []SublayerValue {
 	return values
 }
 
-// int64Slice is used by buildTraceTimestamps as a sortable slice of
-// int64
-type int64Slice []int64
-
-func (a int64Slice) Len() int           { return len(a) }
-func (a int64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a int64Slice) Less(i, j int) bool { return a[i] < a[j] }
-
-// buildTraceTimestamps returns the timestamps of a trace, i.e the set
-// of start/end times of each spans
-func buildTraceTimestamps(trace pb.Trace) []int64 {
-	tsSet := make(map[int64]struct{}, 2*len(trace))
-
-	for _, span := range trace {
-		start, end := span.Start, span.Start+span.Duration
-		tsSet[start] = struct{}{}
-		tsSet[end] = struct{}{}
-	}
-
-	timestamps := make(int64Slice, 0, len(tsSet))
-	for ts := range tsSet {
-		timestamps = append(timestamps, ts)
-	}
-
-	sort.Sort(timestamps)
-	return timestamps
-}
-
-// activeSpansMap is used by buildTraceActiveSpansMapping and is just
-// a map with a add function setting the key to the empty slice of no
-// entry exists
-type activeSpansMap map[int64][]*pb.Span
-
-func (a activeSpansMap) Add(ts int64, span *pb.Span) {
-	if _, ok := a[ts]; !ok {
-		a[ts] = make([]*pb.Span, 0, 1)
-	}
-	a[ts] = append(a[ts], span)
-}
-
-// buildTraceActiveSpansMapping returns a mapping from timestamps to
-// a set of active spans
-func buildTraceActiveSpansMapping(trace pb.Trace, timestamps []int64) map[int64][]*pb.Span {
-	activeSpans := make(activeSpansMap, len(timestamps))
-
-	tsToIdx := make(map[int64]int, len(timestamps))
-	for i, ts := range timestamps {
-		tsToIdx[ts] = i
-	}
-
-	spanChildren := traceutil.ChildrenMap(trace)
-	for sIdx, span := range trace {
-		start, end := span.Start, span.Start+span.Duration
-		for tsIdx := tsToIdx[start]; tsIdx < tsToIdx[end]; tsIdx++ {
-			ts := timestamps[tsIdx]
-
-			// Do we have one of our child also in the
-			// current time interval?
-			hasChild := false
-			for _, child := range spanChildren[span.SpanID] {
-				start, end := child.Start, child.Start+child.Duration
-				if start <= ts && end > ts {
-					hasChild = true
-					break
-				}
-			}
-
-			if !hasChild {
-				activeSpans.Add(ts, trace[sIdx])
-			}
-		}
-	}
-
-	return activeSpans
-}
-
 // attrSelector is used by computeDurationByAttr and is a func
 // returning an attribute for a given span
 type attrSelector func(*pb.Span) string
 
-// computeDurationByAttr returns a mapping from an attribute to the
-// sum of all weighted duration of spans with that given
-// attribute. The attribute is returned by calling selector on each
-// spans
-func computeDurationByAttr(timestamps []int64, activeSpansByTs activeSpansMap, selector attrSelector) map[string]float64 {
+func (s *SublayerCalculator) computeDurationByAttr(trace pb.Trace, selector attrSelector) map[string]float64 {
 	durations := make(map[string]float64)
-
-	for i := 0; i < len(timestamps)-1; i++ {
-		start := timestamps[i]
-		end := timestamps[i+1]
-
-		activeSpans := activeSpansByTs[start]
-		if len(activeSpans) == 0 {
+	for i, span := range trace {
+		key := selector(span)
+		if key == "" {
 			continue
 		}
-
-		durationPortion := float64(end-start) / float64(len(activeSpans))
-
-		for _, span := range activeSpans {
-			key := selector(span)
-			if key == "" {
-				continue
-			}
-
-			if _, ok := durations[key]; !ok {
-				durations[key] = 0
-			}
-			durations[key] += durationPortion
-		}
+		durations[key] += s.spanStates[i].execDuration
 	}
-
 	return durations
 }
 
