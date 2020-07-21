@@ -171,7 +171,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	tempDir, hostname, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
 
 	defer os.RemoveAll(tempDir)
-	assert.Nil(t, err)
+	assert.NoError(err)
 
 	filePath, err := ZipArchive(zipFilePath, tempDir, hostname)
 	assert.NoError(err)
@@ -204,7 +204,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 	tempDir, hostname, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
 
 	defer os.RemoveAll(tempDir)
-	assert.Nil(t, err)
+	assert.NoError(err)
 
 	filePath, err := ZipArchive(zipFilePath, tempDir, hostname)
 
