@@ -198,43 +198,43 @@ func TestFilter(t *testing.T) {
 	}
 
 	for i, tc := range []struct {
-		whitelist   []string
-		blacklist   []string
+		includeList []string
+		excludeList []string
 		expectedIDs []string
 	}{
 		{
 			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
-			blacklist:   []string{"name:secret"},
+			excludeList: []string{"name:secret"},
 			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
-			blacklist:   []string{"image:secret"},
+			excludeList: []string{"image:secret"},
 			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
-			whitelist:   []string{},
-			blacklist:   []string{"image:apache", "image:alpine"},
+			includeList: []string{},
+			excludeList: []string{"image:apache", "image:alpine"},
 			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
-			whitelist:   []string{"name:mysql"},
-			blacklist:   []string{"name:dd"},
+			includeList: []string{"name:mysql"},
+			excludeList: []string{"name:dd"},
 			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
-			blacklist:   []string{"kube_namespace:.*"},
-			whitelist:   []string{"kube_namespace:foo"},
+			excludeList: []string{"kube_namespace:.*"},
+			includeList: []string{"kube_namespace:foo"},
 			expectedIDs: []string{"14"},
 		},
 		{
-			blacklist:   []string{"kube_namespace:bar"},
+			excludeList: []string{"kube_namespace:bar"},
 			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24"},
 		},
 		// Test kubernetes defaults
 		{
-			blacklist: []string{
+			excludeList: []string{
 				pauseContainerGCR,
 				pauseContainerOpenshift3,
 				pauseContainerKubernetes,
@@ -249,7 +249,7 @@ func TestFilter(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			f, err := NewFilter(tc.whitelist, tc.blacklist)
+			f, err := NewFilter(tc.includeList, tc.excludeList)
 			require.Nil(t, err, "case %d", i)
 
 			var allowed []string
