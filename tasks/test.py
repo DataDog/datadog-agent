@@ -19,6 +19,7 @@ from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .trace_agent import integration_tests as trace_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
+import copy
 
 # We use `basestring` in the code for compat with python2 unicode strings.
 # This makes the same code work in python3 as well.
@@ -421,6 +422,61 @@ class TestProfiler:
                 sorted_times = sorted_times[:limit]
             for pkg, time in sorted_times:
                 print("{}s\t{}".format(time, pkg))
+
+
+@task
+def make_simple_gitlab_yml(
+    ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
+):
+    """
+    Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
+
+    Keyword arguments:
+        jobs_to_run -- a comma separated list of jobs to execute, for example "iot_agent_rpm-arm64,iot_agent_rpm-armhf"
+        yml_file_src -- the source YAML file
+        yml_file_dest -- the destination YAML file
+        dont_include_deps -- this flag controls whether or not dependent jobs will be included in the final job list. Specify it if you only want to run the jobs listed in 'jobs_to_run'
+    """
+    with open(yml_file_src) as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    jobs_processed = set(['stages', 'variables', 'include', 'default'])
+    jobs_to_process = set(jobs_to_process.split(','))
+    while jobs_to_process:
+        job_name = jobs_to_process.pop()
+        if job_name in data:
+            job = data[job_name]
+            jobs_processed.add(job_name)
+
+            # Process dependencies
+            if not dont_include_deps:
+                needs = job.get("needs", None)
+                if needs is not None:
+                    jobs_to_process.update(needs)
+
+            # Process base jobs
+            extends = job.get("extends", None)
+            if extends is not None:
+                if isinstance(extends, str):
+                    extends = [extends]
+                jobs_to_process.update(extends)
+
+            # Delete rules that may prevent our job from running
+            if 'rules' in job:
+                del job['rules']
+            if 'except' in job:
+                del job['except']
+            if 'only' in job:
+                del job['only']
+
+    out = copy.deepcopy(data)
+    for k, _ in data.items():
+        if k not in jobs_processed:
+            del out[k]
+            continue
+
+    with open(yml_file_dest, 'w') as f:
+        yaml.dump(out, f)
 
 
 @task
