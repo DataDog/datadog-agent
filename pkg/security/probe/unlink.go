@@ -4,7 +4,6 @@ import (
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"github.com/pkg/errors"
 )
 
 // UnlinkTables - eBPF tables used by unlink's kProbes
@@ -32,10 +31,10 @@ var UnlinkHookPoints = []*HookPoint{
 				fsEvent := event.Unlink
 				table := "unlink_path_inode_discarders"
 
-				probe.discardParentInode(rs, field, discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
+				discardParentInode(probe, rs, field, discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
 
 			default:
-				return errors.New("field unknown")
+				return DiscarderNotSupported
 			}
 
 			return nil

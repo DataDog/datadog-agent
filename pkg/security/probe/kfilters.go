@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	DiscarderNotSupported = errors.New("discarder not supported for this field")
+)
+
 // FilterPolicy describes a filtering policy
 type FilterPolicy struct {
 	Mode  PolicyMode
@@ -72,3 +76,118 @@ func (k *KFilterApplier) ApplyApprovers(eventType eval.EventType, hookPoint *Hoo
 func (k *KFilterApplier) GetReport() *Report {
 	return k.reporter.GetReport()
 }
+
+func discardParentInode(probe *Probe, rs *rules.RuleSet, field eval.Field, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
+	dirname := filepath.Dir(filename)
+
+	// check that discarding the dirname we are not going to discard some value
+	// ex: rule /etc/passwd
+	//     discarder /etc/fstab
+	re, err := regexp.Compile("^" + dirname + "/.*$")
+	if err != nil {
+		return false, err
+	}
+
+	values := rs.GetFieldValues(field)
+	for _, value := range values {
+		if re.MatchString(value.Value.(string)) {
+			return false, nil
+		}
+	}
+
+	log.Debugf("Add `%s` as parent discarder", dirname)
+
+	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode)
+	if err != nil {
+		return false, err
+	}
+
+	pathKey := PathKey{mountID: parentMountID, inode: parentInode}
+	key, err := pathKey.Bytes()
+	if err != nil {
+		return false, err
+	}
+
+	var kFilter Uint8KFilter
+	table := probe.Table(tableName)
+	if err := table.Set(key, kFilter.Bytes()); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func approveBasename(probe *Probe, tableName string, basename string) error {
+	key, err := StringToKey(basename, BASENAME_FILTER_SIZE)
+	if err != nil {
+		return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
+	}
+
+	table := probe.Table(tableName)
+	if err = table.Set(key, zeroInt8); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func approveBasenames(probe *Probe, tableName string, basenames ...string) error {
+	for _, basename := range basenames {
+		if err := approveBasename(probe, tableName, basename); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setFlagsFilter(probe *Probe, tableName string, flags ...int) error {
+	var kFilter Uint32KFilter
+
+	for _, flag := range flags {
+		kFilter.value |= uint32(flag)
+	}
+
+	if kFilter.value != 0 {
+		table := probe.Table(tableName)
+		if err := table.Set(zeroInt32, kFilter.Bytes()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func approveFlags(probe *Probe, tableName string, flags ...int) error {
+	return setFlagsFilter(probe, tableName, flags...)
+}
+
+func discardFlags(probe *Probe, tableName string, flags ...int) error {
+	return setFlagsFilter(probe, tableName, flags...)
+}
+
+func approveProcessFilename(probe *Probe, tableName string, filename string) error {
+	fileinfo, err := os.Stat(filename)
+	if err != nil {
+		return err
+	}
+	stat, _ := fileinfo.Sys().(*syscall.Stat_t)
+	key := Int64ToKey(int64(stat.Ino))
+
+	var kFilter Uint8KFilter
+	table := probe.Table(tableName)
+	if err := table.Set(key, kFilter.Bytes()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func approveProcessFilenames(probe *Probe, tableName string, filenames ...string) error {
+	for _, filename := range filenames {
+		if err := approveProcessFilename(probe, tableName, filename); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+>>>>>>> 51e15ec07... Make open discarder/discarder function usable by other kprobe
