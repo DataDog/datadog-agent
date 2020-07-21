@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -22,6 +23,11 @@ import (
 )
 
 var (
+	cpuProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=120",
+		config.Datadog.GetString("expvar_port"))
+	heapProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap",
+		config.Datadog.GetString("expvar_port"))
+
 	customerEmail   string
 	autoconfirm     bool
 	forceLocal      bool
@@ -98,6 +104,14 @@ func makeFlare(caseID string) error {
 		return err
 	}
 
+	if enableProfiling {
+		fmt.Fprintln(color.Output, color.BlueString("Creating a 120s performance profile."))
+		if err := writePerformanceProfile(tempDir, hostname); err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
+			return err
+		}
+	}
+
 	zipFilePath, err := flare.ZipArchive(flare.GetArchivePath(), tempDir, hostname)
 	if err != nil {
 		return err
@@ -123,6 +137,26 @@ func makeFlare(caseID string) error {
 	if e != nil {
 		return e
 	}
+	return nil
+}
+
+func writePerformanceProfile(tempDir, hostname string) error {
+	// Two heap profiles for diff
+	err := flare.WriteHTTPCallContent(tempDir, hostname, "heap.profile", heapProfURL, time.Second*4)
+	if err != nil {
+		return err
+	}
+
+	err = flare.WriteHTTPCallContent(tempDir, hostname, "cpu.profile", cpuProfURL, time.Second*124)
+	if err != nil {
+		return err
+	}
+
+	err = flare.WriteHTTPCallContent(tempDir, hostname, "heap.profile", heapProfURL, time.Second*4)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

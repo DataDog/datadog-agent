@@ -105,6 +105,42 @@ func ZipArchive(zipFilePath, tempDir, hostname string) (string, error) {
 	return zipFilePath, nil
 }
 
+// WriteHTTPCallContent does a GET HTTP call to the given url and
+// writes the content of the HTTP response in the given file, ready
+// to be shipped in a flare.
+func WriteHTTPCallContent(tempDir, hostname, filename, url string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	f := filepath.Join(tempDir, hostname, filename)
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = io.Copy(w, resp.Body)
+
+	return err
+}
+
 // CreateArchive packages up the files
 func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, string, error) {
 	confSearchPaths := SearchPaths{
@@ -717,47 +753,11 @@ func writeInstallInfo(tempDir, hostname string) error {
 }
 
 func writeTelemetry(tempDir, hostname string) error {
-	return writeHTTPCallContent(tempDir, hostname, "telemetry.log", telemetryURL)
+	return WriteHTTPCallContent(tempDir, hostname, "telemetry.log", telemetryURL, time.Second*4)
 }
 
 func writeStackTraces(tempDir, hostname string) error {
-	return writeHTTPCallContent(tempDir, hostname, routineDumpFilename, pprofURL)
-}
-
-// writeHTTPCallContent does a GET HTTP call to the given url and
-// writes the content of the HTTP response in the given file, ready
-// to be shipped in a flare.
-func writeHTTPCallContent(tempDir, hostname, filename, url string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-
-	client := http.Client{}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := client.Do(req.WithContext(ctx))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	f := filepath.Join(tempDir, hostname, filename)
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	w, err := newRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	_, err = io.Copy(w, resp.Body)
-
-	return err
+	return WriteHTTPCallContent(tempDir, hostname, routineDumpFilename, pprofURL, time.Second*4)
 }
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
