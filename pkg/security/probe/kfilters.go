@@ -1,71 +1,61 @@
 package probe
 
 import (
-	"bytes"
-	"encoding/binary"
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type KFilter interface {
-	Bytes() []byte
-}
-
+// FilterPolicy describes a filtering policy
 type FilterPolicy struct {
 	Mode  PolicyMode
 	Flags PolicyFlag
 }
 
-func (f *FilterPolicy) Bytes() []byte {
-	return []byte{uint8(f.Mode), uint8(f.Flags)}
+// Bytes returns the binary representation of a FilterPolicy
+func (f *FilterPolicy) Bytes() ([]byte, error) {
+	return []byte{uint8(f.Mode), uint8(f.Flags)}, nil
 }
 
-type Uint8KFilter struct {
-	value uint8
+// KFilterApplier implements the Applier interface and applies passing
+// policy by setting a value in a single entry eBPF array
+type KFilterApplier struct {
+	reporter Applier
+	probe    *Probe
 }
 
-func (k *Uint8KFilter) Bytes() []byte {
-	return []byte{k.value}
-}
-
-type Uint32KFilter struct {
-	value uint32
-}
-
-func (k *Uint32KFilter) Bytes() []byte {
-	b := make([]byte, 4)
-	byteOrder.PutUint32(b, k.value)
-	return b
-}
-
-type Uint64KFilter struct {
-	value uint64
-}
-
-func (k *Uint64KFilter) Bytes() []byte {
-	b := make([]byte, 8)
-	byteOrder.PutUint64(b, k.value)
-	return b
-}
-
-func StringToKey(str string, size int) ([]byte, error) {
-	n := size
-	if len(str) < size {
-		n = len(str)
+func (k *KFilterApplier) setFilterPolicy(tableName string, mode PolicyMode, flags PolicyFlag) error {
+	table := k.probe.Table(tableName)
+	if table == nil {
+		return fmt.Errorf("unable to find policy table `%s`", tableName)
 	}
 
-	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, byteOrder, []byte(str)[0:n]); err != nil {
-		return nil, err
+	policy := &FilterPolicy{
+		Mode:  mode,
+		Flags: flags,
 	}
-	rep := make([]byte, size)
-	copy(rep, buffer.Bytes())
-	return rep, nil
+
+	return table.Set(ebpf.ZeroUint32TableItem, policy)
 }
 
-func Int64ToKey(i int64) []byte {
-	b := make([]byte, 8)
-	byteOrder.PutUint64(b, uint64(i))
-	return b
+// ApplyFilterPolicy is called when a passing policy for an event type is applied
+func (k *KFilterApplier) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
+	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
+
+	k.reporter.ApplyFilterPolicy(eventType, tableName, mode, flags)
+	return k.setFilterPolicy(tableName, mode, flags)
 }
 
-var zeroInt32 = []byte{0, 0, 0, 0}
-var zeroInt8 = []byte{0}
+// ApplyApprovers applies approvers
+func (k *KFilterApplier) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
+	k.reporter.ApplyApprovers(eventType, hookPoint, approvers)
+	return hookPoint.OnNewApprovers(k.probe, approvers)
+}
+
+// GetReport returns the report
+func (k *KFilterApplier) GetReport() *Report {
+	return k.reporter.GetReport()
+}

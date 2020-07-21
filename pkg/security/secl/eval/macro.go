@@ -88,8 +88,8 @@ func (m *Macro) GenEvaluator(model Model, opts *Opts) error {
 
 	evaluator, err := macroToEvaluator(m.ast, model, opts, "")
 	if err != nil {
-		if err, ok := err.(*AstToEvalError); ok {
-			return errors.Wrap(&RuleParseError{pos: err.Pos, expr: m.Expression}, "macro syntax error")
+		if err, ok := err.(*ErrAstToEval); ok {
+			return errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: m.Expression}, "macro syntax error")
 		}
 		return errors.Wrap(err, "macro compilation error")
 	}

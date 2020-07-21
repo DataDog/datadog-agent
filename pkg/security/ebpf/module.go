@@ -9,6 +9,7 @@ import (
 	bpflib "github.com/iovisor/gobpf/elf"
 )
 
+// ErrEBPFNotSupported is returned when eBPF is not enabled/supported on the host
 var ErrEBPFNotSupported = errors.New("eBPF is not supported")
 
 // Module represents an eBPF module

@@ -48,7 +48,7 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 func patternToRegexp(pattern string) (*regexp.Regexp, error) {
 	// only accept suffix wilcard, ex: /etc/* or /etc/*.conf
 	if matched, err := regexp.Match(`\*.*/`, []byte(pattern)); err != nil || matched {
-		return nil, &InvalidPattern{Pattern: pattern}
+		return nil, &ErrInvalidPattern{Pattern: pattern}
 	}
 
 	// quote eveything except wilcard

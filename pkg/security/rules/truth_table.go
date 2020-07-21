@@ -100,7 +100,7 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 			case reflect.Bool:
 				value = false
 			default:
-				return nil, &FieldTypeUnknown{Field: field}
+				return nil, &ErrFieldTypeUnknown{Field: field}
 			}
 
 			filterValues = append(filterValues, FilterValues{
@@ -129,7 +129,7 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 
 				notValue, err := notOfValue(fValue.Value)
 				if err != nil {
-					return nil, &ValueTypeUnknown{Field: field}
+					return nil, &ErrValueTypeUnknown{Field: field}
 				}
 
 				values = append(values, FilterValue{

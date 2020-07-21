@@ -10,10 +10,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// EventServer represents a gRPC server in charge of receiving events sent by
+// the runtime security system-probe module and forwards them to Datadog
 type EventServer struct {
 	msgs chan *api.SecurityEventMessage
 }
 
+// GetEvents waits for security events
 func (e *EventServer) GetEvents(params *api.GetParams, stream api.SecurityModule_GetEventsServer) error {
 	msgs := 10
 LOOP:
@@ -34,6 +37,7 @@ LOOP:
 	return nil
 }
 
+// SendEvent forwards events sent by the runtime security module to Datadog
 func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	data, err := json.Marshal(rules.RuleEvent{Event: event, RuleID: rule.ID})
 	if err != nil {
@@ -58,6 +62,7 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	}
 }
 
+// NewEventServer returns a new gRPC event server
 func NewEventServer() *EventServer {
 	return &EventServer{
 		msgs: make(chan *api.SecurityEventMessage, 5),

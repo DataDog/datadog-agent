@@ -6,15 +6,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+// RuleBucket groups rules with the same event type
 type RuleBucket struct {
 	rules  []*eval.Rule
 	fields []eval.Field
 }
 
+// AddRule adds a rule to the bucket
 func (rb *RuleBucket) AddRule(rule *eval.Rule) error {
 	for _, r := range rb.rules {
 		if r.ID == rule.ID {
-			return DuplicateRuleID{ID: r.ID}
+			return ErrDuplicateRuleID{ID: r.ID}
 		}
 	}
 
@@ -32,6 +34,7 @@ func (rb *RuleBucket) AddRule(rule *eval.Rule) error {
 	return nil
 }
 
+// GetRules returns the bucket rules
 func (rb *RuleBucket) GetRules() []*eval.Rule {
 	return rb.rules
 }
@@ -62,6 +65,7 @@ func fieldCombinations(fields []eval.Field) FieldCombinations {
 	return result
 }
 
+// GetApprovers returns the approvers for an event
 func (rb *RuleBucket) GetApprovers(model eval.Model, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	fcs := fieldCombinations(fieldCaps.GetFields())
 
@@ -81,7 +85,7 @@ func (rb *RuleBucket) GetApprovers(model eval.Model, event eval.Event, fieldCaps
 		}
 
 		if ruleApprovers == nil || len(ruleApprovers) == 0 || !fieldCaps.Validate(ruleApprovers) {
-			return nil, &NoApprover{Fields: fieldCaps.GetFields()}
+			return nil, &ErrNoApprover{Fields: fieldCaps.GetFields()}
 		}
 		for field, values := range ruleApprovers {
 			approvers[field] = approvers[field].Merge(values)

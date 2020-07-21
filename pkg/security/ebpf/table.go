@@ -61,6 +61,7 @@ func (t *Table) Delete(key []byte) error {
 // BytesTableItem describes a raw table key or value
 type BytesTableItem []byte
 
+// Bytes returns the binary representation of a BytesTableItem
 func (i BytesTableItem) Bytes() ([]byte, error) {
 	return []byte(i), nil
 }

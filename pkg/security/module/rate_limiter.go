@@ -17,23 +17,28 @@ const (
 	defaultBurst int = 40
 )
 
+// RuleLimiter describes an object that applies limits on
+// the rate of triggering of a rule to ensure we don't overflow
+// with too permissive rules
 type RuleLimiter struct {
 	limiter *rate.Limiter
 	dropped int64
 	allowed int64
 }
 
+// NewRuleLimiter returns a new rule limiter
 func NewRuleLimiter(limit rate.Limit, burst int) *RuleLimiter {
 	return &RuleLimiter{
 		limiter: rate.NewLimiter(limit, burst),
 	}
 }
 
+// RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
 	limiters map[string]*RuleLimiter
 }
 
-// NewRateLimiter - Initializes an empty rate limiter
+// NewRateLimiter initializes an empty rate limiter
 func NewRateLimiter(ids []string) *RateLimiter {
 	limiters := make(map[string]*RuleLimiter)
 	for _, id := range ids {
@@ -44,7 +49,7 @@ func NewRateLimiter(ids []string) *RateLimiter {
 	}
 }
 
-// Allow - Returns true if a specific rule shall be allowed to sent a new event
+// Allow returns true if a specific rule shall be allowed to sent a new event
 func (rl *RateLimiter) Allow(ruleID string) bool {
 	ruleLimiter, ok := rl.limiters[ruleID]
 	if !ok {
@@ -58,17 +63,18 @@ func (rl *RateLimiter) Allow(ruleID string) bool {
 	return false
 }
 
-type rateLimiterStat struct {
+// RateLimiterStat represents the rate limiting statistics
+type RateLimiterStat struct {
 	dropped int64
 	allowed int64
 }
 
-// GetStats - Returns a map indexed by ruleIDs that describes the amount of events that were dropped because of the rate
-// limiter
-func (rl *RateLimiter) GetStats() map[string]rateLimiterStat {
-	stats := make(map[string]rateLimiterStat)
+// GetStats returns a map indexed by ruleIDs that describes the amount of events
+// that were dropped because of the rate limiter
+func (rl *RateLimiter) GetStats() map[string]RateLimiterStat {
+	stats := make(map[string]RateLimiterStat)
 	for ruleID, ruleLimiter := range rl.limiters {
-		stats[ruleID] = rateLimiterStat{
+		stats[ruleID] = RateLimiterStat{
 			dropped: atomic.SwapInt64(&ruleLimiter.dropped, 0),
 			allowed: atomic.SwapInt64(&ruleLimiter.allowed, 0),
 		}
@@ -76,6 +82,8 @@ func (rl *RateLimiter) GetStats() map[string]rateLimiterStat {
 	return stats
 }
 
+// SendStats sends statistics about the number of sent and drops events
+// for the set of rules
 func (rl *RateLimiter) SendStats(client *statsd.Client) error {
 	for ruleID, counts := range rl.GetStats() {
 		if err := client.Count(probe.MetricPrefix+".rules."+ruleID+".rate_limiter.drop", counts.dropped, nil, 1.0); err != nil {

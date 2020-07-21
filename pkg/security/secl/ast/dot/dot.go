@@ -19,32 +19,33 @@ func newNode(id, label string) *node {
 	return &node{id: id, label: label}
 }
 
-type DotMarshaler struct {
+// Marshaler converts a rule to the DOT format
+type Marshaler struct {
 	w io.Writer
 }
 
-func (d *DotMarshaler) WriteString(s string) {
+func (d *Marshaler) writeString(s string) {
 	io.WriteString(d.w, s)
 }
 
-func (d *DotMarshaler) WriteNode(node interface{}) error {
-	id, err := d.GetID(node)
+func (d *Marshaler) writeNode(node interface{}) error {
+	id, err := d.getID(node)
 	if err != nil {
 		return err
 	}
-	d.WriteString(id + "[label=\"" + d.GetLabel(node) + "\"]\n")
+	d.writeString(id + "[label=\"" + d.getLabel(node) + "\"]\n")
 
-	children, err := d.GetChildren(node)
+	children, err := d.getChildren(node)
 	if err != nil {
 		return err
 	}
 
 	for _, child := range children {
-		if err := d.WriteEdge(node, child); err != nil {
+		if err := d.writeEdge(node, child); err != nil {
 			return err
 		}
 
-		if err := d.WriteNode(child); err != nil {
+		if err := d.writeNode(child); err != nil {
 			return err
 		}
 	}
@@ -52,23 +53,23 @@ func (d *DotMarshaler) WriteNode(node interface{}) error {
 	return nil
 }
 
-func (d *DotMarshaler) WriteEdge(parent, child interface{}) error {
-	parentID, err := d.GetID(parent)
+func (d *Marshaler) writeEdge(parent, child interface{}) error {
+	parentID, err := d.getID(parent)
 	if err != nil {
 		return err
 	}
 
-	childID, err := d.GetID(child)
+	childID, err := d.getID(child)
 	if err != nil {
 		return err
 	}
 
-	d.WriteString(parentID + " -> " + childID + "\n")
+	d.writeString(parentID + " -> " + childID + "\n")
 
 	return nil
 }
 
-func (d *DotMarshaler) GetID(n interface{}) (string, error) {
+func (d *Marshaler) getID(n interface{}) (string, error) {
 	switch n := n.(type) {
 	case *ast.Rule:
 		return fmt.Sprintf("Rule%d", n.Pos.Offset), nil
@@ -97,7 +98,7 @@ func (d *DotMarshaler) GetID(n interface{}) (string, error) {
 	}
 }
 
-func (d *DotMarshaler) GetLabel(n interface{}) string {
+func (d *Marshaler) getLabel(n interface{}) string {
 	switch n := n.(type) {
 	case *node:
 		return n.label
@@ -107,7 +108,7 @@ func (d *DotMarshaler) GetLabel(n interface{}) string {
 	}
 }
 
-func (d *DotMarshaler) GetChildren(n interface{}) ([]interface{}, error) {
+func (d *Marshaler) getChildren(n interface{}) ([]interface{}, error) {
 	switch n := n.(type) {
 	case *ast.Rule:
 		return []interface{}{n.BooleanExpression}, nil
@@ -200,15 +201,17 @@ func (d *DotMarshaler) GetChildren(n interface{}) ([]interface{}, error) {
 	}
 }
 
-func (d *DotMarshaler) MarshalRule(r *ast.Rule) error {
-	d.WriteString("digraph {\n")
-	if err := d.WriteNode(r.BooleanExpression); err != nil {
+// MarshalRule marshals the AST of a rule to DOT format
+func (d *Marshaler) MarshalRule(r *ast.Rule) error {
+	d.writeString("digraph {\n")
+	if err := d.writeNode(r.BooleanExpression); err != nil {
 		return err
 	}
-	d.WriteString("}\n")
+	d.writeString("}\n")
 	return nil
 }
 
-func NewDotMarshaler(w io.Writer) *DotMarshaler {
-	return &DotMarshaler{w: w}
+// NewMarshaler returns a new rule DOT marshaler
+func NewMarshaler(w io.Writer) *Marshaler {
+	return &Marshaler{w: w}
 }

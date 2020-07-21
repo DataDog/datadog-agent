@@ -31,7 +31,7 @@ type RuleEvaluator struct {
 	partialEvals map[Field]func(ctx *Context) bool
 }
 
-// PartialEval - Partiel evaluation of the Rule with the given Field.
+// PartialEval partially evaluation of the Rule with the given Field.
 func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	eval, ok := r.partialEvals[field]
 	if !ok {
@@ -163,8 +163,8 @@ func (r *Rule) GenEvaluator(model Model, opts *Opts) error {
 
 	evaluator, err := ruleToEvaluator(r.ast, model, opts)
 	if err != nil {
-		if err, ok := err.(*AstToEvalError); ok {
-			return errors.Wrap(&RuleParseError{pos: err.Pos, expr: r.Expression}, "rule syntax error")
+		if err, ok := err.(*ErrAstToEval); ok {
+			return errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: r.Expression}, "rule syntax error")
 		}
 		return errors.Wrap(err, "rule compilation error")
 	}
@@ -182,8 +182,8 @@ func (r *Rule) genMacroPartials() (map[Field]map[MacroID]*MacroEvaluator, error)
 			// will be generated another way
 			evaluator, err := macroToEvaluator(macro.ast, r.Model, r.Opts, field)
 			if err != nil {
-				if err, ok := err.(*AstToEvalError); ok {
-					return nil, errors.Wrap(&RuleParseError{pos: err.Pos, expr: macro.Expression}, "macro syntax error")
+				if err, ok := err.(*ErrAstToEval); ok {
+					return nil, errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: macro.Expression}, "macro syntax error")
 				}
 				return nil, errors.Wrap(err, "macro compilation error")
 			}

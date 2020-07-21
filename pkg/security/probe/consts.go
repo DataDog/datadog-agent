@@ -1,18 +1,18 @@
 package probe
 
 import (
-	"encoding/binary"
 	"syscall"
-	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-type ProbeEventType uint64
+// EventType describes the type of an event sent from the kernel
+type EventType uint64
 
 const (
 	// FileOpenEventType - File open event
-	FileOpenEventType ProbeEventType = iota + 1
+	FileOpenEventType EventType = iota + 1
 	// FileMkdirEventType - Folder creation event
 	FileMkdirEventType
 	// FileLinkEventType - Hard link creation event
@@ -37,7 +37,7 @@ const (
 	maxEventType
 )
 
-func (t ProbeEventType) String() string {
+func (t EventType) String() string {
 	switch t {
 	case FileOpenEventType:
 		return "open"
@@ -66,6 +66,7 @@ func (t ProbeEventType) String() string {
 }
 
 var (
+	// SECLConstants are constants available in runtime security agent rules
 	SECLConstants = map[string]interface{}{
 		// boolean
 		"true":  &eval.BoolEvaluator{Value: true},
@@ -246,20 +247,4 @@ var (
 	}
 )
 
-func getHostByteOrder() binary.ByteOrder {
-	var i int32 = 0x01020304
-	u := unsafe.Pointer(&i)
-	pb := (*byte)(u)
-	b := *pb
-	if b == 0x04 {
-		return binary.LittleEndian
-	}
-
-	return binary.BigEndian
-}
-
-var byteOrder binary.ByteOrder
-
-func init() {
-	byteOrder = getHostByteOrder()
-}
+var byteOrder = ebpf.ByteOrder

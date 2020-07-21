@@ -12,35 +12,38 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
-//  Field - Field name
+// Field name
 type Field = string
 
+// IdentEvaluator represents the evaluator of an identifier
 type IdentEvaluator struct {
 	Eval func(ctx *Context) bool
 }
 
+// FieldValueType represents the type of the value of a field
 type FieldValueType int
 
+// Field value types
 const (
 	ScalarValueType  FieldValueType = 1
 	PatternValueType FieldValueType = 2
 	BitmaskValueType FieldValueType = 4
 )
 
-// FieldValue - field value with its type
+// FieldValue describes a field value with its type
 type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
 }
 
-// Opts - Options to be passed to the evaluator
+// Opts are the options to be passed to the evaluator
 type Opts struct {
 	Debug     bool
 	Constants map[string]interface{}
 	Macros    map[MacroID]*Macro
 }
 
-// NewOptsWithParams - Initializes a new Opts instance with Debug and Constants parameters
+// NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
 func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
 	return &Opts{
 		Debug:     debug,
@@ -49,13 +52,13 @@ func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
 	}
 }
 
-// Evaluator - interface of an evaluator
+// Evaluator is the interface of an evaluator
 type Evaluator interface {
 	StringValue(ctx *Context) string
 	Eval(ctx *Context) interface{}
 }
 
-// BoolEvaluator - returns a bool as result of the evaluation
+// BoolEvaluator returns a bool as result of the evaluation
 type BoolEvaluator struct {
 	EvalFnc func(ctx *Context) bool
 	Field   Field
@@ -64,17 +67,17 @@ type BoolEvaluator struct {
 	isPartial bool
 }
 
-// StringValue - Returns a string representation of the evaluation result
+// StringValue returns a string representation of the evaluation result
 func (b *BoolEvaluator) StringValue(ctx *Context) string {
 	return fmt.Sprintf("%t", b.EvalFnc(nil))
 }
 
-// Eval - Evaluates
+// Eval returns the result of the evaluation
 func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(nil)
 }
 
-// IntEvaluator - Returns an int as result of the evaluation
+// IntEvaluator returns an int as result of the evaluation
 type IntEvaluator struct {
 	EvalFnc func(ctx *Context) int
 	Field   Field
@@ -88,12 +91,12 @@ func (i *IntEvaluator) StringValue(ctx *Context) string {
 	return fmt.Sprintf("%d", i.EvalFnc(nil))
 }
 
-// Eval - Evaluates
+// Eval returns the result of the evaluation
 func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 	return i.EvalFnc(nil)
 }
 
-// StringEvaluator - Returns a string as result of the evaluation
+// StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
 	EvalFnc func(ctx *Context) string
 	Field   Field
@@ -107,17 +110,17 @@ func (s *StringEvaluator) StringValue(ctx *Context) string {
 	return s.EvalFnc(ctx)
 }
 
-// Eval - Evaluates
+// Eval returns the result of the evaluation
 func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
-// StringArray - array of string value
+// StringArray represents an array of string values
 type StringArray struct {
 	Values []string
 }
 
-// IntArray - array of int value
+// IntArray represents an array of integer values
 type IntArray struct {
 	Values []int
 }

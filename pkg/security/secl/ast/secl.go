@@ -21,7 +21,7 @@ any = "\u0000"…"\uffff" .
 `))
 )
 
-// Parse a SECL rule.
+// ParseRule parses a SECL rule.
 func ParseRule(expr string) (*Rule, error) {
 	parser, err := participle.Build(&Rule{},
 		participle.Lexer(seclLexer),
@@ -42,6 +42,7 @@ func ParseRule(expr string) (*Rule, error) {
 	return rule, nil
 }
 
+// Rule describes a SECL rule
 type Rule struct {
 	Pos  lexer.Position
 	Expr string
@@ -49,6 +50,7 @@ type Rule struct {
 	BooleanExpression *BooleanExpression `parser:"@@"`
 }
 
+// ParseMacro parses a SECL macro
 func ParseMacro(expr string) (*Macro, error) {
 	parser, err := participle.Build(&Macro{},
 		participle.Lexer(seclLexer),
@@ -68,6 +70,7 @@ func ParseMacro(expr string) (*Macro, error) {
 	return macro, nil
 }
 
+// Macro describes a SECL macro
 type Macro struct {
 	Pos lexer.Position
 
@@ -76,12 +79,14 @@ type Macro struct {
 	Primary    *Primary    `parser:"| @@"`
 }
 
+// BooleanExpression describes a boolean expression
 type BooleanExpression struct {
 	Pos lexer.Position
 
 	Expression *Expression `parser:"@@"`
 }
 
+// Expression describes an expression
 type Expression struct {
 	Pos lexer.Position
 
@@ -90,6 +95,7 @@ type Expression struct {
 	Next       *BooleanExpression `parser:"@@ ]"`
 }
 
+// Comparison describes a comparison
 type Comparison struct {
 	Pos lexer.Position
 
@@ -98,6 +104,7 @@ type Comparison struct {
 	ArrayComparison  *ArrayComparison  `parser:"| @@ ]"`
 }
 
+// ScalarComparison describes a scalar comparison : the operator with the right operand
 type ScalarComparison struct {
 	Pos lexer.Position
 
@@ -105,6 +112,7 @@ type ScalarComparison struct {
 	Next *Comparison `parser:"@@"`
 }
 
+// ArrayComparison describes an operation that tests membership in an array
 type ArrayComparison struct {
 	Pos lexer.Position
 
@@ -112,6 +120,7 @@ type ArrayComparison struct {
 	Array *Array  `parser:"@@ )"`
 }
 
+// BitOperation describes an operation on bits
 type BitOperation struct {
 	Pos lexer.Position
 
@@ -120,6 +129,7 @@ type BitOperation struct {
 	Next  *BitOperation `parser:"@@ ]"`
 }
 
+// Unary describes an unary operation like logical not, binary not, minus
 type Unary struct {
 	Pos lexer.Position
 
@@ -128,6 +138,8 @@ type Unary struct {
 	Primary *Primary `parser:"| @@"`
 }
 
+// Primary describes a single operand. It can be a simple identifier, a number,
+// a string or a full expression in parenthesis
 type Primary struct {
 	Pos lexer.Position
 
@@ -137,6 +149,7 @@ type Primary struct {
 	SubExpression *Expression `parser:"| \"(\" @@ \")\""`
 }
 
+// Array describes an array of values
 type Array struct {
 	Pos lexer.Position
 

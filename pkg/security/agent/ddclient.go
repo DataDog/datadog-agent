@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DDClient - Datadog Log client
+// DDClient represents a Datadog Log client
 type DDClient struct {
 	destinationsCtx  *client.DestinationsContext
 	auditor          *auditor.Auditor
@@ -27,7 +27,7 @@ type DDClient struct {
 	cancel           context.CancelFunc
 }
 
-// NewDDClientWithLogSource - Instantiates a new Datadog log client with a Log Source configuration
+// NewDDClientWithLogSource instantiates a new Datadog log client with a Log Source configuration
 func NewDDClientWithLogSource(src *config.LogSource) *DDClient {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &DDClient{
@@ -37,19 +37,21 @@ func NewDDClientWithLogSource(src *config.LogSource) *DDClient {
 	}
 }
 
-// Init - Starts the Datadog log client. It follows the API described in pkg/logs/README.md.
+// Run starts the Datadog log client. It follows the API described in pkg/logs/README.md.
 func (ddc *DDClient) Run(wg *sync.WaitGroup) {
 	wg.Add(1)
 	defer wg.Done()
+
 	// Get Datadog endpoints
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err != nil {
+	endpoints, err := config.BuildHTTPEndpoints()
+	if err != nil {
 		log.Errorf("datadog logs client stopped with an error: %v", err)
 		return
-	} else {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
+
+	httpConnectivity = http.CheckConnectivity(endpoints.Main)
+	endpoints, err = config.BuildEndpoints(httpConnectivity)
 	if err != nil {
 		log.Errorf("datadog logs client stopped with an error: %v", err)
 		return
@@ -81,12 +83,12 @@ func (ddc *DDClient) Run(wg *sync.WaitGroup) {
 	<-ddc.ctx.Done()
 }
 
-// Stop - Stops the Datadog logs client
+// Stop the Datadog logs client
 func (ddc *DDClient) Stop() {
 	ddc.cancel()
 }
 
-// SendLogWithStatusAndTags - Sends a new log to Datadog with the provided log status and tags
+// SendLogWithStatusAndTags sends a new log to Datadog with the provided log status and tags
 func (ddc *DDClient) SendLogWithStatusAndTags(buf []byte, status string, tags []string) {
 	src := config.NewLogSource(ddc.logSource.Config.Source, &config.LogsConfig{
 		Type:    ddc.logSource.Config.Type,
@@ -104,7 +106,7 @@ func (ddc *DDClient) SendLogWithStatusAndTags(buf []byte, status string, tags []
 	}
 }
 
-// SendSecurityEvent - Sends a security event with the provided status
+// SendSecurityEvent sends a security event with the provided status
 func (ddc *DDClient) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
 	ddc.SendLogWithStatusAndTags(evt.GetData(), status, evt.GetTags())
 }
