@@ -60,6 +60,23 @@ def wait_for_pipeline(
     and printing changes to the job statuses.
     """
 
+    gitlab = Gitlab()
+
+    # Check that the project can be found (if not, we probably don't have enough permissions)
+    gitlab.test_project_found(project)
+
+    commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, project, pipeline_id)
+
+    print(
+        color_message(
+            "Commit: "
+            + color_message(commit_title, "green")
+            + color_message(" ({})".format(commit_short_sha), "grey")
+            + " by "
+            + color_message(commit_author, "bold"),
+            "blue",
+        )
+    )
     print(
         color_message(
             "Pipeline Link: "
@@ -70,14 +87,18 @@ def wait_for_pipeline(
 
     print(color_message("Waiting for pipeline to finish. Exiting won't cancel it.", "blue"))
 
-    gitlab = Gitlab()
-    gitlab.test_project_found(project)
-
     f = functools.partial(pipeline_status, gitlab, project, pipeline_id,)
 
     loop_status(f, pipeline_finish_timeout_sec)
 
     return pipeline_id
+
+
+def get_commit_for_pipeline(gitlab, project, pipeline_id):
+    pipeline = gitlab.pipeline(project, pipeline_id)
+    sha = pipeline['sha']
+    commit = gitlab.commit(project, sha)
+    return commit['author_name'], commit['short_id'], commit['title']
 
 
 def loop_status(callable, timeout_sec):

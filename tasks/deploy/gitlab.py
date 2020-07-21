@@ -87,6 +87,15 @@ class Gitlab(object):
         path = "/projects/{}/pipelines/{}".format(quote(project_name, safe=""), pipeline_id)
         return self.make_request(path, json=True)
 
+    def commit(self, project_name, commit_sha):
+        """
+        Gets info for a given commit sha.
+        """
+        from urllib.parse import quote
+
+        path = "/projects/{}/repository/commits/{}".format(quote(project_name, safe=""), commit_sha)
+        return self.make_request(path, json=True)
+
     def jobs(self, project_name, pipeline_id, page=1, per_page=100):
         """
         Gets one page of the jobs for a pipeline.
