@@ -17,6 +17,8 @@ import (
 
 	"github.com/gorilla/mux"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -33,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
@@ -86,14 +87,14 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
+	tempDir, hostname, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
 
 	if err != nil {
 		log.Errorf("Error creating flare directory: " + err.Error())
 		return
 	}
 
-	if err != nil || len(filePath) == 0 {
+	if err != nil || len(tempDir) == 0 {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
 		} else {
@@ -102,6 +103,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
+	filePath := []string{tempDir, hostname}
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(filePath); err != nil {
 		log.Errorf("Error while encoding flare file path: %s,", err)

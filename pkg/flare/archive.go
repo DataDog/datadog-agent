@@ -97,10 +97,8 @@ func GetArchivePath() string {
 }
 
 // ZipArchive creates a zip for the flare file directory and returns its location.
-func ZipArchive(filePath []string) (string, error) {
-	zipFilePath := GetArchivePath()
-
-	if err := archiver.Zip.Make(zipFilePath, filePath); err != nil {
+func ZipArchive(zipFilePath, tempDir, hostname string) (string, error) {
+	if err := archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)}); err != nil {
 		return "", err
 	}
 
@@ -108,7 +106,7 @@ func ZipArchive(filePath []string) (string, error) {
 }
 
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) ([]string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, string, error) {
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
@@ -117,12 +115,11 @@ func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) ([]st
 	return createArchive(local, confSearchPaths, logFilePath)
 }
 
-func createArchive(local bool, confSearchPaths SearchPaths, logFilePath string) ([]string, error) {
+func createArchive(local bool, confSearchPaths SearchPaths, logFilePath string) (string, string, error) {
 	tempDir, err := createTempDir()
 	if err != nil {
-		return []string{}, err
+		return "", "unknown", err
 	}
-	defer os.RemoveAll(tempDir)
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
@@ -138,16 +135,16 @@ func createArchive(local bool, confSearchPaths SearchPaths, logFilePath string) 
 	if local {
 		err = writeLocal(tempDir, hostname)
 		if err != nil {
-			return []string{}, err
+			return tempDir, hostname, err
 		}
 		// Can't reach the agent, mention it in those two files
 		err = writeStatusFileLocal(tempDir, hostname, []byte("unable to get the status of the agent, is it running?"))
 		if err != nil {
-			return []string{}, err
+			return tempDir, hostname, err
 		}
 		err = writeConfigCheckLocal(tempDir, hostname, []byte("unable to get loaded checks config, is the agent running?"))
 		if err != nil {
-			return []string{}, err
+			return tempDir, hostname, err
 		}
 	} else {
 		// Status informations are available, write them up as the agent is running.
@@ -269,7 +266,7 @@ func createArchive(local bool, confSearchPaths SearchPaths, logFilePath string) 
 		log.Errorf("Could not write permissions.log file: %s", err)
 	}
 
-	return []string{filepath.Join(tempDir, hostname)}, nil
+	return tempDir, hostname, nil
 }
 
 func createTempDir() (string, error) {

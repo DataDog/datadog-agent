@@ -84,19 +84,21 @@ func makeFlare(caseID string) error {
 		logFile = common.DefaultLogFile
 	}
 
-	var filePath []string
+	var tempDir, hostname string
 	var err error
 	if forceLocal {
-		filePath, err = createArchive(logFile)
+		tempDir, hostname, err = createArchive(logFile)
 	} else {
-		filePath, err = requestArchive(logFile)
+		tempDir, hostname, err = requestArchive(logFile)
 	}
+
+	defer os.RemoveAll(tempDir)
 
 	if err != nil {
 		return err
 	}
 
-	zipFilePath, err := flare.ZipArchive(filePath)
+	zipFilePath, err := flare.ZipArchive(flare.GetArchivePath(), tempDir, hostname)
 	if err != nil {
 		return err
 	}
@@ -124,7 +126,7 @@ func makeFlare(caseID string) error {
 	return nil
 }
 
-func requestArchive(logFile string) ([]string, error) {
+func requestArchive(logFile string) (string, string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -159,15 +161,15 @@ func requestArchive(logFile string) ([]string, error) {
 		fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while decoding the flare file path: %s", color.RedString(err.Error())))
 	}
 
-	return filePath, nil
+	return filePath[0], filePath[1], nil
 }
 
-func createArchive(logFile string) ([]string, error) {
+func createArchive(logFile string) (string, string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, e := flare.CreateArchive(forceLocal, common.GetDistPath(), common.PyChecksPath, logFile)
+	tempdDir, hostname, e := flare.CreateArchive(forceLocal, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
 		fmt.Printf("The flare directory failed to be created: %s\n", e)
-		return []string{}, e
+		return tempdDir, hostname, e
 	}
-	return filePath, nil
+	return tempdDir, hostname, nil
 }

@@ -10,19 +10,21 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/fatih/color"
+	"github.com/lxn/win"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/fatih/color"
-	"github.com/lxn/win"
-	"golang.org/x/sys/windows"
 )
 
 const (
@@ -200,7 +202,7 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 
 	r := bytes.NewBuffer([]byte{})
 	res, e := util.DoPost(c, urlstr, "application/json", r)
-	var zipFilePath string
+	var zipFilePath, tempDir, hostname string
 	var filePath []string
 	if e != nil {
 		if res != nil && string(res) != "" {
@@ -210,7 +212,7 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		}
 		log.Debug("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
+		tempDir, hostname, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
 		if e != nil {
 			log.Errorf("The flare directory failed to be created: %s\n", e)
 			return
@@ -221,9 +223,11 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		if err := dec.Decode(&filePath); err != nil {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while decoding the flare file path: %s", color.RedString(err.Error())))
 		}
+		tempDir, hostname = filePath[0], filePath[1]
 	}
+	defer os.RemoveAll(tempDir)
 
-	zipFilePath, e = flare.ZipArchive(filePath)
+	zipFilePath, e = flare.ZipArchive(flare.GetArchivePath(), tempDir, hostname)
 	if e != nil {
 		log.Errorf("Error creating flare zip: " + e.Error())
 		return

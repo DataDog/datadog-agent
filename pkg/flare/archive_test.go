@@ -32,9 +32,12 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := GetArchivePath()
-	flarePath, err := createArchive(true, SearchPaths{}, "")
+	tempDir, hostname, err := createArchive(true, SearchPaths{}, "")
+
+	defer os.RemoveAll(tempDir)
 	assert.Nil(t, err)
-	filePath, err := ZipArchive(flarePath)
+
+	filePath, err := ZipArchive(zipFilePath, tempDir, hostname)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -58,9 +61,12 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	pprofURL = ts.URL
 
 	zipFilePath := GetArchivePath()
-	flarePath, err := createArchive(true, SearchPaths{}, "")
+	tempDir, hostname, err := createArchive(true, SearchPaths{}, "")
+
+	defer os.RemoveAll(tempDir)
 	assert.Nil(t, err)
-	filePath, err := ZipArchive(flarePath)
+
+	filePath, err := ZipArchive(zipFilePath, tempDir, hostname)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -104,10 +110,12 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
 	zipFilePath := GetArchivePath()
-	flarePath, err := createArchive(true, SearchPaths{}, "")
-	assert.Nil(t, err)
-	filePath, err := ZipArchive(flarePath)
+	tempDir, hostname, err := createArchive(true, SearchPaths{}, "")
 
+	defer os.RemoveAll(tempDir)
+	assert.Nil(t, err)
+
+	filePath, err := ZipArchive(zipFilePath, tempDir, hostname)
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
 
@@ -160,9 +168,12 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	zipFilePath := GetArchivePath()
-	flarePath, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
+	tempDir, hostname, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
+
+	defer os.RemoveAll(tempDir)
 	assert.Nil(t, err)
-	filePath, err := ZipArchive(flarePath)
+
+	filePath, err := ZipArchive(zipFilePath, tempDir, hostname)
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
 
@@ -190,9 +201,12 @@ func TestIncludeConfigFiles(t *testing.T) {
 
 	common.SetupConfig("./test")
 	zipFilePath := GetArchivePath()
-	flarePath, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
+	tempDir, hostname, err := createArchive(true, SearchPaths{"": "./test/confd"}, "")
+
+	defer os.RemoveAll(tempDir)
 	assert.Nil(t, err)
-	filePath, err := ZipArchive(flarePath)
+
+	filePath, err := ZipArchive(zipFilePath, tempDir, hostname)
 
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)

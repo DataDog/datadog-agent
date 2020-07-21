@@ -6,6 +6,7 @@ import (
 	"html"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -136,14 +137,15 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		logFile = common.DefaultLogFile
 	}
 
-	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
+	tempDir, hostname, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
+	defer os.RemoveAll(tempDir)
 	if e != nil {
 		w.Write([]byte("Error creating flare directory: " + e.Error()))
 		log.Errorf("Error creating flare directory: " + e.Error())
 		return
 	}
 
-	zipFilePath, e := flare.ZipArchive(filePath)
+	zipFilePath, e := flare.ZipArchive(flare.GetArchivePath(), tempDir, hostname)
 	if e != nil {
 		w.Write([]byte("Error creating flare zip: " + e.Error()))
 		log.Errorf("Error creating flare zip: " + e.Error())
