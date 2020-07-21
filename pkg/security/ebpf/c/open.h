@@ -51,6 +51,15 @@ struct bpf_map_def SEC("maps/open_process_inode_approvers") open_process_inode_a
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discarders = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct path_key_t),
+    .value_size = sizeof(struct filter_t),
+    .max_entries = 512,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct open_event_t {
     struct event_t event;
     struct process_data_t process;
@@ -231,7 +240,11 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->open.dentry, syscall->open.path_key, NULL);
+
+    retval = resolve_dentry(syscall->open.dentry, syscall->open.path_key, &open_path_inode_discarders);
+    if (retval < 0) {
+        return 0;
+    }
 
     send_event(ctx, event);
 

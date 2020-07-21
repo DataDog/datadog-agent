@@ -26,6 +26,7 @@ var openTables = []string{
 	"open_flags_approvers",
 	"open_flags_discarders",
 	"open_process_inode_approvers",
+	"open_path_inode_discarders",
 }
 
 // openHookPoints holds the list of open's kProbes
@@ -120,9 +121,17 @@ var openHookPoints = []*HookPoint{
 			return nil
 		},
 		OnNewDiscarders: func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
-			switch discarder.Field {
+			field := discarder.Field
+
+			switch field {
 			case "open.flags":
 				return discardFlags(probe, "open_flags_discarders", discarder.Value.(int))
+
+			case "open.filename":
+				fsEvent := event.Open
+				table := "open_path_inode_discarders"
+
+				discardParentInode(probe, rs, field, discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
 
 			default:
 				return DiscarderNotSupported
