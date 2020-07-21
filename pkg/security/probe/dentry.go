@@ -13,45 +13,46 @@ import (
 )
 
 const (
-	DentryPathKeyNotFound = "error: dentry path key not found"
+	dentryPathKeyNotFound = "error: dentry path key not found"
 )
 
+// DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
 	probe     *ebpf.Probe
 	pathnames *ebpf.Table
 }
 
-type PathKey struct {
+type pathKey struct {
 	inode   uint64
 	mountID uint32
 }
 
-func (p *PathKey) Write(buffer []byte) {
+func (p *pathKey) Write(buffer []byte) {
 	byteOrder.PutUint64(buffer[0:8], p.inode)
 	byteOrder.PutUint32(buffer[8:12], p.mountID)
 	byteOrder.PutUint32(buffer[12:16], 0)
 }
 
-func (p *PathKey) Read(buffer []byte) {
+func (p *pathKey) Read(buffer []byte) {
 	p.inode = byteOrder.Uint64(buffer[0:8])
 	p.mountID = byteOrder.Uint32(buffer[8:12])
 }
 
-func (p *PathKey) IsNull() bool {
+func (p *pathKey) IsNull() bool {
 	return p.inode == 0 && p.mountID == 0
 }
 
-func (p *PathKey) String() string {
+func (p *pathKey) String() string {
 	return fmt.Sprintf("%x/%x", p.mountID, p.inode)
 }
 
-type PathValue struct {
-	parent PathKey
+type pathValue struct {
+	parent pathKey
 	name   [256]byte
 }
 
 func (dr *DentryResolver) getName(mountID uint32, inode uint64) (name string, err error) {
-	key := PathKey{mountID: mountID, inode: inode}
+	key := pathKey{mountID: mountID, inode: inode}
 	if key.IsNull() {
 		return "", fmt.Errorf("invalid inode/mountID couple: %s", key.String())
 	}
@@ -72,6 +73,7 @@ func (dr *DentryResolver) getName(mountID uint32, inode uint64) (name string, er
 	return C.GoString((*C.char)(unsafe.Pointer(&nameRaw))), nil
 }
 
+// GetName resolves a couple of mountID/inode to a path
 func (dr *DentryResolver) GetName(mountID uint32, inode uint64) string {
 	name, _ := dr.getName(mountID, inode)
 	return name
@@ -80,7 +82,7 @@ func (dr *DentryResolver) GetName(mountID uint32, inode uint64) string {
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (filename string, err error) {
 	// Don't resolve path if pathnameKey isn't valid
-	key := PathKey{mountID: mountID, inode: inode}
+	key := pathKey{mountID: mountID, inode: inode}
 	if key.IsNull() {
 		return "", fmt.Errorf("invalid inode/mountID couple: %s", key.String())
 	}
@@ -89,12 +91,12 @@ func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (filename string
 	key.Write(keyBuffer)
 	done := false
 	pathRaw := []byte{}
-	var path PathValue
+	var path pathValue
 
 	// Fetch path recursively
 	for !done {
 		if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
-			filename = DentryPathKeyNotFound
+			filename = dentryPathKeyNotFound
 			break
 		}
 
@@ -130,6 +132,7 @@ func (dr *DentryResolver) Resolve(mountID uint32, inode uint64) string {
 	return path
 }
 
+// Start the dentry resolver
 func (dr *DentryResolver) Start() error {
 	pathnames := dr.probe.Table("pathnames")
 	if pathnames == nil {
@@ -140,6 +143,7 @@ func (dr *DentryResolver) Start() error {
 	return nil
 }
 
+// NewDentryResolver returns a new dentry resolver
 func NewDentryResolver(probe *ebpf.Probe) (*DentryResolver, error) {
 	return &DentryResolver{
 		probe: probe,

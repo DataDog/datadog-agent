@@ -1,7 +1,6 @@
 package probe
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"syscall"
@@ -13,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-// OpenTables - eBPF tables used by open's kProbes
-var OpenTables = []string{
+// openTables is the list of eBPF tables used by open's kProbes
+var openTables = []string{
 	"open_policy",
 	"open_basename_approvers",
 	"open_basename_discarders",
@@ -23,8 +22,8 @@ var OpenTables = []string{
 	"open_process_inode_approvers",
 }
 
-// OpenHookPoints - list of open's kProbes
-var OpenHookPoints = []*HookPoint{
+// openHookPoints holds the list of open's kProbes
+var openHookPoints = []*HookPoint{
 	{
 		Name:    "sys_open",
 		KProbes: syscallKprobe("open"),
@@ -47,19 +46,19 @@ var OpenHookPoints = []*HookPoint{
 		EventTypes: map[string]Capabilities{
 			"open": {
 				"open.filename": {
-					PolicyFlags:     BASENAME_FLAG,
+					PolicyFlags:     PolicyFlagBasename,
 					FieldValueTypes: eval.ScalarValueType,
 				},
 				"open.basename": {
-					PolicyFlags:     BASENAME_FLAG,
+					PolicyFlags:     PolicyFlagBasename,
 					FieldValueTypes: eval.ScalarValueType,
 				},
 				"open.flags": {
-					PolicyFlags:     FLAGS_FLAG,
+					PolicyFlags:     PolicyFlagFlags,
 					FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
 				},
 				"process.filename": {
-					PolicyFlags:     PROCESS_INODE,
+					PolicyFlags:     PolicyFlagProcessInode,
 					FieldValueTypes: eval.ScalarValueType,
 				},
 			},
@@ -143,11 +142,10 @@ func handleProcessFilename(probe *Probe, approve bool, values ...string) error {
 			return err
 		}
 		stat, _ := fileinfo.Sys().(*syscall.Stat_t)
-		key := Int64ToKey(int64(stat.Ino))
+		key := ebpf.Uint64TableItem(stat.Ino)
 
-		var kFilter Uint8KFilter
 		table := probe.Table("open_process_inode_approvers")
-		if err := table.Set(key, kFilter.Bytes()); err != nil {
+		if err := table.Set(key, ebpf.ZeroUint8TableItem); err != nil {
 			return err
 		}
 	}
@@ -156,20 +154,20 @@ func handleProcessFilename(probe *Probe, approve bool, values ...string) error {
 }
 
 func handleFlagsFilters(probe *Probe, approve bool, values ...int) error {
-	var kFilter Uint32KFilter
+	var kFilter ebpf.Uint32TableItem
 
 	for _, value := range values {
-		kFilter.value |= uint32(value)
+		kFilter |= ebpf.Uint32TableItem(value)
 	}
 
 	var err error
-	if kFilter.value != 0 {
+	if kFilter != 0 {
 		if approve {
 			table := probe.Table("open_flags_approvers")
-			err = table.Set(zeroInt32, kFilter.Bytes())
+			err = table.Set(ebpf.ZeroUint32TableItem, kFilter)
 		} else {
 			table := probe.Table("open_flags_discarders")
-			err = table.Set(zeroInt32, kFilter.Bytes())
+			err = table.Set(ebpf.ZeroUint32TableItem, kFilter)
 		}
 	}
 
@@ -177,20 +175,16 @@ func handleFlagsFilters(probe *Probe, approve bool, values ...int) error {
 }
 
 func handleBasenameFilter(probe *Probe, approver bool, basename string) error {
-	key, err := StringToKey(basename, BASENAME_FILTER_SIZE)
-	if err != nil {
-		return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
-	}
+	var table *ebpf.Table
+	key := ebpf.NewStringTableItem(basename, BasenameFilterSize)
 
 	if approver {
-		table := probe.Table("open_basename_approvers")
-		err = table.Set(key, zeroInt8)
+		table = probe.Table("open_basename_approvers")
 	} else {
-		table := probe.Table("open_basename_discarders")
-		err = table.Set(key, zeroInt8)
+		table = probe.Table("open_basename_discarders")
 	}
 
-	return err
+	return table.Set(key, ebpf.ZeroUint8TableItem)
 }
 
 func handleBasenameFilters(probe *Probe, approve bool, values ...string) error {
@@ -209,7 +203,7 @@ func handleFilenameFilters(probe *Probe, approve bool, values ...string) error {
 
 	for _, value := range values {
 		// do not use dentry error placeholder as filter
-		if value == DentryPathKeyNotFound {
+		if value == dentryPathKeyNotFound {
 			continue
 		}
 

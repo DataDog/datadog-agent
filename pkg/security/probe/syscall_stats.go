@@ -10,14 +10,16 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
-const SyscallMetric = MetricPrefix + ".syscalls"
+const syscallMetric = MetricPrefix + ".syscalls"
 
+// ProcessSyscall represents a syscall made by a process
 type ProcessSyscall struct {
 	Process string
 	Pid     uint32
-	Id      uint32
+	ID      uint32
 }
 
+// UnmarshalBinary unmarshals a binary representation of a ProcessSyscall
 func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	var comm [16]byte
 	if err := binary.Read(bytes.NewBuffer(data[0:16]), byteOrder, &comm); err != nil {
@@ -25,52 +27,51 @@ func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	}
 	p.Process = string(bytes.Trim(comm[:], "\x00"))
 	p.Pid = byteOrder.Uint32(data[16:20])
-	p.Id = byteOrder.Uint32(data[20:24])
+	p.ID = byteOrder.Uint32(data[20:24])
 	return nil
 }
 
+// SyscallStatsCollector is the interface implemented by an object that collect syscall statistics
 type SyscallStatsCollector interface {
-	Count(process string, syscallId Syscall, count uint64) error
+	Count(process string, syscallID Syscall, count uint64) error
 }
 
+// SyscallStats collects syscall statistics and store them in memory
 type SyscallStats map[Syscall]map[string]uint64
 
-func (s *SyscallStats) Count(process string, syscallId Syscall, count uint64) error {
-	if (*s)[syscallId] == nil {
-		(*s)[syscallId] = make(map[string]uint64)
+// Count the number of calls of a syscall by a process
+func (s *SyscallStats) Count(process string, syscallID Syscall, count uint64) error {
+	if (*s)[syscallID] == nil {
+		(*s)[syscallID] = make(map[string]uint64)
 	}
-	(*s)[syscallId][process] = count
+	(*s)[syscallID][process] = count
 	return nil
 }
 
+// SyscallStatsdCollector collects syscall statistics and sends them to statsd
 type SyscallStatsdCollector struct {
 	statsdClient *statsd.Client
 }
 
-func (s *SyscallStatsdCollector) Count(process string, syscallId Syscall, count uint64) error {
-	syscall := strings.ToLower(strings.TrimPrefix(Syscall(syscallId).String(), "SYS_"))
+// Count the number of calls of a syscall by a process
+func (s *SyscallStatsdCollector) Count(process string, syscallID Syscall, count uint64) error {
+	syscall := strings.ToLower(strings.TrimPrefix(Syscall(syscallID).String(), "Sys"))
 	tags := []string{
 		fmt.Sprintf("process:%s", process),
 		fmt.Sprintf("syscall:%s", syscall),
 	}
 
-	return s.statsdClient.Count(SyscallMetric, int64(count), tags, 1.0)
+	return s.statsdClient.Count(syscallMetric, int64(count), tags, 1.0)
 }
 
+// SyscallMonitor monitors syscalls using eBPF maps filled using kernel tracepoints
 type SyscallMonitor struct {
 	bufferSelector     *ebpf.Table
 	buffers            [2]*ebpf.Table
-	activeKernelBuffer Uint32Key
+	activeKernelBuffer ebpf.Uint32TableItem
 }
 
-type Uint32Key uint32
-
-func (i Uint32Key) Bytes() []byte {
-	var buffer [4]byte
-	byteOrder.PutUint32(buffer[:], uint32(i))
-	return buffer[:]
-}
-
+// GetStats returns the syscall statistics
 func (sm *SyscallMonitor) GetStats() (*SyscallStats, error) {
 	stats := make(SyscallStats)
 	if err := sm.CollectStats(&stats); err != nil {
@@ -79,11 +80,13 @@ func (sm *SyscallMonitor) GetStats() (*SyscallStats, error) {
 	return &stats, nil
 }
 
+// SendStats sends the syscall statistics to statsd
 func (sm *SyscallMonitor) SendStats(statsdClient *statsd.Client) error {
 	collector := &SyscallStatsdCollector{statsdClient: statsdClient}
 	return sm.CollectStats(collector)
 }
 
+// CollectStats fetches the syscall statistics from the eBPF maps
 func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 	var (
 		zeroKey        [24]byte
@@ -113,15 +116,16 @@ func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 
 		count := byteOrder.Uint64(value[0:8])
 
-		if err := collector.Count(processSyscall.Process, Syscall(processSyscall.Id), count); err != nil {
+		if err := collector.Count(processSyscall.Process, Syscall(processSyscall.ID), count); err != nil {
 			return err
 		}
 	}
 
 	sm.activeKernelBuffer = 1 - sm.activeKernelBuffer
-	return sm.bufferSelector.Set(zeroInt32, sm.activeKernelBuffer.Bytes())
+	return sm.bufferSelector.Set(ebpf.ZeroUint32TableItem, sm.activeKernelBuffer)
 }
 
+// NewSyscallMonitor instantiates a new syscall monitor
 func NewSyscallMonitor(module *ebpf.Module, bufferSelector, frontBuffer, backBuffer *ebpf.Table) (*SyscallMonitor, error) {
 	if err := module.RegisterTracepoint("tracepoint/raw_syscalls/sys_enter"); err != nil {
 		return nil, err

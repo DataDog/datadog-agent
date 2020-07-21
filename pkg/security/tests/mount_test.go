@@ -38,7 +38,7 @@ func TestMount(t *testing.T) {
 	if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 		t.Fatalf("could not create bind mount: %s", err)
 	}
-	var mntId uint32
+	var mntID uint32
 
 	event, err := test.GetEvent(3 * time.Second)
 	if err != nil {
@@ -57,7 +57,7 @@ func TestMount(t *testing.T) {
 		if fs := event.Mount.FSType; fs != "bind" {
 			t.Errorf("expected a bind mount, got %v", fs)
 		}
-		mntId = event.Mount.NewMountID
+		mntID = event.Mount.NewMountID
 	}
 
 	// Test umount
@@ -73,8 +73,8 @@ func TestMount(t *testing.T) {
 			t.Errorf("expected umount event, got %s", event.GetType())
 		}
 
-		if uMntID := event.Umount.MountID; uMntID != mntId {
-			t.Errorf("expected mount_id %v, got %v", mntId, uMntID)
+		if uMntID := event.Umount.MountID; uMntID != mntID {
+			t.Errorf("expected mount_id %v, got %v", mntID, uMntID)
 		}
 	}
 }

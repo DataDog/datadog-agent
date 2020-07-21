@@ -13,7 +13,7 @@ func TestDotWriterParenthesis(t *testing.T) {
 		t.Error(err)
 	}
 
-	dotMarshaller := NewDotMarshaler(os.Stdout)
+	dotMarshaller := NewMarshaler(os.Stdout)
 
 	if err := dotMarshaller.MarshalRule(rule); err != nil {
 		t.Error(err)
@@ -26,7 +26,7 @@ func TestDotWriterInArray(t *testing.T) {
 		t.Error(err)
 	}
 
-	dotMarshaller := NewDotMarshaler(os.Stdout)
+	dotMarshaller := NewMarshaler(os.Stdout)
 
 	if err := dotMarshaller.MarshalRule(rule); err != nil {
 		t.Error(err)

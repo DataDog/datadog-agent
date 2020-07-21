@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// RuntimeSecurityAgent - main wrapper for the Runtime Security product
+// RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
 	logClient *DDClient
 	conn      *grpc.ClientConn
@@ -25,7 +25,7 @@ type RuntimeSecurityAgent struct {
 	wg        *sync.WaitGroup
 }
 
-// NewRuntimeSecurityAgent - Instantiates a new RuntimeSecurityAgent
+// NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
 func NewRuntimeSecurityAgent() (*RuntimeSecurityAgent, error) {
 	path := fmt.Sprintf("unix://%s", coreconfig.Datadog.GetString("runtime_security_config.socket"))
 	conn, err := grpc.Dial(path, grpc.WithInsecure())
@@ -43,7 +43,7 @@ func NewRuntimeSecurityAgent() (*RuntimeSecurityAgent, error) {
 	}, nil
 }
 
-// Start - Starts the Runtime Security agent
+// Start the runtime security agent
 func (rsa *RuntimeSecurityAgent) Start() {
 	// Start the Datadog log client. This client is used to ship security events to Datadog.
 	go rsa.logClient.Run(rsa.wg)
@@ -51,7 +51,7 @@ func (rsa *RuntimeSecurityAgent) Start() {
 	go rsa.StartEventListener()
 }
 
-// Stop - Stops the Runtime Security agent
+// Stop the runtime recurity agent
 func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.running.Store(false)
 	rsa.logClient.Stop()
@@ -59,7 +59,7 @@ func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.conn.Close()
 }
 
-// StartEventListener - Listens for new events from system-probe
+// StartEventListener starts listening for new events from system-probe
 func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	rsa.wg.Add(1)
 	defer rsa.wg.Done()
@@ -89,7 +89,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	}
 }
 
-// DispatchEvent - Dispatches a security event message to the subsytems of the runtime security agent
+// DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	// For now simply log to Datadog
 	rsa.logClient.SendSecurityEvent(evt, message.StatusAlert)

@@ -12,11 +12,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// RuleSetListener describes the methods implemented by an object used to be
+// notified of events on a rule set.
 type RuleSetListener interface {
 	RuleMatch(rule *eval.Rule, event eval.Event)
 	EventDiscarderFound(event eval.Event, field eval.Field)
 }
 
+// RuleSet holds a list of rules, grouped in bucket. An event can be evaluated
+// against it. If the rule matches, the listeners for this rule set are notified
 type RuleSet struct {
 	opts             *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
@@ -28,7 +32,7 @@ type RuleSet struct {
 	fields []string
 }
 
-// ListRuleIDs - Returns the list of RuleIDs from the ruleset
+// ListRuleIDs returns the list of RuleIDs from the ruleset
 func (rs *RuleSet) ListRuleIDs() []string {
 	var ids []string
 	for ruleID := range rs.rules {
@@ -37,7 +41,7 @@ func (rs *RuleSet) ListRuleIDs() []string {
 	return ids
 }
 
-// AddMacros - Parses the macros AST and add them to the list of macros of the ruleset
+// AddMacros parses the macros AST and adds them to the list of macros of the ruleset
 func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
 	var result *multierror.Error
 
@@ -51,6 +55,7 @@ func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
 	return result
 }
 
+// AddMacro parses the macro AST and adds it to the list of macros of the ruleset
 func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*eval.Macro, error) {
 	if _, exists := rs.opts.Macros[macroDef.ID]; exists {
 		return nil, fmt.Errorf("found multiple definition of the macro '%s'", macroDef.ID)
@@ -74,7 +79,7 @@ func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*eval.Macro, erro
 	return macro, nil
 }
 
-// AddRules - Adds rules to the ruleset and generate their partials
+// AddRules adds rules to the ruleset and generate their partials
 func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
 	var result *multierror.Error
 
@@ -91,7 +96,7 @@ func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
 	return result
 }
 
-// AddRule - Creates the rule evaluator and adds it to the bucket of its events
+// AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*eval.Rule, error) {
 	if _, exists := rs.rules[ruleDef.ID]; exists {
 		return nil, fmt.Errorf("found multiple definition of the rule '%s'", ruleDef.ID)
@@ -124,13 +129,13 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*eval.Rule, error) {
 
 	if len(rule.GetEventTypes()) == 0 {
 		log.Errorf("rule without event specified: %s", ruleDef.Expression)
-		return nil, RuleWithoutEventErr
+		return nil, ErrRuleWithoutEvent
 	}
 
-	// TODO: this contraints could be removed, but currenlty approver resolution can't handle multiple event type approver
+	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
 	if len(rule.GetEventTypes()) > 1 {
-		log.Errorf("mulitple event types specified on the same rule: %s", ruleDef.Expression)
-		return nil, RuleWithMultipleEventsErr
+		log.Errorf("multiple event types specified on the same rule: %s", ruleDef.Expression)
+		return nil, ErrRuleWithMultipleEvents
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
@@ -141,18 +146,21 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*eval.Rule, error) {
 	return rule, nil
 }
 
+// NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
 func (rs *RuleSet) NotifyRuleMatch(rule *eval.Rule, event eval.Event) {
 	for _, listener := range rs.listeners {
 		listener.RuleMatch(rule, event)
 	}
 }
 
+// NotifyDiscarderFound notifies all the ruleset listeners that a discarder was found for an event
 func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field) {
 	for _, listener := range rs.listeners {
 		listener.EventDiscarderFound(event, field)
 	}
 }
 
+// AddListener adds a listener on the ruleset
 func (rs *RuleSet) AddListener(listener RuleSetListener) {
 	rs.listeners = append(rs.listeners, listener)
 }
@@ -170,12 +178,13 @@ func (rs *RuleSet) HasRulesForEventType(eventType eval.EventType) bool {
 func (rs *RuleSet) GetApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		return nil, NoEventTypeBucket{EventType: eventType}
+		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
 	return bucket.GetApprovers(rs.model, rs.eventCtor(), fieldCaps)
 }
 
+// Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	result := false
 	rs.model.SetEvent(event)
@@ -229,6 +238,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	return result
 }
 
+// GetEventTypes returns all the event types handled by the ruleset
 func (rs *RuleSet) GetEventTypes() []eval.EventType {
 	eventTypes := make([]string, 0, len(rs.eventRuleBuckets))
 	for eventType := range rs.eventRuleBuckets {
@@ -237,7 +247,7 @@ func (rs *RuleSet) GetEventTypes() []eval.EventType {
 	return eventTypes
 }
 
-// AddFields - Merges the provided set of fields with the existing set of fields of the ruleset
+// AddFields merges the provided set of fields with the existing set of fields of the ruleset
 func (rs *RuleSet) AddFields(fields []eval.EventType) {
 NewFields:
 	for _, newField := range fields {
@@ -250,7 +260,7 @@ NewFields:
 	}
 }
 
-// generatePartials - Generate the partials of the ruleset. A partial is a boolean evalution function that only depends
+// generatePartials generates the partials of the ruleset. A partial is a boolean evalution function that only depends
 // on one field. The goal of partial is to determine if a rule depends on a specific field, so that we can decide if
 // we should create an in-kernel filter for that field.
 func (rs *RuleSet) generatePartials() error {
@@ -265,6 +275,7 @@ func (rs *RuleSet) generatePartials() error {
 	return nil
 }
 
+// NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *eval.Opts) *RuleSet {
 	return &RuleSet{
 		model:            model,

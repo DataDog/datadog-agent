@@ -145,7 +145,7 @@ func mountOptionsParser(mountOptions string) map[string]string {
 	return opts
 }
 
-func HostProc() string {
+func hostProc() string {
 	value := os.Getenv("HOST_PROC")
 	if value == "" {
 		value = "/proc"
@@ -153,17 +153,17 @@ func HostProc() string {
 	return value
 }
 
-func MountInfoPath() string {
-	return filepath.Join(HostProc(), "/self/mountinfo")
+func mountInfoPath() string {
+	return filepath.Join(hostProc(), "/self/mountinfo")
 }
 
-func MountInfoPidPath(pid uint32) string {
-	return filepath.Join(HostProc(), fmt.Sprintf("/%d/mountinfo", pid))
+func mountInfoPidPath(pid uint32) string {
+	return filepath.Join(hostProc(), fmt.Sprintf("/%d/mountinfo", pid))
 }
 
 // GetMounts - Retrieves mountinfo information from `/proc/self/mountinfo`.
 func GetMounts() ([]*MountInfo, error) {
-	f, err := os.Open(MountInfoPath())
+	f, err := os.Open(mountInfoPath())
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func GetMounts() ([]*MountInfo, error) {
 
 // GetProcMounts - Retrieves mountinfo information from a processes' `/proc/<pid>/mountinfo`.
 func GetProcMounts(pid uint32) ([]*MountInfo, error) {
-	f, err := os.Open(MountInfoPidPath(pid))
+	f, err := os.Open(mountInfoPidPath(pid))
 	if err != nil {
 		return nil, err
 	}

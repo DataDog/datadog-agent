@@ -2,11 +2,8 @@ package probe
 
 import "github.com/DataDog/datadog-agent/pkg/security/ebpf"
 
-// ExecTables - eBPF tables used by open's kProbes
-var ExecTables = []KTable{}
-
-// ExecHookPoints - list of open's hooks
-var ExecHookPoints = []*HookPoint{
+// execHookPoints holds the list of hookpoints to track processes execution
+var execHookPoints = []*HookPoint{
 	{
 		Name: "sys_execve",
 		KProbes: []*ebpf.KProbe{{

@@ -10,26 +10,31 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Section describes a section of a policy file
 type Section struct {
 	Type string
 }
 
+// MacroID represents the ID of a macro
 type MacroID = string
 
+// MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
 	ID         MacroID
 	Expression string
 }
 
+// RuleID represents the ID of a rule
 type RuleID = string
 
+// RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
 	ID         RuleID
 	Expression string
 	Tags       map[string]string
 }
 
-// GetTags - Returns the tags of the rule
+// GetTags returns the tags associated to a rule
 func (rd *RuleDefinition) GetTags() []string {
 	tags := []string{}
 	for k, v := range rd.Tags {
@@ -40,6 +45,7 @@ func (rd *RuleDefinition) GetTags() []string {
 	return tags
 }
 
+// Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
 	Rules  []*RuleDefinition
 	Macros []*MacroDefinition
@@ -52,6 +58,7 @@ func checkRuleID(ruleID string) bool {
 	return pattern.MatchString(ruleID)
 }
 
+// LoadPolicy loads a YAML file and returns a new policy
 func LoadPolicy(r io.Reader) (*Policy, error) {
 	var mapSlice []map[string]interface{}
 

@@ -2,7 +2,6 @@ package probe
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"strings"
 
@@ -18,16 +17,19 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
+// MetricPrefix is the prefix of the metrics sent by the runtime security agent
 const MetricPrefix = "datadog.agent.runtime_security"
 
+// EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
 	HandleEvent(event *Event)
 }
 
-type KTable struct {
+type kTable struct {
 	Name string
 }
 
+// Discarder represents a discarder whose a value for a field that
 type Discarder struct {
 	Field eval.Field
 	Value interface{}
@@ -36,6 +38,8 @@ type Discarder struct {
 type onApproversFnc func(probe *Probe, approvers rules.Approvers) error
 type onDiscarderFnc func(probe *Probe, discarder Discarder) error
 
+// Probe represents the runtime security eBPF probe in charge of
+// setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
 	*ebpf.Probe
 	config           *config.Config
@@ -48,13 +52,16 @@ type Probe struct {
 	syscallMonitor   *SyscallMonitor
 }
 
+// Capability represents the type of values we are able to filter kernel side
 type Capability struct {
 	PolicyFlags     PolicyFlag
 	FieldValueTypes eval.FieldValueType
 }
 
+// Capabilities represents the filtering capabilities for a set of fields
 type Capabilities map[eval.Field]Capability
 
+// HookPoint represents
 type HookPoint struct {
 	Name            string
 	KProbes         []*ebpf.KProbe
@@ -87,7 +94,7 @@ func syscallKprobe(name string) []*ebpf.KProbe {
 	}}
 }
 
-var AllHookPoints = []*HookPoint{
+var allHookPoints = []*HookPoint{
 	{
 		Name: "security_inode_setattr",
 		KProbes: []*ebpf.KProbe{{
@@ -327,6 +334,7 @@ var AllHookPoints = []*HookPoint{
 	},
 }
 
+// GetFlags returns the policy flags for the set of capabilities
 func (caps Capabilities) GetFlags() PolicyFlag {
 	var flags PolicyFlag
 	for _, cap := range caps {
@@ -335,7 +343,8 @@ func (caps Capabilities) GetFlags() PolicyFlag {
 	return flags
 }
 
-func (caps Capabilities) GetField() []eval.Field {
+// GetFields returns the fields associated with a set of capabilities
+func (caps Capabilities) GetFields() []eval.Field {
 	var fields []eval.Field
 
 	for field := range caps {
@@ -345,6 +354,7 @@ func (caps Capabilities) GetField() []eval.Field {
 	return fields
 }
 
+// GetFieldCapabilities returns the field capabilities for a set of capabilities
 func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 	var fcs rules.FieldCapabilities
 
@@ -358,6 +368,7 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 	return fcs
 }
 
+// NewRuleSet returns a new rule set
 func (p *Probe) NewRuleSet(opts *eval.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers)
@@ -374,7 +385,7 @@ func (p *Probe) getTableNames() []string {
 		"noisy_processes_bb",
 	}
 
-	return append(tables, OpenTables...)
+	return append(tables, openTables...)
 }
 
 // Table returns either an eprobe Table or a LRU based eprobe Table
@@ -401,6 +412,7 @@ func (p *Probe) getPerfMaps() []*ebpf.PerfMapDefinition {
 	}
 }
 
+// Start the runtime security probe
 func (p *Probe) Start() error {
 	asset := "pkg/security/ebpf/c/probe"
 	openSyscall := getSyscallFnName("open")
@@ -438,7 +450,7 @@ func (p *Probe) Start() error {
 		}
 	}
 
-	for _, hookpoint := range AllHookPoints {
+	for _, hookpoint := range allHookPoints {
 		if hookpoint.EventTypes == nil {
 			continue
 		}
@@ -455,16 +467,19 @@ func (p *Probe) Start() error {
 	return p.Probe.Start()
 }
 
+// SetEventHandler set the probe event handler
 func (p *Probe) SetEventHandler(handler EventHandler) {
 	p.handler = handler
 }
 
+// DispatchEvent sends an event to probe event handler
 func (p *Probe) DispatchEvent(event *Event) {
 	if p.handler != nil {
 		p.handler.HandleEvent(event)
 	}
 }
 
+// SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 	if p.syscallMonitor != nil {
 		if err := p.syscallMonitor.SendStats(statsdClient); err != nil {
@@ -485,7 +500,7 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 			continue
 		}
 
-		eventType := ProbeEventType(i)
+		eventType := EventType(i)
 		key := MetricPrefix + ".events." + eventType.String()
 		if err := statsdClient.Count(key, p.eventsStats.GetAndResetEventCount(eventType), nil, 1.0); err != nil {
 			return err
@@ -495,7 +510,7 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 	return nil
 }
 
-// GetStats - return Stats according to the system-probe module format
+// GetStats returns Stats according to the system-probe module format
 func (p *Probe) GetStats() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
@@ -514,13 +529,14 @@ func (p *Probe) GetStats() (map[string]interface{}, error) {
 			continue
 		}
 
-		eventType := ProbeEventType(i)
+		eventType := EventType(i)
 		perEventType[eventType.String()] = p.eventsStats.GetEventCount(eventType)
 	}
 
 	return stats, err
 }
 
+// GetEventsStats returns statistics about the events received by the probe
 func (p *Probe) GetEventsStats() EventsStats {
 	return p.eventsStats
 }
@@ -551,7 +567,7 @@ func (p *Probe) handleEvent(data []byte) {
 	}
 	offset += read
 
-	eventType := ProbeEventType(event.Event.Type)
+	eventType := EventType(event.Event.Type)
 	switch eventType {
 	case FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
@@ -630,6 +646,7 @@ func (p *Probe) handleEvent(data []byte) {
 	p.DispatchEvent(event)
 }
 
+// OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(event *Event, field eval.Field) error {
 	log.Debugf("New discarder event %+v for field %s\n", event, field)
 
@@ -657,97 +674,16 @@ func (p *Probe) OnNewDiscarder(event *Event, field eval.Field) error {
 	return nil
 }
 
-func (p *Probe) SetFilterPolicy(tableName string, mode PolicyMode, flags PolicyFlag) error {
-	table := p.Table(tableName)
-	if table == nil {
-		return fmt.Errorf("unable to find policy table `%s`", tableName)
-	}
-
-	policy := FilterPolicy{
-		Mode:  mode,
-		Flags: flags,
-	}
-	return table.Set(zeroInt32, policy.Bytes())
-}
-
-type PolicyReport struct {
-	Mode      PolicyMode
-	Flags     PolicyFlag
-	Approvers rules.Approvers
-}
-
-type Report struct {
-	Policies map[string]*PolicyReport
-}
-
-func NewReport() *Report {
-	return &Report{
-		Policies: make(map[string]*PolicyReport),
-	}
-}
-
+// Applier describes the set of methods required to apply kernel event passing policies
 type Applier interface {
 	ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error
 	ApplyApprovers(eventType eval.EventType, hook *HookPoint, approvers rules.Approvers) error
 	GetReport() *Report
 }
 
-type Reporter struct {
-	report *Report
-}
-
-func (r *Reporter) getPolicyReport(eventType eval.EventType) *PolicyReport {
-	if r.report.Policies[eventType] == nil {
-		r.report.Policies[eventType] = &PolicyReport{Approvers: rules.Approvers{}}
-	}
-	return r.report.Policies[eventType]
-}
-
-func (r *Reporter) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
-	policyReport := r.getPolicyReport(eventType)
-	policyReport.Mode = mode
-	policyReport.Flags = flags
-	return nil
-}
-
-func (r *Reporter) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
-	policyReport := r.getPolicyReport(eventType)
-	policyReport.Approvers = approvers
-	return nil
-}
-
-func (r *Reporter) GetReport() *Report {
-	return r.report
-}
-
-func NewReporter() *Reporter {
-	return &Reporter{report: NewReport()}
-}
-
-type KProbeApplier struct {
-	reporter Applier
-	probe    *Probe
-}
-
-func (k *KProbeApplier) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
-	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
-
-	k.reporter.ApplyFilterPolicy(eventType, tableName, mode, flags)
-	return k.probe.SetFilterPolicy(tableName, mode, flags)
-}
-
-func (k *KProbeApplier) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
-	k.reporter.ApplyApprovers(eventType, hookPoint, approvers)
-	return hookPoint.OnNewApprovers(k.probe, approvers)
-}
-
-func (k *KProbeApplier) GetReport() *Report {
-	return k.reporter.GetReport()
-}
-
 func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleSet, eventType eval.EventType, capabilities Capabilities, applier Applier) error {
 	if !p.enableFilters {
-		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
@@ -755,31 +691,34 @@ func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleSet, eventTy
 
 	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
 	if err != nil {
-		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
 	}
 
 	if err := applier.ApplyApprovers(eventType, hookPoint, approvers); err != nil {
-		log.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", POLICY_MODE_ACCEPT, eventType, err)
-		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_ACCEPT, math.MaxUint8); err != nil {
+		log.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
+		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, POLICY_MODE_DENY, capabilities.GetFlags()); err != nil {
+	if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeDeny, capabilities.GetFlags()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+// ApplyRuleSet applies the loaded set of rules and returns a report
+// of the applied approvers for it. If dryRun is set to true,
+// the rules won't be applied but the report will still be returned.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 	var applier Applier = NewReporter()
 	if !dryRun {
-		applier = &KProbeApplier{probe: p, reporter: applier}
+		applier = &KFilterApplier{probe: p, reporter: applier}
 	}
 
 	already := make(map[*HookPoint]bool)
@@ -788,7 +727,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	for _, hookPoint := range AllHookPoints {
+	for _, hookPoint := range allHookPoints {
 		if hookPoint.EventTypes == nil {
 			continue
 		}
@@ -851,8 +790,8 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 	return applier.GetReport(), nil
 }
 
-// Snapshot - Snapshot runs the different snapshot functions of the resolvers that require to sync with the current
-// state of the system
+// Snapshot runs the different snapshot functions of the resolvers that
+// require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
 	// Sync with the current mount points of the system
 	if err := p.resolvers.MountResolver.SyncCache(0); err != nil {
@@ -861,6 +800,7 @@ func (p *Probe) Snapshot() error {
 	return nil
 }
 
+// NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config) (*Probe, error) {
 	p := &Probe{
 		config:           config,
@@ -888,7 +828,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 }
 
 func init() {
-	AllHookPoints = append(AllHookPoints, OpenHookPoints...)
-	AllHookPoints = append(AllHookPoints, MountHookPoints...)
-	AllHookPoints = append(AllHookPoints, ExecHookPoints...)
+	allHookPoints = append(allHookPoints, openHookPoints...)
+	allHookPoints = append(allHookPoints, mountHookPoints...)
+	allHookPoints = append(allHookPoints, execHookPoints...)
 }

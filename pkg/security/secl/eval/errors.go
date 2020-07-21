@@ -8,45 +8,52 @@ import (
 	"github.com/alecthomas/participle/lexer"
 )
 
-type InvalidPattern struct {
+// ErrInvalidPattern is returned for an invalid regular expression
+type ErrInvalidPattern struct {
 	Pattern string
 }
 
-func (e InvalidPattern) Error() string {
+func (e ErrInvalidPattern) Error() string {
 	return fmt.Sprintf("invalid pattern `%s`", e.Pattern)
 }
 
-type AstToEvalError struct {
+// ErrAstToEval describes an error that occurred during the conversion from the AST to an evaluator
+type ErrAstToEval struct {
 	Pos  lexer.Position
 	Text string
 }
 
-func (r *AstToEvalError) Error() string {
+func (r *ErrAstToEval) Error() string {
 	return fmt.Sprintf("%s: %s", r.Text, r.Pos)
 }
 
-func NewError(pos lexer.Position, text string) *AstToEvalError {
-	return &AstToEvalError{Pos: pos, Text: text}
+// NewError returns a new ErrAstToEval error
+func NewError(pos lexer.Position, text string) *ErrAstToEval {
+	return &ErrAstToEval{Pos: pos, Text: text}
 }
 
-func NewTypeError(pos lexer.Position, kind reflect.Kind) *AstToEvalError {
+// NewTypeError returns a new ErrAstToEval error when an invalid type was used
+func NewTypeError(pos lexer.Position, kind reflect.Kind) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("%s expected", kind))
 }
 
-func NewOpUnknownError(pos lexer.Position, op string) *AstToEvalError {
+// NewOpUnknownError returns a new ErrAstToEval error when an unknown operator was used
+func NewOpUnknownError(pos lexer.Position, op string) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("operator `%s` unknown", op))
 }
 
-func NewOpError(pos lexer.Position, op string, err error) *AstToEvalError {
+// NewOpError returns a new ErrAstToEval error when an operator was used in an invalid manner
+func NewOpError(pos lexer.Position, op string, err error) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("operator `%s` error: %s", op, err))
 }
 
-type RuleParseError struct {
+// ErrRuleParse describes a parsing error and its position in the expression
+type ErrRuleParse struct {
 	pos  lexer.Position
 	expr string
 }
 
-func (e *RuleParseError) Error() string {
+func (e *ErrRuleParse) Error() string {
 	column := e.pos.Column
 	if column > 0 {
 		column--

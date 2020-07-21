@@ -16,15 +16,12 @@ import (
 )
 
 var (
+	// ErrMountNotFound is used when an unknown mount identifier is found
 	ErrMountNotFound = errors.New("unknown mount ID")
 )
 
-func IsErrMountNotFound(err error) bool {
-	return ErrMountNotFound.Error() == err.Error()
-}
-
-// MountHookPoints - Mount tracking probes
-var MountHookPoints = []*HookPoint{
+// mountHookPoints holds the list of probes required to track mounts
+var mountHookPoints = []*HookPoint{
 	{
 		Name: "attach_recursive_mnt",
 		KProbes: []*ebpf.KProbe{{
@@ -118,7 +115,7 @@ func newMountEventFromMountInfo(mnt *utils.MountInfo) (*MountEvent, error) {
 	}, nil
 }
 
-// Mount - Mount represents a mount point on the system.
+// Mount represents a mount point on the system.
 type Mount struct {
 	*MountEvent
 
@@ -129,6 +126,8 @@ type Mount struct {
 	peerGroup          *OverlayGroup
 }
 
+// DFS performs a Depth-First Search of the mount point tree used to compute
+// the list of inter dependent mount points
 func (m *Mount) DFS(mask map[uint32]bool) []*Mount {
 	var mounts []*Mount
 	if mask == nil {
@@ -148,7 +147,7 @@ func (m *Mount) DFS(mask map[uint32]bool) []*Mount {
 	return mounts
 }
 
-// newMount - Creates a new Mount from a mount event and sets / updates its parent
+// newMount creates a new Mount from a mount event and sets / updates its parent
 func newMount(e *MountEvent, parent *Mount, group *OverlayGroup) *Mount {
 	m := Mount{
 		MountEvent: e,
@@ -178,6 +177,7 @@ func newMount(e *MountEvent, parent *Mount, group *OverlayGroup) *Mount {
 	return &m
 }
 
+// OverlayGroup groups the mount points of an overlay filesystem
 type OverlayGroup struct {
 	parent   *Mount
 	children map[uint32]*Mount
@@ -200,7 +200,7 @@ func (g *OverlayGroup) dryDelete(m *Mount) []*Mount {
 	return mounts
 }
 
-// Delete - Deletes a mount point in the peer group. Returns true if the PeerGroup is empty after the deletion (a peer
+// Delete a mount point in the peer group. Returns true if the PeerGroup is empty after the deletion (a peer
 // group is empty if its master is nil and its list of slaves is empty).
 func (g *OverlayGroup) Delete(m *Mount) bool {
 	if g.parent != nil && g.parent.NewMountID == m.NewMountID {
@@ -210,12 +210,12 @@ func (g *OverlayGroup) Delete(m *Mount) bool {
 	return g.IsEmpty()
 }
 
-// IsEmpty - Returns true if the overlay group is empty and should therefore be deleted
+// IsEmpty returns true if the overlay group is empty and should therefore be deleted
 func (g *OverlayGroup) IsEmpty() bool {
 	return g.parent == nil && len(g.children) == 0
 }
 
-// Insert - Inserts a new mount in the peer group form the provided parameters
+// Insert a new mount in the peer group form the provided parameters
 func (g *OverlayGroup) Insert(e *MountEvent, parent *Mount) *Mount {
 	// create new mount
 	m := newMount(e, parent, g)
@@ -235,6 +235,7 @@ func newPeerGroup() *OverlayGroup {
 	}
 }
 
+// FSDevice represents a peer group
 type FSDevice struct {
 	OverlayGroupID uint32
 	peerGroups     map[uint32]*OverlayGroup
@@ -249,7 +250,7 @@ func (d *FSDevice) dryDelete(m *Mount) []*Mount {
 	return g.dryDelete(m)
 }
 
-// Delete - Deletes a mount from the device
+// Delete a mount from the device
 func (d *FSDevice) Delete(m *Mount) bool {
 	g, ok := d.peerGroups[m.NewGroupID]
 	if ok {
@@ -258,15 +259,15 @@ func (d *FSDevice) Delete(m *Mount) bool {
 			delete(d.peerGroups, m.NewGroupID)
 		}
 	}
-	return d.IsEmty()
+	return d.IsEmpty()
 }
 
-// IsEmpty - Returns true if the device is empty and should therefore be deleted
-func (d *FSDevice) IsEmty() bool {
+// IsEmpty returns true if the device is empty and should therefore be deleted
+func (d *FSDevice) IsEmpty() bool {
 	return len(d.peerGroups) == 0
 }
 
-// Insert - Inserts a new mount in the list of mount groups of the device
+// Insert a new mount in the list of mount groups of the device
 func (d *FSDevice) Insert(e *MountEvent, parent *Mount) *Mount {
 	// The first mount of the overlay inside the container is technically a bind. Map it to its rightful overlay
 	// group ID if there is one.
@@ -290,15 +291,15 @@ func newFSDevice() *FSDevice {
 	}
 }
 
-// MountResolver - Mount point cache
+// MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
 	lock    sync.RWMutex
 	devices map[uint32]*FSDevice
 	mounts  map[uint32]*Mount
 }
 
-// SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo. If pid is null,
-// the function will parse the mountinfo entry of all the processes currently running.
+// SyncCache snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
+// If pid is null, the function will parse the mountinfo entry of all the processes currently running.
 func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
@@ -354,7 +355,7 @@ func (mr *MountResolver) dryDelete(m *Mount) []*Mount {
 	return d.dryDelete(m)
 }
 
-// Delete - Deletes a mount from the cache
+// Delete a mount from the cache
 func (mr *MountResolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
@@ -379,7 +380,7 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 	return nil
 }
 
-// Insert - Inserts a new mount point in the cache
+// Insert a new mount point in the cache
 func (mr *MountResolver) Insert(e *MountEvent) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
@@ -408,7 +409,7 @@ func (mr *MountResolver) insert(e *MountEvent, allowResync bool) {
 	mr.mounts[e.NewMountID] = m
 }
 
-// GetMountPath - Returns the path of a mount identified by its mount ID. The first path is the container mount path if
+// GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
 // it exists
 func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, string, string, error) {
 	mr.lock.RLock()
@@ -428,12 +429,11 @@ func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, s
 	return m.containerMountPath, m.mountPath, m.RootStr, nil
 }
 
-// NewMountResolver - Instantiates a new mount resolver
+// NewMountResolver instantiates a new mount resolver
 func NewMountResolver() *MountResolver {
 	return &MountResolver{
 		lock:    sync.RWMutex{},
 		devices: make(map[uint32]*FSDevice),
 		mounts:  make(map[uint32]*Mount),
 	}
-
 }

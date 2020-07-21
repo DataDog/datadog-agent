@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
+// Module represents the system-probe module for the runtime security agent
 type Module struct {
 	probe        *sprobe.Probe
 	config       *config.Config
@@ -37,6 +38,7 @@ type Module struct {
 	rateLimiter  *RateLimiter
 }
 
+// Register the runtime security agent module
 func (m *Module) Register(httpMux *http.ServeMux) error {
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
@@ -79,10 +81,14 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 	return nil
 }
 
+// ApplyRuleSet applies the loaded set of rules and returns a report
+// of the applied approvers for it. If dryRun is set to true,
+// the rules won't be applied but the report will still be returned.
 func (m *Module) ApplyRuleSet(dryRun bool) (*probe.Report, error) {
 	return m.probe.ApplyRuleSet(m.ruleSet, dryRun)
 }
 
+// Close the module
 func (m *Module) Close() {
 	if m.grpcServer != nil {
 		m.grpcServer.Stop()
@@ -95,7 +101,7 @@ func (m *Module) Close() {
 	m.probe.Stop()
 }
 
-// RuleMatch - called by the ruleset when a rule matches
+// RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
@@ -104,16 +110,18 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	}
 }
 
-// EventDiscarderFound - called by the ruleset when a new discarder discovered
+// EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(event eval.Event, field string) {
 	m.probe.OnNewDiscarder(event.(*sprobe.Event), field)
 }
 
-// HandleEvent - called by the probe when an event arrives from the kernel
+// HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
 	m.ruleSet.Evaluate(event)
 }
 
+// LoadPolicies loads the policies listed in the configuration of
+// returns the set of the loaded rules
 func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*rules.RuleSet, error) {
 	var result *multierror.Error
 
@@ -173,6 +181,7 @@ func (m *Module) statsMonitor(ctx context.Context) {
 	}
 }
 
+// GetStats returns statistics about the module
 func (m *Module) GetStats() map[string]interface{} {
 	probeStats, err := m.probe.GetStats()
 	if err != nil {
@@ -184,10 +193,12 @@ func (m *Module) GetStats() map[string]interface{} {
 	}
 }
 
+// GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() *rules.RuleSet {
 	return m.ruleSet
 }
 
+// NewModule instantiates a runtime security system-probe module
 func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 	config, err := config.NewConfig()
 	if err != nil {
