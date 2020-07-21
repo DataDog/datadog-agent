@@ -246,8 +246,9 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			Env:       pt.Env,
 		}, now)
 	}
-
-	a.Out <- &ss
+	if ss.Size > 0 {
+		a.Out <- &ss
+	}
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
