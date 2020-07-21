@@ -263,12 +263,12 @@ func TestFilter(t *testing.T) {
 	}
 }
 
-func TestNewFilterFromConfig(t *testing.T) {
+func TestNewMetricFilterFromConfig(t *testing.T) {
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
 	config.Datadog.SetDefault("ac_exclude", []string{"name:dd-.*"})
 
-	f, err := NewFilterFromConfig()
+	f, err := newMetricFilterFromConfig()
 	require.NoError(t, err)
 
 	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
@@ -278,13 +278,28 @@ func TestNewFilterFromConfig(t *testing.T) {
 	assert.True(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
 
 	config.Datadog.SetDefault("exclude_pause_container", false)
-	f, err = NewFilterFromConfig()
+	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
 	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{})
 	config.Datadog.SetDefault("ac_exclude", []string{})
+
+	config.Datadog.SetDefault("exclude_pause_container", false)
+	config.Datadog.SetDefault("container_include", []string{"image:apache.*"})
+	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*"})
+	config.Datadog.SetDefault("container_include_metrics", []string{"image:nginx.*"})
+	config.Datadog.SetDefault("container_exclude_metrics", []string{"name:ddmetric-.*"})
+
+	f, err = newMetricFilterFromConfig()
+	require.NoError(t, err)
+
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
+	assert.True(t, f.IsExcluded("ddmetric-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded("ddmetric-152462", "nginx:latest", ""))
+	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
 }
 
 func TestNewAutodiscoveryFilter(t *testing.T) {

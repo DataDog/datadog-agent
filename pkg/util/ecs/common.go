@@ -36,8 +36,17 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 		log.Error("Unable to get the container list from ecs")
 		return cList, err
 	}
+
+	filter, err := containers.GetSharedMetricFilter()
+	if err != nil {
+		log.Warnf("Unable to get container filter. All containers in ECS Task will be processed, err: %v", err)
+	}
+
 	for _, c := range task.Containers {
-		cList = append(cList, convertMetaV2Container(c))
+		// Not using c.DockerName as it's generated with ecs task name, thus probably not easy to match
+		if filter == nil || !filter.IsExcluded(c.Name, c.Image, "") {
+			cList = append(cList, convertMetaV2Container(c))
+		}
 	}
 
 	err = UpdateContainerMetrics(cList)

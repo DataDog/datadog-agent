@@ -78,13 +78,13 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	return imageFilters, nameFilters, namespaceFilters, nil
 }
 
-// GetSharedFilter allows to share the result of NewFilterFromConfig
+// GetSharedMetricFilter allows to share the result of NewFilterFromConfig
 // for several user classes
-func GetSharedFilter() (*Filter, error) {
+func GetSharedMetricFilter() (*Filter, error) {
 	if sharedFilter != nil {
 		return sharedFilter, nil
 	}
-	f, err := NewFilterFromConfig()
+	f, err := newMetricFilterFromConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +123,14 @@ func NewFilter(whitelist, blacklist []string) (*Filter, error) {
 	}, nil
 }
 
-// NewFilterFromConfig creates a new container filter, sourcing patterns
-// from the pkg/config options
-func NewFilterFromConfig() (*Filter, error) {
+// newMetricFilterFromConfig creates a new container filter, sourcing patterns
+// from the pkg/config options, to be used only for metrics
+func newMetricFilterFromConfig() (*Filter, error) {
 	whitelist := config.Datadog.GetStringSlice("container_include")
 	blacklist := config.Datadog.GetStringSlice("container_exclude")
+	whitelist = append(whitelist, config.Datadog.GetStringSlice("container_include_metrics")...)
+	blacklist = append(blacklist, config.Datadog.GetStringSlice("container_exclude_metrics")...)
+
 	if len(whitelist) == 0 {
 		// support legacy "ac_include" config
 		whitelist = config.Datadog.GetStringSlice("ac_include")
