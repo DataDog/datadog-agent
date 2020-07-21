@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/gogo/protobuf/proto"
@@ -35,22 +34,13 @@ var maxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
 // SampledSpans represents the result of a trace sampling operation.
 type SampledSpans struct {
 	// Trace will contain a trace if it was sampled or be empty if it wasn't.
-	Trace pb.Trace
+	Traces []*pb.APITrace
 	// Events contains all APM events extracted from a trace. If no events were extracted, it will be empty.
 	Events []*pb.Span
-}
-
-// Empty returns true if this TracePackage has no data.
-func (ss *SampledSpans) Empty() bool {
-	return len(ss.Trace) == 0 && len(ss.Events) == 0
-}
-
-// size returns the estimated size of the package.
-func (ss *SampledSpans) size() int {
-	// we use msgpack's Msgsize() heuristic because it is a good indication
-	// of the weight of a span and the msgpack size is relatively close to
-	// the protobuf size, which is expensive to compute.
-	return ss.Trace.Msgsize() + pb.Trace(ss.Events).Msgsize()
+	// Size represents the approximated message size in bytes.
+	Size int
+	// SpanCount specifies the total number of spans found in Traces.
+	SpanCount int64
 }
 
 // TraceWriter buffers traces and APM events, flushing them to the Datadog API.
@@ -85,8 +75,10 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
-		// default to 10% of the connection limit to outgoing sends.
-		climit = int(math.Max(1, float64(cfg.ConnectionLimit)/10))
+		// Default to 10% of the connection limit to outgoing sends.
+		// Since the connection limit was removed, keep this at 200
+		// as it was when we had it (2k).
+		climit = 200
 	}
 	qsize := cfg.TraceWriter.QueueSize
 	if qsize == 0 {
@@ -145,25 +137,21 @@ func (w *TraceWriter) Run() {
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledSpans) {
-	if pkg.Empty() {
-		return
-	}
-
-	atomic.AddInt64(&w.stats.Spans, int64(len(pkg.Trace)))
-	atomic.AddInt64(&w.stats.Traces, 1)
+	atomic.AddInt64(&w.stats.Spans, pkg.SpanCount)
+	atomic.AddInt64(&w.stats.Traces, int64(len(pkg.Traces)))
 	atomic.AddInt64(&w.stats.Events, int64(len(pkg.Events)))
 
-	size := pkg.size()
+	size := pkg.Size
 	if size+w.bufferedSize > maxPayloadSize {
 		// reached maximum allowed buffered size
 		w.flush()
 	}
-	if len(pkg.Trace) > 0 {
-		log.Tracef("Handling new trace with %d spans: %v", len(pkg.Trace), pkg.Trace)
-		w.traces = append(w.traces, traceutil.APITrace(pkg.Trace))
+	if len(pkg.Traces) > 0 {
+		log.Tracef("Handling new trace with %d spans: %v", pkg.SpanCount, pkg.Traces)
+		w.traces = append(w.traces, pkg.Traces...)
 	}
 	if len(pkg.Events) > 0 {
-		log.Tracef("Handling new analyzed spans: %v", pkg.Events)
+		log.Tracef("Handling new package with %d events: %v", len(pkg.Events), pkg.Events)
 		w.events = append(w.events, pkg.Events...)
 	}
 	w.bufferedSize += size

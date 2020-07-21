@@ -153,14 +153,15 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		log.Debugf("Skipping received empty payload")
 		return
 	}
+	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
+	now := time.Now().UnixNano()
+	var ss writer.SampledSpans
 	for _, t := range p.Traces {
 		if len(t) == 0 {
 			log.Debugf("Skipping received empty trace")
 			continue
 		}
-
-		defer timing.Since("datadog.trace_agent.internal.process_trace_ms", time.Now())
 
 		tracen := int64(len(t))
 		atomic.AddInt64(&ts.SpansReceived, tracen)
@@ -206,45 +207,52 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		// which is not thread-safe while samplers and Concentrator might modify it too.
 		traceutil.ComputeTopLevel(t)
 
+		env := a.conf.DefaultEnv
+		if v := traceutil.GetEnv(t); v != "" {
+			// this trace has a user defined env.
+			env = v
+		}
 		pt := ProcessedTrace{
 			Trace:         t,
 			WeightedTrace: stats.NewWeightedTrace(t, root),
 			Root:          root,
-			Env:           a.conf.DefaultEnv,
+			Env:           env,
 			Sublayers:     make(map[*pb.Span][]stats.SublayerValue),
 		}
 
-		sampledSpans, sampled := a.sample(ts, pt)
+		events, keep := a.sample(ts, pt)
 
 		subtraces := stats.ExtractSubtraces(t, root)
 		for _, subtrace := range subtraces {
 			subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
 			pt.Sublayers[subtrace.Root] = subtraceSublayers
-			if sampled {
+			if keep {
 				stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
 			}
 		}
 
-		if tenv := traceutil.GetEnv(t); tenv != "" {
-			// this trace has a user defined env.
-			pt.Env = tenv
+		if keep {
+			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
+			ss.Size += t.Msgsize()
+			ss.SpanCount += int64(len(t))
 		}
-
-		a.Concentrator.In <- &stats.Input{
+		if len(events) > 0 {
+			ss.Events = append(ss.Events, events...)
+			ss.Size += pb.Trace(events).Msgsize()
+		}
+		a.Concentrator.AddNow(&stats.Input{
 			Trace:     pt.WeightedTrace,
 			Sublayers: pt.Sublayers,
 			Env:       pt.Env,
-		}
-
-		if sampled {
-			a.Out <- sampledSpans
-		}
+		}, now)
 	}
+
+	a.Out <- &ss
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
 // from it.
-func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (*writer.SampledSpans, bool) {
+func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span, keep bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.Root)
 
 	// Depending on the sampling priority, count that trace differently.
@@ -266,20 +274,17 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (*writer.SampledSpa
 		return nil, false
 	}
 
-	var ss writer.SampledSpans
 	sampled, rate := a.runSamplers(pt, hasPriority)
 	if sampled {
 		sampler.AddGlobalRate(pt.Root, rate)
-		ss.Trace = pt.Trace
 	}
 
 	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
-	ss.Events = events
 
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
 
-	return &ss, !ss.Empty()
+	return events, sampled
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision

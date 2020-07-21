@@ -37,7 +37,6 @@ type Concentrator struct {
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen int
 
-	In  chan *Input
 	Out chan []Bucket
 
 	exit   chan struct{}
@@ -59,7 +58,6 @@ func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Conc
 		// TODO: Move to configuration.
 		bufferLen: defaultBufferLen,
 
-		In:  make(chan *Input, 1000),
 		Out: out,
 
 		exit:   make(chan struct{}),
@@ -89,14 +87,6 @@ func (c *Concentrator) Run() {
 
 	log.Debug("Starting concentrator")
 
-	go func() {
-		for {
-			select {
-			case i := <-c.In:
-				c.addNow(i, time.Now().UnixNano())
-			}
-		}
-	}()
 	for {
 		select {
 		case <-flushTicker.C:
@@ -123,6 +113,11 @@ type Input struct {
 	Trace     WeightedTrace
 	Sublayers SublayerMap
 	Env       string
+}
+
+// AddNow applies the given input to the concentrator.
+func (c *Concentrator) AddNow(i *Input, now int64) {
+	c.addNow(i, now)
 }
 
 func (c *Concentrator) addNow(i *Input, now int64) {

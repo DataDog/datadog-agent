@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,7 +40,7 @@ func TestTraceWriter(t *testing.T) {
 		}
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
-		defer useFlushThreshold(testSpans[0].size() + testSpans[1].size() + 10)()
+		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
 		in := make(chan *SampledSpans)
 		tw := NewTraceWriter(cfg, in)
 		go tw.Run()
@@ -116,8 +117,10 @@ func randomSampledSpans(spans, events int) *SampledSpans {
 	realisticIDs := true
 	trace := testutil.GetTestTraces(1, spans, realisticIDs)[0]
 	return &SampledSpans{
-		Trace:  trace,
-		Events: trace[:events],
+		Traces:    []*pb.APITrace{traceutil.APITrace(trace)},
+		Events:    trace[:events],
+		Size:      trace.Msgsize() + pb.Trace(trace[:events]).Msgsize(),
+		SpanCount: int64(len(trace)),
 	}
 }
 
@@ -142,7 +145,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledS
 	for _, ss := range sampledSpans {
 		var found bool
 		for _, trace := range all.Traces {
-			if reflect.DeepEqual(trace.Spans, ([]*pb.Span)(ss.Trace)) {
+			if reflect.DeepEqual(trace.Spans, ss.Traces[0].Spans) {
 				found = true
 				break
 			}
