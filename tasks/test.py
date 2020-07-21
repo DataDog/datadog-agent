@@ -425,7 +425,9 @@ class TestProfiler:
 
 
 @task
-def make_simple_gitlab_yml(ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False):
+def make_simple_gitlab_yml(
+    ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
+):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
 
@@ -438,7 +440,7 @@ def make_simple_gitlab_yml(ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', 
     with open(yml_file_src) as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
-    jobs_processed = set(['stages','variables','include','default'])
+    jobs_processed = set(['stages', 'variables', 'include', 'default'])
     jobs_to_process = set(jobs_to_process.split(','))
     while jobs_to_process:
         job_name = jobs_to_process.pop()
