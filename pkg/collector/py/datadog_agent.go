@@ -9,7 +9,9 @@ package py
 
 import (
 	"fmt"
+	"github.com/shirou/gopsutil/process"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -69,6 +71,38 @@ func GetClusterName(self *C.PyObject, args *C.PyObject) *C.PyObject {
 
 	cStr := C.CString(clusterName)
 	pyStr := C.PyString_FromString(cStr)
+	C.free(unsafe.Pointer(cStr))
+	return pyStr
+}
+
+// GetPid exposes the current pid of the agent to Python checks.
+// Used as a PyCFunction of type METH_VARARGS mapped to `datadog_agent.get_pid`.
+// `self` is the module object.
+//export GetPid
+func GetPid(self *C.PyObject, args *C.PyObject) *C.PyObject {
+	pid := os.Getpid()
+
+	cStr := C.CString(pid)
+	pyStr := C.PyInt_FromString(cStr)
+	C.free(unsafe.Pointer(cStr))
+	return pyStr
+}
+
+// GetCreateTime exposes the current pid of the agent to Python checks.
+// Used as a PyCFunction of type METH_VARARGS mapped to `datadog_agent.get_create_time`.
+// `self` is the module object.
+//export GetCreateTime
+func GetCreateTime(self *C.PyObject, args *C.PyObject) *C.PyObject {
+	pid := os.Getpid()
+	var createTime int64
+	if p, err := process.NewProcess(int32(pid)); err == nil {
+		if ct, err := p.CreateTime(); err == nil {
+			createTime = ct
+		}
+	}
+
+	cStr := C.CString(createTime)
+	pyStr := C.PyLong_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
 }

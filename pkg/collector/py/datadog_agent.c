@@ -238,6 +238,8 @@ static PyMethodDef datadogAgentMethods[] = {
   {"get_clustername", GetClusterName, METH_VARARGS, "Get the agent cluster name."},
   {"log", log_message, METH_VARARGS, "Log a message through the agent logger."},
   {"set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags."},
+  {"get_pid", GetPid, METH_VARARGS, "Get the agent pid."},
+  {"get_create_time", GetCreateTime, METH_VARARGS, "Get the agent create time."},
   {NULL, NULL}
 };
 
