@@ -2,7 +2,9 @@ import errno
 import json
 import os
 import re
-import sys
+
+from invoke.exceptions import Exit
+
 
 errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
@@ -27,7 +29,7 @@ class Gitlab(object):
 
         print("Cannot find GitLab project {}".format(project))
         print("If you cannot see it in the GitLab WebUI, you likely need permission.")
-        sys.exit(1)
+        raise Exit(code=1)
 
     def project(self, project_name):
         """
@@ -119,10 +121,10 @@ class Gitlab(object):
                     "https://gitlab.ddbuild.io/profile/personal_access_tokens"
                 )
                 print("Gitlab says: {}".format(r.json()["error_description"]))
-                sys.exit(1)
+                raise Exit(code=1)
         except requests.exceptions.Timeout:
             print("Connection to GitLab ({}) timed out.".format(url))
-            sys.exit(1)
+            raise Exit(code=1)
         except requests.exceptions.RequestException as e:
             m = errno_regex.match(str(e))
             if not m:
@@ -140,7 +142,7 @@ class Gitlab(object):
                 print("Connection to Gitlab ({}) refused".format(url))
             else:
                 print("Error while connecting to {}: {}".format(url, str(e)))
-            sys.exit(1)
+            raise Exit(code=1)
         if json:
             return r.json()
         return r.text
@@ -152,5 +154,5 @@ class Gitlab(object):
                 "https://gitlab.ddbuild.io/profile/personal_access_tokens and "
                 "export it is as GITLAB_TOKEN from your .bashrc or equivalent."
             )
-            sys.exit(1)
+            raise Exit(code=1)
         return os.environ["GITLAB_TOKEN"]

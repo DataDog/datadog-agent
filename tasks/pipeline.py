@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-
 from invoke import task
+from invoke.exceptions import Exit
 
 from .deploy.trigger_agent_pipeline import trigger_agent_pipeline, wait_for_pipeline
 from .deploy.gitlab import Gitlab
@@ -27,15 +27,16 @@ def follow(ctx, id=None, git_ref=None, here=False):
     if id is not None:
         wait_for_pipeline("DataDog/datadog-agent", id)
     elif git_ref is not None:
-        pipeline = Gitlab().last_pipeline_for_ref("DataDog/datadog-agent", git_ref)
-        if pipeline is not None:
-            wait_for_pipeline("DataDog/datadog-agent", pipeline['id'])
-        else:
-            print("No pipelines found for {ref}".format(ref=git_ref))
+        wait_for_pipeline_from_ref(git_ref)
     elif here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-        pipeline = Gitlab().last_pipeline_for_ref("DataDog/datadog-agent", git_ref)
-        if pipeline is not None:
-            wait_for_pipeline("DataDog/datadog-agent", pipeline['id'])
-        else:
-            print("No pipelines found for {ref}".format(ref=git_ref))
+        wait_for_pipeline_from_ref(git_ref)
+
+
+def wait_for_pipeline_from_ref(ref):
+    pipeline = Gitlab().last_pipeline_for_ref("DataDog/datadog-agent", ref)
+    if pipeline is not None:
+        wait_for_pipeline("DataDog/datadog-agent", pipeline['id'])
+    else:
+        print("No pipelines found for {ref}".format(ref=ref))
+        raise Exit(code=1)
