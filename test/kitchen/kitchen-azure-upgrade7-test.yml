@@ -4,6 +4,7 @@ suites:
 # candidate
 - name: dd-agent-upgrade-agent7
   run_list:
+    - "recipe[dd-agent-rhel-workaround]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-upgrade]"
