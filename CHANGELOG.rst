@@ -23,7 +23,7 @@ Bug Fixes
 ---------
 
 - JMXFetch upgraded to `0.38.2 <https://github.com/DataDog/jmxfetch/releases/0.38.2>`_ to fix Java 7 support.
-
+- Fix init of security-agent - exit properly when no feature requiring it is activated and avoid conflicting with core agent port bindings.
 
 .. _Release Notes_7.21.0:
 
