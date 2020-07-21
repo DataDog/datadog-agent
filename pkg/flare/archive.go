@@ -74,6 +74,7 @@ var (
 // SearchPaths is just an alias for a map of strings
 type SearchPaths map[string]string
 
+// Path is an alias to contain the flare file location.
 type Path map[string]string
 
 // permissionsInfos holds permissions info about the files shipped

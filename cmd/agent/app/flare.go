@@ -7,9 +7,10 @@ package app
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -148,7 +149,7 @@ func writePerformanceProfile(tempDir, hostname string) error {
 		return err
 	}
 
-	err = writeHTTPGzipContent(tempDir, hostname, "cpu.pprof", cpuProfURL)
+	err = writeCPUProfile(tempDir, hostname, "cpu.pprof", cpuProfURL)
 	if err != nil {
 		return err
 	}
@@ -207,9 +208,8 @@ func createArchive(logFile string) (string, string, error) {
 	return tempdDir, hostname, nil
 }
 
-func writeHTTPGzipContent(tempDir, hostname, filename, url string) error {
-	c := util.GetClient(false)
-	res, err := util.DoGet(c, url)
+func writeCPUProfile(tempDir, hostname, filename, url string) error {
+	res, err := http.Get(url)
 	if err != nil {
 		return err
 	}
@@ -225,10 +225,6 @@ func writeHTTPGzipContent(tempDir, hostname, filename, url string) error {
 		return err
 	}
 
-	w := gzip.NewWriter(f)
-	defer w.Close()
-
-	_, err = w.Write(res)
-
+	io.Copy(f, res.Body)
 	return err
 }
