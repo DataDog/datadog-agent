@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func zipCounterStrings(tempDir, hostname string) error {
+func writeCounterStrings(tempDir, hostname string) error {
 	bufferIncrement := uint32(1024)
 	bufferSize := bufferIncrement
 	var counterlist []uint16
@@ -61,7 +61,7 @@ func zipCounterStrings(tempDir, hostname string) error {
 
 }
 
-func zipTypeperfData(tempDir, hostname string) error {
+func writeTypeperfData(tempDir, hostname string) error {
 	cmd := exec.Command("typeperf", "-qx")
 	var out bytes.Buffer
 	cmd.Stdout = &out
