@@ -9,6 +9,11 @@ package probe
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -77,25 +82,48 @@ func (k *KFilterApplier) GetReport() *Report {
 	return k.reporter.GetReport()
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, field eval.Field, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
+func isParentPathDiscarder(rs *rules.RuleSet, eventType eval.EventType, filename string) (bool, error) {
 	dirname := filepath.Dir(filename)
 
-	// check that discarding the dirname we are not going to discard some value
-	// ex: rule /etc/passwd
+	// ensure we don't push parent discarder if there is another rule relying on the parent path
+	// ex: rule      open.filename == "/etc/passwd"
 	//     discarder /etc/fstab
+	// /etc/fstab is a discarder but not the parent
 	re, err := regexp.Compile("^" + dirname + "/.*$")
 	if err != nil {
 		return false, err
 	}
 
-	values := rs.GetFieldValues(field)
+	values := rs.GetFieldValues(eventType + ".filename")
 	for _, value := range values {
 		if re.MatchString(value.Value.(string)) {
 			return false, nil
 		}
 	}
 
-	log.Debugf("Add `%s` as parent discarder", dirname)
+	// check basename, assuming there is a basename field
+	// ensure that we don't discard a parent that matches a basename rule
+	// ex: rule     open.basename == ".ssh"
+	//     discader /root/.ssh/id_rsa
+	// we can't discard /root/.ssh as basename rule matches it
+	// Note: This shouldn't happen this we can't have a discarder working on multiple fields.
+	//       ex: open.filename == "/etc/passwd"
+	//           open.basename == "shadow"
+	//       These rules won't return any discarder
+	if !rs.IsDiscarder(eventType+".basename", path.Base(dirname)) {
+		return false, nil
+	}
+
+	log.Debugf("`%s` discovered as parent discarder", dirname)
+
+	return true, nil
+}
+
+func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventType, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
+	isDiscarder, err := isParentPathDiscarder(rs, eventType, filename)
+	if !isDiscarder {
+		return false, err
+	}
 
 	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode)
 	if err != nil {
