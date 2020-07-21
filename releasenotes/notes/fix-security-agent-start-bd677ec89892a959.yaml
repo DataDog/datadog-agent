@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix init of security-agent - exit properly when no feature requiring it is activated
