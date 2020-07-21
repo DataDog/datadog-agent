@@ -74,6 +74,8 @@ var (
 // SearchPaths is just an alias for a map of strings
 type SearchPaths map[string]string
 
+type Path map[string]string
+
 // permissionsInfos holds permissions info about the files shipped
 // in the flare.
 // The key is the filepath of the file.
@@ -83,6 +85,16 @@ type filePermsInfo struct {
 	mode  os.FileMode
 	owner string
 	group string
+}
+
+// EnsureParentDirsExist creates the parent directory if it does not already exist.
+func EnsureParentDirsExist(p string) error {
+	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetArchivePath generates a directory name for the flare zip.
@@ -108,8 +120,8 @@ func ZipArchive(zipFilePath, tempDir, hostname string) (string, error) {
 // WriteHTTPCallContent does a GET HTTP call to the given url and
 // writes the content of the HTTP response in the given file, ready
 // to be shipped in a flare.
-func WriteHTTPCallContent(tempDir, hostname, filename, url string, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func WriteHTTPCallContent(tempDir, hostname, filename, url string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*4)
 	defer cancel()
 
 	client := http.Client{}
@@ -125,7 +137,7 @@ func WriteHTTPCallContent(tempDir, hostname, filename, url string, timeout time.
 	defer resp.Body.Close()
 
 	f := filepath.Join(tempDir, hostname, filename)
-	err = ensureParentDirsExist(f)
+	err = EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -327,7 +339,7 @@ func writeStatusFile(tempDir, hostname string) error {
 
 func writeStatusFileLocal(tempDir, hostname string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, "status.log")
-	err := ensureParentDirsExist(f)
+	err := EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -411,7 +423,7 @@ func writeExpVar(tempDir, hostname string) error {
 		}
 
 		f := filepath.Join(tempDir, hostname, "expvar", key)
-		err = ensureParentDirsExist(f)
+		err = EnsureParentDirsExist(f)
 		if err != nil {
 			return err
 		}
@@ -492,7 +504,7 @@ func writeConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, per
 	}
 
 	f := filepath.Join(tempDir, hostname, "runtime_config_dump.yaml")
-	err = ensureParentDirsExist(f)
+	err = EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -543,7 +555,7 @@ func writeSecrets(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "secrets.log")
-	err = ensureParentDirsExist(f)
+	err = EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -566,7 +578,7 @@ func writeDiagnose(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
-	err := ensureParentDirsExist(f)
+	err := EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -590,7 +602,7 @@ func writeRegistryJSON(tempDir, hostname string) error {
 	defer original.Close()
 
 	filePath := filepath.Join(tempDir, hostname, "registry.json")
-	err = ensureParentDirsExist(filePath)
+	err = EnsureParentDirsExist(filePath)
 	if err != nil {
 		return err
 	}
@@ -614,7 +626,7 @@ func writeVersionHistory(tempDir, hostname string) error {
 	defer original.Close()
 
 	filePath := filepath.Join(tempDir, hostname, "version-history.json")
-	err = ensureParentDirsExist(filePath)
+	err = EnsureParentDirsExist(filePath)
 	if err != nil {
 		return err
 	}
@@ -641,7 +653,7 @@ func writeConfigCheck(tempDir, hostname string) error {
 
 func writeConfigCheckLocal(tempDir, hostname string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, "config-check.log")
-	err := ensureParentDirsExist(f)
+	err := EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -661,7 +673,7 @@ var taggerListURL string
 
 func writeTaggerList(tempDir, hostname string) error {
 	f := filepath.Join(tempDir, hostname, "tagger-list.json")
-	err := ensureParentDirsExist(f)
+	err := EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -713,7 +725,7 @@ func writeHealth(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "health.yaml")
-	err = ensureParentDirsExist(f)
+	err = EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -737,7 +749,7 @@ func writeInstallInfo(tempDir, hostname string) error {
 	defer original.Close()
 
 	zippedPath := filepath.Join(tempDir, hostname, "install_info")
-	err = ensureParentDirsExist(zippedPath)
+	err = EnsureParentDirsExist(zippedPath)
 	if err != nil {
 		return err
 	}
@@ -753,11 +765,11 @@ func writeInstallInfo(tempDir, hostname string) error {
 }
 
 func writeTelemetry(tempDir, hostname string) error {
-	return WriteHTTPCallContent(tempDir, hostname, "telemetry.log", telemetryURL, time.Second*4)
+	return WriteHTTPCallContent(tempDir, hostname, "telemetry.log", telemetryURL)
 }
 
 func writeStackTraces(tempDir, hostname string) error {
-	return WriteHTTPCallContent(tempDir, hostname, routineDumpFilename, pprofURL, time.Second*4)
+	return WriteHTTPCallContent(tempDir, hostname, routineDumpFilename, pprofURL)
 }
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
@@ -781,7 +793,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
 				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
-				err := ensureParentDirsExist(f)
+				err := EnsureParentDirsExist(f)
 				if err != nil {
 					return err
 				}
@@ -836,15 +848,6 @@ func newRedactingWriter(f string, p os.FileMode, buffered bool) (*RedactingWrite
 	return w, nil
 }
 
-func ensureParentDirsExist(p string) error {
-	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
@@ -864,7 +867,7 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 	_, err := os.Stat(filePath)
 	if err == nil {
 		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
-		err := ensureParentDirsExist(f)
+		err := EnsureParentDirsExist(f)
 		if err != nil {
 			return err
 		}

@@ -43,7 +43,7 @@ func writeCounterStrings(tempDir, hostname string) error {
 	}
 	clist := winutil.ConvertWindowsStringList(counterlist)
 	fname := filepath.Join(tempDir, hostname, "counter_strings.txt")
-	err := ensureParentDirsExist(fname)
+	err := EnsureParentDirsExist(fname)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func writeTypeperfData(tempDir, hostname string) error {
 		return err
 	}
 	f := filepath.Join(tempDir, hostname, "typeperf.txt")
-	err = ensureParentDirsExist(f)
+	err = EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}

@@ -200,10 +200,9 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		return
 	}
 
-	r := bytes.NewBuffer([]byte{})
-	res, e := util.DoPost(c, urlstr, "application/json", r)
+	res, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var zipFilePath, tempDir, hostname string
-	var filePath []string
+	var filePath flare.Path
 	if e != nil {
 		if res != nil && string(res) != "" {
 			log.Warnf("The agent ran into an error while making the flare: %s\n", string(res))
@@ -219,11 +218,10 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		}
 
 	} else {
-		dec := json.NewDecoder(r)
-		if err := dec.Decode(&filePath); err != nil {
+		if err := json.Unmarshal(res, &filePath); err != nil {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while decoding the flare file path: %s", color.RedString(err.Error())))
 		}
-		tempDir, hostname = filePath[0], filePath[1]
+		tempDir, hostname = filePath["tempDir"], filePath["hostname"]
 	}
 	defer os.RemoveAll(tempDir)
 

@@ -17,7 +17,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
@@ -103,11 +103,10 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	filePath := []string{tempDir, hostname}
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(filePath); err != nil {
-		log.Errorf("Error while encoding flare file path: %s,", err)
-	}
+	filePath := flare.Path{"tempDir": tempDir, "hostname": hostname}
+	w.Header().Set("Content-Type", "application/json")
+	j, _ := json.Marshal(filePath)
+	w.Write(j)
 }
 
 func componentConfigHandler(w http.ResponseWriter, r *http.Request) {

@@ -7,10 +7,11 @@ package app
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -25,7 +26,7 @@ import (
 var (
 	cpuProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=120",
 		config.Datadog.GetString("expvar_port"))
-	heapProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap",
+	heapProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap?debug=2",
 		config.Datadog.GetString("expvar_port"))
 
 	customerEmail   string
@@ -142,17 +143,17 @@ func makeFlare(caseID string) error {
 
 func writePerformanceProfile(tempDir, hostname string) error {
 	// Two heap profiles for diff
-	err := flare.WriteHTTPCallContent(tempDir, hostname, "heap.profile", heapProfURL, time.Second*4)
+	err := flare.WriteHTTPCallContent(tempDir, hostname, "heap_profile.log", heapProfURL)
 	if err != nil {
 		return err
 	}
 
-	err = flare.WriteHTTPCallContent(tempDir, hostname, "cpu.profile", cpuProfURL, time.Second*124)
+	err = writeHTTPGzipContent(tempDir, hostname, "cpu.pprof", cpuProfURL)
 	if err != nil {
 		return err
 	}
 
-	err = flare.WriteHTTPCallContent(tempDir, hostname, "heap.profile", heapProfURL, time.Second*4)
+	err = flare.WriteHTTPCallContent(tempDir, hostname, "heap_profile.log", heapProfURL)
 	if err != nil {
 		return err
 	}
@@ -178,8 +179,7 @@ func requestArchive(logFile string) (string, string, error) {
 		return createArchive(logFile)
 	}
 
-	r := bytes.NewBuffer([]byte{})
-	res, e := util.DoPost(c, urlstr, "application/json", r)
+	res, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {
 		if res != nil && string(res) != "" {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(res))))
@@ -189,13 +189,12 @@ func requestArchive(logFile string) (string, string, error) {
 		return createArchive(logFile)
 	}
 
-	var filePath []string
-	dec := json.NewDecoder(r)
-	if err := dec.Decode(&filePath); err != nil {
+	var filePath flare.Path
+	if err := json.Unmarshal(res, &filePath); err != nil {
 		fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while decoding the flare file path: %s", color.RedString(err.Error())))
 	}
 
-	return filePath[0], filePath[1], nil
+	return filePath["tempDir"], filePath["hostname"], nil
 }
 
 func createArchive(logFile string) (string, string, error) {
@@ -206,4 +205,30 @@ func createArchive(logFile string) (string, string, error) {
 		return tempdDir, hostname, e
 	}
 	return tempdDir, hostname, nil
+}
+
+func writeHTTPGzipContent(tempDir, hostname, filename, url string) error {
+	c := util.GetClient(false)
+	res, err := util.DoGet(c, url)
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(tempDir, hostname, filename)
+	err = flare.EnsureParentDirsExist(path)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	w := gzip.NewWriter(f)
+	defer w.Close()
+
+	_, err = w.Write(res)
+
+	return err
 }
