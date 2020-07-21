@@ -86,14 +86,16 @@ func TestProcess(t *testing.T) {
 
 		now := time.Now()
 		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
 			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
-		agnt.Process(&api.Trace{
-			Spans:  pb.Trace{span},
-			Source: &info.Tags{},
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{span}},
+			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 		}, stats.NewSublayerCalculator())
 
 		assert := assert.New(t)
@@ -111,12 +113,16 @@ func TestProcess(t *testing.T) {
 
 		now := time.Now()
 		spanValid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
 			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 		spanInvalid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
 			Resource: "INSERT INTO db VALUES (1, 2, 3)",
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
@@ -126,16 +132,16 @@ func TestProcess(t *testing.T) {
 		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
-		agnt.Process(&api.Trace{
-			Spans:  pb.Trace{spanValid},
-			Source: &info.Tags{},
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{spanValid}},
+			Source: want,
 		}, stats.NewSublayerCalculator())
 		assert.EqualValues(0, want.TracesFiltered)
 		assert.EqualValues(0, want.SpansFiltered)
 
-		agnt.Process(&api.Trace{
-			Spans:  pb.Trace{spanInvalid, spanInvalid},
-			Source: &info.Tags{},
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{spanInvalid, spanInvalid}},
+			Source: want,
 		}, stats.NewSublayerCalculator())
 		assert.EqualValues(1, want.TracesFiltered)
 		assert.EqualValues(2, want.SpansFiltered)
@@ -149,15 +155,17 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
 			Resource: "INSERT INTO db VALUES (1, 2, 3)",
 			Type:     "sql",
 			Start:    time.Now().Unix(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 
-		agnt.Process(&api.Trace{
-			Spans:         pb.Trace{span},
-			Source:        &info.Tags{},
+		agnt.Process(&api.Payload{
+			Traces:        pb.Traces{{span}},
+			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 			ContainerTags: "A:B,C",
 		}, stats.NewSublayerCalculator())
 
@@ -171,6 +179,7 @@ func TestProcess(t *testing.T) {
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		now := time.Now()
 		for _, key := range []sampler.SamplingPriority{
 			sampler.PriorityNone,
@@ -190,6 +199,8 @@ func TestProcess(t *testing.T) {
 			sampler.PriorityUserKeep,
 		} {
 			span := &pb.Span{
+				TraceID:  1,
+				SpanID:   1,
 				Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
 				Type:     "sql",
 				Start:    now.Add(-time.Second).UnixNano(),
@@ -199,18 +210,17 @@ func TestProcess(t *testing.T) {
 			if key != sampler.PriorityNone {
 				sampler.SetSamplingPriority(span, key)
 			}
-			agnt.Process(&api.Trace{
-				Spans:  pb.Trace{span},
-				Source: &info.Tags{},
+			agnt.Process(&api.Payload{
+				Traces: pb.Traces{{span}},
+				Source: want,
 			}, stats.NewSublayerCalculator())
 		}
 
-		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
-		assert.EqualValues(t, 1, stats.TracesPriorityNone)
-		assert.EqualValues(t, 2, stats.TracesPriorityNeg)
-		assert.EqualValues(t, 3, stats.TracesPriority0)
-		assert.EqualValues(t, 4, stats.TracesPriority1)
-		assert.EqualValues(t, 5, stats.TracesPriority2)
+		assert.EqualValues(t, 1, want.TracesPriorityNone)
+		assert.EqualValues(t, 2, want.TracesPriorityNeg)
+		assert.EqualValues(t, 3, want.TracesPriority0)
+		assert.EqualValues(t, 4, want.TracesPriority1)
+		assert.EqualValues(t, 5, want.TracesPriority2)
 	})
 }
 
@@ -526,9 +536,9 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ta.Process(&api.Trace{
-			Spans:  testutil.RandomTrace(10, 8),
-			Source: &info.Tags{},
+		ta.Process(&api.Payload{
+			Traces: pb.Traces{testutil.RandomTrace(10, 8)},
+			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 		}, stats.NewSublayerCalculator())
 	}
 }

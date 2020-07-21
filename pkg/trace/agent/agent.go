@@ -50,7 +50,7 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	In  chan *api.Trace
+	In  chan *api.Payload
 	Out chan *writer.SampledSpans
 
 	// config
@@ -64,7 +64,7 @@ type Agent struct {
 // which may be cancelled in order to gracefully stop the agent.
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
-	in := make(chan *api.Trace, 5000)
+	in := make(chan *api.Payload, 1000)
 	out := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 
@@ -115,11 +115,11 @@ func (a *Agent) work() {
 	sublayerCalculator := stats.NewSublayerCalculator()
 	for {
 		select {
-		case t, ok := <-a.In:
+		case p, ok := <-a.In:
 			if !ok {
 				return
 			}
-			a.Process(t, sublayerCalculator)
+			a.Process(p, sublayerCalculator)
 		}
 	}
 
@@ -148,84 +148,97 @@ func (a *Agent) loop() {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(t *api.Trace, sublayerCalculator *stats.SublayerCalculator) {
-	if len(t.Spans) == 0 {
-		log.Debugf("Skipping received empty trace")
+func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalculator) {
+	if len(p.Traces) == 0 {
+		log.Debugf("Skipping received empty payload")
 		return
 	}
-
-	defer timing.Since("datadog.trace_agent.internal.process_trace_ms", time.Now())
-
-	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-	root := traceutil.GetRoot(t.Spans)
-
-	// We get the address of the struct holding the stats associated to no tags.
-	ts := a.Receiver.Stats.GetTagStats(*t.Source)
-
-	if !a.Blacklister.Allows(root) {
-		log.Debugf("Trace rejected by blacklister. root: %v", root)
-		atomic.AddInt64(&ts.TracesFiltered, 1)
-		atomic.AddInt64(&ts.SpansFiltered, int64(len(t.Spans)))
-		return
-	}
-
-	// Extra sanitization steps of the trace.
-	for _, span := range t.Spans {
-		a.obfuscator.Obfuscate(span)
-		Truncate(span)
-	}
-	a.Replacer.Replace(t.Spans)
-
-	{
-		// this section sets up any necessary tags on the root:
-		clientSampleRate := sampler.GetGlobalRate(root)
-		sampler.SetClientRate(root, clientSampleRate)
-
-		if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-			rate := ratelimiter.RealRate()
-			sampler.SetPreSampleRate(root, rate)
-			sampler.AddGlobalRate(root, rate)
+	ts := p.Source
+	for _, t := range p.Traces {
+		if len(t) == 0 {
+			log.Debugf("Skipping received empty trace")
+			continue
 		}
-		if t.ContainerTags != "" {
-			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
+
+		defer timing.Since("datadog.trace_agent.internal.process_trace_ms", time.Now())
+
+		tracen := int64(len(t))
+		atomic.AddInt64(&ts.SpansReceived, tracen)
+		err := normalizeTrace(p.Source, t)
+		if err != nil {
+			log.Debug("Dropping invalid trace: %s", err)
+			atomic.AddInt64(&ts.SpansDropped, tracen)
+			continue
 		}
-	}
-	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
-	// which is not thread-safe while samplers and Concentrator might modify it too.
-	traceutil.ComputeTopLevel(t.Spans)
 
-	pt := ProcessedTrace{
-		Trace:         t.Spans,
-		WeightedTrace: stats.NewWeightedTrace(t.Spans, root),
-		Root:          root,
-		Env:           a.conf.DefaultEnv,
-		Sublayers:     make(map[*pb.Span][]stats.SublayerValue),
-	}
+		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
+		root := traceutil.GetRoot(t)
 
-	sampledSpans, sampled := a.sample(ts, pt)
+		if !a.Blacklister.Allows(root) {
+			log.Debugf("Trace rejected by blacklister. root: %v", root)
+			atomic.AddInt64(&ts.TracesFiltered, 1)
+			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			return
+		}
 
-	subtraces := stats.ExtractSubtraces(t.Spans, root)
-	for _, subtrace := range subtraces {
-		subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
-		pt.Sublayers[subtrace.Root] = subtraceSublayers
+		// Extra sanitization steps of the trace.
+		for _, span := range t {
+			a.obfuscator.Obfuscate(span)
+			Truncate(span)
+		}
+		a.Replacer.Replace(t)
+
+		{
+			// this section sets up any necessary tags on the root:
+			clientSampleRate := sampler.GetGlobalRate(root)
+			sampler.SetClientRate(root, clientSampleRate)
+
+			if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
+				rate := ratelimiter.RealRate()
+				sampler.SetPreSampleRate(root, rate)
+				sampler.AddGlobalRate(root, rate)
+			}
+			if p.ContainerTags != "" {
+				traceutil.SetMeta(root, tagContainersTags, p.ContainerTags)
+			}
+		}
+		// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
+		// which is not thread-safe while samplers and Concentrator might modify it too.
+		traceutil.ComputeTopLevel(t)
+
+		pt := ProcessedTrace{
+			Trace:         t,
+			WeightedTrace: stats.NewWeightedTrace(t, root),
+			Root:          root,
+			Env:           a.conf.DefaultEnv,
+			Sublayers:     make(map[*pb.Span][]stats.SublayerValue),
+		}
+
+		sampledSpans, sampled := a.sample(ts, pt)
+
+		subtraces := stats.ExtractSubtraces(t, root)
+		for _, subtrace := range subtraces {
+			subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
+			pt.Sublayers[subtrace.Root] = subtraceSublayers
+			if sampled {
+				stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
+			}
+		}
+
+		if tenv := traceutil.GetEnv(t); tenv != "" {
+			// this trace has a user defined env.
+			pt.Env = tenv
+		}
+
+		a.Concentrator.In <- &stats.Input{
+			Trace:     pt.WeightedTrace,
+			Sublayers: pt.Sublayers,
+			Env:       pt.Env,
+		}
+
 		if sampled {
-			stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
+			a.Out <- sampledSpans
 		}
-	}
-
-	if tenv := traceutil.GetEnv(t.Spans); tenv != "" {
-		// this trace has a user defined env.
-		pt.Env = tenv
-	}
-
-	a.Concentrator.In <- &stats.Input{
-		Trace:     pt.WeightedTrace,
-		Sublayers: pt.Sublayers,
-		Env:       pt.Env,
-	}
-
-	if sampled {
-		a.Out <- sampledSpans
 	}
 }
 
