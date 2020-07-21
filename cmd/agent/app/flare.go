@@ -225,6 +225,6 @@ func writeCPUProfile(tempDir, hostname, filename, url string) error {
 		return err
 	}
 
-	io.Copy(f, res.Body)
+	_, err = io.Copy(f, res.Body)
 	return err
 }
