@@ -9,48 +9,38 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/elastic/go-libaudit/rule"
-	"github.com/stretchr/testify/assert"
+
 	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
 )
 
+type setupEnvFunc func(t *testing.T, env *mocks.Env)
+
 func TestAuditCheck(t *testing.T) {
-	type setupFunc func(t *testing.T, env *mocks.Env)
-	type validateFunc func(t *testing.T, kv event.Data)
 
 	tests := []struct {
-		name     string
-		rules    []*rule.FileWatchRule
-		audit    *compliance.Audit
-		setup    setupFunc
-		validate validateFunc
+		name         string
+		rules        []*rule.FileWatchRule
+		resource     compliance.Resource
+		setup        setupEnvFunc
+		expectReport *report
+		expectError  error
 	}{
 		{
 			name:  "no file rules",
 			rules: nil,
-			audit: &compliance.Audit{
-				Path: "/etc/docker/daemon.json",
-				Report: []compliance.ReportedField{
-					{
-						Property: "enabled",
-						Kind:     compliance.PropertyKindAttribute,
-					},
-					{
-						Property: "path",
-						Kind:     compliance.PropertyKindAttribute,
-					},
+			resource: compliance.Resource{
+				Audit: &compliance.Audit{
+					Path: "/etc/docker/daemon.json",
 				},
+				Condition: "audit.enabled",
 			},
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t,
-					event.Data{
-						"enabled": "false",
-						"path":    "/etc/docker/daemon.json",
-					},
-					kv,
-				)
+			expectReport: &report{
+				passed: false,
 			},
 		},
 		{
@@ -66,36 +56,24 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			audit: &compliance.Audit{
-				Path: "/etc/docker/daemon.json",
-				Report: []compliance.ReportedField{
-					{
-						Property: "enabled",
-						Kind:     compliance.PropertyKindAttribute,
-					},
-					{
-						Property: "path",
-						Kind:     compliance.PropertyKindAttribute,
-					},
-					{
-						Property: "permissions",
-						Kind:     compliance.PropertyKindAttribute,
-					},
+			resource: compliance.Resource{
+				Audit: &compliance.Audit{
+					Path: "/etc/docker/daemon.json",
+				},
+				Condition: `audit.enabled && audit.permissions =~ "w"`,
+			},
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
+					"audit.enabled":     true,
+					"audit.path":        "/etc/docker/daemon.json",
+					"audit.permissions": "rwa",
 				},
 			},
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t,
-					event.Data{
-						"enabled":     "true",
-						"path":        "/etc/docker/daemon.json",
-						"permissions": "rwa",
-					},
-					kv,
-				)
-			},
 		},
+
 		{
-			name: "file rule present (pathFrom)",
+			name: "file rule present (resolve path)",
 			rules: []*rule.FileWatchRule{
 				{
 					Type: rule.FileWatchRuleType,
@@ -103,46 +81,25 @@ func TestAuditCheck(t *testing.T) {
 					Permissions: []rule.AccessType{
 						rule.ReadAccessType,
 						rule.WriteAccessType,
-						rule.AttributeChangeAccessType,
 					},
 				},
 			},
-			audit: &compliance.Audit{
-				PathFrom: compliance.ValueFrom{
-					{
-						Process: &compliance.ValueFromProcess{
-							Name: "dockerd",
-							Flag: "--config-file",
-						},
-					},
+			resource: compliance.Resource{
+				Audit: &compliance.Audit{
+					Path: `process.flag("docker", "--config-file")`,
 				},
-				Report: []compliance.ReportedField{
-					{
-						Property: "enabled",
-						Kind:     compliance.PropertyKindAttribute,
-					},
-					{
-						Property: "path",
-						Kind:     compliance.PropertyKindAttribute,
-					},
-					{
-						Property: "permissions",
-						Kind:     compliance.PropertyKindAttribute,
-					},
-				},
+				Condition: `audit.enabled && audit.permissions =~ "r"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env) {
-				env.On("ResolveValueFrom", mock.AnythingOfType("compliance.ValueFrom")).Return("/etc/docker/daemon.json", nil)
+				env.On("EvaluateFromCache", mock.Anything).Return("/etc/docker/daemon.json", nil)
 			},
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t,
-					event.Data{
-						"enabled":     "true",
-						"path":        "/etc/docker/daemon.json",
-						"permissions": "rwa",
-					},
-					kv,
-				)
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
+					"audit.enabled":     true,
+					"audit.path":        "/etc/docker/daemon.json",
+					"audit.permissions": "rw",
+				},
 			},
 		},
 	}
@@ -151,9 +108,6 @@ func TestAuditCheck(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			assert := assert.New(t)
 
-			reporter := &mocks.Reporter{}
-			defer reporter.AssertExpectations(t)
-
 			client := &mocks.AuditClient{}
 			defer client.AssertExpectations(t)
 
@@ -161,27 +115,19 @@ func TestAuditCheck(t *testing.T) {
 
 			env := &mocks.Env{}
 			defer env.AssertExpectations(t)
-			env.On("Reporter").Return(reporter)
 			env.On("AuditClient").Return(client)
 
 			if test.setup != nil {
 				test.setup(t, env)
 			}
 
-			base := newTestBaseCheck(env, checkKindAudit)
-			check, err := newAuditCheck(base, test.audit)
+			expr, err := eval.ParseIterable(test.resource.Condition)
 			assert.NoError(err)
 
-			reporter.On(
-				"Report",
-				mock.AnythingOfType("*event.Event"),
-			).Run(func(args mock.Arguments) {
-				event := args.Get(0).(*event.Event)
-				test.validate(t, event.Data)
-			})
+			result, err := checkAudit(env, "rule-id", test.resource, expr)
 
-			err = check.Run()
-			assert.NoError(err)
+			assert.Equal(test.expectError, err)
+			assert.Equal(test.expectReport, result)
 		})
 	}
 }

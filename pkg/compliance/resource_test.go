@@ -12,257 +12,90 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-const testResourceFileReportingOwner = `
+const testResourceFile = `
 file:
   path: /etc/docker/daemon.json
-  report:
-  - property: owner
-    kind: attribute
+condition: file.owner == "root"
 `
 
-const testResourceFileReportingPermissions = `
-file:
-  path: /etc/docker/daemon.json
-  report:
-  - property: permissions
-    kind: attribute
-`
-
-const testResourceFilePathFromCommand = `
-file:
-  pathFrom:
-  - command:
-      shell:
-        run: systemctl show -p FragmentPath docker.service
-  report:
-  - property: owner
-    kind: attribute
-`
-
-const testResourceFileReportingJSONPath = `
-file:
-  path: /etc/docker/daemon.json
-  report:
-  - property: tlsverify
-    kind: jsonquery
-`
-const testResourceProcessReportingFlag = `
+const testResourceProcess = `
 process:
   name: dockerd
-  report:
-  - property: --tlsverify
-    kind: flag
-    as: tlsverify
+condition: process.flag("--tlsverify") != ""
 `
 
 const testResourceCommand = `
 command:
   shell:
     run: mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"
-  filter:
-  - include:
-      exitCode: 0
-  report:
-  - as: docker_partition
-    value: true
+condition: command.exitCode == 0
 `
 
 const testResourceAudit = `
 audit:
   path: /usr/bin/dockerd
-  report:
-  - property: enabled
-    kind: attribute
-`
-
-const testResourceAuditPathFromCommand = `
-audit:
-  pathFrom:
-  - command:
-      shell:
-        run: systemctl show -p FragmentPath docker.socket
-  report:
-  - property: enabled
-    kind: attribute
+condition: audit.enabled
 `
 
 const testResourceGroup = `
 group:
   name: docker
-  report:
-  - as: docker_group
+condition: >-
+  "root" in group.users
 `
 
-const testResourceDockerImageWithFilter = `
+const testResourceDockerImage = `
 docker:
   kind: image
-
-  filter:
-  - exclude:
-      property: "{{ $.Config.Healthcheck }}"
-      kind: template
-      op: exists
-
-  report:
-  - property: id
-    as: image_id
-
-  - as: image_healthcheck_missing
-    value: true
+condition: docker.template("{{ $.Config.Healthcheck }}") != ""
 `
 
 func TestResources(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		input    string
 		expected Resource
 	}{
 		{
-			name:  "file reporting owner",
-			input: testResourceFileReportingOwner,
+			name:  "file",
+			input: testResourceFile,
 			expected: Resource{
 				File: &File{
 					Path: `/etc/docker/daemon.json`,
-					Report: Report{
-						{
-							Property: "owner",
-							Kind:     PropertyKindAttribute,
-						},
-					},
 				},
+				Condition: `file.owner == "root"`,
 			},
 		},
 		{
-			name:  "file reporting permissions",
-			input: testResourceFileReportingPermissions,
-			expected: Resource{
-				File: &File{
-					Path: `/etc/docker/daemon.json`,
-					Report: Report{
-						{
-							Property: "permissions",
-							Kind:     PropertyKindAttribute,
-						},
-					},
-				},
-			},
-		},
-		{
-			name:  "file with path from command reporting owner",
-			input: testResourceFilePathFromCommand,
-			expected: Resource{
-				File: &File{
-					PathFrom: ValueFrom{
-						{
-							Command: &ValueFromCommand{
-								ShellCmd: &ShellCmd{
-									Run: `systemctl show -p FragmentPath docker.service`,
-								},
-							},
-						},
-					},
-					Report: Report{
-						{
-							Property: "owner",
-							Kind:     PropertyKindAttribute,
-						},
-					},
-				},
-			},
-		},
-		{
-			name:  "file reporting jsonquery property",
-			input: testResourceFileReportingJSONPath,
-			expected: Resource{
-				File: &File{
-					Path: `/etc/docker/daemon.json`,
-					Report: Report{
-						{
-							Property: "tlsverify",
-							Kind:     PropertyKindJSONQuery,
-						},
-					},
-				},
-			},
-		},
-		{
-			name:  "process reporting flag",
-			input: testResourceProcessReportingFlag,
+			name:  "process",
+			input: testResourceProcess,
 			expected: Resource{
 				Process: &Process{
 					Name: "dockerd",
-					Report: Report{
-						{
-							Property: "--tlsverify",
-							Kind:     PropertyKindFlag,
-							As:       "tlsverify",
-						},
-					},
 				},
+				Condition: `process.flag("--tlsverify") != ""`,
 			},
 		},
-
 		{
-			name:  "command reporting zero exit code as true",
+			name:  "command",
 			input: testResourceCommand,
 			expected: Resource{
 				Command: &Command{
 					ShellCmd: &ShellCmd{
 						Run: `mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"`,
 					},
-					Filter: []CommandFilter{
-						{
-							Include: &CommandCondition{
-								ExitCode: 0,
-							},
-						},
-					},
-					Report: Report{
-						{
-							As:    "docker_partition",
-							Value: "true",
-						},
-					},
 				},
+				Condition: `command.exitCode == 0`,
 			},
 		},
 		{
-			name:  "audit with file path",
+			name:  "audit",
 			input: testResourceAudit,
 			expected: Resource{
 				Audit: &Audit{
 					Path: "/usr/bin/dockerd",
-					Report: Report{
-						{
-							Property: "enabled",
-							Kind:     "attribute",
-						},
-					},
 				},
-			},
-		},
-		{
-			name:  "audit with file path from command",
-			input: testResourceAuditPathFromCommand,
-			expected: Resource{
-				Audit: &Audit{
-					PathFrom: ValueFrom{
-						{
-							Command: &ValueFromCommand{
-								ShellCmd: &ShellCmd{
-									Run: `systemctl show -p FragmentPath docker.socket`,
-								},
-							},
-						},
-					},
-					Report: Report{
-						{
-							Property: "enabled",
-							Kind:     "attribute",
-						},
-					},
-				},
+				Condition: `audit.enabled`,
 			},
 		},
 		{
@@ -271,42 +104,19 @@ func TestResources(t *testing.T) {
 			expected: Resource{
 				Group: &Group{
 					Name: "docker",
-					Report: Report{
-						{
-							As: "docker_group",
-						},
-					},
 				},
+				Condition: `"root" in group.users`,
 			},
 		},
 		{
 
-			name:  "docker image with filter",
-			input: testResourceDockerImageWithFilter,
+			name:  "docker image",
+			input: testResourceDockerImage,
 			expected: Resource{
 				Docker: &DockerResource{
 					Kind: "image",
-
-					Filter: []Filter{
-						{
-							Exclude: &Condition{
-								Property:  "{{ $.Config.Healthcheck }}",
-								Kind:      PropertyKindTemplate,
-								Operation: OpExists,
-							},
-						},
-					},
-					Report: Report{
-						{
-							Property: "id",
-							As:       "image_id",
-						},
-						{
-							As:    "image_healthcheck_missing",
-							Value: "true",
-						},
-					},
 				},
+				Condition: `docker.template("{{ $.Config.Healthcheck }}") != ""`,
 			},
 		},
 	}

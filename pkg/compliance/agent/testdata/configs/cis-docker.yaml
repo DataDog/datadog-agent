@@ -7,7 +7,7 @@ rules:
     docker: true
   resources:
   - file:
-      path: ./files/daemon.json
-      report:
-      - property: permissions
-        kind: attribute
+      path: /files/daemon.json
+    condition: file.permissions == 0644
+
+

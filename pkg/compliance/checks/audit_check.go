@@ -9,116 +9,117 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/elastic/go-libaudit/rule"
 )
 
-type auditCheck struct {
-	baseCheck
-	audit *compliance.Audit
+const (
+	auditFieldPath        = "audit.path"
+	auditFieldEnabled     = "audit.enabled"
+	auditFieldPermissions = "audit.permissions"
+)
+
+var auditReportedFields = []string{
+	auditFieldPath,
+	auditFieldEnabled,
+	auditFieldPermissions,
 }
 
-func newAuditCheck(baseCheck baseCheck, audit *compliance.Audit) (*auditCheck, error) {
-	if err := audit.Validate(); err != nil {
-		return nil, fmt.Errorf("unable to create audit check for invalid audit resource %w", err)
+func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+	if res.Audit == nil {
+		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
 
-	return &auditCheck{
-		baseCheck: baseCheck,
-		audit:     audit,
-	}, nil
-}
+	audit := res.Audit
 
-func (c *auditCheck) Run() error {
-	log.Debugf("%s: running audit check - path %s", c.id, c.audit.Path)
+	client := e.AuditClient()
+	if client == nil {
+		return nil, fmt.Errorf("audit client not configured")
+	}
 
-	rules, err := c.AuditClient().GetFileWatchRules()
+	path, err := resolvePath(e, audit.Path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	path := c.audit.Path
-	if path == "" {
-		path, err = c.ResolveValueFrom(c.audit.PathFrom)
-		if err != nil {
-			return err
-		}
+	paths := []string{path}
+
+	log.Debugf("%s: evaluating audit rules", ruleID)
+
+	auditRules, err := client.GetFileWatchRules()
+	if err != nil {
+		return nil, err
 	}
 
-	// Scan for the rule matching configured path
-	for _, r := range rules {
-		if r.Path == path {
-			log.Debugf("%s: audit check - match %s", c.id, path)
-			return c.reportOnRule(r, path)
-		}
-	}
-
-	// If no rule found we still report this as "not enabled"
-	return c.reportOnRule(nil, path)
-}
-
-func (c *auditCheck) reportOnRule(r *rule.FileWatchRule, path string) error {
-	var (
-		v   string
-		err error
-		kv  = event.Data{}
-	)
-
-	for _, field := range c.audit.Report {
-		if c.setStaticKV(field, kv) {
-			continue
-		}
-
-		switch field.Kind {
-		case compliance.PropertyKindAttribute:
-			v, err = c.getAttribute(field.Property, r, path)
-		default:
-			return ErrPropertyKindNotSupported
-		}
-		if err != nil {
-			return err
-		}
-
-		key := field.As
-		if key == "" {
-			key = field.Property
-		}
-
-		if v != "" {
-			kv[key] = v
-		}
-	}
-
-	c.report(nil, kv)
-	return nil
-}
-
-func (c *auditCheck) getAttribute(name string, r *rule.FileWatchRule, path string) (string, error) {
-	switch name {
-	case "path":
-		return path, nil
-	case "enabled":
-		return fmt.Sprintf("%t", r != nil), nil
-	case "permissions":
-		if r == nil {
-			return "", nil
-		}
-		permissions := ""
-		for _, p := range r.Permissions {
-			switch p {
-			case rule.ReadAccessType:
-				permissions += "r"
-			case rule.WriteAccessType:
-				permissions += "w"
-			case rule.ExecuteAccessType:
-				permissions += "e"
-			case rule.AttributeChangeAccessType:
-				permissions += "a"
+	var instances []*eval.Instance
+	for _, auditRule := range auditRules {
+		for _, path := range paths {
+			if auditRule.Path != path {
+				continue
 			}
+
+			log.Debugf("%s: audit check - match %s", ruleID, path)
+			instances = append(instances, &eval.Instance{
+				Vars: eval.VarMap{
+					auditFieldPath:        path,
+					auditFieldEnabled:     true,
+					auditFieldPermissions: auditPermissionsString(auditRule),
+				},
+			})
 		}
-		return permissions, nil
-	default:
-		return "", ErrPropertyNotSupported
 	}
+
+	it := &instanceIterator{
+		instances: instances,
+	}
+
+	result, err := expr.EvaluateIterator(it, globalInstance)
+	if err != nil {
+		return nil, err
+	}
+
+	return instanceResultToReport(result, auditReportedFields), nil
+}
+
+func resolvePath(e env.Env, path string) (string, error) {
+
+	pathExpr, err := eval.ParsePath(path)
+	if err != nil {
+		return "", err
+	}
+
+	if pathExpr.Path != nil {
+		return *pathExpr.Path, nil
+	}
+
+	v, err := e.EvaluateFromCache(pathExpr)
+	if err != nil {
+		return "", err
+	}
+
+	path, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("resource path expression not resolved to string: %s", path)
+	}
+
+	return path, nil
+}
+
+func auditPermissionsString(r *rule.FileWatchRule) string {
+	permissions := ""
+	for _, p := range r.Permissions {
+		switch p {
+		case rule.ReadAccessType:
+			permissions += "r"
+		case rule.WriteAccessType:
+			permissions += "w"
+		case rule.ExecuteAccessType:
+			permissions += "e"
+		case rule.AttributeChangeAccessType:
+			permissions += "a"
+		}
+	}
+	return permissions
 }

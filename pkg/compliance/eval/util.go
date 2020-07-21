@@ -132,6 +132,8 @@ func stringBinaryOp(op string, lhs, rhs string, pos lexer.Position) (string, err
 	}
 }
 
+type coerceFunc func(value interface{}) interface{}
+
 func coerceIntegers(value interface{}) interface{} {
 	switch value := value.(type) {
 	case int:
@@ -146,6 +148,64 @@ func coerceIntegers(value interface{}) interface{} {
 		return uint64(value)
 	case uint32:
 		return uint64(value)
+	}
+	return value
+}
+
+func coerceArrays(value interface{}) interface{} {
+	var to []interface{}
+
+	switch from := value.(type) {
+	case []int:
+		for _, v := range from {
+			to = append(to, int64(v))
+		}
+	case []int16:
+		for _, v := range from {
+			to = append(to, int64(v))
+		}
+	case []int32:
+		for _, v := range from {
+			to = append(to, int64(v))
+		}
+	case []int64:
+		for _, v := range from {
+			to = append(to, v)
+		}
+	case []uint:
+		for _, v := range from {
+			to = append(to, uint64(v))
+		}
+	case []uint16:
+		for _, v := range from {
+			to = append(to, uint64(v))
+		}
+	case []uint32:
+		for _, v := range from {
+			to = append(to, uint64(v))
+		}
+	case []uint64:
+		for _, v := range from {
+			to = append(to, v)
+		}
+	case []string:
+		for _, v := range from {
+			to = append(to, v)
+		}
+	default:
+		return value
+	}
+	return to
+}
+
+func coerceValues(value interface{}) interface{} {
+	coerceFns := []coerceFunc{
+		coerceIntegers,
+		coerceArrays,
+	}
+
+	for _, fn := range coerceFns {
+		value = fn(value)
 	}
 	return value
 }

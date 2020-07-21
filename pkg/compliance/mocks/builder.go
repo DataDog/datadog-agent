@@ -15,6 +15,29 @@ type Builder struct {
 	mock.Mock
 }
 
+// CheckFromRule provides a mock function with given fields: meta, rule
+func (_m *Builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
+	ret := _m.Called(meta, rule)
+
+	var r0 check.Check
+	if rf, ok := ret.Get(0).(func(*compliance.SuiteMeta, *compliance.Rule) check.Check); ok {
+		r0 = rf(meta, rule)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(check.Check)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(*compliance.SuiteMeta, *compliance.Rule) error); ok {
+		r1 = rf(meta, rule)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ChecksFromFile provides a mock function with given fields: file, onCheck
 func (_m *Builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) error {
 	ret := _m.Called(file, onCheck)
@@ -27,29 +50,6 @@ func (_m *Builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) 
 	}
 
 	return r0
-}
-
-// ChecksFromRule provides a mock function with given fields: meta, rule
-func (_m *Builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error) {
-	ret := _m.Called(meta, rule)
-
-	var r0 []check.Check
-	if rf, ok := ret.Get(0).(func(*compliance.SuiteMeta, *compliance.Rule) []check.Check); ok {
-		r0 = rf(meta, rule)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]check.Check)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(*compliance.SuiteMeta, *compliance.Rule) error); ok {
-		r1 = rf(meta, rule)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }
 
 // Close provides a mock function with given fields:

@@ -6,219 +6,155 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	kubeDynamic "k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic"
 )
-
-type kubeApiserverCheck struct {
-	baseCheck
-	kubeResource *compliance.KubernetesResource
-}
 
 const (
-	kubeResourceNameKey      string = "kube_resource_name"
-	kubeResourceGroupKey     string = "kube_resource_group"
-	kubeResourceVersionKey   string = "kube_resource_version"
-	kubeResourceNamespaceKey string = "kube_resource_namespace"
-	kubeResourceKindKey      string = "kube_resource_kind"
+	kubeResourceFieldName      = "kube.resource.name"
+	kubeResourceFieldGroup     = "kube.resource.group"
+	kubeResourceFieldVersion   = "kube.resource.version"
+	kubeResourceFieldNamespace = "kube.resource.namespace"
+	kubeResourceFieldKind      = "kube.resource.kind"
+	kubeResourceFuncJQ         = "kube.resource.jq"
 )
 
-func newKubeapiserverCheck(baseCheck baseCheck, kubeResource *compliance.KubernetesResource) (*kubeApiserverCheck, error) {
-	check := &kubeApiserverCheck{
-		baseCheck:    baseCheck,
-		kubeResource: kubeResource,
-	}
-
-	if len(check.kubeResource.Kind) == 0 {
-		return nil, fmt.Errorf("cannot create Kubeapiserver check, resource kind is empty, rule: %s", baseCheck.ruleID)
-	}
-
-	if len(check.kubeResource.APIRequest.Verb) == 0 {
-		return nil, fmt.Errorf("cannot create Kubeapiserver check, action verb is empty, rule: %s", baseCheck.ruleID)
-	}
-
-	if len(check.kubeResource.Version) == 0 {
-		check.kubeResource.Version = "v1"
-	}
-
-	return check, nil
+var kubeResourceReportedFields = []string{
+	kubeResourceFieldName,
+	kubeResourceFieldGroup,
+	kubeResourceFieldVersion,
+	kubeResourceFieldNamespace,
+	kubeResourceFieldKind,
 }
 
-func (c *kubeApiserverCheck) Run() error {
-	log.Debugf("%s: kubeapiserver check: %s", c.ruleID, c.kubeResource.String())
+func checkKubeapiserver(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+	if res.KubeApiserver == nil {
+		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
+	}
+
+	kubeResource := res.KubeApiserver
+
+	if len(kubeResource.Kind) == 0 {
+		return nil, fmt.Errorf("cannot run Kubeapiserver check, resource kind is empty")
+	}
+
+	if len(kubeResource.APIRequest.Verb) == 0 {
+		return nil, fmt.Errorf("cannot run Kubeapiserver check, action verb is empty")
+	}
+
+	if len(kubeResource.Version) == 0 {
+		kubeResource.Version = "v1"
+	}
 
 	resourceSchema := schema.GroupVersionResource{
-		Group:    c.kubeResource.Group,
-		Resource: c.kubeResource.Kind,
-		Version:  c.kubeResource.Version,
+		Group:    kubeResource.Group,
+		Resource: kubeResource.Kind,
+		Version:  kubeResource.Version,
 	}
-	resourceDef := c.KubeClient().Resource(resourceSchema)
+	resourceDef := e.KubeClient().Resource(resourceSchema)
 
-	var resourceAPI kubeDynamic.ResourceInterface
-	if len(c.kubeResource.Namespace) > 0 {
-		resourceAPI = resourceDef.Namespace(c.kubeResource.Namespace)
+	var resourceAPI dynamic.ResourceInterface
+	if len(kubeResource.Namespace) > 0 {
+		resourceAPI = resourceDef.Namespace(kubeResource.Namespace)
 	} else {
 		resourceAPI = resourceDef
 	}
 
 	var resources []unstructured.Unstructured
-	switch c.kubeResource.APIRequest.Verb {
+
+	api := kubeResource.APIRequest
+	switch api.Verb {
 	case "get":
-		if len(c.kubeResource.APIRequest.ResourceName) == 0 {
-			return fmt.Errorf("%s: unable to use 'get' apirequest without resource name", c.ruleID)
+		if len(api.ResourceName) == 0 {
+			return nil, fmt.Errorf("unable to use 'get' apirequest without resource name")
 		}
-		resource, err := resourceAPI.Get(c.kubeResource.APIRequest.ResourceName, metav1.GetOptions{})
+		resource, err := resourceAPI.Get(kubeResource.APIRequest.ResourceName, metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("unable to get Kube resource:'%v', ns:'%s' name:'%s', err: %v", resourceSchema, c.kubeResource.Namespace, c.kubeResource.APIRequest.ResourceName, err)
+			return nil, fmt.Errorf("unable to get Kube resource:'%v', ns:'%s' name:'%s', err: %v", resourceSchema, kubeResource.Namespace, api.ResourceName, err)
 		}
 		resources = []unstructured.Unstructured{*resource}
 	case "list":
-		listOptions, err := filterToListOptions(c.kubeResource.Filter)
-		if err != nil {
-			return fmt.Errorf("%s: unable to parse filters %v, err: %v", c.ruleID, c.kubeResource.Filter, err)
-		}
 
-		list, err := resourceAPI.List(listOptions)
+		list, err := resourceAPI.List(metav1.ListOptions{
+			LabelSelector: kubeResource.LabelSelector,
+			FieldSelector: kubeResource.FieldSelector,
+		})
 		if err != nil {
-			return fmt.Errorf("unable to list Kube resources:'%v', ns:'%s' name:'%s', err: %v", resourceSchema, c.kubeResource.Namespace, c.kubeResource.APIRequest.ResourceName, err)
+			return nil, fmt.Errorf("unable to list Kube resources:'%v', ns:'%s' name:'%s', err: %v", resourceSchema, kubeResource.Namespace, api.ResourceName, err)
 		}
 		resources = list.Items
 	}
 
-	log.Debugf("%s: Got %d resources", c.ruleID, len(resources))
-	for _, resource := range resources {
-		report, err := shouldReportResource(c.kubeResource.Filter, resource.Object)
+	log.Debugf("%s: Got %d resources", ruleID, len(resources))
+
+	it := &kubeResourceIterator{
+		resources: resources,
+	}
+
+	result, err := expr.EvaluateIterator(it, globalInstance)
+	if err != nil {
+		return nil, err
+	}
+
+	return instanceResultToReport(result, kubeResourceReportedFields), nil
+}
+
+type kubeResourceIterator struct {
+	resources []unstructured.Unstructured
+	index     int
+}
+
+func (it *kubeResourceIterator) Next() (*eval.Instance, error) {
+	if !it.Done() {
+		resource := it.resources[it.index]
+		it.index++
+
+		instance := &eval.Instance{
+			Vars: eval.VarMap{
+				kubeResourceFieldKind:      resource.GetObjectKind().GroupVersionKind().Kind,
+				kubeResourceFieldGroup:     resource.GetObjectKind().GroupVersionKind().Group,
+				kubeResourceFieldVersion:   resource.GetObjectKind().GroupVersionKind().Version,
+				kubeResourceFieldNamespace: resource.GetNamespace(),
+				kubeResourceFieldName:      resource.GetName(),
+			},
+			Functions: eval.FunctionMap{
+				kubeResourceFuncJQ: kubeResourceJQ(resource),
+			},
+		}
+		return instance, nil
+	}
+	return nil, errors.New("out of bounds iteration")
+}
+
+func (it *kubeResourceIterator) Done() bool {
+	return it.index >= len(it.resources)
+}
+
+func kubeResourceJQ(resource unstructured.Unstructured) eval.Function {
+	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+		if len(args) != 1 {
+			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
+		}
+		query, ok := args[0].(string)
+		if !ok {
+			return nil, errors.New(`expecting string value for query argument"`)
+		}
+
+		v, _, err := jsonquery.RunSingleOutput(query, resource.Object)
 		if err != nil {
-			return err
+			return nil, err
 		}
-
-		if !report {
-			continue
-		}
-
-		if err := c.reportResource(resource); err != nil {
-			return err
-		}
+		return v, nil
 	}
-
-	return nil
-}
-
-func (c *kubeApiserverCheck) reportResource(p unstructured.Unstructured) error {
-	kv := event.Data{}
-
-	for _, field := range c.kubeResource.Report {
-		switch field.Kind {
-		case compliance.PropertyKindJSONQuery:
-			reportValue, valueFound, err := jsonquery.RunSingleOutput(field.Property, p.Object)
-			if err != nil {
-				return fmt.Errorf("unable to report field: '%s' for kubernetes object '%s / %s / %s' - json query error: %v", field.Property, p.GroupVersionKind().String(), p.GetNamespace(), p.GetName(), err)
-			}
-
-			if !valueFound {
-				continue
-			}
-
-			reportName := field.Property
-			if len(field.As) > 0 {
-				reportName = field.As
-			}
-			if len(field.Value) > 0 {
-				reportValue = field.Value
-			}
-
-			kv[reportName] = reportValue
-		default:
-			return fmt.Errorf("unsupported field kind value: '%s' for kubeApiserver resource", field.Kind)
-		}
-	}
-
-	if len(kv) > 0 {
-		kv[kubeResourceKindKey] = p.GetObjectKind().GroupVersionKind().Kind
-		kv[kubeResourceGroupKey] = p.GetObjectKind().GroupVersionKind().Group
-		kv[kubeResourceVersionKey] = p.GetObjectKind().GroupVersionKind().Version
-		kv[kubeResourceNamespaceKey] = p.GetNamespace()
-		kv[kubeResourceNameKey] = p.GetName()
-	}
-
-	c.report(nil, kv)
-	return nil
-}
-
-func shouldReportResource(filters []compliance.Filter, object interface{}) (bool, error) {
-	applyCondition := func(c *compliance.Condition) (bool, error) {
-		value, _, err := jsonquery.RunSingleOutput(c.Property, object)
-		if err != nil {
-			return false, err
-		}
-
-		return evalCondition(value, c), nil
-	}
-
-	for _, f := range filters {
-		if f.Include != nil {
-			if f.Include.Kind == compliance.ConditionKindJSONQuery {
-				value, err := applyCondition(f.Include)
-				if err != nil {
-					return false, err
-				}
-
-				if !value {
-					return false, nil
-				}
-			}
-		} else if f.Exclude != nil {
-			if f.Exclude.Kind == compliance.ConditionKindJSONQuery {
-				value, err := applyCondition(f.Exclude)
-				if err != nil {
-					return false, err
-				}
-
-				if value {
-					return false, nil
-				}
-			}
-		}
-	}
-
-	return true, nil
-}
-
-func filterToListOptions(filters []compliance.Filter) (metav1.ListOptions, error) {
-	listOptions := metav1.ListOptions{}
-
-	// Exclude it not parsed on purpose as we it makes no sense to have exclude selectors
-	labelSelectors := make([]string, 0)
-	fieldSelectors := make([]string, 0)
-	for _, filter := range filters {
-		if filter.Include != nil {
-			if filter.Include.Kind == compliance.ConditionKindKubernetesLabelSelector && len(filter.Include.Value) > 0 {
-				labelSelectors = append(labelSelectors, filter.Include.Value)
-			}
-
-			if filter.Include.Kind == compliance.ConditionKindKubernetesFieldSelector && len(filter.Include.Value) > 0 {
-				fieldSelectors = append(fieldSelectors, filter.Include.Value)
-			}
-		}
-	}
-
-	if len(labelSelectors) > 0 {
-		listOptions.LabelSelector = strings.Join(labelSelectors, ",")
-	}
-
-	if len(fieldSelectors) > 0 {
-		listOptions.FieldSelector = strings.Join(fieldSelectors, ",")
-	}
-
-	return listOptions, nil
 }
