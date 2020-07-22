@@ -496,10 +496,15 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		os.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
 		defer os.Unsetenv("DD_DISABLE_DNS_INSPECTION")
-		cfg, err := NewAgentConfig("test", "", "")
 
+		os.Setenv("DD_COLLECT_DNS_STATS", "false")
+		cfg, err := NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.False(t, cfg.CollectDNSStats)
+
+		os.Setenv("DD_COLLECT_DNS_STATS", "true")
+		cfg, err = NewAgentConfig("test", "", "")
 		assert.Nil(t, err)
 		assert.True(t, cfg.CollectDNSStats)
 	})
