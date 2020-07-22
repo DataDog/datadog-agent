@@ -129,7 +129,7 @@ def functional_tests(
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
 
-    cmd = 'sudo -E go test {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
+    cmd = 'sudo -E go test -tags functionaltests {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
 
     args = {
         "verbose_opt": "-v" if verbose else "",
