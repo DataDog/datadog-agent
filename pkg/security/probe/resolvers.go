@@ -6,6 +6,7 @@ package probe
 type Resolvers struct {
 	DentryResolver *DentryResolver
 	MountResolver  *MountResolver
+	TimeResolver   *TimeResolver
 }
 
 // Start the resolvers

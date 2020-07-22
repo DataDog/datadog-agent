@@ -817,9 +817,15 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		return nil, err
 	}
 
+	timeResolver, err := NewTimeResolver()
+	if err != nil {
+		return nil, err
+	}
+
 	p.resolvers = &Resolvers{
 		DentryResolver: dentryResolver,
 		MountResolver:  NewMountResolver(),
+		TimeResolver:   timeResolver,
 	}
 
 	return p, nil

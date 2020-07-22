@@ -861,9 +861,10 @@ type ContainerEvent struct {
 
 // KernelEvent describes an event sent from the kernel
 type KernelEvent struct {
-	Type      uint64 `field:"type" handler:"ResolveType,string"`
-	Timestamp uint64 `field:"-"`
-	Retval    int64  `field:"retval"`
+	Type         uint64    `field:"type" handler:"ResolveType,string"`
+	TimestampRaw uint64    `field:"-"`
+	Timestamp    time.Time `field:"-"`
+	Retval       int64     `field:"retval"`
 }
 
 // ResolveType resolves the type of the event to a name
@@ -874,12 +875,20 @@ func (k *KernelEvent) ResolveType(resolvers *Resolvers) string {
 func (k *KernelEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"type":%d,`, k.Type) // TODO(sbaubeau): use resolved type
-	fmt.Fprintf(&buf, `"timestamp":%d,`, k.Timestamp)
+	fmt.Fprintf(&buf, `"type":"%s",`, k.ResolveType(resolvers))
+	fmt.Fprintf(&buf, `"timestamp":"%s",`, k.ResolveMonoliticTimestamp(resolvers))
 	fmt.Fprintf(&buf, `"retval":%d`, k.Retval)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
+}
+
+// ResolveMonoliticTimestamp resolves the monolitic kernel timestamp to an absolute time
+func (k *KernelEvent) ResolveMonoliticTimestamp(resolvers *Resolvers) time.Time {
+	if (k.Timestamp.Equal(time.Time{})) {
+		k.Timestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(k.TimestampRaw)
+	}
+	return k.Timestamp
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -888,7 +897,7 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 	k.Type = byteOrder.Uint64(data[0:8])
-	k.Timestamp = byteOrder.Uint64(data[8:16])
+	k.TimestampRaw = byteOrder.Uint64(data[8:16])
 	k.Retval = int64(byteOrder.Uint64(data[16:24]))
 	return 24, nil
 }
