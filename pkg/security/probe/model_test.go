@@ -9,7 +9,11 @@ import (
 )
 
 func TestMkdirJSON(t *testing.T) {
-	e := NewEvent(nil)
+	tr, err := NewTimeResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := NewEvent(&Resolvers{TimeResolver: tr})
 	e.Process = ProcessEvent{
 		Pidns:   333,
 		Comm:    "aaa",
