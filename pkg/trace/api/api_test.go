@@ -403,11 +403,14 @@ func TestTraceCount(t *testing.T) {
 
 func TestDecodeV05(t *testing.T) {
 	assert := assert.New(t)
-	data := [][][12]interface{}{
-		{
-			{"Service", "Name", "Resource", uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[string]string{"A": "B"}, map[string]float64{"X": 1.2}, "sql"},
-			{"Service2", "Name2", "Resource2", uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[string]string{"c": "d"}, map[string]float64{"y": 1.4}, "sql"},
-			{"Service2", "Name2", "Resource2", uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[string]string{"c": "d"}, nil, "sql"},
+	data := [2]interface{}{
+		0: []string{"Service2", "Name2", "Resource"},
+		1: [][][12]interface{}{
+			{
+				{"Service", "Name", 2, uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[string]string{"A": "B"}, map[string]float64{"X": 1.2}, "sql"},
+				{0, 1, "Resource2", uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[string]string{"c": "d"}, map[string]float64{"y": 1.4}, "sql"},
+				{0, 1, "Resource2", uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[string]string{"c": "d"}, nil, "sql"},
+			},
 		},
 	}
 	b, err := vmsgp.Marshal(&data)
