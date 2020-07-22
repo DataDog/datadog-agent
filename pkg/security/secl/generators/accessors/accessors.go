@@ -319,14 +319,7 @@ package {{.Name}}
 import (
 	"reflect"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-)
-
-var (
-	ErrFieldNotFound = errors.New("field not found")
-	ErrWrongValueType = errors.New("wrong value type")
 )
 
 func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
@@ -353,7 +346,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	{{end}}
 	}
 
-	return nil, errors.Wrap(ErrFieldNotFound, field)
+	return nil, &eval.FieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -375,7 +368,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{end}}
 		}
 
-		return nil, errors.Wrap(ErrFieldNotFound, field)
+		return nil, &eval.FieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
@@ -386,7 +379,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	{{end}}
 	}
 
-	return "", errors.Wrap(ErrFieldNotFound, field)
+	return "", &eval.FieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
@@ -404,7 +397,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		{{end}}
 		}
 
-		return reflect.Invalid, errors.Wrap(ErrFieldNotFound, field)
+		return reflect.Invalid, &eval.FieldNotFound{Field: field}
 }
 
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
@@ -415,26 +408,26 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		case "{{$Name}}":
 		{{if eq $Field.OrigType "string"}}
 			if {{$FieldName}}, ok = value.(string); !ok {
-				return ErrWrongValueType
+				return &eval.ValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			return nil
 		{{else if eq $Field.BasicType "int"}}
 			v, ok := value.(int)
 			if !ok {
-				return ErrWrongValueType
+				return &eval.ValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			{{$FieldName}} = {{$Field.OrigType}}(v)
 			return nil
 		{{else if eq $Field.BasicType "bool"}}
 			if {{$FieldName}}, ok = value.(string); !ok {
-				return ErrWrongValueType
+				return &eval.ValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			return nil
 		{{end}}
 		{{end}}
 		}
 
-		return errors.Wrap(ErrFieldNotFound, field)
+		return &eval.FieldNotFound{Field: field}
 }
 
 `))

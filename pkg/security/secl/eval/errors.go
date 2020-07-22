@@ -69,3 +69,21 @@ func (e *ErrRuleParse) Error() string {
 	str += "^"
 	return str
 }
+
+// FieldNotFound error when a field is not present in the model
+type FieldNotFound struct {
+	Field string
+}
+
+func (f FieldNotFound) Error() string {
+	return fmt.Sprintf("field `%s` not found", f.Field)
+}
+
+// ValueTypeMismatch error when the given value is not having the correct type
+type ValueTypeMismatch struct {
+	Field string
+}
+
+func (v ValueTypeMismatch) Error() string {
+	return fmt.Sprintf("incorrect value type for `%s`", v.Field)
+}

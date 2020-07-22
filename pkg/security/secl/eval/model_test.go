@@ -13,13 +13,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	ErrEvaluatorNotFound     = errors.New("evaluator not found")
-	ErrEventTypeNotFound     = errors.New("event type not found")
-	ErrSetEventValueNotFound = errors.New("set event value error field not found")
-	ErrFieldTypeNotFound     = errors.New("field type not found")
-)
-
 type testProcess struct {
 	name   string
 	uid    int
@@ -153,7 +146,7 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 
 	}
 
-	return nil, errors.Wrap(ErrEvaluatorNotFound, key)
+	return nil, &FieldNotFound{Field: key}
 }
 
 func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
@@ -197,7 +190,7 @@ func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
 
 	}
 
-	return nil, errors.Wrap(ErrEvaluatorNotFound, key)
+	return nil, &FieldNotFound{Field: key}
 }
 
 func (e *testEvent) GetFieldEventType(key string) (string, error) {
@@ -241,7 +234,7 @@ func (e *testEvent) GetFieldEventType(key string) (string, error) {
 
 	}
 
-	return "", errors.Wrap(ErrEventTypeNotFound, key)
+	return "", &FieldNotFound{Field: key}
 }
 
 func (e *testEvent) SetFieldValue(key string, value interface{}) error {
@@ -294,7 +287,7 @@ func (e *testEvent) SetFieldValue(key string, value interface{}) error {
 
 	}
 
-	return errors.Wrap(ErrSetEventValueNotFound, key)
+	return &FieldNotFound{Field: key}
 }
 
 func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
@@ -338,7 +331,7 @@ func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
 
 	}
 
-	return reflect.Invalid, errors.Wrap(ErrFieldTypeNotFound, key)
+	return reflect.Invalid, &FieldNotFound{Field: key}
 }
 
 var testConstants = map[string]interface{}{
