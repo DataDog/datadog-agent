@@ -205,7 +205,9 @@ func newTruthTable(rule *eval.Rule, model eval.Model, event eval.Event) (*truthT
 		var entry truthEntry
 
 		for _, filterValue := range combination {
-			event.SetFieldValue(filterValue.Field, filterValue.Value)
+			if err = event.SetFieldValue(filterValue.Field, filterValue.Value); err != nil {
+				return nil, err
+			}
 
 			entry.Values = append(entry.Values, FilterValue{
 				Field:  filterValue.Field,

@@ -53,7 +53,11 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 
 	m.listener = ln
 
-	go m.grpcServer.Serve(ln)
+	go func() {
+		if err := m.grpcServer.Serve(ln); err != nil {
+			log.Error(err)
+		}
+	}()
 
 	m.probe.SetEventHandler(m)
 	m.ruleSet.AddListener(m)
@@ -112,7 +116,9 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(event eval.Event, field string) {
-	m.probe.OnNewDiscarder(event.(*sprobe.Event), field)
+	if err := m.probe.OnNewDiscarder(event.(*sprobe.Event), field); err != nil {
+		log.Debug(err)
+	}
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel

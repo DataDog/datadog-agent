@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/statsd"
 )
 
@@ -55,7 +56,7 @@ type SyscallStatsdCollector struct {
 
 // Count the number of calls of a syscall by a process
 func (s *SyscallStatsdCollector) Count(process string, syscallID Syscall, count uint64) error {
-	syscall := strings.ToLower(strings.TrimPrefix(Syscall(syscallID).String(), "Sys"))
+	syscall := strings.ToLower(strings.TrimPrefix(syscallID.String(), "Sys"))
 	tags := []string{
 		fmt.Sprintf("process:%s", process),
 		fmt.Sprintf("syscall:%s", syscall),
@@ -102,7 +103,9 @@ func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 		}
 
 		if string(zeroKey[:]) != string(prevKey[:]) {
-			buffer.Delete(prevKey[:])
+			if err = buffer.Delete(prevKey[:]); err != nil {
+				log.Debug(err)
+			}
 		}
 
 		if !more {

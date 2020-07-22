@@ -27,7 +27,7 @@ func (m *Module) RegisterPerfMap(perfMap *PerfMapDefinition) (*PerfMap, error) {
 	eventChannel := make(chan []byte, bufferLength)
 	lostChannel := make(chan uint64, defaultLostEventSize)
 
-	pm, err := bpflib.InitPerfMap(m.Module, string(perfMap.Name), eventChannel, lostChannel)
+	pm, err := bpflib.InitPerfMap(m.Module, perfMap.Name, eventChannel, lostChannel)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing perf map: %s", err)
 	}

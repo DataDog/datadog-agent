@@ -23,8 +23,6 @@ type MacroEvaluator struct {
 	Value       interface{}
 	EventTypes  []EventType
 	FieldValues map[Field][]FieldValue
-
-	partialEvals map[Field]func(ctx *Context) bool
 }
 
 // GetEvaluator - Returns the MacroEvaluator of the Macro corresponding to the SECL `Expression`
