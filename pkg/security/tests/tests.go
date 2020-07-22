@@ -1,3 +1,5 @@
+//+build functionaltests
+
 package tests
 
 import (
