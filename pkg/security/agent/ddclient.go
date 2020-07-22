@@ -43,14 +43,13 @@ func (ddc *DDClient) Run(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// Get Datadog endpoints
-	httpConnectivity := config.HTTPConnectivityFailure
 	endpoints, err := config.BuildHTTPEndpoints()
 	if err != nil {
 		log.Errorf("datadog logs client stopped with an error: %v", err)
 		return
 	}
 
-	httpConnectivity = http.CheckConnectivity(endpoints.Main)
+	httpConnectivity := http.CheckConnectivity(endpoints.Main)
 	endpoints, err = config.BuildEndpoints(httpConnectivity)
 	if err != nil {
 		log.Errorf("datadog logs client stopped with an error: %v", err)

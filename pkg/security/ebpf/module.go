@@ -24,7 +24,7 @@ func (m *Module) RegisterPerfMap(perfMap *PerfMapDefinition) (*PerfMap, error) {
 		bufferLength = defaultBufferLength
 	}
 
-	eventChannel := make(chan []byte, perfMap.BufferLength)
+	eventChannel := make(chan []byte, bufferLength)
 	lostChannel := make(chan uint64, defaultLostEventSize)
 
 	pm, err := bpflib.InitPerfMap(m.Module, string(perfMap.Name), eventChannel, lostChannel)
