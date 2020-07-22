@@ -185,7 +185,9 @@ func dockerTemplateQuery(funcName, obj interface{}) eval.Function {
 			return nil, fmt.Errorf(`expecting string value for query argument in "%s()"`, funcName)
 		}
 
-		return evalGoTemplate(query, obj), nil
+		v := evalGoTemplate(query, obj)
+		log.Tracef(`template query in "%s(%q)" evaluated as %q`, funcName, query, v)
+		return v, nil
 	}
 }
 

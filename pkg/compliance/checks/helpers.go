@@ -64,12 +64,13 @@ func queryValueFromFile(filePath string, query string, get getter) (string, erro
 func evalGoTemplate(s string, obj interface{}) string {
 	tmpl, err := template.New("tmpl").Funcs(sprig.TxtFuncMap()).Parse(s)
 	if err != nil {
-		log.Warn("failed to parse template")
+		log.Warnf("failed to parse template %q: %v", s, err)
 		return ""
 	}
 
 	b := &strings.Builder{}
 	if err := tmpl.Execute(b, obj); err != nil {
+		log.Warnf("failed to execute template %q: %v", s, err)
 		return ""
 	}
 	return b.String()
