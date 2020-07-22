@@ -791,6 +791,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 
+	// Deep Database Monitoring
+	config.BindEnvAndSetDefault("deep_database_monitoring", false)
+
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
