@@ -8,9 +8,7 @@
 package probe
 
 import (
-	"os"
 	"path"
-	"syscall"
 
 	"github.com/pkg/errors"
 
@@ -134,30 +132,12 @@ var openHookPoints = []*HookPoint{
 				isDiscarded, err := discardParentInode(probe, rs, field, discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
 				if !isDiscarded || err != nil {
 					// not able to discard the parent then only discard the filename
-					discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
+					_, err = discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
 				}
 
-			default:
-				return DiscarderNotSupported
+				return err
 			}
+			return &ErrDiscarderNotSupported{Field: field}
 		},
 	},
-}
-
-func handleProcessFilename(probe *Probe, values ...string) error {
-	for _, value := range values {
-		fileinfo, err := os.Stat(value)
-		if err != nil {
-			return err
-		}
-		stat, _ := fileinfo.Sys().(*syscall.Stat_t)
-		key := ebpf.Uint64TableItem(stat.Ino)
-
-		table := probe.Table("open_process_inode_approvers")
-		if err := table.Set(key, ebpf.ZeroUint8TableItem); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

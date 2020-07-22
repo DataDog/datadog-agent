@@ -1,23 +1,20 @@
 package probe
 
 import (
-	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-// UnlinkTables - eBPF tables used by unlink's kProbes
-var UnlinkTables = []KTable{
-	{
-		Name: "unlink_path_inode_discarders",
-	},
+var unlinkTables = []string{
+	"unlink_path_inode_discarders",
 }
 
 // UnlinkHookPoints - list of unlink's kProbes
 var UnlinkHookPoints = []*HookPoint{
 	{
 		Name: "vfs_unlink",
-		KProbes: []*eprobe.KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_unlink",
 		}},
 		EventTypes: map[eval.EventType]Capabilities{
@@ -34,14 +31,10 @@ var UnlinkHookPoints = []*HookPoint{
 				isDiscarded, err := discardParentInode(probe, rs, field, discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
 				if !isDiscarded || err != nil {
 					// not able to discard the parent then only discard the filename
-					discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
+					_, err = discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
 				}
-
-			default:
-				return DiscarderNotSupported
 			}
-
-			return nil
+			return &ErrDiscarderNotSupported{Field: field}
 		},
 	},
 	{

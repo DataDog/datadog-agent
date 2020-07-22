@@ -21,9 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	DiscarderNotSupported = errors.New("discarder not supported for this field")
-)
+// ErrDiscarderNotSupported is returned when trying to discover a discarder on a field that doesn't support them
+type ErrDiscarderNotSupported struct {
+	Field string
+}
+
+func (e ErrDiscarderNotSupported) Error() string {
+	return fmt.Sprintf("discarder not supported for `%s`", e.Field)
+}
 
 // FilterPolicy describes a filtering policy
 type FilterPolicy struct {
@@ -111,9 +116,11 @@ func isParentPathDiscarder(rs *rules.RuleSet, eventType eval.EventType, filename
 	//           open.basename == "shadow"
 	//       These rules won't return any discarder
 	isDiscarder, err := rs.IsDiscarder(eventType+".basename", path.Base(dirname))
-	if err != nil && errors.As(err, &eval.FieldNotFound{}) {
-		// no basename rule so we can discard
-		isDiscarder = true
+	if err != nil {
+		if _, ok := err.(*eval.ErrFieldNotFound); ok {
+			// no basename rule so we can discard
+			isDiscarder = true
+		}
 	}
 
 	if isDiscarder {
@@ -124,15 +131,10 @@ func isParentPathDiscarder(rs *rules.RuleSet, eventType eval.EventType, filename
 }
 
 func discardInode(probe *Probe, mountID uint32, inode uint64, tableName string) (bool, error) {
-	pathKey := PathKey{mountID: mountID, inode: inode}
-	key, err := pathKey.Bytes()
-	if err != nil {
-		return false, err
-	}
+	key := pathKey{mountID: mountID, inode: inode}
 
-	var kFilter Uint8KFilter
 	table := probe.Table(tableName)
-	if err := table.Set(key, kFilter.Bytes()); err != nil {
+	if err := table.Set(&key, ebpf.ZeroUint8TableItem); err != nil {
 		return false, err
 	}
 
@@ -154,13 +156,10 @@ func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventTyp
 }
 
 func approveBasename(probe *Probe, tableName string, basename string) error {
-	key, err := StringToKey(basename, BASENAME_FILTER_SIZE)
-	if err != nil {
-		return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
-	}
+	key := ebpf.NewStringTableItem(basename, BasenameFilterSize)
 
 	table := probe.Table(tableName)
-	if err = table.Set(key, zeroInt8); err != nil {
+	if err := table.Set(key, ebpf.ZeroUint8TableItem); err != nil {
 		return err
 	}
 
@@ -177,15 +176,15 @@ func approveBasenames(probe *Probe, tableName string, basenames ...string) error
 }
 
 func setFlagsFilter(probe *Probe, tableName string, flags ...int) error {
-	var kFilter Uint32KFilter
+	var flagsItem ebpf.Uint32TableItem
 
 	for _, flag := range flags {
-		kFilter.value |= uint32(flag)
+		flagsItem |= ebpf.Uint32TableItem(flag)
 	}
 
-	if kFilter.value != 0 {
+	if flagsItem != 0 {
 		table := probe.Table(tableName)
-		if err := table.Set(zeroInt32, kFilter.Bytes()); err != nil {
+		if err := table.Set(ebpf.ZeroUint32TableItem, flagsItem); err != nil {
 			return err
 		}
 	}
@@ -207,11 +206,10 @@ func approveProcessFilename(probe *Probe, tableName string, filename string) err
 		return err
 	}
 	stat, _ := fileinfo.Sys().(*syscall.Stat_t)
-	key := Int64ToKey(int64(stat.Ino))
+	key := ebpf.Uint64TableItem(uint64(stat.Ino))
 
-	var kFilter Uint8KFilter
 	table := probe.Table(tableName)
-	if err := table.Set(key, kFilter.Bytes()); err != nil {
+	if err := table.Set(key, ebpf.ZeroUint8TableItem); err != nil {
 		return err
 	}
 	return nil
@@ -226,4 +224,3 @@ func approveProcessFilenames(probe *Probe, tableName string, filenames ...string
 
 	return nil
 }
->>>>>>> 51e15ec07... Make open discarder/discarder function usable by other kprobe

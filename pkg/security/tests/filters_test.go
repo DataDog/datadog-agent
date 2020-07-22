@@ -120,10 +120,10 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenBasenameDiscarderFilter(t *testing.T) {
+func TestOpenParentDiscarderFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.basename == "test-obd-1"`,
+		Expression: `open.filename == "/etc/passwd"`,
 	}
 
 	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{})

@@ -19,7 +19,7 @@ type EventType uint64
 
 const (
 	// UnknownEventType - unknow event
-	UnknownEventType ProbeEventType = iota
+	UnknownEventType EventType = iota
 	// FileOpenEventType - File open event
 	FileOpenEventType
 	// FileMkdirEventType - Folder creation event

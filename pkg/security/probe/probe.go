@@ -365,7 +365,10 @@ func (p *Probe) getTableNames() []string {
 		"noisy_processes_bb",
 	}
 
-	return append(tables, openTables...)
+	tables = append(tables, openTables...)
+	tables = append(tables, unlinkTables...)
+
+	return tables
 }
 
 // Table returns either an eprobe Table or a LRU based eprobe Table
@@ -817,5 +820,5 @@ func init() {
 	allHookPoints = append(allHookPoints, openHookPoints...)
 	allHookPoints = append(allHookPoints, mountHookPoints...)
 	allHookPoints = append(allHookPoints, execHookPoints...)
-	allHookPoints = append(AllHookPoints, UnlinkHookPoints...)
+	allHookPoints = append(allHookPoints, UnlinkHookPoints...)
 }

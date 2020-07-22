@@ -40,7 +40,7 @@ type RuleEvaluator struct {
 func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	eval, ok := r.partialEvals[field]
 	if !ok {
-		return false, FieldNotFound{Field: field}
+		return false, &ErrFieldNotFound{Field: field}
 	}
 
 	return eval(ctx), nil

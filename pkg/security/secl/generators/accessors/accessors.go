@@ -346,7 +346,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 	{{end}}
 	}
 
-	return nil, &eval.FieldNotFound{Field: field}
+	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -368,7 +368,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{end}}
 		}
 
-		return nil, &eval.FieldNotFound{Field: field}
+		return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
@@ -379,7 +379,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	{{end}}
 	}
 
-	return "", &eval.FieldNotFound{Field: field}
+	return "", &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
@@ -397,7 +397,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		{{end}}
 		}
 
-		return reflect.Invalid, &eval.FieldNotFound{Field: field}
+		return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
@@ -408,26 +408,26 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		case "{{$Name}}":
 		{{if eq $Field.OrigType "string"}}
 			if {{$FieldName}}, ok = value.(string); !ok {
-				return &eval.ValueTypeMismatch{Field: "{{$Field.Name}}"}
+				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			return nil
 		{{else if eq $Field.BasicType "int"}}
 			v, ok := value.(int)
 			if !ok {
-				return &eval.ValueTypeMismatch{Field: "{{$Field.Name}}"}
+				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			{{$FieldName}} = {{$Field.OrigType}}(v)
 			return nil
 		{{else if eq $Field.BasicType "bool"}}
 			if {{$FieldName}}, ok = value.(string); !ok {
-				return &eval.ValueTypeMismatch{Field: "{{$Field.Name}}"}
+				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 			}
 			return nil
 		{{end}}
 		{{end}}
 		}
 
-		return &eval.FieldNotFound{Field: field}
+		return &eval.ErrFieldNotFound{Field: field}
 }
 
 `))

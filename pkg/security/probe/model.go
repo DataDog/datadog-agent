@@ -1154,19 +1154,17 @@ func (e *Event) GetType() string {
 	return EventType(e.Event.Type).String()
 }
 
-//GetID returns the event identifier
+// GetID returns the event identifier
 func (e *Event) GetID() string {
 	return e.ID
 }
 
-<<<<<<< HEAD
-// UnmarshalBinary unmarshals a binary representation of itself
-=======
+// GetPointer return an unsafe.Pointer of the Event
 func (e *Event) GetPointer() unsafe.Pointer {
 	return unsafe.Pointer(e)
 }
 
->>>>>>> e94a3504c... Decouple model from event
+// UnmarshalBinary unmarshals a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	offset, err := e.Process.UnmarshalBinary(data)
 	if err != nil {

@@ -70,20 +70,20 @@ func (e *ErrRuleParse) Error() string {
 	return str
 }
 
-// FieldNotFound error when a field is not present in the model
-type FieldNotFound struct {
+// ErrFieldNotFound error when a field is not present in the model
+type ErrFieldNotFound struct {
 	Field string
 }
 
-func (f FieldNotFound) Error() string {
-	return fmt.Sprintf("field `%s` not found", f.Field)
+func (e ErrFieldNotFound) Error() string {
+	return fmt.Sprintf("field `%s` not found", e.Field)
 }
 
-// ValueTypeMismatch error when the given value is not having the correct type
-type ValueTypeMismatch struct {
+// ErrValueTypeMismatch error when the given value is not having the correct type
+type ErrValueTypeMismatch struct {
 	Field string
 }
 
-func (v ValueTypeMismatch) Error() string {
-	return fmt.Sprintf("incorrect value type for `%s`", v.Field)
+func (e ErrValueTypeMismatch) Error() string {
+	return fmt.Sprintf("incorrect value type for `%s`", e.Field)
 }

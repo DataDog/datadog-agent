@@ -147,7 +147,7 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 
 	}
 
-	return nil, &eval.FieldNotFound{Field: key}
+	return nil, &eval.ErrFieldNotFound{Field: key}
 }
 
 func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
@@ -191,7 +191,7 @@ func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
 
 	}
 
-	return nil, &eval.FieldNotFound{Field: key}
+	return nil, &eval.ErrFieldNotFound{Field: key}
 }
 
 func (e *testEvent) GetFieldEventType(key string) (string, error) {
@@ -235,7 +235,7 @@ func (e *testEvent) GetFieldEventType(key string) (string, error) {
 
 	}
 
-	return "", &eval.FieldNotFound{Field: key}
+	return "", &eval.ErrFieldNotFound{Field: key}
 }
 
 func (e *testEvent) SetFieldValue(key string, value interface{}) error {
@@ -288,7 +288,7 @@ func (e *testEvent) SetFieldValue(key string, value interface{}) error {
 
 	}
 
-	return &eval.FieldNotFound{Field: key}
+	return &eval.ErrFieldNotFound{Field: key}
 }
 
 func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
@@ -332,7 +332,7 @@ func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
 
 	}
 
-	return reflect.Invalid, &eval.FieldNotFound{Field: key}
+	return reflect.Invalid, &eval.ErrFieldNotFound{Field: key}
 }
 
 var testConstants = map[string]interface{}{

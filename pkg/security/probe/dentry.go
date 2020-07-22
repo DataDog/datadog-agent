@@ -53,11 +53,7 @@ func (p *pathKey) String() string {
 	return fmt.Sprintf("%x/%x", p.mountID, p.inode)
 }
 
-<<<<<<< HEAD
-type pathValue struct {
-	parent pathKey
-=======
-func (p *PathKey) Bytes() ([]byte, error) {
+func (p *pathKey) Bytes() ([]byte, error) {
 	if p.IsNull() {
 		return nil, fmt.Errorf("invalid inode/mountID couple: %s", p.String())
 	}
@@ -68,24 +64,17 @@ func (p *PathKey) Bytes() ([]byte, error) {
 	return b, nil
 }
 
-type PathValue struct {
-	parent PathKey
->>>>>>> 46be58229... Add unlink parent inode discarder
+type pathValue struct {
+	parent pathKey
 	name   [256]byte
 }
 
 func (dr *DentryResolver) getName(mountID uint32, inode uint64) (name string, err error) {
-<<<<<<< HEAD
 	key := pathKey{mountID: mountID, inode: inode}
-	if key.IsNull() {
-		return "", fmt.Errorf("invalid inode/mountID couple: %s", key.String())
-=======
-	key := PathKey{mountID: mountID, inode: inode}
 
 	keyBuffer, err := key.Bytes()
 	if err != nil {
 		return "", err
->>>>>>> 46be58229... Add unlink parent inode discarder
 	}
 
 	pathRaw := []byte{}
@@ -110,18 +99,11 @@ func (dr *DentryResolver) GetName(mountID uint32, inode uint64) string {
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (filename string, err error) {
-<<<<<<< HEAD
-	// Don't resolve path if pathnameKey isn't valid
 	key := pathKey{mountID: mountID, inode: inode}
-	if key.IsNull() {
-		return "", fmt.Errorf("invalid inode/mountID couple: %s", key.String())
-=======
-	key := PathKey{mountID: mountID, inode: inode}
 
 	keyBuffer, err := key.Bytes()
 	if err != nil {
 		return "", err
->>>>>>> 46be58229... Add unlink parent inode discarder
 	}
 
 	done := false
@@ -169,7 +151,7 @@ func (dr *DentryResolver) Resolve(mountID uint32, inode uint64) string {
 
 // GetParent - Return the parent mount_id/inode
 func (dr *DentryResolver) GetParent(mountID uint32, inode uint64) (uint32, uint64, error) {
-	key := PathKey{mountID: mountID, inode: inode}
+	key := pathKey{mountID: mountID, inode: inode}
 
 	keyBuffer, err := key.Bytes()
 	if err != nil {
@@ -181,7 +163,7 @@ func (dr *DentryResolver) GetParent(mountID uint32, inode uint64) (uint32, uint6
 		return 0, 0, err
 	}
 
-	var path PathValue
+	var path pathValue
 	path.parent.Read(pathRaw)
 
 	return path.parent.mountID, path.parent.inode, nil

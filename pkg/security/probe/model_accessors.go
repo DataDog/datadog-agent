@@ -593,7 +593,7 @@ func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
 
 	}
 
-	return nil, &eval.FieldNotFound{Field: field}
+	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -861,7 +861,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	}
 
-	return nil, &eval.FieldNotFound{Field: field}
+	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
@@ -1064,7 +1064,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	}
 
-	return "", &eval.FieldNotFound{Field: field}
+	return "", &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
@@ -1332,7 +1332,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 	}
 
-	return reflect.Invalid, &eval.FieldNotFound{Field: field}
+	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
@@ -1342,14 +1342,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chmod.container_path":
 
 		if e.Chmod.ContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Chmod.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.ContainerPath"}
 		}
 		return nil
 
 	case "chmod.filename":
 
 		if e.Chmod.PathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Chmod.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.PathnameStr"}
 		}
 		return nil
 
@@ -1357,7 +1357,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Chmod.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.Inode"}
 		}
 		e.Chmod.Inode = uint64(v)
 		return nil
@@ -1366,7 +1366,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Chmod.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.Mode"}
 		}
 		e.Chmod.Mode = int32(v)
 		return nil
@@ -1375,7 +1375,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Chmod.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.OverlayNumLower"}
 		}
 		e.Chmod.OverlayNumLower = int32(v)
 		return nil
@@ -1383,14 +1383,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chown.container_path":
 
 		if e.Chown.ContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Chown.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Chown.ContainerPath"}
 		}
 		return nil
 
 	case "chown.filename":
 
 		if e.Chown.PathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Chown.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Chown.PathnameStr"}
 		}
 		return nil
 
@@ -1398,7 +1398,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Chown.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Chown.GID"}
 		}
 		e.Chown.GID = int32(v)
 		return nil
@@ -1407,7 +1407,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Chown.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Chown.Inode"}
 		}
 		e.Chown.Inode = uint64(v)
 		return nil
@@ -1416,7 +1416,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Chown.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Chown.OverlayNumLower"}
 		}
 		e.Chown.OverlayNumLower = int32(v)
 		return nil
@@ -1425,7 +1425,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Chown.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "Chown.UID"}
 		}
 		e.Chown.UID = int32(v)
 		return nil
@@ -1433,7 +1433,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "container.id":
 
 		if e.Container.ID, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Container.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "Container.ID"}
 		}
 		return nil
 
@@ -1441,7 +1441,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Event.Retval"}
+			return &eval.ErrValueTypeMismatch{Field: "Event.Retval"}
 		}
 		e.Event.Retval = int64(v)
 		return nil
@@ -1450,7 +1450,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Event.Type"}
+			return &eval.ErrValueTypeMismatch{Field: "Event.Type"}
 		}
 		e.Event.Type = uint64(v)
 		return nil
@@ -1458,14 +1458,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "link.new_container_path":
 
 		if e.Link.NewContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Link.NewContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Link.NewContainerPath"}
 		}
 		return nil
 
 	case "link.new_filename":
 
 		if e.Link.NewPathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Link.NewPathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Link.NewPathnameStr"}
 		}
 		return nil
 
@@ -1473,7 +1473,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Link.NewInode"}
+			return &eval.ErrValueTypeMismatch{Field: "Link.NewInode"}
 		}
 		e.Link.NewInode = uint64(v)
 		return nil
@@ -1482,7 +1482,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Link.NewOverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Link.NewOverlayNumLower"}
 		}
 		e.Link.NewOverlayNumLower = int32(v)
 		return nil
@@ -1490,14 +1490,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "link.src_container_path":
 
 		if e.Link.SrcContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Link.SrcContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Link.SrcContainerPath"}
 		}
 		return nil
 
 	case "link.src_filename":
 
 		if e.Link.SrcPathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Link.SrcPathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Link.SrcPathnameStr"}
 		}
 		return nil
 
@@ -1505,7 +1505,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Link.SrcInode"}
+			return &eval.ErrValueTypeMismatch{Field: "Link.SrcInode"}
 		}
 		e.Link.SrcInode = uint64(v)
 		return nil
@@ -1514,7 +1514,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Link.SrcOverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Link.SrcOverlayNumLower"}
 		}
 		e.Link.SrcOverlayNumLower = int32(v)
 		return nil
@@ -1522,14 +1522,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "mkdir.container_path":
 
 		if e.Mkdir.ContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Mkdir.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.ContainerPath"}
 		}
 		return nil
 
 	case "mkdir.filename":
 
 		if e.Mkdir.PathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Mkdir.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.PathnameStr"}
 		}
 		return nil
 
@@ -1537,7 +1537,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Mkdir.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.Inode"}
 		}
 		e.Mkdir.Inode = uint64(v)
 		return nil
@@ -1546,7 +1546,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Mkdir.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.Mode"}
 		}
 		e.Mkdir.Mode = int32(v)
 		return nil
@@ -1555,7 +1555,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Mkdir.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.OverlayNumLower"}
 		}
 		e.Mkdir.OverlayNumLower = int32(v)
 		return nil
@@ -1563,21 +1563,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "open.basename":
 
 		if e.Open.BasenameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Open.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Open.BasenameStr"}
 		}
 		return nil
 
 	case "open.container_path":
 
 		if e.Open.ContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Open.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Open.ContainerPath"}
 		}
 		return nil
 
 	case "open.filename":
 
 		if e.Open.PathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Open.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Open.PathnameStr"}
 		}
 		return nil
 
@@ -1585,7 +1585,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Open.Flags"}
+			return &eval.ErrValueTypeMismatch{Field: "Open.Flags"}
 		}
 		e.Open.Flags = uint32(v)
 		return nil
@@ -1594,7 +1594,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Open.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Open.Inode"}
 		}
 		e.Open.Inode = uint64(v)
 		return nil
@@ -1603,7 +1603,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Open.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "Open.Mode"}
 		}
 		e.Open.Mode = uint32(v)
 		return nil
@@ -1612,7 +1612,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Open.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Open.OverlayNumLower"}
 		}
 		e.Open.OverlayNumLower = int32(v)
 		return nil
@@ -1620,7 +1620,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.filename":
 
 		if e.Process.PathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.PathnameStr"}
 		}
 		return nil
 
@@ -1628,7 +1628,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.GID"}
 		}
 		e.Process.GID = uint32(v)
 		return nil
@@ -1636,14 +1636,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.group":
 
 		if e.Process.Group, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.Group"}
 		}
 		return nil
 
 	case "process.name":
 
 		if e.Process.Comm, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.Comm"}
 		}
 		return nil
 
@@ -1651,7 +1651,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.Pid"}
 		}
 		e.Process.Pid = uint32(v)
 		return nil
@@ -1660,7 +1660,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.Pidns"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.Pidns"}
 		}
 		e.Process.Pidns = uint64(v)
 		return nil
@@ -1669,7 +1669,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.Tid"}
 		}
 		e.Process.Tid = uint32(v)
 		return nil
@@ -1677,7 +1677,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.tty_name":
 
 		if e.Process.TTYName, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.TTYName"}
 		}
 		return nil
 
@@ -1685,7 +1685,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.UID"}
 		}
 		e.Process.UID = uint32(v)
 		return nil
@@ -1693,14 +1693,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.user":
 
 		if e.Process.User, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Process.User"}
+			return &eval.ErrValueTypeMismatch{Field: "Process.User"}
 		}
 		return nil
 
 	case "rename.new_filename":
 
 		if e.Rename.TargetPathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Rename.TargetPathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Rename.TargetPathnameStr"}
 		}
 		return nil
 
@@ -1708,7 +1708,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Rename.TargetInode"}
+			return &eval.ErrValueTypeMismatch{Field: "Rename.TargetInode"}
 		}
 		e.Rename.TargetInode = uint64(v)
 		return nil
@@ -1716,7 +1716,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rename.old_filename":
 
 		if e.Rename.SrcPathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Rename.SrcPathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Rename.SrcPathnameStr"}
 		}
 		return nil
 
@@ -1724,7 +1724,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Rename.SrcInode"}
+			return &eval.ErrValueTypeMismatch{Field: "Rename.SrcInode"}
 		}
 		e.Rename.SrcInode = uint64(v)
 		return nil
@@ -1732,7 +1732,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rename.src_container_path":
 
 		if e.Rename.SrcContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Rename.SrcContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Rename.SrcContainerPath"}
 		}
 		return nil
 
@@ -1740,7 +1740,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Rename.SrcOverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Rename.SrcOverlayNumLower"}
 		}
 		e.Rename.SrcOverlayNumLower = int32(v)
 		return nil
@@ -1748,7 +1748,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rename.target_container_path":
 
 		if e.Rename.TargetContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Rename.TargetContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Rename.TargetContainerPath"}
 		}
 		return nil
 
@@ -1756,7 +1756,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Rename.TargetOverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Rename.TargetOverlayNumLower"}
 		}
 		e.Rename.TargetOverlayNumLower = int32(v)
 		return nil
@@ -1764,14 +1764,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rmdir.container_path":
 
 		if e.Rmdir.ContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Rmdir.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.ContainerPath"}
 		}
 		return nil
 
 	case "rmdir.filename":
 
 		if e.Rmdir.PathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Rmdir.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.PathnameStr"}
 		}
 		return nil
 
@@ -1779,7 +1779,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Rmdir.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.Inode"}
 		}
 		e.Rmdir.Inode = uint64(v)
 		return nil
@@ -1788,7 +1788,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Rmdir.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.OverlayNumLower"}
 		}
 		e.Rmdir.OverlayNumLower = int32(v)
 		return nil
@@ -1796,14 +1796,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "unlink.container_path":
 
 		if e.Unlink.ContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Unlink.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.ContainerPath"}
 		}
 		return nil
 
 	case "unlink.filename":
 
 		if e.Unlink.PathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Unlink.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.PathnameStr"}
 		}
 		return nil
 
@@ -1811,7 +1811,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Unlink.Flags"}
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.Flags"}
 		}
 		e.Unlink.Flags = uint32(v)
 		return nil
@@ -1820,7 +1820,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Unlink.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.Inode"}
 		}
 		e.Unlink.Inode = uint64(v)
 		return nil
@@ -1829,7 +1829,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Unlink.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.OverlayNumLower"}
 		}
 		e.Unlink.OverlayNumLower = int32(v)
 		return nil
@@ -1837,14 +1837,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "utimes.container_path":
 
 		if e.Utimes.ContainerPath, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Utimes.ContainerPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.ContainerPath"}
 		}
 		return nil
 
 	case "utimes.filename":
 
 		if e.Utimes.PathnameStr, ok = value.(string); !ok {
-			return &eval.ValueTypeMismatch{Field: "Utimes.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.PathnameStr"}
 		}
 		return nil
 
@@ -1852,7 +1852,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Utimes.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.Inode"}
 		}
 		e.Utimes.Inode = uint64(v)
 		return nil
@@ -1861,12 +1861,12 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ValueTypeMismatch{Field: "Utimes.OverlayNumLower"}
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.OverlayNumLower"}
 		}
 		e.Utimes.OverlayNumLower = int32(v)
 		return nil
 
 	}
 
-	return &eval.FieldNotFound{Field: field}
+	return &eval.ErrFieldNotFound{Field: field}
 }

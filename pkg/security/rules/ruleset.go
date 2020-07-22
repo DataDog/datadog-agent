@@ -189,34 +189,6 @@ func (rs *RuleSet) GetApprovers(eventType eval.EventType, fieldCaps FieldCapabil
 	return bucket.GetApprovers(rs.eventCtor(), fieldCaps)
 }
 
-// IsDiscarder partially evaluates an Event against a field. Currently not thread-safe
-/*func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, value interface{}) bool {
-// not thread-safe. Restore the previous event after the partial evaluation
-oldEvent := rs.model.GetEvent()
-defer rs.model.SetEvent(oldEvent)
-
-ctx := &eval.Context{}
-rs.model.SetEvent(event)
-
-if err := event.SetFieldValue(field, value); err != nil {
-	return false
-}
-
-eventType := event.GetType()
-
-bucket, exists := rs.eventRuleBuckets[eventType]
-if !exists {
-	return false
-}
-
-isDiscarder := true
-for _, rule := range bucket.rules {
-	isTrue, err := rule.PartialEval(ctx, field)
-	if err != nil || isTrue {
-		isDiscarder = false
-		break
-*/
-
 // GetFieldValues returns all the values of the given field
 func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 	var values []eval.FieldValue
@@ -246,7 +218,7 @@ func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error
 
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		return false, &NoEventTypeBucket{EventType: eventType}
+		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
 	for _, rule := range bucket.rules {
