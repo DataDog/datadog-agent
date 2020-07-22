@@ -525,7 +525,7 @@ func (p *Probe) GetEventsStats() EventsStats {
 }
 
 func (p *Probe) handleLostEvents(count uint64) {
-	log.Warnf("Lost %d events\n", count)
+	log.Warnf("lost %d events\n", count)
 	p.eventsStats.CountLost(int64(count))
 }
 
@@ -619,7 +619,7 @@ func (p *Probe) handleEvent(data []byte) {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
 		}
 	default:
-		log.Errorf("Unsupported event type %d\n", eventType)
+		log.Errorf("unsupported event type %d", eventType)
 		return
 	}
 
@@ -631,6 +631,11 @@ func (p *Probe) handleEvent(data []byte) {
 
 // OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field) error {
+	// discarders disabled
+	if !p.config.EnableDiscarders {
+		return nil
+	}
+
 	log.Debugf("New discarder event %+v for field %s\n", event, field)
 
 	eventType, err := event.GetFieldEventType(field)
@@ -666,6 +671,14 @@ type Applier interface {
 
 func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleSet, eventType eval.EventType, capabilities Capabilities, applier Applier) error {
 	if !p.enableFilters {
+		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeNoFilter, math.MaxUint8); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// if approver disabled
+	if !p.config.EnableApprovers {
 		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8); err != nil {
 			return err
 		}

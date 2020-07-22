@@ -22,6 +22,8 @@ type Config struct {
 	Debug               bool
 	PoliciesDir         string
 	EnableKernelFilters bool
+	EnableApprovers     bool
+	EnableDiscarders    bool
 	SocketPath          string
 	SyscallMonitor      bool
 }
@@ -32,9 +34,27 @@ func NewConfig() (*Config, error) {
 		Enabled:             aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		Debug:               aconfig.Datadog.GetBool("runtime_security_config.debug"),
 		EnableKernelFilters: aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
+		EnableApprovers:     aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
+		EnableDiscarders:    aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
 		SocketPath:          aconfig.Datadog.GetString("runtime_security_config.socket"),
 		SyscallMonitor:      aconfig.Datadog.GetBool("runtime_security_config.syscall_monitor.enabled"),
 		PoliciesDir:         aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
+	}
+
+	if !c.Enabled {
+		return c, nil
+	}
+
+	if !aconfig.Datadog.IsSet("runtime_security_config.enable_approvers") && c.EnableKernelFilters {
+		c.EnableApprovers = true
+	}
+
+	if !aconfig.Datadog.IsSet("runtime_security_config.enable_discarders") && c.EnableKernelFilters {
+		c.EnableDiscarders = true
+	}
+
+	if !c.EnableApprovers && !c.EnableDiscarders {
+		c.EnableKernelFilters = false
 	}
 
 	return c, nil

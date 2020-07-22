@@ -67,8 +67,12 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
     syscall->unlink.path_key.ino = get_dentry_ino(dentry);
 
+    struct bpf_map_def *discarders = &unlink_path_inode_discarders;
+    if (syscall->policy.mode == NO_FILTER)
+        discarders = NULL;
+
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    int retval = resolve_dentry(dentry, syscall->unlink.path_key, &unlink_path_inode_discarders);
+    int retval = resolve_dentry(dentry, syscall->unlink.path_key, discarders);
     if (retval < 0) {
         pop_syscall();
     }

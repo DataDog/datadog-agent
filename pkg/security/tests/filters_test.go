@@ -126,7 +126,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		Expression: `open.filename == "/etc/passwd"`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true, disableApprovers: true})
 	if err != nil {
 		t.Fatal(err)
 	}

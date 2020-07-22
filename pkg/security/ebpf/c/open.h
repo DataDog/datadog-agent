@@ -176,6 +176,9 @@ int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, st
     syscall->open.dentry = get_path_dentry(syscall->open.dir);
     syscall->open.path_key = get_key(syscall->open.dentry, syscall->open.dir);
 
+    if (syscall->policy.mode == NO_FILTER)
+        goto no_filter;
+
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 
     if (syscall->policy.mode == DENY) {
@@ -199,6 +202,8 @@ int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, st
     if (!pass_to_userspace) {
         pop_syscall();
     }
+
+no_filter:
 
     return 0;
 }
@@ -241,7 +246,11 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 
     fill_process_data(&event.process);
 
-    retval = resolve_dentry(syscall->open.dentry, syscall->open.path_key, &open_path_inode_discarders);
+    struct bpf_map_def *discarders = &open_path_inode_discarders;
+    if (syscall->policy.mode == NO_FILTER)
+        discarders = NULL;
+
+    retval = resolve_dentry(syscall->open.dentry, syscall->open.path_key, discarders);
     if (retval < 0) {
         return 0;
     }

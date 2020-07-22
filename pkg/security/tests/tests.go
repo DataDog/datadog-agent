@@ -53,6 +53,12 @@ runtime_security_config:
 {{if not .EnableFilters}}
   enable_kernel_filters: false
 {{end}}
+{{if .DisableApprovers}}
+  enable_approvers: false
+{{end}}
+{{if .DisableDiscarders}}
+  enable_discarders: false
+{{end}}
 
   policies:
     dir: {{.TestPoliciesDir}}
@@ -80,7 +86,9 @@ type testEvent struct {
 }
 
 type testOpts struct {
-	enableFilters bool
+	enableFilters     bool
+	disableApprovers  bool
+	disableDiscarders bool
 }
 
 type testModule struct {
@@ -138,8 +146,10 @@ func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir": path.Dir(testPolicyFile.Name()),
-		"EnableFilters":   opts.enableFilters,
+		"TestPoliciesDir":   path.Dir(testPolicyFile.Name()),
+		"EnableFilters":     opts.enableFilters,
+		"DisableApprovers":  opts.disableApprovers,
+		"DisableDiscarders": opts.disableDiscarders,
 	}); err != nil {
 		return "", fail(err)
 	}

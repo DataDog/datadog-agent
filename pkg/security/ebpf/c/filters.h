@@ -5,7 +5,8 @@
 enum policy_mode
 {
     ACCEPT = 1,
-    DENY = 2
+    DENY = 2,
+    NO_FILTER = 3,
 };
 
 enum policy_flags
