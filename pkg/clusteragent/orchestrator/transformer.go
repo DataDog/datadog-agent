@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
 
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -44,12 +45,7 @@ func extractDeployment(d *v1.Deployment) *model.Deployment {
 	deploy.ReadyReplicas = d.Status.ReadyReplicas
 	deploy.AvailableReplicas = d.Status.AvailableReplicas
 	deploy.UnavailableReplicas = d.Status.UnavailableReplicas
-	for i, c := range d.Status.Conditions {
-		deploy.ConditionMessage += c.Message
-		if i != 0 && i != len(d.Status.Conditions)-1 {
-			deploy.ConditionMessage += " "
-		}
-	}
+	deploy.ConditionMessage = extractDeploymentConditionMessage(d.Status.Conditions)
 
 	return &deploy
 }
@@ -96,4 +92,31 @@ func extractLabelSelector(ls *metav1.LabelSelector) []*model.LabelSelectorRequir
 	}
 
 	return labelSelectors
+}
+
+func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) string {
+	messageMap := make(map[v1.DeploymentConditionType]string)
+
+	// from https://github.com/kubernetes/kubernetes/blob/0b678bbb51a83e47df912f1205907418e354b281/staging/src/k8s.io/api/apps/v1/types.go#L417-L430
+	// update if new ones appear
+	chronologicalConditions := []v1.DeploymentConditionType{
+		v1.DeploymentReplicaFailure,
+		v1.DeploymentProgressing,
+		v1.DeploymentAvailable,
+	}
+
+	// populate messageMap with messages for non-passing conditions
+	for _, c := range conditions {
+		if c.Status == corev1.ConditionFalse && c.Message != "" {
+			messageMap[c.Type] = c.Message
+		}
+	}
+
+	// return the message of the first one that failed
+	for _, c := range chronologicalConditions {
+		if m := messageMap[c]; m != "" {
+			return m
+		}
+	}
+	return ""
 }

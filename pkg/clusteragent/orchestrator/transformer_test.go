@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -68,12 +70,16 @@ func TestExtractDeployment(t *testing.T) {
 					UpdatedReplicas:    2,
 					Conditions: []v1.DeploymentCondition{
 						{
+							Type:    v1.DeploymentAvailable,
+							Status:  corev1.ConditionFalse,
 							Reason:  "MinimumReplicasAvailable",
 							Message: "Deployment has minimum availability.",
 						},
 						{
+							Type:    v1.DeploymentProgressing,
+							Status:  corev1.ConditionFalse,
 							Reason:  "NewReplicaSetAvailable",
-							Message: `ReplicaSet "orchestrator-intake-6d65b45d4d" has successfully progressed.`,
+							Message: `ReplicaSet "orchestrator-intake-6d65b45d4d" has timed out progressing.`,
 						},
 					},
 				},
@@ -103,7 +109,7 @@ func TestExtractDeployment(t *testing.T) {
 				ReadyReplicas:       2,
 				AvailableReplicas:   2,
 				UnavailableReplicas: 0,
-				ConditionMessage:    `Deployment has minimum availability.ReplicaSet "orchestrator-intake-6d65b45d4d" has successfully progressed.`,
+				ConditionMessage:    `ReplicaSet "orchestrator-intake-6d65b45d4d" has timed out progressing.`,
 			},
 		},
 		"empty deploy": {input: v1.Deployment{}, expected: model.Deployment{Metadata: &model.Metadata{}, ReplicasDesired: 1}},
@@ -231,6 +237,54 @@ func TestExtractReplicaSet(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, &tc.expected, extractReplicaSet(&tc.input))
+		})
+	}
+}
+
+func TestExtractDeploymentConditionMessage(t *testing.T) {
+	for nb, tc := range []struct {
+		conditions []v1.DeploymentCondition
+		message    string
+	}{
+		{
+			conditions: []v1.DeploymentCondition{
+				{
+					Type:    v1.DeploymentReplicaFailure,
+					Status:  corev1.ConditionFalse,
+					Message: "foo",
+				},
+			},
+			message: "foo",
+		}, {
+			conditions: []v1.DeploymentCondition{
+				{
+					Type:    v1.DeploymentAvailable,
+					Status:  corev1.ConditionFalse,
+					Message: "foo",
+				}, {
+					Type:    v1.DeploymentProgressing,
+					Status:  corev1.ConditionFalse,
+					Message: "bar",
+				},
+			},
+			message: "bar",
+		}, {
+			conditions: []v1.DeploymentCondition{
+				{
+					Type:    v1.DeploymentAvailable,
+					Status:  corev1.ConditionFalse,
+					Message: "foo",
+				}, {
+					Type:    v1.DeploymentProgressing,
+					Status:  corev1.ConditionTrue,
+					Message: "bar",
+				},
+			},
+			message: "foo",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
+			assert.EqualValues(t, tc.message, extractDeploymentConditionMessage(tc.conditions))
 		})
 	}
 }
