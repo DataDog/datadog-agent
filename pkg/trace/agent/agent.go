@@ -155,8 +155,8 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 	}
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
-	now := time.Now().UnixNano()
 	var ss writer.SampledSpans
+	sinputs := make([]*stats.Input, 0, len(p.Traces))
 	for _, t := range p.Traces {
 		if len(t) == 0 {
 			log.Debugf("Skipping received empty trace")
@@ -240,14 +240,17 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			ss.Events = append(ss.Events, events...)
 			ss.Size += pb.Trace(events).Msgsize()
 		}
-		a.Concentrator.AddNow(&stats.Input{
+		sinputs = append(sinputs, &stats.Input{
 			Trace:     pt.WeightedTrace,
 			Sublayers: pt.Sublayers,
 			Env:       pt.Env,
-		}, now)
+		})
 	}
 	if ss.Size > 0 {
 		a.Out <- &ss
+	}
+	if len(sinputs) > 0 {
+		a.Concentrator.In <- sinputs
 	}
 }
 

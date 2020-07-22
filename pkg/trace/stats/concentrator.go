@@ -37,6 +37,7 @@ type Concentrator struct {
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen int
 
+	In  chan []*Input
 	Out chan []Bucket
 
 	exit   chan struct{}
@@ -58,6 +59,7 @@ func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Conc
 		// TODO: Move to configuration.
 		bufferLen: defaultBufferLen,
 
+		In:  make(chan []*Input, 100),
 		Out: out,
 
 		exit:   make(chan struct{}),
@@ -87,6 +89,14 @@ func (c *Concentrator) Run() {
 
 	log.Debug("Starting concentrator")
 
+	go func() {
+		for {
+			select {
+			case inputs := <-c.In:
+				c.Add(inputs)
+			}
+		}
+	}()
 	for {
 		select {
 		case <-flushTicker.C:
@@ -115,14 +125,18 @@ type Input struct {
 	Env       string
 }
 
-// AddNow applies the given input to the concentrator.
-func (c *Concentrator) AddNow(i *Input, now int64) {
-	c.addNow(i, now)
+// Add applies the given input to the concentrator.
+func (c *Concentrator) Add(inputs []*Input) {
+	c.mu.Lock()
+	for _, i := range inputs {
+		c.addNow(i)
+	}
+	c.mu.Unlock()
 }
 
-func (c *Concentrator) addNow(i *Input, now int64) {
-	c.mu.Lock()
-
+// addNow adds the given input into the concentrator.
+// Callers must guard!
+func (c *Concentrator) addNow(i *Input) {
 	for _, s := range i.Trace {
 		if !(s.TopLevel || s.Measured) {
 			continue
@@ -144,8 +158,6 @@ func (c *Concentrator) addNow(i *Input, now int64) {
 		subs, _ := i.Sublayers[s.Span]
 		b.HandleSpan(s, i.Env, c.aggregators, subs)
 	}
-
-	c.mu.Unlock()
 }
 
 // Flush deletes and returns complete statistic buckets
