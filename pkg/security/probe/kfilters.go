@@ -45,13 +45,19 @@ func (k *KFilterApplier) setFilterPolicy(tableName string, mode PolicyMode, flag
 func (k *KFilterApplier) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
 	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 
-	k.reporter.ApplyFilterPolicy(eventType, tableName, mode, flags)
+	if err := k.reporter.ApplyFilterPolicy(eventType, tableName, mode, flags); err != nil {
+		return err
+	}
+
 	return k.setFilterPolicy(tableName, mode, flags)
 }
 
 // ApplyApprovers applies approvers
 func (k *KFilterApplier) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
-	k.reporter.ApplyApprovers(eventType, hookPoint, approvers)
+	if err := k.reporter.ApplyApprovers(eventType, hookPoint, approvers); err != nil {
+		return err
+	}
+
 	return hookPoint.OnNewApprovers(k.probe, approvers)
 }
 

@@ -25,10 +25,6 @@ type EventHandler interface {
 	HandleEvent(event *Event)
 }
 
-type kTable struct {
-	Name string
-}
-
 // Discarder represents a discarder whose a value for a field that
 type Discarder struct {
 	Field eval.Field

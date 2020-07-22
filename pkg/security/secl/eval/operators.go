@@ -60,7 +60,7 @@ func patternToRegexp(pattern string) (*regexp.Regexp, error) {
 		return ".*"
 	})
 
-	return regexp.Compile("^" + string(quoted) + "$")
+	return regexp.Compile("^" + quoted + "$")
 }
 
 // StringMatches - String pattern matching operator

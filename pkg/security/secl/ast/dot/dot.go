@@ -24,8 +24,9 @@ type Marshaler struct {
 	w io.Writer
 }
 
-func (d *Marshaler) writeString(s string) {
-	io.WriteString(d.w, s)
+func (d *Marshaler) writeString(s string) error {
+	_, err := io.WriteString(d.w, s)
+	return err
 }
 
 func (d *Marshaler) writeNode(node interface{}) error {
@@ -33,7 +34,10 @@ func (d *Marshaler) writeNode(node interface{}) error {
 	if err != nil {
 		return err
 	}
-	d.writeString(id + "[label=\"" + d.getLabel(node) + "\"]\n")
+
+	if err := d.writeString(id + "[label=\"" + d.getLabel(node) + "\"]\n"); err != nil {
+		return err
+	}
 
 	children, err := d.getChildren(node)
 	if err != nil {
@@ -64,9 +68,7 @@ func (d *Marshaler) writeEdge(parent, child interface{}) error {
 		return err
 	}
 
-	d.writeString(parentID + " -> " + childID + "\n")
-
-	return nil
+	return d.writeString(parentID + " -> " + childID + "\n")
 }
 
 func (d *Marshaler) getID(n interface{}) (string, error) {
@@ -203,12 +205,13 @@ func (d *Marshaler) getChildren(n interface{}) ([]interface{}, error) {
 
 // MarshalRule marshals the AST of a rule to DOT format
 func (d *Marshaler) MarshalRule(r *ast.Rule) error {
-	d.writeString("digraph {\n")
+	if err := d.writeString("digraph {\n"); err != nil {
+		return err
+	}
 	if err := d.writeNode(r.BooleanExpression); err != nil {
 		return err
 	}
-	d.writeString("}\n")
-	return nil
+	return d.writeString("}\n")
 }
 
 // NewMarshaler returns a new rule DOT marshaler

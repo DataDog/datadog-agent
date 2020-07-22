@@ -55,12 +55,6 @@ type structField struct {
 	OrigType   string
 }
 
-type accessor struct {
-	Name    string
-	IsArray bool
-	Fields  []structField
-}
-
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
 	if typePackage, found := packages[pkg]; found {
 		return typePackage.Scope().Lookup(symbol), nil
@@ -200,7 +194,9 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						continue
 					} else if fieldType, ok := field.Type.(*ast.StarExpr); ok {
 						if itemIdent, ok := fieldType.X.(*ast.Ident); ok {
-							handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent, event)
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent, event); err != nil {
+								log.Print(err)
+							}
 							continue
 						}
 					}

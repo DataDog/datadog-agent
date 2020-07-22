@@ -23,7 +23,9 @@ LOOP:
 	for {
 		select {
 		case msg := <-e.msgs:
-			stream.Send(msg)
+			if err := stream.Send(msg); err != nil {
+				return err
+			}
 			msgs--
 		case <-time.After(time.Second):
 			break LOOP
