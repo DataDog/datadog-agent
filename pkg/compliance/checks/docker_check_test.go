@@ -115,38 +115,119 @@ func TestDockerNetworkCheck(t *testing.T) {
 func TestDockerContainerCheck(t *testing.T) {
 	assert := assert.New(t)
 
-	resource := compliance.Resource{
-		Docker: &compliance.DockerResource{
-			Kind: "container",
+	tests := []struct {
+		name         string
+		condition    string
+		expectPassed bool
+	}{
+		{
+			name:         "apparmor profile check 5.1",
+			condition:    `docker.template("{{- $.AppArmorProfile -}}") not in ["", "unconfined"]`,
+			expectPassed: false,
 		},
-		Condition: `docker.template("{{- $.HostConfig.Privileged -}}") != "true"`,
+		{
+			name:         "selinux check 5.2",
+			condition:    `docker.template("{{- has \"selinux\" $.HostConfig.SecurityOpt -}}") == "true"`,
+			expectPassed: false,
+		},
+		{
+			name:         "capadd check 5.3",
+			condition:    `docker.template("{{ range $.HostConfig.CapAdd }}{{ if regexMatch \"AUDIT_WRITE|CHOWN|DAC_OVERRIDE|FOWNER|FSETID|KILL|MKNOD|NET_BIND_SERVICE|NET_RAW|SETFCAP|SETGID|SETPCAP|SETUID|SYS_CHROOT\" . }}failed{{ end }}{{ end }}") == ""`,
+			expectPassed: false,
+		},
+		{
+			name:         "privileged mode container 5.4",
+			condition:    `docker.template("{{- $.HostConfig.Privileged -}}") != "true"`,
+			expectPassed: false,
+		},
+		{
+			name:         "host mounts check 5.5",
+			condition:    `docker.template("{{ range $.Mounts }}{{ if has .Source (list \"/\" \"/boot\" \"/dev\" \"/etc\" \"/lib\" \"/proc\" \"/sys\" \"/usr\") }}{{ .Source }}{{ end }}{{ end }}") == ""`,
+			expectPassed: false,
+		},
+		{
+			name:         "privileged ports 5.7",
+			condition:    `docker.template("{{ range $k, $_ := $.NetworkSettings.Ports }}{{ with $p := (regexReplaceAllLiteral \"/.*\" ($k | toString) \"\") | atoi }}{{ if lt $p 1024}}failed{{ end }}{{ end }}{{ end }}") == ""`,
+			expectPassed: false,
+		},
+		{
+			name:         "network mode check 5.9",
+			condition:    `docker.template("{{- $.HostConfig.NetworkMode -}}") != "host"`,
+			expectPassed: false,
+		},
+		{
+			name:         "memory check 5.10",
+			condition:    `docker.template("{{- $.HostConfig.Memory -}}") != "0"`,
+			expectPassed: false,
+		},
+		{
+			name:         "cpu shares check 5.11",
+			condition:    `docker.template("{{- $.HostConfig.CpuShares -}}") not in ["0", "1024", ""]`,
+			expectPassed: false,
+		},
+		{
+			name:         "readonly rootfs check 5.12",
+			condition:    `docker.template("{{- $.HostConfig.ReadonlyRootfs -}}") == "true"`,
+			expectPassed: false,
+		},
+		{
+			name:         "restart policy check 5.14",
+			condition:    `docker.template("{{- $.HostConfig.RestartPolicy.Name -}}") == "on-failure" && docker.template("{{- eq $.HostConfig.RestartPolicy.MaximumRetryCount 5 -}}") == "true"`,
+			expectPassed: false,
+		},
+		{
+			name:         "pid mode check 5.15",
+			condition:    `docker.template("{{- $.HostConfig.PidMode -}}") != "host"`,
+			expectPassed: true,
+		},
+		{
+			name:         "pids limit check 5.28",
+			condition:    `docker.template("{{- $.HostConfig.PidsLimit -}}") not in ["", "<nil>", "0"]`,
+			expectPassed: false,
+		},
+		{
+			name:         "docker.sock check 5.31",
+			condition:    `docker.template("{{ range $.Mounts }}{{ if eq .Source \"/var/run/docker.sock\" }}{{ .Source }}{{ end }}{{ end }}") == ""`,
+			expectPassed: false,
+		},
 	}
 
-	client := &mocks.DockerClient{}
-	defer client.AssertExpectations(t)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resource := compliance.Resource{
+				Docker: &compliance.DockerResource{
+					Kind: "container",
+				},
+				Condition: test.condition,
+			}
 
-	var containers []types.Container
-	assert.NoError(loadTestJSON("./testdata/docker/container-list.json", &containers))
-	client.On("ContainerList", mockCtx, types.ContainerListOptions{All: true}).Return(containers, nil)
+			client := &mocks.DockerClient{}
+			defer client.AssertExpectations(t)
 
-	var container types.ContainerJSON
-	assert.NoError(loadTestJSON("./testdata/docker/container-3c4bd9d35d42.json", &container))
-	client.On("ContainerInspect", mockCtx, "3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87").Return(container, nil, nil)
+			var containers []types.Container
+			assert.NoError(loadTestJSON("./testdata/docker/container-list.json", &containers))
+			client.On("ContainerList", mockCtx, types.ContainerListOptions{All: true}).Return(containers, nil)
 
-	env := &mocks.Env{}
-	defer env.AssertExpectations(t)
-	env.On("DockerClient").Return(client)
+			var container types.ContainerJSON
+			assert.NoError(loadTestJSON("./testdata/docker/container-3c4bd9d35d42.json", &container))
+			client.On("ContainerInspect", mockCtx, "3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87").Return(container, nil, nil)
 
-	expr, err := eval.ParseIterable(resource.Condition)
-	assert.NoError(err)
+			env := &mocks.Env{}
+			defer env.AssertExpectations(t)
+			env.On("DockerClient").Return(client)
 
-	report, err := checkDocker(env, "rule-id", resource, expr)
-	assert.NoError(err)
+			expr, err := eval.ParseIterable(resource.Condition)
+			assert.NoError(err)
 
-	assert.False(report.passed)
-	assert.Equal("3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87", report.data["container.id"])
-	assert.Equal("/sharp_cori", report.data["container.name"])
-	assert.Equal("sha256:b4ceee5c3fa3cea2607d5e2bcc54d019be616e322979be8fc7a8d0d78b59a1f1", report.data["container.image"])
+			report, err := checkDocker(env, "rule-id", resource, expr)
+			assert.NoError(err)
+
+			assert.Equal(test.expectPassed, report.passed)
+			assert.Equal("3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87", report.data["container.id"])
+			assert.Equal("/sharp_cori", report.data["container.name"])
+			assert.Equal("sha256:b4ceee5c3fa3cea2607d5e2bcc54d019be616e322979be8fc7a8d0d78b59a1f1", report.data["container.image"])
+		})
+	}
 }
 
 func TestDockerInfoCheck(t *testing.T) {
