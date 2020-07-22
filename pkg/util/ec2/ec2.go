@@ -229,16 +229,19 @@ func doHTTPRequest(url string, method string, headers map[string]string, useToke
 
 func getToken() (string, error) {
 	token.RLock()
-	// Refresh 15 seconds before expiration
+	// Will refresh token 15 seconds before expiration
 	if time.Now().Before(token.expirationDate.Add(-15 * time.Second)) {
 		val := token.value
 		token.RUnlock()
 		return val, nil
 	}
-
 	token.RUnlock()
 	token.Lock()
 	defer token.Unlock()
+	// Token has been refreshed by another caller
+	if time.Now().Before(token.expirationDate.Add(-15 * time.Second)) {
+		return token.value, nil
+	}
 
 	client := http.Client{
 		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
