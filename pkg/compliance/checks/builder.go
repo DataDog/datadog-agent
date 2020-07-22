@@ -245,19 +245,25 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 			continue
 		}
 
+		if len(r.Resources) == 0 {
+			log.Debugf("%s/%s: skipping rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
+			continue
+		}
+
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.CheckFromRule(&suite.Meta, &r)
 
 		if err != nil {
-			if err == ErrRuleDoesNotApply {
-				continue
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
 			}
-			return err
+			continue
 		}
 
 		log.Debugf("%s/%s: init check %s", suite.Meta.Name, suite.Meta.Version, check.ID())
 		err = onCheck(check)
 		if err != nil {
+			log.Errorf("%s/%s: onCheck failed %s", suite.Meta.Name, suite.Meta.Version, check.ID())
 			return err
 		}
 	}
