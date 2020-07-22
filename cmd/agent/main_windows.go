@@ -7,22 +7,6 @@
 
 package main
 
-/*
-#include <Windows.h>
-
-extern BOOL handleCtrlHandler(DWORD fdwCtrlType);
-
-// The C control handler will call the Go control handler
-static BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
-{
-    return handleCtrlHandler(fdwCtrlType);
-}
-
-// This method is called to hookup the console control handler
-static void setupConsoleCtrlHandler() {
-	SetConsoleCtrlHandler(CtrlHandler, TRUE);
-}
-*/
 import "C"
 
 import (
@@ -30,6 +14,7 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"os"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -41,32 +26,17 @@ import (
 
 // https://docs.microsoft.com/en-us/windows/console/handlerroutine
 const (
-	ctrlCEvent        = C.DWORD(0)
-	ctrlBreakEvent    = C.DWORD(1)
-	ctrlCloseEvent    = C.DWORD(2)
-	ctrlLogOffEvent   = C.DWORD(5)
-	ctrlShutdownEvent = C.DWORD(6)
+	ctrlCEvent        = uint(0)
+	ctrlBreakEvent    = uint(1)
+	ctrlCloseEvent    = uint(2)
+	ctrlLogOffEvent   = uint(5)
+	ctrlShutdownEvent = uint(6)
 )
 
-//export handleCtrlHandler
-func handleCtrlHandler(signal C.DWORD) C.BOOL {
-	var sigStr string
-	switch signal {
-	case ctrlCEvent:
-		sigStr = "CTRL+C"
-	case ctrlBreakEvent:
-		sigStr = "CTRL+BREAK"
-	case ctrlCloseEvent:
-		sigStr = "CTRL+CLOSE"
-	case ctrlLogOffEvent:
-		sigStr = "CTRL+LOG_OFF"
-	case ctrlShutdownEvent:
-		sigStr = "CTRL+SHUTDOWN"
-	}
-	log.Infof("Received signal '%s', shutting down...", sigStr)
-	signals.Stopper <- true
-	return 1
-}
+var (
+	kernel32              = syscall.NewLazyDLL("kernel32.dll")
+	setConsoleCtrlHandler = kernel32.NewProc("SetConsoleCtrlHandler")
+)
 
 func main() {
 	common.EnableLoggingToFile()
@@ -85,7 +55,25 @@ func main() {
 		}
 	}
 	defer log.Flush()
-	C.setupConsoleCtrlHandler()
+	setConsoleCtrlHandler.Call(
+		syscall.NewCallback(func(controlType uint) uint {
+			var sigStr string
+			switch controlType {
+			case ctrlCEvent:
+				sigStr = "CTRL+C"
+			case ctrlBreakEvent:
+				sigStr = "CTRL+BREAK"
+			case ctrlCloseEvent:
+				sigStr = "CTRL+CLOSE"
+			case ctrlLogOffEvent:
+				sigStr = "CTRL+LOG_OFF"
+			case ctrlShutdownEvent:
+				sigStr = "CTRL+SHUTDOWN"
+			}
+			log.Infof("Received control event '%s', shutting down...", sigStr)
+			signals.Stopper <- true
+			return 1
+		}), 1)
 
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
