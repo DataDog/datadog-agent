@@ -35,6 +35,6 @@ const (
 	PodsInformer InformerName = "pods"
 	// DeploysInformer holds the name of the informer
 	DeploysInformer InformerName = "deploys"
-	// ReplicasetsInformer holds the name of the informer
-	ReplicasetsInformer InformerName = "replicasets"
+	// ReplicaSetsInformer holds the name of the informer
+	ReplicaSetsInformer InformerName = "replicaSets"
 )

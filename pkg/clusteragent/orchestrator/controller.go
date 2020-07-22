@@ -87,7 +87,7 @@ func StartController(ctx ControllerContext) error {
 	return apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
 		apiserver.PodsInformer:        ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
 		apiserver.DeploysInformer:     ctx.InformerFactory.Apps().V1().Deployments().Informer(),
-		apiserver.ReplicasetsInformer: ctx.InformerFactory.Apps().V1().ReplicaSets().Informer(),
+		apiserver.ReplicaSetsInformer: ctx.InformerFactory.Apps().V1().ReplicaSets().Informer(),
 	})
 }
 
@@ -151,7 +151,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 	go wait.Until(o.processPods, 10*time.Second, stopCh)
 	// spread the processing of other resources
 	time.AfterFunc(2*time.Second, func() {
-		go wait.Until(o.processReplicasets, 10*time.Second, stopCh)
+		go wait.Until(o.processReplicaSets, 10*time.Second, stopCh)
 	})
 	time.AfterFunc(4*time.Second, func() {
 		go wait.Until(o.processDeploys, 10*time.Second, stopCh)
@@ -182,7 +182,7 @@ func (o *Controller) processDeploys() {
 	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
 }
 
-func (o *Controller) processReplicasets() {
+func (o *Controller) processReplicaSets() {
 	if !o.isLeaderFunc() {
 		return
 	}
@@ -193,7 +193,7 @@ func (o *Controller) processReplicasets() {
 		return
 	}
 
-	msg, err := processReplicasetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
 	if err != nil {
 		log.Errorf("Unable to process replica sets list: %v", err)
 		return

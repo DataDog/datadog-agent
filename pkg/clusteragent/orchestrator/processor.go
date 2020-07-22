@@ -81,7 +81,7 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 	return chunks
 }
 
-func processReplicasetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
 
@@ -108,7 +108,7 @@ func processReplicasetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 	if len(rsMsgs)%cfg.MaxPerMessage != 0 {
 		groupSize++
 	}
-	chunked := chunkReplicasets(rsMsgs, groupSize, cfg.MaxPerMessage)
+	chunked := chunkReplicaSets(rsMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorReplicaSet{
@@ -124,8 +124,8 @@ func processReplicasetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 	return messages, nil
 }
 
-// chunkReplicasets formats and chunks the replica sets into a slice of chunks using a specific number of chunks.
-func chunkReplicasets(replicasets []*model.ReplicaSet, chunkSize, chunkCount int) [][]*model.ReplicaSet {
+// chunkReplicaSets formats and chunks the replica sets into a slice of chunks using a specific number of chunks.
+func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkSize, chunkCount int) [][]*model.ReplicaSet {
 	chunks := make([][]*model.ReplicaSet, 0, chunkCount)
 
 	for c := 1; c <= chunkCount; c++ {
@@ -135,9 +135,9 @@ func chunkReplicasets(replicasets []*model.ReplicaSet, chunkSize, chunkCount int
 		)
 		// last chunk may be smaller than the chunk size
 		if c == chunkCount {
-			chunkEnd = len(replicasets)
+			chunkEnd = len(replicaSets)
 		}
-		chunks = append(chunks, replicasets[chunkStart:chunkEnd])
+		chunks = append(chunks, replicaSets[chunkStart:chunkEnd])
 	}
 
 	return chunks
