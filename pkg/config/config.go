@@ -733,6 +733,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
 
+	// Deep Database Monitoring
+	config.BindEnvAndSetDefault("deep_database_monitoring", false)
+
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
