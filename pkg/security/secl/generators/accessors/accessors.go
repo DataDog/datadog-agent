@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/types"
 	"io/ioutil"
@@ -26,13 +27,14 @@ const (
 )
 
 var (
-	filename string
-	pkgname  string
-	output   string
-	strict   bool
-	verbose  bool
-	program  *loader.Program
-	packages map[string]*types.Package
+	filename  string
+	pkgname   string
+	output    string
+	strict    bool
+	verbose   bool
+	program   *loader.Program
+	packages  map[string]*types.Package
+	buildTags string
 )
 
 type Module struct {
@@ -229,6 +231,9 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 }
 
 func parseFile(filename string, pkgName string) (*Module, error) {
+	buildContext := build.Default
+	buildContext.BuildTags = append(buildContext.BuildTags, strings.Split(buildTags, ",")...)
+
 	conf := loader.Config{
 		ParserMode:  parser.ParseComments,
 		AllowErrors: true,
@@ -239,6 +244,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 				}
 			},
 		},
+		Build: &buildContext,
 	}
 
 	astFile, err := conf.ParseFile(filename, nil)
@@ -462,6 +468,7 @@ func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
 	flag.StringVar(&filename, "filename", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
+	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
 	flag.StringVar(&output, "output", "", "Go generated file")
 	flag.Parse()
 }

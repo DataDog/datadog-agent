@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 // Code generated - DO NOT EDIT.
 
 package probe
