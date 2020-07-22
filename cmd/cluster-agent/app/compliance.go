@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -79,7 +80,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 		Source:  "compliance-agent",
 	})
 
-	reporter := compliance.NewReporter(logSource, pipelineProvider.NextPipelineChan())
+	reporter := event.NewReporter(logSource, pipelineProvider.NextPipelineChan())
 
 	runner := runner.NewRunner()
 	stopper.Add(runner)

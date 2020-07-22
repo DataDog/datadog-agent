@@ -28,13 +28,8 @@ func TestParseSuite(t *testing.T) {
 					{
 						File: &File{
 							Path: "/etc/docker/daemon.json",
-							Report: []ReportedField{
-								{
-									Property: "permissions",
-									Kind:     PropertyKindAttribute,
-								},
-							},
 						},
+						Condition: `file.permissions == 0644`,
 					},
 				},
 			},
