@@ -1,4 +1,6 @@
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -output model_accessors.go
+// +build linux_bpf
+
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux_bpf -output model_accessors.go
 
 package probe
 

@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 package module
 
 import (

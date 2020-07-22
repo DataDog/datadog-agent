@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 package probe
 
 import "github.com/DataDog/datadog-agent/pkg/security/ebpf"
