@@ -144,7 +144,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync) {
+	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync) {
 		return
 	}
 
