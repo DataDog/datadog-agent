@@ -152,7 +152,7 @@ func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error
 }
 
 func getMetadataItem(endpoint string) (string, error) {
-	res, err := doHTTPRequest(metadataURL+endpoint, http.MethodGet, map[string]string{}, true)
+	res, err := doHTTPRequest(metadataURL+endpoint, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -196,7 +196,7 @@ func extractClusterName(tags []string) (string, error) {
 	return clusterName, nil
 }
 
-func doHTTPRequest(url string, method string, headers map[string]string, retriableWithFreshToken bool) (*http.Response, error) {
+func doHTTPRequest(url string, method string, headers map[string]string, useToken bool) (*http.Response, error) {
 	client := http.Client{
 		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
@@ -205,6 +205,15 @@ func doHTTPRequest(url string, method string, headers map[string]string, retriab
 	if err != nil {
 		return nil, err
 	}
+
+	if useToken {
+		token, err := getToken()
+		if err != nil {
+			return nil, err
+		}
+		headers["X-aws-ec2-metadata-token"] = token
+	}
+
 	for header, value := range headers {
 		req.Header.Add(header, value)
 	}
@@ -212,20 +221,9 @@ func doHTTPRequest(url string, method string, headers map[string]string, retriab
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
-	}
-	if res.StatusCode == 401 && retriableWithFreshToken {
-		// Most of 401 errors can be solved by retrying with a fresh token
-		token, err := getToken()
-		if err != nil {
-			return nil, err
-		}
-		headers["X-aws-ec2-metadata-token"] = token
-		return doHTTPRequest(url, method, headers, false)
-
 	} else if res.StatusCode != 200 {
 		return nil, fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, url)
 	}
-
 	return res, nil
 }
 
