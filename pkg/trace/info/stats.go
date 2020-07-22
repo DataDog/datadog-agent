@@ -126,7 +126,7 @@ func newTagStats(tags Tags) *TagStats {
 
 func (ts *TagStats) publish() {
 	// Atomically load the stats from ts
-	tracesReceived := atomic.LoadInt64(&ts.TracesReceived)
+	tracesReceived := atomic.SwapInt64(&ts.TracesReceived)
 	tracesFiltered := atomic.LoadInt64(&ts.TracesFiltered)
 	tracesPriorityNone := atomic.LoadInt64(&ts.TracesPriorityNone)
 	tracesPriorityNeg := atomic.LoadInt64(&ts.TracesPriorityNeg)

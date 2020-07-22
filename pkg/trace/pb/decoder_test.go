@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
 )
 
 func TestParseFloat64(t *testing.T) {
@@ -60,4 +61,61 @@ func TestDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.ElementsMatch(t, want, got)
+}
+
+func TestDecodeMsgArray(t *testing.T) {
+	data := [2]interface{}{
+		0: []string{"baggage", "item", "elasticsearch.version", "7.0", "my-name", "X"},
+		1: [][][12]interface{}{
+			{
+				{
+					"my-service",
+					4,
+					"my-resource",
+					uint64(1),
+					uint64(2),
+					uint64(3),
+					int64(123),
+					int64(456),
+					1,
+					map[interface{}]interface{}{
+						"A": "B",
+						0:   1,
+						2:   3,
+					},
+					map[interface{}]float64{
+						5: 1.2,
+					},
+					"sql",
+				},
+			},
+		},
+	}
+	b, err := vmsgp.Marshal(&data)
+	assert.NoError(t, err)
+	dc := NewMsgpReader(bytes.NewReader(b))
+	defer FreeMsgpReader(dc)
+
+	var traces Traces
+	if err := traces.DecodeMsgArray(dc); err != nil {
+		t.Fatal(err)
+	}
+	assert.EqualValues(t, traces[0][0], &Span{
+		Service:  "my-service",
+		Name:     "my-name",
+		Resource: "my-resource",
+		TraceID:  1,
+		SpanID:   2,
+		ParentID: 3,
+		Start:    123,
+		Duration: 456,
+		Error:    1,
+		Meta: map[string]string{
+			"A":                     "B",
+			"baggage":               "item",
+			"elasticsearch.version": "7.0",
+		},
+		Metrics: map[string]float64{"X": 1.2},
+		Type:    "sql",
+	})
 }

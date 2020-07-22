@@ -7,6 +7,7 @@ package pb
 
 import (
 	"errors"
+	fmt "fmt"
 	io "io"
 	"math"
 	"sync"
@@ -36,6 +37,40 @@ func parseString(dc *msgp.Reader) (string, error) {
 			return "", err
 		}
 		return i, nil
+	default:
+		return "", msgp.TypeError{Encoded: t, Method: msgp.StrType}
+	}
+}
+
+// parseStringDict
+func parseStringDict(dc *msgp.Reader, dict []string) (string, error) {
+	// read the generic representation type without decoding
+	t, err := dc.NextType()
+	if err != nil {
+		return "", err
+	}
+	switch t {
+	case msgp.BinType:
+		i, err := dc.ReadBytes(nil)
+		if err != nil {
+			return "", err
+		}
+		return msgp.UnsafeString(i), nil
+	case msgp.StrType:
+		i, err := dc.ReadString()
+		if err != nil {
+			return "", err
+		}
+		return i, nil
+	case msgp.IntType:
+		i, err := dc.ReadInt()
+		if err != nil {
+			return "", err
+		}
+		if i > len(dict)-1 {
+			return "", fmt.Errorf("dictionary index %d out of place", i)
+		}
+		return dict[i], nil
 	default:
 		return "", msgp.TypeError{Encoded: t, Method: msgp.StrType}
 	}
@@ -204,18 +239,70 @@ func parseInt32(dc *msgp.Reader) (int32, error) {
 
 // DecodeMsgArray implements msgp.Decodable
 func (z *Traces) DecodeMsgArray(dc *msgp.Reader) (err error) {
-	return z.decodeMsg(dc, (*Span).DecodeMsgArray)
-}
+	if _, err := dc.ReadArrayHeader(); err != nil {
+		return err
+	}
+	// read dictionary
+	sz, err := dc.ReadArrayHeader()
+	if err != nil {
+		return err
+	}
+	dict := make([]string, sz)
+	for i := range dict {
+		str, err := parseString(dc)
+		if err != nil {
+			return err
+		}
+		dict[i] = str
+	}
 
-// DecodeMsgArray implements msgp.Decodable
-func (z *Trace) DecodeMsgArray(dc *msgp.Reader) (err error) {
-	return z.decodeMsg(dc, (*Span).DecodeMsgArray)
+	// read traces
+	var xsz uint32
+	xsz, err = dc.ReadArrayHeader()
+	if err != nil {
+		return
+	}
+	if cap((*z)) >= int(xsz) {
+		(*z) = (*z)[:xsz]
+	} else {
+		(*z) = make(Traces, xsz)
+	}
+	for wht := range *z {
+		var xsz uint32
+		xsz, err = dc.ReadArrayHeader()
+		if err != nil {
+			return
+		}
+		if cap((*z)[wht]) >= int(xsz) {
+			(*z)[wht] = (*z)[wht][:xsz]
+		} else {
+			(*z)[wht] = make(Trace, xsz)
+		}
+		for hct := range (*z)[wht] {
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					return
+				}
+				(*z)[wht][hct] = nil
+			} else {
+				if (*z)[wht][hct] == nil {
+					(*z)[wht][hct] = new(Span)
+				}
+				err = (*z)[wht][hct].DecodeMsgArray(dc, dict)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}
+	return
 }
 
 const spanPropertyCount = 12
 
 // DecodeMsgArray implements msgp.Decodable
-func (z *Span) DecodeMsgArray(dc *msgp.Reader) (err error) {
+func (z *Span) DecodeMsgArray(dc *msgp.Reader, dict []string) (err error) {
 	var xsz uint32
 	xsz, err = dc.ReadArrayHeader()
 	if err != nil {
@@ -224,7 +311,7 @@ func (z *Span) DecodeMsgArray(dc *msgp.Reader) (err error) {
 	if xsz != spanPropertyCount {
 		return errors.New("encoded span needs exactly 12 elements in array")
 	}
-	for i := uint32(0); i < xsz; i++ {
+	for i := 0; i < spanPropertyCount; i++ {
 		if dc.IsNil() {
 			// empty fields are left at their zero-value
 			if err := dc.ReadNil(); err != nil {
@@ -235,19 +322,19 @@ func (z *Span) DecodeMsgArray(dc *msgp.Reader) (err error) {
 		switch i {
 		case 0:
 			// Service
-			z.Service, err = parseString(dc)
+			z.Service, err = parseStringDict(dc, dict)
 			if err != nil {
 				return
 			}
 		case 1:
 			// Name
-			z.Name, err = parseString(dc)
+			z.Name, err = parseStringDict(dc, dict)
 			if err != nil {
 				return
 			}
 		case 2:
 			// Resource
-			z.Resource, err = parseString(dc)
+			z.Resource, err = parseStringDict(dc, dict)
 			if err != nil {
 				return
 			}
@@ -305,11 +392,11 @@ func (z *Span) DecodeMsgArray(dc *msgp.Reader) (err error) {
 				zwht--
 				var zxvk string
 				var zbzg string
-				zxvk, err = parseString(dc)
+				zxvk, err = parseStringDict(dc, dict)
 				if err != nil {
 					return
 				}
-				zbzg, err = parseString(dc)
+				zbzg, err = parseStringDict(dc, dict)
 				if err != nil {
 					return
 				}
@@ -333,7 +420,7 @@ func (z *Span) DecodeMsgArray(dc *msgp.Reader) (err error) {
 				zhct--
 				var zbai string
 				var zcmr float64
-				zbai, err = parseString(dc)
+				zbai, err = parseStringDict(dc, dict)
 				if err != nil {
 					return
 				}
@@ -345,7 +432,7 @@ func (z *Span) DecodeMsgArray(dc *msgp.Reader) (err error) {
 			}
 		case 11:
 			// Type
-			z.Type, err = parseString(dc)
+			z.Type, err = parseStringDict(dc, dict)
 			if err != nil {
 				return
 			}

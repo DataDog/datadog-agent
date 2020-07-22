@@ -17,10 +17,6 @@ import (
 
 // DecodeMsg implements msgp.Decodable
 func (z *Trace) DecodeMsg(dc *msgp.Reader) (err error) {
-	return z.decodeMsg(dc, (*Span).DecodeMsg)
-}
-
-func (z *Trace) decodeMsg(dc *msgp.Reader, spanDecodeFunc func(*Span, *msgp.Reader) error) (err error) {
 	var xsz uint32
 	xsz, err = dc.ReadArrayHeader()
 	if err != nil {
@@ -42,7 +38,7 @@ func (z *Trace) decodeMsg(dc *msgp.Reader, spanDecodeFunc func(*Span, *msgp.Read
 			if (*z)[bzg] == nil {
 				(*z)[bzg] = new(Span)
 			}
-			err = spanDecodeFunc((*z)[bzg], dc)
+			err = (*z)[bzg].DecodeMsg(dc)
 			if err != nil {
 				return
 			}
@@ -87,10 +83,6 @@ func (z Trace) Msgsize() (s int) {
 
 // DecodeMsg implements msgp.Decodable
 func (z *Traces) DecodeMsg(dc *msgp.Reader) (err error) {
-	return z.decodeMsg(dc, (*Span).DecodeMsg)
-}
-
-func (z *Traces) decodeMsg(dc *msgp.Reader, spanDecodeFunc func(*Span, *msgp.Reader) error) (err error) {
 	var xsz uint32
 	xsz, err = dc.ReadArrayHeader()
 	if err != nil {
@@ -123,7 +115,7 @@ func (z *Traces) decodeMsg(dc *msgp.Reader, spanDecodeFunc func(*Span, *msgp.Rea
 				if (*z)[wht][hct] == nil {
 					(*z)[wht][hct] = new(Span)
 				}
-				err = spanDecodeFunc((*z)[wht][hct], dc)
+				err = (*z)[wht][hct].DecodeMsg(dc)
 				if err != nil {
 					return
 				}
