@@ -186,7 +186,7 @@ func dockerTemplateQuery(funcName, obj interface{}) eval.Function {
 		}
 
 		v := evalGoTemplate(query, obj)
-		log.Debugf(`template query in "%s(%q)" evaluated as %q`, funcName, query, v)
+		log.Tracef(`template query in "%s(%q)" evaluated as %q`, funcName, query, v)
 		return v, nil
 	}
 }
