@@ -9,261 +9,175 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/stretchr/testify/assert"
+
+	assert "github.com/stretchr/testify/require"
 )
 
 type commandFixture struct {
 	name string
 
-	command *compliance.Command
+	resource compliance.Resource
 
 	commandExitCode int
 	commandOutput   string
 	commandError    error
-	expCommandName  string
-	expCommandArgs  []string
-	expKV           event.Data
-	expError        error
+
+	expectCommandName string
+	expectCommandArgs []string
+
+	expectReport *report
+	expectError  error
 }
 
 func (f *commandFixture) mockRunCommand(t *testing.T) commandRunnerFunc {
 	return func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
-		assert.Equal(t, f.expCommandName, name)
-		assert.ElementsMatch(t, f.expCommandArgs, args)
+		assert.Equal(t, f.expectCommandName, name)
+		assert.Equal(t, f.expectCommandArgs, args)
 		return f.commandExitCode, []byte(f.commandOutput), f.commandError
 	}
 }
 
 func (f *commandFixture) run(t *testing.T) {
 	t.Helper()
+	assert := assert.New(t)
 
 	commandRunner = f.mockRunCommand(t)
 
-	reporter := &mocks.Reporter{}
-	defer reporter.AssertExpectations(t)
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	if f.expKV != nil {
-		env.On("Reporter").Return(reporter)
-		reporter.On(
-			"Report",
-			newTestRuleEvent(
-				[]string{"check_kind:command"},
-				f.expKV,
-			),
-		).Once()
-	}
+	expr, err := eval.ParseIterable(f.resource.Condition)
+	assert.NoError(err)
 
-	check, err := newCommandCheck(newTestBaseCheck(env, checkKindCommand), f.command)
-	assert.NoError(t, err)
+	result, err := checkCommand(env, "rule-id", f.resource, expr)
+	assert.Equal(f.expectReport, result)
+	assert.Equal(f.expectError, err)
 
-	err = check.Run()
-	assert.Equal(t, f.expError, err)
 }
 
 func TestCommandCheck(t *testing.T) {
 	tests := []commandFixture{
 		{
-			name: "Test binary run",
-			command: &compliance.Command{
-				BinaryCmd: &compliance.BinaryCmd{
-					Name: "myCommand",
-					Args: []string{"--foo=bar", "--baz"},
-				},
-				Report: compliance.Report{
-					{
-						As: "myCommandOutput",
+			name: "binary run",
+			resource: compliance.Resource{
+				Command: &compliance.Command{
+					BinaryCmd: &compliance.BinaryCmd{
+						Name: "myCommand",
+						Args: []string{"--foo=bar", "--baz"},
 					},
 				},
+				Condition: `command.stdout == "output"`,
 			},
-			commandExitCode: 0,
-			commandOutput:   "output",
-			commandError:    nil,
-			expCommandName:  "myCommand",
-			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: event.Data{
-				"myCommandOutput": "output",
-				"exitCode":        "0",
+			commandExitCode:   0,
+			commandOutput:     "output",
+			commandError:      nil,
+			expectCommandName: "myCommand",
+			expectCommandArgs: []string{"--foo=bar", "--baz"},
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
+					"command.exitCode": 0,
+				},
 			},
 		},
 		{
-			name: "Test shell run",
-			command: &compliance.Command{
-				ShellCmd: &compliance.ShellCmd{
-					Run: "my command --foo=bar --baz",
-				},
-				Report: compliance.Report{
-					{
-						As: "myCommandOutput",
+			name: "shell run",
+			resource: compliance.Resource{
+				Command: &compliance.Command{
+					ShellCmd: &compliance.ShellCmd{
+						Run: "my command --foo=bar --baz",
 					},
 				},
+				Condition: `command.stdout == "output"`,
 			},
-			commandExitCode: 0,
-			commandOutput:   "output",
-			commandError:    nil,
-			expCommandName:  getDefaultShell().Name,
-			expCommandArgs:  append(getDefaultShell().Args, "my command --foo=bar --baz"),
-			expKV: event.Data{
-				"myCommandOutput": "output",
-				"exitCode":        "0",
+			commandExitCode:   0,
+			commandOutput:     "output",
+			commandError:      nil,
+			expectCommandName: getDefaultShell().Name,
+			expectCommandArgs: append(getDefaultShell().Args, "my command --foo=bar --baz"),
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
+					"command.exitCode": 0,
+				},
 			},
 		},
 		{
-			name: "Test custom shell run",
-			command: &compliance.Command{
-				ShellCmd: &compliance.ShellCmd{
-					Run: "my command --foo=bar --baz",
-					Shell: &compliance.BinaryCmd{
-						Name: "zsh",
-						Args: []string{"-someoption", "-c"},
-					},
-				},
-				Report: compliance.Report{
-					{
-						As: "myCommandOutput",
-					},
-				},
-			},
-			commandExitCode: 0,
-			commandOutput:   "output",
-			commandError:    nil,
-			expCommandName:  "zsh",
-			expCommandArgs:  []string{"-someoption", "-c", "my command --foo=bar --baz"},
-			expKV: event.Data{
-				"myCommandOutput": "output",
-				"exitCode":        "0",
-			},
-		},
-		{
-			name: "Test execution failure",
-			command: &compliance.Command{
-				BinaryCmd: &compliance.BinaryCmd{
-					Name: "myCommand",
-					Args: []string{"--foo=bar", "--baz"},
-				},
-				Report: compliance.Report{
-					{
-						As: "myCommandOutput",
-					},
-				},
-			},
-			commandExitCode: -1,
-			commandError:    fmt.Errorf("some failure"),
-			expCommandName:  "myCommand",
-			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV:           nil,
-			expError:        fmt.Errorf("check-1: command 'Binary command: myCommand, args: [--foo=bar --baz]' execution failed, error: some failure"),
-		},
-		{
-			name: "Test non-zero return code (no filter)",
-			command: &compliance.Command{
-				BinaryCmd: &compliance.BinaryCmd{
-					Name: "myCommand",
-					Args: []string{"--foo=bar", "--baz"},
-				},
-				Report: compliance.Report{
-					{
-						As: "myCommandOutput",
-					},
-				},
-			},
-			commandExitCode: 2,
-			commandOutput:   "output",
-			commandError:    nil,
-			expCommandName:  "myCommand",
-			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: event.Data{
-				"myCommandOutput": "output",
-				"exitCode":        "2",
-			},
-		},
-		{
-			name: "Test allowed non-zero return code",
-			command: &compliance.Command{
-				BinaryCmd: &compliance.BinaryCmd{
-					Name: "myCommand",
-					Args: []string{"--foo=bar", "--baz"},
-				},
-				Report: compliance.Report{
-					{
-						As: "myCommandOutput",
-					},
-				},
-				Filter: []compliance.CommandFilter{
-					{
-						Include: &compliance.CommandCondition{
-							ExitCode: 2,
+			name: "custom shell run",
+			resource: compliance.Resource{
+				Command: &compliance.Command{
+					ShellCmd: &compliance.ShellCmd{
+						Run: "my command --foo=bar --baz",
+						Shell: &compliance.BinaryCmd{
+							Name: "zsh",
+							Args: []string{"-someoption", "-c"},
 						},
 					},
 				},
+				Condition: `command.stdout == "output"`,
 			},
-			commandExitCode: 2,
-			commandOutput:   "output",
-			commandError:    nil,
-			expCommandName:  "myCommand",
-			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: event.Data{
-				"myCommandOutput": "output",
-				"exitCode":        "2",
+			commandExitCode:   0,
+			commandOutput:     "output",
+			commandError:      nil,
+			expectCommandName: "zsh",
+			expectCommandArgs: []string{"-someoption", "-c", "my command --foo=bar --baz"},
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
+					"command.exitCode": 0,
+				},
 			},
 		},
 		{
-			name: "Test not allowed non-zero return code",
-			command: &compliance.Command{
-				BinaryCmd: &compliance.BinaryCmd{
-					Name: "myCommand",
-					Args: []string{"--foo=bar", "--baz"},
-				},
-				Report: compliance.Report{
-					{
-						As: "myCommandOutput",
+			name: "execution failure",
+			resource: compliance.Resource{
+				Command: &compliance.Command{
+					BinaryCmd: &compliance.BinaryCmd{
+						Name: "myCommand",
+						Args: []string{"--foo=bar", "--baz"},
 					},
 				},
-				Filter: []compliance.CommandFilter{
-					{
-						Include: &compliance.CommandCondition{
-							ExitCode: 2,
-						},
-					},
-				},
+				Condition: `command.stdout == "output"`,
 			},
-			commandExitCode: 3,
-			commandOutput:   "output",
-			commandError:    fmt.Errorf("some failure"),
-			expCommandName:  "myCommand",
-			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV:           nil,
-			expError:        fmt.Errorf("check-1: command 'Binary command: myCommand, args: [--foo=bar --baz]' returned with exitcode: 3 (not reportable), error: some failure"),
+			commandExitCode:   -1,
+			commandError:      errors.New("some failure"),
+			expectCommandName: "myCommand",
+			expectCommandArgs: []string{"--foo=bar", "--baz"},
+			expectError:       fmt.Errorf("command 'Binary command: myCommand, args: [--foo=bar --baz]' execution failed, error: some failure"),
 		},
 		{
-			name: "Test output is too large",
-			command: &compliance.Command{
-				BinaryCmd: &compliance.BinaryCmd{
-					Name: "myCommand",
-					Args: []string{"--foo=bar", "--baz"},
-				},
-				Report: compliance.Report{
-					{
-						As: "myCommandOutput",
+			name: "non-zero return code",
+			resource: compliance.Resource{
+				Command: &compliance.Command{
+					BinaryCmd: &compliance.BinaryCmd{
+						Name: "myCommand",
+						Args: []string{"--foo=bar", "--baz"},
 					},
 				},
-				MaxOutputSize: 50,
+				Condition: `command.exitCode == 2`,
 			},
-			commandExitCode: 0,
-			commandOutput:   "outputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutputoutput",
-			expCommandName:  "myCommand",
-			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV:           nil,
-			expError:        fmt.Errorf("check-1: command 'Binary command: myCommand, args: [--foo=bar --baz]' output is too large: 120, won't be reported"),
+			commandExitCode:   2,
+			commandOutput:     "output",
+			commandError:      nil,
+			expectCommandName: "myCommand",
+			expectCommandArgs: []string{"--foo=bar", "--baz"},
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
+					"command.exitCode": 2,
+				},
+			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.run(t)

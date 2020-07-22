@@ -6,77 +6,107 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 const (
 	cacheValidity time.Duration = 10 * time.Minute
+
+	processFieldName    = "process.name"
+	processFieldExe     = "process.exe"
+	processFieldCmdLine = "process.cmdLine"
+	processFuncFlag     = "process.flag"
+	processFuncHasFlag  = "process.hasFlag"
 )
 
-type processCheck struct {
-	baseCheck
-	process *compliance.Process
+var processReportedFields = []string{
+	processFieldName,
+	processFieldExe,
+	processFieldCmdLine,
 }
 
-func newProcessCheck(baseCheck baseCheck, process *compliance.Process) (*processCheck, error) {
-	if len(process.Name) == 0 {
-		return nil, fmt.Errorf("unable to create processCheck without a process name")
+func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+	if res.Process == nil {
+		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
 
-	return &processCheck{
-		baseCheck: baseCheck,
-		process:   process,
-	}, nil
-}
+	process := res.Process
 
-func (c *processCheck) Run() error {
-	log.Debugf("%s: process check: %s", c.ruleID, c.process.Name)
+	log.Debugf("%s: running process check: %s", id, process.Name)
+
 	processes, err := getProcesses(cacheValidity)
+
 	if err != nil {
-		return log.Errorf("Unable to fetch processes: %v", err)
+		return nil, log.Errorf("%s: Unable to fetch processes: %v", id, err)
 	}
 
-	matchedProcesses := processes.findProcessesByName(c.process.Name)
+	matchedProcesses := processes.findProcessesByName(process.Name)
+
+	var instances []*eval.Instance
 	for _, mp := range matchedProcesses {
-		err = c.reportProcess(mp)
-		if err != nil {
-			return err
+
+		flagValues := parseProcessCmdLine(mp.Cmdline)
+		instance := &eval.Instance{
+			Vars: eval.VarMap{
+				processFieldName:    mp.Name,
+				processFieldExe:     mp.Exe,
+				processFieldCmdLine: mp.Cmdline,
+			},
+			Functions: eval.FunctionMap{
+				processFuncFlag:    processFlag(flagValues),
+				processFuncHasFlag: processHasFlag(flagValues),
+			},
 		}
+		instances = append(instances, instance)
 	}
 
-	return nil
+	it := &instanceIterator{
+		instances: instances,
+	}
+
+	result, err := expr.EvaluateIterator(it, globalInstance)
+	if err != nil {
+		return nil, err
+	}
+
+	return instanceResultToReport(result, processReportedFields), nil
 }
 
-func (c *processCheck) reportProcess(p *process.FilledProcess) error {
-	log.Debugf("%s: process check - match %s", c.ruleID, p.Cmdline)
-	kv := event.Data{}
-	flagValues := parseProcessCmdLine(p.Cmdline)
-
-	for _, field := range c.process.Report {
-		switch field.Kind {
-		case "flag":
-			if flagValue, found := flagValues[field.Property]; found {
-				flagReportName := field.Property
-				if len(field.As) > 0 {
-					flagReportName = field.As
-				}
-				if len(field.Value) > 0 {
-					flagValue = field.Value
-				}
-
-				kv[flagReportName] = flagValue
-			}
-		default:
-			return log.Errorf("unsupported kind value: '%s' for process: '%s'", field.Kind, p.Name)
+func processFlag(flagValues map[string]string) eval.Function {
+	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+		flag, err := validateProcessFlagArg(args...)
+		if err != nil {
+			return nil, err
 		}
+		value, _ := flagValues[flag]
+		return value, nil
 	}
+}
+func processHasFlag(flagValues map[string]string) eval.Function {
+	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+		flag, err := validateProcessFlagArg(args...)
+		if err != nil {
+			return nil, err
+		}
+		_, has := flagValues[flag]
+		return has, nil
+	}
+}
 
-	c.report(nil, kv)
-	return nil
+func validateProcessFlagArg(args ...interface{}) (string, error) {
+	if len(args) != 1 {
+		return "", fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
+	}
+	flag, ok := args[0].(string)
+	if !ok {
+		return "", errors.New(`expecting string value for flag argument`)
+	}
+	return flag, nil
 }

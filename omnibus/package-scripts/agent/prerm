@@ -123,11 +123,37 @@ remove_custom_integrations()
     fi
 }
 
+remove_version_history()
+{
+    # Since 6.22.0/7.22.0, a file containing the version history of the currently installed
+    # Agent is created (by default in /opt/datadog-agent/run). On a full uninstall, remove this
+    # file.
+    # This is a best-effort solution, as users can decide to put this file in another place
+    # by changing the logs_config.run_path value.
+
+    if [ -f "$INSTALL_DIR/run/version-history.json" ]; then
+        echo "Removing version history file"
+        rm "$INSTALL_DIR/run/version-history.json" || true
+    fi
+}
+
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     stop_agent
     deregister_agent
     remove_custom_integrations
     remove_py_compiled_files
+
+    case "$1" in
+        remove)
+            # We're uninstalling.
+            remove_version_history
+        ;;
+        upgrade)
+            # We're upgrading.
+        ;;
+        *)
+        ;;
+    esac
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
     stop_agent
     deregister_agent
@@ -137,6 +163,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
             # We're uninstalling.
             remove_custom_integrations
             remove_py_compiled_files
+            remove_version_history
         ;;
         1)
             # We're upgrading.

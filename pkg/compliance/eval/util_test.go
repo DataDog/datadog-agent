@@ -526,12 +526,30 @@ func TestStringBinaryOp(t *testing.T) {
 	}
 }
 
+type coerceTest struct {
+	name     string
+	value    interface{}
+	expected interface{}
+}
+
+func (test coerceTest) Run(t *testing.T, fn coerceFunc) {
+	t.Helper()
+	assert.Equal(t, test.expected, fn(test.value))
+}
+
+type coerceTests []coerceTest
+
+func (tests coerceTests) Run(t *testing.T, fn coerceFunc) {
+	t.Helper()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.Run(t, fn)
+		})
+	}
+}
+
 func TestCoerceIntegers(t *testing.T) {
-	tests := []struct {
-		name     string
-		value    interface{}
-		expected interface{}
-	}{
+	coerceTests{
 		{
 			name:     "int",
 			value:    int(55),
@@ -582,12 +600,61 @@ func TestCoerceIntegers(t *testing.T) {
 			value:    []int{},
 			expected: []int{},
 		},
-	}
-	assert := assert.New(t)
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			actual := coerceIntegers(test.value)
-			assert.Equal(test.expected, actual)
-		})
-	}
+	}.Run(t, coerceIntegers)
+
+}
+
+func TestCoerceArrays(t *testing.T) {
+	coerceTests{
+		{
+			name:     "int",
+			value:    []int{55, 6},
+			expected: []interface{}{int64(55), int64(6)},
+		},
+		{
+			name:     "int16",
+			value:    []int16{106, 89},
+			expected: []interface{}{int64(106), int64(89)},
+		},
+		{
+			name:     "int32",
+			value:    []int32{-34},
+			expected: []interface{}{int64(-34)},
+		},
+		{
+			name:     "int64",
+			value:    []int64{89},
+			expected: []interface{}{int64(89)},
+		},
+		{
+			name:     "uint",
+			value:    []uint{35},
+			expected: []interface{}{uint64(35)},
+		},
+		{
+			name:     "uint16",
+			value:    []uint16{5},
+			expected: []interface{}{uint64(5)},
+		},
+		{
+			name:     "uint32",
+			value:    []uint32{45},
+			expected: []interface{}{uint64(45)},
+		},
+		{
+			name:     "uint64",
+			value:    []uint64{300},
+			expected: []interface{}{uint64(300)},
+		},
+		{
+			name:     "string array",
+			value:    []string{"abc", "def"},
+			expected: []interface{}{"abc", "def"},
+		},
+		{
+			name:     "mixed array",
+			value:    []interface{}{"a", 0},
+			expected: []interface{}{"a", 0},
+		},
+	}.Run(t, coerceArrays)
 }

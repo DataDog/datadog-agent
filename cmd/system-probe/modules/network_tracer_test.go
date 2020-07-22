@@ -1,6 +1,6 @@
 // +build linux windows
 
-package main
+package modules
 
 import (
 	"net/http/httptest"

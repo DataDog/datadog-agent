@@ -8,6 +8,4 @@ rules:
   resources:
   - file:
       path: /etc/docker/daemon.json
-      report:
-      - property: permissions
-        kind: attribute
+    condition: file.permissions == 0644

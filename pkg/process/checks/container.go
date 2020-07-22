@@ -134,7 +134,7 @@ func (c *ContainerCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
 
 // fmtContainers loops through container list and converts them to a list of container objects
 func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time) []*model.Container {
-	containers := make([]*model.Container, 0, len(ctrList))
+	containersList := make([]*model.Container, 0, len(ctrList))
 	for _, ctr := range ctrList {
 		lastCtr, ok := lastRates[ctr.ID]
 		if !ok {
@@ -157,7 +157,14 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			tags = []string{}
 		}
 
-		containers = append(containers, &model.Container{
+		if ctr.Type == containers.RuntimeNameGarden && len(tags) == 0 {
+			// If there is an error retrieving tags, don't send the container for garden. It means it hasn't yet been
+			// discovered by the cluster agent, so avoid sending something with no tags, i.e. no container name, ...
+			log.Debugf("No tags found for app %s, it has probably not been discovered by the DCA, skipping.", ctr.ID)
+			continue
+		}
+
+		containersList = append(containersList, &model.Container{
 			Id:          ctr.ID,
 			Type:        ctr.Type,
 			CpuLimit:    float32(ctr.Limits.CPULimit),
@@ -183,7 +190,7 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			Tags:        tags,
 		})
 	}
-	return containers
+	return containersList
 }
 
 // chunkContainers formats and chunks the ctrList into a slice of chunks using a specific number of chunks.

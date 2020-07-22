@@ -15,7 +15,7 @@ const (
 )
 
 // Data defines a key value map for storing attributes of a reported rule event
-type Data map[string]string
+type Data map[string]interface{}
 
 // Event describes a log event sent for an evaluated compliance/security rule.
 type Event struct {

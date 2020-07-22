@@ -26,9 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// tagContainersTags specifies the name of the tag which holds key/value
-// pairs representing information about the container (Docker, EC2, etc).
-const tagContainersTags = "_dd.tags.container"
+const (
+	// tagContainersTags specifies the name of the tag which holds key/value
+	// pairs representing information about the container (Docker, EC2, etc).
+	tagContainersTags = "_dd.tags.container"
+)
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
@@ -110,13 +112,14 @@ func (a *Agent) Run() {
 }
 
 func (a *Agent) work() {
+	sublayerCalculator := stats.NewSublayerCalculator()
 	for {
 		select {
 		case t, ok := <-a.In:
 			if !ok {
 				return
 			}
-			a.Process(t)
+			a.Process(t, sublayerCalculator)
 		}
 	}
 
@@ -145,7 +148,7 @@ func (a *Agent) loop() {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(t *api.Trace) {
+func (a *Agent) Process(t *api.Trace, sublayerCalculator *stats.SublayerCalculator) {
 	if len(t.Spans) == 0 {
 		log.Debugf("Skipping received empty trace")
 		return
@@ -158,24 +161,6 @@ func (a *Agent) Process(t *api.Trace) {
 
 	// We get the address of the struct holding the stats associated to no tags.
 	ts := a.Receiver.Stats.GetTagStats(*t.Source)
-
-	// Extract priority early, as later goroutines might manipulate the Metrics map in parallel which isn't safe.
-	priority, hasPriority := sampler.GetSamplingPriority(root)
-
-	// Depending on the sampling priority, count that trace differently.
-	stat := &ts.TracesPriorityNone
-	if hasPriority {
-		if priority < 0 {
-			stat = &ts.TracesPriorityNeg
-		} else if priority == 0 {
-			stat = &ts.TracesPriority0
-		} else if priority == 1 {
-			stat = &ts.TracesPriority1
-		} else {
-			stat = &ts.TracesPriority2
-		}
-	}
-	atomic.AddInt64(stat, 1)
 
 	if !a.Blacklister.Allows(root) {
 		log.Debugf("Trace rejected by blacklister. root: %v", root)
@@ -205,33 +190,32 @@ func (a *Agent) Process(t *api.Trace) {
 			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
 		}
 	}
-
 	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
 	// which is not thread-safe while samplers and Concentrator might modify it too.
 	traceutil.ComputeTopLevel(t.Spans)
-
-	subtraces := stats.ExtractSubtraces(t.Spans, root)
-	sublayers := make(map[*pb.Span][]stats.SublayerValue)
-	for _, subtrace := range subtraces {
-		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
-		sublayers[subtrace.Root] = subtraceSublayers
-		stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
-	}
 
 	pt := ProcessedTrace{
 		Trace:         t.Spans,
 		WeightedTrace: stats.NewWeightedTrace(t.Spans, root),
 		Root:          root,
 		Env:           a.conf.DefaultEnv,
-		Sublayers:     sublayers,
+		Sublayers:     make(map[*pb.Span][]stats.SublayerValue),
 	}
+
+	sampledSpans, sampled := a.sample(ts, pt)
+
+	subtraces := stats.ExtractSubtraces(t.Spans, root)
+	for _, subtrace := range subtraces {
+		subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
+		pt.Sublayers[subtrace.Root] = subtraceSublayers
+		if sampled {
+			stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
+		}
+	}
+
 	if tenv := traceutil.GetEnv(t.Spans); tenv != "" {
 		// this trace has a user defined env.
 		pt.Env = tenv
-	}
-
-	if priority >= 0 {
-		a.sample(ts, pt)
 	}
 
 	a.Concentrator.In <- &stats.Input{
@@ -239,14 +223,38 @@ func (a *Agent) Process(t *api.Trace) {
 		Sublayers: pt.Sublayers,
 		Env:       pt.Env,
 	}
+
+	if sampled {
+		a.Out <- sampledSpans
+	}
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
 // from it.
-func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
-	var ss writer.SampledSpans
+func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (*writer.SampledSpans, bool) {
+	priority, hasPriority := sampler.GetSamplingPriority(pt.Root)
 
-	sampled, rate := a.runSamplers(pt)
+	// Depending on the sampling priority, count that trace differently.
+	stat := &ts.TracesPriorityNone
+	if hasPriority {
+		if priority < 0 {
+			stat = &ts.TracesPriorityNeg
+		} else if priority == 0 {
+			stat = &ts.TracesPriority0
+		} else if priority == 1 {
+			stat = &ts.TracesPriority1
+		} else {
+			stat = &ts.TracesPriority2
+		}
+	}
+	atomic.AddInt64(stat, 1)
+
+	if priority < 0 {
+		return nil, false
+	}
+
+	var ss writer.SampledSpans
+	sampled, rate := a.runSamplers(pt, hasPriority)
 	if sampled {
 		sampler.AddGlobalRate(pt.Root, rate)
 		ss.Trace = pt.Trace
@@ -258,15 +266,13 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
 
-	if !ss.Empty() {
-		a.Out <- &ss
-	}
+	return &ss, !ss.Empty()
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(pt ProcessedTrace) (bool, float64) {
-	if _, ok := pt.GetSamplingPriority(); ok {
+func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) (bool, float64) {
+	if hasPriority {
 		return a.samplePriorityTrace(pt)
 	}
 	return a.sampleNoPriorityTrace(pt)
