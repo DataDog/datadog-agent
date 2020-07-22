@@ -7,6 +7,24 @@
 
 package main
 
+/*
+#include <Windows.h>
+
+extern BOOL handleCtrlHandler(DWORD fdwCtrlType);
+
+// The C control handler will call the Go control handler
+static BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
+{
+    return handleCtrlHandler(fdwCtrlType);
+}
+
+// This method is called to hookup the console control handler
+static void setupConsoleCtrlHandler() {
+	SetConsoleCtrlHandler(CtrlHandler, TRUE);
+}
+*/
+import "C"
+
 import (
 	_ "expvar"
 	"fmt"
@@ -15,10 +33,40 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc"
 )
+
+// https://docs.microsoft.com/en-us/windows/console/handlerroutine
+const (
+	ctrlCEvent        = C.DWORD(0)
+	ctrlBreakEvent    = C.DWORD(1)
+	ctrlCloseEvent    = C.DWORD(2)
+	ctrlLogOffEvent   = C.DWORD(5)
+	ctrlShutdownEvent = C.DWORD(6)
+)
+
+//export handleCtrlHandler
+func handleCtrlHandler(signal C.DWORD) C.BOOL {
+	var sigStr string
+	switch signal {
+	case ctrlCEvent:
+		sigStr = "CTRL+C"
+	case ctrlBreakEvent:
+		sigStr = "CTRL+BREAK"
+	case ctrlCloseEvent:
+		sigStr = "CTRL+CLOSE"
+	case ctrlLogOffEvent:
+		sigStr = "CTRL+LOG_OFF"
+	case ctrlShutdownEvent:
+		sigStr = "CTRL+SHUTDOWN"
+	}
+	log.Infof("Received signal '%s', shutting down...", sigStr)
+	signals.Stopper <- true
+	return 1
+}
 
 func main() {
 	common.EnableLoggingToFile()
@@ -37,6 +85,7 @@ func main() {
 		}
 	}
 	defer log.Flush()
+	C.setupConsoleCtrlHandler()
 
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
