@@ -215,7 +215,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					// Embedded field
 					ident, _ := field.Type.(*ast.Ident)
 					if starExpr, ok := field.Type.(*ast.StarExpr); ident == nil && ok {
-						ident, ok = starExpr.X.(*ast.Ident)
+						ident, _ = starExpr.X.(*ast.Ident)
 					}
 
 					if ident != nil {

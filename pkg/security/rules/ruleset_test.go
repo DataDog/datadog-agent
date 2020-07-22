@@ -195,7 +195,7 @@ func TestRuleSetFilters1(t *testing.T) {
 		},
 	}
 
-	approvers, err = rs.GetApprovers("open", caps)
+	_, err = rs.GetApprovers("open", caps)
 	if err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
@@ -214,7 +214,7 @@ func TestRuleSetFilters2(t *testing.T) {
 		},
 	}
 
-	approvers, err := rs.GetApprovers("open", caps)
+	_, err := rs.GetApprovers("open", caps)
 	if err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
@@ -234,7 +234,10 @@ func TestRuleSetFilters2(t *testing.T) {
 		},
 	}
 
-	approvers, err = rs.GetApprovers("open", caps)
+	approvers, err := rs.GetApprovers("open", caps)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if values, exists := approvers["open.filename"]; !exists || len(values) != 2 {
 		t.Fatal("expected approver not found")
