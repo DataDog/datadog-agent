@@ -106,17 +106,21 @@ func isParentPathDiscarder(rs *rules.RuleSet, eventType eval.EventType, filename
 	// ex: rule     open.basename == ".ssh"
 	//     discader /root/.ssh/id_rsa
 	// we can't discard /root/.ssh as basename rule matches it
-	// Note: This shouldn't happen this we can't have a discarder working on multiple fields.
+	// Note: This shouldn't happen we can't have a discarder working on multiple fields.
 	//       ex: open.filename == "/etc/passwd"
 	//           open.basename == "shadow"
 	//       These rules won't return any discarder
-	if !rs.IsDiscarder(eventType+".basename", path.Base(dirname)) {
-		return false, nil
+	isDiscarder, err := rs.IsDiscarder(eventType+".basename", path.Base(dirname))
+	if err != nil && errors.As(err, &eval.FieldNotFound{}) {
+		// no basename rule so we can discard
+		isDiscarder = true
 	}
 
-	log.Debugf("`%s` discovered as parent discarder", dirname)
+	if isDiscarder {
+		log.Debugf("`%s` discovered as parent discarder", dirname)
+	}
 
-	return true, nil
+	return isDiscarder, nil
 }
 
 func discardInode(probe *Probe, mountID uint32, inode uint64, tableName string) (bool, error) {

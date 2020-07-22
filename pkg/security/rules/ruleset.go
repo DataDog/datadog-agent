@@ -232,7 +232,7 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 }
 
 // IsDiscarder partially evaluates an Event against a field
-func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) bool {
+func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error) {
 	event := rs.eventCtor()
 	event.SetFieldValue(field, value)
 
@@ -241,23 +241,21 @@ func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) bool {
 
 	eventType, err := event.GetFieldEventType(field)
 	if err != nil {
-		return false
+		return false, err
 	}
 
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		return false
+		return false, &NoEventTypeBucket{EventType: eventType}
 	}
 
-	isDiscarder := true
 	for _, rule := range bucket.rules {
 		isTrue, err := rule.PartialEval(ctx, field)
 		if err != nil || isTrue {
-			isDiscarder = false
-			break
+			return false, err
 		}
 	}
-	return isDiscarder
+	return true, nil
 }
 
 // Evaluate the specified event against the set of rules

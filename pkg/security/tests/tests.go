@@ -100,6 +100,7 @@ type testProbe struct {
 	probe      *sprobe.Probe
 	events     chan *sprobe.Event
 	discarders chan *testDiscarder
+	rs         *rules.RuleSet
 }
 
 type testEventHandler struct {
@@ -115,7 +116,7 @@ func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 
 func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
 
-func (h *testEventHandler) EventDiscarderFound(event eval.Event, field string) {
+func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 	h.discarders <- &testDiscarder{event: event, field: field}
 }
 
@@ -214,7 +215,7 @@ func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
 	tm.events <- testEvent{event: event, rule: rule}
 }
 
-func (tm *testModule) EventDiscarderFound(event eval.Event, field string) {
+func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 }
 
 func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
@@ -296,6 +297,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		probe:      probe,
 		events:     events,
 		discarders: discarders,
+		rs:         ruleSet,
 	}, nil
 }
 

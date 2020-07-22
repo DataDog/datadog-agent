@@ -71,7 +71,7 @@ func waitForOpenDiscarder(test *testProbe, filename string) (*probe.Event, error
 		select {
 		case <-test.events:
 		case discarder := <-test.discarders:
-			test.probe.OnNewDiscarder(discarder.event.(*sprobe.Event), discarder.field)
+			test.probe.OnNewDiscarder(test.rs, discarder.event.(*sprobe.Event), discarder.field)
 			if value, _ := discarder.event.GetFieldValue("open.filename"); value == filename {
 				event = discarder.event.(*sprobe.Event)
 			}
