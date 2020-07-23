@@ -69,6 +69,10 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 			// and will continue to be discarded until we find the corresponding
 			// closing bracket counter-part. See GitHub issue DataDog/datadog-trace-agent#475.
 			return FilteredBracketedIdentifier, nil, nil
+		} else if token == '(' {
+			// This expression is a subquery and should not be filtered
+			// ex: WITH ids AS (SELECT id FROM mytable) ...
+			return token, buffer, nil
 		}
 		return Filtered, nil, nil
 	}
