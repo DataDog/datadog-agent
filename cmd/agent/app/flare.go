@@ -24,15 +24,15 @@ import (
 )
 
 var (
-	cpuProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=30",
-		config.Datadog.GetString("expvar_port"))
+	cpuProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=%d",
+		config.Datadog.GetString("expvar_port"), profiling)
 	heapProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap?debug=2",
 		config.Datadog.GetString("expvar_port"))
 
-	customerEmail   string
-	autoconfirm     bool
-	forceLocal      bool
-	enableProfiling bool
+	customerEmail string
+	autoconfirm   bool
+	forceLocal    bool
+	profiling     int
 )
 
 func init() {
@@ -41,7 +41,7 @@ func init() {
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
-	flareCmd.Flags().BoolVarP(&enableProfiling, "profile", "p", false, "Add performance enableProfiling data to the flare. If used, the flare command will wait for 120s to collect enableProfiling data.")
+	flareCmd.Flags().IntVarP(&profiling, "profile", "p", 0, "Add performance profiling data to the flare. Will collect the CPU profile for the configured amount of seconds, with a minimum of 30s")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -97,8 +97,8 @@ func makeFlare(caseID string) error {
 	}
 	defer os.RemoveAll(profileDir)
 
-	if enableProfiling {
-		fmt.Fprintln(color.Output, color.BlueString("Creating a 120s performance profile."))
+	if profiling >= 30 {
+		fmt.Fprintln(color.Output, color.BlueString("Creating a %d second performance profile.", profiling))
 		if err := writePerformanceProfile(profileDir); err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
 			return err
@@ -148,17 +148,19 @@ func requestArchive(logFile, profileDir string) (string, error) {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(logFile, "")
+		return createArchive(logFile, profileDir)
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
+
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare%v", ipcAddress, config.Datadog.GetInt("cmd_port"), profileDir)
 
 	// Set session token
 	e = util.SetAuthToken()
 	if e != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
-		return createArchive(logFile, "")
+		return createArchive(logFile, profileDir)
 	}
 
+	fmt.Printf("POSTING TO %s\n", urlstr)
 	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {
 		if r != nil && string(r) != "" {
@@ -166,7 +168,7 @@ func requestArchive(logFile, profileDir string) (string, error) {
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 		}
-		return createArchive(logFile, "")
+		return createArchive(logFile, profileDir)
 	}
 	return string(r), nil
 }

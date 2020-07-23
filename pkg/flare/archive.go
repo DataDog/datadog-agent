@@ -269,7 +269,6 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFile
 		log.Errorf("Could not zip install_info: %s", err)
 	}
 
-	fmt.Printf("PROFILE: %s", profileDir)
 	if profileDir != "" {
 		err = zipPerformanceProfile(tempDir, hostname, profileDir)
 		if err != nil {
