@@ -63,34 +63,47 @@ func TestDecode(t *testing.T) {
 	assert.ElementsMatch(t, want, got)
 }
 
-func TestDecodeMsgArray(t *testing.T) {
-	data := [2]interface{}{
-		0: []string{"baggage", "item", "elasticsearch.version", "7.0", "my-name", "X"},
-		1: [][][12]interface{}{
+var data = [2]interface{}{
+	0: []string{
+		0:  "baggage",
+		1:  "item",
+		2:  "elasticsearch.version",
+		3:  "7.0",
+		4:  "my-name",
+		5:  "X",
+		6:  "my-service",
+		7:  "my-resource",
+		8:  "_dd.sampling_rate_whatever",
+		9:  "value whatever",
+		10: "sql",
+	},
+	1: [][][12]interface{}{
+		{
 			{
-				{
-					"my-service",
-					4,
-					"my-resource",
-					uint64(1),
-					uint64(2),
-					uint64(3),
-					int64(123),
-					int64(456),
-					1,
-					map[interface{}]interface{}{
-						"A": "B",
-						0:   1,
-						2:   3,
-					},
-					map[interface{}]float64{
-						5: 1.2,
-					},
-					"sql",
+				6,
+				4,
+				7,
+				uint64(1),
+				uint64(2),
+				uint64(3),
+				int64(123),
+				int64(456),
+				1,
+				map[interface{}]interface{}{
+					8: 9,
+					0: 1,
+					2: 3,
 				},
+				map[interface{}]float64{
+					5: 1.2,
+				},
+				10,
 			},
 		},
-	}
+	},
+}
+
+func TestDecodeMsgArray(t *testing.T) {
 	b, err := vmsgp.Marshal(&data)
 	assert.NoError(t, err)
 	dc := NewMsgpReader(bytes.NewReader(b))
@@ -111,11 +124,28 @@ func TestDecodeMsgArray(t *testing.T) {
 		Duration: 456,
 		Error:    1,
 		Meta: map[string]string{
-			"A":                     "B",
-			"baggage":               "item",
-			"elasticsearch.version": "7.0",
+			"baggage":                    "item",
+			"elasticsearch.version":      "7.0",
+			"_dd.sampling_rate_whatever": "value whatever",
 		},
 		Metrics: map[string]float64{"X": 1.2},
 		Type:    "sql",
 	})
+}
+
+var benchOut Traces
+
+func BenchmarkDecodeMsgArray(b *testing.B) {
+	bb, err := vmsgp.Marshal(&data)
+	assert.NoError(b, err)
+	r := bytes.NewReader(bb)
+	dc := NewMsgpReader(r)
+	defer FreeMsgpReader(dc)
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bb)))
+	for i := 0; i < b.N; i++ {
+		r.Reset(bb)
+		assert.NoError(b, benchOut.DecodeMsgArray(dc))
+	}
 }
