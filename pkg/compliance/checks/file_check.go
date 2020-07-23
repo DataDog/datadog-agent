@@ -8,6 +8,7 @@ package checks
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -46,16 +47,17 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 		return nil, err
 	}
 
-	paths := []string{
-		path,
+	paths, err := filepath.Glob(e.NormalizeToHostRoot(path))
+	if err != nil {
+		return nil, err
 	}
 
 	var instances []*eval.Instance
 
 	for _, path := range paths {
-		normalizedPath := e.NormalizePath(path)
-
-		fi, err := os.Stat(normalizedPath)
+		// Re-computing relative after glob filtering
+		relPath := e.RelativeToHostRoot(path)
+		fi, err := os.Stat(path)
 		if err != nil {
 			// This is not a failure unless we don't have any paths to act on
 			log.Debugf("%s: file check failed to stat %s [%s]", ruleID, normalizedPath, path)
@@ -64,12 +66,12 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 
 		instance := &eval.Instance{
 			Vars: eval.VarMap{
-				fileFieldPath:        path,
+				fileFieldPath:        relPath,
 				fileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
 			},
 			Functions: eval.FunctionMap{
-				fileFuncJQ:   fileJQ(normalizedPath),
-				fileFuncYAML: fileYAML(normalizedPath),
+				fileFuncJQ:   fileJQ(path),
+				fileFuncYAML: fileYAML(path),
 			},
 		}
 
