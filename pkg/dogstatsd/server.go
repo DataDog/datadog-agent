@@ -419,9 +419,10 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
 		return metrics.MetricSample{}, err
 	}
-	if s.mapper != nil && len(sample.tags) == 0 {
+	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
 		if mapResult != nil {
+			log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
 			sample.name = mapResult.Name
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}

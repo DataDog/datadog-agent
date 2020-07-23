@@ -3,8 +3,7 @@
 package mocks
 
 import (
-	compliance "github.com/DataDog/datadog-agent/pkg/compliance"
-
+	eval "github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -25,6 +24,29 @@ func (_m *Configuration) EtcGroupPath() string {
 	}
 
 	return r0
+}
+
+// EvaluateFromCache provides a mock function with given fields: e
+func (_m *Configuration) EvaluateFromCache(e eval.Evaluatable) (interface{}, error) {
+	ret := _m.Called(e)
+
+	var r0 interface{}
+	if rf, ok := ret.Get(0).(func(eval.Evaluatable) interface{}); ok {
+		r0 = rf(e)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(interface{})
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(eval.Evaluatable) error); ok {
+		r1 = rf(e)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Hostname provides a mock function with given fields:
@@ -53,25 +75,4 @@ func (_m *Configuration) NormalizePath(path string) string {
 	}
 
 	return r0
-}
-
-// ResolveValueFrom provides a mock function with given fields: valueFrom
-func (_m *Configuration) ResolveValueFrom(valueFrom compliance.ValueFrom) (string, error) {
-	ret := _m.Called(valueFrom)
-
-	var r0 string
-	if rf, ok := ret.Get(0).(func(compliance.ValueFrom) string); ok {
-		r0 = rf(valueFrom)
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(compliance.ValueFrom) error); ok {
-		r1 = rf(valueFrom)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }

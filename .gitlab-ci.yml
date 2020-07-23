@@ -207,7 +207,7 @@ fail_on_non_triggered_tag:
     - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
     - mkdir /tmp/bcc/build
     - cd /tmp/bcc/build
-    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib'
+    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
     - make -j 4 #"$(nproc)"
     # Check that libbcc has no references to too recent glibc
     - objdump -p src/cc/libbcc.so | grep GLIBC_2.29 && exit 1
@@ -351,7 +351,6 @@ run_tests_deb-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
     CONDA_ENV: ddpy2
   <<: *run_tests_preparation
   script:
@@ -363,7 +362,6 @@ run_tests_deb-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
     CONDA_ENV: ddpy3
   <<: *run_tests_preparation
   script:
@@ -376,7 +374,6 @@ run_tests_rpm-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
     CONDA_ENV: ddpy2
   <<: *run_tests_preparation
   script:
@@ -391,7 +388,6 @@ run_tests_rpm-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
-    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
     CONDA_ENV: ddpy3
   <<: *run_tests_preparation
   script:
@@ -694,7 +690,7 @@ run_dogstatsd_arm_size_test:
 
   script:
     - inv -e system-probe.build --go-version=$SYSTEM_PROBE_GO_VERSION --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
-    - inv -e system-probe.test --only-check-bpf-bytes --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
+    - inv -e system-probe.test --only-check-bpf-bytes
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
 
 build_system-probe-x64:
@@ -1711,9 +1707,9 @@ deploy_windows_testing-a7:
 .kitchen_os_debian: &kitchen_os_debian
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="debian-8,urn,credativ:Debian:8:8.20190313.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,urn,credativ:Debian:9:9.20190515.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,urn,Debian:debian-10:10:0.20190709.401"
+    - export TEST_PLATFORMS="debian-8,urn,credativ:Debian:8:8.0.201901221"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,urn,credativ:Debian:9:9.20200722.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,urn,Debian:debian-10:10:0.20200610.293"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -3926,6 +3922,8 @@ latest_release_7:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2 --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
 
 .latest_revert_to_previous_release_7:
   rules:
@@ -3938,9 +3936,27 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
-    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest
+      --image datadog/agent-amd64:${RELEASE},linux/amd64
+      --image datadog/agent-amd64:${RELEASE}-win1809,windows/amd64
+      --image datadog/agent-amd64:${RELEASE}-win1909,windows/amd64
+      --image datadog/agent-arm64:${RELEASE},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx
+      --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64
+      --image datadog/agent-amd64:${RELEASE}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${RELEASE}-jmx-win1909,windows/amd64
+      --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7
+      --image datadog/agent-amd64:${RELEASE},linux/amd64
+      --image datadog/agent-amd64:${RELEASE}-win1809,windows/amd64
+      --image datadog/agent-amd64:${RELEASE}-win1909,windows/amd64
+      --image datadog/agent-arm64:${RELEASE},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-jmx
+      --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64
+      --image datadog/agent-amd64:${RELEASE}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${RELEASE}-jmx-win1909,windows/amd64
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
+    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:7
 
 #
 # Use this step to delete a tag of a given image
@@ -3986,8 +4002,8 @@ latest_release_7:
   dependencies: []
   script:
     - cd ~/deploy_scripts/cloudfront-invalidation
-    - "REPO=apt REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
-    - "REPO=yum REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=apt RUNNER_ENV=build-stable REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=yum RUNNER_ENV=build-stable REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 
 deploy_cloudfront_invalidate_on_success:
   rules:

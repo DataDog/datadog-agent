@@ -9,42 +9,77 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type groupCheck struct {
-	baseCheck
-	group *compliance.Group
+const (
+	groupFieldName  = "group.name"
+	groupFieldUsers = "group.users"
+	groupFieldID    = "group.id"
+)
+
+var groupReportedFields = []string{
+	groupFieldName,
+	groupFieldUsers,
+	groupFieldID,
 }
 
-func newGroupCheck(baseCheck baseCheck, group *compliance.Group) (*groupCheck, error) {
-	return &groupCheck{
-		baseCheck: baseCheck,
-		group:     group,
-	}, nil
-}
+// ErrGroupNotFound is returned when a group cannot be found
+var ErrGroupNotFound = errors.New("group not found")
 
-func (c *groupCheck) Run() error {
-	f, err := os.Open(c.EtcGroupPath())
+func checkGroup(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+	if res.Group == nil {
+		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
+	}
+
+	group := res.Group
+
+	f, err := os.Open(e.EtcGroupPath())
 
 	if err != nil {
-		log.Errorf("%s: failed to open %s: %v", c.id, c.EtcGroupPath(), err)
-		return err
+		log.Errorf("%s: failed to open %s: %v", id, e.EtcGroupPath(), err)
+		return nil, err
 	}
 
 	defer f.Close()
 
-	return readEtcGroup(f, c.findGroup)
+	finder := &groupFinder{
+		groupName: group.Name,
+	}
+
+	err = readEtcGroup(f, finder.findGroup)
+	if err != nil {
+		return nil, wrapErrorWithID(id, err)
+	}
+
+	if finder.instance == nil {
+		return nil, ErrGroupNotFound
+	}
+
+	passed, err := expr.Evaluate(finder.instance)
+	if err != nil {
+		return nil, err
+	}
+
+	return instanceToReport(finder.instance, passed, groupReportedFields), nil
 }
 
-func (c *groupCheck) findGroup(line []byte) (bool, error) {
-	substr := []byte(c.group.Name + ":")
+type groupFinder struct {
+	groupName string
+	instance  *eval.Instance
+}
+
+func (f *groupFinder) findGroup(line []byte) (bool, error) {
+	substr := []byte(f.groupName + ":")
 	if !bytes.HasPrefix(line, substr) {
 		return false, nil
 	}
@@ -53,45 +88,23 @@ func (c *groupCheck) findGroup(line []byte) (bool, error) {
 	parts := strings.SplitN(string(line), ":", expectParts)
 
 	if len(parts) != expectParts {
-		log.Errorf("%s: malformed line in group file - expected %d, found %d segments", c.id, expectParts, len(parts))
+		log.Errorf("malformed line in group file - expected %d, found %d segments", expectParts, len(parts))
 		return false, errors.New("malformed group file format")
 	}
 
-	kv := event.Data{}
-	for _, field := range c.group.Report {
-
-		if c.setStaticKV(field, kv) {
-			continue
-		}
-
-		var v string
-		switch field.Kind {
-		case compliance.PropertyKindAttribute:
-			switch field.Property {
-			case "users", "members":
-				v = parts[3]
-			case "name":
-				v = parts[1]
-			case "group_id", "gid":
-				v = parts[2]
-			default:
-				return false, ErrPropertyNotSupported
-			}
-		default:
-			return false, ErrPropertyKindNotSupported
-		}
-
-		key := field.As
-		if key == "" {
-			key = field.Property
-		}
-
-		if v != "" {
-			kv[key] = v
-		}
+	gid, err := strconv.Atoi(parts[2])
+	if err != nil {
+		log.Errorf("failed to parse group ID for %s: %v", f.groupName, err)
 	}
 
-	c.report(nil, kv)
+	f.instance = &eval.Instance{
+		Vars: eval.VarMap{
+			groupFieldName:  f.groupName,
+			groupFieldUsers: strings.Split(parts[3], ","),
+			groupFieldID:    gid,
+		},
+	}
+
 	return true, nil
 }
 

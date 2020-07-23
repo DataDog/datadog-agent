@@ -90,7 +90,7 @@ func TestEvalFunction(t *testing.T) {
 					return nil, errors.New("hey failed")
 				},
 			},
-			expectError: newLexerError(0, `call to "hey()" failed`),
+			expectError: newLexerError(0, `call to "hey()" failed: hey failed`),
 		},
 		{
 			name:       "function arg evaluation error",
@@ -658,7 +658,7 @@ func (test iterableTest) Run(fixtures []iteratorFixture, t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(expr)
 
-	value, err := expr.Evaluate(iterator, &test.global)
+	value, err := expr.EvaluateIterator(iterator, &test.global)
 	if test.expectError != nil {
 		assert.Equal(test.expectError, err)
 	} else {
@@ -761,9 +761,14 @@ func TestEvalIterable(t *testing.T) {
 			expectResult: false,
 		},
 		{
+			name:         "no function second item",
+			expression:   `file.permissions != 0644`,
+			expectResult: false,
+		},
+		{
 			name:        "unknown function",
 			expression:  `some(file.owner == "alice")`,
-			expectError: newLexerError(0, `unexpected function "some()" for iterable comparison`),
+			expectError: newLexerError(0, `unknown function "some()"`),
 		},
 		{
 			name:        "failed to evaluate iterable comparison",

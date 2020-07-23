@@ -6,7 +6,7 @@
 package env
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 )
 
@@ -29,5 +29,5 @@ type Configuration interface {
 	Hostname() string
 	EtcGroupPath() string
 	NormalizePath(path string) string
-	ResolveValueFrom(valueFrom compliance.ValueFrom) (string, error)
+	EvaluateFromCache(e eval.Evaluatable) (interface{}, error)
 }

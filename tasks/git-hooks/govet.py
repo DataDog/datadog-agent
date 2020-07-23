@@ -10,7 +10,6 @@ EXCLUDED_FOLDERS = {
     "./cmd/agent/windows/service",
     "./cmd/cluster-agent",
     "./cmd/cluster-agent/app",
-    "./cmd/system-probe",
     "./cmd/systray",
     "./pkg/clusteragent/orchestrator",
     "./pkg/process/config/testdata",
@@ -24,14 +23,17 @@ EXCLUDED_FOLDERS = {
     "./pkg/util/winutil",
     "./pkg/util/winutil/iphelper",
     "./pkg/util/winutil/pdhutil",
-    "./test/benchmarks/aggregator",
-    "./test/benchmarks/dogstatsd",
-    "./test/integration/util/kube_apiserver",
 }
+
+
+def is_go_file(path):
+    """Checks if file is a go file from the Agent code."""
+    return (path.startswith("pkg") or path.startswith("cmd")) and path.endswith(".go")
+
 
 # Exclude non go files
 # Get the package for each file
-targets = {"./" + os.path.dirname(path) for path in sys.argv[1:] if path.endswith(".go")}
+targets = {"./" + os.path.dirname(path) for path in sys.argv[1:] if is_go_file(path)}
 
 # Call invoke command
 # We do this workaround since we can't do relative imports
