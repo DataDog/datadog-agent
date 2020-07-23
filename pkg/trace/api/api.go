@@ -51,23 +51,56 @@ const (
 	// Traces: JSON, slice of spans
 	// Services: deprecated
 	v01 Version = "v0.1"
+
 	// v02 DEPRECATED, FIXME[1.x]
 	// Traces: JSON, slice of traces
 	// Services: deprecated
 	v02 Version = "v0.2"
+
 	// v03
 	// Traces: msgpack/JSON (Content-Type) slice of traces
 	// Services: deprecated
 	v03 Version = "v0.3"
+
 	// v04
 	// Traces: msgpack/JSON (Content-Type) slice of traces + returns service sampling ratios
 	// Services: deprecated
 	v04 Version = "v0.4"
+
 	// v05
-	// Traces: msgpack (Content-Type) slice of traces + returns service sampling ratios
-	// Spans are encoded as a 12-element array containing only the values for each field, in this exact order:
-	//   [ Service, Name, Resource, TraceID, SpanID, ParentID, Start, Duration, Error, Meta, Metrics, Type ]
-	// Empty fields will be nil.
+	//
+	// Content-Type: application/msgpack
+	// Payload: Traces with strings de-duplicated into a dictionary.
+	// Response: Service sampling rates.
+	//
+	// The payload is an array containing exactly 2 elements ([[dict][traces]):
+	//
+	// 	1. An array of unique strings (a dictionary referred to by index). The first element in the array
+	// 	   is reserved for the empty string.
+	// 	2. An array of traces, where each trace is an array of spans. A span is encoded as an array having
+	// 	   exactly 12 elements, representing all span properties, in this exact order:
+	//
+	// 			 0: Service   (int)
+	// 			 1: Name      (int)
+	// 			 2: Resource  (int)
+	// 			 3: TraceID   (uint64)
+	// 			 4: SpanID    (uint64)
+	// 			 5: ParentID  (uint64)
+	// 			 6: Start     (int64)
+	// 			 7: Duration  (int64)
+	// 			 8: Error     (int32)
+	// 			 9: Meta      (map[int]int)
+	// 			10: Metrics   (map[int]float64)
+	// 			11: Type      (int)
+	//
+	// 	Considerations:
+	//
+	// 	- Strings are not allowed anywhere other than the dictionary. All strings in all fields, maps (values
+	// 	  along with keys) must be replaced with int's representing the corresponding string's index in the dictionary.
+	// 	  There is no concept of string anywhere outside the dictionary, only int.
+	// 	- Nil values should be replaced with int(0), representing the empty string.
+	// 	- Nil is only allowed in place of "Meta" or "Metrics"
+	//
 	v05 Version = "v0.5"
 )
 
