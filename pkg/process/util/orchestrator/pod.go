@@ -59,10 +59,10 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 
 		// scrub & generate YAML
 		for c := 0; c < len(podList[p].Spec.Containers); c++ {
-			scrubContainer(&podList[p].Spec.Containers[c], cfg)
+			ScrubContainer(&podList[p].Spec.Containers[c], cfg)
 		}
 		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-			scrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+			ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
 		}
 		// k8s objects only have json "omitempty" annotations
 		// we're doing json<>yaml to get rid of the null properties
@@ -100,8 +100,8 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 	return messages, nil
 }
 
-// scrubContainer scrubs sensitive information in the command line & env vars
-func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
+// ScrubContainer scrubs sensitive information in the command line & env vars
+func ScrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 	// scrub command line
 	scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(c.Command)
 	c.Command = scrubbedCmd
