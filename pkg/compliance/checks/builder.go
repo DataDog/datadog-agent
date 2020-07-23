@@ -304,7 +304,18 @@ func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule
 }
 
 func (b *builder) hostMatcher(scope string, rule *compliance.Rule) (bool, error) {
-	if scope == compliance.KubernetesNodeScope {
+	switch scope {
+	case compliance.DockerScope:
+		if b.dockerClient == nil {
+			log.Infof("rule %s skipped - not running in a docker environment", rule.ID)
+			return false, nil
+		}
+	case compliance.KubernetesClusterScope:
+		if b.kubeClient == nil {
+			log.Infof("rule %s skipped - not running as Cluster Agent", rule.ID)
+			return false, nil
+		}
+	case compliance.KubernetesNodeScope:
 		if config.IsKubernetes() {
 			labels, err := hostinfo.GetNodeLabels()
 			if err != nil {
@@ -313,8 +324,7 @@ func (b *builder) hostMatcher(scope string, rule *compliance.Rule) (bool, error)
 
 			return b.isKubernetesNodeEligible(rule.HostSelector, labels), nil
 		}
-
-		log.Infof("rule %s discarded as we're not running on a Kubernetes node", rule.ID)
+		log.Infof("rule %s skipped - not running on a Kubernetes node", rule.ID)
 		return false, nil
 	}
 

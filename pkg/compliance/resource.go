@@ -81,7 +81,7 @@ type KubernetesResource struct {
 	Kind      string `yaml:"kind"`
 	Version   string `yaml:"version,omitempty"`
 	Group     string `yaml:"group"`
-	Namespace string `yaml:"namespace"`
+	Namespace string `yaml:"namespace,omitempty"`
 
 	// A selector to restrict the list of returned objects by their labels.
 	// Defaults to everything.
@@ -101,7 +101,7 @@ func (kr *KubernetesResource) String() string {
 // KubernetesAPIRequest defines it check applies to a single object or a list
 type KubernetesAPIRequest struct {
 	Verb         string `yaml:"verb"`
-	ResourceName string `yaml:"resourceName"`
+	ResourceName string `yaml:"resourceName,omitempty"`
 }
 
 // Group describes a group membership resource

@@ -39,7 +39,7 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 
 	file := res.File
 
-	log.Debugf("%s: running file check: %v", ruleID, file)
+	log.Debugf("%s: running file check for %q", ruleID, file.Path)
 
 	path, err := resolvePath(e, file.Path)
 	if err != nil {
