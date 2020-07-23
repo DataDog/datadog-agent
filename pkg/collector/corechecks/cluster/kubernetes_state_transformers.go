@@ -9,6 +9,7 @@ package cluster
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
@@ -25,9 +26,9 @@ var (
 	// TODO: implement the metric transformers of these metrics and unit test them
 	// For reference see METRIC_TRANSFORMERS in KSM check V1
 	metricTransformers = map[string]metricTransformerFunc{
-		"kube_pod_status_phase":                       func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
-		"kube_pod_container_status_waiting_reason":    func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
-		"kube_pod_container_status_terminated_reason": func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
+		"kube_pod_status_phase":                       podPhaseTransformer,
+		"kube_pod_container_status_waiting_reason":    containerWaitingReasonTransformer,
+		"kube_pod_container_status_terminated_reason": containerTerminatedReasonTransformer,
 		"kube_cronjob_next_schedule_time":             func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
 		"kube_job_complete":                           func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
 		"kube_job_failed":                             func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
@@ -41,6 +42,49 @@ var (
 		"kube_service_spec_type":                      func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
 	}
 )
+
+// podPhaseTransformer sends status phase metrics for pods, the tag phase has the pod status
+func podPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
+	if metric.Val != 1.0 {
+		// Only consider active metrics
+		return
+	}
+	// As opposed to KSM check v1, send only the active phase and keep the pod label
+	s.Gauge(ksmMetricPrefix+"pod.status_phase", 1, "", tags)
+}
+
+var allowedWaitingReasons = map[string]struct{}{
+	"errimagepull":      {},
+	"imagepullbackoff":  {},
+	"crashloopbackoff":  {},
+	"containercreating": {},
+}
+
+// containerWaitingReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_waiting_reason
+func containerWaitingReasonTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
+	if reason, found := metric.Labels["reason"]; found {
+		// Filtering according to the reason here is paramount to limit cardinality
+		if _, allowed := allowedWaitingReasons[strings.ToLower(reason)]; allowed {
+			s.Gauge(ksmMetricPrefix+"container.status_report.count.waiting", metric.Val, "", tags)
+		}
+	}
+}
+
+var allowedTerminatedReasons = map[string]struct{}{
+	"oomkilled":          {},
+	"containercannotrun": {},
+	"error":              {},
+}
+
+// containerTerminatedReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_terminated_reason
+func containerTerminatedReasonTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
+	if reason, found := metric.Labels["reason"]; found {
+		// Filtering according to the reason here is paramount to limit cardinality
+		if _, allowed := allowedTerminatedReasons[strings.ToLower(reason)]; allowed {
+			s.Gauge(ksmMetricPrefix+"container.status_report.count.terminated", metric.Val, "", tags)
+		}
+	}
+}
 
 // resourcequotaTransformer generates dedicated metrics per resource per type from the kube_resourcequota metric
 func resourcequotaTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
