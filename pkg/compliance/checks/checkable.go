@@ -36,5 +36,5 @@ func (list checkableList) check(env env.Env) (*report, error) {
 			continue
 		}
 	}
-	return result, nil
+	return result, err
 }
