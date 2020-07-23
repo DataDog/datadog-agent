@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 var validOptionalFields = map[string]bool{
@@ -24,7 +26,7 @@ var validOptionalFields = map[string]bool{
 // http://man7.org/linux/man-pages/man5/proc.5.html
 type MountInfo struct {
 	// Unique Id for the mount
-	MountID int `json:"moung_id"`
+	MountID int `json:"mount_id"`
 	// The Id of the parent mount
 	ParentID int `json:"mount_parent_id"`
 	// The value of `st_dev` for the files on this FS
@@ -145,20 +147,12 @@ func mountOptionsParser(mountOptions string) map[string]string {
 	return opts
 }
 
-func hostProc() string {
-	value := os.Getenv("HOST_PROC")
-	if value == "" {
-		value = "/proc"
-	}
-	return value
-}
-
 func mountInfoPath() string {
-	return filepath.Join(hostProc(), "/self/mountinfo")
+	return filepath.Join(util.HostProc(), "/self/mountinfo")
 }
 
 func mountInfoPidPath(pid uint32) string {
-	return filepath.Join(hostProc(), fmt.Sprintf("/%d/mountinfo", pid))
+	return filepath.Join(util.HostProc(), fmt.Sprintf("/%d/mountinfo", pid))
 }
 
 // GetMounts - Retrieves mountinfo information from `/proc/self/mountinfo`.
