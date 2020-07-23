@@ -179,12 +179,7 @@ func (s *Socket) LeaveGroup(group uint32) error {
 }
 
 func (s *Socket) control(f func(int)) error {
-	rc, err := s.fd.SyscallConn()
-	if err != nil {
-		return err
-	}
-
-	return rc.Control(func(sysfd uintptr) {
+	return s.conn.Control(func(sysfd uintptr) {
 		f(int(sysfd))
 	})
 }
