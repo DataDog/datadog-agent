@@ -174,7 +174,7 @@ func (r *Rule) GenEvaluator(model Model, opts *Opts) error {
 	evaluator, err := ruleToEvaluator(r.ast, model, opts)
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
-			return errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: r.Expression}, "rule syntax error")
+			return errors.Wrapf(&ErrRuleParse{pos: err.Pos, expr: r.Expression}, "rule syntax error: %s", err)
 		}
 		return errors.Wrap(err, "rule compilation error")
 	}

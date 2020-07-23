@@ -42,11 +42,21 @@ func (m *Model) NewEvent() eval.Event {
 
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(key string, field eval.FieldValue) error {
+	// check that all path are absolute
+	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
+		value, ok := field.Value.(string)
+		if ok {
+			if value != path.Clean(value) || strings.HasPrefix(value, "..") {
+				return fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+			}
+		}
+	}
+
 	switch key {
 
 	case "event.retval":
 		if value := field.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
-			return fmt.Errorf("return value can only be tested against EPERM or EACCES")
+			return errors.New("return value can only be tested against EPERM or EACCES")
 		}
 	}
 
