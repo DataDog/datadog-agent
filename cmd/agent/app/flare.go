@@ -55,6 +55,8 @@ var flareCmd = &cobra.Command{
 			color.NoColor = true
 		}
 
+		cpuProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=%d", config.Datadog.GetString("expvar_port"), profiling)
+
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
