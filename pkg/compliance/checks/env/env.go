@@ -28,6 +28,7 @@ type Clients interface {
 type Configuration interface {
 	Hostname() string
 	EtcGroupPath() string
-	NormalizePath(path string) string
+	NormalizeToHostRoot(path string) string
+	RelativeToHostRoot(path string) string
 	EvaluateFromCache(e eval.Evaluatable) (interface{}, error)
 }

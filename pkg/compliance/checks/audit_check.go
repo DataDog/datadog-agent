@@ -83,30 +83,6 @@ func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.It
 	return instanceResultToReport(result, auditReportedFields), nil
 }
 
-func resolvePath(e env.Env, path string) (string, error) {
-
-	pathExpr, err := eval.ParsePath(path)
-	if err != nil {
-		return "", err
-	}
-
-	if pathExpr.Path != nil {
-		return *pathExpr.Path, nil
-	}
-
-	v, err := e.EvaluateFromCache(pathExpr)
-	if err != nil {
-		return "", err
-	}
-
-	path, ok := v.(string)
-	if !ok {
-		return "", fmt.Errorf("resource path expression not resolved to string: %s", path)
-	}
-
-	return path, nil
-}
-
 func auditPermissionsString(r *rule.FileWatchRule) string {
 	permissions := ""
 	for _, p := range r.Permissions {
