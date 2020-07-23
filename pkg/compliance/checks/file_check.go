@@ -60,7 +60,7 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 		fi, err := os.Stat(path)
 		if err != nil {
 			// This is not a failure unless we don't have any paths to act on
-			log.Debugf("%s: file check failed to stat %s [%s]", ruleID, normalizedPath, path)
+			log.Debugf("%s: file check failed to stat %s [%s]", ruleID, path, relPath)
 			continue
 		}
 
