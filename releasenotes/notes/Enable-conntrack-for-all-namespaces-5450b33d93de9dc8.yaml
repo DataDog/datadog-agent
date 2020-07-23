@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Enable conntrack for all namespaces
+    Enable listening for conntrack info from all namespaces in system probe
