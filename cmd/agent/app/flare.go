@@ -162,7 +162,6 @@ func requestArchive(logFile, profileDir string) (string, error) {
 		return createArchive(logFile, profileDir)
 	}
 
-	fmt.Printf("POSTING TO %s\n", urlstr)
 	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {
 		if r != nil && string(r) != "" {
