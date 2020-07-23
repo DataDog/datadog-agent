@@ -1048,7 +1048,6 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"id":"%s",`, e.ID)
-	fmt.Fprintf(&buf, `"type":"%s",`, e.GetType())
 
 	entries := []eventMarshaler{
 		{
