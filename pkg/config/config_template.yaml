@@ -891,12 +891,13 @@ api_key:
   # socket: /opt/datadog-agent/run/runtime-security.sock
 
   ## @param policies - custom object - optional
-  ## Policy names and their policy rules.
-  #
+  ## Policy files
   # policies:
-    # - name: default-policies
-    #   files:
-    #     - /etc/datadog-agent/security_agent.d/runtime-policies.yaml
+
+    ## @param dir - string - folder from where the policies will be loaded
+    ## Path from where the policy files will be loaded
+    #
+    dir: /etc/datadog-agent/runtime_security_agent.d
 
   ## @param syscall_monitor - custom object - optional
   ## Syscall monitoring

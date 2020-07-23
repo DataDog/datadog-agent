@@ -736,7 +736,7 @@ func InitConfig(config Config) {
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
-	config.BindEnvAndSetDefault("runtime_security_config.policies", []interface{}{})
+	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", "")
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)

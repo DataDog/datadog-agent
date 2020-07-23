@@ -6,7 +6,10 @@ import (
 	"bytes"
 	"fmt"
 	"go/build"
+	"io"
+	"io/ioutil"
 	"os"
+	"path"
 	"testing"
 	"text/template"
 
@@ -25,9 +28,33 @@ func TestConfig(t *testing.T) {
 		gopath = build.Default.GOPATH
 	}
 
+	defaultPolicy, err := os.Open(fmt.Sprintf("%s/src/github.com/DataDog/datadog-agent/cmd/agent/dist/conf.d/runtime_security_agent.d/default.policy", gopath))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	root, err := ioutil.TempDir("", "test-secagent-root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+
+	testDefaultPolicy, err := os.Create(path.Join(root, "default.policy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := io.Copy(testDefaultPolicy, defaultPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testDefaultPolicy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPolicy": fmt.Sprintf("%s/src/github.com/DataDog/datadog-agent/cmd/agent/dist/conf.d/security_agent.d/runtime-policies.yaml.example", gopath),
+		"TestPoliciesDir": root,
 	}); err != nil {
 		t.Fatal(err)
 	}
