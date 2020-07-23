@@ -225,7 +225,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	c.conn = netlink.NewConn(c.socket, c.socket.pid)
 
-	// We use this as oposed to netlink.Conn.SetReadBuffer because you can only
+	// We use this as opposed to netlink.Conn.SetReadBuffer because you can only
 	// set a value higher than /proc/sys/net/core/rmem_default (which is around 200kb for most systems)
 	// if you use SO_RCVBUFFORCE with CAP_NET_ADMIN (https://linux.die.net/man/7/socket).
 	if err := c.socket.SetSockoptInt(syscall.SOL_SOCKET, syscall.SO_RCVBUFFORCE, netlinkBufferSize); err != nil {
