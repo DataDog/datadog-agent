@@ -48,10 +48,9 @@ runtime_security_config:
 {{if not .EnableFilters}}
   enable_kernel_filters: false
 {{end}}
+
   policies:
-    - name: test-policy
-      files:
-        - {{.TestPolicy}}
+    dir: {{.TestPoliciesDir}}
 `
 
 const testPolicy = `---
@@ -121,7 +120,7 @@ func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		return "", err
 	}
 
-	testPolicyFile, err := ioutil.TempFile("", "secagent-policy")
+	testPolicyFile, err := ioutil.TempFile("", "secagent-policy.*.policy")
 	if err != nil {
 		return "", err
 	}
@@ -133,8 +132,8 @@ func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPolicy":    testPolicyFile.Name(),
-		"EnableFilters": opts.enableFilters,
+		"TestPoliciesDir": path.Dir(testPolicyFile.Name()),
+		"EnableFilters":   opts.enableFilters,
 	}); err != nil {
 		return "", fail(err)
 	}

@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -135,32 +137,43 @@ func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*rules.RuleSet, e
 
 	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
 
+	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
+	if err != nil {
+		return nil, err
+	}
+
 	// Load and parse policies
-	for _, policyDef := range config.Policies {
-		for _, policyPath := range policyDef.Files {
-			// Open policy path
-			f, err := os.Open(policyPath)
-			if err != nil {
-				result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
-				continue
-			}
+	for _, policyPath := range policyFiles {
+		filename := policyPath.Name()
 
-			// Parse policy file
-			policy, err := policy.LoadPolicy(f)
-			if err != nil {
-				result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
-				continue
-			}
+		// policy path extension check
+		if filepath.Ext(filename) != ".policy" {
+			log.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(filename))
+			continue
+		}
 
-			// Add the macros to the ruleset and generate macros evaluators
-			if err := ruleSet.AddMacros(policy.Macros); err != nil {
-				result = multierror.Append(result, err)
-			}
+		// Open policy path
+		f, err := os.Open(filepath.Join(config.PoliciesDir, filename))
+		if err != nil {
+			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
+			continue
+		}
 
-			// Add rules to the ruleset and generate rules evaluators
-			if err := ruleSet.AddRules(policy.Rules); err != nil {
-				result = multierror.Append(result, err)
-			}
+		// Parse policy file
+		policy, err := policy.LoadPolicy(f)
+		if err != nil {
+			result = multierror.Append(result, errors.Wrapf(err, "failed to load policy `%s`", policyPath))
+			continue
+		}
+
+		// Add the macros to the ruleset and generate macros evaluators
+		if err := ruleSet.AddMacros(policy.Macros); err != nil {
+			result = multierror.Append(result, err)
+		}
+
+		// Add rules to the ruleset and generate rules evaluators
+		if err := ruleSet.AddRules(policy.Rules); err != nil {
+			result = multierror.Append(result, err)
 		}
 	}
 
