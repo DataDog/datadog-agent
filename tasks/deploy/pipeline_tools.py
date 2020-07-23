@@ -263,7 +263,7 @@ def print_job_status(job):
             if job.get('retried_old', None) is None:
                 notify("Job failure", "Job {} failed.".format(name))
     elif status == 'canceled':
-        job_status = 'canceled'
+        job_status = 'was canceled'
         color = 'grey'
     elif status == 'running':
         job_status = 'started running'
