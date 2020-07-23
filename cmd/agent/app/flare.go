@@ -8,22 +8,31 @@ package app
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"path/filepath"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 var (
-	customerEmail string
-	autoconfirm   bool
-	forceLocal    bool
+	cpuProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=30",
+		config.Datadog.GetString("expvar_port"))
+	heapProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap?debug=2",
+		config.Datadog.GetString("expvar_port"))
+
+	customerEmail   string
+	autoconfirm     bool
+	forceLocal      bool
+	enableProfiling bool
 )
 
 func init() {
@@ -32,6 +41,7 @@ func init() {
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
+	flareCmd.Flags().BoolVarP(&enableProfiling, "profile", "p", false, "Add performance enableProfiling data to the flare. If used, the flare command will wait for 120s to collect enableProfiling data.")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -81,12 +91,27 @@ func makeFlare(caseID string) error {
 		logFile = common.DefaultLogFile
 	}
 
-	var filePath string
-	var err error
-	if forceLocal {
-		filePath, err = createArchive(logFile)
+	profileDir, err := flare.CreateTempDir()
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(profileDir)
+
+	if enableProfiling {
+		fmt.Fprintln(color.Output, color.BlueString("Creating a 120s performance profile."))
+		if err := writePerformanceProfile(profileDir); err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
+			return err
+		}
 	} else {
-		filePath, err = requestArchive(logFile)
+		profileDir = ""
+	}
+
+	var filePath string
+	if forceLocal {
+		filePath, err = createArchive(logFile, profileDir)
+	} else {
+		filePath, err = requestArchive(logFile, profileDir)
 	}
 
 	if err != nil {
@@ -116,14 +141,14 @@ func makeFlare(caseID string) error {
 	return nil
 }
 
-func requestArchive(logFile string) (string, error) {
+func requestArchive(logFile, profileDir string) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(logFile)
+		return createArchive(logFile, "")
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
@@ -131,7 +156,7 @@ func requestArchive(logFile string) (string, error) {
 	e = util.SetAuthToken()
 	if e != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
-		return createArchive(logFile)
+		return createArchive(logFile, "")
 	}
 
 	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
@@ -141,17 +166,58 @@ func requestArchive(logFile string) (string, error) {
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 		}
-		return createArchive(logFile)
+		return createArchive(logFile, "")
 	}
 	return string(r), nil
 }
 
-func createArchive(logFile string) (string, error) {
+func createArchive(logFile, profileDir string) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
+	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile, profileDir)
 	if e != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 		return "", e
 	}
 	return filePath, nil
+}
+
+func writePerformanceProfile(profileDir string) error {
+	// Two heap profiles for diff
+	err := writeHTTPCallContent(profileDir, flare.HeapProfileName, heapProfURL)
+	if err != nil {
+		return err
+	}
+
+	err = writeHTTPCallContent(profileDir, flare.CPUProfileName, cpuProfURL)
+	if err != nil {
+		return err
+	}
+
+	err = writeHTTPCallContent(profileDir, flare.HeapProfileName, heapProfURL)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeHTTPCallContent(profileDir, filename, url string) error {
+	res, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(profileDir, filename)
+	err = flare.EnsureParentDirsExist(path)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(f, res.Body)
+	return err
 }

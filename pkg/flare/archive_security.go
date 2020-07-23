@@ -25,7 +25,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string) (string, error) 
 }
 
 func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath string) (string, error) {
-	tempDir, err := createTempDir()
+	tempDir, err := CreateTempDir()
 	if err != nil {
 		return "", err
 	}
@@ -112,7 +112,7 @@ func zipSecurityAgentStatusFile(tempDir, hostname string) error {
 
 	f := filepath.Join(tempDir, hostname, "security-agent-status.log")
 	log.Infof("Flare status made at %s", tempDir)
-	err = ensureParentDirsExist(f)
+	err = EnsureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
