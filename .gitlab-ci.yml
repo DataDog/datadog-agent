@@ -1707,9 +1707,9 @@ deploy_windows_testing-a7:
 .kitchen_os_debian: &kitchen_os_debian
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="debian-8,urn,credativ:Debian:8:8.20190313.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,urn,credativ:Debian:9:9.20190515.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,urn,Debian:debian-10:10:0.20190709.401"
+    - export TEST_PLATFORMS="debian-8,urn,credativ:Debian:8:8.0.201901221"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-9,urn,credativ:Debian:9:9.20200722.0"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|debian-10,urn,Debian:debian-10:10:0.20200610.293"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
