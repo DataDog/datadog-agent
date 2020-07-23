@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"google.golang.org/grpc"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -27,15 +28,21 @@ type RuntimeSecurityAgent struct {
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
 func NewRuntimeSecurityAgent() (*RuntimeSecurityAgent, error) {
+	hostname, err := util.GetHostname()
+	if err != nil {
+		return nil, err
+	}
+
 	path := fmt.Sprintf("unix://%s", coreconfig.Datadog.GetString("runtime_security_config.socket"))
 	conn, err := grpc.Dial(path, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
+
 	return &RuntimeSecurityAgent{
 		conn: conn,
 		wg:   &sync.WaitGroup{},
-		logClient: NewDDClientWithLogSource(config.NewLogSource(logSource, &config.LogsConfig{
+		logClient: NewDDClientWithLogSource(hostname, config.NewLogSource(logSource, &config.LogsConfig{
 			Type:    logType,
 			Service: logService,
 			Source:  logSource,
