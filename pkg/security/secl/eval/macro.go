@@ -101,7 +101,7 @@ func (m *Macro) GetEventTypes() []EventType {
 	eventTypes := m.evaluator.EventTypes
 
 	for _, macro := range m.Opts.Macros {
-		eventTypes = append(eventTypes, macro.GetEventTypes()...)
+		eventTypes = append(eventTypes, macro.evaluator.EventTypes...)
 	}
 
 	return eventTypes
@@ -112,7 +112,7 @@ func (m *Macro) GetFields() []Field {
 	fields := m.evaluator.GetFields()
 
 	for _, macro := range m.Opts.Macros {
-		fields = append(fields, macro.GetFields()...)
+		fields = append(fields, macro.evaluator.GetFields()...)
 	}
 
 	return fields
