@@ -44,36 +44,14 @@ func parseString(dc *msgp.Reader) (string, error) {
 
 // parseStringDict
 func parseStringDict(dc *msgp.Reader, dict []string) (string, error) {
-	// read the generic representation type without decoding
-	t, err := dc.NextType()
+	i, err := dc.ReadInt()
 	if err != nil {
 		return "", err
 	}
-	switch t {
-	case msgp.BinType:
-		i, err := dc.ReadBytes(nil)
-		if err != nil {
-			return "", err
-		}
-		return msgp.UnsafeString(i), nil
-	case msgp.StrType:
-		i, err := dc.ReadString()
-		if err != nil {
-			return "", err
-		}
-		return i, nil
-	case msgp.IntType:
-		i, err := dc.ReadInt()
-		if err != nil {
-			return "", err
-		}
-		if i > len(dict)-1 {
-			return "", fmt.Errorf("dictionary index %d out of place", i)
-		}
-		return dict[i], nil
-	default:
-		return "", msgp.TypeError{Encoded: t, Method: msgp.StrType}
+	if i > len(dict)-1 {
+		return "", fmt.Errorf("dictionary index %d out of place", i)
 	}
+	return dict[i], nil
 }
 
 // parseFloat64 parses a float64 even if the sent value is an int64 or an uint64;
