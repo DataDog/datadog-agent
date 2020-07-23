@@ -25,9 +25,9 @@ const (
 
 // Scope defines when a rule can be run based on observed properties of the environment
 type Scope struct {
-	Docker            bool `yaml:"docker"`
-	KubernetesNode    bool `yaml:"kubernetesNode"`
-	KubernetesCluster bool `yaml:"kubernetesCluster"`
+	Docker            bool `yaml:"docker,omitempty"`
+	KubernetesNode    bool `yaml:"kubernetesNode,omitempty"`
+	KubernetesCluster bool `yaml:"kubernetesCluster,omitempty"`
 }
 
 // HostSelector allows to activate/deactivate dynamically based on host properties

@@ -62,6 +62,7 @@ func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) 
 	}
 
 	return &resourceCheck{
+		ruleID:     ruleID,
 		resource:   resource,
 		expression: expression,
 		checkFn:    checkFn,

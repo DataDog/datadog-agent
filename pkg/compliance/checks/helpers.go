@@ -70,7 +70,7 @@ func evalGoTemplate(s string, obj interface{}) string {
 
 	b := &strings.Builder{}
 	if err := tmpl.Execute(b, obj); err != nil {
-		log.Warnf("failed to execute template %q: %v", s, err)
+		log.Tracef("failed to execute template %q: %v", s, err)
 		return ""
 	}
 	return b.String()

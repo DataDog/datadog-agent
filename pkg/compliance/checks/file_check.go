@@ -39,7 +39,7 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 
 	file := res.File
 
-	log.Debugf("%s: running file check: %v", ruleID, file)
+	log.Debugf("%s: running file check for %q", ruleID, file.Path)
 
 	path, err := resolvePath(e, file.Path)
 	if err != nil {
@@ -58,7 +58,7 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 		fi, err := os.Stat(normalizedPath)
 		if err != nil {
 			// This is not a failure unless we don't have any paths to act on
-			log.Debugf("%s: file check failed to stat %s", ruleID, path)
+			log.Debugf("%s: file check failed to stat %s [%s]", ruleID, normalizedPath, path)
 			continue
 		}
 
@@ -87,7 +87,7 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 	}
 
 	if len(instances) == 0 {
-		return nil, fmt.Errorf("no files found for file check")
+		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 
 	it := &instanceIterator{
