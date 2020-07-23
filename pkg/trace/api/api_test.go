@@ -404,12 +404,26 @@ func TestTraceCount(t *testing.T) {
 func TestDecodeV05(t *testing.T) {
 	assert := assert.New(t)
 	data := [2]interface{}{
-		0: []string{"Service2", "Name2", "Resource"},
+		0: []string{
+			0:  "Service2",
+			1:  "Name2",
+			2:  "Resource",
+			3:  "Service",
+			4:  "Name",
+			5:  "A",
+			6:  "B",
+			7:  "X",
+			8:  "y",
+			9:  "sql",
+			10: "Resource2",
+			11: "c",
+			12: "d",
+		},
 		1: [][][12]interface{}{
 			{
-				{"Service", "Name", 2, uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[string]string{"A": "B"}, map[string]float64{"X": 1.2}, "sql"},
-				{0, 1, "Resource2", uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[string]string{"c": "d"}, map[string]float64{"y": 1.4}, "sql"},
-				{0, 1, "Resource2", uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[string]string{"c": "d"}, nil, "sql"},
+				{3, 4, 2, uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[int]int{5: 6}, map[int]float64{7: 1.2}, 9},
+				{0, 1, 10, uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[int]int{11: 12}, map[int]float64{8: 1.4}, 9},
+				{0, 1, 10, uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[int]int{11: 12}, nil, 9},
 			},
 		},
 	}
