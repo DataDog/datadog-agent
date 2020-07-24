@@ -12,30 +12,52 @@ import (
 )
 
 func TestParseSuite(t *testing.T) {
-	expected := &Suite{
-		Meta: SuiteMeta{
-			Name:      "CIS Docker Generic",
-			Framework: "cis-docker",
-			Version:   "1.2.0",
-		},
-		Rules: []Rule{
-			{
-				ID:           "cis-docker-1",
-				Scope:        RuleScopeList{DockerScope},
-				HostSelector: `"foo" in node.labels`,
-				Resources: []Resource{
+	tests := []struct {
+		name        string
+		file        string
+		expectSuite *Suite
+		expectError error
+	}{
+		{
+			name: "supported version",
+			file: "./testdata/cis-docker.yaml",
+			expectSuite: &Suite{
+				Meta: SuiteMeta{
+					Schema: SuiteSchema{
+						Version: "1.0",
+					},
+					Name:      "CIS Docker Generic",
+					Framework: "cis-docker",
+					Version:   "1.2.0",
+				},
+				Rules: []Rule{
 					{
-						File: &File{
-							Path: "/etc/docker/daemon.json",
+						ID:           "cis-docker-1",
+						Scope:        RuleScopeList{DockerScope},
+						HostSelector: `"foo" in node.labels`,
+						Resources: []Resource{
+							{
+								File: &File{
+									Path: "/etc/docker/daemon.json",
+								},
+								Condition: `file.permissions == 0644`,
+							},
 						},
-						Condition: `file.permissions == 0644`,
 					},
 				},
 			},
 		},
+		{
+			name:        "unsupported version",
+			file:        "./testdata/cis-docker-unsupported.yaml",
+			expectError: ErrUnsupportedSchemaVersion,
+		},
 	}
-
-	actual, err := ParseSuite("./testdata/cis-docker.yaml")
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual, err := ParseSuite(test.file)
+			assert.Equal(t, test.expectError, err)
+			assert.Equal(t, test.expectSuite, actual)
+		})
+	}
 }

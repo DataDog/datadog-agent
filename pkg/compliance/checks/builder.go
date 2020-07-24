@@ -414,9 +414,9 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 	return &complianceCheck{
 		Env: b,
 
-		name:     rule.ID,
-		ruleID:   rule.ID,
-		interval: b.checkInterval,
+		ruleID:      rule.ID,
+		description: rule.Description,
+		interval:    b.checkInterval,
 
 		framework: meta.Framework,
 		suiteName: meta.Name,

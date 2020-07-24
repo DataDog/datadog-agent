@@ -9,6 +9,7 @@ package compliance
 // Rule defines a rule in a compliance config
 type Rule struct {
 	ID           string        `yaml:"id"`
+	Description  string        `yaml:"description,omitempty"`
 	Scope        RuleScopeList `yaml:"scope,omitempty"`
 	HostSelector string        `yaml:"hostSelector,omitempty"`
 	Resources    []Resource    `yaml:"resources,omitempty"`
