@@ -20,9 +20,9 @@ import (
 type complianceCheck struct {
 	env.Env
 
-	name     string
-	ruleID   string
-	interval time.Duration
+	ruleID      string
+	description string
+	interval    time.Duration
 
 	framework    string
 	suiteName    string
@@ -39,7 +39,7 @@ func (c *complianceCheck) Stop() {
 }
 
 func (c *complianceCheck) String() string {
-	return c.name
+	return fmt.Sprintf("%s: %s", c.ruleID, c.description)
 }
 
 func (c *complianceCheck) Configure(config, initConfig integration.Data, source string) error {

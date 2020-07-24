@@ -1,3 +1,5 @@
+schema:
+  version: 1.0.0
 name: CIS Kubernetes Generic
 framework: cis-kubernetes
 version: 1.5.0
