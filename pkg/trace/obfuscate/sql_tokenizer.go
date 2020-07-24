@@ -59,7 +59,6 @@ const (
 	ContainedBy
 	Concat
 	As
-	Array
 	From
 	Update
 	Insert
@@ -128,7 +127,6 @@ var keywords = map[string]TokenKind{
 	"INSERT":    Insert,
 	"INTO":      Into,
 	"JOIN":      Join,
-	"ARRAY":     Array,
 }
 
 // Err returns the last error that the tokenizer encountered, or nil.
