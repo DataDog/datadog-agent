@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
-	"github.com/DataDog/gopsutil/process"
 	assert "github.com/stretchr/testify/require"
 )
 
@@ -146,8 +145,8 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from process",
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processFetcher = func() (map[int32]*process.FilledProcess, error) {
-					return map[int32]*process.FilledProcess{
+				processFetcher = func() (processes, error) {
+					return processes{
 						42: {
 							Name:    "buddy",
 							Cmdline: []string{"--path=/home/root/hiya-buddy.txt"},
