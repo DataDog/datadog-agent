@@ -7,11 +7,6 @@
 
 package ecs
 
-const (
-	// CloudProviderName contains the inventory name of for ECS
-	CloudProviderName = "AWS"
-)
-
 // IsECSInstance returns whether the agent is running in ECS.
 func IsECSInstance() bool {
 	return false

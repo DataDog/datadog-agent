@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
@@ -184,6 +185,14 @@ func StartAgent() error {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
+	// Setup Profiling
+	if config.Datadog.GetBool("profiling.enabled") {
+		err := settings.SetRuntimeSetting("profiling", true)
+		if err != nil {
+			log.Errorf("Error starting profiler: %v", err)
+		}
+	}
+
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	if config.Datadog.GetBool("telemetry.enabled") {
@@ -290,6 +299,9 @@ func StartAgent() error {
 	// Detect Cloud Provider
 	go util.DetectCloudProvider()
 
+	// Append version and timestamp to version history log file if this Agent is different than the last run version
+	util.LogVersionHistory()
+
 	// create and setup the Autoconfig instance
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
@@ -342,8 +354,11 @@ func StopAgent() {
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
+
 	logs.Stop()
 	gui.StopGUIServer()
+	profiler.Stop()
+
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

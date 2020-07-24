@@ -92,6 +92,11 @@ process-agent-msg.h
 # process agent test artifacts
 pkg/process/config/logs
 
+# sysprobe artifacts
+cmd/system-probe/windows_resources/system-probe-msg.rc
+cmd/system-probe/windows_resources/*.bin
+system-probe-msg.h
+
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
 cmd/dogstatsd/windows_resources/*.bin
@@ -123,6 +128,7 @@ Vagrantfile
 packer.json
 *.box
 devenv/iso
+devenv/output-virtualbox-iso/
 devenv/packer_cache
 
 # doxygen doc & error log
@@ -135,3 +141,6 @@ integrations-core/
 # file generated for templates
 pkg/status/templates.go
 cmd/agent/gui/templates.go
+
+# netlink message dump test files
+pkg/network/netlink/testdata/message_dump*

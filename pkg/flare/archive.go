@@ -177,6 +177,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Warnf("Could not zip registry.json: %s", err)
 	}
 
+	err = zipVersionHistory(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip version-history.json: %s", err)
+	}
+
 	err = zipSecrets(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip secrets: %s", err)
@@ -289,11 +294,14 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 	parent := filepath.Dir(dirPath)
+
+	// We do not enter the loop when `filepath.Dir` returns ".", meaning an empty directory was passed.
 	for parent != "." {
-		if parent == "/" {
+		if len(filepath.Dir(parent)) == len(parent) {
 			permsInfos.add(parent)
 			break
 		}
+
 		permsInfos.add(parent)
 		parent = filepath.Dir(parent)
 	}
@@ -301,10 +309,6 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
-
-	if permsInfos != nil {
-		addParentPerms(logFileDir, permsInfos)
-	}
 
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
@@ -325,6 +329,16 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 		}
 		return nil
 	})
+
+	// The permsInfos map is empty when we cannot read the auth token.
+	if len(permsInfos) != 0 {
+		// Force path to be absolute for getting parent permissions.
+		absPath, err := filepath.Abs(logFileDir)
+		if err != nil {
+			log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+		}
+		addParentPerms(absPath, permsInfos)
+	}
 
 	return err
 }
@@ -526,6 +540,30 @@ func zipRegistryJSON(tempDir, hostname string) error {
 	defer original.Close()
 
 	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
+	err = ensureParentDirsExist(zippedPath)
+	if err != nil {
+		return err
+	}
+
+	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer zipped.Close()
+
+	_, err = io.Copy(zipped, original)
+	return err
+}
+
+func zipVersionHistory(tempDir, hostname string) error {
+	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "version-history.json")
+	original, err := os.Open(originalPath)
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	zippedPath := filepath.Join(tempDir, hostname, "version-history.json")
 	err = ensureParentDirsExist(zippedPath)
 	if err != nil {
 		return err
@@ -746,7 +784,14 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 				if permsInfos != nil {
 					permsInfos.add(src)
-					addParentPerms(filePath, permsInfos)
+
+					if len(permsInfos) != 0 {
+						absPath, err := filepath.Abs(filePath)
+						if err != nil {
+							log.Errorf("Error while getting absolute file path for parent directory: %v", err)
+						}
+						addParentPerms(absPath, permsInfos)
+					}
 				}
 			}
 

@@ -4,10 +4,9 @@ version: 1.5.0
 rules:
 - id: cis-kubernetes-1
   scope:
-    kubernetesCluster: true
+    - kubernetesNode
+  hostSelector: node.label("kubernetes.io/role") in ["worker"]
   resources:
-  - file:
-      path: ./files/kube-apiserver.yaml
-      report:
-      - property: permissions
-        kind: attribute
+    - file:
+        path: /files/kube-apiserver.yaml
+      condition: file.permissions == 0647

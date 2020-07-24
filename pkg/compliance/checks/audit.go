@@ -15,10 +15,11 @@ import (
 	"github.com/elastic/go-libaudit/rule"
 	"github.com/elastic/go-libaudit/rule/flags"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newAuditClient() (AuditClient, error) {
+func newAuditClient() (env.AuditClient, error) {
 	if os.Geteuid() != 0 {
 		return nil, errors.New("you must be root to receive audit data")
 	}

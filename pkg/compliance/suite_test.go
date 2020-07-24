@@ -20,21 +20,15 @@ func TestParseSuite(t *testing.T) {
 		},
 		Rules: []Rule{
 			{
-				ID: "cis-docker-1",
-				Scope: Scope{
-					Docker: true,
-				},
+				ID:           "cis-docker-1",
+				Scope:        RuleScopeList{DockerScope},
+				HostSelector: `"foo" in node.labels`,
 				Resources: []Resource{
 					{
 						File: &File{
 							Path: "/etc/docker/daemon.json",
-							Report: []ReportedField{
-								{
-									Property: "permissions",
-									Kind:     PropertyKindAttribute,
-								},
-							},
 						},
+						Condition: `file.permissions == 0644`,
 					},
 				},
 			},

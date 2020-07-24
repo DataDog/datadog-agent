@@ -4,6 +4,7 @@ import os
 import getpass
 import contextlib
 import shutil
+import sys
 import tempfile
 
 from invoke import task
@@ -18,6 +19,7 @@ from .utils import (
     get_git_branch_name,
     get_go_version,
     get_git_commit,
+    get_version_numeric_only,
 )
 from .build_tags import get_default_build_tags
 
@@ -30,6 +32,8 @@ EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfil
 BPF_TAG = "linux_bpf"
 BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
+
+DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
 
 @task
@@ -44,6 +48,7 @@ def build(
     go_mod="vendor",
     windows=False,
     arch="x64",
+    embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
 ):
     """
     Build the system_probe
@@ -53,6 +58,32 @@ def build(
     if not windows:
         build_object_files(ctx, install=True)
 
+    ldflags, gcflags, env = get_build_flags(
+        ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
+    )
+
+    # generate windows resources
+    if sys.platform == 'win32':
+        windres_target = "pe-x86-64"
+        if arch == "x86":
+            print("system probe not supported on x86")
+            raise
+
+        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        maj_ver, min_ver, patch_ver = ver.split(".")
+        resdir = os.path.join(".", "cmd", "system-probe", "windows_resources")
+
+        ctx.run(
+            "windmc --target {target_arch} -r {resdir} {resdir}/system-probe-msg.mc".format(
+                resdir=resdir, target_arch=windres_target
+            )
+        )
+
+        ctx.run(
+            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/system-probe/windows_resources/system-probe.rc --target {target_arch} -O coff -o cmd/process-agent/rsrc.syso".format(
+                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
+            )
+        )
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {
@@ -71,8 +102,6 @@ def build(
                 if env_var in line:
                     goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
-
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:
@@ -321,9 +350,12 @@ def build_object_files(ctx, install=True):
     if install:
         assets_cmd = (
             os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}'"
+            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
+            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' "
+            + "'{bpf_common_h_file}' '{test_asset_file}' '{test_h_file}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
+        test_dir = os.path.join(bpf_dir, "testdata")
         commands.append(
             assets_cmd.format(
                 c_dir=c_dir,
@@ -332,6 +364,11 @@ def build_object_files(ctx, install=True):
                 debug_obj_file=debug_obj_file,
                 tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
                 tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
+                oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
+                oom_kill_kern_user_h_file=os.path.join(c_dir, "oom-kill-kern-user.h"),
+                bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
+                test_asset_file=os.path.join(test_dir, "test-asset.c"),
+                test_h_file=os.path.join(test_dir, "test-header.h"),
             )
         )
 

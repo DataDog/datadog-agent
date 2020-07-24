@@ -66,7 +66,8 @@ To start working on the Agent, you can build the `master` branch:
 
 
 
-Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
+Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details. For instructions
+on setting up a windows dev environment, refer to [Windows Dev Env](devenv).
 
 ## Run
 

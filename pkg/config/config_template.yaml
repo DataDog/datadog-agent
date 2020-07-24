@@ -194,8 +194,8 @@ api_key:
 ## trigger security alert when querying unknown IP (for example, when enabling
 ## Tencent on AWS).
 ## Setting an empty list will disable querying any cloud metadata endpoints
-## (falling back on system metadata). Using this setting on a cloud provider
-## host may result in duplicated hosts in your account.
+## (falling back on system metadata). Disabling metadata for the cloud provider in which an Agent runs may result in
+## duplicated hosts in your Datadog account and missing Autodiscovery features
 ##
 ## Possible values are:
 ## "aws"     AWS EC2, ECS/Fargate
@@ -415,20 +415,20 @@ api_key:
 #
 # secret_backend_timeout: 5
 
-## @param snmp_listener - custom object - optional
+## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using
 ## the auto_conf.yaml file provided by default.
 #
 # snmp_listener:
 
-  ## @param workers - integer - optional - default: 2
+  ## @param workers - integer - optional - default: 2
   ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
   ## discovers devices faster but at the cost of increased resource consumption.
   #
   # workers: 2
 
-  ## @param discovery_interval - integer - optional - default: 3600
+  ## @param discovery_interval - integer - optional - default: 3600
   ## How often to discover new SNMP devices, in seconds. Decreasing this value
   ## discovers devices faster (within the limit of the time taken to scan subnets)
   ## but at the cost of increased resource consumption.
@@ -546,7 +546,26 @@ api_key:
     #
     # ad_identifier: snmp
 
+{{- if .Profiling -}}
+## @param profiling - custom object - optional
+## Enter specific configurations for profiling.
+## Uncomment this parameter and the one below to enable profiling.
+## See https://docs.datadoghq.com/tracing/profiling/
+#
+## NOTE: If enabled this option may incur in billing charges or other
+##       unexpected side-effects (ie. agent profiles showing with your
+##       services).
+#
+# profiling:
+#
+  ## @param enabled - boolean - optional - default: false
+  ## Enable profiling for the Agent process.
+  #
+  # enabled: false
+
+{{ end }}
 {{ end -}}
+
 {{- if .LogsAgent }}
 
 ##################################
