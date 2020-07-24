@@ -91,14 +91,17 @@ type SQLTokenizer struct {
 
 	literalEscapes bool // indicates we should not treat backslashes as escape characters
 	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
+
+	newSQLNormalization bool // indicates whether new or legacy normalization should be used
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string. The literalEscapes argument specifies
 // whether escape characters should be treated literally or as such.
-func NewSQLTokenizer(sql string, literalEscapes bool) *SQLTokenizer {
+func NewSQLTokenizer(sql string, literalEscapes, newSQLNormalization bool) *SQLTokenizer {
 	return &SQLTokenizer{
-		rd:             strings.NewReader(sql),
-		literalEscapes: literalEscapes,
+		rd:                  strings.NewReader(sql),
+		literalEscapes:      literalEscapes,
+		newSQLNormalization: newSQLNormalization,
 	}
 }
 
@@ -272,7 +275,10 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	buffer.WriteRune(tkn.lastChar)
 	tkn.next()
 
-	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '*' {
+	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '*' || tkn.lastChar == '.' {
+		if tkn.newSQLNormalization && tkn.lastChar == '.' {
+			break
+		}
 		buffer.WriteRune(tkn.lastChar)
 		tkn.next()
 	}

@@ -670,7 +670,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str, false)
+			tokenizer := NewSQLTokenizer(c.str, false, false)
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
 			assert.Equal(t, c.expected, string(buffer))
@@ -799,7 +799,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str, true)
+			tokenizer := NewSQLTokenizer(c.str, true, false)
 			tokenizer.literalEscapes = true
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)

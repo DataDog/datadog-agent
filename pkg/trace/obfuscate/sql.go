@@ -44,7 +44,9 @@ type tokenFilter interface {
 
 // discardFilter is a token filter which discards certain elements from a query, such as
 // comments and AS aliases by returning a nil buffer.
-type discardFilter struct{}
+type discardFilter struct {
+	newSQLNormalization bool
+}
 
 // Filter the given token so that a `nil` slice is returned if the token is in the token filtered list.
 func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
@@ -72,7 +74,9 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 		} else if token == '(' {
 			// This expression is a subquery and should not be filtered
 			// ex: WITH ids AS (SELECT id FROM mytable) ...
-			return token, buffer, nil
+			if f.newSQLNormalization {
+				return token, buffer, nil
+			}
 		}
 		return Filtered, nil, nil
 	}
@@ -94,7 +98,9 @@ func (f *discardFilter) Reset() {}
 
 // replaceFilter is a token filter which obfuscates strings and numbers in queries by replacing them
 // with the "?" character.
-type replaceFilter struct{}
+type replaceFilter struct {
+	newSQLNormalization bool
+}
 
 // Filter the given token so that it will be replaced if in the token replacement list
 func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
@@ -110,9 +116,15 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 	}
 	switch token {
 	case BindParameterAt:
-		return token, []byte("@?"), nil
+		if f.newSQLNormalization {
+			return token, []byte("@?"), nil
+		}
+		return token, buffer, nil
 	case BindParameterColon:
-		return token, []byte(":?"), nil
+		if f.newSQLNormalization {
+			return token, []byte(":?"), nil
+		}
+		return token, buffer, nil
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
 		return FilteredGroupable, []byte("?"), nil
 	default:
@@ -177,12 +189,13 @@ func (f *groupingFilter) Reset() {
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
-	tok := NewSQLTokenizer(in, lesc)
+	newNorm := config.HasFeature("new_sql_normalization")
+	tok := NewSQLTokenizer(in, lesc, newNorm)
 	out, err := attemptObfuscation(tok)
 	if err != nil && tok.SeenEscape() {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
-		tok = NewSQLTokenizer(in, !lesc)
+		tok = NewSQLTokenizer(in, !lesc, newNorm)
 		if out, err2 := attemptObfuscation(tok); err2 == nil {
 			// If the second attempt succeeded, change the default behavior so that
 			// on the next run we get it right in the first run.
@@ -259,8 +272,8 @@ type ObfuscatedQuery struct {
 // given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	filters := []tokenFilter{
-		&discardFilter{},
-		&replaceFilter{},
+		&discardFilter{newSQLNormalization: tokenizer.newSQLNormalization},
+		&replaceFilter{newSQLNormalization: tokenizer.newSQLNormalization},
 		&groupingFilter{},
 	}
 	tableFinder := &tableFinderFilter{}
@@ -291,7 +304,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		if buff != nil {
 			if out.Len() != 0 {
 				switch token {
-				case ',', '.':
+				case ',':
 				case '=':
 					if lastToken == ':' {
 						// do not add a space before an equals if a colon was
@@ -300,11 +313,17 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 					}
 					fallthrough
 				default:
-					switch lastToken {
-					case '.', '@':
-					default:
-						out.WriteRune(' ')
+					// Tokens should be space-separated; new SQL normalization does not
+					// separate periods or
+					if tokenizer.newSQLNormalization {
+						if token == '.' {
+							break
+						}
+						if lastToken == '.' || lastToken == '@' {
+							break
+						}
 					}
+					out.WriteRune(' ')
 				}
 			}
 			out.Write(buff)
