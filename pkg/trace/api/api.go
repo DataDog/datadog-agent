@@ -73,33 +73,30 @@ const (
 	// Payload: Traces with strings de-duplicated into a dictionary.
 	// Response: Service sampling rates.
 	//
-	// The payload is an array containing exactly 2 elements ([[dict][traces]):
+	// The payload is an array containing exactly 2 elements:
 	//
-	// 	1. An array of unique strings (a dictionary referred to by index). The first element in the array
-	// 	   is reserved for the empty string.
+	// 	1. An array of all unique strings present in the payload (a dictionary referred to by index).
 	// 	2. An array of traces, where each trace is an array of spans. A span is encoded as an array having
 	// 	   exactly 12 elements, representing all span properties, in this exact order:
 	//
-	// 			 0: Service   (int)
-	// 			 1: Name      (int)
-	// 			 2: Resource  (int)
-	// 			 3: TraceID   (uint64)
-	// 			 4: SpanID    (uint64)
-	// 			 5: ParentID  (uint64)
-	// 			 6: Start     (int64)
-	// 			 7: Duration  (int64)
-	// 			 8: Error     (int32)
-	// 			 9: Meta      (map[int]int)
-	// 			10: Metrics   (map[int]float64)
-	// 			11: Type      (int)
+	// 		 0: Service   (int)
+	// 		 1: Name      (int)
+	// 		 2: Resource  (int)
+	// 		 3: TraceID   (uint64)
+	// 		 4: SpanID    (uint64)
+	// 		 5: ParentID  (uint64)
+	// 		 6: Start     (int64)
+	// 		 7: Duration  (int64)
+	// 		 8: Error     (int32)
+	// 		 9: Meta      (map[int]int)
+	// 		10: Metrics   (map[int]float64)
+	// 		11: Type      (int)
 	//
 	// 	Considerations:
 	//
-	// 	- Strings are not allowed anywhere other than the dictionary. All strings in all fields, maps (values
-	// 	  along with keys) must be replaced with int's representing the corresponding string's index in the dictionary.
-	// 	  There is no concept of string anywhere outside the dictionary, only int.
-	// 	- Nil values should be replaced with int(0), representing the empty string.
-	// 	- Nil is only allowed in place of "Meta" or "Metrics"
+	// 	- Any of the 12 array elements may be nil when absent.
+	// 	- The "int" typed values represent the index at which the corresponding string is found in the dictionary.
+	// 	  If any of the values are the empty string, then the empty string must be added into the dictionary.
 	//
 	v05 Version = "v0.5"
 )
@@ -299,8 +296,13 @@ func (r *HTTPReceiver) Stop() error {
 	return nil
 }
 
+// headerResponseVersion is a response header sent to each request, representing
+// the trace-agent version.
+const headerResponseVersion = "Datadog-Trace-Agent-Version"
+
 func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Add(headerResponseVersion, info.Version)
 		if mediaType := getMediaType(req); mediaType == "application/msgpack" && (v == v01 || v == v02) {
 			// msgpack is only supported for versions >= v0.3
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
