@@ -102,6 +102,9 @@ omnibus/.tarball-version
 omnibus/files/sources
 omnibus/resources/agent/msi/cal/packages/
 
+# serverless artifact
+cmd/serverless/serverless
+
 #visual studio files
 *.aps
 omnibus/resources/agent/msi/cal/packages/

@@ -18,6 +18,8 @@ const (
 	Dogstatsd = "dogstatsd"
 	// SecurityAgent is the Security Agent flavor
 	SecurityAgent = "security_agent"
+	// ServerlessAgent is an Agent running in a serverless environment
+	ServerlessAgent = "serverless_agent"
 )
 
 var agentFlavor string = DefaultAgent
