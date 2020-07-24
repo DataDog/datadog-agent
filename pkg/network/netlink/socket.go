@@ -178,12 +178,6 @@ func (s *Socket) LeaveGroup(group uint32) error {
 	))
 }
 
-func (s *Socket) control(f func(int)) error {
-	return s.conn.Control(func(sysfd uintptr) {
-		f(int(sysfd))
-	})
-}
-
 // SetSockoptInt sets a socket option
 func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	// Value must be in range of a C integer.
@@ -192,8 +186,8 @@ func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	}
 
 	var err error
-	doErr := s.control(func(fd int) {
-		err = unix.SetsockoptInt(fd, level, opt, value)
+	doErr := s.conn.Control(func(fd uintptr) {
+		err = unix.SetsockoptInt(int(fd), level, opt, value)
 	})
 
 	if doErr != nil {
@@ -207,8 +201,8 @@ func (s *Socket) SetSockoptInt(level, opt, value int) error {
 func (s *Socket) GetSockoptInt(level, opt int) (int, error) {
 	var err error
 	var v int
-	doErr := s.control(func(fd int) {
-		v, err = unix.GetsockoptInt(fd, level, opt)
+	doErr := s.conn.Control(func(fd uintptr) {
+		v, err = unix.GetsockoptInt(int(fd), level, opt)
 	})
 
 	if doErr != nil {
