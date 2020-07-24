@@ -7,8 +7,6 @@
 
 package main
 
-import "C"
-
 import (
 	_ "expvar"
 	"fmt"
@@ -18,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc"
@@ -71,7 +68,10 @@ func main() {
 				sigStr = "CTRL+SHUTDOWN"
 			}
 			log.Infof("Received control event '%s', shutting down...", sigStr)
-			signals.Stopper <- true
+			// signals.Stopper <- true
+			// Completely bypass the run command stop logic as it takes too long to stop
+			app.StopAgent()
+			os.Exit(0)
 			return 1
 		}), 1)
 
