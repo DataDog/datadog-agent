@@ -52,6 +52,12 @@ const (
 	countFn = "count"
 )
 
+var (
+	builtInVars VarMap = VarMap{
+		"_": true,
+	}
+)
+
 // EvaluateIterator evaluates an iterable expression for an iterator
 func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*InstanceResult, error) {
 	if e.IterableComparison == nil {
@@ -452,6 +458,9 @@ func (v *Value) Evaluate(instance *Instance) (interface{}, error) {
 		)
 		if instance.Vars != nil {
 			value, ok = instance.Vars[*v.Variable]
+		}
+		if !ok {
+			value, ok = builtInVars[*v.Variable]
 		}
 		if !ok {
 			return nil, lexer.Errorf(v.Pos, `unknown variable %q`, *v.Variable)
