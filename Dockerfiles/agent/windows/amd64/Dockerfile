@@ -20,9 +20,5 @@ ADD entrypoint-ps1 ./entrypoint-ps1
 COPY datadog*.yaml C:/ProgramData/Datadog/
 COPY install_info C:/ProgramData/Datadog/
 
-# Give some more time for the agent to shutdown
-RUN reg add hklm\system\currentcontrolset\services\cexecsvc /v ProcessShutdownTimeoutSeconds /t REG_DWORD /d 30
-RUN reg add hklm\system\currentcontrolset\control /v WaitToKillServiceTimeout /t REG_SZ /d 30000 /f
-
 ENTRYPOINT ["pwsh", "./entrypoint.ps1"]
 CMD ["agent", "run"]
