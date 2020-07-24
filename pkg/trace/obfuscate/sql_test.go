@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,12 @@ import (
 type sqlTestCase struct {
 	query    string
 	expected string
+}
+
+type sqlTestCaseNormalize struct {
+	query              string
+	expected           string
+	expectedNormalized string
 }
 
 type sqlTokenizerTestCase struct {
@@ -230,33 +237,40 @@ func TestSQLTableFinder(t *testing.T) {
 }
 
 func TestSQLQuantizer(t *testing.T) {
-	cases := []sqlTestCase{
+	cases := []sqlTestCaseNormalize{
 		{
 			"select * from users where id = 42",
+			"select * from users where id = ?",
 			"select * from users where id = ?",
 		},
 		{
 			"SELECT host, status FROM ec2_status WHERE org_id = 42",
 			"SELECT host, status FROM ec2_status WHERE org_id = ?",
+			"SELECT host, status FROM ec2_status WHERE org_id = ?",
 		},
 		{
 			"SELECT host, status FROM ec2_status WHERE org_id=42",
+			"SELECT host, status FROM ec2_status WHERE org_id = ?",
 			"SELECT host, status FROM ec2_status WHERE org_id = ?",
 		},
 		{
 			"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
 			"select * from users where id = ?",
+			"select * from users where id = ?",
 		},
 		{
 			"SELECT * FROM `host` WHERE `id` IN (42, 43) /*comment with parameters,host:localhost,url:controller#home,id:FF005:00CAA*/",
 			"SELECT * FROM host WHERE id IN ( ? )",
+			"SELECT * FROM host WHERE id IN ( ? )",
 		},
 		{
 			"SELECT `host`.`address` FROM `host` WHERE org_id=42",
+			"SELECT host . address FROM host WHERE org_id = ?",
 			"SELECT host.address FROM host WHERE org_id = ?",
 		},
 		{
 			`SELECT "host"."address" FROM "host" WHERE org_id=42`,
+			`SELECT host . address FROM host WHERE org_id = ?`,
 			`SELECT host.address FROM host WHERE org_id = ?`,
 		},
 		{
@@ -265,161 +279,202 @@ func TestSQLQuantizer(t *testing.T) {
 			host:localhost,url:controller#home,id:FF005:00CAA
 			*/`,
 			"SELECT * FROM host WHERE id IN ( ? )",
+			"SELECT * FROM host WHERE id IN ( ? )",
 		},
 		{
 			"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
-			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?"},
+			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?",
+			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?",
+		},
 		{
 			"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
+			"SELECT DISTINCT host.id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = ? AND host.name NOT IN ( ? ) AND host.name IN ( ? )",
 			"SELECT DISTINCT host.id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = ? AND host.name NOT IN ( ? ) AND host.name IN ( ? )",
 		},
 		{
 			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = %(org_id)s AND metric_key = ANY(array[75])",
 			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( array [ ? ] )",
+			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( array [ ? ] )",
 		},
 		{
 			"SELECT org_id, metric_key   FROM metrics_metadata   WHERE org_id = %(org_id)s AND metric_key = ANY(array[21, 25, 32])",
 			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( array [ ? ] )",
+			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( array [ ? ] )",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1",
+			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 		},
 
 		{
 			"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20",
 			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
+			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20;",
+			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 15,20;",
 			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
+			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1;",
+			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 			"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE (articles.created_at BETWEEN '2016-10-31 23:00:00.000000' AND '2016-11-01 23:00:00.000000')",
 			"SELECT articles.* FROM articles WHERE ( articles.created_at BETWEEN ? AND ? )",
+			"SELECT articles.* FROM articles WHERE ( articles.created_at BETWEEN ? AND ? )",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE (articles.created_at BETWEEN $1 AND $2)",
+			"SELECT articles.* FROM articles WHERE ( articles.created_at BETWEEN ? AND ? )",
 			"SELECT articles.* FROM articles WHERE ( articles.created_at BETWEEN ? AND ? )",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE (articles.published != true)",
 			"SELECT articles.* FROM articles WHERE ( articles.published != ? )",
+			"SELECT articles.* FROM articles WHERE ( articles.published != ? )",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE (title = 'guides.rubyonrails.org')",
+			"SELECT articles.* FROM articles WHERE ( title = ? )",
 			"SELECT articles.* FROM articles WHERE ( title = ? )",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE ( title = ? ) AND ( author = ? )",
 			"SELECT articles.* FROM articles WHERE ( title = ? ) AND ( author = ? )",
+			"SELECT articles.* FROM articles WHERE ( title = ? ) AND ( author = ? )",
 		},
 		{
+			"SELECT articles.* FROM articles WHERE ( title = :title )",
 			"SELECT articles.* FROM articles WHERE ( title = :title )",
 			"SELECT articles.* FROM articles WHERE ( title = :? )",
 		},
 		{
+			"SELECT articles.* FROM articles WHERE ( title = @title )",
 			"SELECT articles.* FROM articles WHERE ( title = @title )",
 			"SELECT articles.* FROM articles WHERE ( title = @? )",
 		},
 		{
 			"SELECT date(created_at) as ordered_date, sum(price) as total_price FROM orders GROUP BY date(created_at) HAVING sum(price) > 100",
 			"SELECT date ( created_at ), sum ( price ) FROM orders GROUP BY date ( created_at ) HAVING sum ( price ) > ?",
+			"SELECT date ( created_at ), sum ( price ) FROM orders GROUP BY date ( created_at ) HAVING sum ( price ) > ?",
 		},
 		{
 			"SELECT * FROM articles WHERE id > 10 ORDER BY id asc LIMIT 20",
+			"SELECT * FROM articles WHERE id > ? ORDER BY id asc LIMIT ?",
 			"SELECT * FROM articles WHERE id > ? ORDER BY id asc LIMIT ?",
 		},
 		{
 			"SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = 't'",
 			"SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = ?",
+			"SELECT clients.* FROM clients INNER JOIN posts ON posts.author_id = author.id AND posts.published = ?",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE articles.id IN (1, 3, 5)",
+			"SELECT articles.* FROM articles WHERE articles.id IN ( ? )",
 			"SELECT articles.* FROM articles WHERE articles.id IN ( ? )",
 		},
 		{
 			"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO clients (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
 			"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO clients ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
+			"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO clients ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
 		},
 		{
 			"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 15, 25 BEGIN INSERT INTO clients (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
+			"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO clients ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
 			"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO clients ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
 		},
 		{
 			"SAVEPOINT \"s139956586256192_x1\"",
 			"SAVEPOINT ?",
+			"SAVEPOINT ?",
 		},
 		{
 			"INSERT INTO user (id, username) VALUES ('Fred','Smith'), ('John','Smith'), ('Michael','Smith'), ('Robert','Smith');",
+			"INSERT INTO user ( id, username ) VALUES ( ? )",
 			"INSERT INTO user ( id, username ) VALUES ( ? )",
 		},
 		{
 			"CREATE KEYSPACE Excelsior WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};",
 			"CREATE KEYSPACE Excelsior WITH replication = ?",
+			"CREATE KEYSPACE Excelsior WITH replication = ?",
 		},
 		{
 			`SELECT "webcore_page"."id" FROM "webcore_page" WHERE "webcore_page"."slug" = %s ORDER BY "webcore_page"."path" ASC LIMIT 1`,
+			"SELECT webcore_page . id FROM webcore_page WHERE webcore_page . slug = ? ORDER BY webcore_page . path ASC LIMIT ?",
 			"SELECT webcore_page.id FROM webcore_page WHERE webcore_page.slug = ? ORDER BY webcore_page.path ASC LIMIT ?",
 		},
 		{
 			"SELECT server_table.host AS host_id FROM table#.host_tags as server_table WHERE server_table.host_id = 50",
 			"SELECT server_table.host FROM table#.host_tags WHERE server_table.host_id = ?",
+			"SELECT server_table.host FROM table#.host_tags WHERE server_table.host_id = ?",
 		},
 		{
 			`INSERT INTO delayed_jobs (attempts, created_at, failed_at, handler, last_error, locked_at, locked_by, priority, queue, run_at, updated_at) VALUES (0, '2016-12-04 17:09:59', NULL, '--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/object:Item\n  store:\n  - a simple string\n  - an \'escaped \' string\n  - another \'escaped\' string\n  - 42\n  string: a string with many \\\\\'escapes\\\\\'\nmethod_name: :show_store\nargs: []\n', NULL, NULL, NULL, 0, NULL, '2016-12-04 17:09:59', '2016-12-04 17:09:59')`,
+			"INSERT INTO delayed_jobs ( attempts, created_at, failed_at, handler, last_error, locked_at, locked_by, priority, queue, run_at, updated_at ) VALUES ( ? )",
 			"INSERT INTO delayed_jobs ( attempts, created_at, failed_at, handler, last_error, locked_at, locked_by, priority, queue, run_at, updated_at ) VALUES ( ? )",
 		},
 		{
 			"SELECT name, pretty_print(address) FROM people;",
 			"SELECT name, pretty_print ( address ) FROM people",
+			"SELECT name, pretty_print ( address ) FROM people",
 		},
 		{
 			"* SELECT * FROM fake_data(1, 2, 3);",
+			"* SELECT * FROM fake_data ( ? )",
 			"* SELECT * FROM fake_data ( ? )",
 		},
 		{
 			"CREATE FUNCTION add(integer, integer) RETURNS integer\n AS 'select $1 + $2;'\n LANGUAGE SQL\n IMMUTABLE\n RETURNS NULL ON NULL INPUT;",
 			"CREATE FUNCTION add ( integer, integer ) RETURNS integer LANGUAGE SQL IMMUTABLE RETURNS ? ON ? INPUT",
+			"CREATE FUNCTION add ( integer, integer ) RETURNS integer LANGUAGE SQL IMMUTABLE RETURNS ? ON ? INPUT",
 		},
 		{
 			"SELECT * FROM public.table ( array [ ROW ( array [ 'magic', 'foo',",
+			"SELECT * FROM public.table ( array [ ROW ( array [ ?",
 			"SELECT * FROM public.table ( array [ ROW ( array [ ?",
 		},
 		{
 			"SELECT pg_try_advisory_lock (123) AS t46eef3f025cc27feb31ca5a2d668a09a",
 			"SELECT pg_try_advisory_lock ( ? )",
+			"SELECT pg_try_advisory_lock ( ? )",
 		},
 		{
 			"INSERT INTO `qual-aa`.issues (alert0 , alert1) VALUES (NULL, NULL)",
+			"INSERT INTO qual-aa . issues ( alert0, alert1 ) VALUES ( ? )",
 			"INSERT INTO qual-aa.issues ( alert0, alert1 ) VALUES ( ? )",
 		},
 		{
 			"INSERT INTO user (id, email, name) VALUES (null, ?, ?)",
 			"INSERT INTO user ( id, email, name ) VALUES ( ? )",
+			"INSERT INTO user ( id, email, name ) VALUES ( ? )",
 		},
 		{
 			"select * from users where id = 214325346     # This comment continues to the end of line",
+			"select * from users where id = ?",
 			"select * from users where id = ?",
 		},
 		{
 			"select * from users where id = 214325346     -- This comment continues to the end of line",
 			"select * from users where id = ?",
+			"select * from users where id = ?",
 		},
 		{
 			"SELECT * FROM /* this is an in-line comment */ users;",
 			"SELECT * FROM users",
+			"SELECT * FROM users",
 		},
 		{
 			"SELECT /*! STRAIGHT_JOIN */ col1 FROM table1",
+			"SELECT col1 FROM table1",
 			"SELECT col1 FROM table1",
 		},
 		{
@@ -432,16 +487,19 @@ func TestSQLQuantizer(t *testing.T) {
 			(SELECT 50,11*s1 FROM t4 UNION SELECT 50,77 FROM
 			(SELECT * FROM t5) AS t5)));`,
 			"DELETE FROM t1 WHERE s11 > ANY ( SELECT COUNT ( * ) FROM t2 WHERE NOT EXISTS ( SELECT * FROM t3 WHERE ROW ( ? * t2.s1, ? ) = ( SELECT ? * s1 FROM t4 UNION SELECT ? FROM ( SELECT * FROM t5 ) ) ) )",
+			"DELETE FROM t1 WHERE s11 > ANY ( SELECT COUNT ( * ) FROM t2 WHERE NOT EXISTS ( SELECT * FROM t3 WHERE ROW ( ? * t2.s1, ? ) = ( SELECT ? * s1 FROM t4 UNION SELECT ? FROM ( SELECT * FROM t5 ) ) ) )",
 		},
 		{
 			"SET @g = 'POLYGON((0 0,10 0,10 10,0 10,0 0),(5 5,7 5,7 7,5 7, 5 5))';",
+			"SET @g = ?",
 			"SET @? = ?",
 		},
 		{
 			`SELECT daily_values.*,
                     LEAST((5040000 - @runtot), value) AS value,
                     ` + "(@runtot := @runtot + daily_values.value) AS total FROM (SELECT @runtot:=0) AS n, `daily_values`  WHERE `daily_values`.`subject_id` = 12345 AND `daily_values`.`subject_type` = 'Skippity' AND (daily_values.date BETWEEN '2018-05-09' AND '2018-06-19') HAVING value >= 0 ORDER BY date",
-			`SELECT daily_values.*, LEAST ( ( ? - @? ), value ), ( @? := @? + daily_values.value ) FROM ( SELECT @? := ? ), daily_values WHERE daily_values.subject_id = ? AND daily_values.subject_type = ? AND ( daily_values.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date`,
+			"SELECT daily_values.*, LEAST ( ( ? - @runtot ), value ), ( @runtot := @runtot + daily_values.value ) FROM ( SELECT @runtot := ? ), daily_values WHERE daily_values . subject_id = ? AND daily_values . subject_type = ? AND ( daily_values.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date",
+			"SELECT daily_values.*, LEAST ( ( ? - @? ), value ), ( @? := @? + daily_values.value ) FROM ( SELECT @? := ? ), daily_values WHERE daily_values.subject_id = ? AND daily_values.subject_type = ? AND ( daily_values.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date",
 		},
 		{
 			`    SELECT
@@ -475,31 +533,38 @@ func TestSQLQuantizer(t *testing.T) {
 
   `,
 			`SELECT t1.userid, t1.fullname, t1.firm_id, t2.firmname, t1.email, t1.location, t1.state, t1.phone, t1.url, DATE_FORMAT ( t1.lastmod, %m/%d/%Y %h:%i:%s ), t1.lastmod, t1.user_status, t1.pw_expire, DATE_FORMAT ( t1.pw_expire, %m/%d/%Y ), t1.addr1, t1.addr2, t1.zipcode, t1.office_id, t1.default_group, t3.firm_status, t1.title FROM userdata LEFT JOIN lawfirm_names ON t1.firm_id = t2.firm_id LEFT JOIN lawfirms ON t1.firm_id = t3.firm_id WHERE t1.userid = ?`,
+			`SELECT t1.userid, t1.fullname, t1.firm_id, t2.firmname, t1.email, t1.location, t1.state, t1.phone, t1.url, DATE_FORMAT ( t1.lastmod, %m/%d/%Y %h:%i:%s ), t1.lastmod, t1.user_status, t1.pw_expire, DATE_FORMAT ( t1.pw_expire, %m/%d/%Y ), t1.addr1, t1.addr2, t1.zipcode, t1.office_id, t1.default_group, t3.firm_status, t1.title FROM userdata LEFT JOIN lawfirm_names ON t1.firm_id = t2.firm_id LEFT JOIN lawfirms ON t1.firm_id = t3.firm_id WHERE t1.userid = ?`,
 		},
 		{
 			`SELECT [b].[BlogId], [b].[Name]
 FROM [Blogs] AS [b]
 ORDER BY [b].[Name]`,
+			`SELECT [ b ] . [ BlogId ], [ b ] . [ Name ] FROM [ Blogs ] ORDER BY [ b ] . [ Name ]`,
 			`SELECT [ b ].[ BlogId ], [ b ].[ Name ] FROM [ Blogs ] ORDER BY [ b ].[ Name ]`,
 		},
 		{
 			`SELECT * FROM users WHERE firstname=''`,
 			`SELECT * FROM users WHERE firstname = ?`,
+			`SELECT * FROM users WHERE firstname = ?`,
 		},
 		{
 			`SELECT * FROM users WHERE firstname=' '`,
+			`SELECT * FROM users WHERE firstname = ?`,
 			`SELECT * FROM users WHERE firstname = ?`,
 		},
 		{
 			`SELECT * FROM users WHERE firstname=""`,
 			`SELECT * FROM users WHERE firstname = ?`,
+			`SELECT * FROM users WHERE firstname = ?`,
 		},
 		{
 			`SELECT * FROM users WHERE lastname=" "`,
 			`SELECT * FROM users WHERE lastname = ?`,
+			`SELECT * FROM users WHERE lastname = ?`,
 		},
 		{
 			`SELECT * FROM users WHERE lastname="	 "`,
+			`SELECT * FROM users WHERE lastname = ?`,
 			`SELECT * FROM users WHERE lastname = ?`,
 		},
 		{
@@ -507,46 +572,68 @@ ORDER BY [b].[Name]`,
 FROM [Blogs] AS [b
 ORDER BY [b].[Name]`,
 			`Non-parsable SQL query`,
+			`Non-parsable SQL query`,
 		},
 		{
 			`SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id = ? AND visitor_id IS ? UNION SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id IS ? AND visitor_id = "AA0DKTGEM6LRN3WWPZ01Q61E3J7ROX7O" ORDER BY customer_id DESC`,
+			"SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id = ? AND visitor_id IS ? UNION SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id IS ? AND visitor_id = ? ORDER BY customer_id DESC",
 			"SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id = ? AND visitor_id IS ? UNION SELECT customer_item_list_id, customer_id FROM customer_item_list WHERE type = wishlist AND customer_id IS ? AND visitor_id = ? ORDER BY customer_id DESC",
 		},
 		{
 			`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
 			`update Orders set created = ? gross = ? payment_type = ? mg_fee = ? fee_collected = ? event = ? status = ? survey_type = ? tx_time_limit = ? invite = ? ip_address = ? currency = ? gross_USD = ? tax_USD = ? journal_activity_id = ? eb_tax = ? eb_tax_USD = ? cart_uuid = ? changed = ? where id = ?`,
+			`update Orders set created = ? gross = ? payment_type = ? mg_fee = ? fee_collected = ? event = ? status = ? survey_type = ? tx_time_limit = ? invite = ? ip_address = ? currency = ? gross_USD = ? tax_USD = ? journal_activity_id = ? eb_tax = ? eb_tax_USD = ? cart_uuid = ? changed = ? where id = ?`,
 		},
 		{
 			`update Attendees set email = '626837270@qq.com', first_name = "贺新春送猪福加企鹅1054948000领98綵斤", last_name = '王子198442com体验猪多优惠', journal_activity_id = 4246684839261125564, changed = "2019-05-24 00:26:22" where id = 123`,
+			`update Attendees set email = ? first_name = ? last_name = ? journal_activity_id = ? changed = ? where id = ?`,
 			`update Attendees set email = ? first_name = ? last_name = ? journal_activity_id = ? changed = ? where id = ?`,
 		},
 		{
 			"SELECT\r\n\t                CodiFormacio\r\n\t                ,DataInici\r\n\t                ,DataFi\r\n\t                ,Tipo\r\n\t                ,CodiTecnicFormador\r\n\t                ,p.nombre AS TutorNombre\r\n\t                ,p.mail AS TutorMail\r\n\t                ,Sessions.Direccio\r\n\t                ,Sessions.NomEmpresa\r\n\t                ,Sessions.Telefon\r\n                FROM\r\n                ----------------------------\r\n                (SELECT\r\n\t                CodiFormacio\r\n\t                ,case\r\n\t                   when ModalitatSessio = '1' then 'Presencial'--Teoria\r\n\t                   when ModalitatSessio = '2' then 'Presencial'--Practica\r\n\t                   when ModalitatSessio = '3' then 'Online'--Tutoria\r\n                       when ModalitatSessio = '4' then 'Presencial'--Examen\r\n\t                   ELSE 'Presencial'\r\n\t                end as Tipo\r\n\t                ,ModalitatSessio\r\n\t                ,DataInici\r\n\t                ,DataFi\r\n                     ,NomEmpresa\r\n\t                ,Telefon\r\n\t                ,CodiTecnicFormador\r\n\t                ,CASE\r\n\t                   WHEn EsAltres = 1 then FormacioLlocImparticioDescripcio\r\n\t                   else Adreca + ' - ' + CodiPostal + ' ' + Poblacio\r\n\t                end as Direccio\r\n\t\r\n                FROM Consultas.dbo.View_AsActiva__FormacioSessions_InfoLlocImparticio) AS Sessions\r\n                ----------------------------------------\r\n                LEFT JOIN Consultas.dbo.View_AsActiva_Operari AS o\r\n\t                ON o.CodiOperari = Sessions.CodiTecnicFormador\r\n                LEFT JOIN MainAPP.dbo.persona AS p\r\n\t                ON 'preven\\' + o.codioperari = p.codi\r\n                WHERE Sessions.CodiFormacio = 'F00000017898'",
 			`SELECT CodiFormacio, DataInici, DataFi, Tipo, CodiTecnicFormador, p.nombre, p.mail, Sessions.Direccio, Sessions.NomEmpresa, Sessions.Telefon FROM ( SELECT CodiFormacio, case when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? ELSE ? end, ModalitatSessio, DataInici, DataFi, NomEmpresa, Telefon, CodiTecnicFormador, CASE WHEn EsAltres = ? then FormacioLlocImparticioDescripcio else Adreca + ? + CodiPostal + ? + Poblacio end FROM Consultas.dbo.View_AsActiva__FormacioSessions_InfoLlocImparticio ) LEFT JOIN Consultas.dbo.View_AsActiva_Operari ON o.CodiOperari = Sessions.CodiTecnicFormador LEFT JOIN MainAPP.dbo.persona ON ? + o.codioperari = p.codi WHERE Sessions.CodiFormacio = ?`,
+			`SELECT CodiFormacio, DataInici, DataFi, Tipo, CodiTecnicFormador, p.nombre, p.mail, Sessions.Direccio, Sessions.NomEmpresa, Sessions.Telefon FROM ( SELECT CodiFormacio, case when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? when ModalitatSessio = ? then ? ELSE ? end, ModalitatSessio, DataInici, DataFi, NomEmpresa, Telefon, CodiTecnicFormador, CASE WHEn EsAltres = ? then FormacioLlocImparticioDescripcio else Adreca + ? + CodiPostal + ? + Poblacio end FROM Consultas.dbo.View_AsActiva__FormacioSessions_InfoLlocImparticio ) LEFT JOIN Consultas.dbo.View_AsActiva_Operari ON o.CodiOperari = Sessions.CodiTecnicFormador LEFT JOIN MainAPP.dbo.persona ON ? + o.codioperari = p.codi WHERE Sessions.CodiFormacio = ?`,
 		},
 		{
 			`SELECT * FROM foo LEFT JOIN bar ON 'backslash\' = foo.b WHERE foo.name = 'String'`,
+			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
 		{
 			`SELECT * FROM foo LEFT JOIN bar ON 'backslash\' = foo.b LEFT JOIN bar2 ON 'backslash2\' = foo.b2 WHERE foo.name = 'String'`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b LEFT JOIN bar2 ON ? = foo.b2 WHERE foo.name = ?",
+			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b LEFT JOIN bar2 ON ? = foo.b2 WHERE foo.name = ?",
 		},
 		{
 			`SELECT * FROM foo LEFT JOIN bar ON 'embedded ''quote'' in string' = foo.b WHERE foo.name = 'String'`,
+			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
 		{
 			`SELECT * FROM foo LEFT JOIN bar ON 'embedded \'quote\' in string' = foo.b WHERE foo.name = 'String'`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
+			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
+		},
+		{
+			"SELECT org_id,metric_key,metric_type,interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(ARRAY[?,?,?,?,?])",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ?, ?, ?, ?, ? ] )",
+			// TODO [justin]: fix so that this test case collapses array args when "?"
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ?, ?, ?, ?, ? ] )",
 		},
 	}
 
 	for _, c := range cases {
-		t.Run("", func(t *testing.T) {
+		t.Run("denormalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
+		})
+		t.Run("normalized", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			cfg := new(config.ObfuscationConfig)
+			cfg.SQL.Normalize = true
+			NewObfuscator(cfg).Obfuscate(s)
+			assert.Equal(t, c.expectedNormalized, s.Resource)
 		})
 	}
 }
@@ -1089,64 +1176,84 @@ func TestMySQLDialect(t *testing.T) {
 		"    ORDER BY `percentile` ASC" +
 		"    LIMIT 1"
 	digestQuery := "SELECT `avg_us` , `ro` AS `percentile` FROM ( SELECT `avg_us` , @? := @? + ? AS `ro` FROM ( SELECT `ROUND` ( `avg_timer_wait` / ? ) AS `avg_us` FROM `performance_schema` . `events_statements_summary_by_digest` ORDER BY `avg_us` ASC ) `p` , ( SELECT @? := ? ) `r` ) `q` WHERE `q` . `ro` > `ROUND` ( ? * @? ) ORDER BY `percentile` ASC LIMIT ?"
-	expectedObf := "SELECT avg_us, ro FROM ( SELECT avg_us, @? := @? + ? FROM ( SELECT ROUND ( avg_timer_wait / ? ) FROM performance_schema.events_statements_summary_by_digest ORDER BY avg_us ASC ) p, ( SELECT @? := ? ) r ) q WHERE q.ro > ROUND ( ? * @? ) ORDER BY percentile ASC LIMIT ?"
+	expectedDenorm := "SELECT avg_us, ro FROM ( SELECT avg_us, @rownum := @rownum + ? FROM ( SELECT ROUND ( avg_timer_wait / ? ) FROM performance_schema.events_statements_summary_by_digest ORDER BY avg_us ASC ) p, ( SELECT @rownum := ? ) r ) q WHERE q. ro > ROUND ( ? * @rownum ) ORDER BY percentile ASC LIMIT ?"
+	expectedDenormDigest := "SELECT avg_us, ro FROM ( SELECT avg_us, @? := @? + ? FROM ( SELECT ROUND ( avg_timer_wait / ? ) FROM performance_schema . events_statements_summary_by_digest ORDER BY avg_us ASC ) p, ( SELECT @? := ? ) r ) q WHERE q . ro > ROUND ( ? * @? ) ORDER BY percentile ASC LIMIT ?"
+	expectedNormalized := "SELECT avg_us, ro FROM ( SELECT avg_us, @? := @? + ? FROM ( SELECT ROUND ( avg_timer_wait / ? ) FROM performance_schema.events_statements_summary_by_digest ORDER BY avg_us ASC ) p, ( SELECT @? := ? ) r ) q WHERE q.ro > ROUND ( ? * @? ) ORDER BY percentile ASC LIMIT ?"
 
-	cases := []sqlTestCase{
+	cases := []sqlTestCaseNormalize{
 		{
 			rawQuery,
-			expectedObf,
+			expectedDenorm,
+			expectedNormalized,
 		},
 		{
 			digestQuery,
-			expectedObf,
+			expectedDenormDigest,
+			expectedNormalized,
 		},
 		{
 			"select count(1) where t.`column` > 1",
+			"select count ( ? ) where t. column > ?",
 			"select count ( ? ) where t.column > ?",
 		},
 		{
 			"EXPLAIN FORMAT=json SELECT schema_name, ROUND((SUM(sum_timer_wait) / SUM(count_star)) / 1000000) AS avg_us FROM performance_schema.events_statements_summary_by_digest GROUP BY schema_name",
 			"EXPLAIN FORMAT = json SELECT schema_name, ROUND ( ( SUM ( sum_timer_wait ) / SUM ( count_star ) ) / ? ) FROM performance_schema.events_statements_summary_by_digest GROUP BY schema_name",
+			"EXPLAIN FORMAT = json SELECT schema_name, ROUND ( ( SUM ( sum_timer_wait ) / SUM ( count_star ) ) / ? ) FROM performance_schema.events_statements_summary_by_digest GROUP BY schema_name",
 		},
 		{
 			"select @@hostname",
+			"select @@ hostname",
 			"select @@ hostname",
 		},
 		{
 			"SET @@SESSION.max_join_size = @@GLOBAL.max_join_size",
 			"SET @@ SESSION.max_join_size = @@ GLOBAL.max_join_size",
+			"SET @@ SESSION.max_join_size = @@ GLOBAL.max_join_size",
 		},
 		{
 			"PREPARE stmt1 FROM 'SELECT SQRT(POW(?,2) + POW(?,2)) AS hypotenuse'",
 			"PREPARE stmt1 FROM ?",
+			"PREPARE stmt1 FROM ?",
 		},
 		{
 			"EXECUTE stmt1 USING @a, @b;",
+			"EXECUTE stmt1 USING @a, @b",
 			"EXECUTE stmt1 USING @?, @?",
 		},
 		{
 			"SET @total_tax = (SELECT SUM(tax) FROM taxable_transactions);",
+			"SET @total_tax = ( SELECT SUM ( tax ) FROM taxable_transactions )",
 			"SET @? = ( SELECT SUM ( tax ) FROM taxable_transactions )",
 		},
 	}
 
 	for _, c := range cases {
-		t.Run("", func(t *testing.T) {
+		t.Run("denormalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
+		})
+		t.Run("normalized", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			cfg := new(config.ObfuscationConfig)
+			cfg.SQL.Normalize = true
+			NewObfuscator(cfg).Obfuscate(s)
+			assert.Equal(t, c.expectedNormalized, s.Resource)
 		})
 	}
 }
 
 func TestPostgreSQLDialect(t *testing.T) {
-	cases := []sqlTestCase{
+	cases := []sqlTestCaseNormalize{
 		{
 			"select (ARRAY[1464816152000]::bigint[] <@ ARRAY[1464816152000,1466906028002]::bigint[])::boolean;",
+			"select ( ARRAY [ ? ] ::bigint [ ] <@ ARRAY [ ? ] ::bigint [ ] ) ::boolean",
 			"select ( ARRAY [ ? ] ::bigint [ ] <@ ARRAY [ ? ] ::bigint [ ] ) ::boolean",
 		},
 		{
 			"select (ARRAY[1464816152000]::bigint[] @> ARRAY[1464816152000,1466906028002]::bigint[])::boolean;",
+			"select ( ARRAY [ ? ] ::bigint [ ] @> ARRAY [ ? ] ::bigint [ ] ) ::boolean",
 			"select ( ARRAY [ ? ] ::bigint [ ] @> ARRAY [ ? ] ::bigint [ ] ) ::boolean",
 		},
 	}
@@ -1157,21 +1264,31 @@ func TestPostgreSQLDialect(t *testing.T) {
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
 		})
+		t.Run("", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			cfg := new(config.ObfuscationConfig)
+			cfg.SQL.Normalize = true
+			NewObfuscator(cfg).Obfuscate(s)
+			assert.Equal(t, c.expectedNormalized, s.Resource)
+		})
 	}
 }
 
 func TestOracleDialect(t *testing.T) {
-	cases := []sqlTestCase{
+	cases := []sqlTestCaseNormalize{
 		{
+			"@EMPRPT.SQL",
 			"@EMPRPT.SQL",
 			"@?",
 		},
 		{
 			"@@ WKRPT.SQL",
 			"@@ WKRPT.SQL",
+			"@@ WKRPT.SQL",
 		},
 		{
 			"@@WKRPT.SQL",
+			"@@ WKRPT.SQL",
 			"@@ WKRPT.SQL",
 		},
 	}
@@ -1181,6 +1298,13 @@ func TestOracleDialect(t *testing.T) {
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
+		})
+		t.Run("", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			cfg := new(config.ObfuscationConfig)
+			cfg.SQL.Normalize = true
+			NewObfuscator(cfg).Obfuscate(s)
+			assert.Equal(t, c.expectedNormalized, s.Resource)
 		})
 	}
 }

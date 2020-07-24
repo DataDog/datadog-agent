@@ -189,13 +189,12 @@ func (f *groupingFilter) Reset() {
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
-	newNorm := config.HasFeature("new_sql_normalization")
-	tok := NewSQLTokenizer(in, lesc, newNorm)
+	tok := NewSQLTokenizer(in, lesc, o.opts.SQL.Normalize)
 	out, err := attemptObfuscation(tok)
 	if err != nil && tok.SeenEscape() {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
-		tok = NewSQLTokenizer(in, !lesc, newNorm)
+		tok = NewSQLTokenizer(in, !lesc, o.opts.SQL.Normalize)
 		if out, err2 := attemptObfuscation(tok); err2 == nil {
 			// If the second attempt succeeded, change the default behavior so that
 			// on the next run we get it right in the first run.
