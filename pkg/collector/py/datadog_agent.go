@@ -82,8 +82,8 @@ func GetClusterName(self *C.PyObject, args *C.PyObject) *C.PyObject {
 func GetPid(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	pid := os.Getpid()
 
-	cStr := C.CString(pid)
-	pyStr := C.PyInt_FromString(cStr)
+	cStr := C.CString(string(pid))
+	pyStr := C.PyString_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
 }
@@ -101,8 +101,8 @@ func GetCreateTime(self *C.PyObject, args *C.PyObject) *C.PyObject {
 		}
 	}
 
-	cStr := C.CString(createTime)
-	pyStr := C.PyLong_FromString(cStr)
+	cStr := C.CString(string(createTime))
+	pyStr := C.PyString_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
 }
