@@ -726,6 +726,11 @@ func TestEvalIterable(t *testing.T) {
 			expectResult: true,
 		},
 		{
+			name:         "count everything",
+			expression:   `count(_) == 3`,
+			expectResult: true,
+		},
+		{
 			name:        "count invalid comparison",
 			expression:  `count(file.permissions == 0644) == "yes"`,
 			expectError: newLexerError(0, `expecting an integer rhs for iterable comparison using "count()"`),
