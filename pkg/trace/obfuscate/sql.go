@@ -320,7 +320,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 					fallthrough
 				default:
 					// Tokens should be space-separated; new SQL normalization does not
-					// separate periods or
+					// separate periods or @-bind vars
 					if tokenizer.newSQLNormalization {
 						if token == '.' {
 							break
