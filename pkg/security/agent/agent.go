@@ -7,7 +7,7 @@ package agent
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -38,7 +38,12 @@ func NewRuntimeSecurityAgent() (*RuntimeSecurityAgent, error) {
 		return nil, err
 	}
 
-	path := fmt.Sprintf("unix://%s", coreconfig.Datadog.GetString("runtime_security_config.socket"))
+	socketPath := coreconfig.Datadog.GetString("runtime_security_config.socket")
+	if socketPath == "" {
+		return nil, errors.New("runtime_security_config.socket must be set")
+	}
+
+	path := "unix://" + socketPath
 	conn, err := grpc.Dial(path, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
