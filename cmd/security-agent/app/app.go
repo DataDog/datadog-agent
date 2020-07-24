@@ -261,15 +261,28 @@ func startCompliance(stopper restart.Stopper) error {
 		return err
 	}
 
-	agent, err := agent.New(
-		reporter,
-		scheduler,
-		configDir,
+	options := []checks.BuilderOption{
 		checks.WithInterval(checkInterval),
 		checks.WithHostname(hostname),
 		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 		checks.MayFail(checks.WithDocker()),
 		checks.MayFail(checks.WithAudit()),
+	}
+
+	if coreconfig.IsKubernetes() {
+		nodeLabels, err := agent.WaitGetNodeLabels()
+		if err != nil {
+			log.Error(err)
+		} else {
+			options = append(options, checks.WithNodeLabels(nodeLabels))
+		}
+	}
+
+	agent, err := agent.New(
+		reporter,
+		scheduler,
+		configDir,
+		options...,
 	)
 	if err != nil {
 		log.Errorf("Compliance agent failed to initialize: %v", err)

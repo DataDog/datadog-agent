@@ -20,10 +20,9 @@ func TestParseSuite(t *testing.T) {
 		},
 		Rules: []Rule{
 			{
-				ID: "cis-docker-1",
-				Scope: Scope{
-					Docker: true,
-				},
+				ID:           "cis-docker-1",
+				Scope:        RuleScopeList{DockerScope},
+				HostSelector: `"foo" in node.labels`,
 				Resources: []Resource{
 					{
 						File: &File{

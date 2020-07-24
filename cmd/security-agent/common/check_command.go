@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -74,6 +73,15 @@ func runCheck(cmd *cobra.Command, confPath *string, args []string) error {
 			checks.MayFail(checks.WithDocker()),
 			checks.MayFail(checks.WithAudit()),
 		}...)
+
+		if config.IsKubernetes() {
+			nodeLabels, err := agent.WaitGetNodeLabels()
+			if err != nil {
+				log.Error(err)
+			} else {
+				options = append(options, checks.WithNodeLabels(nodeLabels))
+			}
+		}
 	}
 
 	err := common.SetupConfig(*confPath)
@@ -106,7 +114,7 @@ func runCheck(cmd *cobra.Command, confPath *string, args []string) error {
 	if checkArgs.file != "" {
 		err = agent.RunChecksFromFile(reporter, checkArgs.file, options...)
 	} else {
-		configDir := coreconfig.Datadog.GetString("compliance_config.dir")
+		configDir := config.Datadog.GetString("compliance_config.dir")
 		err = agent.RunChecks(reporter, configDir, options...)
 	}
 
