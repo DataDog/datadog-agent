@@ -899,6 +899,9 @@ api_key:
 
 ##########################################
 ## Security Agent Runtime Configuration ##
+##                                      ##
+## Settings to sent logs to DataDog are ##
+## fetched from section `logs_config`   ##
 ##########################################
 
 # runtime_security_config:
@@ -906,6 +909,11 @@ api_key:
   ## Set to true to enable the Security Runtime Module.
   #
   # enabled: false
+
+  ## @param debug - boolean - optional - default: false
+  ## Enable debug mode.
+  #
+  # debug: false
 
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
@@ -920,6 +928,11 @@ api_key:
     ## Path from where the policy files will be loaded
     #
     dir: /etc/datadog-agent/runtime_security_agent.d
+
+  ## @param enable_kernel_filters - boolean - optional - default: true
+  ## Enable filtering events from the kernel
+  #
+  # enable_kernel_filters: true
 
   ## @param syscall_monitor - custom object - optional
   ## Syscall monitoring
