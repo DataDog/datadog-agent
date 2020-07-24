@@ -181,11 +181,9 @@ def update_job_status(jobs, job_status):
     for job in jobs:
         if job_status.get(job['name'], None) is None:
             job_status[job['name']] = job
-            # If it's already finished, add it to the jobs to print
-            if job['status'] in ['running', 'success', 'canceled', 'failed']:
-                notify[job['id']] = job
+            notify[job['id']] = job
         else:
-            # There are two reasons why we want tp notify:
+            # There are two reasons why we want to notify:
             # - status change on job (when we refresh)
             # - another job with the same name exists (when a job is retried)
             # Check for id to see if we're in the first case.
@@ -270,7 +268,7 @@ def print_job_status(job):
         date = job['started_at']
         color = 'blue'
     else:
-        return False
+        return
 
     # Some logic to print the retry message in the correct order (before the new job or after the old job)
     if job.get('retried_new', None) is not None:
