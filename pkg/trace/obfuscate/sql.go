@@ -160,10 +160,6 @@ func (f *groupingFilter) Filter(token, lastToken TokenKind, buffer []byte) (toke
 		f.groupMulti++
 	}
 
-	if lastToken == Array && token == '[' {
-		return FilteredGroupable, buffer, nil
-	}
-
 	switch {
 	case token == FilteredGroupable:
 		// the previous filter has dropped this token so we should start
