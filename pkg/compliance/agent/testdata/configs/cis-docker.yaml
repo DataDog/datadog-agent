@@ -4,10 +4,10 @@ version: 1.2.0
 rules:
 - id: cis-docker-1
   scope:
-    docker: true
+    - docker
   resources:
-  - file:
-      path: /files/daemon.json
-    condition: file.permissions == 0644
+    - file:
+        path: /files/daemon.json
+      condition: file.permissions == 0644
 
 
