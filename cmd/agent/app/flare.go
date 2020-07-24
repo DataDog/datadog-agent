@@ -24,8 +24,7 @@ import (
 )
 
 var (
-	cpuProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=%d",
-		config.Datadog.GetString("expvar_port"), profiling)
+	cpuProfURL  string
 	heapProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap?debug=2",
 		config.Datadog.GetString("expvar_port"))
 
@@ -100,12 +99,13 @@ func makeFlare(caseID string) error {
 	defer os.RemoveAll(profileDir)
 
 	if profiling >= 30 {
-		fmt.Fprintln(color.Output, color.BlueString("Creating a %d second performance profile.", profiling))
+		fmt.Fprintln(color.Output, color.BlueString("Creating a %ds performance profile.", profiling))
 		if err := writePerformanceProfile(profileDir); err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
 			return err
 		}
 	} else {
+		fmt.Fprintln(color.Output, color.YellowString("Profiling not configured or below 30 seconds, skipping it."))
 		profileDir = ""
 	}
 
@@ -153,7 +153,7 @@ func requestArchive(logFile, profileDir string) (string, error) {
 		return createArchive(logFile, profileDir)
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare%v", ipcAddress, config.Datadog.GetInt("cmd_port"), profileDir)
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare?profileDir=%v", ipcAddress, config.Datadog.GetInt("cmd_port"), profileDir)
 
 	// Set session token
 	e = util.SetAuthToken()

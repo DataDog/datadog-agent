@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"path/filepath"
 	"sort"
 
 	"github.com/gorilla/mux"
@@ -41,8 +40,7 @@ import (
 func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
-	r.HandleFunc("/flare/tmp/{profileDir}", makeFlare).Methods("POST")
+	r.HandleFunc("/flare", makeFlare).Methods("POST").Queries("profileDir", "{path:.*}")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
@@ -82,12 +80,8 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	profileDir, ok := vars["profileDir"]
-
-	if ok {
-		profileDir = filepath.Join("/tmp", profileDir)
-	}
+	queryVals := r.URL.Query()
+	profileDir := queryVals.Get("profileDir")
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {

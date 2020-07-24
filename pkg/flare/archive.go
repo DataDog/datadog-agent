@@ -91,12 +91,7 @@ type filePermsInfo struct {
 
 // EnsureParentDirsExist creates the parent directory for the filepath `p` if it does not already exist.
 func EnsureParentDirsExist(p string) error {
-	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return os.MkdirAll(filepath.Dir(p), os.ModePerm)
 }
 
 // CreateTempDir creates a temporary directory in the current working directory.
@@ -770,38 +765,9 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 }
 
 func zipPerformanceProfile(tempDir, hostname, profileDir string) error {
-	srcHeapPath := filepath.Join(profileDir, HeapProfileName)
-	srcHeapProfile, err := os.OpenFile(srcHeapPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
+	flarePath := filepath.Join(tempDir, hostname)
 
-	srcCPUPath := filepath.Join(profileDir, CPUProfileName)
-	srcCPUProfile, err := os.OpenFile(srcCPUPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	dstHeapPath := filepath.Join(tempDir, hostname, HeapProfileName)
-	dstHeapProfile, err := os.OpenFile(dstHeapPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	dstCPUPath := filepath.Join(tempDir, hostname, CPUProfileName)
-	dstCPUProfile, err := os.OpenFile(dstCPUPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	_, err = io.Copy(dstHeapProfile, srcHeapProfile)
-	if err != nil {
-		return err
-	}
-
-	_, err = io.Copy(dstCPUProfile, srcCPUProfile)
-
-	return err
+	return util.CopyDir(profileDir, flarePath)
 }
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
