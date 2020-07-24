@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	// FirstHeapProfileName is the name of the heap profile file.
+	// HeapProfileName is the name of the heap profile file.
 	HeapProfileName = "heap_profile.log"
 	// CPUProfileName is the name of the CPU profile file.
 	CPUProfileName = "cpu_profile.pprof"
