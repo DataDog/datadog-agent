@@ -54,16 +54,16 @@ runtime_security_config:
 `
 
 const testPolicy = `---
+macros:
 {{range $Macro := .Macros}}
-- macro:
-    id: {{$Macro.ID}}
+  - id: {{$Macro.ID}}
     expression: >-
       {{$Macro.Expression}}
 {{end}}
 
+rules:
 {{range $Rule := .Rules}}
-- rule:
-    id: {{$Rule.ID}}
+  - id: {{$Rule.ID}}
     expression: >-
       {{$Rule.Expression}}
 {{end}}
