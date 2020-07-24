@@ -1,34 +1,32 @@
-- rule:
-    id: credential_modified
+---
+version: 1.0.0
+rules:
+  - id: credential_modified
     description: credential files modified using unknown tool
     expression: >-
       (open.filename == "/etc/shadow" || open.filename == "/etc/gshadow") &&
       process.name not in ["vipw", "vigr"]
     tags:
       mitre: T1003
-- rule:
-    id: memory_dump
+  - id: memory_dump
     description: memory dump
     expression: >-
       open.filename =~ "/proc/*" && open.basename in ["maps", "mem"]
     tags:
       mitre: T1003
-- rule:
-    id: logs_altered
+  - id: logs_altered
     description: log entries removed
     expression: >-
       (open.filename =~ "/var/log/*" && open.flags & O_TRUNC > 0)
     tags:
       mitre: T1070
-- rule:
-    id: logs_removed
+  - id: logs_removed
     description: log entries removed
     expression: >-
       unlink.filename =~ "/var/log/*"
     tags:
       mitre: T1070
-- rule:
-    id: permissions_changed
+  - id: permissions_changed
     description: permissions change on sensible files
     expression: >-
       chmod.filename =~ "/etc/*" || chmod.filename =~ "/etc/*" ||
@@ -37,15 +35,13 @@
       chmod.filename =~ "/var/log/*" || chmod.filename =~ "/usr/lib/*"
     tags:
       mitre: T1099
-- rule:
-    id: hidden_file
+  - id: hidden_file
     description: hidden file creation
     expression: >-
       open.basename =~ ".*" && open.flags & O_CREAT > 0
     tags:
       mitre: T1158
-- rule:
-    id: kernel_module
+  - id: kernel_module
     description: new file in kernel module location
     expression: >-
       open.filename =~ "/lib/modules/*" && open.flags & O_CREAT > 0
