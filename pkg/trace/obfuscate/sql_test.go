@@ -615,6 +615,34 @@ ORDER BY [b].[Name]`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
 		{
+			"SELECT COUNT ( * ) AS `count_1` FROM ( SELECT `customer` . `id_` AS `customer_id_` FROM `customer` ) AS `anon_1`",
+			"SELECT COUNT ( * ) FROM ( SELECT customer . id_ FROM customer )",
+			"SELECT COUNT ( * ) FROM ( SELECT customer.id_ FROM customer )",
+		},
+		{
+			`DELETE FROM t1
+			WHERE s11 > ANY
+			 (SELECT COUNT(*) /* no hint */ FROM t2
+			  WHERE NOT EXISTS
+			   (SELECT * FROM t3
+				WHERE ROW(5*t2.s1,77)=
+				 (SELECT 50,11*s1 FROM t4 UNION SELECT 50,77 FROM
+				  (SELECT * FROM t5) AS t5)));`,
+			"DELETE FROM t1 WHERE s11 > ANY ( SELECT COUNT ( * ) FROM t2 WHERE NOT EXISTS ( SELECT * FROM t3 WHERE ROW ( ? * t2.s1, ? ) = ( SELECT ? * s1 FROM t4 UNION SELECT ? FROM ( SELECT * FROM t5 ) ) ) )",
+			"DELETE FROM t1 WHERE s11 > ANY ( SELECT COUNT ( * ) FROM t2 WHERE NOT EXISTS ( SELECT * FROM t3 WHERE ROW ( ? * t2.s1, ? ) = ( SELECT ? * s1 FROM t4 UNION SELECT ? FROM ( SELECT * FROM t5 ) ) ) )",
+		},
+		{
+			`WITH RECURSIVE cte AS
+			(
+			  SELECT 1 AS n, 'abc' AS str
+			  UNION ALL
+			  SELECT n + 1, CONCAT(str, str) FROM cte WHERE n < 3
+			)
+			SELECT * FROM cte;`,
+			"WITH RECURSIVE cte SELECT ?, ? UNION ALL SELECT n + ? CONCAT ( str, str ) FROM cte WHERE n < ? ) SELECT * FROM cte",
+			"WITH RECURSIVE cte ( SELECT ?, ? UNION ALL SELECT n + ? CONCAT ( str, str ) FROM cte WHERE n < ? ) SELECT * FROM cte",
+		},
+		{
 			"SELECT org_id,metric_key,metric_type,interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(ARRAY[?,?,?,?,?])",
 			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ?, ?, ?, ?, ? ] )",
 			// TODO [justin]: fix so that this test case collapses array args when "?"
@@ -1256,15 +1284,102 @@ func TestPostgreSQLDialect(t *testing.T) {
 			"select ( ARRAY [ ? ] ::bigint [ ] @> ARRAY [ ? ] ::bigint [ ] ) ::boolean",
 			"select ( ARRAY [ ? ] ::bigint [ ] @> ARRAY [ ? ] ::bigint [ ] ) ::boolean",
 		},
+		{
+			`CREATE FUNCTION check_password(uname TEXT, pass TEXT)
+			RETURNS BOOLEAN
+			DECLARE passed BOOLEAN;`,
+			"CREATE FUNCTION check_password ( uname TEXT, pass TEXT ) RETURNS BOOLEAN DECLARE passed BOOLEAN",
+			"CREATE FUNCTION check_password ( uname TEXT, pass TEXT ) RETURNS BOOLEAN DECLARE passed BOOLEAN",
+		},
 	}
 
 	for _, c := range cases {
-		t.Run("", func(t *testing.T) {
+		t.Run("denormalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
 		})
-		t.Run("", func(t *testing.T) {
+		t.Run("normalized", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			cfg := new(config.ObfuscationConfig)
+			cfg.SQL.Normalize = true
+			NewObfuscator(cfg).Obfuscate(s)
+			assert.Equal(t, c.expectedNormalized, s.Resource)
+		})
+	}
+}
+
+func TestSQLServerDialect(t *testing.T) {
+	cases := []sqlTestCaseNormalize{
+		{
+			"select @@language  AS DefaultLanguage",
+			"select @@ language",
+			"select @@ language",
+		},
+		{
+			`;WITH months(MonthNumber) AS
+			(
+				SELECT 0
+				UNION ALL
+				SELECT MonthNumber+1
+				FROM months
+				WHERE MonthNumber < 12
+			)
+			SELECT DATENAME(MONTH,DATEADD(MONTH,-MonthNumber,GETDATE())) AS [MonthName],Datepart(MONTH,DATEADD(MONTH,-MonthNumber,GETDATE())) AS MonthNumber
+			FROM months
+			ORDER BY Datepart(MONTH,DATEADD(MONTH,-MonthNumber,GETDATE()))`,
+			"WITH months ( MonthNumber ) SELECT ? UNION ALL SELECT MonthNumber + ? FROM months WHERE MonthNumber < ? ) SELECT DATENAME ( MONTH, DATEADD ( MONTH, - MonthNumber, GETDATE ( ) ) ), Datepart ( MONTH, DATEADD ( MONTH, - MonthNumber, GETDATE ( ) ) ) FROM months ORDER BY Datepart ( MONTH, DATEADD ( MONTH, - MonthNumber, GETDATE ( ) ) )",
+			"WITH months ( MonthNumber ) ( SELECT ? UNION ALL SELECT MonthNumber + ? FROM months WHERE MonthNumber < ? ) SELECT DATENAME ( MONTH, DATEADD ( MONTH, - MonthNumber, GETDATE ( ) ) ), Datepart ( MONTH, DATEADD ( MONTH, - MonthNumber, GETDATE ( ) ) ) FROM months ORDER BY Datepart ( MONTH, DATEADD ( MONTH, - MonthNumber, GETDATE ( ) ) )",
+		},
+		{
+			"EXEC sys.sp_MSforeachtable @command1 = 'Drop Table ?'",
+			"EXEC sys.sp_MSforeachtable @command1 = ?",
+			"EXEC sys.sp_MSforeachtable @? = ?",
+		},
+		{
+			`-- Compare Rohan's Driving Score with Shreya's Driving Score
+			SELECT  p.fullname, dr.Rank, dr.Rating, dr.overall_score, dr.Trend
+			FROM	Person p, has_score h, DriveScore dr
+			WHERE	MATCH(p-(h)->dr)
+			AND		p.PersonID = 81 -- Rohan
+			UNION
+			SELECT  p.fullname, dr.Rank, dr.Rating, dr.overall_score, dr.Trend
+			FROM	Person p, has_score h, DriveScore dr
+			WHERE	MATCH(p-(h)->dr)
+			AND		p.PersonID = 85 -- Shreya
+			`,
+			"SELECT p.fullname, dr.Rank, dr.Rating, dr.overall_score, dr.Trend FROM Person p, has_score h, DriveScore dr WHERE MATCH ( p - ( h ) - > dr ) AND p.PersonID = ? UNION SELECT p.fullname, dr.Rank, dr.Rating, dr.overall_score, dr.Trend FROM Person p, has_score h, DriveScore dr WHERE MATCH ( p - ( h ) - > dr ) AND p.PersonID = ?",
+			"SELECT p.fullname, dr.Rank, dr.Rating, dr.overall_score, dr.Trend FROM Person p, has_score h, DriveScore dr WHERE MATCH ( p - ( h ) - > dr ) AND p.PersonID = ? UNION SELECT p.fullname, dr.Rank, dr.Rating, dr.overall_score, dr.Trend FROM Person p, has_score h, DriveScore dr WHERE MATCH ( p - ( h ) - > dr ) AND p.PersonID = ?",
+		},
+		{
+			"SELECT @hid = hierarchyid::GetRoot();",
+			"SELECT @hid = hierarchyid ::GetRoot ( )",
+			"SELECT @? = hierarchyid ::GetRoot ( )",
+		},
+		{
+			`GO SELECT VendorID, [250] AS Emp1, [251] AS Emp2, [256] AS Emp3, [257] AS Emp4, [260] AS Emp5
+			FROM (
+				SELECT PurchaseOrderID, EmployeeID, VendorID
+				FROM Purchasing.PurchaseOrderHeader) p
+			PIVOT
+			(
+				COUNT (PurchaseOrderID)
+				FOR EmployeeID IN
+				( [250], [251], [256], [257], [260] )
+			) AS pvt
+			ORDER BY pvt.VendorID;`,
+			"GO SELECT VendorID, [ ? ], [ ? ], [ ? ], [ ? ], [ ? ] FROM ( SELECT PurchaseOrderID, EmployeeID, VendorID FROM Purchasing.PurchaseOrderHeader ) p PIVOT ( COUNT ( PurchaseOrderID ) FOR EmployeeID IN ( [ ? ], [ ? ], [ ? ], [ ? ], [ ? ] ) ) ORDER BY pvt.VendorID",
+			"GO SELECT VendorID, [ ? ], [ ? ], [ ? ], [ ? ], [ ? ] FROM ( SELECT PurchaseOrderID, EmployeeID, VendorID FROM Purchasing.PurchaseOrderHeader ) p PIVOT ( COUNT ( PurchaseOrderID ) FOR EmployeeID IN ( [ ? ], [ ? ], [ ? ], [ ? ], [ ? ] ) ) ORDER BY pvt.VendorID",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run("denormalized", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			NewObfuscator(nil).Obfuscate(s)
+			assert.Equal(t, c.expected, s.Resource)
+		})
+		t.Run("normalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
 			cfg := new(config.ObfuscationConfig)
 			cfg.SQL.Normalize = true
