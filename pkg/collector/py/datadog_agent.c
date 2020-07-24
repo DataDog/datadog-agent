@@ -20,6 +20,8 @@ PyObject* GetVersion(PyObject *self, PyObject *args);
 PyObject* Headers(PyObject *self, PyObject *args);
 PyObject* GetHostname(PyObject *self, PyObject *args);
 PyObject* GetClusterName(PyObject *self, PyObject *args);
+PyObject* GetPid(PyObject *self, PyObject *args);
+PyObject* GetCreateTime(PyObject *self, PyObject *args);
 PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 PyObject* GetSubprocessOutput(char **args, int argc, int raise);
