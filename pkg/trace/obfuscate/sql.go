@@ -127,6 +127,12 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		return token, buffer, nil
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
 		return FilteredGroupable, []byte("?"), nil
+	case '?':
+		// Cases like 'ARRAY [ ?, ?]' should be collapsed into 'ARRAY [ ? ]'
+		if f.newSQLNormalization {
+			return FilteredGroupable, []byte("?"), nil
+		}
+		fallthrough
 	default:
 		return token, buffer, nil
 	}
@@ -146,11 +152,16 @@ type groupingFilter struct {
 // has been recognized. A grouping is composed by items like:
 //   * '( ?, ?, ? )'
 //   * '( ?, ? ), ( ?, ? )'
+//   * 'ARRAY [ ?, ?, ?]'
 func (f *groupingFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	// increasing the number of groups means that we're filtering an entire group
 	// because it can be represented with a single '( ? )'
 	if (lastToken == '(' && token == FilteredGroupable) || (token == '(' && f.groupMulti > 0) {
 		f.groupMulti++
+	}
+
+	if lastToken == Array && token == '[' {
+		return FilteredGroupable, buffer, nil
 	}
 
 	switch {

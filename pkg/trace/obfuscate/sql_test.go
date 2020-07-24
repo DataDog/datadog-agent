@@ -645,8 +645,7 @@ ORDER BY [b].[Name]`,
 		{
 			"SELECT org_id,metric_key,metric_type,interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(ARRAY[?,?,?,?,?])",
 			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ?, ?, ?, ?, ? ] )",
-			// TODO [justin]: fix so that this test case collapses array args when "?"
-			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ?, ?, ?, ?, ? ] )",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ? ] )",
 		},
 	}
 
@@ -1290,6 +1289,24 @@ func TestPostgreSQLDialect(t *testing.T) {
 			DECLARE passed BOOLEAN;`,
 			"CREATE FUNCTION check_password ( uname TEXT, pass TEXT ) RETURNS BOOLEAN DECLARE passed BOOLEAN",
 			"CREATE FUNCTION check_password ( uname TEXT, pass TEXT ) RETURNS BOOLEAN DECLARE passed BOOLEAN",
+		},
+		{
+			`INSERT INTO sal_emp
+			VALUES ('Carol',
+			ARRAY[20000, 25000, 25000, 25000],
+			ARRAY[['breakfast', 'consulting'], ['meeting', 'lunch']]);`,
+			"INSERT INTO sal_emp VALUES ( ? ARRAY [ ? ], ARRAY [ [ ? ], [ ? ] ] )",
+			"INSERT INTO sal_emp VALUES ( ? ARRAY [ ? ], ARRAY [ [ ? ], [ ? ] ] )",
+		},
+		{
+			"SELECT array_dims(ARRAY[1,2] || ARRAY[[3,4],[5,6]]);",
+			"SELECT array_dims ( ARRAY [ ? ] || ARRAY [ [ ? ], [ ? ] ] )",
+			"SELECT array_dims ( ARRAY [ ? ] || ARRAY [ [ ? ], [ ? ] ] )",
+		},
+		{
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ?, ?, ?, ?, ? ] )",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ?, ?, ?, ?, ? ] )",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ? ] )",
 		},
 	}
 

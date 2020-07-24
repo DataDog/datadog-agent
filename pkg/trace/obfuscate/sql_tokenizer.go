@@ -57,7 +57,9 @@ const (
 	NE
 	Contains
 	ContainedBy
+	Concat
 	As
+	Array
 	From
 	Update
 	Insert
@@ -126,6 +128,7 @@ var keywords = map[string]TokenKind{
 	"INSERT":    Insert,
 	"INTO":      Into,
 	"JOIN":      Join,
+	"ARRAY":     Array,
 }
 
 // Err returns the last error that the tokenizer encountered, or nil.
@@ -161,7 +164,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return tkn.scanBindVar(':', BindParameterColon)
 			}
 			fallthrough
-		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '~', '[', ']', '?':
+		case '=', ',', ';', '(', ')', '+', '*', '&', '^', '~', '[', ']', '?':
+			return TokenKind(ch), runeBytes(ch)
+		case '|':
+			if tkn.lastChar == '|' {
+				tkn.next()
+				return Concat, []byte("||")
+			}
 			return TokenKind(ch), runeBytes(ch)
 		case '@':
 			switch tkn.lastChar {
