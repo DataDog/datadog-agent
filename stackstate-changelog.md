@@ -1,5 +1,17 @@
 # StackState Agent v2 releases
 
+## 2.7.0 (2020-07-27)
+
+**Features**
+
+- Adds OpenMetrics integration [(STAC-9940)](https://stackstate.atlassian.net/browse/STAC-9940)
+- ServiceNow reports and filters certain resource types and relations on the basis of configuration defined. Identifiers added for merging with other integrations. ServiceNow Integration reports all resource types by default. [(STAC-9512)](https://stackstate.atlassian.net/browse/STAC-9512)
+- Migrated Nagios Integration to Agent V2. Nagios check gathers topology and metrics from your Nagios instance. [(STAC-8556)](https://stackstate.atlassian.net/browse/STAC-8556)
+
+**Bugfix**
+
+- vSphere integration should continue even if metadata is not present or throws an exception. [(STAC-9373)](https://stackstate.atlassian.net/browse/STAC-9373)
+
 ## 2.6.0 (2020-07-02)
 
 **Features**
