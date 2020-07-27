@@ -438,7 +438,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	subtraces := ExtractSubtraces(trace, traceutil.GetRoot(trace))
 	sublayers := make(map[*pb.Span][]SublayerValue)
 	for _, subtrace := range subtraces {
-		subtraceSublayers := ComputeSublayers(subtrace.Trace)
+		subtraceSublayers := NewSublayerCalculator().ComputeSublayers(subtrace.Trace)
 		sublayers[subtrace.Root] = subtraceSublayers
 	}
 
@@ -565,7 +565,7 @@ func TestConcentratorAddNow(t *testing.T) {
 			subtraces := ExtractSubtraces(test.in, traceutil.GetRoot(test.in))
 			sublayers := make(map[*pb.Span][]SublayerValue)
 			for _, subtrace := range subtraces {
-				subtraceSublayers := ComputeSublayers(subtrace.Trace)
+				subtraceSublayers := NewSublayerCalculator().ComputeSublayers(subtrace.Trace)
 				sublayers[subtrace.Root] = subtraceSublayers
 			}
 			testTrace.Sublayers = sublayers

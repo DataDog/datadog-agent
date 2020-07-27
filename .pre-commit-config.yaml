@@ -1,5 +1,5 @@
 default_language_version:
-  python: 3.8.3
+  python: python3.8
 
 repos:
 - repo: https://gitlab.com/pycqa/flake8
@@ -17,3 +17,24 @@ repos:
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
+- repo: local
+  hooks:
+    - id: golint
+      name: golint
+      description: golint
+      entry: 'python3 tasks/git-hooks/golint.py'
+      language: system
+      files: \.go$
+    - id: govet
+      name: govet
+      description: go vet
+      entry: 'python3 tasks/git-hooks/govet.py'
+      language: system
+      require_serial: true
+      files: \.go$
+    - id: gofmt
+      name: gofmt
+      description: go fmt
+      entry: 'python3 tasks/git-hooks/gofmt.py'
+      language: system
+      files: \.go$

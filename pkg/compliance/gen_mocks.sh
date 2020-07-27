@@ -1,2 +1,2 @@
 #!/bin/bash
-mockery -case snake -all
+mockery --case snake --all

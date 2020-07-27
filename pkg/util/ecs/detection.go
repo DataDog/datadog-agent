@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,14 +22,11 @@ const (
 	isFargateInstanceCacheKey      = "IsFargateInstanceCacheKey"
 	hasFargateResourceTagsCacheKey = "HasFargateResourceTagsCacheKey"
 	hasEC2ResourceTagsCacheKey     = "HasEC2ResourceTagsCacheKey"
-
-	// CloudProviderName contains the inventory name of for ECS
-	CloudProviderName = "AWS"
 )
 
 // IsECSInstance returns whether the agent is running in ECS.
 func IsECSInstance() bool {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return false
 	}
 	_, err := ecsmeta.V1()
@@ -40,7 +38,7 @@ func IsECSInstance() bool {
 // This function identifies Fargate on ECS only. Make sure to use the Fargate pkg
 // to identify Fargate instances in other orchestrators (e.g EKS Fargate)
 func IsFargateInstance() bool {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return false
 	}
 	return queryCacheBool(isFargateInstanceCacheKey, func() (bool, time.Duration) {
@@ -54,7 +52,13 @@ func IsFargateInstance() bool {
 			return newBoolEntry(false)
 		}
 
-		_, err := ecsmeta.V2().GetTask()
+		client, err := ecsmeta.V2()
+		if err != nil {
+			log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+			return newBoolEntry(false)
+		}
+
+		_, err = client.GetTask()
 		if err != nil {
 			log.Debug(err)
 			return newBoolEntry(false)
@@ -72,7 +76,7 @@ func IsRunningOn() bool {
 // HasEC2ResourceTags returns whether the metadata endpoint in ECS exposes
 // resource tags.
 func HasEC2ResourceTags() bool {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return false
 	}
 	return queryCacheBool(hasEC2ResourceTagsCacheKey, func() (bool, time.Duration) {
@@ -89,13 +93,19 @@ func HasEC2ResourceTags() bool {
 // exposes resource tags.
 func HasFargateResourceTags() bool {
 	return queryCacheBool(hasFargateResourceTagsCacheKey, func() (bool, time.Duration) {
-		_, err := ecsmeta.V2().GetTaskWithTags()
+		client, err := ecsmeta.V2()
+		if err != nil {
+			log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+			return newBoolEntry(false)
+		}
+
+		_, err = client.GetTaskWithTags()
 		return newBoolEntry(err == nil)
 	})
 }
 
 func queryCacheBool(cacheKey string, cacheMissEvalFunc func() (bool, time.Duration)) bool {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return false
 	}
 	if cachedValue, found := cache.Cache.Get(cacheKey); found {

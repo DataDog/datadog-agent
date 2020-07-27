@@ -177,6 +177,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Warnf("Could not zip registry.json: %s", err)
 	}
 
+	err = zipVersionHistory(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip version-history.json: %s", err)
+	}
+
 	err = zipSecrets(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip secrets: %s", err)
@@ -535,6 +540,30 @@ func zipRegistryJSON(tempDir, hostname string) error {
 	defer original.Close()
 
 	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
+	err = ensureParentDirsExist(zippedPath)
+	if err != nil {
+		return err
+	}
+
+	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer zipped.Close()
+
+	_, err = io.Copy(zipped, original)
+	return err
+}
+
+func zipVersionHistory(tempDir, hostname string) error {
+	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "version-history.json")
+	original, err := os.Open(originalPath)
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	zippedPath := filepath.Join(tempDir, hostname, "version-history.json")
 	err = ensureParentDirsExist(zippedPath)
 	if err != nil {
 		return err

@@ -385,10 +385,10 @@ DWORD DelUserFromGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGr
     lmi0.lgrmi0_sid = userSid;
 
     getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
-    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", groupname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Attempting to remove from group %s", groupname.c_str());
     nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
     if (nErr == NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %S", groupname.c_str());
+        WcaLog(LOGMSG_STANDARD, "Removed ddagentuser from %S", groupname.c_str());
     }
     else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS) {
         WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);

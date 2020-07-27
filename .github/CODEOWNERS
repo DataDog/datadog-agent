@@ -12,7 +12,7 @@
 *                                       @DataDog/agent-platform
 
 /cmd/                                   @DataDog/agent-core
-/cmd/trace-agent/                       @DataDog/apm-agent
+/cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
 /cmd/agent/clcrunnerapi/                @DataDog/container-integrations @DataDog/agent-core
 /cmd/agent/*.manifest                   @DataDog/agent-platform
@@ -33,14 +33,14 @@
 /docs/                                  @DataDog/documentation @DataDog/agent-platform
 /docs/agent/                            @DataDog/documentation @DataDog/agent-core
 /docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-core
-/docs/trace-agent/                      @DataDog/documentation @DataDog/apm-agent
+/docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
 
 /go.mod                                 @DataDog/agent-all
 /go.sum                                 @DataDog/agent-all
 
-/Makefile.trace                         @DataDog/apm-agent
+/Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
@@ -56,7 +56,7 @@
 /pkg/status/                            @DataDog/agent-core
 /pkg/telemetry/                         @DataDog/agent-core
 /pkg/version/                           @DataDog/agent-core
-/pkg/trace/                             @DataDog/apm-agent
+/pkg/trace/                             @DataDog/agent-apm
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-core
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
@@ -66,7 +66,7 @@
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
-/pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/apm-agent
+/pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
@@ -91,6 +91,7 @@
 /pkg/ebpf/                              @DataDog/networks
 /pkg/quantile/                           @DataDog/metrics-aggregation
 /pkg/compliance/                         @DataDog/container-integrations
+/pkg/kubestatemetrics                    @DataDog/container-integrations
 
 /releasenotes/                          @DataDog/agent-all
 /releasenotes-dca/                      @DataDog/container-integrations
@@ -102,7 +103,7 @@
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/integrations-tools-and-libraries
 /tasks/process-agent.py                 @DataDog/processes
 /tasks/system-probe.py                  @DataDog/networks
-/tasks/trace.py                         @DataDog/apm-agent
+/tasks/trace.py                         @DataDog/agent-apm
 
 /test/benchmarks/                       @DataDog/agent-core
 /test/e2e/                              @DataDog/container-integrations
