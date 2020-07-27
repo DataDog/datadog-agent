@@ -342,46 +342,42 @@ def build_object_files(ctx, install=True):
 
     commands = []
 
-    # Build both the standard and debug version of tracer-ebpf
-    src_file = os.path.join(c_dir, "tracer-ebpf.c")
-    obj_file = os.path.join(c_dir, "tracer-ebpf.o")
-    commands.append(cmd.format(flags=" ".join(flags), file=obj_file, c_file=src_file))
+    compiled_programs = [
+        "tracer-ebpf",
+        "offset-guess",
+    ]
+	test_dir = os.path.join(bpf_dir, "testdata")
+    bindata_files = [
+        os.path.join(c_dir, "tcp-queue-length-kern.c"),
+        os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
+		os.path.join(c_dir, "oom-kill-kern.c"),
+		os.path.join(c_dir, "oom-kill-kern-user.h"),
+		os.path.join(c_dir, "bpf-common.h"),
+		os.path.join(test_dir, "test-asset.c"),
+		os.path.join(test_dir, "test-header.h"),
+    ]
+    for p in compiled_programs:
+        # Build both the standard and debug version
+        src_file = os.path.join(c_dir, "{}.c".format(p))
+        obj_file = os.path.join(c_dir, "{}.o".format(p))
+        commands.append(cmd.format(flags=" ".join(flags), file=obj_file, c_file=src_file))
 
-    debug_obj_file = os.path.join(c_dir, "tracer-ebpf-debug.o")
-    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_obj_file, c_file=src_file))
+        debug_obj_file = os.path.join(c_dir, "{}-debug.o".format(p))
+        commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_obj_file, c_file=src_file))
 
-    # Build both the standard and debug version of offset-guess
-    offset_src_file = os.path.join(c_dir, "offset-guess.c")
-    offset_obj_file = os.path.join(c_dir, "offset-guess.o")
-    commands.append(cmd.format(flags=" ".join(flags), file=offset_obj_file, c_file=offset_src_file))
-
-    debug_offset_obj_file = os.path.join(c_dir, "offset-guess-debug.o")
-    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_offset_obj_file, c_file=offset_src_file))
+        bindata_files.extend([obj_file, debug_obj_file])
 
     if install:
         assets_cmd = (
             os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
-            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' '{offset_obj_file}' '{debug_offset_obj_file}'"
-            + "'{bpf_common_h_file}' '{test_asset_file}' '{test_h_file}'"
+            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
-        test_dir = os.path.join(bpf_dir, "testdata")
         commands.append(
             assets_cmd.format(
                 c_dir=c_dir,
                 go_file=go_file,
-                obj_file=obj_file,
-                debug_obj_file=debug_obj_file,
-                tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
-                tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
-                oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
-                oom_kill_kern_user_h_file=os.path.join(c_dir, "oom-kill-kern-user.h"),
-                bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
-                test_asset_file=os.path.join(test_dir, "test-asset.c"),
-                test_h_file=os.path.join(test_dir, "test-header.h"),
-                offset_obj_file=offset_obj_file,
-                debug_offset_obj_file=debug_offset_obj_file,
+                bindata_files="' '".join(bindata_files),
             )
         )
 

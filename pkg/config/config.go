@@ -676,6 +676,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.offset_guess_threshold")
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
+	config.SetKnown("system_probe_config.enable_tracepoints")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
