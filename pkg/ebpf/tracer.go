@@ -7,7 +7,6 @@ import (
 	"expvar"
 	"fmt"
 	"math"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -769,12 +768,4 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 	}
 
 	return network.OUTGOING
-}
-
-func isSysCall(name bytecode.ProbeName) bool {
-	parts := strings.Split(string(name), "/")
-	if len(parts) != 2 {
-		return false
-	}
-	return strings.HasPrefix(parts[1], "sys_")
 }
