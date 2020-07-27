@@ -82,14 +82,25 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	defer rsa.wg.Done()
 	apiClient := api.NewSecurityModuleClient(rsa.conn)
 
+	var connected bool
+
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
 		stream, err := apiClient.GetEvents(context.Background(), &api.GetParams{})
 		if err != nil {
-			log.Warnf("grpc stream connection error: %v", err)
+			connected = false
+
+			log.Warnf("Error while connecting to the runtime security module: %v", err)
+
 			// retry in 2 seconds
 			time.Sleep(2 * time.Second)
 			continue
+		}
+
+		if !connected {
+			connected = true
+
+			log.Info("Successfully connected to the runtime security module")
 		}
 
 		for {
