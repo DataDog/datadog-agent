@@ -234,6 +234,11 @@ def print_job_status(job):
     link = ''  # Link to the pipeline. Only filled for failing jobs, to be able to quickly go to the failing job.
     color = 'grey'  # Log output color
 
+    # A None duration is set by Gitlab when the job gets canceled before it was started.
+    # In that case, set a duration of 0s.
+    if duration is None:
+        duration = 0
+
     if status == 'success':
         job_status = 'succeeded'
         color = 'green'
