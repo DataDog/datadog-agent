@@ -92,7 +92,6 @@ const (
 	ConnMap            BPFMapName = "conn_stats"
 	TcpStatsMap        BPFMapName = "tcp_stats"
 	TcpCloseEventMap   BPFMapName = "tcp_close_event"
-	LatestTimestampMap BPFMapName = "latest_ts"
 	TracerStatusMap    BPFMapName = "tracer_status"
 	PortBindingsMap    BPFMapName = "port_bindings"
 	UdpPortBindingsMap BPFMapName = "udp_port_bindings"

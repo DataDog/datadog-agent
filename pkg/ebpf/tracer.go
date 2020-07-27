@@ -613,23 +613,12 @@ func (t *Tracer) getTCPStats(mp *ebpf.Map, tuple *ConnTuple, seen map[ConnTuple]
 	return stats
 }
 
-// getLatestTimestamp reads the most recent timestamp captured by the eBPF
-// module.  if the eBFP module has not yet captured a timestamp (as will be the
-// case if the eBPF module has just started), the second return value will be
-// false.
 func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
-	tsMp, err := t.getMap(bytecode.LatestTimestampMap)
+	latestTime, err := NowNanoseconds()
 	if err != nil {
-		return 0, false, fmt.Errorf("error retrieving latest timestamp map: %s", err)
+		return 0, false, err
 	}
-
-	var latestTime uint64
-	if err := tsMp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(&latestTime)); err != nil {
-		// If we can't find latest timestamp, there probably haven't been any messages yet
-		return 0, false, nil
-	}
-
-	return latestTime, true, nil
+	return uint64(latestTime), true, nil
 }
 
 // getEbpfTelemetry reads the telemetry map from the kernelspace and returns a map of key -> count

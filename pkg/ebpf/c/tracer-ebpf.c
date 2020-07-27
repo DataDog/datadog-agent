@@ -227,16 +227,6 @@ static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr
     }
 }
 
-// Keeping track of latest timestamp of monotonic clock
-struct bpf_map_def SEC("maps/latest_ts") latest_ts = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(__u64),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
 __attribute__((always_inline))
 static bool dns_stats_enabled() {
     __u64 val = 0;
@@ -522,20 +512,16 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
 
 __attribute__((always_inline))
 static int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
-    u64 zero = 0;
     u64 ts = bpf_ktime_get_ns();
 
     update_conn_stats(t, sent_bytes, recv_bytes, ts);
 
-    // Update latest timestamp that we've seen - for connection expiration tracking
-    bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
     return 0;
 }
 
 __attribute__((always_inline))
 static int handle_retransmit(struct sock* sk) {
     conn_tuple_t t = {};
-    u64 ts = bpf_ktime_get_ns();
     u64 zero = 0;
 
     if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
@@ -545,8 +531,6 @@ static int handle_retransmit(struct sock* sk) {
     tcp_stats_t stats = {.retransmits = 1, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats);
 
-    // Update latest timestamp that we've seen - for connection expiration tracking
-    bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
     return 0;
 }
 
