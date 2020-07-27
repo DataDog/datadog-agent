@@ -230,6 +230,11 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 				stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
 			}
 		}
+		sinputs = append(sinputs, &stats.Input{
+			Trace:     pt.WeightedTrace,
+			Sublayers: pt.Sublayers,
+			Env:       pt.Env,
+		})
 
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
@@ -240,11 +245,10 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			ss.Events = append(ss.Events, events...)
 			ss.Size += pb.Trace(events).Msgsize()
 		}
-		sinputs = append(sinputs, &stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
-		})
+		if ss.Size > writer.MaxPayloadSize {
+			a.Out <- &ss
+			ss = writer.SampledSpans{}
+		}
 	}
 	if ss.Size > 0 {
 		a.Out <- &ss

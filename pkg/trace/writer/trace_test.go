@@ -107,9 +107,9 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold
 // and returns a function to restore it.
 func useFlushThreshold(n int) func() {
-	old := maxPayloadSize
-	maxPayloadSize = n
-	return func() { maxPayloadSize = old }
+	old := MaxPayloadSize
+	MaxPayloadSize = n
+	return func() { MaxPayloadSize = old }
 }
 
 // randomSampledSpans returns a set of spans sampled spans and events events.

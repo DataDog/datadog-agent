@@ -27,9 +27,9 @@ import (
 // pathTraces is the target host API path for delivering traces.
 const pathTraces = "/api/v0.2/traces"
 
-// maxPayloadSize specifies the maximum accumulated payload size that is allowed before
+// MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
-var maxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
+var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
 
 // SampledSpans represents the result of a trace sampling operation.
 type SampledSpans struct {
@@ -88,7 +88,7 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 			// or 500MB if unbound
 			maxmem = 500 * 1024 * 1024
 		}
-		qsize = int(math.Max(1, maxmem/float64(maxPayloadSize)))
+		qsize = int(math.Max(1, maxmem/float64(MaxPayloadSize)))
 	}
 	if s := cfg.TraceWriter.FlushPeriodSeconds; s != 0 {
 		tw.tick = time.Duration(s*1000) * time.Millisecond
@@ -142,7 +142,7 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 	atomic.AddInt64(&w.stats.Events, int64(len(pkg.Events)))
 
 	size := pkg.Size
-	if size+w.bufferedSize > maxPayloadSize {
+	if size+w.bufferedSize > MaxPayloadSize {
 		// reached maximum allowed buffered size
 		w.flush()
 	}
