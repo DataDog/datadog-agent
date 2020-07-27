@@ -83,7 +83,7 @@ func (c *Config) chooseSyscallProbeExit(tracepoint bytecode.ProbeName, fallback 
 
 func (c *Config) chooseSyscallProbe(tracepoint bytecode.ProbeName, x64probe bytecode.ProbeName, fallback bytecode.ProbeName) (bytecode.ProbeName, error) {
 	tparts := strings.Split(string(tracepoint), "/")
-	if len(tparts) != 3 || tparts[0] != "tracepoint" {
+	if len(tparts) != 3 || tparts[0] != "tracepoint" || tparts[1] != "syscalls" {
 		return "", fmt.Errorf("invalid tracepoint name")
 	}
 	category := tparts[1]
