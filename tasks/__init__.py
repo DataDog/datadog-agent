@@ -14,6 +14,7 @@ from . import (
     docker,
     dogstatsd,
     installcmd,
+    pipeline,
     process_agent,
     pylauncher,
     release,
@@ -43,6 +44,7 @@ from .test import (
     install_shellcheck,
 )
 from .build_tags import audit_tag_impact
+
 
 # the root namespace
 ns = Collection()
@@ -83,6 +85,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
+ns.add_collection(pipeline)
 ns.add_collection(pylauncher)
 ns.add_collection(selinux)
 ns.add_collection(systray)
