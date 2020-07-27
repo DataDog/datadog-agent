@@ -1,7 +1,8 @@
 #include "stdafx.h"
 
 CustomActionData::CustomActionData() :
-    domainUser(false)
+    domainUser(false),
+    doInstallSysprobe(false)
 {
 
 }
@@ -43,6 +44,8 @@ bool CustomActionData::init(const std::wstring& data)
 
     // pre-populate the domain/user information
     this->parseUsernameData();
+    // pre-populate sysprobe
+    this->parseSysprobeData();
     return true;
 }
 
@@ -59,6 +62,46 @@ bool CustomActionData::value(const std::wstring& key, std::wstring &val) const {
     return true;
 }
 
+// return value of this function is true if the data was parsed,
+// false otherwise. Return value of this function doesn't indicate whether
+// sysprobe is to be installed; this function sets the boolean that can
+// be checked by installSysprobe();
+bool CustomActionData::parseSysprobeData()
+{
+    std::wstring sysprobePresent;
+    std::wstring addlocal;
+    this->doInstallSysprobe = false;
+    if(!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
+    {
+        // key isn't even there. 
+        WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT not present");
+        return true;
+    }
+    WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT is %S", sysprobePresent.c_str());
+    if(sysprobePresent.compare(L"true") != 0) {
+        // explicitly disabled
+        WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT explicitly disabled %S", sysprobePresent.c_str());
+        return true;
+    }
+    if(!this->value(L"ADDLOCAL", addlocal))
+    {
+        // should never happen.  But if the addlocalkey isn't there,
+        // don't bother trying
+        WcaLog(LOGMSG_STANDARD, "ADDLOCAL not present");
+
+        return true;
+    }
+    WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
+    if(_wcsicmp(addlocal.c_str(), L"ALL")== 0){
+        // installing all components, do it
+        this->doInstallSysprobe = true;
+        WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
+    } else if (addlocal.find(L"WindowsNP") != std::wstring::npos) {
+        WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains WindowsNP %S", addlocal.c_str());
+        this->doInstallSysprobe = true;
+    }
+    return true;
+}
 bool CustomActionData::parseUsernameData()
 {
     std::wstring tmpName = ddAgentUserName;

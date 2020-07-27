@@ -12,19 +12,20 @@
             "github.com/golangci/golangci-lint",
             "github.com/frapposelli/wwhrd",
             "github.com/goware/modvendor",
-            "github.com/shuLhan/go-bindata/cmd/go-bindata"
+            "github.com/shuLhan/go-bindata/cmd/go-bindata",
+            "honnef.co/go/tools/cmd/staticcheck"
         ],
         "golang.org/x/tools/go/ast/astutil": {
-            "version": "release-branch.go1.10",
+            "version": "release-branch.go1.13",
             "type": "go"
         },
         "golang.org/x/tools/go/internal": {
-            "version": "release-branch.go1.10",
+            "version": "release-branch.go1.13",
             "type": "go",
             "install": false
         },
         "golang.org/x/tools/go/gcexportdata": {
-            "version": "release-branch.go1.10",
+            "version": "release-branch.go1.13",
             "type": "go"
         },
         "golang.org/x/lint/golint": {
@@ -48,12 +49,16 @@
             "type": "go"
         },
         "github.com/golangci/golangci-lint": {
-            "version": "v1.23.1",
+            "version": "v1.27.0",
             "cmd": "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $BOOTSTRAPPED_VERSION",
             "type": "shell"
         },
         "github.com/shuLhan/go-bindata/cmd/go-bindata" : {
             "version": "v3.4.0",
+            "type": "go"
+        },
+        "honnef.co/go/tools/cmd/staticcheck" : {
+            "version": "2019.2.3",
             "type": "go"
         },
         "github.com/frapposelli/wwhrd": {

@@ -9,26 +9,40 @@ package checks
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/user"
 	"strconv"
 	"syscall"
 )
 
-func getFileOwner(fi os.FileInfo) (string, error) {
-	if statt, ok := fi.Sys().(*syscall.Stat_t); ok {
-		var (
-			u = strconv.Itoa(int(statt.Gid))
-			g = strconv.Itoa(int(statt.Uid))
-		)
-		if group, err := user.LookupGroupId(g); err == nil {
-			g = group.Name
-		}
-		if user, err := user.LookupId(u); err == nil {
-			u = user.Username
-		}
-		return fmt.Sprintf("%s:%s", u, g), nil
+func getFileStatt(fi os.FileInfo) (*syscall.Stat_t, error) {
+	statt, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, errors.New("expected to get stat_t from fileinfo")
 	}
-	return "", errors.New("expected to get stat_t from fileinfo")
+	return statt, nil
+}
+
+func getFileUser(fi os.FileInfo) (string, error) {
+	statt, err := getFileStatt(fi)
+	if err != nil {
+		return "", nil
+	}
+	u := strconv.Itoa(int(statt.Uid))
+	if user, err := user.LookupId(u); err == nil {
+		u = user.Username
+	}
+	return u, nil
+}
+
+func getFileGroup(fi os.FileInfo) (string, error) {
+	statt, err := getFileStatt(fi)
+	if err != nil {
+		return "", nil
+	}
+	g := strconv.Itoa(int(statt.Gid))
+	if group, err := user.LookupGroupId(g); err == nil {
+		g = group.Name
+	}
+	return g, nil
 }
