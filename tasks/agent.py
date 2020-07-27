@@ -306,6 +306,19 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"datadog-cluster-agent\\" -> \\"stackstate-cluster-agent\\""', "./pkg/config")
     do_sed_rename(ctx, 's/Datadog Cluster Agent/StackState Cluster Agent/g', "./pkg/util/clusteragent/clusteragent.go")
 
+    # kubernetes openmetrics annotations
+    do_sed_rename(ctx, 's/ad.datadoghq.com/ad.stackstate.com/g', "./pkg/autodiscovery/listeners/kubelet.go")
+    do_sed_rename(ctx, 's/ad.datadoghq.com/ad.stackstate.com/g', "./pkg/autodiscovery/listeners/kube_services.go")
+    do_sed_rename(ctx, 's/ad.datadoghq.com/ad.stackstate.com/g', "./pkg/autodiscovery/providers/kubelet.go")
+    do_sed_rename(ctx, 's/ad.datadoghq.com/ad.stackstate.com/g', "./pkg/autodiscovery/providers/kube_services.go")
+    do_sed_rename(ctx, 's/ad.datadoghq.com/ad.stackstate.com/g', "./pkg/tagger/collectors/kubelet_extract.go")
+    do_sed_rename(ctx, 's/ad.datadoghq.com/ad.stackstate.com/g', "./pkg/util/kubernetes/kubelet/kubelet.go")
+
+    # docker/ecs openmetrics annotations
+    do_sed_rename(ctx, 's/com.datadoghq.ad/com.stackstate.ad/g', "./pkg/autodiscovery/listeners/common.go")
+    do_sed_rename(ctx, 's/com.datadoghq.ad/com.stackstate.ad/g', "./pkg/autodiscovery/providers/docker.go")
+    do_sed_rename(ctx, 's/com.datadoghq.ad/com.stackstate.ad/g', "./pkg/autodiscovery/providers/ecs.go")
+
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
