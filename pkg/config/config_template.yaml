@@ -924,10 +924,10 @@ api_key:
   ## Policy files
   # policies:
 
-    ## @param dir - string - folder from where the policies will be loaded
+    ## @param dir - string - default: /etc/datadog-agent/runtime-security.d
     ## Path from where the policy files will be loaded
     #
-    dir: /etc/datadog-agent/runtime_security_agent.d
+    # dir: /etc/datadog-agent/runtime-security.d
 
   ## @param enable_kernel_filters - boolean - optional - default: true
   ## Enable filtering events from the kernel
