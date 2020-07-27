@@ -75,6 +75,10 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 		tracerConfig.OffsetGuessThreshold = th
 	}
 
+	if cfg.EnableTracepoints {
+		tracerConfig.EnableTracepoints = true
+	}
+
 	return tracerConfig
 }
 
