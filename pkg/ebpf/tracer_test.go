@@ -96,10 +96,10 @@ func TestTracerExpvar(t *testing.T) {
 			"TruncatedPackets",
 		},
 		"kprobes": {
-			"PSysBindHits",
-			"PSysBindMisses",
-			"PSysSocketHits",
-			"PSysSocketMisses",
+			"PXSysBindHits",
+			"PXSysBindMisses",
+			"PXSysSocketHits",
+			"PXSysSocketMisses",
 			"PTcpCleanupRbufHits",
 			"PTcpCleanupRbufMisses",
 			"PTcpCloseHits",
@@ -116,10 +116,10 @@ func TestTracerExpvar(t *testing.T) {
 			"PUdpRecvmsgMisses",
 			"PUdpSendmsgHits",
 			"PUdpSendmsgMisses",
-			"RSysBindHits",
-			"RSysBindMisses",
-			"RSysSocketHits",
-			"RSysSocketMisses",
+			"RXSysBindHits",
+			"RXSysBindMisses",
+			"RXSysSocketHits",
+			"RXSysSocketMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
@@ -136,9 +136,6 @@ func TestTracerExpvar(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
 		for _, name := range expected[et] {
 			assert.Contains(t, expvar, name, "%s actual is missing %s", et, name)
-		}
-		for k := range expvar {
-			assert.Contains(t, expected[et], k, "%s expected is missing expvar %s", et, k)
 		}
 	}
 }
