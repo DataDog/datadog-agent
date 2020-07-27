@@ -205,17 +205,11 @@ def print_job_status(job):
     Prints notifications about job changes.
     """
 
-    def print_job(name, stage, color, finish_date, duration, status, link):
+    def print_job(name, stage, color, date, duration, status, link):
         print(
             color_message(
-                "[{finish_date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]\n{link}".format(
-                    name=name,
-                    stage=stage,
-                    finish_date=finish_date,
-                    m=(duration // 60),
-                    s=(duration % 60),
-                    status=status,
-                    link=link,
+                "[{date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]\n{link}".format(
+                    name=name, stage=stage, date=date, m=(duration // 60), s=(duration % 60), status=status, link=link,
                 ).strip(),
                 color,
             )
