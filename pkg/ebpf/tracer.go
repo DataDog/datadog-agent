@@ -145,7 +145,10 @@ func NewTracer(config *Config) (*Tracer, error) {
 	m := bytecode.NewManager(perfHandler)
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledProbes(pre410Kernel)
+	enabledProbes, err := config.EnabledProbes(pre410Kernel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid probe configuration: %v", err)
+	}
 	for probeName := range enabledProbes {
 		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(probeName))
 	}
