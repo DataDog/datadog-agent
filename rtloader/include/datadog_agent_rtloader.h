@@ -323,7 +323,7 @@ DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
 
     Currently only SEGFAULT is handled.
 */
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, char** error);
+DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, char **error);
 #endif
 
 // PYTHON HELPERS
