@@ -373,13 +373,7 @@ def build_object_files(ctx, install=True):
             + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
-        commands.append(
-            assets_cmd.format(
-                c_dir=c_dir,
-                go_file=go_file,
-                bindata_files="' '".join(bindata_files),
-            )
-        )
+        commands.append(assets_cmd.format(c_dir=c_dir, go_file=go_file, bindata_files="' '".join(bindata_files)))
 
         commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
 
