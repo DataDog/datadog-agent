@@ -150,7 +150,7 @@ func (l *DockerListener) init() {
 
 		containerImage, err := l.dockerUtil.ResolveImageName(co.Image)
 		if err != nil {
-			log.Warnf("error while resolving image name: %s", err)
+			log.Warnf("Error while resolving image name: %s", err)
 			containerImage = ""
 		}
 		metricsExcluded := false
