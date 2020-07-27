@@ -3,8 +3,9 @@
 package bytecode
 
 import (
-	"github.com/DataDog/ebpf/manager"
 	"os"
+
+	"github.com/DataDog/ebpf/manager"
 )
 
 const (

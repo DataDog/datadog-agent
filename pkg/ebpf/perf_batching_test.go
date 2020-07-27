@@ -3,12 +3,13 @@
 package ebpf
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPerfBatchManagerExtract(t *testing.T) {

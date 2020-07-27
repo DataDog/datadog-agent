@@ -4,10 +4,11 @@ package ebpf
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
-	"strings"
 )
 
 const x64SyscallPrefix = "__x64_"

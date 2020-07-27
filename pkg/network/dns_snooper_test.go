@@ -4,6 +4,12 @@ package network
 
 import (
 	"bytes"
+	"math/rand"
+	"net"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/ebpf"
@@ -11,11 +17,6 @@ import (
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"math/rand"
-	"net"
-	"strings"
-	"testing"
-	"time"
 )
 
 func getSnooper(

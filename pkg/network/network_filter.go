@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
