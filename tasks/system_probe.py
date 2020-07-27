@@ -346,15 +346,15 @@ def build_object_files(ctx, install=True):
         "tracer-ebpf",
         "offset-guess",
     ]
-	test_dir = os.path.join(bpf_dir, "testdata")
+    test_dir = os.path.join(bpf_dir, "testdata")
     bindata_files = [
         os.path.join(c_dir, "tcp-queue-length-kern.c"),
         os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
-		os.path.join(c_dir, "oom-kill-kern.c"),
-		os.path.join(c_dir, "oom-kill-kern-user.h"),
-		os.path.join(c_dir, "bpf-common.h"),
-		os.path.join(test_dir, "test-asset.c"),
-		os.path.join(test_dir, "test-header.h"),
+        os.path.join(c_dir, "oom-kill-kern.c"),
+        os.path.join(c_dir, "oom-kill-kern-user.h"),
+        os.path.join(c_dir, "bpf-common.h"),
+        os.path.join(test_dir, "test-asset.c"),
+        os.path.join(test_dir, "test-header.h"),
     ]
     for p in compiled_programs:
         # Build both the standard and debug version
