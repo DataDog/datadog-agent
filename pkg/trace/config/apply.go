@@ -45,9 +45,6 @@ type ObfuscationConfig struct {
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
 	Memcached Enablable `mapstructure:"memcached"`
-
-	// SQL holds the configureation for obfuscating SQL queries
-	SQL SQLObfuscationConfig `mapstructure:"sql"`
 }
 
 // HTTPObfuscationConfig holds the configuration settings for HTTP obfuscation.
@@ -73,12 +70,6 @@ type JSONObfuscationConfig struct {
 	// KeepValues will specify a set of keys for which their values will
 	// not be obfuscated.
 	KeepValues []string `mapstructure:"keep_values"`
-}
-
-// SQLObfuscationConfig holds obfuscation configuration for sensitive data
-// found in SQL text
-type SQLObfuscationConfig struct {
-	Normalize bool `mapstructure:"normalize"`
 }
 
 // ReplaceRule specifies a replace rule.

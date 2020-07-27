@@ -704,7 +704,6 @@ func InitConfig(config Config) {
 	config.SetKnown("apm_config.obfuscation.remove_stack_traces")
 	config.SetKnown("apm_config.obfuscation.redis.enabled")
 	config.SetKnown("apm_config.obfuscation.memcached.enabled")
-	config.SetKnown("apm_config.obfuscation.sql.new_sql_normalization")
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.dd_agent_bin")
 	config.SetKnown("apm_config.max_events_per_second")

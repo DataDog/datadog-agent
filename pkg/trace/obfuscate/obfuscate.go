@@ -26,6 +26,8 @@ type Obfuscator struct {
 	// to be generic.
 	// Not safe for concurrent use.
 	sqlLiteralEscapes int32
+	// sqlNewNormalization is a feature flag which indicates whether normalization rules should be applied
+	sqlNewNormalization bool
 }
 
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
@@ -47,7 +49,10 @@ func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 	if cfg == nil {
 		cfg = new(config.ObfuscationConfig)
 	}
-	o := Obfuscator{opts: cfg}
+	o := Obfuscator{
+		opts:                cfg,
+		sqlNewNormalization: config.HasFeature("new_sql_normalization"),
+	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES)
 	}

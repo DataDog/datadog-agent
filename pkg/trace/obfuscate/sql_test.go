@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -657,9 +656,9 @@ ORDER BY [b].[Name]`,
 		})
 		t.Run("normalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
-			cfg := new(config.ObfuscationConfig)
-			cfg.SQL.Normalize = true
-			NewObfuscator(cfg).Obfuscate(s)
+			o := NewObfuscator(nil)
+			o.sqlNewNormalization = true
+			o.Obfuscate(s)
 			assert.Equal(t, c.expectedNormalized, s.Resource)
 		})
 	}
@@ -1263,9 +1262,9 @@ func TestMySQLDialect(t *testing.T) {
 		})
 		t.Run("normalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
-			cfg := new(config.ObfuscationConfig)
-			cfg.SQL.Normalize = true
-			NewObfuscator(cfg).Obfuscate(s)
+			o := NewObfuscator(nil)
+			o.sqlNewNormalization = true
+			o.Obfuscate(s)
 			assert.Equal(t, c.expectedNormalized, s.Resource)
 		})
 	}
@@ -1318,9 +1317,9 @@ func TestPostgreSQLDialect(t *testing.T) {
 		})
 		t.Run("normalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
-			cfg := new(config.ObfuscationConfig)
-			cfg.SQL.Normalize = true
-			NewObfuscator(cfg).Obfuscate(s)
+			o := NewObfuscator(nil)
+			o.sqlNewNormalization = true
+			o.Obfuscate(s)
 			assert.Equal(t, c.expectedNormalized, s.Resource)
 		})
 	}
@@ -1398,9 +1397,9 @@ func TestSQLServerDialect(t *testing.T) {
 		})
 		t.Run("normalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
-			cfg := new(config.ObfuscationConfig)
-			cfg.SQL.Normalize = true
-			NewObfuscator(cfg).Obfuscate(s)
+			o := NewObfuscator(nil)
+			o.sqlNewNormalization = true
+			o.Obfuscate(s)
 			assert.Equal(t, c.expectedNormalized, s.Resource)
 		})
 	}
@@ -1426,16 +1425,16 @@ func TestOracleDialect(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		t.Run("", func(t *testing.T) {
+		t.Run("denormalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
 		})
-		t.Run("", func(t *testing.T) {
+		t.Run("normalized", func(t *testing.T) {
 			s := SQLSpan(c.query)
-			cfg := new(config.ObfuscationConfig)
-			cfg.SQL.Normalize = true
-			NewObfuscator(cfg).Obfuscate(s)
+			o := NewObfuscator(nil)
+			o.sqlNewNormalization = true
+			o.Obfuscate(s)
 			assert.Equal(t, c.expectedNormalized, s.Resource)
 		})
 	}
