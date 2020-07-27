@@ -21,6 +21,7 @@ type checkable interface {
 	check(env env.Env) (*report, error)
 }
 
+// checkableList abstracts a series of resource checks
 type checkableList []checkable
 
 // check implements checkable interface for checkableList
@@ -32,8 +33,8 @@ func (list checkableList) check(env env.Env) (*report, error) {
 
 	for _, c := range list {
 		result, err = c.check(env)
-		if err != nil || !result.passed {
-			continue
+		if err == nil && result.passed {
+			break
 		}
 	}
 	return result, err

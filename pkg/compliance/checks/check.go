@@ -79,24 +79,17 @@ func (c *complianceCheck) Run() error {
 		return c.configError
 	}
 
-	var (
-		passed bool
-		data   event.Data
-	)
-
 	report, err := c.checkable.check(c)
-	if err == nil {
-		data = report.data
-		passed = report.passed
-	} else {
+	if err != nil {
 		log.Warnf("%s: check run failed: %v", c.ruleID, err)
 	}
+	data, result := reportToEventData(report, err)
 
 	e := &event.Event{
 		AgentRuleID:  c.ruleID,
 		ResourceID:   c.resourceID,
 		ResourceType: c.resourceType,
-		Result:       eventResult(passed, err),
+		Result:       result,
 		Data:         data,
 	}
 
@@ -105,6 +98,23 @@ func (c *complianceCheck) Run() error {
 	c.Reporter().Report(e)
 
 	return err
+}
+
+func reportToEventData(report *report, err error) (event.Data, string) {
+	var (
+		data   event.Data
+		passed bool
+	)
+	if report != nil {
+		data = report.data
+		passed = report.passed
+	}
+	if err != nil {
+		data = event.Data{
+			"error": err.Error(),
+		}
+	}
+	return data, eventResult(passed, err)
 }
 
 func eventResult(passed bool, err error) string {
