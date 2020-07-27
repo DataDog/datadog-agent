@@ -167,7 +167,8 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         ;;
         1)
             # We're upgrading.
-            # The preinst script has taken care of removing the .pyc/.pyo files
+            # The preinst script of the new package has taken care of removing
+            # the .pyc/.pyo files, as well as removing custom integrations.
         ;;
         *)
         ;;
