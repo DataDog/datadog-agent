@@ -27,6 +27,13 @@ core,"github.com/DataDog/datadog-operator/pkg/generated/informers/externalversio
 core,"github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions/datadoghq/v1alpha1",Apache-2.0
 core,"github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions/internalinterfaces",Apache-2.0
 core,"github.com/DataDog/datadog-operator/pkg/generated/listers/datadoghq/v1alpha1",Apache-2.0
+core,"github.com/DataDog/ebpf",MIT
+core,"github.com/DataDog/ebpf/asm",MIT
+core,"github.com/DataDog/ebpf/internal",MIT
+core,"github.com/DataDog/ebpf/internal/btf",MIT
+core,"github.com/DataDog/ebpf/internal/unix",MIT
+core,"github.com/DataDog/ebpf/manager",MIT
+core,"github.com/DataDog/ebpf/perf",MIT
 core,"github.com/DataDog/gohai/cpu",MIT
 core,"github.com/DataDog/gohai/filesystem",MIT
 core,"github.com/DataDog/gohai/memory",MIT
@@ -247,6 +254,7 @@ core,"github.com/emicklei/go-restful/log",MIT
 core,"github.com/evanphx/json-patch",NewBSD
 core,"github.com/fatih/color",MIT
 core,"github.com/florianl/go-conntrack",MIT
+core,"github.com/florianl/go-tc",MIT
 core,"github.com/frapposelli/wwhrd",MIT
 core,"github.com/fsnotify/fsnotify",NewBSD
 core,"github.com/ghodss/yaml",MIT
@@ -343,8 +351,6 @@ core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
 core,"github.com/iovisor/gobpf/bcc",Apache-2.0
-core,"github.com/iovisor/gobpf/elf",Apache-2.0
-core,"github.com/iovisor/gobpf/pkg/bpffs",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
 core,"github.com/itchyny/astgen-go",MIT
 core,"github.com/itchyny/gojq",MIT
@@ -445,6 +451,8 @@ core,"github.com/ulikunitz/xz/internal/hash",FreeBSD
 core,"github.com/ulikunitz/xz/internal/xlog",FreeBSD
 core,"github.com/ulikunitz/xz/lzma",FreeBSD
 core,"github.com/urfave/negroni",MIT
+core,"github.com/vishvananda/netlink",Apache-2.0
+core,"github.com/vishvananda/netlink/nl",Apache-2.0
 core,"github.com/vishvananda/netns",Apache-2.0
 core,"github.com/vito/go-sse/sse",Apache-2.0
 core,"go.etcd.io/etcd/client",Apache-2.0
@@ -495,6 +503,7 @@ core,"golang.org/x/oauth2",NewBSD
 core,"golang.org/x/oauth2/internal",NewBSD
 core,"golang.org/x/sync/errgroup",NewBSD
 core,"golang.org/x/sys/cpu",NewBSD
+core,"golang.org/x/sys/internal/unsafeheader",NewBSD
 core,"golang.org/x/sys/unix",NewBSD
 core,"golang.org/x/sys/windows",NewBSD
 core,"golang.org/x/sys/windows/registry",NewBSD
@@ -508,6 +517,8 @@ core,"golang.org/x/text/unicode/bidi",NewBSD
 core,"golang.org/x/text/unicode/norm",NewBSD
 core,"golang.org/x/text/width",NewBSD
 core,"golang.org/x/time/rate",NewBSD
+core,"golang.org/x/xerrors",NewBSD
+core,"golang.org/x/xerrors/internal",NewBSD
 core,"gomodules.xyz/jsonpatch/v3",Apache-2.0
 core,"gomodules.xyz/orderedmap",MIT
 core,"google.golang.org/appengine/internal",Apache-2.0
