@@ -4109,7 +4109,7 @@ notify-on-success:
     AUTHOR=$(git show -s --format="%an" HEAD)
 
     if [ "$DEPLOY_AGENT" = "true" ]; then
-      MESSAGE_TEXT=":host-green: :merged: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      MESSAGE_TEXT=":host-green: :rocket: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     else
       MESSAGE_TEXT=":host-green: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
@@ -4142,7 +4142,7 @@ notify-on-failure:
     AUTHOR=$(git show -s --format="%an" HEAD)
 
     if [ "$DEPLOY_AGENT" = "true" ]; then
-      MESSAGE_TEXT=":host-red: :merged: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+      MESSAGE_TEXT=":host-red: :rocket: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     else
       MESSAGE_TEXT=":host-red: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
