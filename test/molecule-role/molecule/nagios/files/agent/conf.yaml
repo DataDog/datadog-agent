@@ -1,0 +1,9 @@
+init_config:
+  min_collection_interval: 30
+
+instances:
+  - nagios_conf: /etc/nagios/nagios.cfg
+    collect_events: True                   # default is True
+    passive_checks_events: True            # default is False
+    collect_host_performance_data: True    # default is False
+    collect_service_performance_data: True # default is False

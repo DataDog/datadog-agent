@@ -558,6 +558,23 @@ molecule_tests_secrets:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
 
+molecule_tests_nagios:
+  stage: acceptance
+  needs:
+    - pre_release_image
+  dependencies: []
+  before_script: []
+  script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s nagios
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/nagios/topic-*.json
+    expire_in: 1 week
+
 release_deb:
   stage: release
   dependencies:

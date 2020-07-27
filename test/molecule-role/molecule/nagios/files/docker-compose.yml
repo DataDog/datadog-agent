@@ -1,0 +1,122 @@
+---
+version: '2.4'
+
+services:
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - 2181:2181
+    mem_limit: 1G
+
+  kafka:
+    image: wurstmeister/kafka:2.12-2.3.1
+    ports:
+      - 9092:9092
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -q sts_trace_events"]
+      interval: 1s
+      timeout: 10s
+      retries: 10
+    mem_limit: 1G
+
+  receiver:
+    image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
+    ports:
+      - 7077:7077
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    mem_limit: 1G
+
+  correlate:
+    image: "quay.io/stackstate/stackstate-correlate:${STACKSTATE_BRANCH}"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      STACKSTATE_CORRELATE_LOG_LEVEL: "DEBUG"
+    mem_limit: 1G
+
+  topic-api:
+    image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
+    ports:
+      - 7070:7070
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      ZOOKEEPER_QUORUM: kafka
+    mem_limit: 1G
+
+  mysql:
+    image: mysql:5.7
+    volumes:
+      - ./mysql:/docker-entrypoint-initdb.d
+    restart: always
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+
+  nagios:
+    build: nagios
+    ports:
+      - 8080:80
+    volumes:
+      - nagios_logs:/opt/nagios/var/log
+      - nagios_conf:/opt/nagios/etc
+    depends_on:
+      - mysql
+
+  stackstate-agent:
+    image: docker.io/stackstate/stackstate-agent-2-test:${AGENT_VERSION}
+    network_mode: "host"
+    pid: "host"
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /etc/passwd:/etc/passwd:ro
+      - /sys/kernel/debug:/sys/kernel/debug
+      - ./agent/:/etc/stackstate-agent/conf.d/nagios.d:ro
+      - nagios_logs:/opt/nagios/var/log
+      - nagios_conf:/etc/nagios/
+    environment:
+      STS_API_KEY: "API_KEY"
+      STS_STS_URL: "http://localhost:7077/stsAgent"
+      STS_HOSTNAME: "agent-nagios-mysql"
+      STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
+      STS_PROCESS_AGENT_ENABLED: "true"
+      STS_NETWORK_TRACING_ENABLED: "false"
+      STS_APM_URL: "http://localhost:7077/stsAgent"
+      STS_APM_ENABLED: "true"
+      HOST_PROC: "/host/proc"
+      HOST_SYS: "/host/sys"
+      STS_LOG_LEVEL: "debug"
+      STS_LOG_TO_CONSOLE: "true"
+    depends_on:
+      - nagios
+      - receiver
+
+#    healthcheck:
+#      test: curl --fail -s http://localhost:5000/ || exit 1
+#      interval: 1m30s
+#      timeout: 10s
+#      retries: 3
+
+volumes:
+  nagios_logs:
+  nagios_conf:
