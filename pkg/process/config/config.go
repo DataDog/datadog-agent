@@ -27,9 +27,6 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultSystemProbeFilePath is the default logging file for the system probe
-	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
-
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
 )
@@ -203,7 +200,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableIPv6Tracing:    false,
 		DisableDNSInspection:  false,
 		SystemProbeAddress:    defaultSystemProbeAddress,
-		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		SystemProbeLogFile:    defaultSystemProbeLogFilePath,
 		MaxTrackedConnections: defaultMaxTrackedConnections,
 		EnableConntrack:       true,
 		ClosedChannelSize:     500,

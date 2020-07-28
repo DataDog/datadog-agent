@@ -91,7 +91,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if logFile := config.Datadog.GetString(key(spNS, "log_file")); logFile != "" {
-		a.LogFile = logFile
+		a.SystemProbeLogFile = logFile
 	}
 
 	// The maximum number of connections per message. Note: Only change if the defaults are causing issues.
