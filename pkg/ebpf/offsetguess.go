@@ -368,9 +368,9 @@ func setReadyState(mp *ebpf.Map, status *tracerStatus) error {
 	return nil
 }
 
-// guessOffsets expects elf.Module to hold a tracer-bpf object and initializes the
+// guessOffsets expects manager.Manager to contain a map named tracer_status and helps initialize the
 // tracer by guessing the right struct sock kernel struct offsets. Results are
-// stored in the `tracer_status` map as used by the module.
+// returned as constants which are runtime-edited into the tracer eBPF code.
 //
 // To guess the offsets, we create connections from localhost (127.0.0.1) to
 // 127.0.0.2:$PORT, where we have a server listening. We store the current
