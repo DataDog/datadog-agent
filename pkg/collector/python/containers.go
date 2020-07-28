@@ -48,7 +48,7 @@ func IsContainerExcluded(name, image, namespace *C.char) C.int {
 // Separated to unit testing
 func initContainerFilter() {
 	var err error
-	if filter, err = containers.GetSharedFilter(); err != nil {
+	if filter, err = containers.GetSharedMetricFilter(); err != nil {
 		log.Errorf("Error initializing container filtering: %s", err)
 	}
 }

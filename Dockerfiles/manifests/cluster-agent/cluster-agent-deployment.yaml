@@ -35,17 +35,16 @@ spec:
           }]
     spec:
       serviceAccountName: datadog-cluster-agent
-      imagePullSecrets: null
       containers:
         - name: cluster-agent
-          image: "datadog/cluster-agent:1.6.0"
+          image: "datadog/cluster-agent:1.7.0"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
             - containerPort: 5005
               name: agentport
               protocol: TCP
-            - containerPort: 443
+            - containerPort: 8443
               name: metricsapi
               protocol: TCP
           env:
@@ -65,8 +64,10 @@ spec:
             - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
               value: "true"
             - name: DD_EXTERNAL_METRICS_PROVIDER_PORT
-              value: "443"
+              value: "8443"
             - name: DD_EXTERNAL_METRICS_PROVIDER_WPA_CONTROLLER
+              value: "false"
+            - name: DD_EXTERNAL_METRICS_PROVIDER_USE_DATADOGMETRIC_CRD
               value: "false"
             - name: DD_LOG_LEVEL
               value: "INFO"
@@ -103,4 +104,5 @@ spec:
             timeoutSeconds: 5
           volumeMounts:
       volumes:
-      nodeSelector: null
+      nodeSelector:
+        kubernetes.io/os: linux

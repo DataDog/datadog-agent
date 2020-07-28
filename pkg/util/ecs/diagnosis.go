@@ -58,7 +58,13 @@ func diagnoseECSTags() error {
 
 // diagnose the ECS Fargate metadata API availability
 func diagnoseFargate() error {
-	if _, err := ecsmeta.V2().GetTask(); err != nil {
+	client, err := ecsmeta.V2()
+	if err != nil {
+		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+		return err
+	}
+
+	if _, err := client.GetTask(); err != nil {
 		log.Error(err)
 		return err
 	}

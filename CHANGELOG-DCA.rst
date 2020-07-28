@@ -2,6 +2,64 @@
 Release Notes
 =============
 
+.. _Release Notes_1.7.0:
+
+1.7.0
+=====
+
+.. _Release Notes_1.7.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-07-20
+
+This version contains the changes released with version 7.21.0 of the core agent.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7210--6210>`_.
+
+New Features
+------------
+
+- Add support of DatadogMetric CRD to allow autoscaling based on arbitrary queries (#5384)
+- Add Admission Controller to inject Entity ID, standard tags and agent host (useful in serverless environments) 
+
+Enhancement Notes
+-----------------
+
+- Add `leader_election_is_leader` metric to allow label joins (#5819)
+
+
+.. _Release Notes_1.6.0:
+
+1.6.0
+=====
+
+.. _Release Notes_1.6.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-06-11
+
+This version contains the changes released with version 7.20.0 of the core agent.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7200--6200>`_.
+
+Bug Fixes
+---------
+
+- Wait for client-go cache to sync for endpoints/services (#5291)
+- Consider check failure in advanced rebalancing (#5441)
+
+New Features
+------------
+
+- Autodiscover standard tags for Cluster and Endpoint Checks (#5241)
+
+Enhancement Notes
+-----------------
+
+- Adds a metric to monitor the advanced dispatching algorithm (#4970)
+
 .. _Release Notes_1.5.2:
 
 1.5.2

@@ -28,6 +28,7 @@ type PodWatcher struct {
 	lastSeen       map[string]time.Time
 	lastSeenReady  map[string]time.Time
 	tagsDigest     map[string]string
+	oldPhase       map[string]string
 }
 
 // NewPodWatcher creates a new watcher given an expiry duration
@@ -46,6 +47,7 @@ func NewPodWatcher(expiryDuration time.Duration, isWatchingTags bool) (*PodWatch
 	}
 	if isWatchingTags {
 		watcher.tagsDigest = make(map[string]string)
+		watcher.oldPhase = make(map[string]string)
 	}
 	return watcher, nil
 }
@@ -82,6 +84,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		if w.isWatchingTags() && !foundPod {
 			w.tagsDigest[podEntity] = digestPodMeta(pod.Metadata)
+			w.oldPhase[podEntity] = pod.Status.Phase
 		}
 
 		// static pods are included specifically because they won't have any container
@@ -123,6 +126,8 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 
 		// Detect changes in labels and annotations values
 		newLabelsOrAnnotations := false
+		// Detect changes in the pod phase
+		newPhase := false
 		if w.isWatchingTags() {
 			newTagsDigest := digestPodMeta(pod.Metadata)
 			if foundPod && newTagsDigest != w.tagsDigest[podEntity] {
@@ -130,9 +135,13 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 				w.tagsDigest[podEntity] = newTagsDigest
 				newLabelsOrAnnotations = true
 			}
+			// compared to our last seen phase the pod phase has changed.
+			if foundPod && pod.Status.Phase != w.oldPhase[podEntity] {
+				w.oldPhase[podEntity] = pod.Status.Phase
+				newPhase = true
+			}
 		}
-
-		if newStaticPod || updatedContainer || newLabelsOrAnnotations {
+		if newStaticPod || updatedContainer || newLabelsOrAnnotations || newPhase {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
@@ -158,6 +167,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 			delete(w.lastSeenReady, id)
 			if w.isWatchingTags() {
 				delete(w.tagsDigest, id)
+				delete(w.oldPhase, id)
 			}
 			expiredContainers = append(expiredContainers, id)
 		}

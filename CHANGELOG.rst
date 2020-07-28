@@ -2,6 +2,225 @@
 Release Notes
 =============
 
+.. _Release Notes_7.21.1:
+
+7.21.1
+======
+
+.. _Release Notes_7.21.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-07-22
+
+.. _Release Notes_7.21.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- JMXFetch upgraded to `0.38.2 <https://github.com/DataDog/jmxfetch/releases/0.38.2>`_ to fix Java 7 support.
+- Fix init of security-agent - exit properly when no feature requiring it is activated and avoid conflicting with core agent port bindings.
+
+.. _Release Notes_7.21.0:
+
+7.21.0 / 6.21.0
+======
+
+.. _Release Notes_7.21.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-07-16
+
+- Please refer to the `7.21.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7210>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.21.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- APM: The maximum allowed payload size by the agent was increased
+  from 10MB to 50MB. This could result in traffic increases for
+  users which were affected by this issue.
+
+- APM: The maximum connection limit over a 30s period was removed.
+  This can result in an increase of tracing data for users that were
+  affected by this limitation.
+
+
+.. _Release Notes_7.21.0_New Features:
+
+New Features
+------------
+
+- Add support of new DatadogMetric CRD in DCA. Allows to autoscale based on any valid Datadog query.
+
+- Add packages scripts for dogstatsd that have the same features as the agent: create
+  symlink for binary, create dd-agent user and group, setup the service and cleanup
+  those when uninstalling.
+
+- Adds OOM Kill probe to ebpf package and corresponding corecheck to the agent.
+
+- The Datadog IoT Agent is now available for 32 bit ARM architecture (armv7l/armhf).
+
+- Add Compliance agent in Cluster Agent to monitor Kubernetes objects
+
+- Add `docker.cpu.limit` and `containerd.cpu.limit` metrics, reporting maximum cpu time (hz or ns) available for each container based on their limits. (Only supported on Linux)
+
+- Addition of a gRPC server and a hostname resolution endpoint,
+  including a grpc-gateway that exposes said endpoint as a REST
+  service.
+
+- Adding a 'log_format_rfc3339' option to use the RFC3339 format for the log
+  time.
+
+- Compliance Agent implementing scheduling of compliance checks for Docker and Kubernetes benchmarks.
+
+- Expose agent's sql obfuscation to python checks via new `datadog_agent.obfuscate_sql` method
+
+- Support installing non-core integrations with the ``integration`` command,
+  such as those located in the ``integrations-extras`` repository.
+
+
+.. _Release Notes_7.21.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Agent ``status`` command now includes the flavor
+  of the Agent that is running.
+
+- The Agent GUI now includes the flavor
+  of the Agent that is running.
+
+- Adds Tagger information to Datadog Agent flare for support investigations.
+
+- Add a static collector in the tagger package for tags that do not change after pod start (such as
+  those from an environment variable).
+
+- Add ``autodiscovery_subnet`` to available SNMP template extra configs
+
+- When enabling `collect_ec2_tags` or `collect_gce_tags` option, EC2/GCE tags
+  are now cached to avoid missing tags when user exceed his AWS/GCE quotas.
+
+- Chocolatey package can be installed on Domain Controller
+
+- The Agent now collects the Availability Zone a Fargate Task (using platform
+  version 1.4 or later) is running in as an "availability_zone" tag.
+
+- Enabled the collection of the init-containers by bumping the agent-payload dep. and collecting the init-containers.
+
+- The Agent now collects recommended "app.kubernetes.io" Kubernetes labels as
+  tags by default, and exposes them under a "kube_app" prefix.
+
+- Docker and Containerd checks now support filtering containers by kube_namespace.
+
+- Add support for sampling to distribution metrics
+
+- Flare now includes the permission information for parents of config and log file directories.
+
+- Collect processes namespaced PID.
+
+- You can now enable or disable the dogstatsd-stats troubleshooting feature at
+  runtime using the ``config set dogstatsd_stats`` command of the Agent.
+
+- API Keys are now sanitized for `logs_config` and `additional_endpoints`.
+
+- Upgrade gosnmp to support more authentication and privacy protocols
+  for v3 connections.
+
+- Use the standard tag 'service' as a log collection attribute for container's logs
+  collected from both kubernetes and docker log sources.
+
+- `agent check` returns non zero exit code when trace malloc is enabled (`tracemalloc_debug: true`) when using python 2
+
+- Added the checksum type to the checksum key itself, as it is deprecated to have a separate
+  checksum_type key.
+
+- Add ``lowercase_device_tag`` option to the system ``io`` core check on Windows.
+  When enabled, sends metrics with a lowercased ``device`` tag, which is consistent with the
+  ``system.io.*`` metrics of Agent v5 and the ``system.disk.*`` metrics of all Agent
+  versions.
+
+
+.. _Release Notes_7.21.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix missing values from cluster-agent status command.
+
+- Add missing ``device_name`` tag in iostats_pdh
+
+- Fixes an issue where DD_TAGS were not applied to EKS Fargate pods and containers.
+
+- Add ``freetds`` linux dep needed for SQL Server to run in Docker Agent.
+
+- APM : Fix parsing of non-ASCII numerals in the SQL obfuscator. Previously
+  unicode characters for which unicode.IsDigit returns true could cause a
+  hang in the SQL obfuscator
+
+- APM: correctly obfuscate AUTH command.
+
+- Dogstatsd standalone: when running on a systemd-based system, do not stop
+  Dogstatsd when journald is stopped or restarted.
+
+- Fix missing logs and metrics for docker-labels based autodiscovery configs after container restart.
+
+- Fix bugs introduced in 7.20.0/6.20.0 in the Agent 5 configuration import command:
+  the command would not import some Agent config settings, including ``api_key``,
+  and would write some Docker & Kubernetes config settings to wrongly-located files.
+
+- Fixes tag extraction from Kubernetes pod labels when using patterns on
+  certain non-alphanumeric label names (e.g. app.kubernetes.io/managed-by).
+
+- Fixes the `/ready` health endpoint on the cluster-agent.
+  
+  The `/ready` health endpoint was reporting 200 at the cluster-agent startup and was then, permanently reporting 500 even though the cluster-agent was experiencing no problem.
+  In the body of the response, we could see that a `healthcheck` component was failing.
+  This change fixes this issue.
+
+- This fix aims to cover the case when the agent is running inside GKE with workload identity enabled.
+  If workload identity is enabled, access to /instance/name is forbidden, resulting into an empty host alias.
+
+- Fix hostname resolution issue preventing the Process and APM agents from picking
+  up a valid hostname on some containerized environments
+
+- Fix a bug which causes certain configuration options to be ignored by the ``process-agent`` in the presence of a ``system-probe.yaml``.
+
+- Process agent and system probe now correctly accept multiple API keys per endpoint.
+
+- The ``device_name`` tag is not used anymore to populate the ``Device`` field of a series. Only the ``device`` tag is considered.
+
+- Fixes problem on Windows where ddagentuser home directory is left behind.
+
+- Revert upgrade of GoSNMP and addition of extra authentication protocols.
+
+- Add support for examining processes inside Docker containers running under
+  systemd cgroups. This also reduces agent logging volume as it's able to
+  capture those statistics going forward.
+
+- APM: The agent now exits with code 0 when the API key is not specified. This is so to prevent the Windows SCM 
+  from restarting the process. 
+
+
+.. _Release Notes_7.21.0_Other Notes:
+
+Other Notes
+-----------
+
+- All Agents binaries are now compiled with Go ``1.13.11``.
+
+- In Debug mode, DogStatsD log a warning message when a burst of metrics is detected.
+
+- JMXFetch upgraded to `0.38.0 <https://github.com/DataDog/jmxfetch/releases/0.38.0>`_
+
+- JQuery, used in the web-based agent GUI, has been upgraded to 3.5.1
+
+
 .. _Release Notes_7.20.2:
 
 7.20.2

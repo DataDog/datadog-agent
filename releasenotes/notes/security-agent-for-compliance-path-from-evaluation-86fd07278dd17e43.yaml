@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Introduces support for resolving pathFrom from in File and Audit checks.

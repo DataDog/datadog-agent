@@ -22,12 +22,22 @@ const (
 
 // ECSConfigProvider implements the ConfigProvider interface.
 // It collects configuration templates from the ECS metadata API.
-type ECSConfigProvider struct{}
+type ECSConfigProvider struct {
+	client *v2.Client
+}
 
 // NewECSConfigProvider returns a new ECSConfigProvider.
 // It configures an http Client with a 500 ms timeout.
 func NewECSConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
-	return new(ECSConfigProvider), nil
+	client, err := ecsmeta.V2()
+	if err != nil {
+		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+		return nil, err
+	}
+
+	return &ECSConfigProvider{
+		client: client,
+	}, nil
 }
 
 // String returns a string representation of the ECSConfigProvider
@@ -43,10 +53,11 @@ func (p *ECSConfigProvider) IsUpToDate() (bool, error) {
 // Collect finds all running containers in the agent's task, reads their labels
 // and extract configuration templates from them for auto discovery.
 func (p *ECSConfigProvider) Collect() ([]integration.Config, error) {
-	meta, err := ecsmeta.V2().GetTask()
+	meta, err := p.client.GetTask()
 	if err != nil {
 		return nil, err
 	}
+
 	return parseECSContainers(meta.Containers)
 }
 

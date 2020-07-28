@@ -3,7 +3,30 @@
 package network
 
 /*
+#include <winsock2.h>
 #include "../ebpf/c/ddfilterapi.h"
+
+uint32_t getTcp_sRTT(PER_FLOW_DATA *pfd)
+{
+	if(pfd->protocol != IPPROTO_TCP) {
+		return 0;
+	}
+	return (uint32_t)pfd->protocol_u.tcp.sRTT;
+}
+uint32_t getTcp_rttVariance(PER_FLOW_DATA *pfd)
+{
+	if(pfd->protocol != IPPROTO_TCP) {
+		return 0;
+	}
+	return (uint32_t)pfd->protocol_u.tcp.rttVariance;
+}
+uint32_t getTcp_retransmitCount(PER_FLOW_DATA *pfd)
+{
+	if(pfd->protocol != IPPROTO_TCP) {
+		return 0;
+	}
+	return (uint32_t)pfd->protocol_u.tcp.retransmitCount;
+}
 */
 import "C"
 import (
@@ -84,11 +107,15 @@ func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 		srcAddr, dstAddr = convertV6Addr(flow.localAddress), convertV6Addr(flow.remoteAddress)
 	}
 
-	return ConnectionStats{
-		Source:             srcAddr,
-		Dest:               dstAddr,
-		MonotonicSentBytes: uint64(flow.monotonicSentBytes),
-		MonotonicRecvBytes: uint64(flow.monotonicRecvBytes),
+	cs := ConnectionStats{
+		Source: srcAddr,
+		Dest:   dstAddr,
+		// after lengthy discussion, use the transport bytes in/out.  monotonic
+		// RecvBytes/SentBytes includes the size of the IP header and transport
+		// header, transportBytes is the raw transport data.  At present,
+		// the linux probe only reports the raw transport data.  So do that.
+		MonotonicSentBytes: uint64(flow.transportBytesOut),
+		MonotonicRecvBytes: uint64(flow.transportBytesIn),
 		LastUpdateEpoch:    0,
 		// TODO: Driver needs to be updated to get retransmit values
 		MonotonicRetransmits: 0,
@@ -101,4 +128,10 @@ func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 		Family:               family,
 		Direction:            connDirection(flow.flags),
 	}
+	if connectionType == TCP {
+		cs.MonotonicRetransmits = uint32(C.getTcp_retransmitCount(flow))
+		cs.RTT = uint32(C.getTcp_sRTT(flow))
+		cs.RTTVar = uint32(C.getTcp_rttVariance(flow))
+	}
+	return cs
 }
