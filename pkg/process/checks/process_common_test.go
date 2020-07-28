@@ -178,8 +178,14 @@ func TestProcessChunking(t *testing.T) {
 		for _, c := range tc.last {
 			last[c.Pid] = c
 		}
+		lastCtrByPid := make(map[int32]string)
+		for _, c := range containers {
+			for _, pid := range c.Pids {
+				lastCtrByPid[pid] = c.ID
+			}
+		}
 
-		procs := fmtProcesses(cfg, cur, last, containers, syst2, syst1, lastRun)
+		procs := fmtProcesses(cfg, cur, last, lastCtrByPid, syst2, syst1, lastRun)
 		// only deal with non-container processes
 		chunked := chunkProcesses(procs[emptyCtrID], cfg.MaxPerMessage)
 		assert.Len(t, chunked, tc.expectedChunks, "len %d", i)

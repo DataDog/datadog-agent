@@ -3,7 +3,6 @@ package checks
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -26,12 +25,9 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		makeConnection(4),
 	}
 
-	Process.lastCtrIDForPID = map[int32]string{}
 	for _, proc := range p {
-		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
+		proc.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", proc.Pid)}
 	}
-	// update lastRun to indicate that Process check is enabled and ran
-	Process.lastRun = time.Now()
 
 	cfg := config.NewDefaultAgentConfig(false)
 
@@ -115,11 +111,9 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		"1.1.2.3": {Names: []string{"datacat.edu"}},
 	}
 
-	Process.lastCtrIDForPID = map[int32]string{}
 	for _, proc := range p {
-		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
+		proc.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", proc.Pid)}
 	}
-	Process.lastRun = time.Now() // Update lastRun to indicate that Process check is enabled and ran
 
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
@@ -150,4 +144,179 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 4, total)
+}
+
+func TestResolveLoopbackConnections(t *testing.T) {
+	unresolvedRaddr := map[string]*model.Addr{
+		"127.0.0.1:1234": {
+			Ip:   "127.0.0.1",
+			Port: 1234,
+		},
+		"127.0.0.1:1235": {
+			Ip:   "127.0.0.1",
+			Port: 1235,
+		},
+		"127.0.0.1:1240": {
+			Ip:   "127.0.0.1",
+			Port: 1240,
+		},
+		"10.1.1.1:1234": {
+			Ip:   "10.1.1.1",
+			Port: 1234,
+		},
+		"10.1.1.1:1235": {
+			Ip:   "10.1.1.1",
+			Port: 1235,
+		},
+	}
+
+	unresolvedLaddr := map[string]*model.Addr{
+		"127.0.0.1:1240": {
+			Ip:   "127.0.0.1",
+			Port: 1240,
+		},
+		"127.0.0.1:1250": {
+			Ip:   "127.0.0.1",
+			Port: 1250,
+		},
+	}
+
+	tests := []*model.Connection{
+		{
+			Pid: 1,
+			Laddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1234,
+			},
+			Raddr: &model.Addr{
+				Ip:   "10.1.1.2",
+				Port: 1234,
+			},
+			IpTranslation: &model.IPTranslation{
+				ReplDstIP:   "10.1.1.1",
+				ReplDstPort: 1234,
+				ReplSrcIP:   "10.1.1.2",
+				ReplSrcPort: 1234,
+			},
+			NetNS: 1,
+		},
+		{
+			Pid:   2,
+			NetNS: 2,
+			Laddr: &model.Addr{
+				Ip:   "10.1.1.2",
+				Port: 1234,
+			},
+			Raddr: &model.Addr{
+				Ip:   "10.1.1.1",
+				Port: 1234,
+			},
+			IpTranslation: &model.IPTranslation{
+				ReplDstIP:   "10.1.1.2",
+				ReplDstPort: 1234,
+				ReplSrcIP:   "127.0.0.1",
+				ReplSrcPort: 1234,
+			},
+		},
+		{
+			Pid:   3,
+			NetNS: 3,
+			Laddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1235,
+			},
+			Raddr: unresolvedRaddr["127.0.0.1:1234"],
+		},
+		{
+			Pid:   5,
+			NetNS: 3,
+			Laddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1240,
+			},
+			Raddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1235,
+			},
+		},
+		{
+			Pid:   5,
+			NetNS: 4,
+			Laddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1240,
+			},
+			Raddr: unresolvedRaddr["127.0.0.1:1235"],
+		},
+		{
+			Pid:   10,
+			NetNS: 10,
+			Laddr: unresolvedLaddr["127.0.0.1:1240"],
+			Raddr: unresolvedRaddr["10.1.1.1:1235"],
+		},
+		{
+			Pid:   11,
+			NetNS: 10,
+			Laddr: unresolvedLaddr["127.0.0.1:1250"],
+			Raddr: unresolvedRaddr["127.0.0.1:1240"],
+		},
+		{
+			Pid:   20,
+			NetNS: 20,
+			Laddr: &model.Addr{
+				Ip:          "1.2.3.4",
+				Port:        1234,
+				ContainerId: "baz",
+			},
+			Raddr: &model.Addr{
+				Ip:          "1.2.3.4",
+				Port:        1234,
+				ContainerId: "bar",
+			},
+		},
+	}
+
+	ctrsByPid := map[int32]string{
+		1:  "foo1",
+		2:  "foo2",
+		3:  "foo3",
+		4:  "foo4",
+		5:  "foo5",
+		20: "baz",
+	}
+
+	resolvedByRaddr := map[string]string{
+		"10.1.1.2:1234":  "foo2",
+		"10.1.1.1:1234":  "foo1",
+		"127.0.0.1:1235": "foo3",
+		"1.2.3.4:1234":   "bar",
+	}
+
+	resolveLoopbackConnections(tests, ctrsByPid)
+
+	for _, te := range tests {
+		found := false
+		for _, u := range unresolvedLaddr {
+			if te.Laddr == u {
+				assert.True(t, te.Laddr.ContainerId == "", "laddr container should not be resolved for conn but is: %v", te)
+				found = true
+				break
+			}
+		}
+
+		assert.True(t, found || te.Laddr.ContainerId != "", "laddr container should be resolved for conn but is not: %v", te)
+		assert.True(t, found || te.Laddr.ContainerId == ctrsByPid[te.Pid])
+
+		found = false
+		for _, u := range unresolvedRaddr {
+			if te.Raddr == u {
+				assert.True(t, te.Raddr.ContainerId == "", "raddr container should not be resolved for conn but is:%v", te)
+				found = true
+				break
+			}
+		}
+
+		assert.True(t, found || te.Raddr.ContainerId != "", "raddr container should be resolved for conn but is not: %v", te)
+		assert.True(t, found || te.Raddr.ContainerId == resolvedByRaddr[fmt.Sprintf("%s:%d", te.Raddr.Ip, te.Raddr.Port)], "raddr container should be resolved for conn but is not: %v", te)
+	}
 }
