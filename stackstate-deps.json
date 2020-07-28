@@ -1,5 +1,5 @@
 {
-  "STACKSTATE_INTEGRATIONS_VERSION": "stac-9816-agent-integrations ",
+  "STACKSTATE_INTEGRATIONS_VERSION": "stac-9816-agent-integrations",
   "TRACE_AGENT_VERSION": "6.7.11",
   "TRACE_AGENT_BRANCH": "6.7.11",
   "TRACE_AGENT_WINDOWS_BINARY": "yes",
