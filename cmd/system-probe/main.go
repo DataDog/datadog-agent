@@ -98,6 +98,11 @@ func runAgent(exit <-chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	// if a debug port is specified, we expose the default handler to that port
+	if cfg.SystemProbeDebugPort > 0 {
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
+	}
+
 	loader := NewLoader()
 	httpMux := http.NewServeMux()
 
