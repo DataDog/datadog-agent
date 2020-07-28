@@ -72,6 +72,8 @@ func main() {
 			// Completely bypass the run command stop logic as it takes too long to stop
 			app.StopAgent()
 			os.Exit(0)
+			// We won't reach this code but the signature requires a return code.
+			// Returning 1 in SetConsoleCtrlHandler means we handled the signal.
 			return 1
 		}), 1)
 
