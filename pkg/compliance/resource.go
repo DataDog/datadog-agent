@@ -80,7 +80,7 @@ type Process struct {
 type KubernetesResource struct {
 	Kind      string `yaml:"kind"`
 	Version   string `yaml:"version,omitempty"`
-	Group     string `yaml:"group"`
+	Group     string `yaml:"group,omitempty"`
 	Namespace string `yaml:"namespace,omitempty"`
 
 	// A selector to restrict the list of returned objects by their labels.

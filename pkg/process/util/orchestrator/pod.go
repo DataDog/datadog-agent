@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strconv"
+	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -23,6 +24,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/kubelet/pod"
 )
@@ -42,12 +44,15 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// extract pod info
 		podModel := extractPodMessage(podList[p])
 
-		// insert tags
+		// insert tagger tags
 		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("Could not retrieve tags for pod: %s", err)
 			continue
 		}
+
+		// additionnal tags
+		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 		podModel.Tags = tags
 
 		// static pods "uid" are actually not unique across nodes.
@@ -58,10 +63,10 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 
 		// scrub & generate YAML
 		for c := 0; c < len(podList[p].Spec.Containers); c++ {
-			scrubContainer(&podList[p].Spec.Containers[c], cfg)
+			ScrubContainer(&podList[p].Spec.Containers[c], cfg)
 		}
 		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-			scrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+			ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
 		}
 		// k8s objects only have json "omitempty" annotations
 		// we're doing json<>yaml to get rid of the null properties
@@ -99,8 +104,8 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 	return messages, nil
 }
 
-// scrubContainer scrubs sensitive information in the command line & env vars
-func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
+// ScrubContainer scrubs sensitive information in the command line & env vars
+func ScrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 	// scrub command line
 	scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(c.Command)
 	c.Command = scrubbedCmd
@@ -116,63 +121,28 @@ func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
-func chunkPods(pods []*model.Pod, chunks, perChunk int) [][]*model.Pod {
-	chunked := make([][]*model.Pod, 0, chunks)
-	chunk := make([]*model.Pod, 0, perChunk)
+func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
+	chunks := make([][]*model.Pod, 0, chunkCount)
 
-	for _, p := range pods {
-		chunk = append(chunk, p)
-		if len(chunk) == perChunk {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.Pod, 0, perChunk)
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(pods)
 		}
+		chunks = append(chunks, pods[chunkStart:chunkEnd])
 	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
+
+	return chunks
 }
 
 // extractPodMessage extracts pod info into the proto model
 func extractPodMessage(p *v1.Pod) *model.Pod {
-	// pod medatadata
-	podMetadata := model.Metadata{
-		Name:      p.Name,
-		Namespace: p.Namespace,
-		Uid:       string(p.UID),
-	}
-	if !p.ObjectMeta.CreationTimestamp.IsZero() {
-		podMetadata.CreationTimestamp = p.ObjectMeta.CreationTimestamp.Unix()
-	}
-	if !p.ObjectMeta.DeletionTimestamp.IsZero() {
-		podMetadata.DeletionTimestamp = p.ObjectMeta.DeletionTimestamp.Unix()
-	}
-	if len(p.Annotations) > 0 {
-		podMetadata.Annotations = make([]string, len(p.Annotations))
-		i := 0
-		for k, v := range p.Annotations {
-			podMetadata.Annotations[i] = k + ":" + v
-			i++
-		}
-	}
-	if len(p.Labels) > 0 {
-		podMetadata.Labels = make([]string, len(p.Labels))
-		i := 0
-		for k, v := range p.Labels {
-			podMetadata.Labels[i] = k + ":" + v
-			i++
-		}
-	}
-	for _, o := range p.OwnerReferences {
-		owner := model.OwnerReference{
-			Name: o.Name,
-			Uid:  string(o.UID),
-			Kind: o.Kind,
-		}
-		podMetadata.OwnerReferences = append(podMetadata.OwnerReferences, &owner)
-	}
 	podModel := model.Pod{
-		Metadata: &podMetadata,
+		Metadata: ExtractMetadata(&p.ObjectMeta),
 	}
 	// pod spec
 	podModel.NodeName = p.Spec.NodeName
@@ -386,4 +356,45 @@ func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) s
 	_, _ = h.Write([]byte(namespace))
 	_, _ = h.Write([]byte(clusterName))
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// ExtractMetadata extracts standard metadata into the model
+func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
+	meta := model.Metadata{
+		Name:      m.Name,
+		Namespace: m.Namespace,
+		Uid:       string(m.UID),
+	}
+	if !m.CreationTimestamp.IsZero() {
+		meta.CreationTimestamp = m.CreationTimestamp.Unix()
+	}
+	if !m.DeletionTimestamp.IsZero() {
+		meta.DeletionTimestamp = m.DeletionTimestamp.Unix()
+	}
+	if len(m.Annotations) > 0 {
+		meta.Annotations = make([]string, len(m.Annotations))
+		i := 0
+		for k, v := range m.Annotations {
+			meta.Annotations[i] = k + ":" + v
+			i++
+		}
+	}
+	if len(m.Labels) > 0 {
+		meta.Labels = make([]string, len(m.Labels))
+		i := 0
+		for k, v := range m.Labels {
+			meta.Labels[i] = k + ":" + v
+			i++
+		}
+	}
+	for _, o := range m.OwnerReferences {
+		owner := model.OwnerReference{
+			Name: o.Name,
+			Uid:  string(o.UID),
+			Kind: o.Kind,
+		}
+		meta.OwnerReferences = append(meta.OwnerReferences, &owner)
+	}
+
+	return &meta
 }

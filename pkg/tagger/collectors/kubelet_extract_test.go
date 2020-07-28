@@ -1048,7 +1048,7 @@ func TestParsePods(t *testing.T) {
 	}
 }
 
-func TestParseDeploymentForReplicaset(t *testing.T) {
+func TestParseDeploymentForReplicaSet(t *testing.T) {
 	for in, out := range map[string]string{
 		// Nominal 1.6 cases
 		"frontend-2891696001":  "frontend",
@@ -1071,7 +1071,7 @@ func TestParseDeploymentForReplicaset(t *testing.T) {
 		"frontend-56a89cfff7": "", // no vowels allowed
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
-			assert.Equal(t, out, parseDeploymentForReplicaset(in))
+			assert.Equal(t, out, parseDeploymentForReplicaSet(in))
 		})
 	}
 }

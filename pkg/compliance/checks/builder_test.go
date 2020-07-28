@@ -8,31 +8,32 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
-	"github.com/DataDog/gopsutil/process"
 	assert "github.com/stretchr/testify/require"
 )
 
 func TestKubernetesNodeEligible(t *testing.T) {
 	tests := []struct {
-		selector       *compliance.HostSelector
+		name           string
+		selector       string
 		labels         map[string]string
 		expectEligible bool
+		expectError    error
 	}{
 		{
-			selector:       nil,
+			name:           "empty selector",
+			selector:       "",
 			expectEligible: true,
 		},
 		{
-			selector: &compliance.HostSelector{
-				KubernetesNodeRole: "master",
-			},
+			name:     "role only",
+			selector: `node.label("kubernetes.io/role") in ["master"]`,
 			labels: map[string]string{
 				"node-role.kubernetes.io/master": "",
 				"foo":                            "bar",
@@ -40,15 +41,8 @@ func TestKubernetesNodeEligible(t *testing.T) {
 			expectEligible: true,
 		},
 		{
-			selector: &compliance.HostSelector{
-				KubernetesNodeRole: "master",
-				KubernetesNodeLabels: []compliance.KubeNodeSelector{
-					{
-						Label: "foo",
-						Value: "bar",
-					},
-				},
-			},
+			name:     "role and another label",
+			selector: `node.label("kubernetes.io/role") == "master" && node.label("foo") == "bar"`,
 			labels: map[string]string{
 				"node-role.kubernetes.io/master": "",
 				"foo":                            "bar",
@@ -56,26 +50,60 @@ func TestKubernetesNodeEligible(t *testing.T) {
 			expectEligible: true,
 		},
 		{
-			selector: &compliance.HostSelector{
-				KubernetesNodeRole: "master",
-				KubernetesNodeLabels: []compliance.KubeNodeSelector{
-					{
-						Label: "foo",
-						Value: "bar",
-					},
-				},
-			},
+			name:     "role and missing label",
+			selector: `node.label("kubernetes.io/role") == "master" && node.label("foo") == "bar"`,
 			labels: map[string]string{
 				"node-role.kubernetes.io/master": "",
 				"foo":                            "bazbar",
 			},
 			expectEligible: false,
 		},
+		{
+			name:     "role and label name",
+			selector: `node.label("kubernetes.io/role") == "master" && "foo" in node.labels`,
+			labels: map[string]string{
+				"node-role.kubernetes.io/master": "",
+				"foo":                            "bazbar",
+			},
+			expectEligible: true,
+		},
+		{
+			name:     "not boolean",
+			selector: `node.label("kubernetes.io/role")`,
+			labels: map[string]string{
+				"node-role.kubernetes.io/master": "",
+				"foo":                            "bazbar",
+			},
+			expectEligible: false,
+			expectError:    errors.New(`hostSelector "node.label(\"kubernetes.io/role\")" does not evaluate to a boolean value`),
+		},
+		{
+			name:     "bad expression",
+			selector: `¯\_(ツ)_/¯`,
+			labels: map[string]string{
+				"node-role.kubernetes.io/master": "",
+				"foo":                            "bazbar",
+			},
+			expectEligible: false,
+			expectError:    errors.New(`1:1: no match found for ¯`),
+		},
+		{
+			name:           "nil labels",
+			selector:       `node.label("kubernetes.io/role") != "master" && "foo" in node.labels`,
+			expectEligible: false,
+		},
 	}
 
 	for _, tt := range tests {
-		builder := builder{}
-		assert.Equal(t, tt.expectEligible, builder.isKubernetesNodeEligible(tt.selector, tt.labels))
+		t.Run(tt.name, func(t *testing.T) {
+			builder := &builder{}
+			WithNodeLabels(tt.labels)(builder)
+			eligible, err := builder.isKubernetesNodeEligible(tt.selector)
+			assert.Equal(t, tt.expectEligible, eligible)
+			if tt.expectError != nil {
+				assert.EqualError(t, err, tt.expectError.Error())
+			}
+		})
 	}
 }
 
@@ -117,8 +145,8 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from process",
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processFetcher = func() (map[int32]*process.FilledProcess, error) {
-					return map[int32]*process.FilledProcess{
+				processFetcher = func() (processes, error) {
+					return processes{
 						42: {
 							Name:    "buddy",
 							Cmdline: []string{"--path=/home/root/hiya-buddy.txt"},
