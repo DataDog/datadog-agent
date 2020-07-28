@@ -12,7 +12,7 @@ import (
 // Features represents features supported by the StackState backend
 type Features struct {
 	config      *config.FeaturesConfig
-	client      *httpclient.RetryableHttpClient
+	client      *httpclient.RetryableHTTPClient
 	features    map[string]bool
 	retriesLeft int
 	mux         sync.Mutex

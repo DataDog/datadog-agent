@@ -9,7 +9,6 @@ package py
 
 import (
 	"fmt"
-	"github.com/shirou/gopsutil/process"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/metadata/externalhost"
 
+	collectorutils "github.com/StackVista/stackstate-agent/pkg/collector/util"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
@@ -95,10 +95,10 @@ func GetPid(self *C.PyObject, args *C.PyObject) *C.PyObject {
 func GetCreateTime(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	pid := os.Getpid()
 	var createTime int64
-	if p, err := process.NewProcess(int32(pid)); err == nil {
-		if ct, err := p.CreateTime(); err == nil {
-			createTime = ct
-		}
+	if ct, err := collectorutils.GetProcessCreateTime(int32(pid)); err != nil {
+		log.Errorf("datadog_agent: could not get create time for process: %s", pid, err)
+	} else {
+		createTime = ct
 	}
 
 	cStr := C.CString(string(createTime))

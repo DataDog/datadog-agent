@@ -38,15 +38,15 @@ type ClusterTopologyCommon interface {
 type clusterTopologyCommon struct {
 	Instance           topology.Instance
 	APICollectorClient apiserver.APICollectorClient
-	urnPrefix string
+	urnPrefix          string
 }
 
 // NewClusterTopologyCommon creates a clusterTopologyCommon
 func NewClusterTopologyCommon(instance topology.Instance, ac apiserver.APICollectorClient) ClusterTopologyCommon {
 	return &clusterTopologyCommon{
-		Instance: instance,
+		Instance:           instance,
 		APICollectorClient: ac,
-		urnPrefix: fmt.Sprintf("urn:%s:/%s", instance.Type, instance.URL),
+		urnPrefix:          fmt.Sprintf("urn:%s:/%s", instance.Type, instance.URL),
 	}
 }
 
