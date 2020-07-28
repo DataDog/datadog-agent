@@ -103,14 +103,14 @@ var data = [2]interface{}{
 	},
 }
 
-func TestDecodeMsgArray(t *testing.T) {
+func TestDecodeMsgDictionary(t *testing.T) {
 	b, err := vmsgp.Marshal(&data)
 	assert.NoError(t, err)
 	dc := NewMsgpReader(bytes.NewReader(b))
 	defer FreeMsgpReader(dc)
 
 	var traces Traces
-	if err := traces.DecodeMsgArray(dc); err != nil {
+	if err := traces.DecodeMsgDictionary(dc); err != nil {
 		t.Fatal(err)
 	}
 	assert.EqualValues(t, traces[0][0], &Span{
@@ -135,7 +135,7 @@ func TestDecodeMsgArray(t *testing.T) {
 
 var benchOut Traces
 
-func BenchmarkDecodeMsgArray(b *testing.B) {
+func BenchmarkDecodeMsgDictionary(b *testing.B) {
 	bb, err := vmsgp.Marshal(&data)
 	assert.NoError(b, err)
 	r := bytes.NewReader(bb)
@@ -146,6 +146,6 @@ func BenchmarkDecodeMsgArray(b *testing.B) {
 	b.SetBytes(int64(len(bb)))
 	for i := 0; i < b.N; i++ {
 		r.Reset(bb)
-		assert.NoError(b, benchOut.DecodeMsgArray(dc))
+		assert.NoError(b, benchOut.DecodeMsgDictionary(dc))
 	}
 }

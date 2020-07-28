@@ -43,64 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Version is a dumb way to version our collector handlers
-type Version string
-
-const (
-	// v01 DEPRECATED, FIXME[1.x]
-	// Traces: JSON, slice of spans
-	// Services: deprecated
-	v01 Version = "v0.1"
-
-	// v02 DEPRECATED, FIXME[1.x]
-	// Traces: JSON, slice of traces
-	// Services: deprecated
-	v02 Version = "v0.2"
-
-	// v03
-	// Traces: msgpack/JSON (Content-Type) slice of traces
-	// Services: deprecated
-	v03 Version = "v0.3"
-
-	// v04
-	// Traces: msgpack/JSON (Content-Type) slice of traces + returns service sampling ratios
-	// Services: deprecated
-	v04 Version = "v0.4"
-
-	// v05
-	//
-	// Content-Type: application/msgpack
-	// Payload: Traces with strings de-duplicated into a dictionary.
-	// Response: Service sampling rates.
-	//
-	// The payload is an array containing exactly 2 elements:
-	//
-	// 	1. An array of all unique strings present in the payload (a dictionary referred to by index).
-	// 	2. An array of traces, where each trace is an array of spans. A span is encoded as an array having
-	// 	   exactly 12 elements, representing all span properties, in this exact order:
-	//
-	// 		 0: Service   (int)
-	// 		 1: Name      (int)
-	// 		 2: Resource  (int)
-	// 		 3: TraceID   (uint64)
-	// 		 4: SpanID    (uint64)
-	// 		 5: ParentID  (uint64)
-	// 		 6: Start     (int64)
-	// 		 7: Duration  (int64)
-	// 		 8: Error     (int32)
-	// 		 9: Meta      (map[int]int)
-	// 		10: Metrics   (map[int]float64)
-	// 		11: Type      (int)
-	//
-	// 	Considerations:
-	//
-	// 	- Any of the 12 array elements may be nil when absent.
-	// 	- The "int" typed values represent the index at which the corresponding string is found in the dictionary.
-	// 	  If any of the values are the empty string, then the empty string must be added into the dictionary.
-	//
-	v05 Version = "v0.5"
-)
-
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
@@ -382,7 +324,7 @@ func (*HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, erro
 	case v05:
 		var traces pb.Traces
 		rd := pb.NewMsgpReader(req.Body)
-		err := traces.DecodeMsgArray(rd)
+		err := traces.DecodeMsgDictionary(rd)
 		pb.FreeMsgpReader(rd)
 		return traces, err
 	default:

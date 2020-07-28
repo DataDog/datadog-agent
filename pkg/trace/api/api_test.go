@@ -423,7 +423,7 @@ func TestDecodeV05(t *testing.T) {
 			{
 				{3, 4, 2, uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[int]int{5: 6}, map[int]float64{7: 1.2}, 9},
 				{0, 1, 10, uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[int]int{11: 12}, map[int]float64{8: 1.4}, 9},
-				{0, 1, 10, uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[int]int{11: 12}, nil, 9},
+				{0, 1, 10, uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[int]int{11: 12}, map[int]float64{}, 9},
 			},
 		},
 	}
