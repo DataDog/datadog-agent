@@ -72,6 +72,80 @@ func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	return &replicaSet
 }
 
+// extractServiceMessage returns the protobuf Service message corresponding to
+// a Kubernetes service object.
+func extractService(s *corev1.Service) *model.Service {
+	message := &model.Service{
+		Metadata: orchestrator.ExtractMetadata(&s.ObjectMeta),
+		Spec: &model.ServiceSpec{
+			ExternalIPs:              s.Spec.ExternalIPs,
+			ExternalTrafficPolicy:    string(s.Spec.ExternalTrafficPolicy),
+			PublishNotReadyAddresses: s.Spec.PublishNotReadyAddresses,
+			SessionAffinity:          string(s.Spec.SessionAffinity),
+			Type:                     string(s.Spec.Type),
+		},
+		Status: &model.ServiceStatus{},
+	}
+
+	if s.Spec.IPFamily != nil {
+		message.Spec.IpFamily = string(*s.Spec.IPFamily)
+	}
+	if s.Spec.SessionAffinityConfig != nil && s.Spec.SessionAffinityConfig.ClientIP != nil {
+		message.Spec.SessionAffinityConfig = &model.ServiceSessionAffinityConfig{
+			ClientIPTimeoutSeconds: *s.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds,
+		}
+	}
+	if s.Spec.Type == corev1.ServiceTypeExternalName {
+		message.Spec.ExternalName = s.Spec.ExternalName
+	} else {
+		message.Spec.ClusterIP = s.Spec.ClusterIP
+	}
+	if s.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		message.Spec.LoadBalancerIP = s.Spec.LoadBalancerIP
+		message.Spec.LoadBalancerSourceRanges = s.Spec.LoadBalancerSourceRanges
+
+		if s.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal {
+			message.Spec.HealthCheckNodePort = s.Spec.HealthCheckNodePort
+		}
+
+		for _, ingress := range s.Status.LoadBalancer.Ingress {
+			if ingress.Hostname != "" {
+				message.Status.Ingress = append(message.Status.Ingress, ingress.Hostname)
+			} else if ingress.IP != "" {
+				message.Status.Ingress = append(message.Status.Ingress, ingress.IP)
+			}
+		}
+	}
+
+	if s.Spec.Selector != nil {
+		message.Spec.Selectors = extractServiceSelector(s.Spec.Selector)
+	}
+
+	for _, port := range s.Spec.Ports {
+		message.Spec.Ports = append(message.Spec.Ports, &model.ServicePort{
+			Name:       port.Name,
+			Protocol:   string(port.Protocol),
+			Port:       port.Port,
+			TargetPort: port.TargetPort.String(),
+			NodePort:   port.NodePort,
+		})
+	}
+
+	return message
+}
+
+func extractServiceSelector(ls map[string]string) []*model.LabelSelectorRequirement {
+	labelSelectors := make([]*model.LabelSelectorRequirement, 0, len(ls))
+	for k, v := range ls {
+		labelSelectors = append(labelSelectors, &model.LabelSelectorRequirement{
+			Key:      k,
+			Operator: "In",
+			Values:   []string{v},
+		})
+	}
+	return labelSelectors
+}
+
 func extractLabelSelector(ls *metav1.LabelSelector) []*model.LabelSelectorRequirement {
 	labelSelectors := make([]*model.LabelSelectorRequirement, 0, len(ls.MatchLabels)+len(ls.MatchExpressions))
 	for k, v := range ls.MatchLabels {

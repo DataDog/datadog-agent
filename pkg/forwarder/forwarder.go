@@ -29,6 +29,8 @@ const (
 	PayloadTypeDeployment = "deployment"
 	// PayloadTypeReplicaSet is the name of the replica set payload type
 	PayloadTypeReplicaSet = "replicaset"
+	// PayloadTypeService is the name of the service payload type
+	PayloadTypeService = "service"
 )
 
 var (
@@ -52,6 +54,7 @@ var (
 	transactionsIntakePod         = expvar.Int{}
 	transactionsIntakeDeployment  = expvar.Int{}
 	transactionsIntakeReplicaSet  = expvar.Int{}
+	transactionsIntakeService     = expvar.Int{}
 
 	tlm = telemetry.NewCounter("forwarder", "transactions",
 		[]string{"endpoint", "route"}, "Forwarder telemetry")
@@ -99,6 +102,7 @@ func init() {
 	transactionsExpvars.Set("Pods", &transactionsIntakePod)
 	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
 	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
+	transactionsExpvars.Set("Services", &transactionsIntakeService)
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
@@ -483,6 +487,8 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 		transactionsIntakeDeployment.Add(1)
 	case PayloadTypeReplicaSet:
 		transactionsIntakeReplicaSet.Add(1)
+	case PayloadTypeService:
+		transactionsIntakeService.Add(1)
 	}
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)

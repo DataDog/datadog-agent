@@ -149,25 +149,31 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 // startServicesInformer starts the service informer.
 // The synchronization of the service informer is handled in this function.
 func startServicesInformer(ctx ControllerContext, c chan error) {
+
+	informer := ctx.InformerFactory.Core().V1().Services().Informer()
+
 	// Just start the shared informer, the autodiscovery
 	// components will access it when needed.
-	go ctx.InformerFactory.Core().V1().Services().Informer().Run(ctx.StopCh)
+	ctx.InformerFactory.Start(ctx.StopCh)
 
 	// Wait for the cache to sync
 	c <- SyncInformers(map[InformerName]cache.SharedInformer{
-		servicesInformer: ctx.InformerFactory.Core().V1().Services().Informer(),
+		ServicesInformer: informer,
 	})
 }
 
 // startEndpointsInformer starts the endpoints informer.
 // The synchronization of the endpoints informer is handled in this function.
 func startEndpointsInformer(ctx ControllerContext, c chan error) {
+
+	informer := ctx.InformerFactory.Core().V1().Endpoints().Informer()
+
 	// Just start the shared informer, the autodiscovery
 	// components will access it when needed.
-	go ctx.InformerFactory.Core().V1().Endpoints().Informer().Run(ctx.StopCh)
+	ctx.InformerFactory.Start(ctx.StopCh)
 
 	// Wait for the cache to sync
 	c <- SyncInformers(map[InformerName]cache.SharedInformer{
-		endpointsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
+		endpointsInformer: informer,
 	})
 }
