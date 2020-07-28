@@ -92,7 +92,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	sw := writer.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
 	sie := interpreter.NewSpanInterpreterEngine(conf)
-	sf := features.NewFeatures(conf)
+	sf := features.NewFeatures()
 
 	return &Agent{
 		Receiver:              r,

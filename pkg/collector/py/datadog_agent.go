@@ -96,7 +96,7 @@ func GetCreateTime(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	pid := os.Getpid()
 	var createTime int64
 	if ct, err := collectorutils.GetProcessCreateTime(int32(pid)); err != nil {
-		log.Errorf("datadog_agent: could not get create time for process: %s", pid, err)
+		log.Errorf("datadog_agent: could not get create time for process %d: %s", pid, err)
 	} else {
 		createTime = ct
 	}
