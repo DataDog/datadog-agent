@@ -580,7 +580,7 @@ func (ku *KubeUtil) init() error {
 		return err
 	}
 
-	ku.filter, err = containers.GetSharedFilter()
+	ku.filter, err = containers.GetSharedMetricFilter()
 	if err != nil {
 		return err
 	}

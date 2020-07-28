@@ -25,13 +25,28 @@ import (
 func ListContainersInCurrentTask() ([]*containers.Container, error) {
 	var cList []*containers.Container
 
-	task, err := metadata.V2().GetTask()
+	client, err := metadata.V2()
+	if err != nil {
+		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+		return cList, err
+	}
+
+	task, err := client.GetTask()
 	if err != nil || len(task.Containers) == 0 {
 		log.Error("Unable to get the container list from ecs")
 		return cList, err
 	}
+
+	filter, err := containers.GetSharedMetricFilter()
+	if err != nil {
+		log.Warnf("Unable to get container filter. All containers in ECS Task will be processed, err: %v", err)
+	}
+
 	for _, c := range task.Containers {
-		cList = append(cList, convertMetaV2Container(c))
+		// Not using c.DockerName as it's generated with ecs task name, thus probably not easy to match
+		if filter == nil || !filter.IsExcluded(c.Name, c.Image, "") {
+			cList = append(cList, convertMetaV2Container(c))
+		}
 	}
 
 	err = UpdateContainerMetrics(cList)
@@ -42,7 +57,13 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 // container representations based on stats collected from the ECS metadata v2 API
 func UpdateContainerMetrics(cList []*containers.Container) error {
 	for _, ctr := range cList {
-		stats, err := metadata.V2().GetContainerStats(ctr.ID)
+		client, err := metadata.V2()
+		if err != nil {
+			log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+			return err
+		}
+
+		stats, err := client.GetContainerStats(ctr.ID)
 		if err != nil {
 			log.Debugf("Unable to get stats from ECS for container %s: %s", ctr.ID, err)
 			continue

@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
@@ -26,13 +26,13 @@ var (
 	eventCmd = &cobra.Command{
 		Use:   "event",
 		Short: "Issue logs to test Security Agent compliance events",
-		RunE:  event,
+		RunE:  eventRun,
 	}
 
 	eventArgs = struct {
 		sourceName string
 		sourceType string
-		event      compliance.RuleEvent
+		event      event.Event
 		data       []string
 	}{}
 )
@@ -41,16 +41,14 @@ func init() {
 	complianceCmd.AddCommand(eventCmd)
 	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, "rule-id", "", "", "Rule ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.Version, "version", "", "", "Framework version")
-	eventCmd.Flags().StringVarP(&eventArgs.event.Framework, "framework", "", "", "Compliance framework")
+	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, "rule-id", "", "", "Rule ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
 	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
 	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
 }
 
-func event(cmd *cobra.Command, args []string) error {
+func eventRun(cmd *cobra.Command, args []string) error {
 	// we'll search for a config file named `datadog.yaml`
 	coreconfig.Datadog.SetConfigName("datadog")
 	err := common.SetupConfig(confPath)
@@ -66,7 +64,7 @@ func event(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
 	}
 
-	eventArgs.event.Data = map[string]string{}
+	eventArgs.event.Data = event.Data{}
 	for _, d := range eventArgs.data {
 		kv := strings.SplitN(d, ":", 2)
 		if len(kv) != 2 {

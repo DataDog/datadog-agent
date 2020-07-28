@@ -194,8 +194,8 @@ api_key:
 ## trigger security alert when querying unknown IP (for example, when enabling
 ## Tencent on AWS).
 ## Setting an empty list will disable querying any cloud metadata endpoints
-## (falling back on system metadata). Using this setting on a cloud provider
-## host may result in duplicated hosts in your account.
+## (falling back on system metadata). Disabling metadata for the cloud provider in which an Agent runs may result in
+## duplicated hosts in your Datadog account and missing Autodiscovery features
 ##
 ## Possible values are:
 ## "aws"     AWS EC2, ECS/Fargate

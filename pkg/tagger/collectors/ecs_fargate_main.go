@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -26,6 +28,7 @@ const (
 
 // ECSFargateCollector polls the ecs metadata api.
 type ECSFargateCollector struct {
+	client       *v2.Client
 	infoOut      chan<- []*TagInfo
 	expire       *taggerutil.Expire
 	lastExpire   time.Time
@@ -43,6 +46,13 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 		return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 	}
 
+	client, err := ecsmeta.V2()
+	if err != nil {
+		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
+		return NoCollection, err
+	}
+
+	c.client = client
 	c.infoOut = out
 	c.lastExpire = time.Now()
 	c.expireFreq = ecsFargateExpireFreq
@@ -58,7 +68,7 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 
 // Pull looks for new containers and computes deletions
 func (c *ECSFargateCollector) Pull() error {
-	taskMeta, err := ecsmeta.V2().GetTask()
+	taskMeta, err := c.client.GetTask()
 	if err != nil {
 		return err
 	}
@@ -90,7 +100,7 @@ func (c *ECSFargateCollector) Pull() error {
 // Fetch parses tags for a container on cache miss. We avoid races with Pull,
 // we re-parse the whole list, but don't send updates on other containers.
 func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, []string, error) {
-	taskMeta, err := ecsmeta.V2().GetTask()
+	taskMeta, err := c.client.GetTask()
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

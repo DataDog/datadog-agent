@@ -113,7 +113,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 			continue
 		}
 		container := containers.Container{
-			Type:        "garden",
+			Type:        containers.RuntimeNameGarden,
 			ID:          handle,
 			EntityID:    containers.BuildTaggerEntityName(handle),
 			State:       infoEntry.Info.State,

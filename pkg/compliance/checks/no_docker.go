@@ -7,8 +7,12 @@
 
 package checks
 
-import "errors"
+import (
+	"errors"
 
-func newDockerClient() (DockerClient, error) {
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+)
+
+func newDockerClient() (env.DockerClient, error) {
 	return nil, errors.New("docker client requires docker build flag")
 }
