@@ -13,5 +13,6 @@ func NowNanoseconds() (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return ts.Sec*int64(time.Second) + ts.Nsec*int64(time.Nanosecond), nil
+	// int64 cast is necessary because the size of ts.Sec is based on architecture
+	return int64(ts.Sec)*int64(time.Second) + int64(ts.Nsec)*int64(time.Nanosecond), nil
 }
