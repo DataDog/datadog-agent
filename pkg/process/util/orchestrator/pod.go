@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strconv"
+	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -42,12 +43,15 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// extract pod info
 		podModel := extractPodMessage(podList[p])
 
-		// insert tags
+		// insert tagger tags
 		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("Could not retrieve tags for pod: %s", err)
 			continue
 		}
+
+		// additionnal tags
+		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 		podModel.Tags = tags
 
 		// static pods "uid" are actually not unique across nodes.
