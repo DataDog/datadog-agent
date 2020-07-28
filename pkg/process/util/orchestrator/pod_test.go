@@ -534,7 +534,7 @@ func TestScrubContainer(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			scrubContainer(&tc.input, cfg)
+			ScrubContainer(&tc.input, cfg)
 			assert.Equal(t, tc.expected, tc.input)
 		})
 	}
