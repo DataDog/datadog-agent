@@ -21,12 +21,10 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -72,7 +70,12 @@ func eventRun(cmd *cobra.Command, args []string) error {
 	stopper := restart.NewSerialStopper()
 	defer stopper.Stop()
 
-	reporter, err := newComplianceReporter(stopper, eventArgs.sourceName, eventArgs.sourceType)
+	endpoints, dstContext, err := newLogContext()
+	if err != nil {
+		return err
+	}
+
+	reporter, err := newComplianceReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext)
 	if err != nil {
 		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
 	}
@@ -92,22 +95,8 @@ func eventRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType string) (event.Reporter, error) {
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
-	}
-
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
-	if err != nil {
-		return nil, log.Errorf("Invalid endpoints: %v", err)
-	}
-
-	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.Start()
-	stopper.Add(destinationsCtx)
-
-	health := health.RegisterLiveness("security-agent")
+func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
+	health := health.RegisterLiveness("compliance")
 
 	// setup the auditor
 	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
@@ -115,7 +104,7 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, context)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 
@@ -130,13 +119,13 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
-func startCompliance(stopper restart.Stopper) error {
+func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) error {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil
 	}
 
-	reporter, err := newComplianceReporter(stopper, "compliance-agent", "compliance")
+	reporter, err := newComplianceReporter(stopper, "compliance-agent", "compliance", endpoints, context)
 	if err != nil {
 		return err
 	}
@@ -149,11 +138,6 @@ func startCompliance(stopper restart.Stopper) error {
 
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
-
-	hostname, err := util.GetHostname()
-	if err != nil {
-		return err
-	}
 
 	options := []checks.BuilderOption{
 		checks.WithInterval(checkInterval),

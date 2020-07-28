@@ -10,20 +10,55 @@ package app
 import (
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func startRuntimeSecurity(stopper restart.Stopper) error {
+func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
+	health := health.RegisterLiveness("runtime-security")
+
+	// setup the auditor
+	auditor := auditor.New(coreconfig.Datadog.GetString("runtime_security_config.run_path"), health)
+	auditor.Start()
+	stopper.Add(auditor)
+
+	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, context)
+	pipelineProvider.Start()
+	stopper.Add(pipelineProvider)
+
+	logSource := config.NewLogSource(
+		sourceName,
+		&config.LogsConfig{
+			Type:    sourceType,
+			Service: sourceName,
+			Source:  sourceName,
+		},
+	)
+	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
+}
+
+func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) error {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
 		return nil
 	}
 
-	agent, err := secagent.NewRuntimeSecurityAgent()
+	reporter, err := newRuntimeReporter(stopper, "runtime-security-agent", "runtime-security", endpoints, context)
+	if err != nil {
+		return err
+	}
+
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter)
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security agent instance")
 	}

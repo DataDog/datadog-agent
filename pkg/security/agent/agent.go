@@ -7,37 +7,33 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"google.golang.org/grpc"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
-	logClient *DDClient
-	conn      *grpc.ClientConn
-	running   atomic.Value
-	wg        *sync.WaitGroup
+	hostname string
+	reporter event.Reporter
+	conn     *grpc.ClientConn
+	running  atomic.Value
+	wg       sync.WaitGroup
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent() (*RuntimeSecurityAgent, error) {
-	hostname, err := util.GetHostname()
-	if err != nil {
-		return nil, err
-	}
-
+func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*RuntimeSecurityAgent, error) {
 	socketPath := coreconfig.Datadog.GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
@@ -50,20 +46,14 @@ func NewRuntimeSecurityAgent() (*RuntimeSecurityAgent, error) {
 	}
 
 	return &RuntimeSecurityAgent{
-		conn: conn,
-		wg:   &sync.WaitGroup{},
-		logClient: NewDDClientWithLogSource(hostname, config.NewLogSource(logSource, &config.LogsConfig{
-			Type:    logType,
-			Service: logService,
-			Source:  logSource,
-		})),
+		conn:     conn,
+		reporter: reporter,
+		hostname: hostname,
 	}, nil
 }
 
 // Start the runtime security agent
 func (rsa *RuntimeSecurityAgent) Start() {
-	// Start the Datadog log client. This client is used to ship security events to Datadog.
-	go rsa.logClient.Run(rsa.wg)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
 }
@@ -71,7 +61,6 @@ func (rsa *RuntimeSecurityAgent) Start() {
 // Stop the runtime recurity agent
 func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.running.Store(false)
-	rsa.logClient.Stop()
 	rsa.wg.Wait()
 	rsa.conn.Close()
 }
@@ -117,8 +106,20 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	}
 }
 
+// SendSecurityEvent sends a security event with the provided status
+func (rsa *RuntimeSecurityAgent) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
+	event := &event.Event{
+		AgentRuleID:  evt.RuleID,
+		ResourceID:   rsa.hostname,
+		ResourceType: "host",
+		Data:         json.RawMessage(evt.GetData()),
+	}
+
+	rsa.reporter.Report(event)
+}
+
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	// For now simply log to Datadog
-	rsa.logClient.SendSecurityEvent(evt, message.StatusAlert)
+	rsa.SendSecurityEvent(evt, message.StatusAlert)
 }

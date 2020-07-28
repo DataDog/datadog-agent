@@ -18,6 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -86,6 +89,23 @@ func init() {
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 }
 
+func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
+	httpConnectivity := config.HTTPConnectivityFailure
+	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
+		httpConnectivity = http.CheckConnectivity(endpoints.Main)
+	}
+
+	endpoints, err := config.BuildEndpoints(httpConnectivity)
+	if err != nil {
+		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
+	}
+
+	destinationsCtx := client.NewDestinationsContext()
+	destinationsCtx.Start()
+
+	return endpoints, destinationsCtx, nil
+}
+
 func start(cmd *cobra.Command, args []string) error {
 	defer log.Flush()
 
@@ -133,6 +153,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// get hostname
+	// FIXME: use gRPC cross-agent communication API to retrieve hostname
 	hostname, err := util.GetHostname()
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
@@ -154,12 +175,18 @@ func start(cmd *cobra.Command, args []string) error {
 	stopper := restart.NewSerialStopper()
 	defer stopper.Stop()
 
-	if err = startCompliance(stopper); err != nil {
+	endpoints, dstContext, err := newLogContext()
+	if err != nil {
+		log.Error(err)
+	}
+	stopper.Add(dstContext)
+
+	if err = startCompliance(hostname, endpoints, dstContext, stopper); err != nil {
 		return err
 	}
 
 	// start runtime security agent
-	if err = startRuntimeSecurity(stopper); err != nil {
+	if err = startRuntimeSecurity(hostname, endpoints, dstContext, stopper); err != nil {
 		return err
 	}
 
