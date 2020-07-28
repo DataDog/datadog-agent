@@ -206,7 +206,9 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 // IsDiscarder partially evaluates an Event against a field
 func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error) {
 	event := rs.eventCtor()
-	event.SetFieldValue(field, value)
+	if err := event.SetFieldValue(field, value); err != nil {
+		return false, err
+	}
 
 	ctx := &eval.Context{}
 	ctx.SetObject(event.GetPointer())
