@@ -147,8 +147,8 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	mockConfig := config.Mock()
-	mockConfig.Set("allow_arbitrary_tags", true)
-	defer mockConfig.Set("allow_arbitrary_tags", false)
+	mockConfig.Set("deep_database_monitoring", true)
+	defer mockConfig.Set("deep_database_monitoring", false)
 
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
 	endpoint := endpoint{"/api/foo", "foo"}
