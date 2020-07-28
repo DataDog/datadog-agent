@@ -59,7 +59,7 @@ build do
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     do_windows_sysprobe = ""
-    if not windows_arch_i386? and ENV['WINDOWS_DDFILTER_DRIVER'] and not ENV['WINDOWS_DDFILTER_DRIVER'].empty?
+    if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
@@ -122,7 +122,7 @@ build do
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
 
     unless windows_arch_i386?
-      if ENV['WINDOWS_DDFILTER_DRIVER'] and not ENV['WINDOWS_DDFILTER_DRIVER'].empty?
+      if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
         ## don't bother with system probe build on x86.
         command "invoke -e system-probe.build --windows"
         copy 'bin/system-probe/system-probe.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
