@@ -155,7 +155,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 	}
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
-	var ss writer.SampledSpans
+	ss := new(writer.SampledSpans)
 	sinputs := make([]*stats.Input, 0, len(p.Traces))
 	for _, t := range p.Traces {
 		if len(t) == 0 {
@@ -246,12 +246,12 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			ss.Size += pb.Trace(events).Msgsize()
 		}
 		if ss.Size > writer.MaxPayloadSize {
-			a.Out <- &ss
-			ss = writer.SampledSpans{}
+			a.Out <- ss
+			ss = new(writer.SampledSpans)
 		}
 	}
 	if ss.Size > 0 {
-		a.Out <- &ss
+		a.Out <- ss
 	}
 	if len(sinputs) > 0 {
 		a.Concentrator.In <- sinputs

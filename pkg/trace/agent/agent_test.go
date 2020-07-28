@@ -222,6 +222,80 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(t, 4, want.TracesPriority1)
 		assert.EqualValues(t, 5, want.TracesPriority2)
 	})
+
+	t.Run("normalizing", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		traces := pb.Traces{{{
+			Service:  "something &&<@# that should be a metric!",
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+		}}}
+		go agnt.Process(&api.Payload{
+			Traces: traces,
+			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(2 * time.Second)
+		var span *pb.Span
+		select {
+		case ss := <-agnt.Out:
+			span = ss.Traces[0].Spans[0]
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+		assert.Equal(t, "unnamed_operation", span.Name)
+		assert.Equal(t, "something_that_should_be_a_metric", span.Service)
+	})
+
+	t.Run("chunking", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		payloadN := 2
+		trace := pb.Trace{{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+		}}
+		var traces pb.Traces
+		for size := 0; size < writer.MaxPayloadSize*payloadN; size += trace.Msgsize() {
+			traces = append(traces, trace)
+		}
+		go agnt.Process(&api.Payload{
+			Traces: traces,
+			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		}, stats.NewSublayerCalculator())
+
+		var gotCount int
+		timeout := time.After(3 * time.Second)
+		// expect multiple payloads
+		for i := 0; i < payloadN+2; i++ {
+			select {
+			case ss := <-agnt.Out:
+				gotCount += int(ss.SpanCount)
+			case <-timeout:
+				t.Fatal("timed out")
+			}
+		}
+		// without missing a trace
+		assert.Equal(t, gotCount, len(traces))
+	})
 }
 
 func TestSampling(t *testing.T) {
@@ -240,80 +314,80 @@ func TestSampling(t *testing.T) {
 		wantRate    float64
 		wantSampled bool
 	}{
-		"score only rate": {
+		"score-rate": {
 			scoreRate: 0.5,
 			wantRate:  0.5,
 		},
-		"error and priority rate": {
+		"error-priority": {
 			hasErrors:      true,
 			hasPriority:    true,
 			scoreErrorRate: 0.8,
 			priorityRate:   0.2,
 			wantRate:       sampler.CombineRates(0.8, 0.2),
 		},
-		"score not sampled decision": {
+		"score-unsampled": {
 			scoreSampled: false,
 			wantSampled:  false,
 		},
-		"score sampled decision": {
+		"score-sampled": {
 			scoreSampled: true,
 			wantSampled:  true,
 		},
-		"priority not sampled": {
+		"prio-unsampled": {
 			hasPriority:     true,
 			scoreSampled:    true,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
-		"priority sampled": {
+		"prio-sampled": {
 			hasPriority:     true,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score sampled priority sampled": {
+		"score-prio-sampled": {
 			hasPriority:     true,
 			scoreSampled:    true,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score and priority not sampled": {
+		"score-prio-unsampled": {
 			hasPriority:     true,
 			scoreSampled:    false,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
-		"error not sampled decision": {
+		"error-unsampled": {
 			hasErrors:         true,
 			scoreErrorSampled: false,
 			wantSampled:       false,
 		},
-		"error sampled decision": {
+		"error-sampled": {
 			hasErrors:         true,
 			scoreErrorSampled: true,
 			wantSampled:       true,
 		},
-		"error sampled priority not sampled": {
+		"error-sampled-prio-unsampled": {
 			hasErrors:         true,
 			hasPriority:       true,
 			scoreErrorSampled: true,
 			prioritySampled:   false,
 			wantSampled:       true,
 		},
-		"error not sampled priority sampled": {
+		"error-unsampled-prio-sampled": {
 			hasErrors:         true,
 			hasPriority:       true,
 			scoreErrorSampled: false,
 			prioritySampled:   true,
 			wantSampled:       true,
 		},
-		"error sampled priority sampled": {
+		"error-prio-sampled": {
 			hasErrors:         true,
 			hasPriority:       true,
 			scoreErrorSampled: true,
 			prioritySampled:   true,
 			wantSampled:       true,
 		},
-		"error and priority not sampled": {
+		"error-prio-unsampled": {
 			hasErrors:         true,
 			hasPriority:       true,
 			scoreErrorSampled: false,

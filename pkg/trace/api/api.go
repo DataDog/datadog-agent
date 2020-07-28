@@ -267,6 +267,7 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
+		// TODO(x): replace with httpt.MaxBytesReader
 		req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
 		f(v, w, req)
