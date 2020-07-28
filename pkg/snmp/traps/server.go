@@ -6,12 +6,9 @@
 package traps
 
 import (
-	"expvar"
 	"net"
-	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/soniah/gosnmp"
 )
@@ -27,179 +24,135 @@ import (
 * ! = delimitation between the outside world and the Agent
  */
 
-var (
-	trapsExpvars              = expvar.NewMap("snmp_traps")
-	trapsListeners            = expvar.Int{}
-	trapsListenersStartErrors = expvar.Int{}
-	trapsPackets              = expvar.Int{}
-	trapsPacketsAuthErrors    = expvar.Int{}
-)
-
-func init() {
-	trapsExpvars.Set("Listeners", &trapsListeners)
-	trapsExpvars.Set("ListenersStartErrors", &trapsListenersStartErrors)
-	trapsExpvars.Set("Packets", &trapsPackets)
-	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
-}
-
 // SnmpPacket is the type of packets yielded by server listeners.
 type SnmpPacket struct {
 	Content *gosnmp.SnmpPacket
 	Addr    *net.UDPAddr
 }
 
-// OutputChannel is the type of the server output channel.
-type OutputChannel = chan *SnmpPacket
+// PacketsChannel is the type of the server output channel.
+type PacketsChannel = chan *SnmpPacket
 
-// TrapServer runs multiple SNMP traps listeners.
+// TrapServer manages an SNMPv2 trap listener.
 type TrapServer struct {
-	Started bool
-
-	listeners   []TrapListener
-	failed      []bool
-	output      OutputChannel
-	stopTimeout time.Duration
+	Addr     string
+	config   *Config
+	listener *gosnmp.TrapListener
+	packets  PacketsChannel
 }
 
 var (
 	outputChannelSize = 100
-	// RunningServer holds a reference to the trap server instance running in the Agent.
-	RunningServer *TrapServer
+	server            *TrapServer
+	startError        error
 )
 
+// StartServer starts the global trap server.
+func StartServer() error {
+	s, err := NewTrapServer()
+	server = s
+	startError = err
+	return err
+}
+
+// StopServer stops the global trap server, if it is running.
+func StopServer() {
+	if server != nil {
+		server.Stop()
+		server = nil
+		startError = nil
+	}
+}
+
+// IsRunning returns whether the trap server is currently running.
+func IsRunning() bool {
+	return server != nil
+}
+
+// GetPacketsChannel returns a channel containing all received trap packets.
+func GetPacketsChannel() PacketsChannel {
+	return server.packets
+}
+
 // NewTrapServer configures and returns a running SNMP traps server.
-// Misconfigured listeners are be dropped, allowing valid listeners to start in all cases.
 func NewTrapServer() (*TrapServer, error) {
-	var configs []TrapListenerConfig
-	err := config.Datadog.UnmarshalKey("snmp_traps_listeners", &configs)
+	c, err := ReadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	defaultBindHost := config.Datadog.GetString("bind_host")
-	stopTimeout := config.Datadog.GetDuration("snmp_traps_stop_timeout") * time.Second
+	packets := make(PacketsChannel, outputChannelSize)
 
-	output := make(OutputChannel, outputChannelSize)
-	listeners := make([]TrapListener, 0, len(configs))
-	failed := make([]bool, 0, len(configs))
-
-	for _, c := range configs {
-		bindHost := c.BindHost
-		if bindHost == "" {
-			bindHost = defaultBindHost
-		}
-		listener, err := NewTrapListener(bindHost, c, output)
-		if err != nil {
-			// Don't return the error, we still want to run other valid listeners.
-			log.Errorf("snmp-traps: failed to create listener on port %d: %s", c.Port, err)
-			continue
-		}
-
-		listeners = append(listeners, *listener)
-		failed = append(failed, false)
-		trapsListeners.Add(1)
+	listener, err := startSNMPv2Listener(c, packets)
+	if err != nil {
+		return nil, err
 	}
 
 	s := &TrapServer{
-		Started:     false,
-		listeners:   listeners,
-		failed:      failed,
-		output:      output,
-		stopTimeout: stopTimeout,
+		listener: listener,
+		config:   c,
+		packets:  packets,
 	}
-
-	s.start()
 
 	return s, nil
 }
 
-// start spawns listeners in the background, and waits for them to be ready to accept traffic, handling any errors.
-func (s *TrapServer) start() {
-	wg := new(sync.WaitGroup)
-	wg.Add(len(s.listeners))
+func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
+	ln := gosnmp.NewTrapListener()
+	ln.Params = c.BuildV2Params()
 
-	// Reset failure counts.
-	trapsListenersStartErrors.Set(0)
-	for idx := range s.listeners {
-		s.failed[idx] = false
-	}
-
-	for idx, l := range s.listeners {
-		idx := idx
-		l := l
-		go l.Listen()
-		go func() {
-			defer wg.Done()
-			err := l.WaitReadyOrError()
-			if err != nil {
-				log.Errorf("snmp-traps: listener %s failed to start: %s", l.Addr(), err)
-				trapsListenersStartErrors.Add(1)
-				s.failed[idx] = true
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	s.Started = true
-}
-
-// Output returns the channel which listeners feed trap packets to.
-func (s *TrapServer) Output() OutputChannel {
-	return s.output
-}
-
-// NumListeners returns the number of listeners managed by this server.
-func (s *TrapServer) NumListeners() int {
-	return len(s.listeners)
-}
-
-// NumFailedListeners returns the number of listeners that failed to start.
-func (s *TrapServer) NumFailedListeners() int {
-	num := 0
-	for _, failed := range s.failed {
-		if failed {
-			num++
+	ln.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+		if !validateCredentials(p, c) {
+			log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), c.Addr())
+			trapsPacketsAuthErrors.Add(1)
+			return
 		}
+		log.Debugf("New valid packet received from %s on listener %s", u.String(), c.Addr())
+		trapsPackets.Add(1)
+		packets <- &SnmpPacket{Content: p, Addr: u}
 	}
-	return num
+
+	// Listening occurs in the background.
+	// It can only terminate if an error occurs (1), or the listener is closed.
+	// We wait on a channel (2) provided by GoSNMP to detect when the listener is ready to receive traps.
+
+	errors := make(chan error, 1)
+
+	go func() {
+		log.Infof("Start listening for traps on %s", c.Addr())
+		err := ln.Listen(c.Addr()) // (1)
+		if err != nil {
+			errors <- err
+		}
+	}()
+
+	select {
+	case <-ln.Listening(): // (2)
+		break
+	case err := <-errors:
+		close(errors)
+		return nil, err
+	}
+
+	return ln, nil
 }
 
 // Stop stops the TrapServer.
 func (s *TrapServer) Stop() {
-	if !s.Started {
-		return
-	}
-
-	wg := new(sync.WaitGroup)
 	stopped := make(chan interface{})
 
-	wg.Add(len(s.listeners))
-
-	for idx, listener := range s.listeners {
-		idx := idx
-		l := listener
-		go func() {
-			defer wg.Done()
-			if !s.failed[idx] {
-				l.Stop()
-			}
-		}()
-	}
-
 	go func() {
-		wg.Wait()
+		log.Infof("Stop listening on %s", s.config.Addr())
+		s.listener.Close()
 		close(stopped)
 	}()
 
 	select {
 	case <-stopped:
-	case <-time.After(s.stopTimeout):
-		log.Error("snmp-traps: stopping listeners timed out")
+	case <-time.After(s.config.StopTimeout):
+		log.Error("Stopping server timed out")
 	}
 
 	// Let consumers know that we will not be sending any more packets.
-	close(s.output)
-
-	s.Started = false
+	close(s.packets)
 }

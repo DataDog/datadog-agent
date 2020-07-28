@@ -6,103 +6,51 @@
 package traps
 
 import (
-	"math/rand"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestServerEmpty(t *testing.T) {
-	b := newBuilder(t)
-	b.Configure()
-	s := b.StartServer()
-	s.Stop()
-}
-
 func TestServerV2(t *testing.T) {
-	b := newBuilder(t)
-	config := b.Add(TrapListenerConfig{CommunityStrings: []string{"public"}})
-	b.Configure()
+	config := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
+	configure(t, config)
 
-	s := b.StartServer()
-	defer s.Stop()
+	err := StartServer()
+	require.NoError(t, err)
+	defer StopServer()
 
 	sendTestV2Trap(t, config, "public")
-	p := receivePacket(t, s)
+	p := receivePacket(t)
 	require.NotNil(t, p)
-	assertV2(t, p, config)
+	assertIsValidV2Packet(t, p, config)
 	assertV2Variables(t, p)
 }
 
 func TestServerV2BadCredentials(t *testing.T) {
-	b := newBuilder(t)
-	config := b.Add(TrapListenerConfig{CommunityStrings: []string{"public"}})
-	b.Configure()
+	config := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
+	configure(t, config)
 
-	s := b.StartServer()
-	defer s.Stop()
-
-	sendTestV2Trap(t, config, "wrong")
-	assertNoPacketReceived(t, s)
-}
-
-func TestConcurrency(t *testing.T) {
-	b := newBuilder(t)
-	configs := []TrapListenerConfig{
-		b.Add(TrapListenerConfig{CommunityStrings: []string{"public0"}}),
-		b.Add(TrapListenerConfig{CommunityStrings: []string{"public1"}}),
-		b.Add(TrapListenerConfig{CommunityStrings: []string{"public2"}}),
-	}
-	b.Configure()
-
-	s := b.StartServer()
-	defer s.Stop()
-
-	numMessagesPerListener := 100
-	totalMessages := numMessagesPerListener * len(configs)
-
-	wg := sync.WaitGroup{}
-	wg.Add(len(configs) + 1)
-
-	for _, config := range configs {
-		c := config
-		go func() {
-			defer wg.Done()
-			for i := 0; i < numMessagesPerListener; i++ {
-				time.Sleep(time.Duration(rand.Float64()) * time.Microsecond) // Prevent serial execution.
-				sendTestV2Trap(t, c, c.CommunityStrings[0])
-			}
-		}()
-	}
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < totalMessages; i++ {
-			p := receivePacket(t, s)
-			require.NotNil(t, p)
-			assertV2Variables(t, p)
-		}
-	}()
-
-	wg.Wait()
-}
-
-func TestPortConflict(t *testing.T) {
-	b := newBuilder(t)
-	port := b.GetPort()
-
-	// Triggers an "address already in use" error for one of the listeners.
-	b.Add(TrapListenerConfig{Port: port, CommunityStrings: []string{"public0"}})
-	b.Add(TrapListenerConfig{Port: port, CommunityStrings: []string{"public1"}})
-	b.Configure()
-
-	s, err := NewTrapServer()
-	require.NotNil(t, s)
+	err := StartServer()
 	require.NoError(t, err)
-	require.True(t, s.Started)
-	defer s.Stop()
-	require.Equal(t, 2, s.NumListeners())
-	require.Equal(t, 1, s.NumFailedListeners()) // Second listener didn't start.
+	defer StopServer()
+
+	sendTestV2Trap(t, config, "wrong-community")
+	assertNoPacketReceived(t)
+}
+
+func TestStartFailure(t *testing.T) {
+	// Start two servers with the same config to trigger an "address already in use" error.
+	port := GetPort(t)
+
+	config := Config{Port: port, CommunityStrings: []string{"public"}}
+	configure(t, config)
+
+	s1, err := NewTrapServer()
+	require.NoError(t, err)
+	require.NotNil(t, s1)
+	defer s1.Stop()
+
+	s2, err := NewTrapServer()
+	require.Nil(t, s2)
+	require.Error(t, err)
 }

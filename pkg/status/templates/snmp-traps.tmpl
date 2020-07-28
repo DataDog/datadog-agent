@@ -5,6 +5,9 @@ NOTE: Changes made to this template should be reflected on the following templat
 ==========
 SNMP Traps
 ==========
-{{- range $key, $value := .}}
+{{- if .error }}
+  Error: {{.error}}
+{{- end }}
+{{- range $key, $value := .metrics}}
   {{formatTitle $key}}: {{humanize $value}}
 {{- end }}

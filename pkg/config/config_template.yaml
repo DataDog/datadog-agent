@@ -1752,44 +1752,40 @@ api_key:
 ########################
 
 ## @param snmp_traps_enabled - boolean - optional - default: false
-## Set this option to true to enable the SNMP traps server.
-## NOTE: this feature is currently experimental.
+## Set to true to enable collection of traps.
 #
 # snmp_traps_enabled: false
 
-## @param snmp_traps_listeners - list of custom objects - optional
-## Configure SNMP traps listeners. Each listener is associated to a UDP port and a set of SNMP credentials.
+## @param snmp_traps_config - custom object - optional
+## This section configures SNMP traps collection. Traps are forwarded as logs to the Datadog Platform.
+## NOTE: this feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
+## change in the future. Only SNMPv2 is supported for now.
 #
-# snmp_traps_listeners:
-# -
-    ## @param version - int - optional - default: 2
-    ## The SNMP version to use.
-    ## Only 2 (SNMPv2c) is supported for now.
-    #
-    # version: 2
+# snmp_traps_config:
 
-    ## @param port - integer - required
-    ## The UDP port to listen on for incoming trap packets.
-    #
-    # port: <PORT>
+  ## @param port - integer - optional - default: 162
+  ## The UDP port to use when listening for incoming trap packets.
+  #
+  # port: 162
 
-    ## @param community_strings - list of strings - required
-    ## A list of known community strings that devices can use to send traps to the Agent.
-    ## Traps with an unknown community string will be ignored.
-    #
-    # community_strings:
-    #   - <COMMUNITY_1>
-    #   - <COMMUNITY_2>
+  ## @param community_strings - list of strings - required
+  ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
+  ## Traps with an unknown community string will be ignored.
+  ## Must be non-empty.
+  #
+  # community_strings:
+  #   - <COMMUNITY_1>
+  #   - <COMMUNITY_2>
 
-    ## @param bind_host - string - optional
-    ## The hostname to listen on for incoming trap packets.
-    ## Defaults to the global `bind_host` config option value.
-    #
-    # bind_host: <BIND_HOST>
+  ## @param bind_host - string - optional
+  ## The hostname to listen on for incoming trap packets.
+  ## Defaults to the global `bind_host` config option value.
+  #
+  # bind_host: <BIND_HOST>
 
-## stop_timeout - float - optional - default: 5.0
-## The maximum number of seconds to wait for listeners to stop when the Agent shuts down.
-#
-# snmp_traps_stop_timeout: 5.0
+  ## stop_timeout - float - optional - default: 5.0
+  ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+  #
+  # stop_timeout: 5.0
 
 {{end -}}

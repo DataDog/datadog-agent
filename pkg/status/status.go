@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -383,10 +384,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["agent_metadata"] = map[string]string{}
 	}
 
-	snmpTrapsJSON := []byte(expvar.Get("snmp_traps").String())
-	snmpTrapsStats := make(map[string]interface{})
-	json.Unmarshal(snmpTrapsJSON, &snmpTrapsStats) //nolint:errcheck
-	stats["snmpTrapsStats"] = snmpTrapsStats
+	stats["snmpTrapsStats"] = traps.GetStatus()
 
 	return stats, err
 }

@@ -53,7 +53,7 @@ func (l *Launcher) run() {
 		select {
 		case source := <-l.sources:
 			if l.tailer == nil {
-				l.startNewTailer(source, traps.RunningServer.Output())
+				l.startNewTailer(source, traps.GetPacketsChannel())
 				source.Status.Success()
 			}
 		case <-l.stop:

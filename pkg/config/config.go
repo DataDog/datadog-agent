@@ -407,6 +407,11 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
+	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
@@ -469,11 +474,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
-
-	// SNMP
-	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
-	config.SetKnown("snmp_traps_listeners")
-	config.BindEnvAndSetDefault("snmp_traps_stop_timeout", 5)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")

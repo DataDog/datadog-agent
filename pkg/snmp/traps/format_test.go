@@ -14,16 +14,16 @@ import (
 )
 
 func TestFormatV2(t *testing.T) {
-	b := newBuilder(t)
-	config := b.Add(TrapListenerConfig{CommunityStrings: []string{"public"}})
-	b.Configure()
-	s := b.StartServer()
-	defer s.Stop()
+	c := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
+	configure(t, c)
+	err := StartServer()
+	require.NoError(t, err)
+	defer StopServer()
 
-	params := sendTestV2Trap(t, config, "public")
+	params := sendTestV2Trap(t, c, "public")
 	clientPort := parsePort(t, params.Conn.LocalAddr().String())
 
-	p := receivePacket(t, s)
+	p := receivePacket(t)
 
 	data, err := FormatJSON(p)
 	require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestFormatV2(t *testing.T) {
 
 	heartBeatRate := vars[0]
 	assert.Equal(t, heartBeatRate["oid"], "1.3.6.1.4.1.8072.2.3.2.1")
-	assert.Equal(t, heartBeatRate["type"], "int")
+	assert.Equal(t, heartBeatRate["type"], "integer")
 	assert.Equal(t, heartBeatRate["value"], 1024)
 
 	heartBeatName := vars[1]

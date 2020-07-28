@@ -8,54 +8,65 @@ package traps
 import (
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/soniah/gosnmp"
 )
 
-// TrapListenerConfig contains configuration for an SNMP trap listener.
+// IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
+func IsEnabled() bool {
+	return config.Datadog.GetBool("snmp_traps_enabled")
+}
+
+// Config contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
-type TrapListenerConfig struct {
-	Version          uint16   `mapstructure:"version" yaml:"version"`
-	Port             uint16   `mapstructure:"port" yaml:"port"`
-	CommunityStrings []string `mapstructure:"community_strings" yaml:"community_strings"`
-	BindHost         string   `mapstructure:"bind_host" yaml:"bind_host"`
+type Config struct {
+	Port             uint16        `mapstructure:"port" yaml:"port"`
+	CommunityStrings []string      `mapstructure:"community_strings" yaml:"community_strings"`
+	BindHost         string        `mapstructure:"bind_host" yaml:"bind_host"`
+	StopTimeout      time.Duration `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 }
 
-// trapLogger is a GoSNMP logger interface implementation.
-type trapLogger struct {
-	gosnmp.Logger
-}
-
-func (x *trapLogger) Print(v ...interface{}) {
-	// GoSNMP logs show the exact content of decoded trap packets. Logging as DEBUG would be too noisy.
-	log.Trace(v...)
-}
-
-func (x *trapLogger) Printf(format string, v ...interface{}) {
-	log.Tracef(format, v...)
-}
-
-// BuildParams returns a valid GoSNMP params structure from a listener configuration.
-func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
-	if c.Version != 0 && c.Version != 2 {
-		return nil, fmt.Errorf("Only `version: 2` is supported for now, got %d", c.Version)
+// ReadConfig builds and returns configuration from Agent configuration.
+func ReadConfig() (*Config, error) {
+	var c Config
+	err := config.Datadog.UnmarshalKey("snmp_traps_config", &c)
+	if err != nil {
+		return nil, err
 	}
 
-	if c.Port == 0 {
-		return nil, errors.New("`port` is required")
-	}
-
+	// Validate required fields.
 	if c.CommunityStrings == nil || len(c.CommunityStrings) == 0 {
-		return nil, errors.New("`community_strings` is required")
+		return nil, errors.New("`community_strings` is required and must be non-empty")
 	}
 
-	params := &gosnmp.GoSNMP{
+	// Set defaults.
+	if c.Port == 0 {
+		c.Port = 162
+	}
+	if c.BindHost == "" {
+		// Default to global bind_host option.
+		c.BindHost = config.Datadog.GetString("bind_host")
+	}
+	if c.StopTimeout == 0 {
+		c.StopTimeout = 5.0 * time.Second
+	}
+
+	return &c, nil
+}
+
+// Addr returns the host:port address to listen on.
+func (c *Config) Addr() string {
+	return fmt.Sprintf("%s:%d", c.BindHost, c.Port)
+}
+
+// BuildV2Params returns a valid GoSNMP SNMPv2 params structure from configuration.
+func (c *Config) BuildV2Params() *gosnmp.GoSNMP {
+	return &gosnmp.GoSNMP{
 		Port:      c.Port,
 		Transport: "udp",
 		Version:   gosnmp.Version2c,
 		Logger:    &trapLogger{},
 	}
-
-	return params, nil
 }

@@ -23,7 +23,7 @@ const (
 
 // FormatJSON converts an SNMP trap packet to a JSON-serializable object.
 func FormatJSON(p *SnmpPacket) (map[string]interface{}, error) {
-	return formatV2(p.Content.Variables)
+	return formatTrapPDUs(p.Content.Variables)
 }
 
 // GetTags returns a list of tags associated to an SNMP trap packet.
@@ -36,14 +36,10 @@ func GetTags(p *SnmpPacket) []string {
 	}
 }
 
-func normalizeOID(value string) string {
-	return strings.TrimLeft(value, ".")
-}
-
-func formatV2(vars []gosnmp.SnmpPDU) (map[string]interface{}, error) {
+func formatTrapPDUs(vars []gosnmp.SnmpPDU) (map[string]interface{}, error) {
 	/*
-		An SNMPv2 trap PDU is composed of the following list of variables:
-		{sysUpTime.0, snmpTrapOID.0, additionalVariables...}
+		An SNMPv2 trap packet consists in the following variables (PDUs):
+		{sysUpTime.0, snmpTrapOID.0, additionalDataVariables...}
 		See: https://tools.ietf.org/html/rfc3416#section-4.2.6
 	*/
 
@@ -53,13 +49,13 @@ func formatV2(vars []gosnmp.SnmpPDU) (map[string]interface{}, error) {
 
 	data := make(map[string]interface{})
 
-	uptime, err := parseSysUpTimeV2(vars[0])
+	uptime, err := parseSysUpTime(vars[0])
 	if err != nil {
 		return nil, err
 	}
 	data["uptime"] = uptime
 
-	trapOID, err := parseSnmpTrapOIDV2(vars[1])
+	trapOID, err := parseSnmpTrapOID(vars[1])
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +66,11 @@ func formatV2(vars []gosnmp.SnmpPDU) (map[string]interface{}, error) {
 	return data, nil
 }
 
-func parseSysUpTimeV2(v gosnmp.SnmpPDU) (uint32, error) {
+func normalizeOID(value string) string {
+	return strings.TrimLeft(value, ".")
+}
+
+func parseSysUpTime(v gosnmp.SnmpPDU) (uint32, error) {
 	if v.Name != sysUpTime && v.Name != sysUpTimeInstance {
 		return 0, fmt.Errorf("expected OID %s or %s, got %s", sysUpTime, sysUpTimeInstance, v.Name)
 	}
@@ -80,13 +80,10 @@ func parseSysUpTimeV2(v gosnmp.SnmpPDU) (uint32, error) {
 		return 0, fmt.Errorf("expected uptime to be uint32 (got %v of type %T)", v.Value, v.Value)
 	}
 
-	// sysUpTimeInstance is given in hundreds of a second, convert it to seconds.
-	value = value / 100
-
 	return value, nil
 }
 
-func parseSnmpTrapOIDV2(v gosnmp.SnmpPDU) (string, error) {
+func parseSnmpTrapOID(v gosnmp.SnmpPDU) (string, error) {
 	if v.Name != snmpTrapOID && v.Name != snmpTrapOIDInstance {
 		return "", fmt.Errorf("expected OID %s or %s, got %s", snmpTrapOID, snmpTrapOIDInstance, v.Name)
 	}
@@ -121,15 +118,17 @@ func parseVariables(vars []gosnmp.SnmpPDU) []map[string]interface{} {
 func formatType(v gosnmp.SnmpPDU) string {
 	switch v.Type {
 	case gosnmp.Integer, gosnmp.Uinteger32:
-		return "int"
+		return "integer"
 	case gosnmp.OctetString:
 		return "string"
 	case gosnmp.ObjectIdentifier:
 		return "oid"
-	case gosnmp.Counter32, gosnmp.Counter64:
-		return "counter"
+	case gosnmp.Counter32:
+		return "counter32"
+	case gosnmp.Counter64:
+		return "counter64"
 	case gosnmp.Gauge32:
-		return "gauge"
+		return "gauge32"
 	default:
 		return "other"
 	}

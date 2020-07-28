@@ -17,13 +17,13 @@ import (
 // Tailer consumes and processes a stream of trap packets, and sends them to a stream of log messages.
 type Tailer struct {
 	source     *config.LogSource
-	inputChan  traps.OutputChannel
+	inputChan  traps.PacketsChannel
 	outputChan chan *message.Message
 	done       chan interface{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, inputChan traps.OutputChannel, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *config.LogSource, inputChan traps.PacketsChannel, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		inputChan:  inputChan,

@@ -280,25 +280,23 @@ func StartAgent() error {
 	}
 	log.Debugf("statsd started")
 
-	logsEnabled := config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled")
-
 	// Start SNMP trap server
 	if traps.IsEnabled() {
-		if logsEnabled {
-			traps.RunningServer, err = traps.NewTrapServer()
+		if config.Datadog.GetBool("logs_enabled") {
+			err = traps.StartServer()
 			if err != nil {
-				log.Errorf("snmp-traps: failed to start server: %s", err)
+				log.Errorf("Failed to start snmp-traps server: %s", err)
 			}
 		} else {
 			log.Warn(
-				"snmp-traps: log collection is disabled, listeners will not start. " +
+				"snmp-traps server did not start, as log collection is disabled. " +
 					"Please enable log collection to collect and forward traps.",
 			)
 		}
 	}
 
 	// start logs-agent
-	if logsEnabled {
+	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
 		if config.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
@@ -365,9 +363,7 @@ func StopAgent() {
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
-	if traps.RunningServer != nil {
-		traps.RunningServer.Stop()
-	}
+	traps.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
