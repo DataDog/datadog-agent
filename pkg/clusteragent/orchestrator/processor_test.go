@@ -74,7 +74,7 @@ func TestChunkDeployments(t *testing.T) {
 }
 
 func TestChunkReplicasets(t *testing.T) {
-	deploys := []*model.ReplicaSet{
+	rs := []*model.ReplicaSet{
 		{
 			Metadata: &model.Metadata{
 				Uid: "1",
@@ -128,6 +128,6 @@ func TestChunkReplicasets(t *testing.T) {
 			},
 		}},
 	}
-	actual := chunkReplicaSets(deploys, 3, 2)
+	actual := chunkReplicaSets(rs, 3, 2)
 	assert.ElementsMatch(t, expected, actual)
 }
