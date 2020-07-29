@@ -24,6 +24,15 @@ func TestComponentTopology(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	expectedTopology := mockBatcher.CollectedTopology.Flush()
+	var integrationIdentifier, integrationInstanceIdentifier string
+	for _, e := range expectedTopology["testtopology:c3d960f8ff8a5c55"].Components[1].Data["events"].([]interface{}) {
+		integrationIdentifier = e.(map[string]interface{})["identifier"].(string)
+	}
+	for _, e := range expectedTopology["testtopology:c3d960f8ff8a5c55"].Components[2].Data["events"].([]interface{}) {
+		integrationInstanceIdentifier = e.(map[string]interface{})["identifier"].(string)
+	}
+
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
@@ -54,12 +63,12 @@ func TestComponentTopology(t *testing.T) {
 						"integration": "type",
 						"checks": []interface{}{
 							map[string]interface{}{
-								"stream_id": -1, "name": "Integration Health", "is_service_check_health_check":int64(1),
+								"stream_id": int64(-1), "name": "Integration Health", "is_service_check_health_check":int64(1),
 							},
 						},
 						"events": []interface{}{map[string]interface{}{
-							"stream_id": -1,
-							"identifier": "c50fcf43-38ca-46b5-b217-52896e5709be",
+							"stream_id": int64(-1),
+							"identifier": integrationIdentifier,
 							"conditions": []interface{}{
 								map[string]interface{}{"value": "zandre-XPS-15-9570", "key": "hostname"},
 								map[string]interface{}{"value": "type", "key": "integration-type"},
@@ -81,7 +90,7 @@ func TestComponentTopology(t *testing.T) {
 						"integration": "type",
 						"checks": []interface{}{
 							map[string]interface{}{
-								"stream_id":                     -1,
+								"stream_id":                     int64(-1),
 								"name":                          "Integration Instance Health",
 								"is_service_check_health_check":int64(1),
 							},
@@ -94,8 +103,8 @@ func TestComponentTopology(t *testing.T) {
 									map[string]interface{}{"value": "url", "key": "integration-url"},
 								},
 								"name":       "Service Checks",
-								"stream_id":  -1,
-								"identifier": "c50fcf43-38ca-46b5-b217-52896e5709be",
+								"stream_id":  int64(-1),
+								"identifier": integrationInstanceIdentifier,
 							},
 						},
 					},
@@ -105,7 +114,7 @@ func TestComponentTopology(t *testing.T) {
 					Data: topology.Data{
 						"nestedobject": map[string]interface{}{"nestedkey": "nestedValue"},
 						"key":          "value",
-						"intlist":      []interface{}{1}, "emptykey": map[string]interface{}{},
+						"intlist":      []interface{}{int64(1)}, "emptykey": map[string]interface{}{},
 					},
 				}},
 			Relations: []topology.Relation{
@@ -123,7 +132,7 @@ func TestComponentTopology(t *testing.T) {
 				},
 			},
 		},
-	}), mockBatcher.CollectedTopology.Flush())
+	}), expectedTopology)
 }
 
 func TestRelationTopology(t *testing.T) {
@@ -139,6 +148,14 @@ func TestRelationTopology(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	expectedTopology := mockBatcher.CollectedTopology.Flush()
+	var integrationIdentifier, integrationInstanceIdentifier string
+	for _, e := range expectedTopology["testtopology:c3d960f8ff8a5c55"].Components[1].Data["events"].([]interface{}) {
+		integrationIdentifier = e.(map[string]interface{})["identifier"].(string)
+	}
+	for _, e := range expectedTopology["testtopology:c3d960f8ff8a5c55"].Components[2].Data["events"].([]interface{}) {
+		integrationInstanceIdentifier = e.(map[string]interface{})["identifier"].(string)
+	}
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
@@ -161,7 +178,7 @@ func TestRelationTopology(t *testing.T) {
 					Type:       topology.Type{Name: "agent-integration"},
 					Data: topology.Data{
 						"checks": []interface{}{
-							map[string]interface{}{"stream_id": -1, "name": "Integration Health", "is_service_check_health_check":int64(1)},
+							map[string]interface{}{"stream_id": int64(-1), "name": "Integration Health", "is_service_check_health_check":int64(1)},
 						},
 						"events": []interface{}{
 							map[string]interface{}{
@@ -170,8 +187,8 @@ func TestRelationTopology(t *testing.T) {
 									map[string]interface{}{"value": "type", "key": "integration-type"},
 								},
 								"name":       "Service Checks",
-								"stream_id":  -1,
-								"identifier": "d8e115f4-3832-4c17-953c-727954311734",
+								"stream_id":  int64(-1),
+								"identifier": integrationIdentifier,
 							},
 						},
 						"name":     "zandre-XPS-15-9570:type",
@@ -187,7 +204,7 @@ func TestRelationTopology(t *testing.T) {
 						"integration": "type",
 						"checks": []interface{}{
 							map[string]interface{}{
-								"stream_id":                     -1,
+								"stream_id":                     int64(-1),
 								"name":                          "Integration Instance Health",
 								"is_service_check_health_check":int64(1),
 							},
@@ -200,8 +217,9 @@ func TestRelationTopology(t *testing.T) {
 									map[string]interface{}{"value": "url", "key": "integration-url"},
 								},
 								"name":       "Service Checks",
-								"stream_id":  -1,
-								"identifier": "0cec1c40-dc23-4b4a-b2e1-2c07a9045ffa"},
+								"stream_id":  int64(-1),
+								"identifier": integrationInstanceIdentifier,
+							},
 						},
 					},
 				},
@@ -227,13 +245,13 @@ func TestRelationTopology(t *testing.T) {
 					Data: map[string]interface{}{
 						"nestedobject": map[string]interface{}{"nestedkey": "nestedValue"},
 						"key":          "value",
-						"intlist":      []interface{}{1},
+						"intlist":      []interface{}{int64(1)},
 						"emptykey":     map[string]interface{}{},
 					},
 				},
 			},
 		},
-	}), mockBatcher.CollectedTopology.Flush())
+	}), expectedTopology)
 }
 
 func TestStartSnapshotCheck(t *testing.T) {
@@ -249,6 +267,14 @@ func TestStartSnapshotCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	expectedTopology := mockBatcher.CollectedTopology.Flush()
+	var integrationIdentifier, integrationInstanceIdentifier string
+	for _, e := range expectedTopology["testtopology:c3d960f8ff8a5c55"].Components[1].Data["events"].([]interface{}) {
+		integrationIdentifier = e.(map[string]interface{})["identifier"].(string)
+	}
+	for _, e := range expectedTopology["testtopology:c3d960f8ff8a5c55"].Components[2].Data["events"].([]interface{}) {
+		integrationInstanceIdentifier = e.(map[string]interface{})["identifier"].(string)
+	}
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
@@ -274,12 +300,12 @@ func TestStartSnapshotCheck(t *testing.T) {
 						"hostname":    "zandre-XPS-15-9570",
 						"integration": "type",
 						"checks": []interface{}{
-							map[string]interface{}{"name": "Integration Health", "is_service_check_health_check":int64(1), "stream_id": -1},
+							map[string]interface{}{"name": "Integration Health", "is_service_check_health_check":int64(1), "stream_id": int64(-1)},
 						},
 						"events": []interface{}{
 							map[string]interface{}{
 								"stream_id":  int64(-1),
-								"identifier": "d15fc8bf-9c86-44e0-b6c5-074027fa2d7e",
+								"identifier": integrationIdentifier,
 								"conditions": []interface{}{
 									map[string]interface{}{"value": "zandre-XPS-15-9570", "key": "hostname"},
 									map[string]interface{}{"value": "type", "key": "integration-type"},
@@ -303,7 +329,7 @@ func TestStartSnapshotCheck(t *testing.T) {
 							map[string]interface{}{
 								"name":       "Service Checks",
 								"stream_id":  int64(-1),
-								"identifier": "794c8bac-1c7c-4674-ae3a-b8bee0bc0d48",
+								"identifier": integrationInstanceIdentifier,
 								"conditions": []interface{}{
 									map[string]interface{}{"value": "zandre-XPS-15-9570", "key": "hostname"},
 									map[string]interface{}{"value": "type", "key": "integration-type"},
@@ -334,7 +360,7 @@ func TestStartSnapshotCheck(t *testing.T) {
 				},
 			},
 		},
-	}), mockBatcher.CollectedTopology.Flush())
+	}), expectedTopology)
 }
 
 func TestStopSnapshotCheck(t *testing.T) {
@@ -350,6 +376,14 @@ func TestStopSnapshotCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	expectedTopology := mockBatcher.CollectedTopology.Flush()
+	var integrationIdentifier, integrationInstanceIdentifier string
+	for _, e := range expectedTopology["testtopology:c3d960f8ff8a5c55"].Components[1].Data["events"].([]interface{}) {
+		integrationIdentifier = e.(map[string]interface{})["identifier"].(string)
+	}
+	for _, e := range expectedTopology["testtopology:c3d960f8ff8a5c55"].Components[2].Data["events"].([]interface{}) {
+		integrationInstanceIdentifier = e.(map[string]interface{})["identifier"].(string)
+	}
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
@@ -372,11 +406,11 @@ func TestStopSnapshotCheck(t *testing.T) {
 					Data: topology.Data{
 						"integration": "type",
 						"checks": []interface{}{
-							map[string]interface{}{"name": "Integration Health", "is_service_check_health_check":int64(1), "stream_id": -1},
+							map[string]interface{}{"name": "Integration Health", "is_service_check_health_check":int64(1), "stream_id": int64(-1)},
 						},
 						"events": []interface{}{
 							map[string]interface{}{
-								"identifier": "ecd18964-74d5-40d2-be80-744aaa443f93",
+								"identifier": integrationIdentifier,
 								"conditions": []interface{}{
 									map[string]interface{}{"value": "zandre-XPS-15-9570", "key": "hostname"},
 									map[string]interface{}{"value": "type", "key": "integration-type"},
@@ -403,7 +437,7 @@ func TestStopSnapshotCheck(t *testing.T) {
 						"events": []interface{}{
 							map[string]interface{}{
 								"stream_id":  int64(-1),
-								"identifier": "eaab58cb-f95c-412c-860b-621b944f9b0e",
+								"identifier": integrationInstanceIdentifier,
 								"conditions": []interface{}{
 									map[string]interface{}{"value": "zandre-XPS-15-9570", "key": "hostname"},
 									map[string]interface{}{"value": "type", "key": "integration-type"},
@@ -430,5 +464,5 @@ func TestStopSnapshotCheck(t *testing.T) {
 				},
 			},
 		},
-	}), mockBatcher.CollectedTopology.Flush())
+	}), expectedTopology)
 }
