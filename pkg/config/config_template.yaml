@@ -864,7 +864,7 @@ api_key:
   # dir: /etc/datadog-agent/compliance.d
 
   ## @param check_interval - duration - optional - default: 20m
-  ## Check interval
+  ## Check interval (see  https://golang.org/pkg/time/#ParseDuration for available options)
   # check_interval: 20m
 {{ end -}}
 {{- if .SystemProbe }}
