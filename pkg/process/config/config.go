@@ -36,12 +36,17 @@ var (
 
 type proxyFunc func(*http.Request) (*url.URL, error)
 
-// WindowsConfig stores all windows-specific configuration for the process-agent.
+// WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
 type WindowsConfig struct {
 	// Number of checks runs between refreshes of command-line arguments
 	ArgsRefreshInterval int
 	// Controls getting process arguments immediately when a new process is discovered
 	AddNewArgs bool
+
+	//System Probe Configuration
+
+	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
+	EnableMonotonicCount bool
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -228,8 +233,9 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 		// Windows process config
 		Windows: WindowsConfig{
-			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
-			AddNewArgs:          true,
+			ArgsRefreshInterval:  15, // with default 20s check interval we refresh every 5m
+			AddNewArgs:           true,
+			EnableMonotonicCount: false,
 		},
 	}
 
