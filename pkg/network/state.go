@@ -61,9 +61,11 @@ type telemetry struct {
 }
 
 type stats struct {
-	totalSent        uint64
-	totalRecv        uint64
-	totalRetransmits uint32
+	totalSent           uint64
+	totalRecv           uint64
+	totalRetransmits    uint32
+	totalTCPEstablished uint32
+	totalTCPClosed      uint32
 }
 
 type client struct {
@@ -143,6 +145,8 @@ func (ns *networkState) Connections(
 			c.LastSentBytes = 0
 			c.LastRecvBytes = 0
 			c.LastRetransmits = 0
+			c.LastTCPEstablished = 0
+			c.LastTCPClosed = 0
 		}
 
 		ns.determineConnectionIntraHost(latestConns)
@@ -248,6 +252,8 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 			prev.MonotonicSentBytes += conn.MonotonicSentBytes
 			prev.MonotonicRecvBytes += conn.MonotonicRecvBytes
 			prev.MonotonicRetransmits += conn.MonotonicRetransmits
+			prev.MonotonicTCPEstablished += conn.MonotonicTCPEstablished
+			prev.MonotonicTCPClosed += conn.MonotonicTCPClosed
 			// Also update the timestamp
 			prev.LastUpdateEpoch = conn.LastUpdateEpoch
 			client.closedConnections[string(key)] = prev
@@ -320,17 +326,11 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 				closedConn.MonotonicSentBytes += activeConn.MonotonicSentBytes
 				closedConn.MonotonicRecvBytes += activeConn.MonotonicRecvBytes
 				closedConn.MonotonicRetransmits += activeConn.MonotonicRetransmits
+				closedConn.MonotonicTCPEstablished += activeConn.MonotonicTCPEstablished
+				closedConn.MonotonicTCPClosed += activeConn.MonotonicTCPClosed
 
 				ns.createStatsForKey(client, key)
 				ns.updateConnWithStatWithActiveConn(client, key, *activeConn, &closedConn)
-
-				// We also update the counters to reflect only the active connection
-				// The monotonic counters will be the sum of all connections that cross our interval start + finish.
-				if stats, ok := client.stats[key]; ok {
-					stats.totalRetransmits = activeConn.MonotonicRetransmits
-					stats.totalSent = activeConn.MonotonicSentBytes
-					stats.totalRecv = activeConn.MonotonicRecvBytes
-				}
 			} else {
 				// Else the closed connection and the active connection have the same epoch
 				// XXX: For now we assume that the closed connection is the more recent one but this is not guaranteed
@@ -373,15 +373,21 @@ func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key str
 		closed.LastSentBytes = closed.MonotonicSentBytes - st.totalSent
 		closed.LastRecvBytes = closed.MonotonicRecvBytes - st.totalRecv
 		closed.LastRetransmits = closed.MonotonicRetransmits - st.totalRetransmits
+		closed.LastTCPEstablished = closed.LastTCPEstablished - st.totalTCPEstablished
+		closed.LastTCPClosed = closed.LastTCPClosed - st.totalTCPClosed
 
 		// Update stats object with latest values
 		st.totalSent = active.MonotonicSentBytes
 		st.totalRecv = active.MonotonicRecvBytes
 		st.totalRetransmits = active.MonotonicRetransmits
+		st.totalTCPEstablished = active.MonotonicTCPEstablished
+		st.totalTCPClosed = active.MonotonicTCPClosed
 	} else {
 		closed.LastSentBytes = closed.MonotonicSentBytes
 		closed.LastRecvBytes = closed.MonotonicRecvBytes
 		closed.LastRetransmits = closed.MonotonicRetransmits
+		closed.LastTCPEstablished = closed.MonotonicTCPEstablished
+		closed.LastTCPClosed = closed.MonotonicTCPClosed
 	}
 }
 
@@ -393,15 +399,21 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 		c.LastSentBytes = c.MonotonicSentBytes - st.totalSent
 		c.LastRecvBytes = c.MonotonicRecvBytes - st.totalRecv
 		c.LastRetransmits = c.MonotonicRetransmits - st.totalRetransmits
+		c.LastTCPEstablished = c.MonotonicTCPEstablished - st.totalTCPEstablished
+		c.LastTCPClosed = c.MonotonicTCPClosed - st.totalTCPClosed
 
 		// Update stats object with latest values
 		st.totalSent = c.MonotonicSentBytes
 		st.totalRecv = c.MonotonicRecvBytes
 		st.totalRetransmits = c.MonotonicRetransmits
+		st.totalTCPEstablished = c.MonotonicTCPEstablished
+		st.totalTCPClosed = c.MonotonicTCPClosed
 	} else {
 		c.LastSentBytes = c.MonotonicSentBytes
 		c.LastRecvBytes = c.MonotonicRecvBytes
 		c.LastRetransmits = c.MonotonicRetransmits
+		c.LastTCPEstablished = c.MonotonicTCPEstablished
+		c.LastTCPClosed = c.MonotonicTCPClosed
 	}
 }
 
@@ -517,9 +529,11 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	if client, ok := ns.clients[clientID]; ok {
 		for connKey, s := range client.stats {
 			data[BeautifyKey(connKey)] = map[string]uint64{
-				"total_sent":        s.totalSent,
-				"total_recv":        s.totalRecv,
-				"total_retransmits": uint64(s.totalRetransmits),
+				"total_sent":            s.totalSent,
+				"total_recv":            s.totalRecv,
+				"total_retransmits":     uint64(s.totalRetransmits),
+				"total_tcp_established": uint64(s.totalTCPEstablished),
+				"total_tcp_closed":      uint64(s.totalTCPClosed),
 			}
 		}
 	}
