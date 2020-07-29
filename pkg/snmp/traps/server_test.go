@@ -13,7 +13,7 @@ import (
 
 func TestServerV2(t *testing.T) {
 	config := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
-	configure(t, config)
+	Configure(t, config)
 
 	err := StartServer()
 	require.NoError(t, err)
@@ -28,7 +28,7 @@ func TestServerV2(t *testing.T) {
 
 func TestServerV2BadCredentials(t *testing.T) {
 	config := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
-	configure(t, config)
+	Configure(t, config)
 
 	err := StartServer()
 	require.NoError(t, err)
@@ -43,7 +43,7 @@ func TestStartFailure(t *testing.T) {
 	port := GetPort(t)
 
 	config := Config{Port: port, CommunityStrings: []string{"public"}}
-	configure(t, config)
+	Configure(t, config)
 
 	s1, err := NewTrapServer()
 	require.NoError(t, err)

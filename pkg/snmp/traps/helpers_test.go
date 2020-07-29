@@ -37,10 +37,17 @@ func GetPort(t *testing.T) uint16 {
 	return parsePort(t, conn.LocalAddr().String())
 }
 
-func configure(t *testing.T, c Config) {
+// Configure sets Datadog Agent configuration from a config object.
+func Configure(t *testing.T, c Config) {
+	datadogYaml := map[string]interface{}{
+		"snmp_traps_enabled": true,
+		"snmp_traps_config":  c,
+	}
+
 	config.Datadog.SetConfigType("yaml")
-	out, err := yaml.Marshal(map[string]interface{}{"snmp_traps_enabled": true, "snmp_traps_config": c})
+	out, err := yaml.Marshal(datadogYaml)
 	require.NoError(t, err)
+
 	err = config.Datadog.ReadConfig(strings.NewReader(string(out)))
 	require.NoError(t, err)
 }

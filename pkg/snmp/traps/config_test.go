@@ -14,7 +14,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	configure(t, Config{
+	Configure(t, Config{
 		Port:             1234,
 		CommunityStrings: []string{"public"},
 	})
@@ -31,7 +31,7 @@ func TestConfig(t *testing.T) {
 }
 
 func TestDefaultPort(t *testing.T) {
-	configure(t, Config{
+	Configure(t, Config{
 		CommunityStrings: []string{"public"},
 	})
 	c, err := ReadConfig()
@@ -40,7 +40,7 @@ func TestDefaultPort(t *testing.T) {
 }
 
 func TestCommunityStringsEmpty(t *testing.T) {
-	configure(t, Config{
+	Configure(t, Config{
 		CommunityStrings: []string{},
 	})
 	_, err := ReadConfig()
@@ -48,7 +48,7 @@ func TestCommunityStringsEmpty(t *testing.T) {
 }
 
 func TestCommunityStringsMissing(t *testing.T) {
-	configure(t, Config{})
+	Configure(t, Config{})
 	_, err := ReadConfig()
 	assert.Error(t, err)
 }

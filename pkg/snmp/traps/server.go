@@ -30,7 +30,7 @@ type SnmpPacket struct {
 	Addr    *net.UDPAddr
 }
 
-// PacketsChannel is the type of the server output channel.
+// PacketsChannel is the type of channels of trap packets.
 type PacketsChannel = chan *SnmpPacket
 
 // TrapServer manages an SNMPv2 trap listener.

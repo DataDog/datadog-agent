@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	sysUpTime           = ".1.3.6.1.2.1.1.3"
-	sysUpTimeInstance   = ".1.3.6.1.2.1.1.3.0"
-	snmpTrapOID         = ".1.3.6.1.6.3.1.1.4.1"
-	snmpTrapOIDInstance = ".1.3.6.1.6.3.1.1.4.1.0"
+	sysUpTimeOID         = ".1.3.6.1.2.1.1.3"
+	sysUpTimeInstanceOID = ".1.3.6.1.2.1.1.3.0"
+	snmpTrapOID          = ".1.3.6.1.6.3.1.1.4.1"
+	snmpTrapInstanceOID  = ".1.3.6.1.6.3.1.1.4.1.0"
 )
 
 // NOTE: This module is used by the traps logs input.
@@ -28,11 +28,23 @@ func FormatJSON(p *SnmpPacket) (map[string]interface{}, error) {
 
 // GetTags returns a list of tags associated to an SNMP trap packet.
 func GetTags(p *SnmpPacket) []string {
-	return []string{
-		fmt.Sprintf("snmp_version:2"),
+	tags := []string{
 		fmt.Sprintf("community:%s", p.Content.Community),
 		fmt.Sprintf("device_ip:%s", p.Addr.IP.String()),
 		fmt.Sprintf("device_port:%d", p.Addr.Port),
+	}
+	if version := formatVersion(p); version != "" {
+		tags = append(tags, fmt.Sprintf("snmp_version:%s", version))
+	}
+	return tags
+}
+
+func formatVersion(p *SnmpPacket) string {
+	switch p.Content.Version {
+	case gosnmp.Version2c:
+		return "2"
+	default:
+		return "" // Unsupported.
 	}
 }
 
@@ -42,7 +54,6 @@ func formatTrapPDUs(vars []gosnmp.SnmpPDU) (map[string]interface{}, error) {
 		{sysUpTime.0, snmpTrapOID.0, additionalDataVariables...}
 		See: https://tools.ietf.org/html/rfc3416#section-4.2.6
 	*/
-
 	if len(vars) < 2 {
 		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(vars))
 	}
@@ -71,8 +82,8 @@ func normalizeOID(value string) string {
 }
 
 func parseSysUpTime(v gosnmp.SnmpPDU) (uint32, error) {
-	if v.Name != sysUpTime && v.Name != sysUpTimeInstance {
-		return 0, fmt.Errorf("expected OID %s or %s, got %s", sysUpTime, sysUpTimeInstance, v.Name)
+	if v.Name != sysUpTimeOID && v.Name != sysUpTimeInstanceOID {
+		return 0, fmt.Errorf("expected OID %s or %s, got %s", sysUpTimeOID, sysUpTimeInstanceOID, v.Name)
 	}
 
 	value, ok := v.Value.(uint32)
@@ -84,8 +95,8 @@ func parseSysUpTime(v gosnmp.SnmpPDU) (uint32, error) {
 }
 
 func parseSnmpTrapOID(v gosnmp.SnmpPDU) (string, error) {
-	if v.Name != snmpTrapOID && v.Name != snmpTrapOIDInstance {
-		return "", fmt.Errorf("expected OID %s or %s, got %s", snmpTrapOID, snmpTrapOIDInstance, v.Name)
+	if v.Name != snmpTrapOID && v.Name != snmpTrapInstanceOID {
+		return "", fmt.Errorf("expected OID %s or %s, got %s", snmpTrapOID, snmpTrapInstanceOID, v.Name)
 	}
 
 	value := ""

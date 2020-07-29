@@ -15,7 +15,8 @@ import (
 
 func TestFormatV2(t *testing.T) {
 	c := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
-	configure(t, c)
+	Configure(t, c)
+
 	err := StartServer()
 	require.NoError(t, err)
 	defer StopServer()
@@ -47,9 +48,9 @@ func TestFormatV2(t *testing.T) {
 
 	tags := GetTags(p)
 	assert.Equal(t, tags, []string{
-		"snmp_version:2",
 		"community:public",
 		"device_ip:127.0.0.1",
 		fmt.Sprintf("device_port:%d", clientPort),
+		"snmp_version:2",
 	})
 }
