@@ -41,8 +41,8 @@ var (
 		"kube_node_spec_unschedulable":                func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
 		"kube_resourcequota":                          resourcequotaTransformer,
 		"kube_limitrange":                             func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
-		"kube_persistentvolume_status_phase":          func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
-		"kube_service_spec_type":                      func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
+		"kube_persistentvolume_status_phase":          pvPhaseTransformer,
+		"kube_service_spec_type":                      serviceTypeTransformer,
 	}
 )
 
@@ -148,7 +148,7 @@ func resourcequotaTransformer(s aggregator.Sender, name string, metric ksmstore.
 	s.Gauge(metricName, metric.Val, "", tags)
 }
 
-// submitActiveMetrics only sends metrics with non-zero values
+// submitActiveMetrics only sends metrics with value '1'
 func submitActiveMetric(s aggregator.Sender, metricName string, metric ksmstore.DDMetric, tags []string) {
 	if metric.Val != 1.0 {
 		// Only consider active metrics
