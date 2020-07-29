@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -82,7 +83,7 @@ func GetClusterName(self *C.PyObject, args *C.PyObject) *C.PyObject {
 func GetPid(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	pid := os.Getpid()
 
-	cStr := C.CString(string(pid))
+	cStr := C.CString(strconv.Itoa(pid))
 	pyStr := C.PyString_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
@@ -101,7 +102,7 @@ func GetCreateTime(self *C.PyObject, args *C.PyObject) *C.PyObject {
 		createTime = ct
 	}
 
-	cStr := C.CString(string(createTime))
+	cStr := C.CString(strconv.FormatInt(createTime, 10))
 	pyStr := C.PyString_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
