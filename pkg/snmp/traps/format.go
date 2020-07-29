@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	sysUpTimeOID         = ".1.3.6.1.2.1.1.3"
-	sysUpTimeInstanceOID = ".1.3.6.1.2.1.1.3.0"
-	snmpTrapOID          = ".1.3.6.1.6.3.1.1.4.1"
-	snmpTrapInstanceOID  = ".1.3.6.1.6.3.1.1.4.1.0"
+	sysUpTimeOID         = "1.3.6.1.2.1.1.3"
+	sysUpTimeInstanceOID = "1.3.6.1.2.1.1.3.0"
+	snmpTrapOID          = "1.3.6.1.6.3.1.1.4.1"
+	snmpTrapInstanceOID  = "1.3.6.1.6.3.1.1.4.1.0"
 )
 
 // NOTE: This module is used by the traps logs input.
@@ -82,8 +82,9 @@ func normalizeOID(value string) string {
 }
 
 func parseSysUpTime(v gosnmp.SnmpPDU) (uint32, error) {
-	if v.Name != sysUpTimeOID && v.Name != sysUpTimeInstanceOID {
-		return 0, fmt.Errorf("expected OID %s or %s, got %s", sysUpTimeOID, sysUpTimeInstanceOID, v.Name)
+	name := normalizeOID(v.Name)
+	if name != sysUpTimeOID && name != sysUpTimeInstanceOID {
+		return 0, fmt.Errorf("expected OID %s or %s, got %s", sysUpTimeOID, sysUpTimeInstanceOID, name)
 	}
 
 	value, ok := v.Value.(uint32)
@@ -95,8 +96,9 @@ func parseSysUpTime(v gosnmp.SnmpPDU) (uint32, error) {
 }
 
 func parseSnmpTrapOID(v gosnmp.SnmpPDU) (string, error) {
-	if v.Name != snmpTrapOID && v.Name != snmpTrapInstanceOID {
-		return "", fmt.Errorf("expected OID %s or %s, got %s", snmpTrapOID, snmpTrapInstanceOID, v.Name)
+	name := normalizeOID(v.Name)
+	if name != snmpTrapOID && name != snmpTrapInstanceOID {
+		return "", fmt.Errorf("expected OID %s or %s, got %s", snmpTrapOID, snmpTrapInstanceOID, name)
 	}
 
 	value := ""

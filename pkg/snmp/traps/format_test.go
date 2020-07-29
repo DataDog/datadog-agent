@@ -6,25 +6,36 @@
 package traps
 
 import (
-	"fmt"
+	"net"
 	"testing"
 
+	"github.com/soniah/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestFormatV2(t *testing.T) {
-	c := Config{Port: GetPort(t), CommunityStrings: []string{"public"}}
-	Configure(t, c)
+func createTestPacket() *SnmpPacket {
+	return &SnmpPacket{
+		Content: &gosnmp.SnmpPacket{
+			Version:   gosnmp.Version2c,
+			Community: "public",
+			Variables: []gosnmp.SnmpPDU{
+				// sysUpTime
+				{Name: "1.3.6.1.2.1.1.3", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+				// snmpTrapOID
+				{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
+				// heartBeatRate
+				{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
+				// heartBeatName
+				{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
+			},
+		},
+		Addr: &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+	}
+}
 
-	err := StartServer()
-	require.NoError(t, err)
-	defer StopServer()
-
-	params := sendTestV2Trap(t, c, "public")
-	clientPort := parsePort(t, params.Conn.LocalAddr().String())
-
-	p := receivePacket(t)
+func TestFormatJSON(t *testing.T) {
+	p := createTestPacket()
 
 	data, err := FormatJSON(p)
 	require.NoError(t, err)
@@ -45,12 +56,43 @@ func TestFormatV2(t *testing.T) {
 	assert.Equal(t, heartBeatName["oid"], "1.3.6.1.4.1.8072.2.3.2.2")
 	assert.Equal(t, heartBeatName["type"], "string")
 	assert.Equal(t, heartBeatName["value"], "test")
+}
 
+func TestGetTags(t *testing.T) {
+	p := createTestPacket()
 	tags := GetTags(p)
 	assert.Equal(t, tags, []string{
 		"community:public",
 		"device_ip:127.0.0.1",
-		fmt.Sprintf("device_port:%d", clientPort),
+		"device_port:13156",
 		"snmp_version:2",
 	})
+}
+
+func TestFormatJSONShouldFailIfNotEnoughVariables(t *testing.T) {
+	p := createTestPacket()
+
+	p.Content.Variables = []gosnmp.SnmpPDU{
+		// No variables at all.
+	}
+	_, err := FormatJSON(p)
+	require.Error(t, err)
+
+	p.Content.Variables = []gosnmp.SnmpPDU{
+		// sysUpTime and data, but no snmpTrapOID
+		{Name: "1.3.6.1.2.1.1.3", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
+		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
+	}
+	_, err = FormatJSON(p)
+	require.Error(t, err)
+
+	p.Content.Variables = []gosnmp.SnmpPDU{
+		// snmpTrapOID and data, but no sysUpTime
+		{Name: "1.3.6.1.2.1.1.3", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
+		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
+	}
+	_, err = FormatJSON(p)
+	require.Error(t, err)
 }
