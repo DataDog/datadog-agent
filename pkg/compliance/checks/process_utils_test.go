@@ -7,7 +7,7 @@ package checks
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/require"
 )
 
 func TestParseCmdLine(t *testing.T) {

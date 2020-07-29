@@ -309,7 +309,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			case checks.Pod.Name():
-				responses, err = fwd.SubmitPodChecks(forwarderPayload, payload.headers)
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, checks.Pod.Name())
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}

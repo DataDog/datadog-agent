@@ -3,12 +3,12 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
 // Loader is responsible for managing the lifecyle of each api.Module, which includes:
@@ -32,11 +32,11 @@ func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, facto
 		}
 
 		if err != nil {
-			return fmt.Errorf("new module `%s` error", factory.Name)
+			return errors.Wrapf(err, "new module `%s` error", factory.Name)
 		}
 
 		if err = module.Register(httpMux); err != nil {
-			return fmt.Errorf("error registering HTTP endpoints for module `%s` error", factory.Name)
+			return errors.Wrapf(err, "error registering HTTP endpoints for module `%s` error", factory.Name)
 		}
 
 		l.modules[factory.Name] = module
