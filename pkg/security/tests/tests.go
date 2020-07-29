@@ -216,10 +216,6 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		return nil, err
 	}
 
-	if err := log.ChangeLogLevel(logger, "debug"); err != nil {
-		return nil, err
-	}
-
 	return testMod, nil
 }
 

@@ -18,7 +18,7 @@ import (
 func TestLink(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `link.src_filename == "{{.Root}}/test-link" && link.new_filename == "{{.Root}}/test2-link"`,
+		Expression: `link.source.filename == "{{.Root}}/test-link" && link.target.filename == "{{.Root}}/test2-link"`,
 	}
 
 	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
