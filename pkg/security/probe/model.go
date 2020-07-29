@@ -86,7 +86,7 @@ type ChmodEvent struct {
 	Mode            int32  `field:"mode"`
 	MountID         uint32 `field:"-"`
 	Inode           uint64 `field:"inode"`
-	OverlayNumLower int32  `field:"overlay_num_lower"`
+	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 }
@@ -149,7 +149,7 @@ type ChownEvent struct {
 	GID             int32  `field:"gid"`
 	MountID         uint32 `field:"-"`
 	Inode           uint64 `field:"inode"`
-	OverlayNumLower int32  `field:"overlay_num_lower"`
+	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 }
@@ -218,7 +218,7 @@ type OpenEvent struct {
 	Mode            uint32 `field:"mode"`
 	Inode           uint64 `field:"inode"`
 	MountID         uint32 `field:"-"`
-	OverlayNumLower int32  `field:"overlay_num_lower"`
+	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 	BasenameStr     string `field:"basename" handler:"ResolveBasename,string"`
@@ -295,7 +295,7 @@ type MkdirEvent struct {
 	Mode            int32  `field:"mode"`
 	MountID         uint32 `field:"-"`
 	Inode           uint64 `field:"inode"`
-	OverlayNumLower int32  `field:"overlay_num_lower"`
+	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 }
@@ -360,7 +360,7 @@ func (e *MkdirEvent) ResolveContainerPath(resolvers *Resolvers) string {
 type RmdirEvent struct {
 	MountID         uint32 `field:"-"`
 	Inode           uint64 `field:"inode"`
-	OverlayNumLower int32  `field:"overlay_num_lower"`
+	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 }
@@ -423,7 +423,7 @@ func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
 type UnlinkEvent struct {
 	Inode           uint64 `field:"inode"`
 	MountID         uint32 `field:"-"`
-	OverlayNumLower int32  `field:"overlay_num_lower"`
+	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 	Flags           uint32 `field:"flags"`
@@ -493,12 +493,12 @@ type RenameEvent struct {
 	SrcRandomInode        uint64 `field:"-"`
 	SrcPathnameStr        string `field:"old_filename" handler:"ResolveSrcInode,string"`
 	SrcContainerPath      string `field:"src_container_path" handler:"ResolveSrcContainerPath,string"`
-	SrcOverlayNumLower    int32  `field:"src_overlay_num_lower"`
+	SrcOverlayNumLower    int32  `field:"src_overlay_numlower"`
 	TargetMountID         uint32 `field:"-"`
 	TargetInode           uint64 `field:"new_inode"`
 	TargetPathnameStr     string `field:"new_filename" handler:"ResolveTargetInode,string"`
 	TargetContainerPath   string `field:"target_container_path" handler:"ResolveTargetContainerPath,string"`
-	TargetOverlayNumLower int32  `field:"target_overlay_num_lower"`
+	TargetOverlayNumLower int32  `field:"target_overlay_numlower"`
 }
 
 func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -602,7 +602,7 @@ type UtimesEvent struct {
 	Mtime           time.Time
 	Inode           uint64 `field:"inode"`
 	MountID         uint32 `field:"-"`
-	OverlayNumLower int32  `field:"overlay_num_lower"`
+	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
 }
@@ -677,12 +677,12 @@ type LinkEvent struct {
 	SrcInode           uint64 `field:"src_inode"`
 	SrcPathnameStr     string `field:"src_filename" handler:"ResolveSrcInode,string"`
 	SrcContainerPath   string `field:"src_container_path" handler:"ResolveSrcContainerPath,string"`
-	SrcOverlayNumLower int32  `field:"src_overlay_num_lower"`
+	SrcOverlayNumLower int32  `field:"src_overlay_numlower"`
 	NewMountID         uint32 `field:"-"`
 	NewInode           uint64 `field:"new_inode"`
 	NewPathnameStr     string `field:"new_filename" handler:"ResolveNewInode,string"`
 	NewContainerPath   string `field:"new_container_path" handler:"ResolveNewContainerPath,string"`
-	NewOverlayNumLower int32  `field:"new_overlay_num_lower"`
+	NewOverlayNumLower int32  `field:"new_overlay_numlower"`
 }
 
 func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -884,8 +884,47 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // ContainerEvent holds the container context of an event
 type ContainerEvent struct {
-	ID     string   `yaml:"id" field:"id" event:"container"`
-	Labels []string `yaml:"labels" field:"labels" event:"container"`
+	ID string `field:"id" handler:"ResolveContainerID,string"`
+
+	IDRaw [64]byte `field:"-"`
+}
+
+func (e *ContainerEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	if id := e.GetContainerID(); len(id) > 0 {
+		fmt.Fprintf(&buf, `"container_id":"%s"`, id)
+	}
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ContainerEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, error) {
+	if len(data) < 64 {
+		return 0, ErrNotEnoughData
+	}
+	if err := binary.Read(bytes.NewBuffer(data[0:64]), byteOrder, &e.IDRaw); err != nil {
+		return 0, err
+	}
+	return 64, nil
+}
+
+// ResolveContainerID resolves the container ID of the event
+func (e *ContainerEvent) ResolveContainerID(resolvers *Resolvers) string {
+	return e.GetContainerID()
+}
+
+// GetContainerID returns the container ID of the event
+func (e *ContainerEvent) GetContainerID() string {
+	if len(e.ID) == 0 {
+		e.ID = string(bytes.Trim(e.IDRaw[:], "\x00"))
+		if len(e.ID) > 1 && len(e.ID) < 64 {
+			e.ID = ""
+		}
+	}
+	return e.ID
 }
 
 // KernelEvent describes an event sent from the kernel
@@ -936,16 +975,17 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // ProcessEvent holds the process context of an event
 type ProcessEvent struct {
-	Pidns       uint64 `field:"pidns"`
-	Comm        string `field:"name" handler:"ResolveComm,string"`
-	TTYName     string `field:"tty_name" handler:"ResolveTTY,string"`
-	Pid         uint32 `field:"pid"`
-	Tid         uint32 `field:"tid"`
-	UID         uint32 `field:"uid"`
-	GID         uint32 `field:"gid"`
-	User        string `field:"user" handler:"ResolveUser,string"`
-	Group       string `field:"group" handler:"ResolveGroup,string"`
-	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
+	Pidns           uint64 `field:"pidns"`
+	Comm            string `field:"name" handler:"ResolveComm,string"`
+	TTYName         string `field:"tty_name" handler:"ResolveTTY,string"`
+	Pid             uint32 `field:"pid"`
+	Tid             uint32 `field:"tid"`
+	UID             uint32 `field:"uid"`
+	GID             uint32 `field:"gid"`
+	OverlayNumlower uint32 `field:"overlay_numlower"`
+	User            string `field:"user" handler:"ResolveUser,string"`
+	Group           string `field:"group" handler:"ResolveGroup,string"`
+	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 
 	CommRaw    [16]byte `field:"-"`
 	TTYNameRaw [64]byte `field:"-"`
@@ -971,7 +1011,8 @@ func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"pid":%d,`, p.Pid)
 	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
 	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
-	fmt.Fprintf(&buf, `"gid":%d`, p.GID)
+	fmt.Fprintf(&buf, `"gid":%d,`, p.GID)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d`, p.OverlayNumlower)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
@@ -1023,7 +1064,7 @@ func (p *ProcessEvent) ResolveGroup(resolvers *Resolvers) string {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 104 {
+	if len(data) < 108 {
 		return 0, ErrNotEnoughData
 	}
 	p.Pidns = byteOrder.Uint64(data[0:8])
@@ -1037,7 +1078,9 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 	p.Tid = byteOrder.Uint32(data[92:96])
 	p.UID = byteOrder.Uint32(data[96:100])
 	p.GID = byteOrder.Uint32(data[100:104])
-	return 104, nil
+	p.OverlayNumlower = byteOrder.Uint32(data[104:108])
+	// padding
+	return 112, nil
 }
 
 // Event represents an event sent from the kernel
@@ -1090,6 +1133,12 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			field:      "process",
 			marshalFnc: e.Process.marshalJSON,
 		},
+	}
+	if len(e.Container.GetContainerID()) > 0 {
+		entries = append(entries, eventMarshaler{
+			field:      "container",
+			marshalFnc: e.Container.marshalJSON,
+		})
 	}
 	switch EventType(e.Event.Type) {
 	case FileChmodEventType:
@@ -1183,6 +1232,12 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 // GetType returns the event type
 func (e *Event) GetType() string {
 	return EventType(e.Event.Type).String()
+}
+
+// GetTags returns the list of tags specific to this event
+func (e *Event) GetTags() []string {
+	// TODO: add container tags once we collect them
+	return []string{"type:" + e.GetType()}
 }
 
 // GetID returns the event identifier

@@ -13,8 +13,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/pkg/errors"
-
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/iovisor/gobpf/elf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/statsd"
 )
 
 // MetricPrefix is the prefix of the metrics sent by the runtime security agent
@@ -69,6 +67,7 @@ type Capabilities map[eval.Field]Capability
 type HookPoint struct {
 	Name            string
 	KProbes         []*ebpf.KProbe
+	Tracepoint      string
 	Optional        bool
 	EventTypes      map[eval.EventType]Capabilities
 	OnNewApprovers  onApproversFnc
@@ -367,6 +366,7 @@ func (p *Probe) getTableNames() []string {
 	}
 
 	tables = append(tables, openTables...)
+	tables = append(tables, execTables...)
 	tables = append(tables, unlinkTables...)
 
 	return tables
@@ -544,6 +544,13 @@ func (p *Probe) handleEvent(data []byte) {
 	read, err = event.Process.UnmarshalBinary(data[offset:])
 	if err != nil {
 		log.Errorf("failed to decode process event: %s", err)
+		return
+	}
+	offset += read
+
+	read, err = event.Container.UnmarshalBinary(data[offset:], p.resolvers)
+	if err != nil {
+		log.Errorf("failed to decode container event: %v offset:%d", err, offset)
 		return
 	}
 	offset += read
@@ -728,7 +735,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 
 		// first set policies
 		for eventType, capabilities := range hookPoint.EventTypes {
-			if eventType == "*" || rs.HasRulesForEventType(eventType) {
+			if rs.HasRulesForEventType(eventType) {
 				if hookPoint.PolicyTable == "" {
 					continue
 				}
@@ -768,6 +775,15 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 					}
 					log.Debugf("failed to register kProbe `%s`", kprobe.Name)
 				}
+				if len(hookPoint.Tracepoint) > 0 && err == nil {
+					if err = p.Module.RegisterTracepoint(hookPoint.Tracepoint); err == nil {
+						active++
+
+						log.Debugf("tracepoint `%s` registered", hookPoint.Tracepoint)
+					} else {
+						log.Debugf("failed to register tracepoint `%s`", hookPoint.Tracepoint)
+					}
+				}
 
 				if err != nil {
 					if !hookPoint.Optional {
@@ -787,11 +803,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
-	// Sync with the current mount points of the system
-	if err := p.resolvers.MountResolver.SyncCache(0); err != nil {
-		return errors.Wrap(err, "couldn't sync mount points of the host")
-	}
-	return nil
+	return p.resolvers.Snapshot(5)
 }
 
 // NewProbe instantiates a new runtime security agent probe
@@ -808,21 +820,12 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		PerfMaps: p.getPerfMaps(),
 	}
 
-	dentryResolver, err := NewDentryResolver(p.Probe)
+	resolvers, err := NewResolvers(p.Probe)
 	if err != nil {
 		return nil, err
 	}
 
-	timeResolver, err := NewTimeResolver()
-	if err != nil {
-		return nil, err
-	}
-
-	p.resolvers = &Resolvers{
-		DentryResolver: dentryResolver,
-		MountResolver:  NewMountResolver(),
-		TimeResolver:   timeResolver,
-	}
+	p.resolvers = resolvers
 
 	return p, nil
 }

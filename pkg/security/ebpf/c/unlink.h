@@ -16,6 +16,7 @@ struct bpf_map_def SEC("maps/unlink_path_inode_discarders") unlink_path_inode_di
 struct unlink_event_t {
     struct event_t event;
     struct process_data_t process;
+    char container_id[CONTAINER_ID_LEN];
     unsigned long inode;
     int mount_id;
     int overlay_numlower;
@@ -67,13 +68,14 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
     syscall->unlink.path_key.ino = get_dentry_ino(dentry);
 
-    struct bpf_map_def *discarders = &unlink_path_inode_discarders;
-    if (syscall->policy.mode == NO_FILTER)
-        discarders = NULL;
-
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    int retval = resolve_dentry(dentry, syscall->unlink.path_key, discarders);
-    if (retval < 0) {
+    int ret = 0;
+    if (syscall->policy.mode == NO_FILTER) {
+        ret = resolve_dentry(dentry, syscall->unlink.path_key, NULL);
+    } else {
+        ret = resolve_dentry(dentry, syscall->unlink.path_key, &unlink_path_inode_discarders);
+    }
+    if (ret < 0) {
         pop_syscall();
     }
 
@@ -100,6 +102,13 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
+
+    // add process cache data
+    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
+    if (entry) {
+        copy_container_id(event.container_id, entry->container_id);
+        event.process.numlower = entry->numlower;
+    }
 
     send_event(ctx, event);
 

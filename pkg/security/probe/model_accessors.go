@@ -49,7 +49,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "chmod.overlay_num_lower":
+	case "chmod.overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chmod.OverlayNumLower) },
@@ -93,7 +93,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "chown.overlay_num_lower":
+	case "chown.overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Chown.OverlayNumLower) },
@@ -112,7 +112,9 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 	case "container.id":
 
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*Event)(ctx.Object).Container.ID },
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Container.ResolveContainerID((*Event)(ctx.Object).resolvers)
+			},
 
 			Field: field,
 		}, nil
@@ -163,7 +165,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "link.new_overlay_num_lower":
+	case "link.new_overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Link.NewOverlayNumLower) },
@@ -199,7 +201,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "link.src_overlay_num_lower":
+	case "link.src_overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Link.SrcOverlayNumLower) },
@@ -243,7 +245,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "mkdir.overlay_num_lower":
+	case "mkdir.overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Mkdir.OverlayNumLower) },
@@ -305,7 +307,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "open.overlay_num_lower":
+	case "open.overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Open.OverlayNumLower) },
@@ -347,6 +349,14 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Process.ResolveComm((*Event)(ctx.Object).resolvers)
 			},
+
+			Field: field,
+		}, nil
+
+	case "process.overlay_numlower":
+
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.OverlayNumlower) },
 
 			Field: field,
 		}, nil
@@ -449,7 +459,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "rename.src_overlay_num_lower":
+	case "rename.src_overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rename.SrcOverlayNumLower) },
@@ -467,7 +477,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "rename.target_overlay_num_lower":
+	case "rename.target_overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rename.TargetOverlayNumLower) },
@@ -503,7 +513,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "rmdir.overlay_num_lower":
+	case "rmdir.overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Rmdir.OverlayNumLower) },
@@ -547,7 +557,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "unlink.overlay_num_lower":
+	case "unlink.overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Unlink.OverlayNumLower) },
@@ -583,7 +593,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "utimes.overlay_num_lower":
+	case "utimes.overlay_numlower":
 
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Utimes.OverlayNumLower) },
@@ -615,7 +625,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Chmod.Mode), nil
 
-	case "chmod.overlay_num_lower":
+	case "chmod.overlay_numlower":
 
 		return int(e.Chmod.OverlayNumLower), nil
 
@@ -635,7 +645,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Chown.Inode), nil
 
-	case "chown.overlay_num_lower":
+	case "chown.overlay_numlower":
 
 		return int(e.Chown.OverlayNumLower), nil
 
@@ -645,7 +655,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "container.id":
 
-		return e.Container.ID, nil
+		return e.Container.ResolveContainerID(e.resolvers), nil
 
 	case "event.retval":
 
@@ -667,7 +677,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Link.NewInode), nil
 
-	case "link.new_overlay_num_lower":
+	case "link.new_overlay_numlower":
 
 		return int(e.Link.NewOverlayNumLower), nil
 
@@ -683,7 +693,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Link.SrcInode), nil
 
-	case "link.src_overlay_num_lower":
+	case "link.src_overlay_numlower":
 
 		return int(e.Link.SrcOverlayNumLower), nil
 
@@ -703,7 +713,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Mkdir.Mode), nil
 
-	case "mkdir.overlay_num_lower":
+	case "mkdir.overlay_numlower":
 
 		return int(e.Mkdir.OverlayNumLower), nil
 
@@ -731,7 +741,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Open.Mode), nil
 
-	case "open.overlay_num_lower":
+	case "open.overlay_numlower":
 
 		return int(e.Open.OverlayNumLower), nil
 
@@ -750,6 +760,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.name":
 
 		return e.Process.ResolveComm(e.resolvers), nil
+
+	case "process.overlay_numlower":
+
+		return int(e.Process.OverlayNumlower), nil
 
 	case "process.pid":
 
@@ -795,7 +809,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Rename.ResolveSrcContainerPath(e.resolvers), nil
 
-	case "rename.src_overlay_num_lower":
+	case "rename.src_overlay_numlower":
 
 		return int(e.Rename.SrcOverlayNumLower), nil
 
@@ -803,7 +817,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Rename.ResolveTargetContainerPath(e.resolvers), nil
 
-	case "rename.target_overlay_num_lower":
+	case "rename.target_overlay_numlower":
 
 		return int(e.Rename.TargetOverlayNumLower), nil
 
@@ -819,7 +833,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rmdir.Inode), nil
 
-	case "rmdir.overlay_num_lower":
+	case "rmdir.overlay_numlower":
 
 		return int(e.Rmdir.OverlayNumLower), nil
 
@@ -839,7 +853,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Unlink.Inode), nil
 
-	case "unlink.overlay_num_lower":
+	case "unlink.overlay_numlower":
 
 		return int(e.Unlink.OverlayNumLower), nil
 
@@ -855,7 +869,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Utimes.Inode), nil
 
-	case "utimes.overlay_num_lower":
+	case "utimes.overlay_numlower":
 
 		return int(e.Utimes.OverlayNumLower), nil
 
@@ -879,7 +893,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "chmod.mode":
 		return "chmod", nil
 
-	case "chmod.overlay_num_lower":
+	case "chmod.overlay_numlower":
 		return "chmod", nil
 
 	case "chown.container_path":
@@ -894,14 +908,14 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "chown.inode":
 		return "chown", nil
 
-	case "chown.overlay_num_lower":
+	case "chown.overlay_numlower":
 		return "chown", nil
 
 	case "chown.uid":
 		return "chown", nil
 
 	case "container.id":
-		return "container", nil
+		return "*", nil
 
 	case "event.retval":
 		return "*", nil
@@ -918,7 +932,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "link.new_inode":
 		return "link", nil
 
-	case "link.new_overlay_num_lower":
+	case "link.new_overlay_numlower":
 		return "link", nil
 
 	case "link.src_container_path":
@@ -930,7 +944,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "link.src_inode":
 		return "link", nil
 
-	case "link.src_overlay_num_lower":
+	case "link.src_overlay_numlower":
 		return "link", nil
 
 	case "mkdir.container_path":
@@ -945,7 +959,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mkdir.mode":
 		return "mkdir", nil
 
-	case "mkdir.overlay_num_lower":
+	case "mkdir.overlay_numlower":
 		return "mkdir", nil
 
 	case "open.basename":
@@ -966,7 +980,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "open.mode":
 		return "open", nil
 
-	case "open.overlay_num_lower":
+	case "open.overlay_numlower":
 		return "open", nil
 
 	case "process.filename":
@@ -979,6 +993,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.name":
+		return "*", nil
+
+	case "process.overlay_numlower":
 		return "*", nil
 
 	case "process.pid":
@@ -1014,13 +1031,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rename.src_container_path":
 		return "rename", nil
 
-	case "rename.src_overlay_num_lower":
+	case "rename.src_overlay_numlower":
 		return "rename", nil
 
 	case "rename.target_container_path":
 		return "rename", nil
 
-	case "rename.target_overlay_num_lower":
+	case "rename.target_overlay_numlower":
 		return "rename", nil
 
 	case "rmdir.container_path":
@@ -1032,7 +1049,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rmdir.inode":
 		return "rmdir", nil
 
-	case "rmdir.overlay_num_lower":
+	case "rmdir.overlay_numlower":
 		return "rmdir", nil
 
 	case "unlink.container_path":
@@ -1047,7 +1064,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "unlink.inode":
 		return "unlink", nil
 
-	case "unlink.overlay_num_lower":
+	case "unlink.overlay_numlower":
 		return "unlink", nil
 
 	case "utimes.container_path":
@@ -1059,7 +1076,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "utimes.inode":
 		return "utimes", nil
 
-	case "utimes.overlay_num_lower":
+	case "utimes.overlay_numlower":
 		return "utimes", nil
 
 	}
@@ -1086,7 +1103,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "chmod.overlay_num_lower":
+	case "chmod.overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1106,7 +1123,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "chown.overlay_num_lower":
+	case "chown.overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1138,7 +1155,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "link.new_overlay_num_lower":
+	case "link.new_overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1154,7 +1171,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "link.src_overlay_num_lower":
+	case "link.src_overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1174,7 +1191,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "mkdir.overlay_num_lower":
+	case "mkdir.overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1202,7 +1219,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "open.overlay_num_lower":
+	case "open.overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1221,6 +1238,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.name":
 
 		return reflect.String, nil
+
+	case "process.overlay_numlower":
+
+		return reflect.Int, nil
 
 	case "process.pid":
 
@@ -1266,7 +1287,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "rename.src_overlay_num_lower":
+	case "rename.src_overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1274,7 +1295,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "rename.target_overlay_num_lower":
+	case "rename.target_overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1290,7 +1311,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "rmdir.overlay_num_lower":
+	case "rmdir.overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1310,7 +1331,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "unlink.overlay_num_lower":
+	case "unlink.overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1326,7 +1347,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "utimes.overlay_num_lower":
+	case "utimes.overlay_numlower":
 
 		return reflect.Int, nil
 
@@ -1371,7 +1392,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.Mode = int32(v)
 		return nil
 
-	case "chmod.overlay_num_lower":
+	case "chmod.overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1412,7 +1433,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.Inode = uint64(v)
 		return nil
 
-	case "chown.overlay_num_lower":
+	case "chown.overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1478,7 +1499,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.NewInode = uint64(v)
 		return nil
 
-	case "link.new_overlay_num_lower":
+	case "link.new_overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1510,7 +1531,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.SrcInode = uint64(v)
 		return nil
 
-	case "link.src_overlay_num_lower":
+	case "link.src_overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1551,7 +1572,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.Mode = int32(v)
 		return nil
 
-	case "mkdir.overlay_num_lower":
+	case "mkdir.overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1608,7 +1629,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.Mode = uint32(v)
 		return nil
 
-	case "open.overlay_num_lower":
+	case "open.overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1645,6 +1666,15 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Process.Comm, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Process.Comm"}
 		}
+		return nil
+
+	case "process.overlay_numlower":
+
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Process.OverlayNumlower"}
+		}
+		e.Process.OverlayNumlower = uint32(v)
 		return nil
 
 	case "process.pid":
@@ -1736,7 +1766,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "rename.src_overlay_num_lower":
+	case "rename.src_overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1752,7 +1782,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 
-	case "rename.target_overlay_num_lower":
+	case "rename.target_overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1784,7 +1814,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.Inode = uint64(v)
 		return nil
 
-	case "rmdir.overlay_num_lower":
+	case "rmdir.overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1825,7 +1855,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.Inode = uint64(v)
 		return nil
 
-	case "unlink.overlay_num_lower":
+	case "unlink.overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {
@@ -1857,7 +1887,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.Inode = uint64(v)
 		return nil
 
-	case "utimes.overlay_num_lower":
+	case "utimes.overlay_numlower":
 
 		v, ok := value.(int)
 		if !ok {

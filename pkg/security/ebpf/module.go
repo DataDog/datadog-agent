@@ -60,10 +60,13 @@ func (m *Module) RegisterTable(name string) (*Table, error) {
 	return &Table{Map: m.Map(name), module: m.Module}, nil
 }
 
+// eBPFLogSize is the size of the log buffer given to the verifier
+const eBPFLogSize = 1000000
+
 // NewModuleFromReader creates an eBPF from a ReaderAt interface that points to
 // the ELF file containing the eBPF bytecode
 func NewModuleFromReader(reader io.ReaderAt) (*Module, error) {
-	module := bpflib.NewModuleFromReader(reader)
+	module := bpflib.NewModuleFromReaderWithLogSize(reader, eBPFLogSize)
 	if module == nil {
 		return nil, ErrEBPFNotSupported
 	}
