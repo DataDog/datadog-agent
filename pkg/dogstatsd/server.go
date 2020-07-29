@@ -167,7 +167,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	if len(pipeName) > 0 {
 		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPool)
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Errorf("named pipe error: %v", err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, namedPipeListener)
 		}
