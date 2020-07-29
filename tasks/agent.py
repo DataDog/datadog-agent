@@ -22,7 +22,7 @@ from .utils import (
     get_win_py_runtime_var,
 )
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, WINDOWS_32BIT_EXCLUDE_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, filter_incompatible_tags
 from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
@@ -33,28 +33,6 @@ from .rtloader import clean as rtloader_clean
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
-DEFAULT_BUILD_TAGS = [
-    "apm",
-    "process",
-    "consul",
-    "containerd",
-    "python",
-    "cri",
-    "docker",
-    "ec2",
-    "etcd",
-    "gce",
-    "jmx",
-    "kubeapiserver",
-    "kubelet",
-    "log",
-    "netcgo",
-    "systemd",
-    "process",
-    "zk",
-    "zlib",
-    "secrets",
-]
 
 AGENT_CORECHECKS = [
     "containerd",
@@ -122,8 +100,6 @@ def build(
     if not exclude_rtloader and not iot:
         rtloader_make(ctx, python_runtimes=python_runtimes)
         rtloader_install(ctx)
-    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -135,16 +111,6 @@ def build(
         python_runtimes=python_runtimes,
         arch=arch,
     )
-
-    if not sys.platform.startswith('linux'):
-        for ex in LINUX_ONLY_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
-
-    if sys.platform == 'win32' and arch == "x86":
-        for ex in WINDOWS_32BIT_EXCLUDE_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
 
     if sys.platform == 'win32':
         py_runtime_var = get_win_py_runtime_var(python_runtimes)
@@ -180,8 +146,14 @@ def build(
 
     if iot:
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(iot=True)
+        build_tags = get_default_build_tags(build="iot", arch=arch)
     else:
+        build_include = (
+            get_default_build_tags(build="agent", arch=arch)
+            if build_include is None
+            else filter_incompatible_tags(build_include.split(","), arch=arch)
+        )
+        build_exclude = [] if build_exclude is None else build_exclude.split(",")
         build_tags = get_build_tags(build_include, build_exclude)
 
     # Generating go source from templates by running go generate on ./pkg/status
@@ -342,7 +314,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor", arch="x64"):
     """
     Run integration tests for the Agent
     """
@@ -351,7 +323,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags()),
+        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }

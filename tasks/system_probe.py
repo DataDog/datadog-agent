@@ -111,10 +111,7 @@ def build(
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
 
-    if not windows:
-        build_tags = get_default_build_tags() + [BPF_TAG]
-    else:
-        build_tags = get_default_build_tags()
+    build_tags = get_default_build_tags(build="system-probe", arch=arch)
 
     if with_bcc:
         build_tags.append(BCC_TAG)

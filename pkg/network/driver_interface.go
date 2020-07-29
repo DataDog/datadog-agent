@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
-
 	"golang.org/x/sys/windows"
 )
 
@@ -57,17 +56,19 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 
 // DriverInterface holds all necessary information for interacting with the windows driver
 type DriverInterface struct {
-	driverFlowHandle  *DriverHandle
-	driverStatsHandle *DriverHandle
+	driverFlowHandle      *DriverHandle
+	driverStatsHandle     *DriverHandle
+	enableMonotonicCounts bool
 
 	path       string
 	totalFlows int64
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface() (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
 	dc := &DriverInterface{
-		path: deviceName,
+		path:                  deviceName,
+		enableMonotonicCounts: enableMonotonicCounts,
 	}
 
 	err := dc.setupFlowHandle()
@@ -207,9 +208,9 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 			if isFlowClosed(pfd.flags) {
 				// Closed Connection
-				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd))
+				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd, di.enableMonotonicCounts))
 			} else {
-				connStatsActive = append(connStatsActive, FlowToConnStat(pfd))
+				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.enableMonotonicCounts))
 			}
 			atomic.AddInt64(&di.totalFlows, 1)
 		}

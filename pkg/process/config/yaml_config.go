@@ -157,6 +157,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnableTracepoints = config.Datadog.GetBool(key(spNS, "enable_tracepoints"))
 	}
 
+	a.Windows.EnableMonotonicCount = config.Datadog.GetBool(key(spNS, "windows", "enable_monotonic_count"))
+
 	return nil
 }
 

@@ -95,6 +95,9 @@ type Config struct {
 
 	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
 	EnableTracepoints bool
+
+	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
+	EnableMonotonicCount bool
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -124,5 +127,6 @@ func NewDefaultConfig() *Config {
 		CollectDNSStats:      false,
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
+		EnableMonotonicCount: false,
 	}
 }

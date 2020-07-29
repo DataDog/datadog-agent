@@ -79,6 +79,8 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 		tracerConfig.EnableTracepoints = true
 	}
 
+	tracerConfig.EnableMonotonicCount = cfg.Windows.EnableMonotonicCount
+
 	return tracerConfig
 }
 
