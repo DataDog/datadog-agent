@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 
 from .utils import get_build_flags
 from .go import fmt, lint, vet, misspell, ineffassign, staticcheck, lint_licenses, golangci_lint, generate
-from .build_tags import get_default_build_tags, get_build_tags
+from .build_tags import get_default_build_tags, get_build_tags, filter_incompatible_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .trace_agent import integration_tests as trace_integration_tests
@@ -82,7 +82,9 @@ def test(
         tool_targets = test_targets = targets
 
     build_include = (
-        get_default_build_tags(process=True, arch=arch) if build_include is None else build_include.split(",")
+        get_default_build_tags(build="test-with-process-tags", arch=arch)
+        if build_include is None
+        else filter_incompatible_tags(build_include.split(","), arch=arch)
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
@@ -117,7 +119,7 @@ def test(
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
             print("--- golangci_lint:")
-            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
@@ -592,7 +594,7 @@ def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
         platform = "linux"
 
     ctx.run(
-        "wget -qO- \"https://storage.googleapis.com/shellcheck/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp".format(
+        "wget -qO- \"https://github.com/koalaman/shellcheck/releases/download/v{sc_version}/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp".format(
             sc_version=version, platform=platform
         )
     )

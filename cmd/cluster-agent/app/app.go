@@ -231,6 +231,7 @@ func start(cmd *cobra.Command, args []string) error {
 		orchestratorCtx := orchestrator.ControllerContext{
 			IsLeaderFunc:                 le.IsLeader,
 			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			InformerFactory:              apiCl.InformerFactory,
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			Hostname:                     hostname,

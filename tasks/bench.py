@@ -18,11 +18,11 @@ BENCHMARKS_BIN_PATH = os.path.join(".", "bin", "benchmarks")
 
 
 @task
-def build_aggregator(ctx, rebuild=False):
+def build_aggregator(ctx, rebuild=False, arch="x64"):
     """
     Build the Aggregator benchmarks.
     """
-    build_tags = get_default_build_tags()  # pass all the build flags
+    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
 
     ldflags = ""
     gcflags = ""
@@ -49,11 +49,11 @@ def build_aggregator(ctx, rebuild=False):
 
 
 @task
-def build_dogstatsd(ctx):
+def build_dogstatsd(ctx, arch="x64"):
     """
     Build Dogstatsd benchmarks.
     """
-    build_tags = get_default_build_tags()  # pass all the build flags
+    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
 
     cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
     args = {

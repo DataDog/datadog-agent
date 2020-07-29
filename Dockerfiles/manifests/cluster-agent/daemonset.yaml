@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: agent
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -94,7 +94,7 @@ spec:
             timeoutSeconds: 5
       initContainers:
         - name: init-volume
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -104,7 +104,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -148,9 +148,10 @@ spec:
         - name: s6-run
           emptyDir: {}
       tolerations:
-      affinity: null
+      affinity: {}
       serviceAccountName: datadog
       nodeSelector:
+        kubernetes.io/os: linux
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 10%
