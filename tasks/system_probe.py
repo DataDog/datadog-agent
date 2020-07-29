@@ -301,6 +301,7 @@ def build_object_files(ctx, install=True):
         '-Wunused',
         '-Wall',
         '-Werror',
+        "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
         '-O2',
         '-emit-llvm',
         '-c',

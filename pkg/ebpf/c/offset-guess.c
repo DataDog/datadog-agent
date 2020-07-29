@@ -1,66 +1,32 @@
-/**
- * We need to pull in this header, which is depended upon by ptrace.h
- * and then re-define asm_volatile_goto which is unsupported in
- * the version of clang we commonly use to build.
- */
-#include <linux/compiler.h>
-
 #include <linux/kconfig.h>
-
-/* clang 8 does not support "asm volatile goto" yet.
- * So redefine asm_volatile_goto to some invalid asm code.
- * If asm_volatile_goto is actually used by the bpf program,
- * a compilation error will appear.
- */
-#ifdef asm_volatile_goto
-#undef asm_volatile_goto
-#endif
-#define asm_volatile_goto(x...) asm volatile("invalid use of asm_volatile_goto")
-#pragma clang diagnostic ignored "-Wunused-label"
-
-#include <linux/ptrace.h>
+#include <uapi/linux/ptrace.h>
 #include "bpf_helpers.h"
 #include "offset-guess.h"
-#include <linux/version.h>
 
 #include <net/sock.h>
-#include <net/inet_sock.h>
 #include <net/net_namespace.h>
 #include <uapi/linux/tcp.h>
-
-/* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
- */
-#if DEBUG == 1
-#define log_debug(fmt, ...)                                        \
-    ({                                                             \
-        char ____fmt[] = fmt;                                      \
-        bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
-    })
-#else
-// No op
-#define log_debug(fmt, ...)
-#endif
 
 /* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
  */
 struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
-        .type = BPF_MAP_TYPE_HASH,
-        .key_size = sizeof(__u64),
-        .value_size = sizeof(void*),
-        .max_entries = 1024,
-        .pinning = 0,
-        .namespace = "",
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(void*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/tracer_status") tracer_status = {
-        .type = BPF_MAP_TYPE_HASH,
-        .key_size = sizeof(__u64),
-        .value_size = sizeof(tracer_status_t),
-        .max_entries = 1,
-        .pinning = 0,
-        .namespace = "",
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(tracer_status_t),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
 };
 
 __attribute__((always_inline))
@@ -188,7 +154,7 @@ int kprobe__tcp_v6_connect(struct pt_regs* ctx) {
 
 // Used for offset guessing (see: pkg/ebpf/offsetguess.go)
 SEC("kretprobe/tcp_v6_connect")
-int kretprobe__tcp_v6_connect(struct pt_regs* ctx) {
+int kretprobe__tcp_v6_connect(struct pt_regs* __attribute__((unused)) ctx) {
     u64 pid = bpf_get_current_pid_tgid();
     u64 zero = 0;
     struct sock** skpp;
@@ -214,6 +180,6 @@ int kretprobe__tcp_v6_connect(struct pt_regs* ctx) {
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE;
+__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
 
-char _license[] SEC("license") = "GPL";
+char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)

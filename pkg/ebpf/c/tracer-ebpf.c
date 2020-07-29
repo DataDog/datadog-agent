@@ -1,50 +1,15 @@
-
-/**
- * We need to pull in this header, which is depended upon by ptrace.h
- * and then re-define asm_volatile_goto which is unsupported in
- * the version of clang we commonly use to build.
- */
-#include <linux/compiler.h>
-
 #include <linux/kconfig.h>
-
-/* clang 8 does not support "asm volatile goto" yet.
- * So redefine asm_volatile_goto to some invalid asm code.
- * If asm_volatile_goto is actually used by the bpf program,
- * a compilation error will appear.
- */
-#ifdef asm_volatile_goto
-#undef asm_volatile_goto
-#endif
-#define asm_volatile_goto(x...) asm volatile("invalid use of asm_volatile_goto")
-#pragma clang diagnostic ignored "-Wunused-label"
-
-#include <linux/ptrace.h>
+#include <uapi/linux/ptrace.h>
 #include "bpf_helpers.h"
 #include "tracer-ebpf.h"
 #include "syscalls.h"
-#include <linux/version.h>
 
-#include <net/sock.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/udp.h>
 #include <uapi/linux/tcp.h>
-
-/* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
- */
-#if DEBUG == 1
-#define log_debug(fmt, ...)                                        \
-    ({                                                             \
-        char ____fmt[] = fmt;                                      \
-        bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
-    })
-#else
-// No op
-#define log_debug(fmt, ...)
-#endif
 
 /* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
  * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
@@ -443,7 +408,7 @@ static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
 }
 
 __attribute__((always_inline))
-static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
+static void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_tuple_t* tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
@@ -913,7 +878,7 @@ int kprobe__sys_bind_x64(struct pt_regs* ctx) {
     __u64 fd;
     struct sockaddr* addr;
     bpf_probe_read(&fd, sizeof(fd), &(PT_REGS_PARM1(_ctx)));
-    bpf_probe_read(&addr, sizeof(addr), &(PT_REGS_PARM2(_ctx)));
+    bpf_probe_read(&addr, sizeof(struct sockaddr*), &(PT_REGS_PARM2(_ctx)));
     log_debug("kprobe/sys_bind/x64: fd=%u, umyaddr=%x\n", fd, addr);
     return sys_enter_bind(fd, addr);
 }
@@ -1130,6 +1095,6 @@ int socket__dns_filter(struct __sk_buff* skb) {
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE;
+__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
 
-char _license[] SEC("license") = "GPL";
+char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
