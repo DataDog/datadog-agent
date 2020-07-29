@@ -81,7 +81,7 @@ func (e *ChmodEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
+	fmt.Fprintf(&buf, `"mode":"%s"`, ChmodMode(e.Mode))
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
@@ -196,8 +196,8 @@ func (e *ChownEvent) ResolveContainerPath(resolvers *Resolvers) string {
 
 // OpenEvent represents an open event
 type OpenEvent struct {
-	Flags           uint32 `yaml:"flags" field:"flags"`
-	Mode            uint32 `yaml:"mode" field:"mode"`
+	Flags           uint32 `field:"flags"`
+	Mode            uint32 `field:"mode"`
 	Inode           uint64 `field:"inode"`
 	MountID         uint32 `field:"-"`
 	OverlayNumLower int32  `field:"overlay_num_lower"`
@@ -215,7 +215,7 @@ func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
 	fmt.Fprintf(&buf, `"mode":%d,`, e.Mode)
-	fmt.Fprintf(&buf, `"flags":%d`, e.Flags)
+	fmt.Fprintf(&buf, `"flags":"%s"`, OpenFlags(e.Flags))
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
@@ -415,7 +415,7 @@ func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"flags":%d,`, e.Flags)
+	fmt.Fprintf(&buf, `"flags":"%s",`, UnlinkFlags(e.Flags))
 	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
 	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
@@ -889,6 +889,9 @@ func (k *KernelEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"type":"%s",`, k.ResolveType(resolvers))
 	fmt.Fprintf(&buf, `"timestamp":"%s",`, k.ResolveMonoliticTimestamp(resolvers))
 	fmt.Fprintf(&buf, `"retval":%d`, k.Retval)
+	if k.Retval < 0 {
+		fmt.Fprintf(&buf, `,"error":"%s"`, RetValError(k.Retval))
+	}
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
