@@ -225,9 +225,15 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	if err != nil {
 		log.Errorf("Could not write typeperf data: %s", err)
 	}
+
 	err = zipCounterStrings(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not write counter strings: %s", err)
+	}
+
+	err = zipWindowsEventLogs(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not export Windows event logs: %s", err)
 	}
 
 	// force a log flush before zipping them
