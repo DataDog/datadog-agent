@@ -9,13 +9,7 @@ from time import sleep, time
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
 
-def trigger_agent_pipeline(
-    ref="master",
-    release_version_6="nightly",
-    release_version_7="nightly-a7",
-    branch="nightly",
-    windows_update_latest=True,
-):
+def trigger_agent_pipeline(ref="master", release_version_6="nightly", release_version_7="nightly-a7", branch="nightly"):
     """
     Trigger a pipeline to deploy an Agent to staging repos
     (as specified with the DEPLOY_AGENT arg).
@@ -35,10 +29,6 @@ def trigger_agent_pipeline(
     # Override the environment to release the binaries to (prod or staging)
     if branch is not None:
         args["DEB_RPM_BUCKET_BRANCH"] = branch
-
-    # Override the environment to release the binaries to (prod or staging)
-    if windows_update_latest is not None:
-        args["WINDOWS_DO_NOT_UPDATE_LATEST"] = str(not windows_update_latest).lower()
 
     print(
         "Creating pipeline for datadog-agent on branch/tag {} with args:\n{}".format(
