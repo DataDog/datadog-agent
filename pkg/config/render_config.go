@@ -41,6 +41,7 @@ type context struct {
 	TraceAgent        bool
 	ClusterChecks     bool
 	CloudFoundryBBS   bool
+	Compliance        bool
 }
 
 func mkContext(buildType string) context {
@@ -67,6 +68,7 @@ func mkContext(buildType string) context {
 		TraceAgent:        true,
 		Kubelet:           true,
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
+		Compliance:        true,
 	}
 
 	switch buildType {

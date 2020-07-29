@@ -845,6 +845,28 @@ api_key:
   #   - '*pass*d*'
 
 {{ end -}}
+{{- if .Compliance }}
+#############################################
+## Security Agent Compliance Configuration ##
+#############################################
+## @param compliance_config - custom object - optional
+## Enter specific configuration for continuous compliance checks.
+# compliance_config:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable continuous compliance checks
+  #
+  # enabled: false
+
+  ## @param dir - string - optional - default: /etc/datadog-agent/compliance.d
+  ## Directory path for compliance checks configuration containing enabled benchmarks
+  #
+  # dir: /etc/datadog-agent/compliance.d
+
+  ## @param check_interval - duration - optional - default: 20m
+  ## Check interval
+  # check_interval: 20m
+{{ end -}}
 {{- if .SystemProbe }}
 
 ##################################
