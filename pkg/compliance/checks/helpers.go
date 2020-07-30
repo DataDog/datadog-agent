@@ -14,6 +14,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -119,21 +120,21 @@ func instanceToEventData(instance *eval.Instance, allowedFields []string) event.
 
 // instanceToReport converts an instance and passed status to report
 // filtering out fields not on the allowedFields list
-func instanceToReport(instance *eval.Instance, passed bool, allowedFields []string) *report {
+func instanceToReport(instance *eval.Instance, passed bool, allowedFields []string) *compliance.Report {
 	var data event.Data
 
 	if instance != nil {
 		data = instanceToEventData(instance, allowedFields)
 	}
 
-	return &report{
-		passed: passed,
-		data:   data,
+	return &compliance.Report{
+		Passed: passed,
+		Data:   data,
 	}
 }
 
 // instanceToReport converts an evaluated instanceResult to report
 // filtering out fields not on the allowedFields list
-func instanceResultToReport(result *eval.InstanceResult, allowedFields []string) *report {
+func instanceResultToReport(result *eval.InstanceResult, allowedFields []string) *compliance.Report {
 	return instanceToReport(result.Instance, result.Passed, allowedFields)
 }

@@ -21,22 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	groupFieldName  = "group.name"
-	groupFieldUsers = "group.users"
-	groupFieldID    = "group.id"
-)
-
 var groupReportedFields = []string{
-	groupFieldName,
-	groupFieldUsers,
-	groupFieldID,
+	compliance.GroupFieldName,
+	compliance.GroupFieldUsers,
+	compliance.GroupFieldID,
 }
 
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func checkGroup(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+func checkGroup(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
 	}
@@ -99,9 +93,9 @@ func (f *groupFinder) findGroup(line []byte) (bool, error) {
 
 	f.instance = &eval.Instance{
 		Vars: eval.VarMap{
-			groupFieldName:  f.groupName,
-			groupFieldUsers: strings.Split(parts[3], ","),
-			groupFieldID:    gid,
+			compliance.GroupFieldName:  f.groupName,
+			compliance.GroupFieldUsers: strings.Split(parts[3], ","),
+			compliance.GroupFieldID:    gid,
 		},
 	}
 

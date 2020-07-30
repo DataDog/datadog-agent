@@ -18,21 +18,15 @@ import (
 
 const (
 	cacheValidity time.Duration = 10 * time.Minute
-
-	processFieldName    = "process.name"
-	processFieldExe     = "process.exe"
-	processFieldCmdLine = "process.cmdLine"
-	processFuncFlag     = "process.flag"
-	processFuncHasFlag  = "process.hasFlag"
 )
 
 var processReportedFields = []string{
-	processFieldName,
-	processFieldExe,
-	processFieldCmdLine,
+	compliance.ProcessFieldName,
+	compliance.ProcessFieldExe,
+	compliance.ProcessFieldCmdLine,
 }
 
-func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -55,13 +49,13 @@ func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.Iter
 		flagValues := parseProcessCmdLine(mp.Cmdline)
 		instance := &eval.Instance{
 			Vars: eval.VarMap{
-				processFieldName:    mp.Name,
-				processFieldExe:     mp.Exe,
-				processFieldCmdLine: mp.Cmdline,
+				compliance.ProcessFieldName:    mp.Name,
+				compliance.ProcessFieldExe:     mp.Exe,
+				compliance.ProcessFieldCmdLine: mp.Cmdline,
 			},
 			Functions: eval.FunctionMap{
-				processFuncFlag:    processFlag(flagValues),
-				processFuncHasFlag: processHasFlag(flagValues),
+				compliance.ProcessFuncFlag:    processFlag(flagValues),
+				compliance.ProcessFuncHasFlag: processHasFlag(flagValues),
 			},
 		}
 		instances = append(instances, instance)

@@ -76,9 +76,9 @@ func TestDockerImageCheck(t *testing.T) {
 	report, err := checkDocker(env, "rule-id", resource, expr)
 	assert.NoError(err)
 
-	assert.False(report.passed)
-	assert.Equal("sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c", report.data["image.id"])
-	assert.Equal([]string{"redis:latest"}, report.data["image.tags"])
+	assert.False(report.Passed)
+	assert.Equal("sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c", report.Data["image.id"])
+	assert.Equal([]string{"redis:latest"}, report.Data["image.tags"])
 }
 
 func TestDockerNetworkCheck(t *testing.T) {
@@ -108,8 +108,8 @@ func TestDockerNetworkCheck(t *testing.T) {
 	report, err := checkDocker(env, "rule-id", resource, expr)
 	assert.NoError(err)
 
-	assert.True(report.passed)
-	assert.Equal("bridge", report.data["network.name"])
+	assert.True(report.Passed)
+	assert.Equal("bridge", report.Data["network.name"])
 }
 
 func TestDockerContainerCheck(t *testing.T) {
@@ -222,10 +222,10 @@ func TestDockerContainerCheck(t *testing.T) {
 			report, err := checkDocker(env, "rule-id", resource, expr)
 			assert.NoError(err)
 
-			assert.Equal(test.expectPassed, report.passed)
-			assert.Equal("3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87", report.data["container.id"])
-			assert.Equal("/sharp_cori", report.data["container.name"])
-			assert.Equal("sha256:b4ceee5c3fa3cea2607d5e2bcc54d019be616e322979be8fc7a8d0d78b59a1f1", report.data["container.image"])
+			assert.Equal(test.expectPassed, report.Passed)
+			assert.Equal("3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87", report.Data["container.id"])
+			assert.Equal("/sharp_cori", report.Data["container.name"])
+			assert.Equal("sha256:b4ceee5c3fa3cea2607d5e2bcc54d019be616e322979be8fc7a8d0d78b59a1f1", report.Data["container.image"])
 		})
 	}
 }
@@ -257,7 +257,7 @@ func TestDockerInfoCheck(t *testing.T) {
 	report, err := checkDocker(env, "rule-id", resource, expr)
 	assert.NoError(err)
 
-	assert.False(report.passed)
+	assert.False(report.Passed)
 }
 
 func TestDockerVersionCheck(t *testing.T) {
@@ -287,6 +287,6 @@ func TestDockerVersionCheck(t *testing.T) {
 	report, err := checkDocker(env, "rule-id", resource, expr)
 	assert.NoError(err)
 
-	assert.False(report.passed)
-	assert.Equal("19.03.6", report.data["docker.version"])
+	assert.False(report.Passed)
+	assert.Equal("19.03.6", report.Data["docker.version"])
 }

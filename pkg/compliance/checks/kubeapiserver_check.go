@@ -21,24 +21,15 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-const (
-	kubeResourceFieldName      = "kube.resource.name"
-	kubeResourceFieldGroup     = "kube.resource.group"
-	kubeResourceFieldVersion   = "kube.resource.version"
-	kubeResourceFieldNamespace = "kube.resource.namespace"
-	kubeResourceFieldKind      = "kube.resource.kind"
-	kubeResourceFuncJQ         = "kube.resource.jq"
-)
-
 var kubeResourceReportedFields = []string{
-	kubeResourceFieldName,
-	kubeResourceFieldGroup,
-	kubeResourceFieldVersion,
-	kubeResourceFieldNamespace,
-	kubeResourceFieldKind,
+	compliance.KubeResourceFieldName,
+	compliance.KubeResourceFieldGroup,
+	compliance.KubeResourceFieldVersion,
+	compliance.KubeResourceFieldNamespace,
+	compliance.KubeResourceFieldKind,
 }
 
-func checkKubeapiserver(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+func checkKubeapiserver(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
@@ -122,14 +113,14 @@ func (it *kubeResourceIterator) Next() (*eval.Instance, error) {
 
 		instance := &eval.Instance{
 			Vars: eval.VarMap{
-				kubeResourceFieldKind:      resource.GetObjectKind().GroupVersionKind().Kind,
-				kubeResourceFieldGroup:     resource.GetObjectKind().GroupVersionKind().Group,
-				kubeResourceFieldVersion:   resource.GetObjectKind().GroupVersionKind().Version,
-				kubeResourceFieldNamespace: resource.GetNamespace(),
-				kubeResourceFieldName:      resource.GetName(),
+				compliance.KubeResourceFieldKind:      resource.GetObjectKind().GroupVersionKind().Kind,
+				compliance.KubeResourceFieldGroup:     resource.GetObjectKind().GroupVersionKind().Group,
+				compliance.KubeResourceFieldVersion:   resource.GetObjectKind().GroupVersionKind().Version,
+				compliance.KubeResourceFieldNamespace: resource.GetNamespace(),
+				compliance.KubeResourceFieldName:      resource.GetName(),
 			},
 			Functions: eval.FunctionMap{
-				kubeResourceFuncJQ: kubeResourceJQ(resource),
+				compliance.KubeResourceFuncJQ: kubeResourceJQ(resource),
 			},
 		}
 		return instance, nil
