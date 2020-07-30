@@ -140,7 +140,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
 	}
-	perfHandler := bytecode.NewClosedConnPerfHandler(closedChannelSize)
+	perfHandler := bytecode.NewPerfHandler(closedChannelSize)
 	m := bytecode.NewManager(perfHandler)
 
 	// Use the config to determine what kernel probes should be enabled
@@ -315,7 +315,7 @@ func (t *Tracer) expvarStats() {
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
-func (t *Tracer) initPerfPolling(perf *bytecode.ClosedConnPerfHandler) (*manager.PerfMap, error) {
+func (t *Tracer) initPerfPolling(perf *bytecode.PerfHandler) (*manager.PerfMap, error) {
 	pm, found := t.m.GetPerfMap(string(bytecode.TcpCloseEventMap))
 	if !found {
 		return nil, fmt.Errorf("unable to find perf map %s", bytecode.TcpCloseEventMap)

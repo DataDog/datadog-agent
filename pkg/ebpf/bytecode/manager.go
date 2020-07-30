@@ -29,7 +29,7 @@ func NewOffsetManager() *manager.Manager {
 	}
 }
 
-func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
+func NewManager(closedHandler *PerfHandler) *manager.Manager {
 	return &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(ConnMap)},
@@ -49,8 +49,8 @@ func NewManager(perf *ClosedConnPerfHandler) *manager.Manager {
 				PerfMapOptions: manager.PerfMapOptions{
 					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
-					DataHandler:        perf.dataHandler,
-					LostHandler:        perf.lostHandler,
+					DataHandler:        closedHandler.dataHandler,
+					LostHandler:        closedHandler.lostHandler,
 				},
 			},
 		},
