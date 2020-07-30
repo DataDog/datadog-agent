@@ -35,8 +35,6 @@ def build(
     ctx,
     rebuild=False,
     race=False,
-    build_include=None,
-    build_exclude=None,
     development=True,
     precompile_only=False,
     skip_assets=False,
@@ -62,9 +60,8 @@ def build(
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
-    build_tags = get_default_build_tags(android=True)
+    build_tags = get_default_build_tags(build="android")
 
-    build_tags.append("android")
     cmd = "gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
@@ -105,7 +102,7 @@ def sign_apk(ctx, development=True):
 
 
 @task
-def install(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, skip_build=False):
+def install(ctx, rebuild=False, race=False, skip_build=False):
     """
     Installs the APK on a device.
 
@@ -113,7 +110,7 @@ def install(ctx, rebuild=False, race=False, build_include=None, build_exclude=No
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude)
+        build(ctx, rebuild, race)
 
     sign_apk(ctx)
     cmd = "adb install -r bin/agent/ddagent-release-signed.apk"

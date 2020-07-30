@@ -9,20 +9,13 @@ import shutil
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags
+from .build_tags import get_build_tags, get_default_build_tags
 from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from .go import deps
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
-DEFAULT_BUILD_TAGS = [
-    "kubeapiserver",
-    "clusterchecks",
-    "secrets",
-    "orchestrator",
-    "zlib",
-]
 
 
 @task
@@ -37,7 +30,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
         ctx,
         "cluster-agent.build",
         BIN_PATH,
-        DEFAULT_BUILD_TAGS,
+        get_default_build_tags(build="cluster-agent"),
         "",
         rebuild,
         build_include,
@@ -73,7 +66,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
         deps(ctx)
 
     # We need docker for the kubeapiserver integration tests
-    tags = DEFAULT_BUILD_TAGS + ["docker"]
+    tags = get_default_build_tags(build="cluster-agent") + ["docker"]
 
     test_args = {
         "go_mod": go_mod,

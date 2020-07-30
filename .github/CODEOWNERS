@@ -26,7 +26,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/networks
-/cmd/security-agent/                    @DataDog/container-integrations
+/cmd/security-agent/                    @DataDog/container-integrations @DataDog/agent-security
 
 /Dockerfiles/                           @DataDog/container-integrations
 
@@ -62,6 +62,7 @@
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/clusteragent/                      @DataDog/container-integrations
+/pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
@@ -87,11 +88,13 @@
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/process/util/orchestrator/         @DataDog/container-app
 /pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
 /pkg/quantile/                           @DataDog/metrics-aggregation
 /pkg/compliance/                         @DataDog/container-integrations
 /pkg/kubestatemetrics                    @DataDog/container-integrations
+/pkg/security/                          @DataDog/agent-security
 
 /releasenotes/                          @DataDog/agent-all
 /releasenotes-dca/                      @DataDog/container-integrations
@@ -104,6 +107,7 @@
 /tasks/process-agent.py                 @DataDog/processes
 /tasks/system-probe.py                  @DataDog/networks
 /tasks/trace.py                         @DataDog/agent-apm
+/tasks/security_agent.py                @DataDog/agent-security
 
 /test/benchmarks/                       @DataDog/agent-core
 /test/e2e/                              @DataDog/container-integrations
