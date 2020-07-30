@@ -1,6 +1,5 @@
 import datetime
 import os
-import sys
 from invoke import task
 
 from .utils import (
@@ -13,20 +12,28 @@ from .utils import (
     get_go_version,
     get_git_commit,
 )
-from .build_tags import get_build_tags, LINUX_ONLY_TAGS
+from .build_tags import get_default_build_tags
 from .go import generate
 
 BIN_DIR = os.path.join(".", "bin", "security-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("security-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
-DEFAULT_BUILD_TAGS = [
-    "netcgo",
-    "secrets",
-    "docker",
-    "kubeapiserver",
-    "kubelet",
-]
+
+def get_go_env(ctx, go_version):
+    goenv = {}
+    if go_version:
+        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        for line in lines:
+            for env_var in GIMME_ENV_VARS:
+                if env_var in line:
+                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
+
+    # extend PATH from gimme with the one from get_build_flags
+    if "PATH" in os.environ and "PATH" in goenv:
+        goenv["PATH"] += ":" + os.environ["PATH"]
+
+    return goenv
 
 
 @task
@@ -64,12 +71,9 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
-
-    build_exclude = []
-    if not sys.platform.startswith('linux'):
-        build_exclude = LINUX_ONLY_TAGS
-
-    build_tags = get_build_tags(DEFAULT_BUILD_TAGS, build_exclude)
+    build_tags = get_default_build_tags(
+        build="security-agent"
+    )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
@@ -102,3 +106,25 @@ def gen_mocks(ctx):
 
     with ctx.cd("./pkg/compliance"):
         ctx.run("./gen_mocks.sh")
+
+
+@task
+def functional_tests(
+    ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output=''
+):
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+
+    goenv = get_go_env(ctx, go_version)
+    env.update(goenv)
+
+    cmd = 'sudo -E go test -tags functionaltests,linux_bpf {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
+
+    args = {
+        "verbose_opt": "-v" if verbose else "",
+        "race_opt": "-race" if race else "",
+        "output_opt": "-c -o " + output if output else "",
+        "run_opt": "-run " + pattern if pattern else "",
+        "REPO_PATH": REPO_PATH,
+    }
+
+    ctx.run(cmd.format(**args), env=env)

@@ -110,6 +110,7 @@ func (m *OOMKillCheck) Run() error {
 	for _, lineRaw := range data {
 		line, ok := lineRaw.(oomkill.Stats)
 		if !ok {
+			log.Error("Raw data has incorrect type")
 			continue
 		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)

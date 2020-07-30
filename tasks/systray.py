@@ -21,8 +21,6 @@ def build(
     ctx,
     rebuild=False,
     race=False,
-    build_include=None,
-    build_exclude=None,
     iot=False,
     development=True,
     precompile_only=False,
@@ -74,7 +72,7 @@ def build(
 
 
 @task
-def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, iot=False, skip_build=False):
+def run(ctx, rebuild=False, race=False, skip_build=False):
     """
     Execute the systray binary.
 
@@ -82,7 +80,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, iot)
+        build(ctx, rebuild, race)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("ddtray.exe")))
 

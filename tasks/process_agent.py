@@ -89,7 +89,7 @@ def build(
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(iot=False, process=True, arch=arch)
+    build_tags = get_default_build_tags(build="process-agent", arch=arch)
 
     ## secrets is not supported on windows because the process agent still runs as
     ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
