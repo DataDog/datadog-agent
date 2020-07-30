@@ -111,6 +111,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 	for _, lineRaw := range data {
 		line, ok := lineRaw.(tcpqueuelength.Stats)
 		if !ok {
+			log.Error("Raw data has incorrect type")
 			continue
 		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)

@@ -103,7 +103,7 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key);
+    resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, NULL);
 
     send_event(ctx, event);
 

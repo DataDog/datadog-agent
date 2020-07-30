@@ -56,7 +56,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     syscall->rename.src_inode = get_dentry_ino(syscall->rename.src_dentry);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_key);
+    resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_key, NULL);
 
     return 0;
 }
@@ -87,7 +87,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key);
+    resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, NULL);
 
     send_event(ctx, event);
 

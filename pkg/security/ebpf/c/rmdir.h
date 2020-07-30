@@ -53,7 +53,7 @@ int kprobe__vfs_rmdir(struct pt_regs *ctx) {
         key = syscall->unlink.path_key;
     }
     if (dentry != NULL) {
-        resolve_dentry(dentry, key);
+        resolve_dentry(dentry, key, NULL);
     }
 
     return 0;

@@ -40,7 +40,7 @@ type RuleEvaluator struct {
 func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	eval, ok := r.partialEvals[field]
 	if !ok {
-		return false, errors.New("field not found")
+		return false, &ErrFieldNotFound{Field: field}
 	}
 
 	return eval(ctx), nil
@@ -67,6 +67,11 @@ func (r *RuleEvaluator) GetFields() []Field {
 // Eval - Evaluates
 func (r *Rule) Eval(ctx *Context) bool {
 	return r.evaluator.Eval(ctx)
+}
+
+// GetFieldValues returns the values of the given field
+func (r *Rule) GetFieldValues(field Field) []FieldValue {
+	return r.evaluator.FieldValues[field]
 }
 
 // PartialEval - Partial evaluation with the given Field
@@ -138,7 +143,7 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
-	events, err := eventFromFields(model, state)
+	events, err := eventTypesFromFields(model, state)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +174,7 @@ func (r *Rule) GenEvaluator(model Model, opts *Opts) error {
 	evaluator, err := ruleToEvaluator(r.ast, model, opts)
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
-			return errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: r.Expression}, "rule syntax error")
+			return errors.Wrapf(&ErrRuleParse{pos: err.Pos, expr: r.Expression}, "rule syntax error: %s", err)
 		}
 		return errors.Wrap(err, "rule compilation error")
 	}

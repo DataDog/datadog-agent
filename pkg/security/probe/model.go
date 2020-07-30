@@ -20,6 +20,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
@@ -34,23 +35,28 @@ type Model struct {
 	event *Event
 }
 
-// SetEvent set the model event
-func (m *Model) SetEvent(event interface{}) {
-	m.event = event.(*Event)
-}
-
-// GetEvent returns the event associated with the model
-func (m *Model) GetEvent() eval.Event {
-	return m.event
+// NewEvent returns a new Event
+func (m *Model) NewEvent() eval.Event {
+	return &Event{}
 }
 
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(key string, field eval.FieldValue) error {
+	// check that all path are absolute
+	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
+		value, ok := field.Value.(string)
+		if ok {
+			if value != path.Clean(value) || strings.HasPrefix(value, "..") {
+				return fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+			}
+		}
+	}
+
 	switch key {
 
 	case "event.retval":
 		if value := field.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
-			return fmt.Errorf("return value can only be tested against EPERM or EACCES")
+			return errors.New("return value can only be tested against EPERM or EACCES")
 		}
 	}
 
@@ -1158,9 +1164,14 @@ func (e *Event) GetType() string {
 	return EventType(e.Event.Type).String()
 }
 
-//GetID returns the event identifier
+// GetID returns the event identifier
 func (e *Event) GetID() string {
 	return e.ID
+}
+
+// GetPointer return an unsafe.Pointer of the Event
+func (e *Event) GetPointer() unsafe.Pointer {
+	return unsafe.Pointer(e)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

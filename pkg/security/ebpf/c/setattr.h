@@ -31,7 +31,7 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
         syscall->setattr.dentry = (struct dentry *)PT_REGS_PARM1(ctx);
         syscall->setattr.path_key.ino = get_dentry_ino(syscall->setattr.dentry);
         // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-        resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key);
+        resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, NULL);
     }
 
     return 0;

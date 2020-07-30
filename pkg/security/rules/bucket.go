@@ -71,12 +71,12 @@ func fieldCombinations(fields []eval.Field) FieldCombinations {
 }
 
 // GetApprovers returns the approvers for an event
-func (rb *RuleBucket) GetApprovers(model eval.Model, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
+func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	fcs := fieldCombinations(fieldCaps.GetFields())
 
 	approvers := make(Approvers)
 	for _, rule := range rb.rules {
-		truthTable, err := newTruthTable(rule, model, event)
+		truthTable, err := newTruthTable(rule, event)
 		if err != nil {
 			return nil, err
 		}
