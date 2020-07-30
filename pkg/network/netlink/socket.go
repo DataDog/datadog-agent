@@ -186,30 +186,14 @@ func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	}
 
 	var err error
-	doErr := s.conn.Control(func(fd uintptr) {
+	ctrlErr := s.conn.Control(func(fd uintptr) {
 		err = unix.SetsockoptInt(int(fd), level, opt, value)
 	})
-
-	if doErr != nil {
-		return doErr
+	if ctrlErr != nil {
+		return ctrlErr
 	}
 
 	return err
-}
-
-// GetSockoptInt gets a socket option
-func (s *Socket) GetSockoptInt(level, opt int) (int, error) {
-	var err error
-	var v int
-	doErr := s.conn.Control(func(fd uintptr) {
-		v, err = unix.GetsockoptInt(int(fd), level, opt)
-	})
-
-	if doErr != nil {
-		return v, doErr
-	}
-
-	return v, err
 }
 
 // SetBPF attaches an assembled BPF program to the socket

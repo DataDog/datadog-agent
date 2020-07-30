@@ -251,8 +251,6 @@ func (ctr *realConntracker) register(c ct.Con) int {
 		ctr.state[key] = formatIPTranslation(transTuple, generation)
 	}
 
-	log.Tracef("src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d", c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort)
-
 	ctr.Lock()
 	defer ctr.Unlock()
 	registerTuple(c.Origin, c.Reply)
