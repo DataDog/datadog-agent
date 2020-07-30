@@ -3005,6 +3005,19 @@ dev_branch_docker_hub-a7:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64         datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
 
+dbm_beta_docker_hub-a7:
+  rules:
+    - <<: *if_version_7
+      when: manual
+      allow_failure: true
+  <<: *docker_tag_job_definition
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_jmx
+  script:
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:dbm-beta-${CI_COMMIT_REF_SLUG}-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64         datadog/agent-dev:dbm-beta-${CI_COMMIT_REF_SLUG}-py3-jmx
+
 dev_branch_docker_hub-a7-windows:
   rules:
     - <<: *if_version_7
