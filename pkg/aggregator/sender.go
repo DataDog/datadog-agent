@@ -277,7 +277,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 	serviceCheck := metrics.Event{
 		Title:          checkName,
 		Text:           message,
-		Ts: time.Now().Unix(),
+		Ts:             time.Now().Unix(),
 		Host:           hostname,
 		Tags:           append(append(tags, s.checkTags...), fmt.Sprintf("status:%s", status)),
 		AggregationKey: checkName,
