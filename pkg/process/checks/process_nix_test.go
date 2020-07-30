@@ -207,13 +207,6 @@ func TestBasicProcessMessages(t *testing.T) {
 			cfg.Blacklist = bl
 			cfg.MaxPerMessage = tc.maxSize
 
-			ctrsByPid := make(map[int32]string)
-			for _, c := range tc.containers {
-				for _, p := range c.Pids {
-					ctrsByPid[p] = c.ID
-				}
-			}
-
 			procs := fmtProcesses(cfg, tc.cur, tc.last, ctrsToHash(tc.containers), syst2, syst1, lastRun)
 			containers := fmtContainers(tc.containers, lastCtrRates, lastRun)
 			messages, totalProcs, totalContainers := createProcCtrMessages(procs, containers, cfg, sysInfo, int32(i), "nid")
