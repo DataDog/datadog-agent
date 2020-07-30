@@ -353,6 +353,8 @@ core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
 core,"github.com/iovisor/gobpf/bcc",Apache-2.0
+core,"github.com/iovisor/gobpf/elf",Apache-2.0
+core,"github.com/iovisor/gobpf/pkg/bpffs",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
 core,"github.com/itchyny/astgen-go",MIT
 core,"github.com/itchyny/gojq",MIT
@@ -519,12 +521,12 @@ core,"golang.org/x/text/unicode/bidi",NewBSD
 core,"golang.org/x/text/unicode/norm",NewBSD
 core,"golang.org/x/text/width",NewBSD
 core,"golang.org/x/time/rate",NewBSD
-core,"golang.org/x/xerrors",NewBSD
-core,"golang.org/x/xerrors/internal",NewBSD
 core,"golang.org/x/tools/go/ast/astutil",NewBSD
 core,"golang.org/x/tools/go/buildutil",NewBSD
 core,"golang.org/x/tools/go/internal/cgo",NewBSD
 core,"golang.org/x/tools/go/loader",NewBSD
+core,"golang.org/x/xerrors",NewBSD
+core,"golang.org/x/xerrors/internal",NewBSD
 core,"gomodules.xyz/jsonpatch/v3",Apache-2.0
 core,"gomodules.xyz/orderedmap",MIT
 core,"google.golang.org/appengine/internal",Apache-2.0
