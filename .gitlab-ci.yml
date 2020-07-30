@@ -555,6 +555,23 @@ build_iot_agent-deb_arm64:
     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
 
+# For the Windows Docker image
+build_windows_container_entrypoint:
+    stage: binary_build
+    tags: ["runner:windows-docker", "windowsversion:1809"]
+    variables:
+      ARCH: "x64"
+    script:
+      - if (Test-Path build-out) { remove-item -recurse -force build-out }
+      - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e CI_JOB_ID=${CI_JOB_ID} -e WINDOWS_BUILDER=true -e AWS_NETWORKING=true -e TARGET_ARCH="$ARCH" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat
+      - get-childitem build-out\${CI_JOB_ID}
+      - copy build-out\${CI_JOB_ID}\*.exe ./entrypoint.exe
+      - remove-item -recurse -force build-out\${CI_JOB_ID}
+    artifacts:
+      expire_in: 2 weeks
+      paths:
+        - entrypoint.exe
+
 # build cluster-agent bin
 cluster_agent-build_amd64:
   <<: *cluster_agent-build_common
@@ -2701,6 +2718,7 @@ docker_build_agent7_windows1809:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - windows_msi_x64-a7
+    - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2712,6 +2730,7 @@ docker_build_agent7_windows1809:
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
@@ -2727,6 +2746,7 @@ docker_build_agent7_windows1809_jmx:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - windows_msi_x64-a7
+    - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2738,6 +2758,7 @@ docker_build_agent7_windows1809_jmx:
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
@@ -2754,6 +2775,7 @@ docker_build_agent7_windows1909:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - windows_msi_x64-a7
+    - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2765,6 +2787,7 @@ docker_build_agent7_windows1909:
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
@@ -2780,6 +2803,7 @@ docker_build_agent7_windows1909_jmx:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - windows_msi_x64-a7
+    - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2791,6 +2815,7 @@ docker_build_agent7_windows1909_jmx:
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
