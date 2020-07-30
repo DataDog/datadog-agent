@@ -2644,6 +2644,22 @@ docker_build_agent7:
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
+dbm_beta_docker_build_agent7:
+  rules:
+    - <<: *if_version_7
+      when: on_success
+  <<: *docker_build_job_definition
+  extends: .docker_build_job_definition_amd64
+  needs:
+    - job: agent_deb-x64-a7
+      artifacts: false
+  variables:
+    IMAGE: 727006795293.dkr.ecr.us-east-1.amazonaws.com/datadog-agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+    TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
+
 docker_build_agent7_arm64:
   rules:
     - <<: *if_version_7
