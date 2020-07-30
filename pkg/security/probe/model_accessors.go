@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
+func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 	switch field {
 
 	case "chmod.container_path":

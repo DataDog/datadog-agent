@@ -27,6 +27,24 @@ import (
 	"github.com/pkg/errors"
 )
 
+var dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+
+// InvalidDiscarders exposes list of values that are not discarders
+var InvalidDiscarders = map[eval.Field][]interface{}{
+	"open.filename":       dentryInvalidDiscarder,
+	"unlink.filename":     dentryInvalidDiscarder,
+	"chmod.filename":      dentryInvalidDiscarder,
+	"chown.filename":      dentryInvalidDiscarder,
+	"mkdir.filename":      dentryInvalidDiscarder,
+	"rmdir.filename":      dentryInvalidDiscarder,
+	"rename.old_filename": dentryInvalidDiscarder,
+	"rename.new_filename": dentryInvalidDiscarder,
+	"utimes.filename":     dentryInvalidDiscarder,
+	"link.src_filename":   dentryInvalidDiscarder,
+	"link.new_filename":   dentryInvalidDiscarder,
+	"process.filename":    dentryInvalidDiscarder,
+}
+
 // ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
 var ErrNotEnoughData = errors.New("not enough data")
 

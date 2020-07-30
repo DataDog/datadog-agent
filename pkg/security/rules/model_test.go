@@ -79,7 +79,7 @@ func (m *testModel) ValidateField(key string, value eval.FieldValue) error {
 	return nil
 }
 
-func (m *testModel) GetEvaluator(key string) (interface{}, error) {
+func (m *testModel) GetEvaluator(key string) (eval.Evaluator, error) {
 	switch key {
 
 	case "process.name":
