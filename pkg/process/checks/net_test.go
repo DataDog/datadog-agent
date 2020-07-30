@@ -274,6 +274,30 @@ func TestResolveLoopbackConnections(t *testing.T) {
 				ContainerId: "bar",
 			},
 		},
+		{
+			Pid:   6,
+			NetNS: 7,
+			Laddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1260,
+			},
+			Raddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1250,
+			},
+		},
+		{
+			Pid:   7,
+			NetNS: 7,
+			Laddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1250,
+			},
+			Raddr: &model.Addr{
+				Ip:   "127.0.0.1",
+				Port: 1260,
+			},
+		},
 	}
 
 	ctrsByPid := map[int32]string{
@@ -282,6 +306,8 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		3:  "foo3",
 		4:  "foo4",
 		5:  "foo5",
+		6:  "foo6",
+		7:  "foo7",
 		20: "baz",
 	}
 
@@ -290,6 +316,8 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		"10.1.1.1:1234":  "foo1",
 		"127.0.0.1:1235": "foo3",
 		"1.2.3.4:1234":   "bar",
+		"127.0.0.1:1250": "foo7",
+		"127.0.0.1:1260": "foo6",
 	}
 
 	resolveLoopbackConnections(tests, ctrsByPid)

@@ -138,12 +138,12 @@ func resolveLoopbackConnections(conns []*model.Connection, ctrsByPid map[int32]s
 	for _, conn := range conns {
 		if conn.Raddr.ContainerId != "" {
 			log.Tracef("skipping already resolved raddr %v", conn.Raddr)
-			return
+			continue
 		}
 
 		ip := procutil.AddressFromString(conn.Raddr.Ip)
 		if ip == nil {
-			return
+			continue
 		}
 
 		raddr := model.ContainerAddr{

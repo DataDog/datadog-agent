@@ -57,6 +57,17 @@ func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*process.
 	return procs, ctrs
 }
 
+func ctrsToHash(ctrs []*containers.Container) map[int32]string {
+	ctrsByPid := make(map[int32]string)
+	for _, c := range ctrs {
+		for _, p := range c.Pids {
+			ctrsByPid[p] = c.ID
+		}
+	}
+
+	return ctrsByPid
+}
+
 //nolint:deadcode,unused
 func procsToHash(procs []*process.FilledProcess) (procsByPid map[int32]*process.FilledProcess) {
 	procsByPid = make(map[int32]*process.FilledProcess)
