@@ -13,17 +13,6 @@ import (
 	"github.com/soniah/gosnmp"
 )
 
-/*
-* Traps pipeline diagram
-* ----------------------
-*
-* (devices) --[udp:port1]-!-> (Listener 1) \
-*                         !                 (TrapServer) --[chan]--> (Forwarder) --[chan]--> (Rest of the logs pipeline...)
-* (devices) --[udp:portN]-!-> (Listener N) /
-*
-* ! = delimitation between the outside world and the Agent
- */
-
 // SnmpPacket is the type of packets yielded by server listeners.
 type SnmpPacket struct {
 	Content *gosnmp.SnmpPacket
