@@ -88,8 +88,18 @@ func convertV6Addr(addr [16]C.uint8_t) util.Address {
 	return util.V6AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv6len))
 }
 
+// Monotonic values include retransmits and headers, while transport does not. We default to using transport
+// values and must explicitly enable using monotonic counts in the config. This is consistent with the Linux probe
+func monotonicOrTransportBytes(useMonotonicCounts bool, monotonic C.uint64_t, transport C.uint64_t) uint64 {
+	if useMonotonicCounts {
+		return uint64(monotonic)
+	}
+
+	return uint64(transport)
+}
+
 // FlowToConnStat converts a C.struct__perFlowData into a ConnectionStats struct for use with the tracer
-func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
+func FlowToConnStat(flow *C.struct__perFlowData, enableMonotonicCounts bool) ConnectionStats {
 	var (
 		family         ConnectionFamily
 		srcAddr        util.Address
@@ -113,21 +123,18 @@ func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 		// after lengthy discussion, use the transport bytes in/out.  monotonic
 		// RecvBytes/SentBytes includes the size of the IP header and transport
 		// header, transportBytes is the raw transport data.  At present,
-		// the linux probe only reports the raw transport data.  So do that.
-		MonotonicSentBytes: uint64(flow.transportBytesOut),
-		MonotonicRecvBytes: uint64(flow.transportBytesIn),
+		// the linux probe only reports the raw transport data.  So do that by default.
+		MonotonicSentBytes: monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicSentBytes, flow.transportBytesOut),
+		MonotonicRecvBytes: monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicRecvBytes, flow.transportBytesIn),
 		LastUpdateEpoch:    0,
-		// TODO: Driver needs to be updated to get retransmit values
-		MonotonicRetransmits: 0,
-		RTT:                  0,
-		RTTVar:               0,
-		Pid:                  uint32(flow.processId),
-		SPort:                uint16(flow.localPort),
-		DPort:                uint16(flow.remotePort),
-		Type:                 connectionType,
-		Family:               family,
-		Direction:            connDirection(flow.flags),
+		Pid:                uint32(flow.processId),
+		SPort:              uint16(flow.localPort),
+		DPort:              uint16(flow.remotePort),
+		Type:               connectionType,
+		Family:             family,
+		Direction:          connDirection(flow.flags),
 	}
+
 	if connectionType == TCP {
 		cs.MonotonicRetransmits = uint32(C.getTcp_retransmitCount(flow))
 		cs.RTT = uint32(C.getTcp_sRTT(flow))

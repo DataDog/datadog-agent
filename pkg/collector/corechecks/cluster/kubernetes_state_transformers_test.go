@@ -535,6 +535,140 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 	}
 }
 
+func Test_pvPhaseTransformer(t *testing.T) {
+	type args struct {
+		name   string
+		metric ksmstore.DDMetric
+		tags   []string
+	}
+	type metricsExpected struct {
+		val  float64
+		name string
+		tags []string
+	}
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "Active",
+			args: args{
+				name: "kube_persistentvolume_status_phase",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"persistentvolume": "local-pv-103fef5d",
+						"phase":            "Available",
+					},
+				},
+				tags: []string{"persistentvolume:local-pv-103fef5d", "phase:Available"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.persistentvolume.by_phase",
+				val:  1,
+				tags: []string{"persistentvolume:local-pv-103fef5d", "phase:Available"},
+			},
+		},
+		{
+			name: "Not active",
+			args: args{
+				name: "kube_persistentvolume_status_phase",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"persistentvolume": "local-pv-103fef5d",
+						"phase":            "Available",
+					},
+				},
+				tags: []string{"persistentvolume:local-pv-103fef5d", "phase:Available"},
+			},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			pvPhaseTransformer(s, tt.args.name, tt.args.metric, tt.args.tags)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, "", tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
+
+func Test_serviceTypeTransformer(t *testing.T) {
+	type args struct {
+		name   string
+		metric ksmstore.DDMetric
+		tags   []string
+	}
+	type metricsExpected struct {
+		val  float64
+		name string
+		tags []string
+	}
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "Active",
+			args: args{
+				name: "kube_service_spec_type",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"namespace": "default",
+						"service":   "kubernetes",
+						"type":      "ClusterIP",
+					},
+				},
+				tags: []string{"namespace:default", "service:kubernetes", "type:ClusterIP"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.service.type",
+				val:  1,
+				tags: []string{"namespace:default", "service:kubernetes", "type:ClusterIP"},
+			},
+		},
+		{
+			name: "Not active",
+			args: args{
+				name: "kube_service_spec_type",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"namespace": "default",
+						"service":   "kubernetes",
+						"type":      "ClusterIP",
+					},
+				},
+				tags: []string{"namespace:default", "service:kubernetes", "type:ClusterIP"},
+			},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			serviceTypeTransformer(s, tt.args.name, tt.args.metric, tt.args.tags)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, "", tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
+
 func Test_podPhaseTransformer(t *testing.T) {
 	type args struct {
 		name   string

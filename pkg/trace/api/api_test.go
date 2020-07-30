@@ -45,7 +45,7 @@ var headerFields = map[string]string{
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
-	rawTraceChan := make(chan *Trace, 5000)
+	rawTraceChan := make(chan *Payload, 5000)
 	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan)
 
 	return receiver
@@ -148,13 +148,15 @@ func TestLegacyReceiver(t *testing.T) {
 
 			// now we should be able to read the trace data
 			select {
-			case rt := <-tc.r.out:
-				assert.Len(rt.Spans, 1)
-				span := rt.Spans[0]
+			case p := <-tc.r.out:
+				assert.Len(p.Traces, 1)
+				rt := p.Traces[0]
+				assert.Len(rt, 1)
+				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_is_amazing", span.Service)
-				assert.Equal("something_that_should_be_a_metric", span.Name)
+				assert.Equal("fennel_IS amazing!", span.Service)
+				assert.Equal("something &&<@# that should be a metric!", span.Name)
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -211,13 +213,14 @@ func TestReceiverJSONDecoder(t *testing.T) {
 
 			// now we should be able to read the trace data
 			select {
-			case rt := <-tc.r.out:
-				assert.Len(rt.Spans, 1)
-				span := rt.Spans[0]
+			case p := <-tc.r.out:
+				rt := p.Traces[0]
+				assert.Len(rt, 1)
+				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_is_amazing", span.Service)
-				assert.Equal("something_that_should_be_a_metric", span.Name)
+				assert.Equal("fennel_IS amazing!", span.Service)
+				assert.Equal("something &&<@# that should be a metric!", span.Name)
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -278,13 +281,14 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 
 				// now we should be able to read the trace data
 				select {
-				case rt := <-tc.r.out:
-					assert.Len(rt.Spans, 1)
-					span := rt.Spans[0]
+				case p := <-tc.r.out:
+					rt := p.Traces[0]
+					assert.Len(rt, 1)
+					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
-					assert.Equal("fennel_is_amazing", span.Service)
-					assert.Equal("something_that_should_be_a_metric", span.Name)
+					assert.Equal("fennel_IS amazing!", span.Service)
+					assert.Equal("something &&<@# that should be a metric!", span.Name)
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -300,13 +304,15 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 
 				// now we should be able to read the trace data
 				select {
-				case rt := <-tc.r.out:
-					assert.Len(rt.Spans, 1)
-					span := rt.Spans[0]
+				case p := <-tc.r.out:
+					rt := p.Traces[0]
+					assert.Len(rt, 1)
+					span := rt[0]
+					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
-					assert.Equal("fennel_is_amazing", span.Service)
-					assert.Equal("something_that_should_be_a_metric", span.Name)
+					assert.Equal("fennel_IS amazing!", span.Service)
+					assert.Equal("something &&<@# that should be a metric!", span.Name)
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])

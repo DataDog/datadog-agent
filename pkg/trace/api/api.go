@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -72,7 +71,7 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out     chan *Trace
+	out     chan *Payload
 	conf    *config.AgentConfig
 	dynConf *sampler.DynamicConfig
 	server  *http.Server
@@ -85,7 +84,7 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Trace) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if config.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -268,6 +267,7 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
+		// TODO(x): replace with httpt.MaxBytesReader
 		req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
 		f(v, w, req)
@@ -387,53 +387,40 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	r.wg.Add(1)
-	go func() {
-		defer func() {
-			r.wg.Done()
-			watchdog.LogOnPanic()
+	payload := &Payload{
+		Source:        ts,
+		Traces:        traces,
+		ContainerTags: getContainerTags(req.Header.Get(headerContainerID)),
+	}
+	select {
+	case r.out <- payload:
+		// ok
+	default:
+		// channel blocked, add a goroutine to ensure we never drop
+		r.wg.Add(1)
+		go func() {
+			metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
+			defer func() {
+				r.wg.Done()
+				watchdog.LogOnPanic()
+			}()
+			r.out <- payload
 		}()
-		containerID := req.Header.Get(headerContainerID)
-		r.processTraces(ts, containerID, traces)
-	}()
+	}
 }
 
-// Trace specifies information about a trace received by the API.
-type Trace struct {
+// Payload specifies information about a set of traces received by the API.
+type Payload struct {
 	// Source specifies information about the source of these traces, such as:
 	// language, interpreter, tracer version, etc.
-	Source *info.Tags
+	Source *info.TagStats
 
 	// ContainerTags specifies orchestrator tags corresponding to the origin of this
 	// trace (e.g. K8S pod, Docker image, ECS, etc). They are of the type "k1:v1,k2:v2".
 	ContainerTags string
 
-	// Spans holds the spans of this trace.
-	Spans pb.Trace
-}
-
-func (r *HTTPReceiver) processTraces(ts *info.TagStats, containerID string, traces pb.Traces) {
-	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
-
-	containerTags := getContainerTags(containerID)
-	for _, trace := range traces {
-		spans := len(trace)
-
-		atomic.AddInt64(&ts.SpansReceived, int64(spans))
-
-		err := normalizeTrace(ts, trace)
-		if err != nil {
-			log.Debug("Dropping invalid trace: %s", err)
-			atomic.AddInt64(&ts.SpansDropped, int64(spans))
-			continue
-		}
-
-		r.out <- &Trace{
-			Source:        &ts.Tags,
-			ContainerTags: containerTags,
-			Spans:         trace,
-		}
-	}
+	// Traces contains all the traces received in the payload
+	Traces pb.Traces
 }
 
 // handleServices handle a request with a list of several services

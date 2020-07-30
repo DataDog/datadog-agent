@@ -142,7 +142,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 }
 
 // chunkReplicaSets formats and chunks the replica sets into a slice of chunks using a specific number of chunks.
-func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkSize, chunkCount int) [][]*model.ReplicaSet {
+func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int) [][]*model.ReplicaSet {
 	chunks := make([][]*model.ReplicaSet, 0, chunkCount)
 
 	for c := 1; c <= chunkCount; c++ {

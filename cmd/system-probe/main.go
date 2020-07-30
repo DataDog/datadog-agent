@@ -28,6 +28,7 @@ var factories = []api.Factory{
 	modules.NetworkTracer,
 	modules.TCPQueueLength,
 	modules.OOMKillProbe,
+	modules.SecurityRuntime,
 }
 
 // Flag values
@@ -96,6 +97,11 @@ func runAgent(exit <-chan struct{}) {
 	if err != nil {
 		log.Criticalf("Error creating IPC socket: %s", err)
 		cleanupAndExit(1)
+	}
+
+	// if a debug port is specified, we expose the default handler to that port
+	if cfg.SystemProbeDebugPort > 0 {
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
 	}
 
 	loader := NewLoader()

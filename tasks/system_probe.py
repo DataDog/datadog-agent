@@ -111,10 +111,7 @@ def build(
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
 
-    if not windows:
-        build_tags = get_default_build_tags() + [BPF_TAG]
-    else:
-        build_tags = get_default_build_tags()
+    build_tags = get_default_build_tags(build="system-probe", arch=arch)
 
     if with_bcc:
         build_tags.append(BCC_TAG)
@@ -306,8 +303,6 @@ def build_object_files(ctx, install=True):
         '-Werror',
         '-O2',
         '-emit-llvm',
-        '-c',
-        os.path.join(c_dir, "tracer-ebpf.c"),
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -339,16 +334,37 @@ def build_object_files(ctx, install=True):
         for s in subdirs:
             flags.extend(["-isystem", os.path.join(d, s)])
 
-    cmd = "clang {flags} -o - | llc -march=bpf -filetype=obj -o '{file}'"
+    cmd = "clang {flags} -c {c_file} -o - | llc -march=bpf -filetype=obj -o '{file}'"
 
     commands = []
 
     # Build both the standard and debug version
+    tracer_c_file = os.path.join(c_dir, "tracer-ebpf.c")
     obj_file = os.path.join(c_dir, "tracer-ebpf.o")
-    commands.append(cmd.format(flags=" ".join(flags), file=obj_file))
+    commands.append(cmd.format(flags=" ".join(flags), c_file=tracer_c_file, file=obj_file))
 
     debug_obj_file = os.path.join(c_dir, "tracer-ebpf-debug.o")
-    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), file=debug_obj_file))
+    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), c_file=tracer_c_file, file=debug_obj_file))
+
+    # Build security runtime programs
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_c_file = os.path.join(security_agent_c_dir, "probe.c")
+
+    security_agent_obj_file = os.path.join(security_agent_c_dir, "probe.o")
+    commands.append(
+        cmd.format(
+            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, file=security_agent_obj_file
+        )
+    )
+
+    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "probe-syscall-wrapper.o")
+    commands.append(
+        cmd.format(
+            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+            c_file=security_c_file,
+            file=security_agent_syscall_wrapper_obj_file,
+        )
+    )
 
     if install:
         assets_cmd = (
@@ -372,6 +388,22 @@ def build_object_files(ctx, install=True):
                 bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
                 test_asset_file=os.path.join(test_dir, "test-asset.c"),
                 test_h_file=os.path.join(test_dir, "test-header.h"),
+            )
+        )
+
+        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
+
+        # security runtime bindata
+        assets_cmd = (
+            os.environ["GOPATH"]
+            + "/bin/go-bindata -pkg probe -modtime 1 -o '{go_file}' '{security_agent_obj_file}' '{security_agent_syscall_wrapper_obj_file}'"
+        )
+        go_file = os.path.join(".", "pkg", "security", "probe", "ebpf.go")
+        commands.append(
+            assets_cmd.format(
+                go_file=go_file,
+                security_agent_obj_file=security_agent_obj_file,
+                security_agent_syscall_wrapper_obj_file=security_agent_syscall_wrapper_obj_file,
             )
         )
 

@@ -41,19 +41,14 @@ var (
 		"kube_node_spec_unschedulable":                func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
 		"kube_resourcequota":                          resourcequotaTransformer,
 		"kube_limitrange":                             func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
-		"kube_persistentvolume_status_phase":          func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
-		"kube_service_spec_type":                      func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
+		"kube_persistentvolume_status_phase":          pvPhaseTransformer,
+		"kube_service_spec_type":                      serviceTypeTransformer,
 	}
 )
 
 // podPhaseTransformer sends status phase metrics for pods, the tag phase has the pod status
 func podPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
-	if metric.Val != 1.0 {
-		// Only consider active metrics
-		return
-	}
-	// As opposed to KSM check v1, send only the active phase and keep the pod label
-	s.Gauge(ksmMetricPrefix+"pod.status_phase", 1, "", tags)
+	submitActiveMetric(s, ksmMetricPrefix+"pod.status_phase", metric, tags)
 }
 
 var allowedWaitingReasons = map[string]struct{}{
@@ -189,4 +184,23 @@ func resourcequotaTransformer(s aggregator.Sender, name string, metric ksmstore.
 	}
 	metricName := ksmMetricPrefix + fmt.Sprintf("resourcequota.%s.%s", resource, quotaType)
 	s.Gauge(metricName, metric.Val, "", tags)
+}
+
+// submitActiveMetrics only sends metrics with value '1'
+func submitActiveMetric(s aggregator.Sender, metricName string, metric ksmstore.DDMetric, tags []string) {
+	if metric.Val != 1.0 {
+		// Only consider active metrics
+		return
+	}
+	s.Gauge(metricName, 1, "", tags)
+}
+
+// pvPhaseTransformer generates metrics per persistentvolume and per phase from the kube_persistentvolume_status_phase metric
+func pvPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
+	submitActiveMetric(s, ksmMetricPrefix+"persistentvolume.by_phase", metric, tags)
+}
+
+// serviceTypeTransformer generates metrics per service, namespace, and type from the kube_service_spec_type metric
+func serviceTypeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
+	submitActiveMetric(s, ksmMetricPrefix+"service.type", metric, tags)
 }
