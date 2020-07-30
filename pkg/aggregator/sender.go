@@ -272,8 +272,10 @@ func (s *checkSender) SendRawServiceCheck(sc *metrics.ServiceCheck) {
 // ServiceCheck submits a service check
 func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
+
+	// send service checks as events to StackState
 	serviceCheck := metrics.Event{
-		Title:          fmt.Sprintf("Service Check: %s", checkName),
+		Title:          checkName,
 		Text:           message,
 		Ts: time.Now().Unix(),
 		Host:           hostname,
