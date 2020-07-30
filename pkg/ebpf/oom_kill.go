@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
 )
@@ -75,6 +76,8 @@ func (k *OOMKillProbe) Get() []oomkill.Stats {
 
 		results = append(results, convertStats(stat))
 	}
+
+	log.Debugf("OOM Kill stats gathered from kernel probe: %v", results)
 	return results
 }
 
