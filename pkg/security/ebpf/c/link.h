@@ -49,7 +49,10 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
     syscall->link.src_key = get_key(dentry, syscall->link.target_path);
-    syscall->link.target_key = get_key(syscall->link.target_dentry, syscall->link.target_path);
+    // we generate a fake target key as the inode is the same
+    syscall->link.target_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
+    syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
+    get_key(syscall->link.target_dentry, syscall->link.target_path);
 
     resolve_dentry(dentry, syscall->link.src_key, NULL);
     return 0;
