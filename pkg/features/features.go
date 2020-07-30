@@ -65,6 +65,9 @@ func (f *Features) getSupportedFeatures() {
 			featuresParsed[k] = featureValue
 		}
 
+		f.mux.Lock()
+		// Lock so only one goroutine at a time can access the map
+		defer f.mux.Unlock()
 		log.Infof("Server supports features: %v", featuresParsed)
 		f.features = featuresParsed
 		f.retriesLeft = response.RetriesLeft

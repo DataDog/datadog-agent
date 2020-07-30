@@ -64,7 +64,9 @@ func TestFeaturesWithRetries(t *testing.T) {
 		for {
 			select {
 			case <-backendAvailable:
+				mux.Lock()
 				BackendAvailable = true
+				mux.Unlock()
 			case <-timeout:
 				assertFunc()
 				break assertLoop

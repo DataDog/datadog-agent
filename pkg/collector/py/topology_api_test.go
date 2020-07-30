@@ -61,7 +61,7 @@ func TestRelationTopology(t *testing.T) {
 			StartSnapshot: true,
 			StopSnapshot:  true,
 			Instance:      topology.Instance{Type: "type", URL: "url"},
-			Components: components,
+			Components:    components,
 			Relations: append(relations, []topology.Relation{
 				{
 					ExternalID: "source-mytype-target",
@@ -95,8 +95,8 @@ func TestStartSnapshotCheck(t *testing.T) {
 			StartSnapshot: true,
 			StopSnapshot:  true,
 			Instance:      topology.Instance{Type: "type", URL: "url"},
-			Components: components,
-			Relations: relations,
+			Components:    components,
+			Relations:     relations,
 		},
 	}), expectedTopology)
 }
@@ -116,8 +116,8 @@ func TestStopSnapshotCheck(t *testing.T) {
 			StartSnapshot: true,
 			StopSnapshot:  true,
 			Instance:      topology.Instance{Type: "type", URL: "url"},
-			Components: components,
-			Relations: relations,
+			Components:    components,
+			Relations:     relations,
 		},
 	}), expectedTopology)
 }
@@ -142,86 +142,86 @@ func getAgentIntegrationTopology(t *testing.T, expectedTopology batcher.Topologi
 	}
 
 	return []topology.Component{
-				{
-					ExternalID: fmt.Sprintf("urn:stackstate-agent/:%s", host),
-					Type:       topology.Type{Name: "stackstate-agent"},
-					Data: topology.Data{
-						"hostname": host,
-						"identifiers": []interface{}{
-							fmt.Sprintf("urn:process/:%s:%d:%d", host, pid, ct),
-						},
-						"name": fmt.Sprintf("StackState Agent:%s", host),
-						"tags": []interface{}{fmt.Sprintf("hostname:%s", host), "stackstate-agent"},
+			{
+				ExternalID: fmt.Sprintf("urn:stackstate-agent:/%s", host),
+				Type:       topology.Type{Name: "stackstate-agent"},
+				Data: topology.Data{
+					"hostname": host,
+					"identifiers": []interface{}{
+						fmt.Sprintf("urn:process:/%s:%d:%d", host, pid, ct),
 					},
+					"name": fmt.Sprintf("StackState Agent:%s", host),
+					"tags": []interface{}{fmt.Sprintf("hostname:%s", host), "stackstate-agent"},
 				},
-				{
-					ExternalID: fmt.Sprintf("urn:agent-integration/:%s:type", host),
-					Type:       topology.Type{Name: "agent-integration"},
-					Data: topology.Data{
-						"tags":        []interface{}{fmt.Sprintf("hostname:%s", host), "agent-integration:type"},
-						"hostname":    host,
-						"integration": "type",
-						"checks": []interface{}{
-							map[string]interface{}{
-								"stream_id": int64(-1), "name": "Integration Health", "is_service_check_health_check": int64(1),
-							},
+			},
+			{
+				ExternalID: fmt.Sprintf("urn:agent-integration:/%s:type", host),
+				Type:       topology.Type{Name: "agent-integration"},
+				Data: topology.Data{
+					"tags":        []interface{}{fmt.Sprintf("hostname:%s", host), "agent-integration:type"},
+					"hostname":    host,
+					"integration": "type",
+					"checks": []interface{}{
+						map[string]interface{}{
+							"stream_id": int64(-1), "name": "Integration Health", "is_service_check_health_check": int64(1),
 						},
-						"events": []interface{}{map[string]interface{}{
-							"stream_id":  int64(-1),
-							"identifier": integrationIdentifier,
+					},
+					"events": []interface{}{map[string]interface{}{
+						"stream_id":  int64(-1),
+						"identifier": integrationIdentifier,
+						"conditions": []interface{}{
+							map[string]interface{}{"value": host, "key": "hostname"},
+							map[string]interface{}{"value": "type", "key": "integration-type"},
+						},
+						"name": "Service Checks",
+					}},
+					"name": fmt.Sprintf("%s:type", host),
+				},
+			},
+			{
+				ExternalID: fmt.Sprintf("urn:agent-integration-instance:/%s:type:url", host),
+				Type:       topology.Type{Name: "agent-integration-instance"},
+				Data: topology.Data{
+					"name": "type:url",
+					"tags": []interface{}{
+						fmt.Sprintf("hostname:%s", host), "agent-integration:type", "agent-integration-url:url",
+					},
+					"hostname":    host,
+					"integration": "type",
+					"checks": []interface{}{
+						map[string]interface{}{
+							"stream_id":                     int64(-1),
+							"name":                          "Integration Instance Health",
+							"is_service_check_health_check": int64(1),
+						},
+					},
+					"events": []interface{}{
+						map[string]interface{}{
 							"conditions": []interface{}{
 								map[string]interface{}{"value": host, "key": "hostname"},
 								map[string]interface{}{"value": "type", "key": "integration-type"},
+								map[string]interface{}{"value": "url", "key": "integration-url"},
 							},
-							"name": "Service Checks",
-						}},
-						"name": fmt.Sprintf("%s:type", host),
-					},
-				},
-				{
-					ExternalID: fmt.Sprintf("urn:agent-integration-instance/:%s:type:url", host),
-					Type:       topology.Type{Name: "agent-integration-instance"},
-					Data: topology.Data{
-						"name": "type:url",
-						"tags": []interface{}{
-							fmt.Sprintf("hostname:%s", host), "agent-integration:type", "agent-integration-url:url",
-						},
-						"hostname":    host,
-						"integration": "type",
-						"checks": []interface{}{
-							map[string]interface{}{
-								"stream_id":                     int64(-1),
-								"name":                          "Integration Instance Health",
-								"is_service_check_health_check": int64(1),
-							},
-						},
-						"events": []interface{}{
-							map[string]interface{}{
-								"conditions": []interface{}{
-									map[string]interface{}{"value": host, "key": "hostname"},
-									map[string]interface{}{"value": "type", "key": "integration-type"},
-									map[string]interface{}{"value": "url", "key": "integration-url"},
-								},
-								"name":       "Service Checks",
-								"stream_id":  int64(-1),
-								"identifier": integrationInstanceIdentifier,
-							},
+							"name":       "Service Checks",
+							"stream_id":  int64(-1),
+							"identifier": integrationInstanceIdentifier,
 						},
 					},
 				},
 			},
-			[]topology.Relation{
-				{
-					ExternalID: fmt.Sprintf("urn:stackstate-agent/:%s-runs-urn:agent-integration/:%s:type", host, host),
-					SourceID:   fmt.Sprintf("urn:stackstate-agent/:%s", host),
-					TargetID:   fmt.Sprintf("urn:agent-integration/:%s:type", host),
-					Type:       topology.Type{Name: "runs"}, Data: map[string]interface{}{},
-				}, {
-					ExternalID: fmt.Sprintf("urn:agent-integration/:%s:type-has-urn:agent-integration-instance/:%s:type:url", host, host),
-					SourceID:   fmt.Sprintf("urn:agent-integration/:%s:type", host),
-					TargetID:   fmt.Sprintf("urn:agent-integration-instance/:%s:type:url", host),
-					Type:       topology.Type{Name: "has"},
-					Data:       map[string]interface{}{},
-				},
-			}
+		},
+		[]topology.Relation{
+			{
+				ExternalID: fmt.Sprintf("urn:stackstate-agent:/%s-runs-urn:agent-integration:/%s:type", host, host),
+				SourceID:   fmt.Sprintf("urn:stackstate-agent:/%s", host),
+				TargetID:   fmt.Sprintf("urn:agent-integration:/%s:type", host),
+				Type:       topology.Type{Name: "runs"}, Data: map[string]interface{}{},
+			}, {
+				ExternalID: fmt.Sprintf("urn:agent-integration:/%s:type-has-urn:agent-integration-instance:/%s:type:url", host, host),
+				SourceID:   fmt.Sprintf("urn:agent-integration:/%s:type", host),
+				TargetID:   fmt.Sprintf("urn:agent-integration-instance:/%s:type:url", host),
+				Type:       topology.Type{Name: "has"},
+				Data:       map[string]interface{}{},
+			},
+		}
 }
