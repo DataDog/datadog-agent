@@ -238,13 +238,8 @@ func (r *HTTPReceiver) Stop() error {
 	return nil
 }
 
-// headerResponseVersion is a response header sent to each request, representing
-// the trace-agent version.
-const headerResponseVersion = "Datadog-Trace-Agent-Version"
-
 func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Add(headerResponseVersion, info.Version)
 		if mediaType := getMediaType(req); mediaType == "application/msgpack" && (v == v01 || v == v02) {
 			// msgpack is only supported for versions >= v0.3
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
