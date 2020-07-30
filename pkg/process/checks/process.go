@@ -335,20 +335,6 @@ func skipProcess(
 	return false
 }
 
-// filterCtrIDsByPIDs uses lastCtrIDForPID and filter down only the pid -> cid that we need
-func (p *ProcessCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
-	p.RLock()
-	defer p.RUnlock()
-
-	ctrByPid := make(map[int32]string)
-	for _, pid := range pids {
-		if cid, ok := p.lastCtrIDForPID[pid]; ok {
-			ctrByPid[pid] = cid
-		}
-	}
-	return ctrByPid
-}
-
 func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 	p.RLock()
 	defer p.RUnlock()
