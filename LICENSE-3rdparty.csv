@@ -327,9 +327,11 @@ core,"github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options",NewBSD
 core,"github.com/grpc-ecosystem/grpc-gateway/runtime",NewBSD
 core,"github.com/grpc-ecosystem/grpc-gateway/utilities",NewBSD
 core,"github.com/hashicorp/consul/api",MPL-2.0
+core,"github.com/hashicorp/errwrap",MPL-2.0
 core,"github.com/hashicorp/go-cleanhttp",MPL-2.0
 core,"github.com/hashicorp/go-hclog",MIT
 core,"github.com/hashicorp/go-immutable-radix",MPL-2.0
+core,"github.com/hashicorp/go-multierror",MPL-2.0
 core,"github.com/hashicorp/go-rootcerts",MPL-2.0
 core,"github.com/hashicorp/golang-lru",MPL-2.0
 core,"github.com/hashicorp/golang-lru/simplelru",MPL-2.0
@@ -519,6 +521,10 @@ core,"golang.org/x/text/width",NewBSD
 core,"golang.org/x/time/rate",NewBSD
 core,"golang.org/x/xerrors",NewBSD
 core,"golang.org/x/xerrors/internal",NewBSD
+core,"golang.org/x/tools/go/ast/astutil",NewBSD
+core,"golang.org/x/tools/go/buildutil",NewBSD
+core,"golang.org/x/tools/go/internal/cgo",NewBSD
+core,"golang.org/x/tools/go/loader",NewBSD
 core,"gomodules.xyz/jsonpatch/v3",Apache-2.0
 core,"gomodules.xyz/orderedmap",MIT
 core,"google.golang.org/appengine/internal",Apache-2.0

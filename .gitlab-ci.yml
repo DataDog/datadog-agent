@@ -3498,41 +3498,6 @@ deploy_staging_windows_tags-a7:
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy builds latest (6, x64 only), deployed to bucket/tagged
-deploy_staging_windows_tags-latest-a6:
-  rules:
-    - <<: *if_deploy_on_tag_6
-  stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  dependencies:
-    - windows_msi_x64-a6
-  script:
-    # By default we update the "latest" artifacts on our s3 bucket so the
-    # staging box can pick it up. Allow the job to skip this step if needed
-    # (when building a custom beta for example).
-    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
-
-# deploy builds latest (7, x64 only), deployed to bucket/tagged
-deploy_staging_windows_tags-latest-a7:
-  rules:
-    - <<: *if_deploy_on_tag_7
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  dependencies:
-    - windows_msi_x64-a7
-    - windows_dsd_msi_x64-a7
-  script:
-    # By default we update the "latest" artifacts on our s3 bucket so the
-    # staging box can pick it up. Allow the job to skip this step if needed
-    # (when building a custom beta for example).
-    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-7-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
-
 # deploy android packages to a public s3 bucket when tagged
 deploy_staging_android_tags:
   rules:

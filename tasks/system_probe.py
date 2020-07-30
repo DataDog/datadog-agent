@@ -300,7 +300,6 @@ def build_object_files(ctx, install=True):
         "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
         '-O2',
         '-emit-llvm',
-        '-c',
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
@@ -332,7 +331,7 @@ def build_object_files(ctx, install=True):
         for s in subdirs:
             flags.extend(["-isystem", os.path.join(d, s)])
 
-    cmd = "clang {flags} {c_file} -o - | llc -march=bpf -filetype=obj -o '{file}'"
+    cmd = "clang {flags} -c {c_file} -o - | llc -march=bpf -filetype=obj -o '{file}'"
 
     commands = []
 
@@ -361,6 +360,26 @@ def build_object_files(ctx, install=True):
 
         bindata_files.extend([obj_file, debug_obj_file])
 
+    # Build security runtime programs
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_c_file = os.path.join(security_agent_c_dir, "probe.c")
+
+    security_agent_obj_file = os.path.join(security_agent_c_dir, "probe.o")
+    commands.append(
+        cmd.format(
+            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, file=security_agent_obj_file
+        )
+    )
+
+    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "probe-syscall-wrapper.o")
+    commands.append(
+        cmd.format(
+            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+            c_file=security_c_file,
+            file=security_agent_syscall_wrapper_obj_file,
+        )
+    )
+
     if install:
         assets_cmd = (
             os.environ["GOPATH"]
@@ -368,6 +387,22 @@ def build_object_files(ctx, install=True):
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
         commands.append(assets_cmd.format(c_dir=c_dir, go_file=go_file, bindata_files="' '".join(bindata_files)))
+
+        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
+
+        # security runtime bindata
+        assets_cmd = (
+            os.environ["GOPATH"]
+            + "/bin/go-bindata -pkg probe -modtime 1 -o '{go_file}' '{security_agent_obj_file}' '{security_agent_syscall_wrapper_obj_file}'"
+        )
+        go_file = os.path.join(".", "pkg", "security", "probe", "ebpf.go")
+        commands.append(
+            assets_cmd.format(
+                go_file=go_file,
+                security_agent_obj_file=security_agent_obj_file,
+                security_agent_syscall_wrapper_obj_file=security_agent_syscall_wrapper_obj_file,
+            )
+        )
 
         commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
 

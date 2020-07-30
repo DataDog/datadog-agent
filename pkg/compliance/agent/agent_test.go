@@ -78,7 +78,8 @@ func eventMatcher(m eventMatch) interface{} {
 			return false
 		}
 
-		return e.Data["file.path"] == m.path && e.Data["file.permissions"] == m.permissions
+		eventData := e.Data.(event.Data)
+		return eventData["file.path"] == m.path && eventData["file.permissions"] == m.permissions
 	}
 }
 
