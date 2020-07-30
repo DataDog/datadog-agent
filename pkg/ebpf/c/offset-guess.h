@@ -1,5 +1,5 @@
-#ifndef C_OFFSET_GUESS_H
-#define C_OFFSET_GUESS_H
+#ifndef __OFFSET_GUESS_H
+#define __OFFSET_GUESS_H
 
 #include <linux/types.h>
 
@@ -61,4 +61,4 @@ typedef struct {
     __u8 padding;
 } tracer_status_t;
 
-#endif //C_OFFSET_GUESS_H
+#endif //__OFFSET_GUESS_H

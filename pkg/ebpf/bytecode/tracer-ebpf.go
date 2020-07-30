@@ -646,7 +646,7 @@ func bindataPkgEbpfCTracerebpfo() (*asset, error) {
 		name:        "pkg/ebpf/c/tracer-ebpf.o",
 		size:        37832,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 

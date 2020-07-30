@@ -1,6 +1,7 @@
-#ifndef C_SYSCALLS_H
-#define C_SYSCALLS_H
+#ifndef __SYSCALLS_H
+#define __SYSCALLS_H
 
+#include <linux/kconfig.h>
 #include <net/sock.h>
 
 /*
@@ -47,4 +48,4 @@ struct syscalls_enter_socket_args {
     __u64 protocol;
 };
 
-#endif //C_SYSCALLS_H
+#endif //__SYSCALLS_H

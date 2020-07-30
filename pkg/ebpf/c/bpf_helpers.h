@@ -16,6 +16,10 @@
 #define log_debug(fmt, ...)
 #endif
 
+#ifndef __always_inline
+#define __always_inline __attribute__((always_inline))
+#endif
+
 /* helper macro to place programs, maps, license in
  * different sections in elf_bpf file. Section names
  * are interpreted by elf_bpf loader

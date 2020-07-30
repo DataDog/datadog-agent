@@ -1,22 +1,22 @@
-#include <linux/kconfig.h>
-#include <uapi/linux/ptrace.h>
-#include "bpf_helpers.h"
 #include "tracer-ebpf.h"
+#include "bpf_helpers.h"
 #include "syscalls.h"
-
+#include <linux/kconfig.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
-#include <uapi/linux/udp.h>
+#include <uapi/linux/ptrace.h>
 #include <uapi/linux/tcp.h>
+#include <uapi/linux/udp.h>
 
 /* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
  * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
  * eliminates a bpf_map_lookup_elem per kprobe hit. The constants are best accessed with a
  * dedicated inlined function. See example functions offset_* below.
  */
-#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
+#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
+                                      : "=r"(var))
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
@@ -67,8 +67,6 @@ struct bpf_map_def SEC("maps/tcp_close_batch") tcp_close_batch = {
     .pinning = 0,
     .namespace = "",
 };
-
-
 
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
@@ -172,8 +170,7 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
 };
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
-__attribute__((always_inline))
-static bool is_big_endian(void) {
+static __always_inline bool is_big_endian(void) {
     union {
         uint32_t i;
         char c[4];
@@ -188,8 +185,7 @@ static bool is_big_endian(void) {
  * in the most significant 32 bits of part saddr_l and daddr_l.
  * Meanwhile the end of the mask is stored in the least significant 32 bits.
  */
-__attribute__((always_inline))
-static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr_l) {
+static __always_inline bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr_l) {
     if (is_big_endian()) {
         return ((saddr_h == 0 && ((u32)(saddr_l >> 32) == 0x0000FFFF)) || (daddr_h == 0 && ((u32)(daddr_l >> 32) == 0x0000FFFF)));
     } else {
@@ -197,99 +193,85 @@ static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr
     }
 }
 
-__attribute__((always_inline))
-static bool dns_stats_enabled() {
+static __always_inline bool dns_stats_enabled() {
     __u64 val = 0;
     LOAD_CONSTANT("dns_stats_enabled", val);
     return val == 1;
 }
 
-__attribute__((always_inline))
-static __u64 offset_family() {
+static __always_inline __u64 offset_family() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_family", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_saddr() {
+static __always_inline __u64 offset_saddr() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_saddr", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_daddr() {
+static __always_inline __u64 offset_daddr() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_daddr", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_daddr_ipv6() {
+static __always_inline __u64 offset_daddr_ipv6() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_daddr_ipv6", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_sport() {
+static __always_inline __u64 offset_sport() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_sport", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_dport() {
+static __always_inline __u64 offset_dport() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_dport", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_netns() {
+static __always_inline __u64 offset_netns() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_netns", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_ino() {
+static __always_inline __u64 offset_ino() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_ino", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_rtt() {
+static __always_inline __u64 offset_rtt() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_rtt", val);
     return val;
 }
 
-__attribute__((always_inline))
-static __u64 offset_rtt_var() {
+static __always_inline __u64 offset_rtt_var() {
     __u64 val = 0;
     LOAD_CONSTANT("offset_rtt_var", val);
     return val;
 }
 
-__attribute__((always_inline))
-static bool is_ipv6_enabled() {
+static __always_inline bool is_ipv6_enabled() {
     __u64 val = 0;
     LOAD_CONSTANT("ipv6_enabled", val);
     return val == TRACER_IPV6_ENABLED;
 }
 
-__attribute__((always_inline))
-static bool check_family(struct sock* sk, u16 expected_family) {
+static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
     u16 family = 0;
     bpf_probe_read(&family, sizeof(u16), ((char*)sk) + offset_family());
     return family == expected_family;
 }
 
-__attribute__((always_inline))
-static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     t->saddr_h = 0;
     t->saddr_l = 0;
     t->daddr_h = 0;
@@ -362,8 +344,7 @@ static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, meta
     return 1;
 }
 
-__attribute__((always_inline))
-static void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
+static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
     conn_stats_ts_t* val;
 
     // initialize-if-no-exist the connection stat, and load it
@@ -379,8 +360,7 @@ static void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_by
     }
 }
 
-__attribute__((always_inline))
-static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
+static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
     // query stats without the PID from the tuple
     u32 pid = t->pid;
     t->pid = 0;
@@ -407,8 +387,7 @@ static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
     }
 }
 
-__attribute__((always_inline))
-static void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_tuple_t* tup) {
+static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_tuple_t* tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
@@ -437,7 +416,7 @@ static void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_t
     }
 
     // Batch TCP closed connections before generating a perf event
-    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    batch_t* batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
     if (batch_ptr == NULL) {
         return;
     }
@@ -480,8 +459,7 @@ static void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_t
     }
 }
 
-__attribute__((always_inline))
-static int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
+static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
     u64 ts = bpf_ktime_get_ns();
 
     update_conn_stats(t, sent_bytes, recv_bytes, ts);
@@ -489,8 +467,7 @@ static int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes)
     return 0;
 }
 
-__attribute__((always_inline))
-static int handle_retransmit(struct sock* sk) {
+static __always_inline int handle_retransmit(struct sock* sk) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
@@ -498,19 +475,18 @@ static int handle_retransmit(struct sock* sk) {
         return 0;
     }
 
-    tcp_stats_t stats = {.retransmits = 1, .rtt = 0, .rtt_var = 0 };
+    tcp_stats_t stats = { .retransmits = 1, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats);
 
     return 0;
 }
 
-__attribute__((always_inline))
-static void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
+static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
     u32 rtt = 0, rtt_var = 0;
     bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
     bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
 
-    tcp_stats_t stats = {.retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     update_tcp_stats(t, stats);
 }
 
@@ -616,7 +592,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close(struct pt_regs* ctx) {
     u32 cpu = bpf_get_smp_processor_id();
-    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    batch_t* batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
     if (batch_ptr == NULL) {
         return 0;
     }
@@ -831,8 +807,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
 //region sys_enter_bind
 
-__attribute__((always_inline))
-static int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
+static __always_inline int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
     __u64 tid = bpf_get_current_pid_tgid();
 
     // determine if the fd for this process is an unbound UDP socket
@@ -845,7 +820,7 @@ static int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
     }
 
     if (addr == NULL) {
-      log_debug("sys_enter_bind: could not read sockaddr, fd=%u, tid=%u\n", fd, tid);
+        log_debug("sys_enter_bind: could not read sockaddr, fd=%u, tid=%u\n", fd, tid);
         return 0;
     }
 
@@ -873,7 +848,7 @@ int tracepoint__sys_enter_bind(struct syscalls_enter_bind_args* ctx) {
 
 SEC("kprobe/sys_bind/x64")
 int kprobe__sys_bind_x64(struct pt_regs* ctx) {
-    struct pt_regs *_ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
+    struct pt_regs* _ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
 
     __u64 fd;
     struct sockaddr* addr;
@@ -895,12 +870,11 @@ int kprobe__sys_bind(struct pt_regs* ctx) {
 
 //region sys_exit_bind
 
-__attribute__((always_inline))
-static int sys_exit_bind(__s64 ret) {
+static __always_inline int sys_exit_bind(__s64 ret) {
     __u64 tid = bpf_get_current_pid_tgid();
 
     // bail if this bind() is not the one we're instrumenting
-    bind_syscall_args_t *args;
+    bind_syscall_args_t* args;
     args = bpf_map_lookup_elem(&pending_bind, &tid);
 
     log_debug("sys_exit_bind: tid=%u, ret=%d\n", tid, ret);
@@ -940,8 +914,7 @@ int kretprobe__sys_bind(struct pt_regs* ctx) {
 //region sys_enter_socket
 
 // used for capturing UDP sockets that are bound
-__attribute__((always_inline))
-static int sys_enter_socket(__u64 family, __u64 type) {
+static __always_inline int sys_enter_socket(__u64 family, __u64 type) {
     __u64 tid = bpf_get_current_pid_tgid();
     log_debug("sys_enter_socket: tid=%u, family=%u, type=%u\n", tid, family, type);
 
@@ -973,7 +946,7 @@ int tracepoint__sys_enter_socket(struct syscalls_enter_socket_args* ctx) {
 
 SEC("kprobe/sys_socket/x64")
 int kprobe__sys_socket_x64(struct pt_regs* ctx) {
-    struct pt_regs *_ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
+    struct pt_regs* _ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
 
     __u64 family;
     __u64 type;
@@ -997,10 +970,9 @@ int kprobe__sys_socket(struct pt_regs* ctx) {
 
 // used in combination with the kprobe for sys_socket to find file descriptors for UDP sockets that have not
 // yet been "binded".
-__attribute__((always_inline))
-static int sys_exit_socket(__s64 fd) {
+static __always_inline int sys_exit_socket(__s64 fd) {
     __u64 tid = bpf_get_current_pid_tgid();
-    __u8 *udp_pending = bpf_map_lookup_elem(&pending_sockets, &tid);
+    __u8* udp_pending = bpf_map_lookup_elem(&pending_sockets, &tid);
 
     // move the socket to "unbound"
     __u64 fd_and_tid = (tid << 32) | fd;
@@ -1022,7 +994,6 @@ static int sys_exit_socket(__s64 fd) {
         bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
         log_debug("sys_exit_socket: socket() call failed, fd=%d, tid=%u\n", fd, tid);
     }
-
 
     bpf_map_delete_elem(&pending_sockets, &tid);
 

@@ -1,10 +1,9 @@
-#include <linux/kconfig.h>
-#include <uapi/linux/ptrace.h>
-#include "bpf_helpers.h"
 #include "offset-guess.h"
-
-#include <net/sock.h>
+#include "bpf_helpers.h"
+#include <linux/kconfig.h>
 #include <net/net_namespace.h>
+#include <net/sock.h>
+#include <uapi/linux/ptrace.h>
 #include <uapi/linux/tcp.h>
 
 /* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
@@ -29,8 +28,7 @@ struct bpf_map_def SEC("maps/tracer_status") tracer_status = {
     .namespace = "",
 };
 
-__attribute__((always_inline))
-static bool proc_t_comm_equals(proc_t a, proc_t b) {
+static __always_inline bool proc_t_comm_equals(proc_t a, proc_t b) {
     int i;
     for (i = 0; i < TASK_COMM_LEN; i++) {
         if (a.comm[i] != b.comm[i]) {
@@ -40,15 +38,13 @@ static bool proc_t_comm_equals(proc_t a, proc_t b) {
     return true;
 }
 
-__attribute__((always_inline))
-static bool check_family(struct sock* sk, tracer_status_t* status, u16 expected_family) {
+static __always_inline bool check_family(struct sock* sk, tracer_status_t* status, u16 expected_family) {
     u16 family = 0;
     bpf_probe_read(&family, sizeof(u16), ((char*)sk) + status->offset_family);
     return family == expected_family;
 }
 
-__attribute__((always_inline))
-static int guess_offsets(tracer_status_t* status, struct sock* skp) {
+static __always_inline int guess_offsets(tracer_status_t* status, struct sock* skp) {
     u64 zero = 0;
 
     if (status->state != TRACER_STATE_CHECKING) {
@@ -76,46 +72,46 @@ static int guess_offsets(tracer_status_t* status, struct sock* skp) {
     long ret;
 
     switch (status->what) {
-        case GUESS_SADDR:
-            bpf_probe_read(&new_status.saddr, sizeof(new_status.saddr), ((char*)skp) + status->offset_saddr);
+    case GUESS_SADDR:
+        bpf_probe_read(&new_status.saddr, sizeof(new_status.saddr), ((char*)skp) + status->offset_saddr);
+        break;
+    case GUESS_DADDR:
+        bpf_probe_read(&new_status.daddr, sizeof(new_status.daddr), ((char*)skp) + status->offset_daddr);
+        break;
+    case GUESS_FAMILY:
+        bpf_probe_read(&new_status.family, sizeof(new_status.family), ((char*)skp) + status->offset_family);
+        break;
+    case GUESS_SPORT:
+        bpf_probe_read(&new_status.sport, sizeof(new_status.sport), ((char*)skp) + status->offset_sport);
+        break;
+    case GUESS_DPORT:
+        bpf_probe_read(&new_status.dport, sizeof(new_status.dport), ((char*)skp) + status->offset_dport);
+        break;
+    case GUESS_NETNS:
+        bpf_probe_read(&possible_skc_net, sizeof(possible_net_t*), ((char*)skp) + status->offset_netns);
+        // if we get a kernel fault, it means possible_skc_net
+        // is an invalid pointer, signal an error so we can go
+        // to the next offset_netns
+        ret = bpf_probe_read(&possible_netns, sizeof(possible_netns), ((char*)possible_skc_net) + status->offset_ino);
+        if (ret == -EFAULT) {
+            new_status.err = 1;
             break;
-        case GUESS_DADDR:
-            bpf_probe_read(&new_status.daddr, sizeof(new_status.daddr), ((char*)skp) + status->offset_daddr);
+        }
+        new_status.netns = possible_netns;
+        break;
+    case GUESS_RTT:
+        bpf_probe_read(&new_status.rtt, sizeof(new_status.rtt), ((char*)skp) + status->offset_rtt);
+        bpf_probe_read(&new_status.rtt_var, sizeof(new_status.rtt_var), ((char*)skp) + status->offset_rtt_var);
+        break;
+    case GUESS_DADDR_IPV6:
+        if (!check_family(skp, status, AF_INET6))
             break;
-        case GUESS_FAMILY:
-            bpf_probe_read(&new_status.family, sizeof(new_status.family), ((char*)skp) + status->offset_family);
-            break;
-        case GUESS_SPORT:
-            bpf_probe_read(&new_status.sport, sizeof(new_status.sport), ((char*)skp) + status->offset_sport);
-            break;
-        case GUESS_DPORT:
-            bpf_probe_read(&new_status.dport, sizeof(new_status.dport), ((char*)skp) + status->offset_dport);
-            break;
-        case GUESS_NETNS:
-            bpf_probe_read(&possible_skc_net, sizeof(possible_net_t*), ((char*)skp) + status->offset_netns);
-            // if we get a kernel fault, it means possible_skc_net
-            // is an invalid pointer, signal an error so we can go
-            // to the next offset_netns
-            ret = bpf_probe_read(&possible_netns, sizeof(possible_netns), ((char*)possible_skc_net) + status->offset_ino);
-            if (ret == -EFAULT) {
-                new_status.err = 1;
-                break;
-            }
-            new_status.netns = possible_netns;
-            break;
-        case GUESS_RTT:
-            bpf_probe_read(&new_status.rtt, sizeof(new_status.rtt), ((char*)skp) + status->offset_rtt);
-            bpf_probe_read(&new_status.rtt_var, sizeof(new_status.rtt_var), ((char*)skp) + status->offset_rtt_var);
-            break;
-        case GUESS_DADDR_IPV6:
-            if (!check_family(skp, status, AF_INET6))
-                break;
 
-            bpf_probe_read(new_status.daddr_ipv6, sizeof(u32) * 4, ((char*)skp) + status->offset_daddr_ipv6);
-            break;
-        default:
-            // not for us
-            return 0;
+        bpf_probe_read(new_status.daddr_ipv6, sizeof(u32) * 4, ((char*)skp) + status->offset_daddr_ipv6);
+        break;
+    default:
+        // not for us
+        return 0;
     }
 
     bpf_map_update_elem(&tracer_status, &zero, &new_status, BPF_ANY);

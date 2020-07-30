@@ -231,16 +231,12 @@ def cfmt(ctx):
     Format C code using clang-format
     """
 
-    fmtCmd = "clang-format -i -style='{{BasedOnStyle: WebKit, BreakBeforeBraces: Attach}}' {file}"
-    # This only works with gnu sed
-    sedCmd = r"sed -i 's/__attribute__((always_inline)) /__attribute__((always_inline))\
-/g' {file}"
+    fmtCmd = "clang-format -i -style=file {file}"
 
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
 
     for file in files:
         ctx.run(fmtCmd.format(file=file))
-        ctx.run(sedCmd.format(file=file))
 
 
 @task
