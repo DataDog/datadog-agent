@@ -12,27 +12,12 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"os"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc"
-)
-
-// https://docs.microsoft.com/en-us/windows/console/handlerroutine
-const (
-	ctrlCEvent        = uint(0)
-	ctrlBreakEvent    = uint(1)
-	ctrlCloseEvent    = uint(2)
-	ctrlLogOffEvent   = uint(5)
-	ctrlShutdownEvent = uint(6)
-)
-
-var (
-	kernel32              = syscall.NewLazyDLL("kernel32.dll")
-	setConsoleCtrlHandler = kernel32.NewProc("SetConsoleCtrlHandler")
 )
 
 func main() {
@@ -52,30 +37,6 @@ func main() {
 		}
 	}
 	defer log.Flush()
-	setConsoleCtrlHandler.Call(
-		syscall.NewCallback(func(controlType uint) uint {
-			var sigStr string
-			switch controlType {
-			case ctrlCEvent:
-				sigStr = "CTRL+C"
-			case ctrlBreakEvent:
-				sigStr = "CTRL+BREAK"
-			case ctrlCloseEvent:
-				sigStr = "CTRL+CLOSE"
-			case ctrlLogOffEvent:
-				sigStr = "CTRL+LOG_OFF"
-			case ctrlShutdownEvent:
-				sigStr = "CTRL+SHUTDOWN"
-			}
-			log.Infof("Received control event '%s', shutting down...", sigStr)
-			// signals.Stopper <- true
-			// Completely bypass the run command stop logic as it takes too long to stop
-			app.StopAgent()
-			os.Exit(0)
-			// We won't reach this code but the signature requires a return code.
-			// Returning 1 in SetConsoleCtrlHandler means we handled the signal.
-			return 1
-		}), 1)
 
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
