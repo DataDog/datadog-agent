@@ -21,7 +21,7 @@ import (
 // notified of events on a rule set.
 type RuleSetListener interface {
 	RuleMatch(rule *eval.Rule, event eval.Event)
-	EventDiscarderFound(event eval.Event, field eval.Field)
+	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field)
 }
 
 // RuleSet holds a list of rules, grouped in bucket. An event can be evaluated
@@ -98,7 +98,7 @@ func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
 		result = multierror.Append(result, errors.Wrap(err, "couldn't generate partials"))
 	}
 
-	return result
+	return result.ErrorOrNil()
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -161,7 +161,7 @@ func (rs *RuleSet) NotifyRuleMatch(rule *eval.Rule, event eval.Event) {
 // NotifyDiscarderFound notifies all the ruleset listeners that a discarder was found for an event
 func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field) {
 	for _, listener := range rs.listeners {
-		listener.EventDiscarderFound(event, field)
+		listener.EventDiscarderFound(rs, event, field)
 	}
 }
 
@@ -186,19 +186,63 @@ func (rs *RuleSet) GetApprovers(eventType eval.EventType, fieldCaps FieldCapabil
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return bucket.GetApprovers(rs.model, rs.eventCtor(), fieldCaps)
+	return bucket.GetApprovers(rs.eventCtor(), fieldCaps)
+}
+
+// GetFieldValues returns all the values of the given field
+func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
+	var values []eval.FieldValue
+
+	for _, rule := range rs.rules {
+		rv := rule.GetFieldValues(field)
+		if len(rv) > 0 {
+			values = append(values, rv...)
+		}
+	}
+
+	return values
+}
+
+// IsDiscarder partially evaluates an Event against a field
+func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error) {
+	event := rs.eventCtor()
+	if err := event.SetFieldValue(field, value); err != nil {
+		return false, err
+	}
+
+	ctx := &eval.Context{}
+	ctx.SetObject(event.GetPointer())
+
+	eventType, err := event.GetFieldEventType(field)
+	if err != nil {
+		return false, err
+	}
+
+	bucket, exists := rs.eventRuleBuckets[eventType]
+	if !exists {
+		return false, &ErrNoEventTypeBucket{EventType: eventType}
+	}
+
+	for _, rule := range bucket.rules {
+		isTrue, err := rule.PartialEval(ctx, field)
+		if err != nil || isTrue {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	result := false
-	rs.model.SetEvent(event)
 	ctx := &eval.Context{}
+	ctx.SetObject(event.GetPointer())
+
 	eventType := event.GetType()
 	eventID := event.GetID()
 
-	bucket, found := rs.eventRuleBuckets[eventType]
-	if !found {
+	result := false
+	bucket, exists := rs.eventRuleBuckets[eventType]
+	if !exists {
 		return result
 	}
 	log.Debugf("Evaluating event `%s` of type `%s` against set of %d rules", eventID, eventType, len(bucket.rules))
@@ -222,18 +266,18 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				value = evaluator.(eval.Evaluator).StringValue(ctx)
 			}
 
-			found = true
+			isDiscarder := true
 			for _, rule := range bucket.rules {
-				isTrue, err := rule.GetEvaluator().PartialEval(ctx, field)
+				isTrue, err := rule.PartialEval(ctx, field)
 
 				log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.ID, rule.Expression, field, value, isTrue)
 
 				if err != nil || isTrue {
-					found = false
+					isDiscarder = false
 					break
 				}
 			}
-			if found {
+			if isDiscarder {
 				log.Debugf("Found a discarder for field `%s` with value `%s`\n", field, value)
 				rs.NotifyDiscarderFound(event, field)
 			}

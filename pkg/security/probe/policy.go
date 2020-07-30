@@ -20,8 +20,9 @@ type PolicyFlag uint8
 
 // Policy modes
 const (
-	PolicyModeAccept PolicyMode = 1
-	PolicyModeDeny              = 2
+	PolicyModeAccept PolicyMode = iota + 1
+	PolicyModeDeny
+	PolicyModeNoFilter
 )
 
 // Policy flags
@@ -29,9 +30,8 @@ const (
 	PolicyFlagBasename     PolicyFlag = 1
 	PolicyFlagFlags        PolicyFlag = 2
 	PolicyFlagMode         PolicyFlag = 4
-	PolicyFlagParentName   PolicyFlag = 8
-	PolicyFlagProcessInode PolicyFlag = 16
-	PolicyFlagProcessName  PolicyFlag = 32
+	PolicyFlagProcessInode PolicyFlag = 8
+	PolicyFlagProcessName  PolicyFlag = 16
 
 	// need to be aligned with the kernel size
 	BasenameFilterSize = 32
@@ -68,9 +68,6 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 	}
 	if f&PolicyFlagMode != 0 {
 		flags = append(flags, `"mode"`)
-	}
-	if f&PolicyFlagParentName != 0 {
-		flags = append(flags, `"parent_name"`)
 	}
 	if f&PolicyFlagProcessInode != 0 {
 		flags = append(flags, `"inode"`)

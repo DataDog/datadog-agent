@@ -71,7 +71,7 @@ func waitForOpenDiscarder(test *testProbe, filename string) (*probe.Event, error
 		select {
 		case <-test.events:
 		case discarder := <-test.discarders:
-			test.probe.OnNewDiscarder(discarder.event.(*sprobe.Event), discarder.field)
+			test.probe.OnNewDiscarder(test.rs, discarder.event.(*sprobe.Event), discarder.field)
 			if value, _ := discarder.event.GetFieldValue("open.filename"); value == filename {
 				event = discarder.event.(*sprobe.Event)
 			}
@@ -120,13 +120,13 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenBasenameDiscarderFilter(t *testing.T) {
+func TestOpenParentDiscarderFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.basename == "test-obd-1"`,
+		Expression: `open.filename == "/etc/passwd"`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true, disableApprovers: true})
 	if err != nil {
 		t.Fatal(err)
 	}

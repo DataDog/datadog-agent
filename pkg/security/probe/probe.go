@@ -39,7 +39,7 @@ type Discarder struct {
 }
 
 type onApproversFnc func(probe *Probe, approvers rules.Approvers) error
-type onDiscarderFnc func(probe *Probe, discarder Discarder) error
+type onDiscarderFnc func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -260,29 +260,6 @@ var allHookPoints = []*HookPoint{
 		},
 	},
 	{
-		Name: "vfs_unlink",
-		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/vfs_unlink",
-		}},
-		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": {},
-		},
-	},
-	{
-		Name:    "sys_unlink",
-		KProbes: syscallKprobe("unlink"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": {},
-		},
-	},
-	{
-		Name:    "sys_unlinkat",
-		KProbes: syscallKprobe("unlinkat"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": {},
-		},
-	},
-	{
 		Name: "vfs_rename",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_rename",
@@ -388,7 +365,10 @@ func (p *Probe) getTableNames() []string {
 		"noisy_processes_bb",
 	}
 
-	return append(tables, openTables...)
+	tables = append(tables, openTables...)
+	tables = append(tables, unlinkTables...)
+
+	return tables
 }
 
 // Table returns either an eprobe Table or a LRU based eprobe Table
@@ -545,7 +525,7 @@ func (p *Probe) GetEventsStats() EventsStats {
 }
 
 func (p *Probe) handleLostEvents(count uint64) {
-	log.Warnf("Lost %d events\n", count)
+	log.Warnf("lost %d events\n", count)
 	p.eventsStats.CountLost(int64(count))
 }
 
@@ -558,14 +538,14 @@ func (p *Probe) handleEvent(data []byte) {
 
 	read, err := event.Event.UnmarshalBinary(data)
 	if err != nil {
-		log.Errorf("failed to decode event")
+		log.Errorf("failed to decode event: %s", err)
 		return
 	}
 	offset += read
 
 	read, err = event.Process.UnmarshalBinary(data[offset:])
 	if err != nil {
-		log.Errorf("failed to decode process event")
+		log.Errorf("failed to decode process event: %s", err)
 		return
 	}
 	offset += read
@@ -639,7 +619,7 @@ func (p *Probe) handleEvent(data []byte) {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
 		}
 	default:
-		log.Errorf("Unsupported event type %d\n", eventType)
+		log.Errorf("unsupported event type %d", eventType)
 		return
 	}
 
@@ -650,7 +630,12 @@ func (p *Probe) handleEvent(data []byte) {
 }
 
 // OnNewDiscarder is called when a new discarder is found
-func (p *Probe) OnNewDiscarder(event *Event, field eval.Field) error {
+func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field) error {
+	// discarders disabled
+	if !p.config.EnableDiscarders {
+		return nil
+	}
+
 	log.Debugf("New discarder event %+v for field %s\n", event, field)
 
 	eventType, err := event.GetFieldEventType(field)
@@ -669,7 +654,7 @@ func (p *Probe) OnNewDiscarder(event *Event, field eval.Field) error {
 			Value: value,
 		}
 
-		if err = fnc(p, discarder); err != nil {
+		if err = fnc(rs, event, p, discarder); err != nil {
 			return err
 		}
 	}
@@ -686,6 +671,14 @@ type Applier interface {
 
 func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleSet, eventType eval.EventType, capabilities Capabilities, applier Applier) error {
 	if !p.enableFilters {
+		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeNoFilter, math.MaxUint8); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// if approver disabled
+	if !p.config.EnableApprovers {
 		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8); err != nil {
 			return err
 		}
@@ -840,4 +833,5 @@ func init() {
 	allHookPoints = append(allHookPoints, openHookPoints...)
 	allHookPoints = append(allHookPoints, mountHookPoints...)
 	allHookPoints = append(allHookPoints, execHookPoints...)
+	allHookPoints = append(allHookPoints, UnlinkHookPoints...)
 }

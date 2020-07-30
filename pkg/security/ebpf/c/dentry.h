@@ -6,6 +6,8 @@
 #include <linux/mount.h>
 #include <linux/fs.h>
 
+#include "filters.h"
+
 #define DENTRY_MAX_DEPTH 16
 
 struct path_key_t {
@@ -61,7 +63,7 @@ int __attribute__((always_inline)) get_inode_mount_id(struct inode *dir) {
     struct list_head s_mounts;
     bpf_probe_read(&s_mounts, sizeof(s_mounts), &spb->s_mounts);
 
-    bpf_probe_read(&mount_id, sizeof(int), (void *) s_mounts.next + 172);
+    bpf_probe_read(&mount_id, sizeof(int), (void *)s_mounts.next + 172);
     // bpf_probe_read(&mount_id, sizeof(int), &((struct mount *) s_mounts.next)->mnt_id);
 
     return mount_id;
@@ -155,7 +157,7 @@ struct dentry * __attribute__((always_inline)) get_inode_mountpoint(struct inode
     bpf_probe_read(&s_mounts, sizeof(s_mounts), &spb->s_mounts);
 
     // bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *) s_mounts.next - offsetof(struct mount, mnt_instance) + offsetof(struct mount, mnt_mountpoint));
-    bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *) s_mounts.next - 88);
+    bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *)s_mounts.next - 88);
 
     return mountpoint;
 }
@@ -208,7 +210,7 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 
 #define get_key(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 
-static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key) {
+static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, struct bpf_map_def *discarders_table) {
     struct path_leaf_t map_value = {};
     struct path_key_t next_key = key;
     struct qstr qstr;
@@ -225,8 +227,16 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
             next_key.ino = get_dentry_ino(d_parent);
         }
 
+        // discard filename and its parent only in order to limit the number of lookup
+        if (discarders_table && i < 2) {
+            struct filter_t *filter = bpf_map_lookup_elem(discarders_table, &key);
+            if (filter) {
+                return -1;
+            }
+        }
+
         bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
-        bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void*) qstr.name);
+        bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
             next_key.ino = 0;

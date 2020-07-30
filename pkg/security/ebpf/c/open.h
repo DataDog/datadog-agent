@@ -24,15 +24,6 @@ struct bpf_map_def SEC("maps/open_basename_approvers") open_basename_approvers =
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/open_basename_discarders") open_basename_discarders = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = BASENAME_FILTER_SIZE,
-    .value_size = sizeof(struct filter_t),
-    .max_entries = 256,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),
@@ -56,6 +47,15 @@ struct bpf_map_def SEC("maps/open_process_inode_approvers") open_process_inode_a
     .key_size = sizeof(u64),
     .value_size = sizeof(struct filter_t),
     .max_entries = 256,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discarders = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct path_key_t),
+    .value_size = sizeof(struct filter_t),
+    .max_entries = 512,
     .pinning = 0,
     .namespace = "",
 };
@@ -134,20 +134,6 @@ int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *s
     return 0;
 }
 
-int __attribute__((always_inline)) discard_by_basename(struct syscall_cache_t *syscall) {
-    struct open_basename_t basename = {};
-    get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
-
-    struct filter_t *filter = bpf_map_lookup_elem(&open_basename_discarders, &basename);
-    if (filter) {
-#ifdef DEBUG
-        printk("kprobe/vfs_open %s discarded\n", basename.value);
-#endif
-        return 1;
-    }
-    return 0;
-}
-
 int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
@@ -190,6 +176,9 @@ int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, st
     syscall->open.dentry = get_path_dentry(syscall->open.dir);
     syscall->open.path_key = get_key(syscall->open.dentry, syscall->open.dir);
 
+    if (syscall->policy.mode == NO_FILTER)
+        goto no_filter;
+
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 
     if (syscall->policy.mode == DENY) {
@@ -205,10 +194,6 @@ int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, st
            pass_to_userspace = approve_by_flags(syscall);
         }
     } else {
-        if ((syscall->policy.flags & BASENAME) > 0) {
-            pass_to_userspace = !discard_by_basename(syscall);
-        }
-
         if (pass_to_userspace && ((syscall->policy.flags & FLAGS))) {
             pass_to_userspace = !discard_by_flags(syscall);
         }
@@ -217,6 +202,8 @@ int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, st
     if (!pass_to_userspace) {
         pop_syscall();
     }
+
+no_filter:
 
     return 0;
 }
@@ -258,7 +245,15 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->open.dentry, syscall->open.path_key);
+
+    struct bpf_map_def *discarders = &open_path_inode_discarders;
+    if (syscall->policy.mode == NO_FILTER)
+        discarders = NULL;
+
+    retval = resolve_dentry(syscall->open.dentry, syscall->open.path_key, discarders);
+    if (retval < 0) {
+        return 0;
+    }
 
     send_event(ctx, event);
 

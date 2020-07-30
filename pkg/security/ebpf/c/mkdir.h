@@ -82,7 +82,7 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key);
+    resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, NULL);
 
     send_event(ctx, event);
 

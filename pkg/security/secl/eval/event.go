@@ -5,7 +5,10 @@
 
 package eval
 
-import "reflect"
+import (
+	"reflect"
+	"unsafe"
+)
 
 // EventType - Type of an event
 type EventType = string
@@ -24,12 +27,14 @@ type Event interface {
 	GetFieldValue(field Field) (interface{}, error)
 	// GetFieldType - Returns the Type of the Field
 	GetFieldType(field Field) (reflect.Kind, error)
+	// GetPointer() - Returns an unsafe.Pointer of this object
+	GetPointer() unsafe.Pointer
 }
 
-func eventFromFields(model Model, state *state) ([]EventType, error) {
+func eventTypesFromFields(model Model, state *state) ([]EventType, error) {
 	events := make(map[EventType]bool)
 	for field := range state.fieldValues {
-		eventType, err := model.GetEvent().GetFieldEventType(field)
+		eventType, err := model.NewEvent().GetFieldEventType(field)
 		if err != nil {
 			return nil, err
 		}
