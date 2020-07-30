@@ -251,23 +251,25 @@ func Test_isMatching(t *testing.T) {
 	}
 }
 
-func TestKSMCheck_joinLabels(t *testing.T) {
+func TestKSMCheck_prepareTags(t *testing.T) {
 	type args struct {
 		labels       map[string]string
 		metricsToGet []ksmstore.DDMetricsFam
 	}
 	tests := []struct {
-		name       string
-		labelJoins map[string]*JoinsConfig
-		args       args
-		wantTags   []string
+		name     string
+		config   *KSMConfig
+		args     args
+		wantTags []string
 	}{
 		{
 			name: "join labels, multiple match",
-			labelJoins: map[string]*JoinsConfig{
-				"foo": {
-					LabelsToMatch: []string{"foo_label", "bar_label"},
-					LabelsToGet:   []string{"baz_label"},
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label", "bar_label"},
+						LabelsToGet:   []string{"baz_label"},
+					},
 				},
 			},
 			args: args{
@@ -283,10 +285,12 @@ func TestKSMCheck_joinLabels(t *testing.T) {
 		},
 		{
 			name: "join labels, multiple get",
-			labelJoins: map[string]*JoinsConfig{
-				"foo": {
-					LabelsToMatch: []string{"foo_label"},
-					LabelsToGet:   []string{"bar_label", "baz_label"},
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"bar_label", "baz_label"},
+					},
 				},
 			},
 			args: args{
@@ -302,10 +306,12 @@ func TestKSMCheck_joinLabels(t *testing.T) {
 		},
 		{
 			name: "no label match",
-			labelJoins: map[string]*JoinsConfig{
-				"foo": {
-					LabelsToMatch: []string{"foo_label"},
-					LabelsToGet:   []string{"bar_label"},
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"bar_label"},
+					},
 				},
 			},
 			args: args{
@@ -321,10 +327,12 @@ func TestKSMCheck_joinLabels(t *testing.T) {
 		},
 		{
 			name: "no metric name match",
-			labelJoins: map[string]*JoinsConfig{
-				"foo": {
-					LabelsToMatch: []string{"foo_label"},
-					LabelsToGet:   []string{"bar_label"},
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"bar_label"},
+					},
 				},
 			},
 			args: args{
@@ -340,14 +348,16 @@ func TestKSMCheck_joinLabels(t *testing.T) {
 		},
 		{
 			name: "join labels, multiple metric match",
-			labelJoins: map[string]*JoinsConfig{
-				"foo": {
-					LabelsToMatch: []string{"foo_label", "bar_label"},
-					LabelsToGet:   []string{"baz_label"},
-				},
-				"bar": {
-					LabelsToMatch: []string{"bar_label"},
-					LabelsToGet:   []string{"baf_label"},
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label", "bar_label"},
+						LabelsToGet:   []string{"baz_label"},
+					},
+					"bar": {
+						LabelsToMatch: []string{"bar_label"},
+						LabelsToGet:   []string{"baf_label"},
+					},
 				},
 			},
 			args: args{
@@ -367,10 +377,12 @@ func TestKSMCheck_joinLabels(t *testing.T) {
 		},
 		{
 			name: "join all labels",
-			labelJoins: map[string]*JoinsConfig{
-				"foo": {
-					LabelsToMatch: []string{"foo_label"},
-					GetAllLabels:  true,
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						GetAllLabels:  true,
+					},
 				},
 			},
 			args: args{
@@ -384,11 +396,21 @@ func TestKSMCheck_joinLabels(t *testing.T) {
 			},
 			wantTags: []string{"foo_label:foo_value", "foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
 		},
+		{
+			name: "add check instance tags",
+			config: &KSMConfig{
+				Tags: []string{"instance:tag"},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+			},
+			wantTags: []string{"foo_label:foo_value", "instance:tag"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{LabelJoins: tt.labelJoins})
-			assert.ElementsMatch(t, tt.wantTags, kubeStateMetricsSCheck.joinLabels(tt.args.labels, tt.args.metricsToGet))
+			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
+			assert.ElementsMatch(t, tt.wantTags, kubeStateMetricsSCheck.prepareTags(tt.args.labels, tt.args.metricsToGet))
 		})
 	}
 }
