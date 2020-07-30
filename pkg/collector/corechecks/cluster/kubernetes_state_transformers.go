@@ -29,9 +29,9 @@ var (
 	// TODO: implement the metric transformers of these metrics and unit test them
 	// For reference see METRIC_TRANSFORMERS in KSM check V1
 	metricTransformers = map[string]metricTransformerFunc{
-		"kube_pod_status_phase":                       func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
-		"kube_pod_container_status_waiting_reason":    func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
-		"kube_pod_container_status_terminated_reason": func(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {},
+		"kube_pod_status_phase":                       podPhaseTransformer,
+		"kube_pod_container_status_waiting_reason":    containerWaitingReasonTransformer,
+		"kube_pod_container_status_terminated_reason": containerTerminatedReasonTransformer,
 		"kube_cronjob_next_schedule_time":             cronJobNextScheduleTransformer,
 		"kube_job_complete":                           jobCompleteTransformer,
 		"kube_job_failed":                             jobFailedTransformer,
@@ -45,6 +45,44 @@ var (
 		"kube_service_spec_type":                      serviceTypeTransformer,
 	}
 )
+
+// podPhaseTransformer sends status phase metrics for pods, the tag phase has the pod status
+func podPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
+	submitActiveMetric(s, ksmMetricPrefix+"pod.status_phase", metric, tags)
+}
+
+var allowedWaitingReasons = map[string]struct{}{
+	"errimagepull":      {},
+	"imagepullbackoff":  {},
+	"crashloopbackoff":  {},
+	"containercreating": {},
+}
+
+// containerWaitingReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_waiting_reason
+func containerWaitingReasonTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
+	if reason, found := metric.Labels["reason"]; found {
+		// Filtering according to the reason here is paramount to limit cardinality
+		if _, allowed := allowedWaitingReasons[strings.ToLower(reason)]; allowed {
+			s.Gauge(ksmMetricPrefix+"container.status_report.count.waiting", metric.Val, "", tags)
+		}
+	}
+}
+
+var allowedTerminatedReasons = map[string]struct{}{
+	"oomkilled":          {},
+	"containercannotrun": {},
+	"error":              {},
+}
+
+// containerTerminatedReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_terminated_reason
+func containerTerminatedReasonTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, tags []string) {
+	if reason, found := metric.Labels["reason"]; found {
+		// Filtering according to the reason here is paramount to limit cardinality
+		if _, allowed := allowedTerminatedReasons[strings.ToLower(reason)]; allowed {
+			s.Gauge(ksmMetricPrefix+"container.status_report.count.terminated", metric.Val, "", tags)
+		}
+	}
+}
 
 // now allows testing
 var now = time.Now

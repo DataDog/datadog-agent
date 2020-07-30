@@ -35,7 +35,7 @@ func TestExtract(t *testing.T) {
 			Name: metricName,
 			Metrics: []*metric.Metric{
 				{
-					LabelKeys:   []string{"uid", "node"},
+					LabelKeys:   []string{"node"},
 					LabelValues: []string{string(o.GetUID()), o.GetName()},
 					Value:       float64(o.GetCreationTimestamp().Unix()),
 				},
@@ -68,7 +68,6 @@ func TestExtract(t *testing.T) {
 			assert.Equal(t, storeName, metricFam.Type)
 			for _, metric := range metricFam.ListMetrics {
 				assert.Equal(t, idsToAdd[string(uid)], metric.Labels["node"])
-				assert.Equal(t, string(uid), metric.Labels["uid"])
 			}
 		}
 
@@ -155,7 +154,6 @@ func TestPush(t *testing.T) {
 								Val: 1,
 								Labels: map[string]string{
 									"foo": "bar",
-									"uid": "123",
 								},
 							},
 						},
@@ -214,7 +212,6 @@ func TestPush(t *testing.T) {
 								Val: 1,
 								Labels: map[string]string{
 									"foo": "bar",
-									"uid": "123",
 								},
 							},
 						},
@@ -229,14 +226,12 @@ func TestPush(t *testing.T) {
 								Val: 1,
 								Labels: map[string]string{
 									"bar": "baz",
-									"uid": "456",
 								},
 							},
 							{
 								Val: 2,
 								Labels: map[string]string{
 									"cafe": "ole",
-									"uid":  "456",
 								},
 							},
 						},
@@ -284,7 +279,6 @@ func TestPush(t *testing.T) {
 								Val: 1,
 								Labels: map[string]string{
 									"foo": "bar",
-									"uid": "uid-1",
 								},
 							},
 						},
@@ -332,7 +326,6 @@ func TestPush(t *testing.T) {
 								Val: 1,
 								Labels: map[string]string{
 									"foo": "bar",
-									"uid": "uid-1",
 								},
 							},
 						},
@@ -387,7 +380,6 @@ func TestPush(t *testing.T) {
 								Val: 1,
 								Labels: map[string]string{
 									"foo": "bar",
-									"uid": "uid-1",
 								},
 							},
 						},
