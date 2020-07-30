@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -82,6 +83,36 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	}
 }
 
+// reportedEndpointVersions is a list of versions that are advertised
+// by the trace-agent as valid for sending traces to.
+var reportedEndpointVersions = []Version{
+	v04,
+	v05,
+}
+
+// serveFeatures returns an HTTP handler which serves the features supported
+// by the agent in JSON.
+func serveFeatures() http.HandlerFunc {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(struct {
+		Endpoints    []Version `json:"endpoints"`
+		Version      string    `json:"version"`
+		FeatureFlags string    `json:"feature_flags"`
+	}{
+		Endpoints:    reportedEndpointVersions,
+		Version:      info.Version,
+		FeatureFlags: os.Getenv("DD_APM_FEATURES"),
+	}); err != nil {
+		log.Errorf("Failed to encode features, endpoint will be unusable: %v", err)
+	}
+	data := buf.Bytes()
+	return func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(200)
+		w.Write(data)
+	}
+
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	mux := http.NewServeMux()
@@ -94,12 +125,23 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
 	mux.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
 	mux.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
-	mux.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
-	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
-	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
-	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
-	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
+	mux.HandleFunc("/v0.3/traces", r.handleWithVersion(v02, r.handleTraces))
+	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v02, r.handleServices))
+
+	for _, v := range reportedEndpointVersions {
+		switch v {
+		case v04:
+			p := fmt.Sprintf("/%s/services", v)
+			mux.HandleFunc(p, r.handleWithVersion(v, r.handleServices))
+			fallthrough
+		default:
+			p := fmt.Sprintf("/%s/traces", v)
+			mux.HandleFunc(p, r.handleWithVersion(v, r.handleTraces))
+		}
+	}
+
 	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
+	mux.HandleFunc("/features", serveFeatures())
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
