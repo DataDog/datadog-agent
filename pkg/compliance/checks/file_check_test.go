@@ -215,6 +215,25 @@ func TestFileCheck(t *testing.T) {
 				assert.NotEmpty(t, report.data["file.group"])
 			},
 		},
+		{
+			name: "regexp",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/proc/mounts",
+				},
+				Condition: `file.regexp("[a-zA-Z0-9-_/]+ /boot/efi [a-zA-Z0-9-_/]+") != ""`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/mounts")
+				env.On("RelativeToHostRoot", "./testdata/file/mounts").Return(file.Path)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *report) {
+				assert.True(t, report.passed)
+				assert.Equal(t, "/proc/mounts", report.data["file.path"])
+				assert.NotEmpty(t, report.data["file.user"])
+				assert.NotEmpty(t, report.data["file.group"])
+			},
+		},
 	}
 
 	for _, test := range tests {
