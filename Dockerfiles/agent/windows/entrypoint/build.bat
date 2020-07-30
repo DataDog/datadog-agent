@@ -17,7 +17,7 @@ xcopy /e/s/h/q c:\mnt\Dockerfiles\agent\windows\entrypoint || exit /b 3
 
 call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
 msbuild /p:Configuration=Release /p:Platform=%TARGET_ARCH% || exit /b 4
-xcopy \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint\%TARGET_ARCH%\Release\entrypoint.exe %PKG_OUTDIR%  || exit /b 5
+xcopy \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint\%TARGET_ARCH%\Release\entrypoint.exe %PKG_OUTDIR%\  || exit /b 5
 
 goto :EOF
 
