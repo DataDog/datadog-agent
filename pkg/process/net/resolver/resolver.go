@@ -22,7 +22,7 @@ type LocalResolver struct {
 
 type addrWithNS struct {
 	model.ContainerAddr
-	ns uint32
+	netns uint32
 }
 
 // LoadAddrs generates a map of network addresses to container IDs
@@ -58,9 +58,8 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 	l.mux.RLock()
 	defer l.mux.RUnlock()
 
-	// hashes used for loopback resolution
-	ctrsByLaddr := make(map[model.ContainerAddr]string)
-	ctrsByLoopback := make(map[addrWithNS]string)
+	// hash used for loopback resolution
+	ctrsByLaddr := make(map[addrWithNS]string)
 
 	for _, conn := range c.Conns {
 		raddr := conn.Raddr
@@ -93,14 +92,13 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			Protocol: conn.Type,
 		}
 
-		if ip.IsLoopback() {
-			ctrsByLoopback[addrWithNS{claddr, conn.NetNS}] = cid
-		} else {
-			ctrsByLaddr[claddr] = cid
+		netns := conn.NetNS
+		if !ip.IsLoopback() {
+			netns = 0
 		}
+		ctrsByLaddr[addrWithNS{claddr, netns}] = cid
 	}
 
-	log.Tracef("ctrsByLoopback = %v", ctrsByLoopback)
 	log.Tracef("ctrsByLaddr = %v", ctrsByLaddr)
 
 	// go over connections again using hashes computed earlier to resolver raddr
@@ -123,16 +121,14 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 
 		var ok bool
 		var cid string
-		if ip.IsLoopback() {
-			cid, ok = ctrsByLoopback[addrWithNS{raddr, conn.NetNS}]
-			log.Tracef("resolved loopback raddr %v to %s", raddr, cid)
-		} else {
-			cid, ok = ctrsByLaddr[raddr]
-			log.Tracef("resolved non-loopback raddr %v to %s", raddr, cid)
+		netns := conn.NetNS
+		if !ip.IsLoopback() {
+			netns = 0
 		}
 
-		if ok {
+		if cid, ok = ctrsByLaddr[addrWithNS{raddr, netns}]; ok {
 			conn.Raddr.ContainerId = cid
+			log.Tracef("resolved loopback raddr %v to %s", raddr, cid)
 		}
 
 		if conn.Raddr.ContainerId == "" {
