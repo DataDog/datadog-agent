@@ -59,7 +59,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 	defer l.mux.RUnlock()
 
 	// hash used for loopback resolution
-	ctrsByLaddr := make(map[addrWithNS]string)
+	ctrsByLaddr := make(map[addrWithNS]string, len(c.Conns))
 
 	for _, conn := range c.Conns {
 		raddr := conn.Raddr
