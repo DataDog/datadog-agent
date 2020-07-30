@@ -110,9 +110,9 @@ func extractService(s *corev1.Service) *model.Service {
 
 		for _, ingress := range s.Status.LoadBalancer.Ingress {
 			if ingress.Hostname != "" {
-				message.Status.Ingress = append(message.Status.Ingress, ingress.Hostname)
+				message.Status.LoadBalancerIngress = append(message.Status.LoadBalancerIngress, ingress.Hostname)
 			} else if ingress.IP != "" {
-				message.Status.Ingress = append(message.Status.Ingress, ingress.IP)
+				message.Status.LoadBalancerIngress = append(message.Status.LoadBalancerIngress, ingress.IP)
 			}
 		}
 	}

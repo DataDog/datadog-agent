@@ -121,7 +121,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorReplicaSet{
 			ClusterName: clusterName,
-			Replicasets: chunked[i],
+			ReplicaSets: chunked[i],
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
