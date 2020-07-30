@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -34,10 +35,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 )
-
-type mockSamplerEngine struct {
-	engine sampler.Engine
-}
 
 func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
 	return &Sampler{engine: testutil.NewMockEngine(wantSampled, wantRate)}
@@ -89,15 +86,17 @@ func TestProcess(t *testing.T) {
 
 		now := time.Now()
 		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
 			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
-		agnt.Process(&api.Trace{
-			Spans:  pb.Trace{span},
-			Source: &info.Tags{},
-		})
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{span}},
+			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+		}, stats.NewSublayerCalculator())
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -114,34 +113,38 @@ func TestProcess(t *testing.T) {
 
 		now := time.Now()
 		spanValid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
 			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 		spanInvalid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
 			Resource: "INSERT INTO db VALUES (1, 2, 3)",
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 
-		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		assert := assert.New(t)
 
-		agnt.Process(&api.Trace{
-			Spans:  pb.Trace{spanValid},
-			Source: &info.Tags{},
-		})
-		assert.EqualValues(0, stats.TracesFiltered)
-		assert.EqualValues(0, stats.SpansFiltered)
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{spanValid}},
+			Source: want,
+		}, stats.NewSublayerCalculator())
+		assert.EqualValues(0, want.TracesFiltered)
+		assert.EqualValues(0, want.SpansFiltered)
 
-		agnt.Process(&api.Trace{
-			Spans:  pb.Trace{spanInvalid, spanInvalid},
-			Source: &info.Tags{},
-		})
-		assert.EqualValues(1, stats.TracesFiltered)
-		assert.EqualValues(2, stats.SpansFiltered)
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{spanInvalid, spanInvalid}},
+			Source: want,
+		}, stats.NewSublayerCalculator())
+		assert.EqualValues(1, want.TracesFiltered)
+		assert.EqualValues(2, want.SpansFiltered)
 	})
 
 	t.Run("ContainerTags", func(t *testing.T) {
@@ -152,17 +155,19 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
 			Resource: "INSERT INTO db VALUES (1, 2, 3)",
 			Type:     "sql",
 			Start:    time.Now().Unix(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}
 
-		agnt.Process(&api.Trace{
-			Spans:         pb.Trace{span},
-			Source:        &info.Tags{},
+		agnt.Process(&api.Payload{
+			Traces:        pb.Traces{{span}},
+			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 			ContainerTags: "A:B,C",
-		})
+		}, stats.NewSublayerCalculator())
 
 		assert.Equal(t, "A:B,C", span.Meta[tagContainersTags])
 	})
@@ -174,6 +179,7 @@ func TestProcess(t *testing.T) {
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
 
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
 		now := time.Now()
 		for _, key := range []sampler.SamplingPriority{
 			sampler.PriorityNone,
@@ -193,6 +199,8 @@ func TestProcess(t *testing.T) {
 			sampler.PriorityUserKeep,
 		} {
 			span := &pb.Span{
+				TraceID:  1,
+				SpanID:   1,
 				Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
 				Type:     "sql",
 				Start:    now.Add(-time.Second).UnixNano(),
@@ -202,18 +210,91 @@ func TestProcess(t *testing.T) {
 			if key != sampler.PriorityNone {
 				sampler.SetSamplingPriority(span, key)
 			}
-			agnt.Process(&api.Trace{
-				Spans:  pb.Trace{span},
-				Source: &info.Tags{},
-			})
+			agnt.Process(&api.Payload{
+				Traces: pb.Traces{{span}},
+				Source: want,
+			}, stats.NewSublayerCalculator())
 		}
 
-		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
-		assert.EqualValues(t, 1, stats.TracesPriorityNone)
-		assert.EqualValues(t, 2, stats.TracesPriorityNeg)
-		assert.EqualValues(t, 3, stats.TracesPriority0)
-		assert.EqualValues(t, 4, stats.TracesPriority1)
-		assert.EqualValues(t, 5, stats.TracesPriority2)
+		assert.EqualValues(t, 1, want.TracesPriorityNone)
+		assert.EqualValues(t, 2, want.TracesPriorityNeg)
+		assert.EqualValues(t, 3, want.TracesPriority0)
+		assert.EqualValues(t, 4, want.TracesPriority1)
+		assert.EqualValues(t, 5, want.TracesPriority2)
+	})
+
+	t.Run("normalizing", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		traces := pb.Traces{{{
+			Service:  "something &&<@# that should be a metric!",
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+		}}}
+		go agnt.Process(&api.Payload{
+			Traces: traces,
+			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		}, stats.NewSublayerCalculator())
+		timeout := time.After(2 * time.Second)
+		var span *pb.Span
+		select {
+		case ss := <-agnt.Out:
+			span = ss.Traces[0].Spans[0]
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+		assert.Equal(t, "unnamed_operation", span.Name)
+		assert.Equal(t, "something_that_should_be_a_metric", span.Service)
+	})
+
+	t.Run("chunking", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+
+		payloadN := 2
+		trace := pb.Trace{{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+		}}
+		var traces pb.Traces
+		for size := 0; size < writer.MaxPayloadSize*payloadN; size += trace.Msgsize() {
+			traces = append(traces, trace)
+		}
+		go agnt.Process(&api.Payload{
+			Traces: traces,
+			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		}, stats.NewSublayerCalculator())
+
+		var gotCount int
+		timeout := time.After(3 * time.Second)
+		// expect multiple payloads
+		for i := 0; i < payloadN+2; i++ {
+			select {
+			case ss := <-agnt.Out:
+				gotCount += int(ss.SpanCount)
+			case <-timeout:
+				t.Fatal("timed out")
+			}
+		}
+		// without missing a trace
+		assert.Equal(t, gotCount, len(traces))
 	})
 }
 
@@ -233,80 +314,80 @@ func TestSampling(t *testing.T) {
 		wantRate    float64
 		wantSampled bool
 	}{
-		"score only rate": {
+		"score-rate": {
 			scoreRate: 0.5,
 			wantRate:  0.5,
 		},
-		"error and priority rate": {
+		"error-priority": {
 			hasErrors:      true,
 			hasPriority:    true,
 			scoreErrorRate: 0.8,
 			priorityRate:   0.2,
 			wantRate:       sampler.CombineRates(0.8, 0.2),
 		},
-		"score not sampled decision": {
+		"score-unsampled": {
 			scoreSampled: false,
 			wantSampled:  false,
 		},
-		"score sampled decision": {
+		"score-sampled": {
 			scoreSampled: true,
 			wantSampled:  true,
 		},
-		"priority not sampled": {
+		"prio-unsampled": {
 			hasPriority:     true,
 			scoreSampled:    true,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
-		"priority sampled": {
+		"prio-sampled": {
 			hasPriority:     true,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score sampled priority sampled": {
+		"score-prio-sampled": {
 			hasPriority:     true,
 			scoreSampled:    true,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score and priority not sampled": {
+		"score-prio-unsampled": {
 			hasPriority:     true,
 			scoreSampled:    false,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
-		"error not sampled decision": {
+		"error-unsampled": {
 			hasErrors:         true,
 			scoreErrorSampled: false,
 			wantSampled:       false,
 		},
-		"error sampled decision": {
+		"error-sampled": {
 			hasErrors:         true,
 			scoreErrorSampled: true,
 			wantSampled:       true,
 		},
-		"error sampled priority not sampled": {
+		"error-sampled-prio-unsampled": {
 			hasErrors:         true,
 			hasPriority:       true,
 			scoreErrorSampled: true,
 			prioritySampled:   false,
 			wantSampled:       true,
 		},
-		"error not sampled priority sampled": {
+		"error-unsampled-prio-sampled": {
 			hasErrors:         true,
 			hasPriority:       true,
 			scoreErrorSampled: false,
 			prioritySampled:   true,
 			wantSampled:       true,
 		},
-		"error sampled priority sampled": {
+		"error-prio-sampled": {
 			hasErrors:         true,
 			hasPriority:       true,
 			scoreErrorSampled: true,
 			prioritySampled:   true,
 			wantSampled:       true,
 		},
-		"error and priority not sampled": {
+		"error-prio-unsampled": {
 			hasErrors:         true,
 			hasPriority:       true,
 			scoreErrorSampled: false,
@@ -529,10 +610,10 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ta.Process(&api.Trace{
-			Spans:  testutil.RandomTrace(10, 8),
-			Source: &info.Tags{},
-		})
+		ta.Process(&api.Payload{
+			Traces: pb.Traces{testutil.RandomTrace(10, 8)},
+			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+		}, stats.NewSublayerCalculator())
 	}
 }
 

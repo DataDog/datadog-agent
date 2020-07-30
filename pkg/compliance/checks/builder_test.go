@@ -8,29 +8,32 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/DataDog/gopsutil/process"
-	"github.com/stretchr/testify/assert"
+
+	assert "github.com/stretchr/testify/require"
 )
 
 func TestKubernetesNodeEligible(t *testing.T) {
 	tests := []struct {
-		selector       *compliance.HostSelector
+		name           string
+		selector       string
 		labels         map[string]string
 		expectEligible bool
+		expectError    error
 	}{
 		{
-			selector:       nil,
+			name:           "empty selector",
+			selector:       "",
 			expectEligible: true,
 		},
 		{
-			selector: &compliance.HostSelector{
-				KubernetesNodeRole: "master",
-			},
+			name:     "role only",
+			selector: `node.label("kubernetes.io/role") in ["master"]`,
 			labels: map[string]string{
 				"node-role.kubernetes.io/master": "",
 				"foo":                            "bar",
@@ -38,15 +41,8 @@ func TestKubernetesNodeEligible(t *testing.T) {
 			expectEligible: true,
 		},
 		{
-			selector: &compliance.HostSelector{
-				KubernetesNodeRole: "master",
-				KubernetesNodeLabels: []compliance.KubeNodeSelector{
-					{
-						Label: "foo",
-						Value: "bar",
-					},
-				},
-			},
+			name:     "role and another label",
+			selector: `node.label("kubernetes.io/role") == "master" && node.label("foo") == "bar"`,
 			labels: map[string]string{
 				"node-role.kubernetes.io/master": "",
 				"foo":                            "bar",
@@ -54,26 +50,60 @@ func TestKubernetesNodeEligible(t *testing.T) {
 			expectEligible: true,
 		},
 		{
-			selector: &compliance.HostSelector{
-				KubernetesNodeRole: "master",
-				KubernetesNodeLabels: []compliance.KubeNodeSelector{
-					{
-						Label: "foo",
-						Value: "bar",
-					},
-				},
-			},
+			name:     "role and missing label",
+			selector: `node.label("kubernetes.io/role") == "master" && node.label("foo") == "bar"`,
 			labels: map[string]string{
 				"node-role.kubernetes.io/master": "",
 				"foo":                            "bazbar",
 			},
 			expectEligible: false,
 		},
+		{
+			name:     "role and label name",
+			selector: `node.label("kubernetes.io/role") == "master" && "foo" in node.labels`,
+			labels: map[string]string{
+				"node-role.kubernetes.io/master": "",
+				"foo":                            "bazbar",
+			},
+			expectEligible: true,
+		},
+		{
+			name:     "not boolean",
+			selector: `node.label("kubernetes.io/role")`,
+			labels: map[string]string{
+				"node-role.kubernetes.io/master": "",
+				"foo":                            "bazbar",
+			},
+			expectEligible: false,
+			expectError:    errors.New(`hostSelector "node.label(\"kubernetes.io/role\")" does not evaluate to a boolean value`),
+		},
+		{
+			name:     "bad expression",
+			selector: `¯\_(ツ)_/¯`,
+			labels: map[string]string{
+				"node-role.kubernetes.io/master": "",
+				"foo":                            "bazbar",
+			},
+			expectEligible: false,
+			expectError:    errors.New(`1:1: no match found for ¯`),
+		},
+		{
+			name:           "nil labels",
+			selector:       `node.label("kubernetes.io/role") != "master" && "foo" in node.labels`,
+			expectEligible: false,
+		},
 	}
 
 	for _, tt := range tests {
-		builder := builder{}
-		assert.Equal(t, tt.expectEligible, builder.isKubernetesNodeEligible(tt.selector, tt.labels))
+		t.Run(tt.name, func(t *testing.T) {
+			builder := &builder{}
+			WithNodeLabels(tt.labels)(builder)
+			eligible, err := builder.isKubernetesNodeEligible(tt.selector)
+			assert.Equal(t, tt.expectEligible, eligible)
+			if tt.expectError != nil {
+				assert.EqualError(t, err, tt.expectError.Error())
+			}
+		})
 	}
 }
 
@@ -81,26 +111,15 @@ func TestResolveValueFrom(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
-		name          string
-		valueFrom     compliance.ValueFrom
-		setup         func(t *testing.T)
-		expectedValue string
-		expectedError error
+		name        string
+		expression  string
+		setup       func(t *testing.T)
+		expectValue string
+		expectError error
 	}{
 		{
-			name: "from shell command",
-			valueFrom: compliance.ValueFrom{
-				{
-					Command: &compliance.ValueFromCommand{
-						ShellCmd: &compliance.ShellCmd{
-							Run: "cat /home/root/hiya-buddy.txt",
-							Shell: &compliance.BinaryCmd{
-								Name: "/bin/bash",
-							},
-						},
-					},
-				},
-			},
+			name:       "from shell command",
+			expression: `shell("cat /home/root/hiya-buddy.txt", "/bin/bash")`,
 			setup: func(t *testing.T) {
 				commandRunner = func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
 					assert.Equal("/bin/bash", name)
@@ -108,22 +127,11 @@ func TestResolveValueFrom(t *testing.T) {
 					return 0, []byte("hiya buddy"), nil
 				}
 			},
-			expectedValue: "hiya buddy",
+			expectValue: "hiya buddy",
 		},
 		{
-			name: "from binary command",
-			valueFrom: compliance.ValueFrom{
-				{
-					Command: &compliance.ValueFromCommand{
-						BinaryCmd: &compliance.BinaryCmd{
-							Name: "/bin/buddy",
-							Args: []string{
-								"/home/root/hiya-buddy.txt",
-							},
-						},
-					},
-				},
-			},
+			name:       "from binary command",
+			expression: `exec("/bin/buddy", "/home/root/hiya-buddy.txt")`,
 			setup: func(t *testing.T) {
 				commandRunner = func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
 					assert.Equal("/bin/buddy", name)
@@ -131,21 +139,14 @@ func TestResolveValueFrom(t *testing.T) {
 					return 0, []byte("hiya buddy"), nil
 				}
 			},
-			expectedValue: "hiya buddy",
+			expectValue: "hiya buddy",
 		},
 		{
-			name: "from process",
-			valueFrom: compliance.ValueFrom{
-				{
-					Process: &compliance.ValueFromProcess{
-						Name: "buddy",
-						Flag: "--path",
-					},
-				},
-			},
+			name:       "from process",
+			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processFetcher = func() (map[int32]*process.FilledProcess, error) {
-					return map[int32]*process.FilledProcess{
+				processFetcher = func() (processes, error) {
+					return processes{
 						42: {
 							Name:    "buddy",
 							Cmdline: []string{"--path=/home/root/hiya-buddy.txt"},
@@ -153,40 +154,24 @@ func TestResolveValueFrom(t *testing.T) {
 					}, nil
 				}
 			},
-			expectedValue: "/home/root/hiya-buddy.txt",
+			expectValue: "/home/root/hiya-buddy.txt",
 		},
 		{
-			name: "from json file",
-			valueFrom: compliance.ValueFrom{
-				{
-					File: &compliance.ValueFromFile{
-						Path:     "./testdata/file/daemon.json",
-						Property: `.["log-driver"]`,
-						Kind:     compliance.PropertyKindJSONQuery,
-					},
-				},
-			},
-			expectedValue: "json-file",
+			name:        "from json file",
+			expression:  `json("daemon.json", ".\"log-driver\"")`,
+			expectValue: "json-file",
 		},
 		{
-			name: "from file yaml",
-			valueFrom: compliance.ValueFrom{
-				{
-					File: &compliance.ValueFromFile{
-						Path:     "./testdata/file/pod.yaml",
-						Property: `.apiVersion`,
-						Kind:     compliance.PropertyKindYAMLQuery,
-					},
-				},
-			},
-			expectedValue: "v1",
+			name:        "from file yaml",
+			expression:  `yaml("pod.yaml", ".apiVersion")`,
+			expectValue: "v1",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reporter := &mocks.Reporter{}
-			b, err := NewBuilder(reporter)
+			b, err := NewBuilder(reporter, WithHostRootMount("./testdata/file/"))
 			assert.NoError(err)
 
 			env, ok := b.(env.Env)
@@ -196,9 +181,12 @@ func TestResolveValueFrom(t *testing.T) {
 				test.setup(t)
 			}
 
-			value, err := env.ResolveValueFrom(test.valueFrom)
-			assert.Equal(test.expectedError, err)
-			assert.Equal(test.expectedValue, value)
+			expr, err := eval.ParseExpression(test.expression)
+			assert.NoError(err)
+
+			value, err := env.EvaluateFromCache(expr)
+			assert.Equal(test.expectError, err)
+			assert.Equal(test.expectValue, value)
 		})
 	}
 }

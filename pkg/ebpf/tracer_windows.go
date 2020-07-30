@@ -48,7 +48,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface()
+	di, err := network.NewDriverInterface(config.EnableMonotonicCount)
 	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}

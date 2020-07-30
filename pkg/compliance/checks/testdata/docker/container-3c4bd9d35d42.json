@@ -38,7 +38,7 @@
             "Type": "json-file",
             "Config": {}
         },
-        "NetworkMode": "default",
+        "NetworkMode": "host",
         "PortBindings": {},
         "RestartPolicy": {
             "Name": "no",
@@ -47,7 +47,7 @@
         "AutoRemove": false,
         "VolumeDriver": "",
         "VolumesFrom": null,
-        "CapAdd": null,
+        "CapAdd": ["AUDIT_CONTROL", "NET_RAW"],
         "CapDrop": null,
         "Capabilities": null,
         "Dns": [],
@@ -128,6 +128,24 @@
             "Mode": "",
             "RW": true,
             "Propagation": ""
+        },
+        {
+            "Name": "b35395de42bc8abd327f9dd65d913b9ba28c74d2f0734eeeae84fa1c616a0fca",
+            "Source": "/etc",
+            "Destination": "/etc",
+            "Driver": "local",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": ""
+        },
+        {
+            "Name": "d74508fb6632491cea586a1fd7d748dfc5274cd6fdfedee309ecdcbc2bf5cb82",
+            "Source": "/var/run/docker.sock",
+            "Destination": "/var/run/docker.sock",
+            "Driver": "local",
+            "Mode": "rw",
+            "RW": false,
+            "Propagation": ""
         }
     ],
     "Config": {
@@ -170,7 +188,8 @@
         "LinkLocalIPv6Address": "",
         "LinkLocalIPv6PrefixLen": 0,
         "Ports": {
-            "6379/tcp": null
+            "6379/tcp": null,
+            "22/tcp": null
         },
         "SandboxKey": "/var/run/docker/netns/829f1921f8d4",
         "SecondaryIPAddresses": null,

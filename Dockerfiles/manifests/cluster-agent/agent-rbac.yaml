@@ -4,7 +4,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-2.3.14"
+    chart: "datadog-2.3.40"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -95,7 +95,7 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-2.3.14"
+    chart: "datadog-2.3.40"
     release: "datadog"
     heritage: "Helm"
   name: datadog-cluster-agent:system:auth-delegator

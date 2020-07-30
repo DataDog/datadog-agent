@@ -9,45 +9,58 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+
+	assert "github.com/stretchr/testify/require"
 )
 
 func TestGroupCheck(t *testing.T) {
-	type validateFunc func(t *testing.T, kv event.Data)
-
 	tests := []struct {
 		name         string
 		etcGroupFile string
-		group        *compliance.Group
-		validate     validateFunc
+		resource     compliance.Resource
+
+		expectReport *report
+		expectError  error
 	}{
 		{
-			name:         "docker group",
+			name:         "docker group user found",
 			etcGroupFile: "./testdata/group/etc-group",
-			group: &compliance.Group{
-				Name: "docker",
-				Report: []compliance.ReportedField{
-					{
-						Property: "users",
-						Kind:     compliance.PropertyKindAttribute,
-					},
-					{
-						Property: "gid",
-						Kind:     compliance.PropertyKindAttribute,
-					},
+			resource: compliance.Resource{
+				Group: &compliance.Group{
+					Name: "docker",
+				},
+				Condition: `"carlos" in group.users`,
+			},
+
+			expectReport: &report{
+				passed: true,
+				data: event.Data{
+					"group.name":  "docker",
+					"group.id":    412,
+					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
 				},
 			},
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t,
-					event.Data{
-						"gid":   "412",
-						"users": "alice,bob,carlos,dan,eve",
-					},
-					kv,
-				)
+		},
+		{
+			name:         "docker group user not found",
+			etcGroupFile: "./testdata/group/etc-group",
+			resource: compliance.Resource{
+				Group: &compliance.Group{
+					Name: "docker",
+				},
+				Condition: `"carol" in group.users`,
+			},
+
+			expectReport: &report{
+				passed: false,
+				data: event.Data{
+					"group.name":  "docker",
+					"group.id":    412,
+					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
+				},
 			},
 		},
 	}
@@ -56,27 +69,15 @@ func TestGroupCheck(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			assert := assert.New(t)
 
-			reporter := &mocks.Reporter{}
-			defer reporter.AssertExpectations(t)
-
 			env := &mocks.Env{}
-			env.On("Reporter").Return(reporter)
 			env.On("EtcGroupPath").Return(test.etcGroupFile)
 
-			base := newTestBaseCheck(env, checkKindAudit)
-			check, err := newGroupCheck(base, test.group)
+			expr, err := eval.ParseIterable(test.resource.Condition)
 			assert.NoError(err)
 
-			reporter.On(
-				"Report",
-				mock.AnythingOfType("*event.Event"),
-			).Run(func(args mock.Arguments) {
-				event := args.Get(0).(*event.Event)
-				test.validate(t, event.Data)
-			})
-
-			err = check.Run()
-			assert.NoError(err)
+			result, err := checkGroup(env, "rule-id", test.resource, expr)
+			assert.Equal(test.expectReport, result)
+			assert.Equal(test.expectError, err)
 		})
 	}
 }

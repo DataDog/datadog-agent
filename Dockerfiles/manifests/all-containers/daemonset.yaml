@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: agent
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -55,8 +55,6 @@ spec:
               value: "true"
             - name: DD_HEALTH_PORT
               value: "5555"
-            - name: SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET
-              value: /sysprobe/var/run
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
@@ -64,8 +62,11 @@ spec:
               mountPath: /host/var/run
               readOnly: true
             - name: sysprobe-socket-dir
-              mountPath: /sysprobe/var/run
+              mountPath: /var/run/sysprobe
               readOnly: true
+            - name: sysprobe-config
+              mountPath: /etc/datadog-agent/system-probe.yaml
+              subPath: system-probe.yaml
             - name: procdir
               mountPath: /host/proc
               readOnly: true
@@ -99,7 +100,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: trace-agent
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           command: ["trace-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -143,7 +144,7 @@ spec:
               port: 8126
             timeoutSeconds: 5
         - name: process-agent
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -180,10 +181,13 @@ spec:
               mountPath: /host/proc
               readOnly: true
             - name: sysprobe-socket-dir
-              mountPath: /opt/datadog-agent/run
+              mountPath: /var/run/sysprobe
               readOnly: true
+            - name: sysprobe-config
+              mountPath: /etc/datadog-agent/system-probe.yaml
+              subPath: system-probe.yaml
         - name: system-probe
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -199,13 +203,19 @@ spec:
             - name: sysprobe-config
               mountPath: /etc/datadog-agent
             - name: sysprobe-socket-dir
-              mountPath: /opt/datadog-agent/run
+              mountPath: /var/run/sysprobe
             - name: procdir
               mountPath: /host/proc
               readOnly: true
+            - name: modules
+              mountPath: /lib/modules
+              readOnly: true
+            - name: src
+              mountPath: /usr/src
+              readOnly: true
       initContainers:
         - name: init-volume
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -215,7 +225,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -229,6 +239,9 @@ spec:
             - name: runtimesocketdir
               mountPath: /host/var/run
               readOnly: true
+            - name: sysprobe-config
+              mountPath: /etc/datadog-agent/system-probe.yaml
+              subPath: system-probe.yaml
           env:
             - name: DD_API_KEY
               valueFrom:
@@ -245,7 +258,7 @@ spec:
               value: unix:///host/var/run/docker.sock
           resources: {}
         - name: seccomp-setup
-          image: "datadog/agent:7.20.2"
+          image: "datadog/agent:7.21.1"
           command:
             - cp
             - /etc/config/system-probe-seccomp.json
@@ -285,6 +298,12 @@ spec:
         - name: sysprobe-socket-dir
           emptyDir: {}
         - hostPath:
+            path: /lib/modules
+          name: modules
+        - hostPath:
+            path: /usr/src
+          name: src
+        - hostPath:
             path: /etc/passwd
           name: passwd
         - hostPath:
@@ -297,9 +316,10 @@ spec:
             path: /var/lib/docker/containers
           name: logdockercontainerpath
       tolerations:
-      affinity: null
+      affinity: {}
       serviceAccountName: datadog
       nodeSelector:
+        kubernetes.io/os: linux
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 10%

@@ -28,6 +28,7 @@ var factories = []api.Factory{
 	modules.NetworkTracer,
 	modules.TCPQueueLength,
 	modules.OOMKillProbe,
+	modules.SecurityRuntime,
 }
 
 // Flag values
@@ -98,6 +99,11 @@ func runAgent(exit <-chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	// if a debug port is specified, we expose the default handler to that port
+	if cfg.SystemProbeDebugPort > 0 {
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
+	}
+
 	loader := NewLoader()
 	httpMux := http.NewServeMux()
 
@@ -119,11 +125,13 @@ func runAgent(exit <-chan struct{}) {
 		utils.WriteAsJSON(w, stats)
 	})
 
-	err = http.Serve(conn.GetListener(), httpMux)
-	if err != nil {
-		log.Criticalf("Error creating HTTP server: %s", err)
-		cleanupAndExit(1)
-	}
+	go func() {
+		err = http.Serve(conn.GetListener(), httpMux)
+		if err != nil {
+			log.Criticalf("Error creating HTTP server: %s", err)
+			cleanupAndExit(1)
+		}
+	}()
 
 	log.Infof("system probe successfully started")
 
