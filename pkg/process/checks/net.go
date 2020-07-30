@@ -36,11 +36,6 @@ type ConnectionsCheck struct {
 	lastTelemetry          *model.CollectorConnectionsTelemetry
 }
 
-type addrWithNS struct {
-	model.ContainerAddr
-	ns uint32
-}
-
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	c.notInitializedLogLimit = procutil.NewLogLimit(1, time.Minute*10)
@@ -90,100 +85,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	// Get the container and process relationship from either the process or container checks
-	ctrsByPid := ctrIDsByPIDs(connectionPIDs(conns.Conns))
-
-	resolveLoopbackConnections(conns.Conns, ctrsByPid)
-
 	tel := c.diffTelemetry(conns.Telemetry)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel), nil
-}
-
-func resolveLoopbackConnections(conns []*model.Connection, ctrsByPid map[int32]string) {
-
-	ctrsByLaddr := make(map[model.ContainerAddr]string)
-	ctrsByLoopback := make(map[addrWithNS]string)
-	for _, conn := range conns {
-		cid, ok := ctrsByPid[conn.Pid]
-		if !ok {
-			continue
-		}
-
-		conn.Laddr.ContainerId = cid
-
-		laddr := translatedLaddr(conn.Laddr, conn.IpTranslation)
-		ip := procutil.AddressFromString(laddr.Ip)
-		if ip == nil {
-			continue
-		}
-
-		claddr := model.ContainerAddr{
-			Ip:       laddr.Ip,
-			Port:     laddr.Port,
-			Protocol: conn.Type,
-		}
-
-		if ip.IsLoopback() {
-			ctrsByLoopback[addrWithNS{claddr, conn.NetNS}] = cid
-		} else {
-			ctrsByLaddr[claddr] = cid
-		}
-	}
-
-	log.Tracef("ctrsByLoopback = %v", ctrsByLoopback)
-	log.Tracef("ctrsByLaddr = %v", ctrsByLaddr)
-
-	for _, conn := range conns {
-		if conn.Raddr.ContainerId != "" {
-			log.Tracef("skipping already resolved raddr %v", conn.Raddr)
-			continue
-		}
-
-		ip := procutil.AddressFromString(conn.Raddr.Ip)
-		if ip == nil {
-			continue
-		}
-
-		raddr := model.ContainerAddr{
-			Ip:       conn.Raddr.Ip,
-			Port:     conn.Raddr.Port,
-			Protocol: conn.Type,
-		}
-
-		var ok bool
-		var cid string
-		if ip.IsLoopback() {
-			cid, ok = ctrsByLoopback[addrWithNS{raddr, conn.NetNS}]
-			log.Tracef("resolved loopback raddr %v to %s", raddr, cid)
-		} else {
-			cid, ok = ctrsByLaddr[raddr]
-			log.Tracef("resolved non-loopback raddr %v to %s", raddr, cid)
-		}
-
-		if ok {
-			conn.Raddr.ContainerId = cid
-		}
-
-		if conn.Raddr.ContainerId == "" {
-			log.Tracef("could not resolve raddr %v", conn.Raddr)
-		}
-
-	}
-}
-
-func translatedLaddr(laddr *model.Addr, trans *model.IPTranslation) *model.Addr {
-	if trans == nil {
-		return laddr
-	}
-
-	return &model.Addr{
-		Ip:          trans.ReplDstIP,
-		Port:        trans.ReplDstPort,
-		HostId:      laddr.HostId,
-		ContainerId: laddr.ContainerId,
-	}
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -324,13 +229,4 @@ func connectionPIDs(conns []*model.Connection) []int32 {
 		pids = append(pids, pid)
 	}
 	return pids
-}
-
-// getCtrIDsByPIDs will fetch container id and pid relationship from either process check or container check, depend on which one is enabled and ran
-func ctrIDsByPIDs(pids []int32) map[int32]string {
-	// process check is never run, use container check instead
-	if Process.lastRun.IsZero() {
-		return Container.filterCtrIDsByPIDs(pids)
-	}
-	return Process.filterCtrIDsByPIDs(pids)
 }
