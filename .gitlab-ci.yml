@@ -557,20 +557,24 @@ build_iot_agent-deb_arm64:
 
 # For the Windows Docker image
 build_windows_container_entrypoint:
-    stage: binary_build
-    tags: ["runner:windows-docker", "windowsversion:1809"]
-    variables:
-      ARCH: "x64"
-    script:
-      - if (Test-Path build-out) { remove-item -recurse -force build-out }
-      - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e CI_JOB_ID=${CI_JOB_ID} -e WINDOWS_BUILDER=true -e AWS_NETWORKING=true -e TARGET_ARCH="$ARCH" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat
-      - get-childitem build-out\${CI_JOB_ID}
-      - copy build-out\${CI_JOB_ID}\*.exe ./entrypoint.exe
-      - remove-item -recurse -force build-out\${CI_JOB_ID}
-    artifacts:
-      expire_in: 2 weeks
-      paths:
-        - entrypoint.exe
+  rules:
+  - <<: *if_version_7
+    when: on_success
+  stage: binary_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["fail_on_non_triggered_tag"]
+  variables:
+    ARCH: "x64"
+  script:
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e CI_JOB_ID=${CI_JOB_ID} -e WINDOWS_BUILDER=true -e AWS_NETWORKING=true -e TARGET_ARCH="$ARCH" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat
+    - get-childitem build-out\${CI_JOB_ID}
+    - copy build-out\${CI_JOB_ID}\*.exe ./entrypoint.exe
+    - remove-item -recurse -force build-out\${CI_JOB_ID}
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - entrypoint.exe
 
 # build cluster-agent bin
 cluster_agent-build_amd64:
