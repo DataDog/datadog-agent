@@ -490,7 +490,7 @@ func TestExtractService(t *testing.T) {
 					Type:            "LoadBalancer",
 				},
 				Status: &model.ServiceStatus{
-					Ingress: []string{"192.0.2.127"},
+					LoadBalancerIngress: []string{"192.0.2.127"},
 				},
 			},
 		},
