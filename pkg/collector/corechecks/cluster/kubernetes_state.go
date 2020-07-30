@@ -60,6 +60,13 @@ type KSMConfig struct {
 	//   namespace: kube_namespace
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
 
+	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
+	// Example:
+	// tags:
+	//   - env:prod
+	//   - zone:eu
+	Tags []string `yaml:"tags"`
+
 	// Namespaces contains the namespaces from which we collect metrics
 	// Example: Enable metric collection for objects in prod and kube-system namespaces.
 	// namespaces:
@@ -129,6 +136,8 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper)
+
+	k.initTags()
 
 	builder := kubestatemetrics.New()
 
@@ -228,20 +237,19 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
-					// TODO: implement metric transformer functions
-					transform(sender, metricFamily.Name, m, k.joinLabels(m.Labels, metricsToGet))
+					transform(sender, metricFamily.Name, m, k.prepareTags(m.Labels, metricsToGet))
 				}
 				continue
 			}
 			for _, m := range metricFamily.ListMetrics {
-				sender.Gauge(formatMetricName(metricFamily.Name), m.Val, "", k.joinLabels(m.Labels, metricsToGet))
+				sender.Gauge(formatMetricName(metricFamily.Name), m.Val, "", k.prepareTags(m.Labels, metricsToGet))
 			}
 		}
 	}
 }
 
-// joinLabels converts metric labels into datatog tags and applies the label joins config
-func (k *KSMCheck) joinLabels(labels map[string]string, metricsToGet []ksmstore.DDMetricsFam) (tags []string) {
+// prepareTags converts metric labels into datatog tags, append the configured check tags and applies the label joins config
+func (k *KSMCheck) prepareTags(labels map[string]string, metricsToGet []ksmstore.DDMetricsFam) (tags []string) {
 	for key, value := range labels {
 		tags = append(tags, k.buildTag(key, value))
 	}
@@ -259,7 +267,7 @@ func (k *KSMCheck) joinLabels(labels map[string]string, metricsToGet []ksmstore.
 		}
 	}
 
-	return tags
+	return append(tags, k.instance.Tags...)
 }
 
 // familyFilter is a metric families filter for label joins
@@ -341,6 +349,13 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
 		if _, found := k.instance.LabelJoins[key]; !found {
 			k.instance.LabelJoins[key] = value
 		}
+	}
+}
+
+// initTags avoids keeping a nil Tags field in the check instance
+func (k *KSMCheck) initTags() {
+	if k.instance.Tags == nil {
+		k.instance.Tags = []string{}
 	}
 }
 
