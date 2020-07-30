@@ -734,6 +734,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
 
+	// Datadog security agent (runtime)
+	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
+	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", "/etc/datadog-agent/runtime-security.d")
+	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
+	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
+
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
