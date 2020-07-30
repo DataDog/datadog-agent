@@ -25,7 +25,7 @@ import (
 )
 
 // MetricPrefix is the prefix of the metrics sent by the runtime security agent
-const MetricPrefix = "datadog.agent.runtime_security"
+const MetricPrefix = "datadog.runtime_security"
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
