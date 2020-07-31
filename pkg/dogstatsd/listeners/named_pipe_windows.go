@@ -83,7 +83,7 @@ type namedPipeConnections struct {
 	activeConnCount int32
 }
 
-func (l *namedPipeConnections) handleConnection() {
+func (l *namedPipeConnections) handleConnections() {
 	connections := make(map[net.Conn]struct{})
 	requestStop := false
 	for stop := false; !stop; {
@@ -115,7 +115,7 @@ func (l *namedPipeConnections) handleConnection() {
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *NamedPipeListener) Listen() {
-	go l.connections.handleConnection()
+	go l.connections.handleConnections()
 	for {
 		conn, err := l.pipe.Accept()
 		switch {
