@@ -70,14 +70,11 @@ func TestNamedPipeStop(t *testing.T) {
 	res := sendAndGetNamedPipeMessage(t, listener, client, "data\n")
 	assert.Equal(t, "data", res)
 	assert.Equal(t, int32(1), listener.getActiveConnectionsCount())
+
 	client.Close()
 	listener.Stop()
 
-	// Wait listener is really stopped
-	<-listener.listenStop
-	for listener.getActiveConnectionsCount() > 1 {
-		time.Sleep(100 * time.Millisecond)
-	}
+	assert.Equal(t, int32(0), listener.getActiveConnectionsCount())
 }
 
 func TestNamedPipeMultipleMessages(t *testing.T) {
@@ -114,9 +111,8 @@ func TestNamedPipeTooBigMessage(t *testing.T) {
 
 type namedPipeListenerTest struct {
 	*NamedPipeListener
-	packetOut  chan Packets
-	client     net.Conn
-	listenStop chan bool
+	packetOut chan Packets
+	client    net.Conn
 }
 
 func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
@@ -130,17 +126,12 @@ func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
 		packetManager)
 	assert.NoError(t, err)
 
-	listenStop := make(chan bool)
 	listenerTest := namedPipeListenerTest{
 		NamedPipeListener: listener,
 		packetOut:         packetOut,
-		listenStop:        listenStop,
 	}
 
-	go func() {
-		listenerTest.Listen()
-		listenStop <- true
-	}()
+	go listenerTest.Listen()
 	return listenerTest
 }
 

@@ -94,6 +94,7 @@ func (l *namedPipeConnections) handleConnection() {
 		case conn := <-l.connToClose:
 			conn.Close()
 			delete(connections, conn)
+			atomic.AddInt32(&l.activeConnCount, -1)
 			if requestStop && len(connections) == 0 {
 				stop = true
 			}
