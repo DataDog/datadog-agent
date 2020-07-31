@@ -36,17 +36,17 @@ const (
 
 	// amazonaws.com/eks/pause-windows:latest
 	// eks/pause-amd64
-	pauseContainerEKS = `image:(amazonaws.com/)?eks/pause-(amd64|windows)`
+	pauseContainerEKS = `image:(amazonaws\.com/)?eks/pause-(amd64|windows)`
 	// rancher/pause-amd64:3.0
 	pauseContainerRancher = `image:rancher/pause(.*)`
 	// - mcr.microsoft.com/k8s/core/pause-amd64
-	pauseContainerMCR = `image:mcr.microsoft.com(.*)/pause(.*)`
+	pauseContainerMCR = `image:mcr\.microsoft\.com(.*)/pause(.*)`
 	// - aksrepos.azurecr.io/mirror/pause-amd64
-	pauseContainerAKS = `image:aksrepos.azurecr.io(.*)/pause(.*)`
+	pauseContainerAKS = `image:aksrepos\.azurecr\.io(.*)/pause(.*)`
 	// - kubeletwin/pause:latest
 	pauseContainerWin = `image:kubeletwin/pause(.*)`
 	// - ecr.us-east-1.amazonaws.com/pause
-	pauseContainerECR = `image:ecr(.*)amazonaws.com/pause(.*)`
+	pauseContainerECR = `image:ecr(.*)amazonaws\.com/pause(.*)`
 )
 
 // Filter holds the state for the container filtering logic
