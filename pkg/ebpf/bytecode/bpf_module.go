@@ -3,7 +3,6 @@
 package bytecode
 
 import (
-	"bytes"
 	"fmt"
 
 	bpflib "github.com/iovisor/gobpf/elf"
@@ -16,12 +15,12 @@ func ReadBPFModule(debug bool) (*bpflib.Module, error) {
 		file = "pkg/ebpf/c/tracer-ebpf-debug.o"
 	}
 
-	buf, err := Asset(file)
+	ebpfReader, err := GetReader(file)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
 
-	m := bpflib.NewModuleFromReader(bytes.NewReader(buf))
+	m := bpflib.NewModuleFromReader(ebpfReader)
 	if m == nil {
 		return nil, fmt.Errorf("BPF not supported")
 	}
