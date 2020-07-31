@@ -9,6 +9,7 @@ package probe
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"strings"
 
@@ -474,19 +475,18 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		return err
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.received", p.eventsStats.GetAndResetReceived(), nil, 1.0); err != nil {
-		return err
-	}
-
+	receivedEvents := MetricPrefix + ".events.received"
 	for i := range p.eventsStats.PerEventType {
 		if i == 0 {
 			continue
 		}
 
 		eventType := EventType(i)
-		key := MetricPrefix + ".events." + eventType.String()
-		if err := statsdClient.Count(key, p.eventsStats.GetAndResetEventCount(eventType), nil, 1.0); err != nil {
-			return err
+		tags := []string{fmt.Sprintf("event_type:%s", eventType.String())}
+		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
+			if err := statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -500,7 +500,6 @@ func (p *Probe) GetStats() (map[string]interface{}, error) {
 	syscalls, err := p.syscallMonitor.GetStats()
 
 	stats["events"] = map[string]interface{}{
-		"received": p.eventsStats.GetReceived(),
 		"lost":     p.eventsStats.GetLost(),
 		"syscalls": syscalls,
 	}
@@ -531,7 +530,6 @@ func (p *Probe) handleLostEvents(count uint64) {
 
 func (p *Probe) handleEvent(data []byte) {
 	log.Debugf("Handling dentry event (len %d)", len(data))
-	p.eventsStats.CountReceived(1)
 
 	offset := 0
 	event := NewEvent(p.resolvers)
