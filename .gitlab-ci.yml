@@ -3574,7 +3574,7 @@ deploy_staging_suse_rpm-6:
 
 deploy_staging_suse_rpm-7:
   rules:
-    - <<: *if_not_version_6
+    - <<: *if_not_version_7
       when: never
     - <<: *if_deploy
   stage: deploy7
