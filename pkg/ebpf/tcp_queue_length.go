@@ -15,7 +15,7 @@ import (
 
 /*
 #include <string.h>
-#include "c/tcp-queue-length-kern-user.h"
+#include "tcp-queue-length-kern-user.h"
 */
 import "C"
 

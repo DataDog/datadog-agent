@@ -14,7 +14,7 @@ import (
 
 /*
 #include <string.h>
-#include "c/oom-kill-kern-user.h"
+#include "oom-kill-kern-user.h"
 */
 import "C"
 
