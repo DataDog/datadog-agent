@@ -408,7 +408,6 @@ func loadEnvVariables() {
 		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
-		{"DD_DOGSTATSD_WINDOWS_PIPE_NAME", "dogstatsd_windows_pipe_name"},
 		{"DD_BIND_HOST", "bind_host"},
 		{"HTTPS_PROXY", "proxy.https"},
 		{"DD_PROXY_HTTPS", "proxy.https"},
