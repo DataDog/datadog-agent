@@ -69,13 +69,13 @@ func TestNamedPipeStop(t *testing.T) {
 
 	res := sendAndGetNamedPipeMessage(t, listener, client, "data\n")
 	assert.Equal(t, "data", res)
-	assert.Equal(t, int32(1), listener.GetActiveConnectionsCount())
+	assert.Equal(t, int32(1), listener.getActiveConnectionsCount())
 	client.Close()
 	listener.Stop()
 
 	// Wait listener is really stopped
 	<-listener.listenStop
-	for listener.GetActiveConnectionsCount() > 1 {
+	for listener.getActiveConnectionsCount() > 1 {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
