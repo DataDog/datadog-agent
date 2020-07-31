@@ -32,7 +32,7 @@ SYSCALL_KPROBE(chown) {
     uid_t user;
     gid_t group;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&user, sizeof(user), &PT_REGS_PARM2(ctx));
     bpf_probe_read(&group, sizeof(group), &PT_REGS_PARM3(ctx));
 #else
@@ -46,7 +46,7 @@ SYSCALL_KPROBE(fchown) {
     uid_t user;
     gid_t group;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&user, sizeof(user), &PT_REGS_PARM2(ctx));
     bpf_probe_read(&group, sizeof(group), &PT_REGS_PARM3(ctx));
 #else
@@ -60,7 +60,7 @@ SYSCALL_KPROBE(fchownat) {
     uid_t user;
     gid_t group;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&user, sizeof(user), &(PT_REGS_PARM3(ctx)));
     // for some reason, this doesn't work on 5.6 kernels, so
     // we get mode from security_inode_setattr
@@ -76,7 +76,7 @@ SYSCALL_KPROBE(lchown) {
     uid_t user;
     gid_t group;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&user, sizeof(user), &PT_REGS_PARM2(ctx));
     bpf_probe_read(&group, sizeof(group), &PT_REGS_PARM3(ctx));
 #else

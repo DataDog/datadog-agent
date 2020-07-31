@@ -29,7 +29,7 @@ int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t
 SYSCALL_KPROBE(mkdir) {
     umode_t mode;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM2(ctx));
 #else
     mode = (umode_t) PT_REGS_PARM2(ctx);
@@ -40,7 +40,7 @@ SYSCALL_KPROBE(mkdir) {
 SYSCALL_KPROBE(mkdirat) {
     umode_t mode;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM3(ctx));
 #else
     mode = (umode_t) PT_REGS_PARM3(ctx);
