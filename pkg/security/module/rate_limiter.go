@@ -94,7 +94,7 @@ func (rl *RateLimiter) GetStats() map[string]RateLimiterStat {
 // for the set of rules
 func (rl *RateLimiter) SendStats(client *statsd.Client) error {
 	for ruleID, counts := range rl.GetStats() {
-		tags := []string{fmt.Sprintf("rule_id:%s",ruleID)}
+		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if counts.dropped > 0 {
 			if err := client.Count(probe.MetricPrefix+".rules.rate_limiter.drop", counts.dropped, tags, 1.0); err != nil {
 				return err
