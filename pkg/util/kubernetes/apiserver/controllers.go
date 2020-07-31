@@ -46,15 +46,16 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 	servicesController: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
-		startServicesInformer,
+		registerServicesInformer,
 	},
 	endpointsController: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
-		startEndpointsInformer,
+		registerEndpointsInformer,
 	},
 }
 
 type ControllerContext struct {
+	informers          map[InformerName]cache.SharedInformer
 	InformerFactory    informers.SharedInformerFactory
 	WPAClient          wpa_client.Interface
 	WPAInformerFactory wpa_informers.SharedInformerFactory
@@ -69,6 +70,8 @@ type ControllerContext struct {
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
 func StartControllers(ctx ControllerContext) errors.Aggregate {
+	ctx.informers = make(map[InformerName]cache.SharedInformer)
+
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(controllerCatalog))
 	for name, cntrlFuncs := range controllerCatalog {
@@ -103,6 +106,11 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 	// FIXME: We may want to initialize each of these controllers separately via their respective
 	// `<informer>.Run()`
 	ctx.InformerFactory.Start(ctx.StopCh)
+
+	// Wait for the cache to sync
+	if err := SyncInformers(ctx.informers); err != nil {
+		errs = append(errs, err)
+	}
 
 	// NewAggregate will filter out nil errors
 	return errors.NewAggregate(errs)
@@ -146,34 +154,12 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 	autoscalersController.RunControllerLoop(ctx.StopCh)
 }
 
-// startServicesInformer starts the service informer.
-// The synchronization of the service informer is handled in this function.
-func startServicesInformer(ctx ControllerContext, c chan error) {
-
-	informer := ctx.InformerFactory.Core().V1().Services().Informer()
-
-	// Just start the shared informer, the autodiscovery
-	// components will access it when needed.
-	ctx.InformerFactory.Start(ctx.StopCh)
-
-	// Wait for the cache to sync
-	c <- SyncInformers(map[InformerName]cache.SharedInformer{
-		ServicesInformer: informer,
-	})
+// registerServicesInformer registers the services informer.
+func registerServicesInformer(ctx ControllerContext, c chan error) {
+	ctx.informers[ServicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
 }
 
-// startEndpointsInformer starts the endpoints informer.
-// The synchronization of the endpoints informer is handled in this function.
-func startEndpointsInformer(ctx ControllerContext, c chan error) {
-
-	informer := ctx.InformerFactory.Core().V1().Endpoints().Informer()
-
-	// Just start the shared informer, the autodiscovery
-	// components will access it when needed.
-	ctx.InformerFactory.Start(ctx.StopCh)
-
-	// Wait for the cache to sync
-	c <- SyncInformers(map[InformerName]cache.SharedInformer{
-		endpointsInformer: informer,
-	})
+// registerEndpointsInformer registers the endpoints informer.
+func registerEndpointsInformer(ctx ControllerContext, c chan error) {
+	ctx.informers[endpointsInformer] = ctx.InformerFactory.Core().V1().Endpoints().Informer()
 }
