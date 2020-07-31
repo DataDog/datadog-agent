@@ -12,11 +12,18 @@ done
 
 _wait_binary() {
     echo "waiting for $1 binary to be in PATH=${PATH} ..."
-    for i in {0..120}
+    for i in {0..240}
     do
-        which $1 2> /dev/null && break
+        which "$1" 2> /dev/null && break
         sleep 1
     done
+
+    if which "$1" 2> /dev/null; then
+        echo "$1 appeared in PATH after $i seconds"
+    else
+        echo "$1 didn’t appear in PATH after $i seconds"
+        exit 1
+    fi
 }
 
 _wait_binary pupernetes
