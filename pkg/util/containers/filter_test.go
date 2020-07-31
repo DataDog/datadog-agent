@@ -244,16 +244,19 @@ func TestFilter(t *testing.T) {
 		{
 			excludeList: []string{
 				pauseContainerGCR,
+				pauseContainerOpenshift,
 				pauseContainerOpenshift3,
 				pauseContainerKubernetes,
 				pauseContainerAzure,
 				pauseContainerECS,
 				pauseContainerEKS,
 				pauseContainerRancher,
+				pauseContainerMCR,
+				pauseContainerWin,
 				pauseContainerAKS,
 				pauseContainerECR,
 			},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "14", "15"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
