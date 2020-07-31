@@ -574,6 +574,11 @@ def lint_python(ctx):
     If running locally, you probably want to use the pre-commit instead.
     """
 
+    print(
+        """Remember to set up pre-commit to lint your files before committing:
+    https://github.com/DataDog/datadog-agent/blob/master/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+    )
+
     ctx.run("flake8 .")
     ctx.run("black --check --diff .")
     ctx.run("isort --check-only --diff .")
