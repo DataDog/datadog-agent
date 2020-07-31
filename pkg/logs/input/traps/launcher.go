@@ -39,15 +39,6 @@ func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan *trap
 	l.tailer.Start()
 }
 
-// Stop stops any running tailer.
-func (l *Launcher) Stop() {
-	l.stop <- true
-	if l.tailer != nil {
-		l.tailer.Stop()
-		l.tailer = nil
-	}
-}
-
 func (l *Launcher) run() {
 	for {
 		select {
@@ -60,4 +51,13 @@ func (l *Launcher) run() {
 			return
 		}
 	}
+}
+
+// Stop waits for any running tailer to be flushed.
+func (l *Launcher) Stop() {
+	if l.tailer != nil {
+		l.tailer.WaitFlush()
+		l.tailer = nil
+	}
+	l.stop <- true
 }

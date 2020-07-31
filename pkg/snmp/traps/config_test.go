@@ -7,7 +7,6 @@ package traps
 
 import (
 	"testing"
-	"time"
 
 	"github.com/soniah/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -18,12 +17,12 @@ func TestConfig(t *testing.T) {
 		Port:             1234,
 		CommunityStrings: []string{"public"},
 	})
-	c, err := ReadConfig()
+	config, err := ReadConfig()
 	assert.NoError(t, err)
-	assert.Equal(t, uint16(1234), c.Port)
-	assert.Equal(t, 5.0*time.Second, c.StopTimeout)
+	assert.Equal(t, uint16(1234), config.Port)
+	assert.Equal(t, defaultStopTimeout, config.StopTimeout)
 
-	params := c.BuildV2Params()
+	params := config.BuildV2Params()
 	assert.Equal(t, uint16(1234), params.Port)
 	assert.Equal(t, gosnmp.Version2c, params.Version)
 	assert.Equal(t, "udp", params.Transport)
@@ -34,9 +33,9 @@ func TestDefaultPort(t *testing.T) {
 	Configure(t, Config{
 		CommunityStrings: []string{"public"},
 	})
-	c, err := ReadConfig()
+	config, err := ReadConfig()
 	assert.NoError(t, err)
-	assert.Equal(t, uint16(162), c.Port)
+	assert.Equal(t, defaultPort, config.Port)
 }
 
 func TestCommunityStringsEmpty(t *testing.T) {

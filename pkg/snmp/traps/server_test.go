@@ -20,10 +20,10 @@ func TestServerV2(t *testing.T) {
 	defer StopServer()
 
 	sendTestV2Trap(t, config, "public")
-	p := receivePacket(t)
-	require.NotNil(t, p)
-	assertIsValidV2Packet(t, p, config)
-	assertV2Variables(t, p)
+	packet := receivePacket(t)
+	require.NotNil(t, packet)
+	assertIsValidV2Packet(t, packet, config)
+	assertV2Variables(t, packet)
 }
 
 func TestServerV2BadCredentials(t *testing.T) {
@@ -39,18 +39,20 @@ func TestServerV2BadCredentials(t *testing.T) {
 }
 
 func TestStartFailure(t *testing.T) {
-	// Start two servers with the same config to trigger an "address already in use" error.
+	/*
+		Start two servers with the same config to trigger an "address already in use" error.
+	*/
 	port := GetPort(t)
 
 	config := Config{Port: port, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
-	s1, err := NewTrapServer()
+	sucessServer, err := NewTrapServer()
 	require.NoError(t, err)
-	require.NotNil(t, s1)
-	defer s1.Stop()
+	require.NotNil(t, sucessServer)
+	defer sucessServer.Stop()
 
-	s2, err := NewTrapServer()
-	require.Nil(t, s2)
+	failedServer, err := NewTrapServer()
+	require.Nil(t, failedServer)
 	require.Error(t, err)
 }

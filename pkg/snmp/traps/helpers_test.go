@@ -19,6 +19,21 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// List of variables for a NetSNMP::ExampleHeartBeatNotification trap message.
+// See: http://www.circitor.fr/Mibs/Html/N/NET-SNMP-EXAMPLES-MIB.php#netSnmpExampleHeartbeatNotification
+var (
+	netSNMPExampleHeartbeatNotificationVariables = []gosnmp.SnmpPDU{
+		// sysUpTimeInstance
+		{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+		// snmpTrapOID
+		{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
+		// heartBeatRate
+		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
+		// heartBeatName
+		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
+	}
+)
+
 func parsePort(t *testing.T, addr string) uint16 {
 	_, portString, err := net.SplitHostPort(addr)
 	require.NoError(t, err)
@@ -38,10 +53,10 @@ func GetPort(t *testing.T) uint16 {
 }
 
 // Configure sets Datadog Agent configuration from a config object.
-func Configure(t *testing.T, c Config) {
+func Configure(t *testing.T, trapConfig Config) {
 	datadogYaml := map[string]interface{}{
 		"snmp_traps_enabled": true,
-		"snmp_traps_config":  c,
+		"snmp_traps_config":  trapConfig,
 	}
 
 	config.Datadog.SetConfigType("yaml")
@@ -52,19 +67,8 @@ func Configure(t *testing.T, c Config) {
 	require.NoError(t, err)
 }
 
-// List of variables for a NetSNMP::ExampleHeartBeatNotification trap message.
-// See: http://www.circitor.fr/Mibs/Html/N/NET-SNMP-EXAMPLES-MIB.php#netSnmpExampleHeartbeatNotification
-var netSnmpExampleHeartbeatNotificationVariables = []gosnmp.SnmpPDU{
-	// snmpTrapOID
-	{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
-	// heartBeatRate
-	{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
-	// heartBeatName
-	{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
-}
-
-func sendTestV2Trap(t *testing.T, c Config, community string) *gosnmp.GoSNMP {
-	params := c.BuildV2Params()
+func sendTestV2Trap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
+	params := trapConfig.BuildV2Params()
 	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
 	params.Retries = 1               // Must be non-zero when sending traps.
@@ -73,7 +77,7 @@ func sendTestV2Trap(t *testing.T, c Config, community string) *gosnmp.GoSNMP {
 	require.NoError(t, err)
 	defer params.Conn.Close()
 
-	trap := gosnmp.SnmpTrap{Variables: netSnmpExampleHeartbeatNotificationVariables}
+	trap := gosnmp.SnmpTrap{Variables: netSNMPExampleHeartbeatNotificationVariables}
 	_, err = params.SendTrap(trap)
 	require.NoError(t, err)
 
@@ -83,44 +87,44 @@ func sendTestV2Trap(t *testing.T, c Config, community string) *gosnmp.GoSNMP {
 // receivePacket waits for a received trap packet and returns it.
 func receivePacket(t *testing.T) *SnmpPacket {
 	select {
-	case p := <-GetPacketsChannel():
-		return p
+	case packet := <-GetPacketsChannel():
+		return packet
 	case <-time.After(3 * time.Second):
 		t.Errorf("Trap not received")
 		return nil
 	}
 }
 
-func assertIsValidV2Packet(t *testing.T, p *SnmpPacket, c Config) {
-	require.Equal(t, gosnmp.Version2c, p.Content.Version)
+func assertIsValidV2Packet(t *testing.T, packet *SnmpPacket, trapConfig Config) {
+	require.Equal(t, gosnmp.Version2c, packet.Content.Version)
 	communityValid := false
-	for _, community := range c.CommunityStrings {
-		if p.Content.Community == community {
+	for _, community := range trapConfig.CommunityStrings {
+		if packet.Content.Community == community {
 			communityValid = true
 		}
 	}
 	require.True(t, communityValid)
 }
 
-func assertV2Variables(t *testing.T, p *SnmpPacket) {
-	vars := p.Content.Variables
-	assert.Equal(t, 4, len(vars))
+func assertV2Variables(t *testing.T, packet *SnmpPacket) {
+	variables := packet.Content.Variables
+	assert.Equal(t, 4, len(variables))
 
-	uptime := vars[0]
+	uptime := variables[0]
 	assert.Equal(t, ".1.3.6.1.2.1.1.3.0", uptime.Name)
 	assert.Equal(t, gosnmp.TimeTicks, uptime.Type)
 
-	snmptrapOID := vars[1]
+	snmptrapOID := variables[1]
 	assert.Equal(t, ".1.3.6.1.6.3.1.1.4.1", snmptrapOID.Name)
 	assert.Equal(t, gosnmp.OctetString, snmptrapOID.Type)
 	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", string(snmptrapOID.Value.([]byte)))
 
-	heartBeatRate := vars[2]
+	heartBeatRate := variables[2]
 	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.1", heartBeatRate.Name)
 	assert.Equal(t, gosnmp.Integer, heartBeatRate.Type)
 	assert.Equal(t, 1024, heartBeatRate.Value.(int))
 
-	heartBeatName := vars[3]
+	heartBeatName := variables[3]
 	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.2", heartBeatName.Name)
 	assert.Equal(t, gosnmp.OctetString, heartBeatName.Type)
 	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))

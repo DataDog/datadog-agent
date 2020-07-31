@@ -37,8 +37,8 @@ func (t *Tailer) Start() {
 	go t.run()
 }
 
-// Stop waits for the input buffer to be flushed.
-func (t *Tailer) Stop() {
+// WaitFlush waits for all items in the input channel to be processed.
+func (t *Tailer) WaitFlush() {
 	<-t.done
 }
 
@@ -47,8 +47,9 @@ func (t *Tailer) run() {
 		t.done <- true
 	}()
 
+	// Loop terminates when the channel is closed.
 	for packet := range t.inputChan {
-		data, err := traps.FormatJSON(packet)
+		data, err := traps.FormatPacketToJSON(packet)
 		if err != nil {
 			log.Errorf("failed to format packet: %s", err)
 			continue

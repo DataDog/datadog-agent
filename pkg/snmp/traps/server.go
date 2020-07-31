@@ -31,99 +31,98 @@ type TrapServer struct {
 }
 
 var (
-	outputChannelSize = 100
-	server            *TrapServer
-	startError        error
+	serverInstance *TrapServer
+	startError     error
 )
 
 // StartServer starts the global trap server.
 func StartServer() error {
-	s, err := NewTrapServer()
-	server = s
+	server, err := NewTrapServer()
+	serverInstance = server
 	startError = err
 	return err
 }
 
 // StopServer stops the global trap server, if it is running.
 func StopServer() {
-	if server != nil {
-		server.Stop()
-		server = nil
+	if serverInstance != nil {
+		serverInstance.Stop()
+		serverInstance = nil
 		startError = nil
 	}
 }
 
 // IsRunning returns whether the trap server is currently running.
 func IsRunning() bool {
-	return server != nil
+	return serverInstance != nil
 }
 
 // GetPacketsChannel returns a channel containing all received trap packets.
 func GetPacketsChannel() PacketsChannel {
-	return server.packets
+	return serverInstance.packets
 }
 
 // NewTrapServer configures and returns a running SNMP traps server.
 func NewTrapServer() (*TrapServer, error) {
-	c, err := ReadConfig()
+	config, err := ReadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	packets := make(PacketsChannel, outputChannelSize)
+	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPv2Listener(c, packets)
+	listener, err := startSNMPv2Listener(config, packets)
 	if err != nil {
 		return nil, err
 	}
 
-	s := &TrapServer{
+	server := &TrapServer{
 		listener: listener,
-		config:   c,
+		config:   config,
 		packets:  packets,
 	}
 
-	return s, nil
+	return server, nil
 }
 
 func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
-	ln := gosnmp.NewTrapListener()
-	ln.Params = c.BuildV2Params()
+	listener := gosnmp.NewTrapListener()
+	listener.Params = c.BuildV2Params()
 
-	ln.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-		if !validateCredentials(p, c) {
+	listener.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+		if err := validateCredentials(p, c); err != nil {
 			log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), c.Addr())
 			trapsPacketsAuthErrors.Add(1)
 			return
 		}
-		log.Debugf("New valid packet received from %s on listener %s", u.String(), c.Addr())
 		trapsPackets.Add(1)
 		packets <- &SnmpPacket{Content: p, Addr: u}
 	}
 
-	// Listening occurs in the background.
-	// It can only terminate if an error occurs (1), or the listener is closed.
-	// We wait on a channel (2) provided by GoSNMP to detect when the listener is ready to receive traps.
-
 	errors := make(chan error, 1)
 
+	// Start actually listening in the background.
 	go func() {
 		log.Infof("Start listening for traps on %s", c.Addr())
-		err := ln.Listen(c.Addr()) // (1)
+		err := listener.Listen(c.Addr())
 		if err != nil {
 			errors <- err
 		}
 	}()
 
 	select {
-	case <-ln.Listening(): // (2)
+	// Wait for listener to be started and listening to traps.
+	// See: https://godoc.org/github.com/soniah/gosnmp#TrapListener.Listening
+	case <-listener.Listening():
 		break
+	// If the listener failed to start (eg because it couldn't bind to a socket),
+	// we'll get an error here.
 	case err := <-errors:
 		close(errors)
 		return nil, err
 	}
 
-	return ln, nil
+	return listener, nil
 }
 
 // Stop stops the TrapServer.

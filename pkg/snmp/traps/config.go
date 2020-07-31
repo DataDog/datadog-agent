@@ -43,14 +43,14 @@ func ReadConfig() (*Config, error) {
 
 	// Set defaults.
 	if c.Port == 0 {
-		c.Port = 162
+		c.Port = defaultPort
 	}
 	if c.BindHost == "" {
 		// Default to global bind_host option.
 		c.BindHost = config.Datadog.GetString("bind_host")
 	}
 	if c.StopTimeout == 0 {
-		c.StopTimeout = 5.0 * time.Second
+		c.StopTimeout = defaultStopTimeout
 	}
 
 	return &c, nil

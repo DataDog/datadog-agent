@@ -5,20 +5,24 @@
 
 package traps
 
-import "github.com/soniah/gosnmp"
+import (
+	"errors"
+	"fmt"
 
-func validateCredentials(p *gosnmp.SnmpPacket, c *Config) bool {
+	"github.com/soniah/gosnmp"
+)
+
+func validateCredentials(p *gosnmp.SnmpPacket, c *Config) error {
 	if p.Version != gosnmp.Version2c {
-		// Unsupported.
-		return false
+		return fmt.Errorf("Unsupported version: %s", p.Version)
 	}
 
 	// At least one of the known community strings must match.
 	for _, community := range c.CommunityStrings {
 		if community == p.Community {
-			return true
+			return nil
 		}
 	}
 
-	return false
+	return errors.New("Unknown community string")
 }

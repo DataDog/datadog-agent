@@ -51,11 +51,11 @@ func TestTrapsShouldReceiveMessages(t *testing.T) {
 	assert.Equal(t, traps.GetTags(p), msg.Origin.Tags())
 
 	close(inputChan)
-	tailer.Stop()
+	tailer.WaitFlush()
 }
 
 func format(t *testing.T, p *traps.SnmpPacket) []byte {
-	data, err := traps.FormatJSON(p)
+	data, err := traps.FormatPacketToJSON(p)
 	assert.NoError(t, err)
 	content, err := json.Marshal(data)
 	assert.NoError(t, err)

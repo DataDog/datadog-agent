@@ -16,9 +16,9 @@ type trapLogger struct {
 }
 
 // NOTE: GoSNMP logs show the full content of decoded trap packets. Logging as DEBUG would be too noisy.
-func (x *trapLogger) Print(v ...interface{}) {
+func (logger *trapLogger) Print(v ...interface{}) {
 	log.Trace(v...)
 }
-func (x *trapLogger) Printf(format string, v ...interface{}) {
+func (logger *trapLogger) Printf(format string, v ...interface{}) {
 	log.Tracef(format, v...)
 }
