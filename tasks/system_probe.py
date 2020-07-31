@@ -376,7 +376,7 @@ def build_object_files(ctx, bundle_ebpf=False):
             os.environ["GOPATH"]
             + "/bin/go-bindata -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
             + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' "
-            + "'{bpf_common_h_file}' '{test_asset_file}' '{test_h_file}' "
+            + "'{bpf_common_h_file}' "
             + "'{security_agent_obj_file}' '{security_agent_syscall_wrapper_obj_file}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
@@ -387,12 +387,10 @@ def build_object_files(ctx, bundle_ebpf=False):
                 obj_file=obj_file,
                 debug_obj_file=debug_obj_file,
                 tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
-                tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
+                tcp_queue_length_kern_user_h_file=os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
                 oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
-                oom_kill_kern_user_h_file=os.path.join(c_dir, "oom-kill-kern-user.h"),
+                oom_kill_kern_user_h_file=os.path.join(bpf_dir, "oom-kill-kern-user.h"),
                 bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
-                test_asset_file=os.path.join(test_dir, "test-asset.c"),
-                test_h_file=os.path.join(test_dir, "test-header.h"),
                 security_agent_obj_file=security_agent_obj_file,
                 security_agent_syscall_wrapper_obj_file=security_agent_syscall_wrapper_obj_file,
             )
