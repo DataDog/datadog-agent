@@ -22,7 +22,7 @@ struct mount_event_t {
 SYSCALL_KPROBE(mount) {
     struct syscall_cache_t syscall = {};
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&syscall.mount.fstype, sizeof(void *), &PT_REGS_PARM3(ctx));
 #else
     syscall.mount.fstype = (void *)PT_REGS_PARM3(ctx);

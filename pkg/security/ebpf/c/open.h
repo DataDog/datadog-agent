@@ -96,7 +96,7 @@ SYSCALL_KPROBE(open) {
     int flags;
     umode_t mode;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM2(ctx));
     bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM3(ctx));
 #else
@@ -110,7 +110,7 @@ SYSCALL_KPROBE(openat) {
     int flags;
     umode_t mode;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
     bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM4(ctx));
 #else

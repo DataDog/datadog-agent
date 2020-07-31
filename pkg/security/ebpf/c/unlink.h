@@ -43,7 +43,7 @@ SYSCALL_KPROBE(unlinkat) {
     int flags;
 
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
 #else
     flags = (int) PT_REGS_PARM3(ctx);
