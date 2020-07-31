@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"io"
 	"net"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,8 +29,7 @@ const pipeNamePrefix = `\\.\pipe\`
 type NamedPipeListener struct {
 	pipe          net.Listener
 	packetManager *packetManager
-	connections   map[net.Conn]struct{}
-	mux           sync.Mutex
+	connections   *namedPipeConnections
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
@@ -63,22 +62,64 @@ func newNamedPipeListener(
 	listener := &NamedPipeListener{
 		pipe:          pipe,
 		packetManager: packetManager,
-		connections:   make(map[net.Conn]struct{}),
+		connections: &namedPipeConnections{
+			newConn:         make(chan net.Conn),
+			connToClose:     make(chan net.Conn),
+			closeAllConns:   make(chan struct{}),
+			allConnsClosed:  make(chan struct{}),
+			activeConnCount: 0,
+		},
 	}
 
 	log.Debugf("dogstatsd-named-pipes: %s successfully initialized", pipe.Addr())
 	return listener, nil
 }
 
+type namedPipeConnections struct {
+	newConn         chan net.Conn
+	connToClose     chan net.Conn
+	closeAllConns   chan struct{}
+	allConnsClosed  chan struct{}
+	activeConnCount int32
+}
+
+func (l *namedPipeConnections) handleConnection() {
+	connections := make(map[net.Conn]struct{})
+	requestStop := false
+	for stop := false; !stop; {
+		select {
+		case conn := <-l.newConn:
+			connections[conn] = struct{}{}
+			atomic.AddInt32(&l.activeConnCount, 1)
+		case conn := <-l.connToClose:
+			conn.Close()
+			delete(connections, conn)
+			if requestStop && len(connections) == 0 {
+				stop = true
+			}
+		case <-l.closeAllConns:
+			requestStop = true
+			if len(connections) == 0 {
+				stop = true
+			}
+			for conn := range connections {
+				// Stop the current execution of net.Conn.Read() and exit listen loop.
+				conn.SetReadDeadline(time.Now())
+			}
+
+		}
+	}
+	l.allConnsClosed <- struct{}{}
+}
+
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *NamedPipeListener) Listen() {
+	go l.connections.handleConnection()
 	for {
 		conn, err := l.pipe.Accept()
 		switch {
 		case err == nil:
-			l.mux.Lock()
-			l.connections[conn] = struct{}{}
-			l.mux.Unlock()
+			l.connections.newConn <- conn
 			buffer := l.packetManager.createBuffer()
 			go l.listenConnection(conn, buffer)
 
@@ -136,28 +177,22 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 			}
 		}
 	}
-	conn.Close()
-	l.mux.Lock()
-	defer l.mux.Unlock()
-	delete(l.connections, conn)
+	l.connections.connToClose <- conn
 }
 
 // Stop closes the connection and stops listening
 func (l *NamedPipeListener) Stop() {
-	l.mux.Lock()
-	defer l.mux.Unlock()
-	for conn := range l.connections {
-		// Stop the current execution of net.Conn.Read() and exit listen loop.
-		conn.SetReadDeadline(time.Now())
-	}
+	// Request closing connections
+	l.connections.closeAllConns <- struct{}{}
+
+	// Wait until all connections are closed
+	<-l.connections.allConnsClosed
 
 	l.packetManager.close()
 	l.pipe.Close()
 }
 
 // GetActiveConnectionsCount returns the number of active connections.
-func (l *NamedPipeListener) GetActiveConnectionsCount() int {
-	l.mux.Lock()
-	defer l.mux.Unlock()
-	return len(l.connections)
+func (l *NamedPipeListener) GetActiveConnectionsCount() int32 {
+	return l.connections.activeConnCount
 }

@@ -37,9 +37,9 @@ func TestNamedPipeSeveralClients(t *testing.T) {
 	defer listener.Stop()
 	for i := 0; i < 3; i++ {
 		client := createNamedPipeClient(t)
-		defer client.Close()
 		_, err := client.Write([]byte(fmt.Sprintf("client %d\n", i)))
 		assert.NoError(t, err)
+		client.Close()
 	}
 
 	messages := getNamedPipeMessages(t, listener, 3)
@@ -69,7 +69,7 @@ func TestNamedPipeStop(t *testing.T) {
 
 	res := sendAndGetNamedPipeMessage(t, listener, client, "data\n")
 	assert.Equal(t, "data", res)
-	assert.Equal(t, 1, listener.GetActiveConnectionsCount())
+	assert.Equal(t, int32(1), listener.GetActiveConnectionsCount())
 	client.Close()
 	listener.Stop()
 
@@ -82,9 +82,9 @@ func TestNamedPipeStop(t *testing.T) {
 
 func TestNamedPipeMultipleMessages(t *testing.T) {
 	listener := newNamedPipeListenerTest(t)
+	defer listener.Stop()
 	client := createNamedPipeClient(t)
 	defer client.Close()
-	defer listener.Stop()
 
 	nbMessage := maxPipeMessageCount
 	for i := 0; i < nbMessage; i++ {
@@ -100,9 +100,9 @@ func TestNamedPipeMultipleMessages(t *testing.T) {
 
 func TestNamedPipeTooBigMessage(t *testing.T) {
 	listener := newNamedPipeListenerTest(t)
+	defer listener.Stop()
 	client := createNamedPipeClient(t)
 	defer client.Close()
-	defer listener.Stop()
 
 	message := strings.Repeat("1", namedPipeBufferSize+3) + "\n"
 	client.Write([]byte(message))
