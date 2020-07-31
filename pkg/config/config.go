@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -870,7 +871,11 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
-		log.Warnf("Error loading config: %v", err)
+		if errors.Is(err, os.ErrPermission) {
+			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+		} else {
+			log.Warnf("Error loading config: %v", err)
+		}
 		return &warnings, err
 	}
 
