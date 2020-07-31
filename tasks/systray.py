@@ -2,14 +2,13 @@
 systray tasks
 """
 from __future__ import print_function
+
 import os
 import sys
 
 from invoke import task
 
-from .utils import bin_name, get_version_numeric_only
-from .utils import REPO_PATH
-from .utils import get_version_ldflags
+from .utils import REPO_PATH, bin_name, get_version_ldflags, get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")

@@ -2,8 +2,8 @@
 Cluster Agent tasks
 """
 
-import os
 import glob
+import os
 import shutil
 
 from invoke import task

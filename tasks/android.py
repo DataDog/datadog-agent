@@ -2,17 +2,17 @@
 Android namespaced tasks
 """
 from __future__ import print_function
-import yaml
+
 import os
 import shutil
 import sys
 
+import yaml
 from invoke import task
 
-from .utils import bin_name, get_build_flags, get_version
-from .utils import REPO_PATH
 from .build_tags import get_default_build_tags
 from .go import generate
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
