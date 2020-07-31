@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -34,7 +35,7 @@ func jsonGetter(data []byte, query string) (string, error) {
 	return value, err
 }
 
-// jsonGetter retrieves a property from a YAML file (jq style syntax)
+// yamlGetter retrieves a property from a YAML file (jq style syntax)
 func yamlGetter(data []byte, query string) (string, error) {
 	var yamlContent map[string]interface{}
 	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
@@ -42,6 +43,21 @@ func yamlGetter(data []byte, query string) (string, error) {
 	}
 	value, _, err := jsonquery.RunSingleOutput(query, yamlContent)
 	return value, err
+}
+
+// regexpGetter retrieves the leftmost property matching regexp
+func regexpGetter(data []byte, expr string) (string, error) {
+	re, err := regexp.Compile(expr)
+	if err != nil {
+		return "", err
+	}
+
+	match := re.Find(data)
+	if match == nil {
+		return "", nil
+	}
+
+	return string(match), nil
 }
 
 // queryValueFromFile retrieves a value from a file with the provided getter func

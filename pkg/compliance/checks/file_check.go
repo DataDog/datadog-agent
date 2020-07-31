@@ -22,8 +22,9 @@ const (
 	fileFieldUser        = "file.user"
 	fileFieldGroup       = "file.group"
 
-	fileFuncJQ   = "file.jq"
-	fileFuncYAML = "file.yaml"
+	fileFuncJQ     = "file.jq"
+	fileFuncYAML   = "file.yaml"
+	fileFuncRegexp = "file.regexp"
 )
 
 var fileReportedFields = []string{
@@ -70,8 +71,9 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 				fileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
 			},
 			Functions: eval.FunctionMap{
-				fileFuncJQ:   fileJQ(path),
-				fileFuncYAML: fileYAML(path),
+				fileFuncJQ:     fileJQ(path),
+				fileFuncYAML:   fileYAML(path),
+				fileFuncRegexp: fileRegexp(path),
 			},
 		}
 
@@ -123,4 +125,8 @@ func fileJQ(path string) eval.Function {
 
 func fileYAML(path string) eval.Function {
 	return fileQuery(path, yamlGetter)
+}
+
+func fileRegexp(path string) eval.Function {
+	return fileQuery(path, regexpGetter)
 }

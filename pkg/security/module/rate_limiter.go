@@ -8,6 +8,7 @@
 package module
 
 import (
+	"fmt"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -93,11 +94,16 @@ func (rl *RateLimiter) GetStats() map[string]RateLimiterStat {
 // for the set of rules
 func (rl *RateLimiter) SendStats(client *statsd.Client) error {
 	for ruleID, counts := range rl.GetStats() {
-		if err := client.Count(probe.MetricPrefix+".rules."+ruleID+".rate_limiter.drop", counts.dropped, nil, 1.0); err != nil {
-			return err
+		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
+		if counts.dropped > 0 {
+			if err := client.Count(probe.MetricPrefix+".rules.rate_limiter.drop", counts.dropped, tags, 1.0); err != nil {
+				return err
+			}
 		}
-		if err := client.Count(probe.MetricPrefix+".rules."+ruleID+".rate_limiter.allow", counts.allowed, nil, 1.0); err != nil {
-			return err
+		if counts.allowed > 0 {
+			if err := client.Count(probe.MetricPrefix+".rules.rate_limiter.allow", counts.allowed, tags, 1.0); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -676,7 +676,7 @@ func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"src_container_path":"%s",`, e.ResolveSrcContainerPath(resolvers))
 	fmt.Fprintf(&buf, `"src_overlay_numlower":%d,`, e.SrcOverlayNumLower)
 	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.NewMountID)
-	fmt.Fprintf(&buf, `"new_inode":%d,`, e.NewInode)
+	fmt.Fprintf(&buf, `"new_inode":%d,`, e.SrcInode)
 	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.ResolveNewInode(resolvers))
 	fmt.Fprintf(&buf, `"new_container_path":"%s",`, e.ResolveNewContainerPath(resolvers))
 	fmt.Fprintf(&buf, `"new_overlay_numlower":%d`, e.NewOverlayNumLower)
