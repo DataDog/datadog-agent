@@ -19,7 +19,8 @@ const (
 	// - asia.gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/gke-release/pause-win:1.1.0
-	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/gke-release/|/)pause(.*)`
+	// - eu.gcr.io/k8s-artifacts-prod/pause:3.3
+	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/gke-release/|/k8s-artifacts-prod/|/)pause(.*)`
 	pauseContainerOpenshift3 = "image:(openshift/origin-pod|(.*)rhel7/pod-infrastructure)"
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
