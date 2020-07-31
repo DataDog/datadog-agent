@@ -270,10 +270,10 @@ func TestFileCheck(t *testing.T) {
 				env.On("RelativeToHostRoot", "./testdata/file/mounts").Return(file.Path)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *report) {
-				assert.True(t, report.passed)
-				assert.Equal(t, "/proc/mounts", report.data["file.path"])
-				assert.NotEmpty(t, report.data["file.user"])
-				assert.NotEmpty(t, report.data["file.group"])
+				assert.True(report.passed)
+				assert.Equal("/proc/mounts", report.data["file.path"])
+				assert.NotEmpty(report.data["file.user"])
+				assert.NotEmpty(report.data["file.group"])
 			},
 		},
 	}
