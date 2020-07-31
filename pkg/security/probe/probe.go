@@ -9,6 +9,7 @@ package probe
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"strings"
 
@@ -481,7 +482,7 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		}
 
 		eventType := EventType(i)
-		tags := []string{eventType.String()}
+		tags := []string{fmt.Sprintf("event_type:%s",eventType.String())}
 		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
 			if err := statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
 				return err
