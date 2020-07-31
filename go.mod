@@ -202,4 +202,4 @@ replace (
 // Pinned so it includes fix for Windows Nano
 replace k8s.io/klog => k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4
 
-replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload v0.0.0-20200730185658-c032e526ba39
+replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload v0.0.0-20200731072712-3ecfdd2d4429
