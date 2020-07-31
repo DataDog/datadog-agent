@@ -8,7 +8,6 @@
 package orchestrator
 
 import (
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -256,7 +255,7 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 		extraHeaders.Set(api.ClusterIDHeader, o.clusterID)
 		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
 
-		body, err := encodePayload(m)
+		body, err := api.EncodePayload(m)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
 			continue
@@ -275,20 +274,6 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 
 		}
 	}
-}
-
-func encodePayload(m model.MessageBody) ([]byte, error) {
-	msgType, err := model.DetectMessageType(m)
-	if err != nil {
-		return nil, fmt.Errorf("unable to detect message type: %s", err)
-	}
-
-	return model.EncodeMessage(model.Message{
-		Header: model.MessageHeader{
-			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingZstdPB,
-			Type:     msgType,
-		}, Body: m})
 }
 
 func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.Duration, stopCh <-chan struct{}) {
