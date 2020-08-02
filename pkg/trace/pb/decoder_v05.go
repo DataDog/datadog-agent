@@ -10,9 +10,9 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-// stringFromIndex reads an int from decoder dc and returns the string
+// dictionaryString reads an int from decoder dc and returns the string
 // at that index from dict.
-func stringFromIndex(dc *msgp.Reader, dict []string) (string, error) {
+func dictionaryString(dc *msgp.Reader, dict []string) (string, error) {
 	i, err := dc.ReadInt()
 	if err != nil {
 		return "", err
@@ -90,17 +90,17 @@ func (z *Span) DecodeMsgDictionary(dc *msgp.Reader, dict []string) error {
 		return errors.New("encoded span needs exactly 12 elements in array")
 	}
 	// Service (0)
-	z.Service, err = stringFromIndex(dc, dict)
+	z.Service, err = dictionaryString(dc, dict)
 	if err != nil {
 		return err
 	}
 	// Name (1)
-	z.Name, err = stringFromIndex(dc, dict)
+	z.Name, err = dictionaryString(dc, dict)
 	if err != nil {
 		return err
 	}
 	// Resource (2)
-	z.Resource, err = stringFromIndex(dc, dict)
+	z.Resource, err = dictionaryString(dc, dict)
 	if err != nil {
 		return err
 	}
@@ -148,11 +148,11 @@ func (z *Span) DecodeMsgDictionary(dc *msgp.Reader, dict []string) error {
 	}
 	for sz > 0 {
 		sz--
-		key, err := stringFromIndex(dc, dict)
+		key, err := dictionaryString(dc, dict)
 		if err != nil {
 			return err
 		}
-		val, err := stringFromIndex(dc, dict)
+		val, err := dictionaryString(dc, dict)
 		if err != nil {
 			return err
 		}
@@ -172,7 +172,7 @@ func (z *Span) DecodeMsgDictionary(dc *msgp.Reader, dict []string) error {
 	}
 	for sz > 0 {
 		sz--
-		key, err := stringFromIndex(dc, dict)
+		key, err := dictionaryString(dc, dict)
 		if err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func (z *Span) DecodeMsgDictionary(dc *msgp.Reader, dict []string) error {
 		z.Metrics[key] = val
 	}
 	// Type (11)
-	z.Type, err = stringFromIndex(dc, dict)
+	z.Type, err = dictionaryString(dc, dict)
 	if err != nil {
 		return err
 	}
