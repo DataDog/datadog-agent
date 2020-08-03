@@ -60,8 +60,8 @@ func (m *Module) RegisterTable(name string) (*Table, error) {
 	return &Table{Map: m.Map(name), module: m.Module}, nil
 }
 
-// eBPFLogSize is the size of the log buffer given to the verifier
-const eBPFLogSize = 1000000
+// eBPFLogSize is the size of the log buffer given to the verifier (2 * 1024 * 1024)
+const eBPFLogSize = 2097152
 
 // NewModuleFromReader creates an eBPF from a ReaderAt interface that points to
 // the ELF file containing the eBPF bytecode
