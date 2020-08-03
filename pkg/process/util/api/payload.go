@@ -7,7 +7,6 @@ package api
 
 import (
 	"fmt"
-	"strconv"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -27,7 +26,7 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 		return nil, fmt.Errorf("unable to detect message type: %s", err)
 	}
 
-	typeTag := "type:" + messageTypeToString(msgType)
+	typeTag := "type:" + msgType.String()
 	tlmBytesIn.Add(float64(m.Size()), typeTag)
 
 	encoded, err := model.EncodeMessage(model.Message{
@@ -40,27 +39,4 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	tlmBytesOut.Add(float64(len(encoded)), typeTag)
 
 	return encoded, err
-}
-
-func messageTypeToString(m model.MessageType) string {
-	switch m {
-	case model.TypeCollectorProc:
-		return "process"
-	case model.TypeCollectorConnections:
-		return "network"
-	case model.TypeCollectorRealTime:
-		return "process-rt"
-	case model.TypeCollectorContainer:
-		return "container"
-	case model.TypeCollectorContainerRealTime:
-		return "container-rt"
-	case model.TypeCollectorPod:
-		return "pod"
-	case model.TypeCollectorReplicaSet:
-		return "replica-set"
-	case model.TypeCollectorDeployment:
-		return "deployment"
-	}
-	// otherwise convert the type identifier
-	return strconv.Itoa(int(m))
 }

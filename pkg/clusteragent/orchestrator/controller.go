@@ -283,5 +283,4 @@ func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.
 			go wait.Until(processor, processorPeriod, stopCh)
 		})
 	}
-
 }
