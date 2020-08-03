@@ -452,8 +452,12 @@ static void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_by
 
     // If already in our map, increment size in-place
     if (val != NULL) {
-        __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
-        __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
+        if (sent_bytes) {
+            __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
+        }
+        if (recv_bytes) {
+            __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
+        }
         val->timestamp = ts;
     }
 }
