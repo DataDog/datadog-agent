@@ -199,11 +199,12 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// start runtime security agent
-	if err = startRuntimeSecurity(hostname, endpoints, dstContext, stopper); err != nil {
+	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper)
+	if err != nil {
 		return err
 	}
 
-	srv, err := api.NewServer()
+	srv, err := api.NewServer(runtimeAgent)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

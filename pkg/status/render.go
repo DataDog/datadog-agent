@@ -105,6 +105,7 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
 	renderComplianceChecksStats(b, runnerStats)
+	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
 
 	return b.String(), nil
 }
@@ -154,6 +155,12 @@ func renderComplianceChecksStats(w io.Writer, runnerStats /*, checkSchedulerStat
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	renderStatusTemplate(w, "/compliance.tmpl", checkStats)
+}
+
+func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) {
+	status := make(map[string]interface{})
+	status["RuntimeSecurityStatus"] = runtimeSecurityStatus
+	renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
