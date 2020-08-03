@@ -84,7 +84,7 @@ func TestIoStatsOverflow(t *testing.T) {
 
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil, "test")
-	ioCheck.stats = lastStats
+	ioCheck.lastIOStatsMap = lastStats
 	ioCheck.ts = 1000
 	ioCounters = func(names ...string) (map[string]disk.IOCountersStat, error) {
 		return currentStats, nil

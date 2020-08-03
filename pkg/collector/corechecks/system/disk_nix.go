@@ -28,7 +28,8 @@ var (
 // DiskCheck stores disk-specific additional fields
 type DiskCheck struct {
 	core.CheckBase
-	cfg *diskConfig
+	cfg            *diskConfig
+	lastIOStatsMap map[string]disk.IOCountersStat
 }
 
 // Run executes the check
@@ -101,7 +102,12 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	if err != nil {
 		return err
 	}
-	for deviceName, ioCounter := range iomap {
+	for deviceName, ioStats := range iomap {
+		lastIOStats, ok := c.lastIOStatsMap[deviceName]
+		if !ok {
+			log.Debug("New device stats (possible hotplug) - full stats unavailable this iteration.")
+			continue
+		}
 
 		tags := []string{}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
@@ -109,8 +115,10 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 
 		tags = c.applyDeviceTags(deviceName, "", tags)
 
-		c.sendDiskMetrics(sender, ioCounter, tags)
+		c.sendDiskMetrics(sender, ioStats, lastIOStats, tags)
 	}
+
+	c.lastIOStatsMap = iomap
 
 	return nil
 }
@@ -121,23 +129,22 @@ func (c *DiskCheck) sendPartitionMetrics(sender aggregator.Sender, usage *disk.U
 	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
 	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
 	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
-	// FIXME: 6.x, use percent, a lot more logical than in_use
+	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
 
 	// Inodes metrics
 	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(usage.InodesTotal), "", tags)
 	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(usage.InodesUsed), "", tags)
 	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
-	// FIXME: 6.x, use percent, a lot more logical than in_use
+	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
 
 }
 
-func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCountersStat, tags []string) {
-
-	// /1000 as psutil returns the value in ms
-	// Rate computes a rate of change between to consecutive check run.
-	// For cumulated time values like read and write times this a ratio between 0 and 1, we want it as a percentage so we *100 in advance
+func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter, lastIoCounter disk.IOCountersStat, tags []string) {
+	sender.Count(fmt.Sprintf(diskMetric, "read_time"), float64(incrementWithOverflow(ioCounter.ReadTime, lastIoCounter.ReadTime)), "", tags)
+	sender.Count(fmt.Sprintf(diskMetric, "write_time"), float64(incrementWithOverflow(ioCounter.WriteTime, lastIoCounter.WriteTime)), "", tags)
+	// FIXME(8.x): These older metrics are kept here for backwards compatibility, but they are wrong: the value is not a percentage
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
 }

@@ -34,7 +34,7 @@ type IOCheck struct {
 	blacklist          *regexp.Regexp
 	lowercaseDeviceTag bool // no effect on non-Windows platforms
 	ts                 int64
-	stats              map[string]disk.IOCountersStat
+	lastIOStatsMap     map[string]disk.IOCountersStat
 }
 
 // Configure the IOstats check
@@ -85,14 +85,14 @@ func (c *IOCheck) nixIO() error {
 	delta := float64(now - c.ts)
 	deltaSecond := delta / 1000
 
-	for device, ioStats := range iomap {
-		if c.blacklist != nil && c.blacklist.MatchString(device) {
+	for deviceName, ioStats := range iomap {
+		if c.blacklist != nil && c.blacklist.MatchString(deviceName) {
 			continue
 		}
 
 		tags := []string{}
-		tags = append(tags, fmt.Sprintf("device:%s", device))
-		tags = append(tags, fmt.Sprintf("device_name:%s", device))
+		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
 
 		if ioStats.Label != "" {
 			tags = append(tags, fmt.Sprintf("device_label:%s", ioStats.Label))
@@ -106,7 +106,7 @@ func (c *IOCheck) nixIO() error {
 		if c.ts == 0 {
 			continue
 		}
-		lastIOStats, ok := c.stats[device]
+		lastIOStats, ok := c.lastIOStatsMap[deviceName]
 		if !ok {
 			log.Debug("New device stats (possible hotplug) - full stats unavailable this iteration.")
 			continue
@@ -127,11 +127,9 @@ func (c *IOCheck) nixIO() error {
 		diffNRIO := float64(incrementWithOverflow(ioStats.ReadCount, lastIOStats.ReadCount))
 		diffNWIO := float64(incrementWithOverflow(ioStats.WriteCount, lastIOStats.WriteCount))
 		if diffNRIO != 0 {
-			//Note we use math.MaxUint32 because this value is always 32-bit, even on 64 bit machines
 			rAwait = float64(incrementWithOverflow(ioStats.ReadTime, lastIOStats.ReadTime)) / diffNRIO
 		}
 		if diffNWIO != 0 {
-			//Note we use math.MaxUint32 because this value is always 32-bit, even on 64 bit machines
 			wAwait = float64(incrementWithOverflow(ioStats.WriteTime, lastIOStats.WriteTime)) / diffNWIO
 		}
 
@@ -141,7 +139,6 @@ func (c *IOCheck) nixIO() error {
 		if diffNIO != 0 {
 			avgrqsz = float64((incrementWithOverflow(ioStats.ReadBytes, lastIOStats.ReadBytes)+
 				incrementWithOverflow(ioStats.WriteBytes, lastIOStats.WriteBytes))/SectorSize) / diffNIO
-			//Note we use math.MaxUint32 because these values are always 32-bit, even on 64 bit machines
 			aWait = float64(
 				incrementWithOverflow(ioStats.ReadTime, lastIOStats.ReadTime)+
 					incrementWithOverflow(ioStats.WriteTime, lastIOStats.WriteTime)) / diffNIO
@@ -173,7 +170,7 @@ func (c *IOCheck) nixIO() error {
 
 	}
 
-	c.stats = iomap
+	c.lastIOStatsMap = iomap
 	c.ts = now
 	return nil
 }
