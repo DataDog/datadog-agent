@@ -6,6 +6,7 @@
 struct link_event_t {
     struct event_t event;
     struct process_data_t process;
+    char container_id[CONTAINER_ID_LEN];
     int src_mount_id;
     u32 padding;
     unsigned long src_inode;
@@ -81,6 +82,13 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
 
     fill_process_data(&event.process);
     resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, NULL);
+
+    // add process cache data
+    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
+    if (entry) {
+        copy_container_id(event.container_id, entry->container_id);
+        event.process.numlower = entry->numlower;
+    }
 
     send_event(ctx, event);
 

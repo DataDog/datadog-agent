@@ -63,6 +63,7 @@ struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discar
 struct open_event_t {
     struct event_t event;
     struct process_data_t process;
+    char container_id[CONTAINER_ID_LEN];
     int flags;
     int mode;
     unsigned long inode;
@@ -127,7 +128,7 @@ int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *s
     struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
     if (filter) {
 #ifdef DEBUG
-        printk("kprobe/vfs_open basename %s approved\n", basename.value);
+        bpf_printk("kprobe/vfs_open basename %s approved\n", basename.value);
 #endif
         return 1;
     }
@@ -139,7 +140,7 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
 #ifdef DEBUG
-        printk("kprobe/vfs_open flags %d approved\n", syscall->open.flags);
+        bpf_printk("kprobe/vfs_open flags %d approved\n", syscall->open.flags);
 #endif
         return 1;
     }
@@ -151,7 +152,7 @@ int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *sysc
     u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &key);
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
 #ifdef DEBUG
-        printk("kprobe/vfs_open flags %d discarded\n", syscall->open.flags);
+        bpf_printk("kprobe/vfs_open flags %d discarded\n", syscall->open.flags);
 #endif
         return 1;
     }
@@ -159,11 +160,15 @@ int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *sysc
 }
 
 int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache_t *syscall) {
-    u64 inode = pid_inode(syscall->pid);
+    struct proc_cache_t *proc = get_pid_cache(syscall->pid);
+    if (!proc) {
+        return 0;
+    }
+    u64 inode = proc->inode;
     struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_approvers, &inode);
     if (filter) {
 #ifdef DEBUG
-        printk("kprobe/vfs_open pid %d with inode %d approved\n", syscall->pid, inode);
+        bpf_printk("kprobe/vfs_open pid %d with inode %d approved\n", syscall->pid, inode);
 #endif
         return 1;
     }
@@ -246,13 +251,21 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 
     fill_process_data(&event.process);
 
-    struct bpf_map_def *discarders = &open_path_inode_discarders;
-    if (syscall->policy.mode == NO_FILTER)
-        discarders = NULL;
-
-    retval = resolve_dentry(syscall->open.dentry, syscall->open.path_key, discarders);
-    if (retval < 0) {
+    int ret = 0;
+    if (syscall->policy.mode == NO_FILTER) {
+        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, NULL);
+    } else {
+        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, &open_path_inode_discarders);
+    }
+    if (ret < 0) {
         return 0;
+    }
+
+    // add process cache data
+    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
+    if (entry) {
+        copy_container_id(event.container_id, entry->container_id);
+        event.process.numlower = entry->numlower;
     }
 
     send_event(ctx, event);

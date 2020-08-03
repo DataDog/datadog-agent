@@ -6,6 +6,7 @@
 struct mkdir_event_t {
     struct event_t event;
     struct process_data_t process;
+    char container_id[CONTAINER_ID_LEN];
     int mode;
     int mount_id;
     unsigned long inode;
@@ -69,10 +70,14 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
+    int retval = PT_REGS_RC(ctx);
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
     syscall->mkdir.path_key.ino = get_dentry_ino(syscall->mkdir.dentry);
     struct mkdir_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
+        .event.retval = retval,
         .event.type = EVENT_MKDIR,
         .event.timestamp = bpf_ktime_get_ns(),
         .mode = syscall->mkdir.mode,
@@ -83,6 +88,13 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     fill_process_data(&event.process);
     resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, NULL);
+
+    // add process cache data
+    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
+    if (entry) {
+        copy_container_id(event.container_id, entry->container_id);
+        event.process.numlower = entry->numlower;
+    }
 
     send_event(ctx, event);
 

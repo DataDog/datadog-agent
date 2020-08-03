@@ -9,6 +9,12 @@ package probe
 
 import "github.com/DataDog/datadog-agent/pkg/security/ebpf"
 
+// execTables holds the list of eBPF tables used by the process kprobes
+var execTables = []string{
+	"proc_cache",
+	"pid_cookie",
+}
+
 // execHookPoints holds the list of hookpoints to track processes execution
 var execHookPoints = []*HookPoint{
 	{
@@ -31,12 +37,8 @@ var execHookPoints = []*HookPoint{
 		Optional: true,
 	},
 	{
-		Name: "do_fork",
-		KProbes: []*ebpf.KProbe{{
-			ExitFunc: "kretprobe/_do_fork",
-		}, {
-			ExitFunc: "kretprobe/do_fork",
-		}},
+		Name:       "sched_process_fork",
+		Tracepoint: "tracepoint/sched/sched_process_fork",
 		EventTypes: map[string]Capabilities{
 			"*": {},
 		},
@@ -49,5 +51,45 @@ var execHookPoints = []*HookPoint{
 		EventTypes: map[string]Capabilities{
 			"*": {},
 		},
+	},
+	{
+		Name: "cgroup_procs_write",
+		KProbes: []*ebpf.KProbe{{
+			ExitFunc: "kprobe/cgroup_procs_write",
+		}},
+		EventTypes: map[string]Capabilities{
+			"*": {},
+		},
+		Optional: true,
+	},
+	{
+		Name: "cgroup1_procs_write",
+		KProbes: []*ebpf.KProbe{{
+			ExitFunc: "kprobe/cgroup1_procs_write",
+		}},
+		EventTypes: map[string]Capabilities{
+			"*": {},
+		},
+		Optional: true,
+	},
+	{
+		Name: "cgroup_tasks_write",
+		KProbes: []*ebpf.KProbe{{
+			ExitFunc: "kprobe/cgroup_tasks_write",
+		}},
+		EventTypes: map[string]Capabilities{
+			"*": {},
+		},
+		Optional: true,
+	},
+	{
+		Name: "cgroup1_tasks_write",
+		KProbes: []*ebpf.KProbe{{
+			ExitFunc: "kprobe/cgroup1_tasks_write",
+		}},
+		EventTypes: map[string]Capabilities{
+			"*": {},
+		},
+		Optional: true,
 	},
 }
