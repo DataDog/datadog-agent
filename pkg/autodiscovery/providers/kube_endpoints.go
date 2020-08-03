@@ -209,8 +209,10 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
+		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointAnnotationPrefix)
 		for i := range endptConf {
 			endptConf[i].Source = "kube_endpoints:" + endpointsID
+			endptConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 			configsInfo = append(configsInfo, configInfo{
 				tpl:       endptConf[i],
 				namespace: svc.Namespace,
@@ -235,16 +237,17 @@ func generateConfigs(tpl integration.Config, kep *v1.Endpoints) []integration.Co
 			// Set a new entity containing the endpoint's IP
 			entity := apiserver.EntityForEndpoints(namespace, name, kep.Subsets[i].Addresses[j].IP)
 			newConfig := integration.Config{
-				Entity:        entity,
-				Name:          tpl.Name,
-				Instances:     tpl.Instances,
-				InitConfig:    tpl.InitConfig,
-				MetricConfig:  tpl.MetricConfig,
-				LogsConfig:    tpl.LogsConfig,
-				ADIdentifiers: []string{entity},
-				ClusterCheck:  true,
-				Provider:      tpl.Provider,
-				Source:        tpl.Source,
+				Entity:                  entity,
+				Name:                    tpl.Name,
+				Instances:               tpl.Instances,
+				InitConfig:              tpl.InitConfig,
+				MetricConfig:            tpl.MetricConfig,
+				LogsConfig:              tpl.LogsConfig,
+				ADIdentifiers:           []string{entity},
+				ClusterCheck:            true,
+				Provider:                tpl.Provider,
+				Source:                  tpl.Source,
+				IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
 			}
 			if targetRef := kep.Subsets[i].Addresses[j].TargetRef; targetRef != nil {
 				if targetRef.Kind == kubePodKind {
