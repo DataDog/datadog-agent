@@ -350,7 +350,7 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *eval.Opts) *rules.RuleSet {
+func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers)
 	}
