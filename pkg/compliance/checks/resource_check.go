@@ -19,7 +19,7 @@ var (
 	ErrResourceKindNotSupported = errors.New("resource kind not supported")
 )
 
-type checkFunc func(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error)
+type checkFunc func(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error)
 
 type resourceCheck struct {
 	ruleID     string
@@ -28,7 +28,7 @@ type resourceCheck struct {
 	checkFn    checkFunc
 }
 
-func (c *resourceCheck) check(env env.Env) (*report, error) {
+func (c *resourceCheck) check(env env.Env) (*compliance.Report, error) {
 	return c.checkFn(env, c.ruleID, c.resource, c.expression)
 }
 
@@ -85,6 +85,8 @@ func checkFuncForKind(kind compliance.ResourceKind) (checkFunc, error) {
 		return checkDocker, nil
 	case compliance.KindKubernetes:
 		return checkKubeapiserver, nil
+	case compliance.KindCustom:
+		return checkCustom, nil
 	default:
 		return nil, ErrResourceKindNotSupported
 	}
