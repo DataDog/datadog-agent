@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
+import os.path
 import subprocess
 import sys
-import os.path
 
 # Exclude non go files
 # Get the package for each file

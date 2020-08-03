@@ -2,17 +2,19 @@
 Golang related tasks go here
 """
 from __future__ import print_function
+
+import csv
 import datetime
 import os
 import shutil
 import sys
-import csv
 
 from invoke import task
 from invoke.exceptions import Exit
+
+from .bootstrap import get_deps, process_deps
 from .build_tags import get_default_build_tags
 from .utils import get_build_flags, get_gopath
-from .bootstrap import get_deps, process_deps
 
 # We use `basestring` in the code for compat with python2 unicode strings.
 # This makes the same code work in python3 as well.

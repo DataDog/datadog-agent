@@ -3,23 +3,23 @@ High level testing tasks
 """
 from __future__ import print_function
 
+import copy
+import operator
 import os
 import re
-import operator
 import sys
-import yaml
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags
-from .go import fmt, lint, vet, misspell, ineffassign, staticcheck, lint_licenses, golangci_lint, generate
-from .build_tags import get_default_build_tags, get_build_tags, filter_incompatible_tags
 from .agent import integration_tests as agent_integration_tests
-from .dogstatsd import integration_tests as dsd_integration_tests
-from .trace_agent import integration_tests as trace_integration_tests
+from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .cluster_agent import integration_tests as dca_integration_tests
-import copy
+from .dogstatsd import integration_tests as dsd_integration_tests
+from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
+from .trace_agent import integration_tests as trace_integration_tests
+from .utils import get_build_flags
 
 # We use `basestring` in the code for compat with python2 unicode strings.
 # This makes the same code work in python3 as well.
@@ -574,8 +574,14 @@ def lint_python(ctx):
     If running locally, you probably want to use the pre-commit instead.
     """
 
+    print(
+        """Remember to set up pre-commit to lint your files before committing:
+    https://github.com/DataDog/datadog-agent/blob/master/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+    )
+
     ctx.run("flake8 .")
     ctx.run("black --check --diff .")
+    ctx.run("isort --check-only --diff .")
 
 
 @task

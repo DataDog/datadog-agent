@@ -5,6 +5,7 @@ import os.path
 import stat
 import unittest
 from hashlib import sha256
+
 from six import iteritems
 
 EXPECTED_PRESENT = [

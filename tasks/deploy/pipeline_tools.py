@@ -1,10 +1,9 @@
-import platform
 import functools
-
-from .gitlab import Gitlab
-from .color import color_message
-
+import platform
 from time import sleep, time
+
+from .color import color_message
+from .gitlab import Gitlab
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
