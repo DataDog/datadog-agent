@@ -64,7 +64,7 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
 		value, ok := field.Value.(string)
 		if ok {
-			if value != path.Clean(value) || strings.HasPrefix(value, "..") {
+			if value != path.Clean(value) || !path.IsAbs(value) {
 				return fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
 			}
 		}
