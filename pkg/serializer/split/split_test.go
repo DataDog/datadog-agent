@@ -18,7 +18,8 @@ import (
 
 func TestSplitPayloadsSeries(t *testing.T) {
 	testSeries := metrics.Series{}
-	for i := 0; i < 30000; i++ {
+	// add enough points to exceed the uncompressed and compressed size limits
+	for i := 0; i < 300000; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},

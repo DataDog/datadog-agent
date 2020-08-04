@@ -17,7 +17,8 @@ import (
 )
 
 // the backend accepts payloads up to 3MB, but being conservative is okay
-var maxPayloadSize = 2 * 1024 * 1024
+var maxPayloadSizeCompressed = 2 * 1024 * 1024
+var maxPayloadSizeUnCompressed = 64 * 1024 * 1024
 
 // MarshalType is the type of marshaler to use
 type MarshalType int
@@ -56,24 +57,24 @@ func init() {
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-func CheckSizeAndSerialize(m marshaler.Marshaler, compress bool, mType MarshalType) (bool, []byte, []byte, error) {
+func CheckSizeAndSerialize(m marshaler.Marshaler, compress bool, mType MarshalType) (bool, bool, []byte, []byte, error) {
 	compressedPayload, payload, err := serializeMarshaller(m, compress, mType)
 	if err != nil {
-		return false, nil, nil, err
+		return false, false, nil, nil, err
 	}
-	return checkSize(compressedPayload), compressedPayload, payload, nil
+	return checkSizeCompressed(compressedPayload), checkSizeUnCompressed(payload), compressedPayload, payload, nil
 }
 
 // Payloads serializes a metadata payload and sends it to the forwarder
 func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarder.Payloads, error) {
 	marshallers := []marshaler.Marshaler{m}
 	smallEnoughPayloads := forwarder.Payloads{}
-	nottoobig, payload, _, err := CheckSizeAndSerialize(m, compress, mType)
+	notTooBigCompressed, notTooBigUncompressed, payload, _, err := CheckSizeAndSerialize(m, compress, mType)
 	if err != nil {
 		return smallEnoughPayloads, err
 	}
 	// If the payload's size is fine, just return it
-	if nottoobig {
+	if notTooBigCompressed && notTooBigUncompressed {
 		log.Debug("The payload was not too big, returning the full payload")
 		splitterNotTooBig.Add(1)
 		tlmSplitterNotTooBig.Inc()
@@ -82,7 +83,7 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 	}
 	splitterTooBig.Add(1)
 	tlmSplitterTooBig.Inc()
-	toobig := !nottoobig
+	toobig := !notTooBigCompressed || !notTooBigUncompressed
 	loops := 0
 	// Do not attempt to split payloads forever, if a payload cannot be split then abandon the task
 	// the function will return all the payloads that were able to be split
@@ -105,7 +106,7 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			// Attempt to account for the compression when estimating the number of chunks that will be needed
 			// This is the same function used in dd-agent
 			compressionRatio := float64(payloadSize) / float64(compressedSize)
-			numChunks := compressedSize/maxPayloadSize + 1 + int(compressionRatio/2)
+			numChunks := compressedSize/maxPayloadSizeCompressed + 1 + int(compressionRatio/2)
 			log.Debugf("split the payload into into %d chunks", numChunks)
 			chunks, err := toSplit.SplitPayload(numChunks)
 			log.Debugf("payload was split into %d chunks", len(chunks))
@@ -118,12 +119,12 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			// after the payload has been split, loop through the chunks
 			for _, chunk := range chunks {
 				// serialize the payload
-				smallEnough, payload, _, err := CheckSizeAndSerialize(chunk, compress, mType)
+				smallEnoughCompressed, smallEnoughUncompressed, payload, _, err := CheckSizeAndSerialize(chunk, compress, mType)
 				if err != nil {
 					log.Debugf("Error serializing a chunk: %s", err)
 					continue
 				}
-				if smallEnough {
+				if smallEnoughCompressed && smallEnoughUncompressed {
 					// if the payload is small enough, return it straight away
 					smallEnoughPayloads = append(smallEnoughPayloads, &payload)
 					log.Debugf("chunk was small enough: %v, smallEnoughPayloads are of length: %v", len(payload), len(smallEnoughPayloads))
@@ -170,8 +171,15 @@ func serializeMarshaller(m marshaler.Marshaler, compress bool, mType MarshalType
 	return compressedPayload, payload, nil
 }
 
-func checkSize(payload []byte) bool {
-	if len(payload) >= maxPayloadSize {
+func checkSizeCompressed(payload []byte) bool {
+	if len(payload) >= maxPayloadSizeCompressed {
+		return false
+	}
+	return true
+}
+
+func checkSizeUnCompressed(payload []byte) bool {
+	if len(payload) >= maxPayloadSizeUnCompressed {
 		return false
 	}
 	return true
