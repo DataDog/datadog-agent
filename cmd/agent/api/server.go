@@ -13,6 +13,7 @@ package api
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -20,9 +21,12 @@ import (
 	"strings"
 	"time"
 
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
@@ -92,7 +96,10 @@ func StartServer() error {
 	// gRPC server
 	mux := http.NewServeMux()
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, tlsAddr))}
+		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, tlsAddr)),
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(grpcAuthFunc)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcAuthFunc)),
+	}
 
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
@@ -164,4 +171,30 @@ func validateToken(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func parseToken(token string) (struct{}, error) {
+	if token != util.GetAuthToken() {
+		return struct{}{}, errors.New("Invalid session token")
+	}
+
+	return struct{}{}, nil
+}
+
+//grpcAuthFunc is a middleware (interceptor) that extracts and verified token from header
+func grpcAuthFunc(ctx context.Context) (context.Context, error) {
+	token, err := grpc_auth.AuthFromMD(ctx, "Bearer")
+	if err != nil {
+		return nil, err
+	}
+
+	tokenInfo, err := parseToken(token)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid auth token: %v", err)
+	}
+
+	// do we need this at all?
+	newCtx := context.WithValue(ctx, "tokenInfo", tokenInfo)
+
+	return newCtx, nil
 }
