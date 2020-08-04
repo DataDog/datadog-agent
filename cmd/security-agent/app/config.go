@@ -62,7 +62,7 @@ var configCommand = &cobra.Command{
 
 func requestConfig() (string, error) {
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/config", config.Datadog.GetInt("security_agent.cmd_port"))
+	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", config.Datadog.GetInt("security_agent.cmd_port"))
 
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {
