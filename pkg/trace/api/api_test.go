@@ -351,7 +351,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
 	})
 
 	t.Run("with-header", func(t *testing.T) {
@@ -365,7 +365,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
 	})
 }
 
@@ -518,7 +518,7 @@ func TestHandleTraces(t *testing.T) {
 
 	// We test stats for each app
 	for _, lang := range langs {
-		ts, ok := rs.Stats[info.Tags{Lang: lang}]
+		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived)
 		assert.Equal(int64(59222), ts.TracesBytes)
