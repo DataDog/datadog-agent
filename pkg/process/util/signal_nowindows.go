@@ -18,9 +18,9 @@ func HandleSignals(exit chan struct{}) {
 	for sig := range sigIn {
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
-			signal.Stop(sigIn)
 			log.Criticalf("Caught signal '%s'; terminating.", sig)
 			close(exit)
+			return
 		}
 	}
 }
