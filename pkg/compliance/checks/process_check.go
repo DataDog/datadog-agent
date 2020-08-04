@@ -26,9 +26,14 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
+func checkProcess(e env.Env, id string, res compliance.Resource) (*compliance.Report, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
+	}
+
+	expr, err := eval.Cache.ParseIterable(res.Condition)
+	if err != nil {
+		return nil, err
 	}
 
 	process := res.Process
@@ -68,6 +73,21 @@ func checkProcess(e env.Env, id string, res compliance.Resource, expr *eval.Iter
 	result, err := expr.EvaluateIterator(it, globalInstance)
 	if err != nil {
 		return nil, err
+	}
+
+	if res.Fallback != nil {
+		fallbackExpr, err := eval.Cache.ParseExpression(res.Fallback.Condition)
+		if err != nil {
+			return nil, err
+		}
+
+		useFallback, err := fallbackExpr.BoolEvaluate(result.Instance)
+		if err != nil {
+			return nil, err
+		}
+		if useFallback {
+			return nil, ErrResourceUseFallback
+		}
 	}
 
 	return instanceResultToReport(result, processReportedFields), nil

@@ -23,9 +23,14 @@ var fileReportedFields = []string{
 	compliance.FileFieldGroup,
 }
 
-func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
+func checkFile(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
+	}
+
+	expr, err := eval.Cache.ParseIterable(res.Condition)
+	if err != nil {
+		return nil, err
 	}
 
 	file := res.File

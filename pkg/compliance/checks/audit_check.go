@@ -21,9 +21,14 @@ var auditReportedFields = []string{
 	compliance.AuditFieldPermissions,
 }
 
-func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
+func checkAudit(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
+	}
+
+	expr, err := eval.Cache.ParseIterable(res.Condition)
+	if err != nil {
+		return nil, err
 	}
 
 	audit := res.Audit

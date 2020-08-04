@@ -29,9 +29,14 @@ var kubeResourceReportedFields = []string{
 	compliance.KubeResourceFieldKind,
 }
 
-func checkKubeapiserver(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
+func checkKubeapiserver(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
+	}
+
+	expr, err := eval.Cache.ParseIterable(res.Condition)
+	if err != nil {
+		return nil, err
 	}
 
 	kubeResource := res.KubeApiserver

@@ -14,9 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 )
 
-func checkCustom(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
+func checkCustom(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
 	if res.Custom == nil || res.Custom.Name == "" {
 		return nil, fmt.Errorf("expecting custom resource in custom check")
+	}
+
+	expr, err := eval.Cache.ParseIterable(res.Condition)
+	if err != nil {
+		return nil, err
 	}
 
 	f := custom.GetCustomCheck(res.Custom.Name)

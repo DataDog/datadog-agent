@@ -10,26 +10,41 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	// ErrResourceKindNotSupported is returned in case resource kind is not supported by evaluator
 	ErrResourceKindNotSupported = errors.New("resource kind not supported")
+
+	// ErrResourceUseFallback is returned when a resource cannot provide check result and relies on fallback
+	ErrResourceUseFallback = errors.New("resource check uses fallback")
+
+	// ErrResourceFallbackMissing is returned when a resource relies on fallback but no fallback is provided
+	ErrResourceFallbackMissing = errors.New("resource fallback missing")
 )
 
-type checkFunc func(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error)
+type checkFunc func(e env.Env, ruleID string, resource compliance.Resource) (*compliance.Report, error)
 
 type resourceCheck struct {
-	ruleID     string
-	resource   compliance.Resource
-	expression *eval.IterableExpression
-	checkFn    checkFunc
+	ruleID   string
+	resource compliance.Resource
+
+	checkFn  checkFunc
+	fallback checkable
 }
 
 func (c *resourceCheck) check(env env.Env) (*compliance.Report, error) {
-	return c.checkFn(env, c.ruleID, c.resource, c.expression)
+	report, err := c.checkFn(env, c.ruleID, c.resource)
+
+	if err == ErrResourceUseFallback {
+		if c.fallback != nil {
+			return c.fallback.check(env)
+		}
+		return nil, ErrResourceFallbackMissing
+	}
+
+	return report, err
 }
 
 func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) (checkable, error) {
@@ -51,21 +66,24 @@ func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) 
 		}
 	}
 
-	expression, err := eval.ParseIterable(resource.Condition)
-	if err != nil {
-		return nil, log.Errorf("%s: failed to parse condition: %s", ruleID, err)
-	}
-
 	checkFn, err := checkFuncForKind(kind)
 	if err != nil {
-		return nil, log.Errorf("%s: failed to resolve evaluator for kind: %s", ruleID, kind)
+		return nil, log.Errorf("%s: failed to resolve check handler for kind: %s", ruleID, kind)
+	}
+
+	var fallback checkable
+	if resource.Fallback != nil {
+		fallback, err = newResourceCheck(env, ruleID, resource.Fallback.Resource)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &resourceCheck{
-		ruleID:     ruleID,
-		resource:   resource,
-		expression: expression,
-		checkFn:    checkFn,
+		ruleID:   ruleID,
+		resource: resource,
+		checkFn:  checkFn,
+		fallback: fallback,
 	}, nil
 }
 

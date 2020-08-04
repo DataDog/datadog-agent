@@ -30,9 +30,14 @@ var groupReportedFields = []string{
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func checkGroup(e env.Env, id string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
+func checkGroup(e env.Env, id string, res compliance.Resource) (*compliance.Report, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
+	}
+
+	expr, err := eval.Cache.ParseIterable(res.Condition)
+	if err != nil {
+		return nil, err
 	}
 
 	group := res.Group

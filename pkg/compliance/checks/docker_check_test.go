@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/docker/docker/api/types"
 
@@ -70,10 +69,7 @@ func TestDockerImageCheck(t *testing.T) {
 	defer env.AssertExpectations(t)
 	env.On("DockerClient").Return(client)
 
-	expr, err := eval.ParseIterable(resource.Condition)
-	assert.NoError(err)
-
-	report, err := checkDocker(env, "rule-id", resource, expr)
+	report, err := checkDocker(env, "rule-id", resource)
 	assert.NoError(err)
 
 	assert.False(report.Passed)
@@ -102,10 +98,7 @@ func TestDockerNetworkCheck(t *testing.T) {
 	defer env.AssertExpectations(t)
 	env.On("DockerClient").Return(client)
 
-	expr, err := eval.ParseIterable(resource.Condition)
-	assert.NoError(err)
-
-	report, err := checkDocker(env, "rule-id", resource, expr)
+	report, err := checkDocker(env, "rule-id", resource)
 	assert.NoError(err)
 
 	assert.True(report.Passed)
@@ -216,10 +209,7 @@ func TestDockerContainerCheck(t *testing.T) {
 			defer env.AssertExpectations(t)
 			env.On("DockerClient").Return(client)
 
-			expr, err := eval.ParseIterable(resource.Condition)
-			assert.NoError(err)
-
-			report, err := checkDocker(env, "rule-id", resource, expr)
+			report, err := checkDocker(env, "rule-id", resource)
 			assert.NoError(err)
 
 			assert.Equal(test.expectPassed, report.Passed)
@@ -251,10 +241,7 @@ func TestDockerInfoCheck(t *testing.T) {
 	defer env.AssertExpectations(t)
 	env.On("DockerClient").Return(client)
 
-	expr, err := eval.ParseIterable(resource.Condition)
-	assert.NoError(err)
-
-	report, err := checkDocker(env, "rule-id", resource, expr)
+	report, err := checkDocker(env, "rule-id", resource)
 	assert.NoError(err)
 
 	assert.False(report.Passed)
@@ -281,10 +268,7 @@ func TestDockerVersionCheck(t *testing.T) {
 	defer env.AssertExpectations(t)
 	env.On("DockerClient").Return(client)
 
-	expr, err := eval.ParseIterable(resource.Condition)
-	assert.NoError(err)
-
-	report, err := checkDocker(env, "rule-id", resource, expr)
+	report, err := checkDocker(env, "rule-id", resource)
 	assert.NoError(err)
 
 	assert.False(report.Passed)

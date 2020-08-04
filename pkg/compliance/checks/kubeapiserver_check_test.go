@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
@@ -66,10 +65,7 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	kubeClient := fake.NewSimpleDynamicClient(runtime.NewScheme(), f.objects...)
 	env.On("KubeClient").Return(kubeClient)
 
-	expr, err := eval.ParseIterable(f.resource.Condition)
-	assert.NoError(err)
-
-	report, err := checkKubeapiserver(env, "rule-id", f.resource, expr)
+	report, err := checkKubeapiserver(env, "rule-id", f.resource)
 	assert.Equal(f.expectReport, report)
 	if f.expectError != nil {
 		assert.EqualError(err, f.expectError.Error())

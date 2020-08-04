@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/elastic/go-libaudit/rule"
@@ -121,10 +120,7 @@ func TestAuditCheck(t *testing.T) {
 				test.setup(t, env)
 			}
 
-			expr, err := eval.ParseIterable(test.resource.Condition)
-			assert.NoError(err)
-
-			result, err := checkAudit(env, "rule-id", test.resource, expr)
+			result, err := checkAudit(env, "rule-id", test.resource)
 
 			assert.Equal(test.expectError, err)
 			assert.Equal(test.expectReport, result)
