@@ -56,7 +56,7 @@ func (m *HostnameRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_HostnameRequest proto.InternalMessageInfo
 
-// The response message containing the greetings
+// The response message containing the requested hostname
 type HostnameReply struct {
 	Hostname             string   `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -96,26 +96,113 @@ func (m *HostnameReply) GetHostname() string {
 	return ""
 }
 
+// The request message containing the tag list for an entity.
+type TagRequest struct {
+	Entity               string   `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *TagRequest) Reset()         { *m = TagRequest{} }
+func (m *TagRequest) String() string { return proto.CompactTextString(m) }
+func (*TagRequest) ProtoMessage()    {}
+func (*TagRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{2}
+}
+
+func (m *TagRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TagRequest.Unmarshal(m, b)
+}
+func (m *TagRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TagRequest.Marshal(b, m, deterministic)
+}
+func (m *TagRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TagRequest.Merge(m, src)
+}
+func (m *TagRequest) XXX_Size() int {
+	return xxx_messageInfo_TagRequest.Size(m)
+}
+func (m *TagRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_TagRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TagRequest proto.InternalMessageInfo
+
+func (m *TagRequest) GetEntity() string {
+	if m != nil {
+		return m.Entity
+	}
+	return ""
+}
+
+// The response message containing the tagger reply
+type TagReply struct {
+	Tags                 []string `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *TagReply) Reset()         { *m = TagReply{} }
+func (m *TagReply) String() string { return proto.CompactTextString(m) }
+func (*TagReply) ProtoMessage()    {}
+func (*TagReply) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{3}
+}
+
+func (m *TagReply) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TagReply.Unmarshal(m, b)
+}
+func (m *TagReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TagReply.Marshal(b, m, deterministic)
+}
+func (m *TagReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TagReply.Merge(m, src)
+}
+func (m *TagReply) XXX_Size() int {
+	return xxx_messageInfo_TagReply.Size(m)
+}
+func (m *TagReply) XXX_DiscardUnknown() {
+	xxx_messageInfo_TagReply.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TagReply proto.InternalMessageInfo
+
+func (m *TagReply) GetTags() []string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*HostnameRequest)(nil), "pb.HostnameRequest")
 	proto.RegisterType((*HostnameReply)(nil), "pb.HostnameReply")
+	proto.RegisterType((*TagRequest)(nil), "pb.TagRequest")
+	proto.RegisterType((*TagReply)(nil), "pb.TagReply")
 }
 
 func init() { proto.RegisterFile("api.proto", fileDescriptor_00212fb1f9d3bf1c) }
 
 var fileDescriptor_00212fb1f9d3bf1c = []byte{
-	// 169 bytes of a gzipped FileDescriptorProto
+	// 252 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x4c, 0x2c, 0xc8, 0xd4,
 	0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x2a, 0x48, 0x92, 0x92, 0x49, 0xcf, 0xcf, 0x4f, 0xcf,
 	0x49, 0xd5, 0x4f, 0x2c, 0xc8, 0xd4, 0x4f, 0xcc, 0xcb, 0xcb, 0x2f, 0x49, 0x2c, 0xc9, 0xcc, 0xcf,
 	0x2b, 0x86, 0xa8, 0x50, 0x12, 0xe4, 0xe2, 0xf7, 0xc8, 0x2f, 0x2e, 0xc9, 0x4b, 0xcc, 0x4d, 0x0d,
 	0x4a, 0x2d, 0x2c, 0x4d, 0x2d, 0x2e, 0x51, 0xd2, 0xe6, 0xe2, 0x45, 0x08, 0x15, 0xe4, 0x54, 0x0a,
-	0x49, 0x71, 0x71, 0x64, 0x40, 0x05, 0x24, 0x18, 0x15, 0x18, 0x35, 0x38, 0x83, 0xe0, 0x7c, 0xa3,
-	0x50, 0x2e, 0x56, 0xc7, 0xf4, 0xd4, 0xbc, 0x12, 0x21, 0x1f, 0x2e, 0x6e, 0xf7, 0xd4, 0x12, 0x98,
-	0x46, 0x21, 0x61, 0xbd, 0x82, 0x24, 0x3d, 0x34, 0x93, 0xa5, 0x04, 0x51, 0x05, 0x0b, 0x72, 0x2a,
+	0x49, 0x71, 0x71, 0x64, 0x40, 0x05, 0x24, 0x18, 0x15, 0x18, 0x35, 0x38, 0x83, 0xe0, 0x7c, 0x25,
+	0x15, 0x2e, 0xae, 0x90, 0xc4, 0x74, 0xa8, 0x56, 0x21, 0x31, 0x2e, 0xb6, 0xd4, 0xbc, 0x92, 0xcc,
+	0x92, 0x4a, 0xa8, 0x3a, 0x28, 0x4f, 0x49, 0x8e, 0x8b, 0x03, 0xac, 0x0a, 0x64, 0x9a, 0x10, 0x17,
+	0x4b, 0x49, 0x62, 0x7a, 0xb1, 0x04, 0xa3, 0x02, 0xb3, 0x06, 0x67, 0x10, 0x98, 0x6d, 0x34, 0x83,
+	0x91, 0x8b, 0xd5, 0x31, 0x3d, 0x35, 0xaf, 0x44, 0xc8, 0x87, 0x8b, 0xdb, 0x3d, 0xb5, 0x04, 0x66,
+	0xbf, 0x90, 0xb0, 0x5e, 0x41, 0x92, 0x1e, 0x9a, 0x03, 0xa5, 0x04, 0x51, 0x05, 0x0b, 0x72, 0x2a,
 	0x95, 0x44, 0x9b, 0x2e, 0x3f, 0x99, 0xcc, 0xc4, 0x2f, 0xc4, 0xab, 0x5f, 0x66, 0xa8, 0x9f, 0x5e,
-	0x54, 0x90, 0xac, 0x0f, 0x32, 0x3a, 0x89, 0x0d, 0xec, 0x3a, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff,
-	0xff, 0xbd, 0x9d, 0x72, 0x5f, 0xcc, 0x00, 0x00, 0x00,
+	0x54, 0x90, 0xac, 0x0f, 0x72, 0xa1, 0x90, 0x23, 0x17, 0xbb, 0x7b, 0x6a, 0x49, 0x48, 0x62, 0x7a,
+	0xb1, 0x10, 0x1f, 0x48, 0x13, 0xc2, 0xa9, 0x52, 0x3c, 0x70, 0x3e, 0x48, 0xbf, 0x04, 0x58, 0xbf,
+	0x90, 0x12, 0x42, 0x3f, 0xc8, 0x5d, 0x56, 0x8c, 0x5a, 0x49, 0x6c, 0xe0, 0x70, 0x32, 0x06, 0x04,
+	0x00, 0x00, 0xff, 0xff, 0x16, 0xfb, 0xb8, 0xb5, 0x56, 0x01, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -132,6 +219,7 @@ const _ = grpc.SupportPackageIsVersion4
 type AgentClient interface {
 	// get the hostname
 	GetHostname(ctx context.Context, in *HostnameRequest, opts ...grpc.CallOption) (*HostnameReply, error)
+	GetTags(ctx context.Context, in *TagRequest, opts ...grpc.CallOption) (*TagReply, error)
 }
 
 type agentClient struct {
@@ -151,10 +239,20 @@ func (c *agentClient) GetHostname(ctx context.Context, in *HostnameRequest, opts
 	return out, nil
 }
 
+func (c *agentClient) GetTags(ctx context.Context, in *TagRequest, opts ...grpc.CallOption) (*TagReply, error) {
+	out := new(TagReply)
+	err := c.cc.Invoke(ctx, "/pb.Agent/GetTags", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServer is the server API for Agent service.
 type AgentServer interface {
 	// get the hostname
 	GetHostname(context.Context, *HostnameRequest) (*HostnameReply, error)
+	GetTags(context.Context, *TagRequest) (*TagReply, error)
 }
 
 // UnimplementedAgentServer can be embedded to have forward compatible implementations.
@@ -163,6 +261,9 @@ type UnimplementedAgentServer struct {
 
 func (*UnimplementedAgentServer) GetHostname(ctx context.Context, req *HostnameRequest) (*HostnameReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHostname not implemented")
+}
+func (*UnimplementedAgentServer) GetTags(ctx context.Context, req *TagRequest) (*TagReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTags not implemented")
 }
 
 func RegisterAgentServer(s *grpc.Server, srv AgentServer) {
@@ -187,6 +288,24 @@ func _Agent_GetHostname_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Agent_GetTags_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TagRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServer).GetTags(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.Agent/GetTags",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServer).GetTags(ctx, req.(*TagRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Agent_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "pb.Agent",
 	HandlerType: (*AgentServer)(nil),
@@ -194,6 +313,10 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetHostname",
 			Handler:    _Agent_GetHostname_Handler,
+		},
+		{
+			MethodName: "GetTags",
+			Handler:    _Agent_GetTags_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
