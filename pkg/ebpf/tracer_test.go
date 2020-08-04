@@ -1652,7 +1652,11 @@ func TestConntrackExpiration(t *testing.T) {
 }
 
 func TestTCPEstablished(t *testing.T) {
-	tr, err := NewTracer(NewDefaultConfig())
+	// Ensure closed connections are flushed as soon as possible
+	cfg := NewDefaultConfig()
+	cfg.TCPClosedTimeout = time.Millisecond
+
+	tr, err := NewTracer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1674,20 +1678,25 @@ func TestTCPEstablished(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 	c.Write([]byte("hello"))
-	defer c.Close()
 
 	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	conn, ok := findConnection(laddr, raddr, connections)
 
 	assert.True(t, ok)
 	assert.Equal(t, uint32(1), conn.LastTCPEstablished)
+	assert.Equal(t, uint32(0), conn.LastTCPClosed)
 
-	// Verify that we report the connection establishment only once
+	c.Close()
+	// Wait for the connection to be sent from the perf buffer
+	time.Sleep(10 * time.Millisecond)
+
 	connections = getConnections(t, tr)
-	conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	conn, ok = findConnection(laddr, raddr, connections)
 	assert.True(t, ok)
 	assert.Equal(t, uint32(0), conn.LastTCPEstablished)
+	assert.Equal(t, uint32(1), conn.LastTCPClosed)
 }
 
 func TestTCPEstablishedPreExistingConn(t *testing.T) {
@@ -1703,9 +1712,13 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 
-	tr, err := NewTracer(NewDefaultConfig())
+	// Ensure closed connections are flushed as soon as possible
+	cfg := NewDefaultConfig()
+	cfg.TCPClosedTimeout = time.Millisecond
+
+	tr, err := NewTracer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1715,9 +1728,13 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	getConnections(t, tr)
 
 	c.Write([]byte("hello"))
+	c.Close()
+	// Wait for the connection to be sent from the perf buffer
+	time.Sleep(10 * time.Millisecond)
 	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	conn, ok := findConnection(laddr, raddr, connections)
 
 	assert.True(t, ok)
 	assert.Equal(t, uint32(0), conn.MonotonicTCPEstablished)
+	assert.Equal(t, uint32(1), conn.MonotonicTCPClosed)
 }
