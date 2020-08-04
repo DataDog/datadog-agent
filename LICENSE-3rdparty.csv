@@ -1071,8 +1071,8 @@ core,"sigs.k8s.io/structured-merge-diff/typed",Apache-2.0
 core,"sigs.k8s.io/structured-merge-diff/value",Apache-2.0
 core,"sigs.k8s.io/yaml",MIT
 core,go.opencensus.io,Apache-2.0
-core,"github.com/vmihailenco/msgpack/v5",FreeBSD
-core,"github.com/vmihailenco/msgpack/v5/codes",FreeBSD
+core,"github.com/vmihailenco/msgpack/v4",FreeBSD
+core,"github.com/vmihailenco/msgpack/v4/codes",FreeBSD
 core,"github.com/vmihailenco/tagparser",FreeBSD
 core,"github.com/vmihailenco/tagparser/internal",FreeBSD
 core,"github.com/vmihailenco/tagparser/internal/parser",FreeBSD
