@@ -23,7 +23,6 @@ import (
 var (
 	metadataURL        = "http://169.254.169.254/latest/meta-data"
 	tokenURL           = "http://169.254.169.254/latest/api/token"
-	timeout            = 100 * time.Millisecond
 	oldDefaultPrefixes = []string{"ip-", "domu"}
 	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
 
@@ -191,7 +190,7 @@ func extractClusterName(tags []string) (string, error) {
 
 func doHTTPRequest(url string, method string, headers map[string]string, retriableWithFreshToken bool) (*http.Response, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
 
 	req, err := http.NewRequest(method, url, nil)
@@ -224,7 +223,7 @@ func doHTTPRequest(url string, method string, headers map[string]string, retriab
 
 func getToken() (string, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
 
 	req, err := http.NewRequest(http.MethodPut, tokenURL, nil)

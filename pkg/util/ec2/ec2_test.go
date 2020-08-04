@@ -21,13 +21,13 @@ import (
 )
 
 var (
-	initialTimeout     = timeout
+	initialTimeout     = time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond
 	initialMetadataURL = metadataURL
 	initialTokenURL    = tokenURL
 )
 
 func resetPackageVars() {
-	timeout = initialTimeout
+	config.Datadog.Set("ec2_metadata_timeout", initialTimeout)
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
 }
@@ -71,7 +71,7 @@ func TestGetInstanceID(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	// API errors out, should return error
@@ -116,7 +116,7 @@ func TestGetHostname(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	// API errors out, should return error
@@ -220,7 +220,7 @@ func TestGetNetworkID(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := GetNetworkID()
@@ -235,7 +235,7 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := GetNetworkID()
@@ -265,7 +265,7 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := GetNetworkID()
@@ -287,7 +287,7 @@ func TestGetLocalIPv4(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	ips, err := GetLocalIPv4()
@@ -309,7 +309,7 @@ func TestGetToken(t *testing.T) {
 
 	defer ts.Close()
 	tokenURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	token, err := getToken()
@@ -366,7 +366,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	tokenURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	ips, err := GetLocalIPv4()
