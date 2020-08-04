@@ -96,7 +96,6 @@
 /pkg/kubestatemetrics                    @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 
-/releasenotes/                          @DataDog/agent-all
 /releasenotes-dca/                      @DataDog/container-integrations
 
 /rtloader/                              @DataDog/agent-core
