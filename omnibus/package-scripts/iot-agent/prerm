@@ -5,6 +5,10 @@
 # .deb: STEP 1 of 5
 # .rpm: STEP 4 of 6
 
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
+
+INSTALL_DIR=/opt/datadog-agent
 SERVICE_NAME=datadog-agent
 
 stop_agent()
@@ -34,7 +38,47 @@ deregister_agent()
     fi
 }
 
+remove_version_history()
+{
+    # Since 6.22.0/7.22.0, a file containing the version history of the currently installed
+    # Agent is created (by default in /opt/datadog-agent/run). On a full uninstall, remove this
+    # file.
+    # This is a best-effort solution, as users can decide to put this file in another place
+    # by changing the logs_config.run_path value.
+
+    if [ -f "$INSTALL_DIR/run/version-history.json" ]; then
+        echo "Removing version history file"
+        rm "$INSTALL_DIR/run/version-history.json" || true
+    fi
+}
+
 stop_agent
 deregister_agent
+
+if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
+    case "$1" in
+        remove)
+            # We're uninstalling.
+            remove_version_history
+        ;;
+        upgrade)
+            # We're upgrading.
+        ;;
+        *)
+        ;;
+    esac
+elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
+    case "$*" in
+        0)
+            # We're uninstalling.
+            remove_version_history
+        ;;
+        1)
+            # We're upgrading.
+        ;;
+        *)
+        ;;
+    esac
+fi
 
 exit 0

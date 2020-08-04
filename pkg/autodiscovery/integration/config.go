@@ -308,9 +308,10 @@ func (c *Config) Digest() string {
 	for _, i := range c.ADIdentifiers {
 		h.Write([]byte(i)) //nolint:errcheck
 	}
-	h.Write([]byte(c.NodeName))   //nolint:errcheck
-	h.Write([]byte(c.LogsConfig)) //nolint:errcheck
-	h.Write([]byte(c.Entity))     //nolint:errcheck
+	h.Write([]byte(c.NodeName))                                    //nolint:errcheck
+	h.Write([]byte(c.LogsConfig))                                  //nolint:errcheck
+	h.Write([]byte(c.Entity))                                      //nolint:errcheck
+	h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags))) //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

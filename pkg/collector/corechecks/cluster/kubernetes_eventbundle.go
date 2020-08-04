@@ -89,7 +89,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		return metrics.Event{}, errors.New("no event to export")
 	}
 
-	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)}
+	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), addKindRelatedTag(b.kind, b.name)}
 
 	hostname := b.nodename
 	if b.nodename != "" {
@@ -130,6 +130,23 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 	}
 	output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
 	return output, nil
+}
+
+func addKindRelatedTag(kind, name string) string {
+	var tags string
+	switch kind {
+	case "Pod":
+		tags = fmt.Sprintf("pod_name:%s", name)
+	case "Deployment":
+		tags = fmt.Sprintf("kube_deployment:%s", name)
+	case "ReplicaSet":
+		tags = fmt.Sprintf("kube_replica_set:%s", name)
+	case "ReplicationController":
+		tags = fmt.Sprintf("kube_replication_controller:%s", name)
+	case "StatefulSet":
+		tags = fmt.Sprintf("kube_stateful_set:%s", name)
+	}
+	return tags
 }
 
 func getHostProviderID(nodename string) string {

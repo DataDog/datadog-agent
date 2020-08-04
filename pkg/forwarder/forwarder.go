@@ -22,6 +22,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	// PayloadTypePod is the name of the pod payload type
+	PayloadTypePod = "pod"
+	// PayloadTypeDeployment is the name of the deployment payload type
+	PayloadTypeDeployment = "deployment"
+	// PayloadTypeReplicaSet is the name of the replica set payload type
+	PayloadTypeReplicaSet = "replicaset"
+	// PayloadTypeService is the name of the service payload type
+	PayloadTypeService = "service"
+)
+
 var (
 	forwarderExpvars              = expvar.NewMap("forwarder")
 	connectionEvents              = expvar.Map{}
@@ -41,6 +52,9 @@ var (
 	transactionsIntakeRTContainer = expvar.Int{}
 	transactionsIntakeConnections = expvar.Int{}
 	transactionsIntakePod         = expvar.Int{}
+	transactionsIntakeDeployment  = expvar.Int{}
+	transactionsIntakeReplicaSet  = expvar.Int{}
+	transactionsIntakeService     = expvar.Int{}
 
 	tlm = telemetry.NewCounter("forwarder", "transactions",
 		[]string{"endpoint", "route"}, "Forwarder telemetry")
@@ -58,12 +72,12 @@ var (
 	hostMetadataEndpoint  = endpoint{"/api/v2/host_metadata", "host_metadata_v2"}
 	metadataEndpoint      = endpoint{"/api/v2/metadata", "metadata_v2"}
 
-	processesEndpoint   = endpoint{"/api/v1/collector", "process"}
-	rtProcessesEndpoint = endpoint{"/api/v1/collector", "rtprocess"}
-	containerEndpoint   = endpoint{"/api/v1/container", "container"}
-	rtContainerEndpoint = endpoint{"/api/v1/container", "rtcontainer"}
-	connectionsEndpoint = endpoint{"/api/v1/collector", "connections"}
-	podEndpoint         = endpoint{"/api/v1/orchestrator", "pod"}
+	processesEndpoint    = endpoint{"/api/v1/collector", "process"}
+	rtProcessesEndpoint  = endpoint{"/api/v1/collector", "rtprocess"}
+	containerEndpoint    = endpoint{"/api/v1/container", "container"}
+	rtContainerEndpoint  = endpoint{"/api/v1/container", "rtcontainer"}
+	connectionsEndpoint  = endpoint{"/api/v1/collector", "connections"}
+	orchestratorEndpoint = endpoint{"/api/v1/orchestrator", "orchestrator"}
 )
 
 func init() {
@@ -86,6 +100,9 @@ func init() {
 	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
 	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
 	transactionsExpvars.Set("Pods", &transactionsIntakePod)
+	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
+	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
+	transactionsExpvars.Set("Services", &transactionsIntakeService)
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
@@ -149,7 +166,7 @@ type Forwarder interface {
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -461,11 +478,20 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 	return f.submitProcessLikePayload(connectionsEndpoint, payload, extra, true)
 }
 
-// SubmitPodChecks sends pod checks
-func (f *DefaultForwarder) SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	transactionsIntakePod.Add(1)
+// SubmitOrchestratorChecks sends orchestrator checks
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	switch payloadType {
+	case PayloadTypePod:
+		transactionsIntakePod.Add(1)
+	case PayloadTypeDeployment:
+		transactionsIntakeDeployment.Add(1)
+	case PayloadTypeReplicaSet:
+		transactionsIntakeReplicaSet.Add(1)
+	case PayloadTypeService:
+		transactionsIntakeService.Add(1)
+	}
 
-	return f.submitProcessLikePayload(podEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {

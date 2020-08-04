@@ -534,7 +534,7 @@ func TestScrubContainer(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			scrubContainer(&tc.input, cfg)
+			ScrubContainer(&tc.input, cfg)
 			assert.Equal(t, tc.expected, tc.input)
 		})
 	}
@@ -726,4 +726,28 @@ func TestChunkPods(t *testing.T) {
 	}
 	actual := chunkPods(pods, 3, 2)
 	assert.ElementsMatch(t, expected, actual)
+}
+
+func TestGenerateUniqueStaticPodHash(t *testing.T) {
+	hostName := "agent-dev-tim"
+	podName := "nginxP"
+	namespace := "kube-system"
+	clusterName := "something"
+
+	uniqueHash := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
+	uniqueHashAgain := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
+
+	assert.Equal(t, uniqueHash, uniqueHashAgain)
+}
+
+func TestGenerateUniqueStaticPodHashHardCoded(t *testing.T) {
+	hostName := "agent-dev-tim"
+	podName := "nginxP"
+	namespace := "kube-system"
+	clusterName := "something"
+
+	uniqueHash := generateUniqueStaticPodHash(hostName, podName, namespace, clusterName)
+	expectedHash := "b9d79449507ade06"
+
+	assert.Equal(t, uniqueHash, expectedHash)
 }

@@ -20,7 +20,7 @@ metadata:
   name: datadog-cluster-agent-metrics-api
   labels:
     app: "datadog"
-    chart: "datadog-2.3.14"
+    chart: "datadog-2.3.40"
     release: "datadog"
     heritage: "Helm"
 spec:
@@ -28,6 +28,6 @@ spec:
   selector:
     app: datadog-cluster-agent
   ports:
-    - port: 443
+    - port: 8443
       name: metricsapi
       protocol: TCP

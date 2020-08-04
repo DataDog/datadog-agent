@@ -19,6 +19,18 @@ type StatusResponse struct {
 	IsUpToDate bool `json:"isuptodate"`
 }
 
+// RebalanceResponse holds the DCA response for a rebalancing request
+type RebalanceResponse struct {
+	CheckID     string `json:"check_id"`
+	CheckWeight int    `json:"check_weight"`
+
+	SourceNodeName string `json:"source_node_name"`
+	SourceDiff     int    `json:"source_diff"`
+
+	DestNodeName string `json:"dest_node_name"`
+	DestDiff     int    `json:"dest_diff"`
+}
+
 // ConfigResponse holds the DCA response for a config query
 type ConfigResponse struct {
 	LastChange int64                `json:"last_change"`

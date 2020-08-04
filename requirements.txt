@@ -1,7 +1,6 @@
-# python development requirements for Agent 6
-invoke==1.0.0
-reno==2.9.2
-dulwich==0.19.16
+# python development requirements for the Datadog Agent
+invoke==1.4.1
+reno==3.1.0
 docker==3.7.3
 requests==2.23.0
 PyYAML==5.3.1

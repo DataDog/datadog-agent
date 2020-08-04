@@ -60,6 +60,8 @@ func RunChecks(reporter event.Reporter, configDir string, options ...checks.Buil
 		return err
 	}
 
+	defer builder.Close()
+
 	agent := &Agent{
 		builder:   builder,
 		configDir: configDir,
@@ -77,6 +79,8 @@ func RunChecksFromFile(reporter event.Reporter, file string, options ...checks.B
 	if err != nil {
 		return err
 	}
+
+	defer builder.Close()
 
 	agent := &Agent{
 		builder: builder,

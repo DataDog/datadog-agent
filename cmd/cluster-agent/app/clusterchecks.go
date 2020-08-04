@@ -11,5 +11,8 @@ package app
 import "github.com/DataDog/datadog-agent/cmd/cluster-agent/commands"
 
 func init() {
-	ClusterAgentCmd.AddCommand(commands.GetClusterChecksCobraCmd(&flagNoColor, &confPath, loggerName))
+	clusterChecksCmd := commands.GetClusterChecksCobraCmd(&flagNoColor, &confPath, loggerName)
+	clusterChecksCmd.AddCommand(commands.RebalanceClusterChecksCobraCmd(&flagNoColor, &confPath, loggerName))
+
+	ClusterAgentCmd.AddCommand(clusterChecksCmd)
 }

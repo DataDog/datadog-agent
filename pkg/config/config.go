@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -178,6 +179,8 @@ func InitConfig(config Config) {
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
+	// overridden in Heroku buildpack
+	config.BindEnvAndSetDefault("heroku_dyno", false)
 
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
@@ -309,7 +312,8 @@ func InitConfig(config Config) {
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125)            // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_windows_pipe_name", "") // experimental and not officially supported for now.
 
 	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
 	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
@@ -676,6 +680,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.offset_guess_threshold")
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
+	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -732,6 +737,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
+
+	// Datadog security agent (runtime)
+	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
+	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", "/etc/datadog-agent/runtime-security.d")
+	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
+	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -861,7 +874,11 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
-		log.Warnf("Error loading config: %v", err)
+		if errors.Is(err, os.ErrPermission) {
+			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+		} else {
+			log.Warnf("Error loading config: %v", err)
+		}
 		return &warnings, err
 	}
 

@@ -16,10 +16,10 @@ NOTE: Changes made to this template should be reflected on the following templat
   Agent flavor: {{.flavor}}
   {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers}}
-  {{end -}}
+  {{- end }}
   {{- if .config.log_file}}
   Log File: {{.config.log_file}}
-  {{end -}}
+  {{- end }}
   Log Level: {{.config.log_level}}
 
   Paths
