@@ -18,8 +18,9 @@
 #include <linux/version.h>
 
 #include "defs.h"
-#include "process.h"
 #include "dentry.h"
+#include "exec.h"
+#include "process.h"
 #include "setattr.h"
 #include "mnt.h"
 #include "filename.h"
@@ -29,13 +30,14 @@
 #include "rmdir.h"
 #include "unlink.h"
 #include "rename.h"
-#include "exec.h"
+#include "cgroup.h"
 #include "open.h"
 #include "utimes.h"
 #include "mount.h"
 #include "umount.h"
 #include "link.h"
 #include "raw_syscalls.h"
+#include "getattr.h"
 
 __u32 _version SEC("version") = 0xFFFFFFFE;
 

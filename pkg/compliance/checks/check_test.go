@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	assert "github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestCheckRun(t *testing.T) {
 	tests := []struct {
 		name        string
 		configErr   error
-		checkReport *report
+		checkReport *compliance.Report
 		checkErr    error
 		expectEvent *event.Event
 		expectErr   error
@@ -38,9 +39,9 @@ func TestCheckRun(t *testing.T) {
 		},
 		{
 			name: "successful check",
-			checkReport: &report{
-				passed: true,
-				data: event.Data{
+			checkReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"file.permissions": 0644,
 				},
 			},
@@ -56,9 +57,9 @@ func TestCheckRun(t *testing.T) {
 		},
 		{
 			name: "failed check",
-			checkReport: &report{
-				passed: false,
-				data: event.Data{
+			checkReport: &compliance.Report{
+				Passed: false,
+				Data: event.Data{
 					"file.permissions": 0644,
 				},
 			},

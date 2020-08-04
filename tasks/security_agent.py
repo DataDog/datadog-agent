@@ -1,19 +1,20 @@
 import datetime
 import os
+
 from invoke import task
 
-from .utils import (
-    bin_name,
-    get_gopath,
-    get_build_flags,
-    REPO_PATH,
-    get_version,
-    get_git_branch_name,
-    get_go_version,
-    get_git_commit,
-)
 from .build_tags import get_default_build_tags
 from .go import generate
+from .utils import (
+    REPO_PATH,
+    bin_name,
+    get_build_flags,
+    get_git_branch_name,
+    get_git_commit,
+    get_go_version,
+    get_gopath,
+    get_version,
+)
 
 BIN_DIR = os.path.join(".", "bin", "security-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("security-agent", android=False))

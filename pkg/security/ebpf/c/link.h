@@ -6,6 +6,7 @@
 struct link_event_t {
     struct event_t event;
     struct process_data_t process;
+    char container_id[CONTAINER_ID_LEN];
     int src_mount_id;
     u32 padding;
     unsigned long src_inode;
@@ -49,7 +50,10 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
     syscall->link.src_key = get_key(dentry, syscall->link.target_path);
-    syscall->link.target_key = get_key(syscall->link.target_dentry, syscall->link.target_path);
+    // we generate a fake target key as the inode is the same
+    syscall->link.target_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
+    syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
+    get_key(syscall->link.target_dentry, syscall->link.target_path);
 
     resolve_dentry(dentry, syscall->link.src_key, NULL);
     return 0;
@@ -78,6 +82,13 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
 
     fill_process_data(&event.process);
     resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, NULL);
+
+    // add process cache data
+    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
+    if (entry) {
+        copy_container_id(event.container_id, entry->container_id);
+        event.process.numlower = entry->numlower;
+    }
 
     send_event(ctx, event);
 

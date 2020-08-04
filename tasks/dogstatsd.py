@@ -1,21 +1,27 @@
 """
 Dogstatsd tasks
 """
-from __future__ import print_function, absolute_import
+from __future__ import absolute_import, print_function
 
 import os
-import sys
 import shutil
+import sys
 from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags, get_default_build_tags, filter_incompatible_tags
-from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version
-from .utils import REPO_PATH
-
+from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .go import deps
+from .utils import (
+    REPO_PATH,
+    bin_name,
+    get_build_flags,
+    get_root,
+    get_version,
+    get_version_numeric_only,
+    load_release_versions,
+)
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")

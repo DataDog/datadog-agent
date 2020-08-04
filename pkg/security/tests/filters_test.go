@@ -132,9 +132,6 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	// wait to ensure that snapshots sync is done
-	time.Sleep(3 * time.Second)
-
 	fd1, testFile1, err := openTestFile(test, "test-obd-2", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)

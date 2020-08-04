@@ -37,8 +37,12 @@
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
 
-/go.mod                                 @DataDog/agent-all
-/go.sum                                 @DataDog/agent-all
+# These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
+# Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
+# that should be fine since rarely we make PRs that only change those files alone.
+/releasenotes/                          @DataDog/do-not-notify
+/go.mod                                 @DataDog/do-not-notify
+/go.sum                                 @DataDog/do-not-notify
 
 /Makefile.trace                         @DataDog/agent-apm
 
@@ -96,7 +100,6 @@
 /pkg/kubestatemetrics                    @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 
-/releasenotes/                          @DataDog/agent-all
 /releasenotes-dca/                      @DataDog/container-integrations
 
 /rtloader/                              @DataDog/agent-core
@@ -111,9 +114,8 @@
 
 /test/benchmarks/                       @DataDog/agent-core
 /test/e2e/                              @DataDog/container-integrations
-/test/integration/                      @DataDog/agent-all
+/test/integration/                      @DataDog/container-integrations
 /test/kitchen/                          @DataDog/agent-platform
 /test/system/                           @DataDog/agent-core
-/test/util/                             @DataDog/agent-all
 
 /tools/ebpf/                            @DataDog/networks

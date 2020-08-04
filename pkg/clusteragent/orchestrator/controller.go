@@ -54,6 +54,8 @@ type Controller struct {
 	deployListerSync        cache.InformerSynced
 	rsLister                appslisters.ReplicaSetLister
 	rsListerSync            cache.InformerSynced
+	serviceLister           corelisters.ServiceLister
+	serviceListerSync       cache.InformerSynced
 	groupID                 int32
 	hostName                string
 	clusterName             string
@@ -88,6 +90,7 @@ func StartController(ctx ControllerContext) error {
 		apiserver.PodsInformer:        ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
 		apiserver.DeploysInformer:     ctx.InformerFactory.Apps().V1().Deployments().Informer(),
 		apiserver.ReplicaSetsInformer: ctx.InformerFactory.Apps().V1().ReplicaSets().Informer(),
+		apiserver.ServicesInformer:    ctx.InformerFactory.Core().V1().Services().Informer(),
 	})
 }
 
@@ -100,6 +103,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 
 	deployInformer := ctx.InformerFactory.Apps().V1().Deployments()
 	rsInformer := ctx.InformerFactory.Apps().V1().ReplicaSets()
+	serviceInformer := ctx.InformerFactory.Core().V1().Services()
 
 	cfg := processcfg.NewDefaultAgentConfig(true)
 	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
@@ -121,6 +125,8 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		deployListerSync:        deployInformer.Informer().HasSynced,
 		rsLister:                rsInformer.Lister(),
 		rsListerSync:            rsInformer.Informer().HasSynced,
+		serviceLister:           serviceInformer.Lister(),
+		serviceListerSync:       serviceInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
@@ -144,18 +150,18 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync) {
+	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync) {
 		return
 	}
 
-	go wait.Until(o.processPods, 10*time.Second, stopCh)
-	// spread the processing of other resources
-	time.AfterFunc(2*time.Second, func() {
-		go wait.Until(o.processReplicaSets, 10*time.Second, stopCh)
-	})
-	time.AfterFunc(4*time.Second, func() {
-		go wait.Until(o.processDeploys, 10*time.Second, stopCh)
-	})
+	processors := []func(){
+		o.processPods,
+		o.processReplicaSets,
+		o.processDeploys,
+		o.processServices,
+	}
+
+	spreadProcessors(processors, 2*time.Second, 10*time.Second, stopCh)
 
 	<-stopCh
 
@@ -223,6 +229,26 @@ func (o *Controller) processPods() {
 	o.sendMessages(msg, forwarder.PayloadTypePod)
 }
 
+func (o *Controller) processServices() {
+	if !o.isLeaderFunc() {
+		return
+	}
+
+	serviceList, err := o.serviceLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("Unable to list services: %s", err)
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processServiceList(serviceList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	if err != nil {
+		log.Errorf("Unable to process service list: %s", err)
+		return
+	}
+
+	o.sendMessages(messages, forwarder.PayloadTypeService)
+}
+
 func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 	for _, m := range msg {
 		extraHeaders := make(http.Header)
@@ -263,4 +289,14 @@ func encodePayload(m model.MessageBody) ([]byte, error) {
 			Encoding: model.MessageEncodingZstdPB,
 			Type:     msgType,
 		}, Body: m})
+}
+
+func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.Duration, stopCh <-chan struct{}) {
+	for idx, p := range processors {
+		processor := p
+		time.AfterFunc(time.Duration(idx)*spreadInterval, func() {
+			go wait.Until(processor, processorPeriod, stopCh)
+		})
+	}
+
 }
