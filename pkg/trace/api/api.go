@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -27,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/tinylib/msgp/msgp"
 
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -82,24 +84,65 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	}
 }
 
+// excludedPathPrefixes contains a list of path prefixes which will not be advertised
+// as a valid HTTP path when hitting the features endpoint.
+var excludedPathPrefixes = []string{"/debug", "/spans", "/services", "/v0.1", "/v0.2", "/v0.3/services", "/v0.4/services"}
+
+// serveFeatures returns an HTTP handler which serves the features supported
+// by the agent in JSON.
+func serveFeatures(router *mux.Router) http.Handler {
+	var (
+		buf   bytes.Buffer
+		paths []string
+	)
+	router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		if path, err := route.GetPathTemplate(); err == nil {
+			for _, exc := range excludedPathPrefixes {
+				if strings.HasPrefix(path, exc) {
+					return nil
+				}
+			}
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err := json.NewEncoder(&buf).Encode(struct {
+		Endpoints    []string `json:"endpoints"`
+		Version      string   `json:"version"`
+		FeatureFlags string   `json:"feature_flags"`
+	}{
+		Endpoints:    paths,
+		Version:      info.Version,
+		FeatureFlags: os.Getenv("DD_APM_FEATURES"),
+	}); err != nil {
+		log.Errorf("Failed to encode features, endpoint will be unusable: %v", err)
+	}
+	data := buf.Bytes()
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write(data)
+	})
+
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
-	mux := http.NewServeMux()
+	router := mux.NewRouter()
 
-	r.attachDebugHandlers(mux)
+	r.attachDebugHandlers(router)
 
-	mux.HandleFunc("/spans", r.handleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/services", r.handleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.1/spans", r.handleWithVersion(v01, r.handleTraces))
-	mux.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
-	mux.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
-	mux.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
-	mux.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
-	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
-	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
-	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
-	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
-	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
+	router.HandleFunc("/spans", r.handleWithVersion(v01, r.handleTraces))
+	router.HandleFunc("/services", r.handleWithVersion(v01, r.handleServices))
+	router.HandleFunc("/v0.1/spans", r.handleWithVersion(v01, r.handleTraces))
+	router.HandleFunc("/v0.1/services", r.handleWithVersion(v01, r.handleServices))
+	router.HandleFunc("/v0.2/traces", r.handleWithVersion(v02, r.handleTraces))
+	router.HandleFunc("/v0.2/services", r.handleWithVersion(v02, r.handleServices))
+	router.HandleFunc("/v0.3/traces", r.handleWithVersion(v03, r.handleTraces))
+	router.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
+	router.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
+	router.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+	router.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
+	router.Handle("/profiling/v1/input", r.profileProxyHandler())
+	router.Handle("/features", serveFeatures(router))
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -110,7 +153,7 @@ func (r *HTTPReceiver) Start() {
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      mux,
+		Handler:      router,
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
@@ -144,7 +187,7 @@ func (r *HTTPReceiver) Start() {
 	}()
 }
 
-func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
+func (r *HTTPReceiver) attachDebugHandlers(mux *mux.Router) {
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
