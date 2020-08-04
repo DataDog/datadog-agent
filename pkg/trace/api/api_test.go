@@ -29,7 +29,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
-	vmsgp "github.com/vmihailenco/msgpack/v5"
+	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
 // Traces shouldn't come from more than 5 different sources
@@ -421,9 +421,9 @@ func TestDecodeV05(t *testing.T) {
 		},
 		1: [][][12]interface{}{
 			{
-				{3, 4, 2, uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[int]int{5: 6}, map[int]float64{7: 1.2}, 9},
-				{0, 1, 10, uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[int]int{11: 12}, map[int]float64{8: 1.4}, 9},
-				{0, 1, 10, uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[int]int{11: 12}, map[int]float64{}, 9},
+				{uint32(3), uint32(4), uint32(2), uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[uint32]uint32{5: 6}, map[uint32]float64{7: 1.2}, uint32(9)},
+				{uint32(0), uint32(1), uint32(10), uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[uint32]uint32{11: 12}, map[uint32]float64{8: 1.4}, uint32(9)},
+				{uint32(0), uint32(1), uint32(10), uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[uint32]uint32{11: 12}, map[uint32]float64{}, uint32(9)},
 			},
 		},
 	}
