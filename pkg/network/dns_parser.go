@@ -4,6 +4,7 @@ package network
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
@@ -143,7 +144,10 @@ func (p *dnsParser) parseAnswerInto(
 		return nil
 	}
 
+	str2 := string(question.Name[:])
+	fmt.Println(str2)
 	if dns.ResponseCode != 0 {
+		fmt.Println("Failed with response code: %d", dns.ResponseCode)
 		pktInfo.pktType = FailedResponse
 		return nil
 	}
