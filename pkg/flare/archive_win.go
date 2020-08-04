@@ -43,7 +43,7 @@ func zipCounterStrings(tempDir, hostname string) error {
 	}
 	clist := winutil.ConvertWindowsStringList(counterlist)
 	fname := filepath.Join(tempDir, hostname, "counter_strings.txt")
-	err := EnsureParentDirsExist(fname)
+	err := ensureParentDirsExist(fname)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func zipTypeperfData(tempDir, hostname string) error {
 		return err
 	}
 	f := filepath.Join(tempDir, hostname, "typeperf.txt")
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}

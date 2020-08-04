@@ -85,7 +85,7 @@ func (p permissionsInfos) write(tempDir, hostname string, mode os.FileMode) erro
 	// init the file
 	t := filepath.Join(tempDir, hostname, "permissions.log")
 
-	if err := EnsureParentDirsExist(t); err != nil {
+	if err := ensureParentDirsExist(t); err != nil {
 		return err
 	}
 

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
 	"sort"
 
@@ -33,14 +34,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST").Queries("profileDir", "{path:.*}")
+	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
@@ -80,8 +81,15 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	queryVals := r.URL.Query()
-	profileDir := queryVals.Get("profileDir")
+	var profile *flare.Profile
+
+	err := json.NewDecoder(r.Body).Decode(&profile)
+	switch {
+	case err == io.EOF:
+		log.Debugf("No profile, continuing.")
+	case err != nil:
+		log.Errorf("Error while decoding profile from request body: %s", err)
+	}
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
@@ -89,7 +97,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile, profileDir)
+	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile, profile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

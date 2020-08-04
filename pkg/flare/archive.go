@@ -39,10 +39,8 @@ import (
 )
 
 const (
-	// HeapProfileName is the name of the heap profile file.
-	HeapProfileName = "heap_profile.log"
-	// CPUProfileName is the name of the CPU profile file.
-	CPUProfileName = "cpu_profile.pprof"
+	heapProfileName = "heap_profile.log"
+	cpuProfileName  = "cpu_profile.pprof"
 
 	routineDumpFilename = "go-routine-dump.log"
 
@@ -89,9 +87,11 @@ type filePermsInfo struct {
 	group string
 }
 
-// EnsureParentDirsExist creates the parent directory for the filepath `p` if it does not already exist.
-func EnsureParentDirsExist(p string) error {
-	return os.MkdirAll(filepath.Dir(p), os.ModePerm)
+// Profile is a performance profile containing heap and CPU profiles.
+type Profile struct {
+	FirstHeapProfile  []byte
+	CPUProfile        []byte
+	SecondHeapProfile []byte
 }
 
 // CreateTempDir creates a temporary directory in the current working directory.
@@ -107,17 +107,17 @@ func CreateTempDir() (string, error) {
 }
 
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath, logFilePath, profileDir string) (string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, profile *Profile) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(confSearchPaths, local, zipFilePath, logFilePath, profileDir)
+	return createArchive(confSearchPaths, local, zipFilePath, logFilePath, profile)
 }
 
-func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFilePath, profileDir string) (string, error) {
+func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFilePath string, profile *Profile) (string, error) {
 	tempDir, err := CreateTempDir()
 	if err != nil {
 		return "", err
@@ -264,8 +264,8 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFile
 		log.Errorf("Could not zip install_info: %s", err)
 	}
 
-	if profileDir != "" {
-		err = zipPerformanceProfile(tempDir, hostname, profileDir)
+	if profile != nil {
+		err = zipPerformanceProfile(tempDir, hostname, profile)
 		if err != nil {
 			log.Errorf("Could not zip performance profile: %s", err)
 		}
@@ -295,7 +295,7 @@ func zipStatusFile(tempDir, hostname string) error {
 
 func writeStatusFile(tempDir, hostname string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, "status.log")
-	err := EnsureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -379,7 +379,7 @@ func zipExpVar(tempDir, hostname string) error {
 		}
 
 		f := filepath.Join(tempDir, hostname, "expvar", key)
-		err = EnsureParentDirsExist(f)
+		err = ensureParentDirsExist(f)
 		if err != nil {
 			return err
 		}
@@ -460,7 +460,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	}
 
 	f := filepath.Join(tempDir, hostname, "runtime_config_dump.yaml")
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -511,7 +511,7 @@ func zipSecrets(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "secrets.log")
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -534,7 +534,7 @@ func zipDiagnose(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
-	err := EnsureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -558,7 +558,7 @@ func zipRegistryJSON(tempDir, hostname string) error {
 	defer original.Close()
 
 	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
-	err = EnsureParentDirsExist(zippedPath)
+	err = ensureParentDirsExist(zippedPath)
 	if err != nil {
 		return err
 	}
@@ -582,7 +582,7 @@ func zipVersionHistory(tempDir, hostname string) error {
 	defer original.Close()
 
 	zippedPath := filepath.Join(tempDir, hostname, "version-history.json")
-	err = EnsureParentDirsExist(zippedPath)
+	err = ensureParentDirsExist(zippedPath)
 	if err != nil {
 		return err
 	}
@@ -609,7 +609,7 @@ func zipConfigCheck(tempDir, hostname string) error {
 
 func writeConfigCheck(tempDir, hostname string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, "config-check.log")
-	err := EnsureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -629,7 +629,7 @@ var taggerListURL string
 
 func zipTaggerList(tempDir, hostname string) error {
 	f := filepath.Join(tempDir, hostname, "tagger-list.json")
-	err := EnsureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -681,7 +681,7 @@ func zipHealth(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "health.yaml")
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -705,7 +705,7 @@ func zipInstallInfo(tempDir, hostname string) error {
 	defer original.Close()
 
 	zippedPath := filepath.Join(tempDir, hostname, "install_info")
-	err = EnsureParentDirsExist(zippedPath)
+	err = ensureParentDirsExist(zippedPath)
 	if err != nil {
 		return err
 	}
@@ -748,7 +748,7 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	defer resp.Body.Close()
 
 	f := filepath.Join(tempDir, hostname, filename)
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -764,10 +764,31 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	return err
 }
 
-func zipPerformanceProfile(tempDir, hostname, profileDir string) error {
-	flarePath := filepath.Join(tempDir, hostname)
+func zipPerformanceProfile(tempDir, hostname string, profile *Profile) error {
+	cpuProfilePath := filepath.Join(tempDir, hostname, cpuProfileName)
+	cpuProfile, err := os.OpenFile(cpuProfilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer cpuProfile.Close()
 
-	return util.CopyDir(profileDir, flarePath)
+	heapProfilePath := filepath.Join(tempDir, hostname, heapProfileName)
+	heapProfile, err := os.OpenFile(heapProfilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer heapProfile.Close()
+
+	_, err = cpuProfile.Write(profile.CPUProfile)
+	if err != nil {
+		return err
+	}
+	_, err = heapProfile.Write(profile.FirstHeapProfile)
+	if err != nil {
+		return err
+	}
+	_, err = heapProfile.Write(profile.SecondHeapProfile)
+	return err
 }
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
@@ -791,7 +812,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
 				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
-				err := EnsureParentDirsExist(f)
+				err := ensureParentDirsExist(f)
 				if err != nil {
 					return err
 				}
@@ -846,6 +867,10 @@ func newRedactingWriter(f string, p os.FileMode, buffered bool) (*RedactingWrite
 	return w, nil
 }
 
+func ensureParentDirsExist(p string) error {
+	return os.MkdirAll(filepath.Dir(p), os.ModePerm)
+}
+
 func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
@@ -875,7 +900,7 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 	_, err := os.Stat(filePath)
 	if err == nil {
 		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
-		err := EnsureParentDirsExist(f)
+		err := ensureParentDirsExist(f)
 		if err != nil {
 			return err
 		}

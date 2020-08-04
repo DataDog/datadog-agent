@@ -112,7 +112,7 @@ func zipSecurityAgentStatusFile(tempDir, hostname string) error {
 
 	f := filepath.Join(tempDir, hostname, "security-agent-status.log")
 	log.Infof("Flare status made at %s", tempDir)
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}

@@ -134,7 +134,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 
 func writeLocal(tempDir, hostname string) error {
 	f := filepath.Join(tempDir, hostname, "local")
-	err := EnsureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 
 	f := filepath.Join(tempDir, hostname, "cluster-agent-status.log")
 	log.Infof("Flare status made at %s", tempDir)
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 	sByte := []byte(str)
 	f := filepath.Join(tempDir, hostname, "cluster-agent-metadatamapper.log")
 	log.Infof("Flare metadata mapper made at %s", tempDir)
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
-	err := EnsureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func zipHPAStatus(tempDir, hostname string) error {
 	f := filepath.Join(tempDir, hostname, "custommetricsprovider.log")
 	log.Infof("Flare hpa status made at %s", tempDir)
 
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func zipClusterAgentDiagnose(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
-	err := EnsureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -302,7 +302,7 @@ func zipClusterAgentTelemetry(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "telemetry.log")
-	err = EnsureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
