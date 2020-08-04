@@ -2,11 +2,14 @@ package api
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
+	stdlog "log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,10 +24,10 @@ const (
 
 // profilingEndpoint returns the profiling intake API URL based on agent configuration.
 func profilingEndpoint() string {
-	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
+	if v := mainconfig.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		return v
 	}
-	if site := config.Datadog.GetString("site"); site != "" {
+	if site := mainconfig.Datadog.GetString("site"); site != "" {
 		return fmt.Sprintf(profilingURLTemplate, site)
 	}
 	return profilingURLDefault
@@ -44,12 +47,12 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		})
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
-	return newProfileProxy(u, r.conf.APIKey(), tags)
+	return newProfileProxy(r.conf.HTTPTransport(), u, r.conf.APIKey(), tags)
 }
 
 // newProfileProxy creates a single-host reverse proxy with the given target, attaching
 // the specified apiKey.
-func newProfileProxy(target *url.URL, apiKey, tags string) *httputil.ReverseProxy {
+func newProfileProxy(transport *http.Transport, target *url.URL, apiKey, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		req.URL = target
 		req.Host = target.Host
@@ -69,5 +72,10 @@ func newProfileProxy(target *url.URL, apiKey, tags string) *httputil.ReverseProx
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
 	}
-	return &httputil.ReverseProxy{Director: director}
+	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	return &httputil.ReverseProxy{
+		Director: director,
+		ErrorLog:     stdlog.New(logger, "profiling.Proxy: ", 0),
+		Transport: transport,
+	}
 }
