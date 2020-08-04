@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
 func TestVerifyKernelFuncs(t *testing.T) {
@@ -75,8 +73,7 @@ struct test_struct {
 		t.Fatal(err)
 	}
 
-	bytecode.DefaultBPFDir = testBPFDir
-	source, err := processHeaders("test-asset.c")
+	source, err := processHeaders(testBPFDir, "test-asset.c")
 
 	sourceString := source.String()
 

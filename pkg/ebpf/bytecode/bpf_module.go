@@ -9,13 +9,13 @@ import (
 )
 
 // ReadBPFModule from the asset file
-func ReadBPFModule(debug bool) (*bpflib.Module, error) {
+func ReadBPFModule(bpfDir string, debug bool) (*bpflib.Module, error) {
 	file := "pkg/ebpf/c/tracer-ebpf.o"
 	if debug {
 		file = "pkg/ebpf/c/tracer-ebpf-debug.o"
 	}
 
-	ebpfReader, err := GetReader(file)
+	ebpfReader, err := GetReader(bpfDir, file)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}

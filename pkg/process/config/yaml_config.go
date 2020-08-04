@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -63,7 +62,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	a.SysProbeBPFDebug = config.Datadog.GetBool(key(spNS, "bpf_debug"))
 	if config.Datadog.IsSet(key(spNS, "bpf_dir")) {
-		bytecode.DefaultBPFDir = config.Datadog.GetString(key(spNS, "bpf_dir"))
+		a.SystemProbeBPFDir = config.Datadog.GetString(key(spNS, "bpf_dir"))
 	}
 
 	if config.Datadog.IsSet(key(spNS, "excluded_linux_versions")) {

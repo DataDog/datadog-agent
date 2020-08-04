@@ -7,7 +7,7 @@ import (
 )
 
 // GetReader returns a new AssetReader for the specified bundled asset
-func GetReader(name string) (AssetReader, error) {
+func GetReader(dir, name string) (AssetReader, error) {
 	content, err := Asset(name)
 	if err != nil {
 		return nil, err

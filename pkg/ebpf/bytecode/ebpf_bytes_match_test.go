@@ -23,7 +23,7 @@ func TestEbpfBytesCorrect(t *testing.T) {
 		bs, err := ioutil.ReadFile(ondiskFilename)
 		require.NoError(t, err)
 
-		actualReader, err := GetReader(bundleFilename)
+		actualReader, err := GetReader("", bundleFilename)
 		require.NoError(t, err)
 
 		actual, err := ioutil.ReadAll(actualReader)

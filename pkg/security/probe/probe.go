@@ -406,7 +406,7 @@ func (p *Probe) Start() error {
 		asset += "-syscall-wrapper"
 	}
 
-	bytecodeReader, err := bytecode.GetReader(asset + ".o")
+	bytecodeReader, err := bytecode.GetReader(p.config.BPFDir, asset+".o")
 	if err != nil {
 		return err
 	}

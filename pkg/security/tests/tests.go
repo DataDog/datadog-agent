@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
@@ -198,7 +199,7 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	}
 	defer os.Remove(cfgFilename)
 
-	mod, err := module.NewModule(nil)
+	mod, err := module.NewModule(pconfig.NewDefaultAgentConfig(false))
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +290,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 	}
 	defer os.Remove(cfgFilename)
 
-	config, err := config.NewConfig()
+	config, err := config.NewConfig(pconfig.NewDefaultAgentConfig(false))
 	if err != nil {
 		return nil, err
 	}

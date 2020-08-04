@@ -117,8 +117,8 @@ func snakeToCapInitialCamel(s string) string {
 }
 
 // processHeaders processes the `#include` of embedded headers.
-func processHeaders(fileName string) (*bytes.Buffer, error) {
-	sourceReader, err := bytecode.GetReader(fileName)
+func processHeaders(bpfDir, fileName string) (*bytes.Buffer, error) {
+	sourceReader, err := bytecode.GetReader(bpfDir, fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func processHeaders(fileName string) (*bytes.Buffer, error) {
 	for scanner.Scan() {
 		match := includeRegexp.FindSubmatch(scanner.Bytes())
 		if len(match) == 2 {
-			header, err := bytecode.GetReader(string(match[1]))
+			header, err := bytecode.GetReader(bpfDir, string(match[1]))
 			if err == nil {
 				if _, err := io.Copy(source, header); err != nil {
 					return source, err
