@@ -2,7 +2,6 @@ package network
 
 import (
 	"bytes"
-	"fmt"
 	"sync"
 	"time"
 
@@ -125,11 +124,6 @@ func (ns *networkState) Connections(
 	latestConns []ConnectionStats,
 	dnsStats map[dnsKey]dnsStats,
 ) []ConnectionStats {
-	for k, v := range dnsStats {
-		fmt.Print(k)
-		fmt.Print("----")
-		fmt.Println(v)
-	}
 	ns.Lock()
 	defer ns.Unlock()
 
