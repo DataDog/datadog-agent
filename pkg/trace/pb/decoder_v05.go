@@ -13,14 +13,15 @@ import (
 // dictionaryString reads an int from decoder dc and returns the string
 // at that index from dict.
 func dictionaryString(dc *msgp.Reader, dict []string) (string, error) {
-	i, err := dc.ReadInt()
+	ui, err := dc.ReadUint32()
 	if err != nil {
 		return "", err
 	}
-	if i >= len(dict) {
-		return "", fmt.Errorf("dictionary index %d out of range", i)
+	idx := int(ui)
+	if idx >= len(dict) {
+		return "", fmt.Errorf("dictionary index %d out of range", idx)
 	}
-	return dict[i], nil
+	return dict[idx], nil
 }
 
 // DecodeMsgDictionary decodes a trace using the specification from the v0.5 endpoint.

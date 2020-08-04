@@ -246,7 +246,7 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
-		// TODO(x): replace with httpt.MaxBytesReader
+		// TODO(x): replace with http.MaxBytesReader?
 		req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
 		f(v, w, req)
@@ -308,7 +308,7 @@ func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
 	})
 }
 
-func (*HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
@@ -357,7 +357,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	traces, err := r.decodeTraces(v, req)
+	traces, err := decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		if err == ErrLimitedReaderLimitReached {
