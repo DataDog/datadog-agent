@@ -1,4 +1,3 @@
-// +build linux
 // +build !android
 
 package netlink
@@ -12,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/pkg/errors"
+	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,6 +43,7 @@ const (
 )
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
+var netlinkSeqNumber uint32 = 1
 
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack via a Netlink socket
 // and streaming new connection events.
@@ -51,6 +52,7 @@ type Consumer struct {
 	socket    *Socket
 	pool      *sync.Pool
 	workQueue chan func()
+	procRoot  string
 
 	// targetRateLimit represents the maximum number of netlink messages per second
 	// that can be read off the netlink socket. Setting it to -1 disables the limit.
@@ -80,6 +82,7 @@ type Consumer struct {
 // Event encapsulates the result of a single netlink.Con.Receive() call
 type Event struct {
 	msgs   []netlink.Message
+	netns  int32
 	buffer *[]byte
 	pool   *sync.Pool
 }
@@ -100,6 +103,7 @@ func (e *Event) Done() {
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
 func NewConsumer(procRoot string, targetRateLimit int) (*Consumer, error) {
 	c := &Consumer{
+		procRoot:        procRoot,
 		pool:            newBufferPool(),
 		workQueue:       make(chan func()),
 		targetRateLimit: targetRateLimit,
@@ -128,19 +132,143 @@ func (c *Consumer) Events() <-chan Event {
 		defer close(output)
 		c.streaming = true
 		_ = c.conn.JoinGroup(netlinkCtNew)
-		c.receive(output)
+		c.receive(output, c.socket)
 	})
 
 	return output
+}
+
+func isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
+	encoder := netlink.NewAttributeEncoder()
+	encoder.Uint32(unix.NETNSA_FD, uint32(ns))
+	data, err := encoder.Encode()
+	if err != nil {
+		log.Tracef("isPeerNS: err encoding attributes netlink attributes: %s", err)
+		return false
+	}
+
+	msg := netlink.Message{
+		Header: netlink.Header{
+			Flags: netlink.Request | netlink.Acknowledge,
+			Type: unix.RTM_GETNSID,
+			Sequence: netlinkSeqNumber,
+		},
+		Data: []byte{unix.AF_UNSPEC, 0, 0, 0},
+	}
+
+	msg.Data = append(msg.Data, data...)
+
+	if msg, err = conn.Send(msg); err != nil {
+		log.Tracef("isPeerNS: err sending netlink request: %s", err)
+		return false
+	}
+
+	msgs, err := conn.Receive()
+	if err != nil {
+		log.Tracef("error receiving netlink reply: %s", err)
+		return false
+	}
+
+	log.Tracef("netlink reply: %v", msgs)
+
+	if msgs[0].Header.Type == netlink.Error {
+		return false
+	}
+
+	netlinkSeqNumber++
+
+	decoder, err := netlink.NewAttributeDecoder(msgs[0].Data)
+	if err != nil {
+		return false
+	}
+
+	for {
+		if decoder.Type() == unix.NETNSA_NSID {
+			return decoder.Uint32() >= 0
+		}
+		if !decoder.Next() {
+			break
+		}
+	}
+
+	return false
 }
 
 // DumpTable returns a channel of Event objects containing all entries
 // present in the Conntrack table. The channel is closed once all entries are read.
 // This method is meant to be used once during the process initialization of system-probe.
 func (c *Consumer) DumpTable(family uint8) <-chan Event {
+	nss, err := util.GetNetNamespaces(c.procRoot)
+	if err != nil {
+		log.Errorf("could not get network namespaces: %s", err)
+	}
+
+	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
+	if err != nil {
+		log.Errorf("could not get root namespace: %s", err)
+	}
+
+	defer func() {
+		if rootNS.IsOpen() {
+			rootNS.Close()
+		}
+	}()
+
+	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
+	if err != nil {
+		log.Errorf("could not open netlink socket: %s", err)
+	}
+
+	defer func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
+
 	output := make(chan Event, outputBuffer)
-	c.do(false, func() {
-		defer close(output)
+	var wg sync.WaitGroup
+	for _, ns := range nss {
+
+		if !rootNS.Equal(ns) && conn != nil && !isPeerNS(conn, ns) {
+			continue
+		}
+
+		wg.Add(1)
+		go func(_ns netns.NsHandle) {
+			c.dumpTable(family, output, _ns)
+			wg.Done()
+		}(ns)
+
+	}
+
+	go func() {
+		wg.Wait()
+		close(output)
+	}()
+
+	return output
+}
+
+func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) {
+	defer func() {
+		_ = ns.Close()
+	}()
+
+	util.WithNS(c.procRoot, ns, func() {
+
+		log.Tracef("dumping table for ns %s", ns)
+
+		sock, err := NewSocket()
+		if err != nil {
+			log.Errorf("could not open netlink socket for net ns %d", int(ns))
+			return
+		}
+
+		conn := netlink.NewConn(sock, sock.pid)
+
+		defer func() {
+			_ = conn.Close()
+		}()
 
 		req := netlink.Message{
 			Header: netlink.Header{
@@ -150,7 +278,7 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 			Data: []byte{family, unix.NFNETLINK_V0, 0, 0},
 		}
 
-		verify, err := c.conn.Send(req)
+		verify, err := conn.Send(req)
 		if err != nil {
 			log.Errorf("netlink dump error: %s", err)
 			return
@@ -161,10 +289,8 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 			return
 		}
 
-		c.receive(output)
+		c.receive(output, sock)
 	})
-
-	return output
 }
 
 // GetStats returns telemetry associated to the Consumer
@@ -270,11 +396,11 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 // attribute is true, and only when we detect an EOF we close the output channel.
 // It's also worth noting that in the event of an ENOBUF error, we'll re-create a new netlink socket,
 // and attach a BPF sampler to it, to lower the the read throughput and save CPU.
-func (c *Consumer) receive(output chan Event) {
+func (c *Consumer) receive(output chan Event, socket *Socket) {
 ReadLoop:
 	for {
 		buffer := c.pool.Get().(*[]byte)
-		msgs, err := c.socket.ReceiveInto(*buffer)
+		msgs, netns, err := socket.ReceiveInto(*buffer)
 
 		if err != nil {
 			switch socketError(err) {
@@ -307,7 +433,7 @@ ReadLoop:
 			msgs = msgs[:len(msgs)-1]
 		}
 
-		output <- c.eventFor(msgs, buffer)
+		output <- c.eventFor(msgs, netns, buffer)
 
 		// If we're doing a conntrack dump we terminate after reading the multi-part message
 		if multiPartDone && !c.streaming {
@@ -316,9 +442,10 @@ ReadLoop:
 	}
 }
 
-func (c *Consumer) eventFor(msgs []netlink.Message, buffer *[]byte) Event {
+func (c *Consumer) eventFor(msgs []netlink.Message, netns int32, buffer *[]byte) Event {
 	return Event{
 		msgs:   msgs,
+		netns:  netns,
 		buffer: buffer,
 		pool:   c.pool,
 	}
