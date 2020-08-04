@@ -202,6 +202,10 @@ if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
 end
 
+if linux?
+  dependency 'datadog-security-agent-policies'
+end
+
 # External agents
 dependency 'jmxfetch'
 
