@@ -16,37 +16,37 @@ import (
 const (
 	// Pause container image names that should be filtered out.
 	// Where appropriate, each constant is loosely structured as
-	// image:domain(.*)/pause(.*)
+	// image:domain.*/pause.*
 
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
-	pauseContainerOpenshift3 = "image:(.*)rhel7/pod-infrastructure"
+	pauseContainerOpenshift3 = "image:.*rhel7/pod-infrastructure"
 
 	// - k8s.gcr.io/pause-amd64:3.1
 	// - asia.gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/gke-release/pause-win:1.1.0
 	// - eu.gcr.io/k8s-artifacts-prod/pause:3.3
-	pauseContainerGCR = `image:(.*)gcr\.io(.*)/pause(.*)`
+	pauseContainerGCR = `image:.*gcr\.io(.*)/pause.*`
 
 	// - k8s-gcrio.azureedge.net/pause-amd64
 	// - gcrio.azureedge.net/google_containers/pause-amd64
-	pauseContainerAzure = `image:(.*)azureedge\.net(.*)/pause(.*)`
+	pauseContainerAzure = `image:.*azureedge\.net(.*)/pause.*`
 
 	// amazonaws.com/eks/pause-windows:latest
 	// eks/pause-amd64
-	pauseContainerEKS = `image:(amazonaws\.com/)?eks/pause-(amd64|windows)`
+	pauseContainerEKS = `image:(amazonaws\.com/)?eks/pause.*`
 	// rancher/pause-amd64:3.0
-	pauseContainerRancher = `image:rancher/pause(.*)`
+	pauseContainerRancher = `image:rancher/pause.*`
 	// - mcr.microsoft.com/k8s/core/pause-amd64
-	pauseContainerMCR = `image:mcr\.microsoft\.com(.*)/pause(.*)`
+	pauseContainerMCR = `image:mcr\.microsoft\.com(.*)/pause.*`
 	// - aksrepos.azurecr.io/mirror/pause-amd64
-	pauseContainerAKS = `image:aksrepos\.azurecr\.io(.*)/pause(.*)`
+	pauseContainerAKS = `image:aksrepos\.azurecr\.io(.*)/pause.*`
 	// - kubeletwin/pause:latest
-	pauseContainerWin = `image:kubeletwin/pause(.*)`
+	pauseContainerWin = `image:kubeletwin/pause.*`
 	// - ecr.us-east-1.amazonaws.com/pause
-	pauseContainerECR = `image:ecr(.*)amazonaws\.com/pause(.*)`
+	pauseContainerECR = `image:ecr(.*)amazonaws\.com/pause.*`
 )
 
 // Filter holds the state for the container filtering logic
