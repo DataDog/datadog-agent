@@ -146,6 +146,7 @@
 /test/system/                           @DataDog/agent-core
 /test/util/                             @DataDog/agent-all
 
+/tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/networks
 /tools/gdb/                             @DataDog/agent-core
 /tools/windows/                         @DataDog/agent-platform
