@@ -61,8 +61,8 @@ const (
 	// 		 6: 0                    // Start
 	// 		 7: 0                    // Duration
 	// 		 8: 0                    // Error
-	// 		 9: map[uint64]uint64{}  // Meta (empty map)
-	// 		10: map[uint64]float64{} // Metrics (empty map)
+	// 		 9: map[uint32]uint32{}  // Meta (empty map)
+	// 		10: map[uint32]float64{} // Metrics (empty map)
 	// 		11: 0                    // Type is ""
 	//
 	// 		The dictionary in this case would be []string{""}, having only the empty string at index 0.
