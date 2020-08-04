@@ -18,6 +18,8 @@ const (
 	Dogstatsd = "dogstatsd"
 	// SecurityAgent is the Security Agent flavor
 	SecurityAgent = "security_agent"
+	// HerokuAgent is the Heroku Agent flavor
+	HerokuAgent = "heroku_agent"
 )
 
 var agentFlavor string = DefaultAgent

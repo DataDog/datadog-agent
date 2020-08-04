@@ -220,6 +220,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent
 	}
+	if config.Datadog.GetBool("heroku_dyno") {
+		// Override the agentName if this Agent is configured to report as Heroku Dyno
+		agentName = flavor.HerokuAgent
+	}
 
 	aggregator := &BufferedAggregator{
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),

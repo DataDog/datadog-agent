@@ -179,6 +179,8 @@ func InitConfig(config Config) {
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
+	// overridden in Heroku buildpack
+	config.BindEnvAndSetDefault("heroku_dyno", false)
 
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
