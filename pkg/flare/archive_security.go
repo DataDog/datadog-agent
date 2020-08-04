@@ -25,7 +25,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string) (string, error) 
 }
 
 func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath string) (string, error) {
-	tempDir, err := CreateTempDir()
+	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
 	}

@@ -36,7 +36,7 @@ func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) 
 }
 
 func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
-	tempDir, err := CreateTempDir()
+	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
 	}
