@@ -13,7 +13,7 @@ seed(1)
 
 class AgentIntegrationSampleCheck(AgentCheck):
     def get_instance_key(self, instance):
-        return AgentIntegrationInstance("agent-integration", "sample")
+        return AgentIntegrationInstance("type", "url")
 
     def check(self, instance):
         # gets the value of the `url` property

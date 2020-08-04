@@ -15,10 +15,13 @@ fi
 if [[ ! -d $VENV_PATH ]]; then
   virtualenv --python=python2 $VENV_PATH
   source $VENV_PATH/bin/activate
+  python --version
   pip install -r molecule-role/requirements.txt
 else
   source $VENV_PATH/bin/activate
 fi
+
+python --version
 
 cd molecule-role
 
