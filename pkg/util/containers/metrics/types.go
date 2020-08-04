@@ -115,17 +115,21 @@ type ContainerCPUStats struct {
 // ContainerIOStats store I/O statistics about a cgroup.
 // Sums are stored in ReadBytes and WriteBytes
 type ContainerIOStats struct {
-	// docker.io.read_bytes
-	ReadBytes uint64
-
-	// docker.io.write_bytes
+	// docker.io.read_bytes / write_bytes
+	ReadBytes  uint64
 	WriteBytes uint64
 
-	// docker.io.read_bytes
-	DeviceReadBytes map[string]uint64
-
-	// docker.io.write_bytes
+	// docker.io.read_bytes / write_bytes
+	DeviceReadBytes  map[string]uint64
 	DeviceWriteBytes map[string]uint64
+
+	// dodcker.io.read_ops / write_ops
+	ReadOperations  uint64
+	WriteOperations uint64
+
+	// dodcker.io.read_ops / write_ops
+	DeviceReadOperations  map[string]uint64
+	DeviceWriteOperations map[string]uint64
 
 	// docker.container.open_fds
 	OpenFiles uint64
