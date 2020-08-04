@@ -18,16 +18,13 @@ import (
 
 const (
 	defaultTimeout = 30 * time.Second
-
-	commandFieldExitCode = "command.exitCode"
-	commandFieldStdout   = "command.stdout"
 )
 
 var commandReportedFields = []string{
-	commandFieldExitCode,
+	compliance.CommandFieldExitCode,
 }
 
-func checkCommand(_ env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+func checkCommand(_ env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
 	if res.Command == nil {
 		return nil, fmt.Errorf("%s: expecting command resource in command check", ruleID)
 	}
@@ -63,8 +60,8 @@ func checkCommand(_ env.Env, ruleID string, res compliance.Resource, expr *eval.
 
 	instance := &eval.Instance{
 		Vars: eval.VarMap{
-			commandFieldExitCode: exitCode,
-			commandFieldStdout:   string(stdout),
+			compliance.CommandFieldExitCode: exitCode,
+			compliance.CommandFieldStdout:   string(stdout),
 		},
 	}
 

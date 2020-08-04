@@ -15,19 +15,13 @@ import (
 	"github.com/elastic/go-libaudit/rule"
 )
 
-const (
-	auditFieldPath        = "audit.path"
-	auditFieldEnabled     = "audit.enabled"
-	auditFieldPermissions = "audit.permissions"
-)
-
 var auditReportedFields = []string{
-	auditFieldPath,
-	auditFieldEnabled,
-	auditFieldPermissions,
+	compliance.AuditFieldPath,
+	compliance.AuditFieldEnabled,
+	compliance.AuditFieldPermissions,
 }
 
-func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
@@ -63,9 +57,9 @@ func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.It
 			log.Debugf("%s: audit check - match %s", ruleID, path)
 			instances = append(instances, &eval.Instance{
 				Vars: eval.VarMap{
-					auditFieldPath:        path,
-					auditFieldEnabled:     true,
-					auditFieldPermissions: auditPermissionsString(auditRule),
+					compliance.AuditFieldPath:        path,
+					compliance.AuditFieldEnabled:     true,
+					compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
 				},
 			})
 		}

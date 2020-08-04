@@ -6,34 +6,28 @@
 package checks
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 )
-
-// report is a report produced by a checkable
-type report struct {
-	data   event.Data
-	passed bool
-}
 
 // checkable abstracts a resource check
 type checkable interface {
-	check(env env.Env) (*report, error)
+	check(env env.Env) (*compliance.Report, error)
 }
 
 // checkableList abstracts a series of resource checks
 type checkableList []checkable
 
 // check implements checkable interface for checkableList
-func (list checkableList) check(env env.Env) (*report, error) {
+func (list checkableList) check(env env.Env) (*compliance.Report, error) {
 	var (
-		result *report
+		result *compliance.Report
 		err    error
 	)
 
 	for _, c := range list {
 		result, err = c.check(env)
-		if err == nil && result.passed {
+		if err == nil && result.Passed {
 			break
 		}
 	}

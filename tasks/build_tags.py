@@ -2,6 +2,7 @@
 Utilities to manage build tags
 """
 import sys
+
 from invoke import task
 
 # ALL_TAGS lists all available build tags.
@@ -211,6 +212,7 @@ def audit_tag_impact(ctx, build_exclude=None, csv=False):
 
 def _compute_build_size(ctx, build_exclude=None, iot=False):
     import os
+
     from .agent import build as agent_build
 
     agent_build(ctx, build_exclude=build_exclude, skip_assets=True, iot=iot)

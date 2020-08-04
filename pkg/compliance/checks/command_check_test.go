@@ -33,7 +33,7 @@ type commandFixture struct {
 	expectCommandName string
 	expectCommandArgs []string
 
-	expectReport *report
+	expectReport *compliance.Report
 	expectError  error
 }
 
@@ -81,9 +81,9 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      nil,
 			expectCommandName: "myCommand",
 			expectCommandArgs: []string{"--foo=bar", "--baz"},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"command.exitCode": 0,
 				},
 			},
@@ -103,9 +103,9 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      nil,
 			expectCommandName: getDefaultShell().Name,
 			expectCommandArgs: append(getDefaultShell().Args, "my command --foo=bar --baz"),
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"command.exitCode": 0,
 				},
 			},
@@ -129,9 +129,9 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      nil,
 			expectCommandName: "zsh",
 			expectCommandArgs: []string{"-someoption", "-c", "my command --foo=bar --baz"},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"command.exitCode": 0,
 				},
 			},
@@ -169,9 +169,9 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      nil,
 			expectCommandName: "myCommand",
 			expectCommandArgs: []string{"--foo=bar", "--baz"},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"command.exitCode": 2,
 				},
 			},

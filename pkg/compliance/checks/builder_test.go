@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// Package checks implements Compliance Agent checks
 package checks
 
 import (
@@ -14,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	assert "github.com/stretchr/testify/require"
 )
@@ -114,7 +114,7 @@ func TestResolveValueFrom(t *testing.T) {
 		name        string
 		expression  string
 		setup       func(t *testing.T)
-		expectValue string
+		expectValue interface{}
 		expectError error
 	}{
 		{
@@ -157,6 +157,30 @@ func TestResolveValueFrom(t *testing.T) {
 			expectValue: "/home/root/hiya-buddy.txt",
 		},
 		{
+			name:       "from process missing process",
+			expression: `process.flag("buddy", "--path")`,
+			setup: func(t *testing.T) {
+				processFetcher = func() (processes, error) {
+					return processes{}, nil
+				}
+			},
+			expectError: errors.New(`1:1: call to "process.flag()" failed: failed to find process: buddy`),
+		},
+		{
+			name:       "from process missing flag",
+			expression: `process.flag("buddy", "--path")`,
+			setup: func(t *testing.T) {
+				processFetcher = func() (processes, error) {
+					return processes{
+						42: {
+							Name: "buddy",
+						},
+					}, nil
+				}
+			},
+			expectValue: "",
+		},
+		{
 			name:        "from json file",
 			expression:  `json("daemon.json", ".\"log-driver\"")`,
 			expectValue: "json-file",
@@ -181,11 +205,17 @@ func TestResolveValueFrom(t *testing.T) {
 				test.setup(t)
 			}
 
+			cache.Cache.Flush()
+
 			expr, err := eval.ParseExpression(test.expression)
 			assert.NoError(err)
 
 			value, err := env.EvaluateFromCache(expr)
-			assert.Equal(test.expectError, err)
+			if test.expectError != nil {
+				assert.EqualError(err, test.expectError.Error())
+			} else {
+				assert.NoError(err)
+			}
 			assert.Equal(test.expectValue, value)
 		})
 	}

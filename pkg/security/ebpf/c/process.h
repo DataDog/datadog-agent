@@ -4,7 +4,7 @@
 #include <linux/tty.h>
 #include <linux/sched.h>
 
-static u64 fill_process_data(struct process_data_t *data) {
+static u64 __attribute__((always_inline)) fill_process_data(struct process_data_t *data) {
     // Process data
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
 

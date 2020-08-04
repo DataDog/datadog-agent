@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    When the Cluster Agent starts, it retries connecting to the Kuberentes APIserver in case the first connection fails.
