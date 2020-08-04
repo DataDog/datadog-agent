@@ -44,6 +44,9 @@ type SocketFilterSnooper struct {
 	polls          int64
 	decodingErrors int64
 	truncatedPkts  int64
+	queries        int64
+	successes      int64
+	errors         int64
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
@@ -123,6 +126,9 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["packets_dropped"] = atomic.LoadInt64(&s.dropped)
 	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
 	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
+	stats["queries"] = atomic.LoadInt64(&s.queries)
+	stats["successes"] = atomic.LoadInt64(&s.successes)
+	stats["errors"] = atomic.LoadInt64(&s.errors)
 
 	return stats
 }
@@ -165,6 +171,11 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 
 	if pktInfo.pktType == SuccessfulResponse {
 		s.cache.Add(t, time.Now())
+		atomic.AddInt64(&s.successes, 1)
+	} else if pktInfo.pktType == FailedResponse {
+		atomic.AddInt64(&s.errors, 1)
+	} else {
+		atomic.AddInt64(&s.queries, 1)
 	}
 }
 

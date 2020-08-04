@@ -755,7 +755,7 @@ func bindataPkgEbpfCTracerebpfdebugo() (*asset, error) {
 		name:        "pkg/ebpf/c/tracer-ebpf-debug.o",
 		size:        59848,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -1005,7 +1005,7 @@ func bindataPkgEbpfCBpfcommonh() (*asset, error) {
 		name:        "pkg/ebpf/c/bpf-common.h",
 		size:        1001,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -1037,7 +1037,7 @@ func bindataPkgEbpfTestdataTestassetc() (*asset, error) {
 		name:        "pkg/ebpf/testdata/test-asset.c",
 		size:        113,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -1071,7 +1071,7 @@ func bindataPkgEbpfTestdataTestheaderh() (*asset, error) {
 		name:        "pkg/ebpf/testdata/test-header.h",
 		size:        178,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
