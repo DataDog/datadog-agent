@@ -455,7 +455,7 @@ func (t *Tags) toArray() []string {
 		tags = append(tags, "tracer_version:"+t.TracerVersion)
 	}
 	if t.EndpointVersion != "" {
-		tags = append(tags, "endpoint:"+t.EndpointVersion)
+		tags = append(tags, "endpoint_version:"+t.EndpointVersion)
 	}
 
 	return tags

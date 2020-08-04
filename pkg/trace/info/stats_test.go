@@ -80,6 +80,6 @@ func TestStatsTags(t *testing.T) {
 		"lang_vendor:gov",
 		"interpreter:goi",
 		"tracer_version:1.21.0",
-		"endpoint:v0.4",
+		"endpoint_version:v0.4",
 	})
 }
