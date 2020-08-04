@@ -331,6 +331,14 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 
 				ns.createStatsForKey(client, key)
 				ns.updateConnWithStatWithActiveConn(client, key, *activeConn, &closedConn)
+
+				// We also update the counters to reflect only the active connection
+				// The monotonic counters will be the sum of all connections that cross our interval start + finish.
+				if stats, ok := client.stats[key]; ok {
+					stats.totalRetransmits = activeConn.MonotonicRetransmits
+					stats.totalSent = activeConn.MonotonicSentBytes
+					stats.totalRecv = activeConn.MonotonicRecvBytes
+				}
 			} else {
 				// Else the closed connection and the active connection have the same epoch
 				// XXX: For now we assume that the closed connection is the more recent one but this is not guaranteed
