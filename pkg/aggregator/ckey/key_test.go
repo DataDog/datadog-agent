@@ -25,8 +25,7 @@ func TestGenerateReproductible(t *testing.T) {
 	generator := NewKeyGenerator()
 
 	firstKey := generator.Generate(name, hostname, tags)
-	assert.Equal(t, uint64(0x5a2b4635eb90c410), firstKey[0])
-	assert.Equal(t, uint64(0xe74b94e39f48391e), firstKey[1])
+	assert.Equal(t, ContextKey(0x5a2b4635eb90c410), firstKey)
 
 	for n := 0; n < 10; n++ {
 		t.Run(fmt.Sprintf("iteration %d:", n), func(t *testing.T) {
@@ -37,20 +36,17 @@ func TestGenerateReproductible(t *testing.T) {
 
 	otherKey := generator.Generate("othername", hostname, tags)
 	assert.NotEqual(t, firstKey, otherKey)
-	assert.Equal(t, uint64(0x90352c032ca3bcd), otherKey[0])
-	assert.Equal(t, uint64(0xfd4c03ae633b5fb), otherKey[1])
+	assert.Equal(t, ContextKey(0x90352c032ca3bcd), otherKey)
 }
 
 func TestCompare(t *testing.T) {
-	base := ContextKey{uint64(0xcd3bca32c0520309), uint64(0xfbb533e63ac0d40f)}
-	veryHigh := ContextKey{uint64(0xff3bca32c0520309), uint64(0xfbb533e63ac0d40f)}
-	littleHigh := ContextKey{uint64(0xff3bca32c0520309), uint64(0xfbb533e63ac0d4ff)}
-	veryLow := ContextKey{uint64(0x003bca32c0520309), uint64(0xfbb533e63ac0d40f)}
+	base := ContextKey(uint64(0xff3bca32c0520309))
+	same := ContextKey(uint64(0xff3bca32c0520309))
+	diff := ContextKey(uint64(0xcd3bca32c0520309))
 
-	assert.Equal(t, 0, Compare(base, base))
-	assert.Equal(t, 1, Compare(veryHigh, base))
-	assert.Equal(t, 1, Compare(littleHigh, base))
-	assert.Equal(t, -1, Compare(veryLow, base))
+	assert.True(t, Equals(base, base))
+	assert.True(t, Equals(base, same))
+	assert.False(t, Equals(base, diff))
 }
 
 func genTags(count int) []string {

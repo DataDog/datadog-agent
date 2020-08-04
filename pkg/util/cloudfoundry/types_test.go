@@ -28,19 +28,20 @@ var BBSModelA1 = models.ActualLRP{
 		ProcessGuid: "0123456789012345678901234567890123456789",
 	},
 	ActualLRPInstanceKey: models.ActualLRPInstanceKey{
-		CellId: "cell123",
+		CellId:       "cell123",
+		InstanceGuid: "0123456789012345678",
 	},
 	State: "STATE",
 }
 
 var ExpectedA1 = ActualLRP{
-	AppGUID:     "012345678901234567890123456789012345",
-	CellID:      "cell123",
-	ContainerIP: "1.2.3.4",
-	Index:       4,
-	Ports:       []uint32{1234, 5678},
-	ProcessGUID: "0123456789012345678901234567890123456789",
-	State:       "STATE",
+	CellID:       "cell123",
+	ContainerIP:  "1.2.3.4",
+	Index:        4,
+	Ports:        []uint32{1234, 5678},
+	ProcessGUID:  "0123456789012345678901234567890123456789",
+	InstanceGUID: "0123456789012345678",
+	State:        "STATE",
 }
 
 var BBSModelA2 = models.ActualLRP{
@@ -56,19 +57,20 @@ var BBSModelA2 = models.ActualLRP{
 		ProcessGuid: "0123456789012345678901234567890123456789",
 	},
 	ActualLRPInstanceKey: models.ActualLRPInstanceKey{
-		CellId: "cell123",
+		CellId:       "cell1234",
+		InstanceGuid: "0123456789012345679",
 	},
 	State: "RUNNING",
 }
 
 var ExpectedA2 = ActualLRP{
-	AppGUID:     "012345678901234567890123456789012345",
-	CellID:      "cell123",
-	ContainerIP: "1.2.3.5",
-	Index:       3,
-	Ports:       []uint32{1234, 5678},
-	ProcessGUID: "0123456789012345678901234567890123456789",
-	State:       "RUNNING",
+	CellID:       "cell1234",
+	ContainerIP:  "1.2.3.5",
+	Index:        3,
+	Ports:        []uint32{1234, 5678},
+	ProcessGUID:  "0123456789012345678901234567890123456789",
+	InstanceGUID: "0123456789012345679",
+	State:        "RUNNING",
 }
 
 var BBSModelD1 = models.DesiredLRP{
@@ -102,6 +104,10 @@ var BBSModelD1 = models.DesiredLRP{
 								Name:  "VCAP_SERVICES",
 								Value: "{\"broker\": [{\"name\": \"xxx\"}]}",
 							},
+							{
+								Name:  "VCAP_APPLICATION",
+								Value: "{\"application_name\": \"name_of_the_app\", \"application_id\": \"random_app_guid\"}",
+							},
 						},
 					},
 				},
@@ -111,10 +117,12 @@ var BBSModelD1 = models.DesiredLRP{
 }
 
 var ExpectedD1 = DesiredLRP{
-	AppGUID:         "012345678901234567890123456789012345",
-	EnvAD:           ADConfig{"xxx": {}},
-	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
-	ProcessGUID:     "0123456789012345678901234567890123456789",
+	AppGUID:            "random_app_guid",
+	AppName:            "name_of_the_app",
+	EnvAD:              ADConfig{"xxx": {}},
+	EnvVcapServices:    map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
+	EnvVcapApplication: map[string]string{"application_name": "name_of_the_app", "application_id": "random_app_guid"},
+	ProcessGUID:        "0123456789012345678901234567890123456789",
 }
 
 func TestADIdentifier(t *testing.T) {
@@ -126,7 +134,8 @@ func TestADIdentifier(t *testing.T) {
 	}{
 		{
 			dLRP: DesiredLRP{
-				ProcessGUID: "1234",
+				AppGUID:     "1234",
+				ProcessGUID: "4321",
 			},
 			svcName:  "postgres",
 			aLRP:     nil,
@@ -134,13 +143,14 @@ func TestADIdentifier(t *testing.T) {
 		},
 		{
 			dLRP: DesiredLRP{
-				ProcessGUID: "1234",
+				AppGUID:     "1234",
+				ProcessGUID: "4321",
 			},
 			svcName: "flask-app",
 			aLRP: &ActualLRP{
 				Index: 2,
 			},
-			expected: "1234/flask-app/2",
+			expected: "4321/flask-app/2",
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {

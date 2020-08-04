@@ -20,7 +20,7 @@ import (
 extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
 extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void submitEvent(char*, event_t*);
-extern void submitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
+extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);
 
 static void initAggregatorTests(rtloader_t *rtloader) {
    set_submit_metric_cb(rtloader, submitMetric);
@@ -211,7 +211,7 @@ func submitEvent(id *C.char, ev *C.event_t) {
 }
 
 //export submitHistogramBucket
-func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.int, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char) {
+func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char) {
 	checkID = C.GoString(id)
 	name = C.GoString(cMetricName)
 	intValue = int(cVal)

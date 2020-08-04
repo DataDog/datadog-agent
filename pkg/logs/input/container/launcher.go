@@ -6,6 +6,8 @@
 package container
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
@@ -23,7 +25,8 @@ import (
 // collectFromFiles is enabled.
 // If none of those volumes are mounted, returns a lazy docker launcher with a retrier to handle the cases
 // where docker is started after the agent.
-func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
+// dockerReadTimeout is a configurable read timeout for the docker client.
+func NewLauncher(collectAll bool, collectFromFiles bool, dockerReadTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
 	var (
 		launcher restart.Restartable
 		err      error
@@ -37,14 +40,14 @@ func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSour
 		}
 		log.Infof("Could not setup the kubernetes launcher: %v", err)
 
-		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, false)
+		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false)
 		if err == nil {
 			log.Info("Docker launcher initialized")
 			return launcher
 		}
 		log.Infof("Could not setup the docker launcher: %v", err)
 	} else {
-		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, false)
+		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false)
 		if err == nil {
 			log.Info("Docker launcher initialized")
 			return launcher
@@ -59,7 +62,7 @@ func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSour
 		log.Infof("Could not setup the kubernetes launcher: %v", err)
 	}
 
-	launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, true)
+	launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, true)
 	if err != nil {
 		log.Warnf("Could not setup the docker launcher: %v. Will not be able to collect container logs", err)
 		return NewNoopLauncher()

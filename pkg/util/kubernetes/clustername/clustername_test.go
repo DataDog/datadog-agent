@@ -46,7 +46,11 @@ func TestGetClusterName(t *testing.T) {
 		"Capital",
 		"with_underscore",
 		"with_dot._underscore",
-		"toolongtoolongtoolongtoolongtoolongtoolong"} {
+		"toolongtoolongtoolongtoolongtoolongtoolong",
+		"a..a",
+		"a.1.a",
+		"mx.gmail.com.",
+	} {
 		mockConfig.Set("cluster_name", invalidClusterName)
 		freshData = newClusterNameData()
 		assert.Equal(t, "", getClusterName(freshData))

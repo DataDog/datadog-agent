@@ -79,7 +79,7 @@ func NewDockerListener() (ServiceListener, error) {
 		filters:    filters,
 		services:   make(map[string]Service),
 		stop:       make(chan bool),
-		health:     health.Register("ad-dockerlistener"),
+		health:     health.RegisterLiveness("ad-dockerlistener"),
 	}, nil
 }
 
@@ -103,8 +103,8 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
-				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
-				l.health.Deregister()
+				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener") //nolint:errcheck
+				l.health.Deregister()                                         //nolint:errcheck
 				return
 			case <-l.health.C:
 			case msg := <-messages:
@@ -132,12 +132,12 @@ func (l *DockerListener) init() {
 	l.m.Lock()
 	defer l.m.Unlock()
 
-	containers, err := l.dockerUtil.RawContainerList(types.ContainerListOptions{})
+	containersList, err := l.dockerUtil.RawContainerList(types.ContainerListOptions{})
 	if err != nil {
 		log.Errorf("Couldn't retrieve container list - %s", err)
 	}
 
-	for _, co := range containers {
+	for _, co := range containersList {
 		if l.isExcluded(co) {
 			continue // helper method already logs
 		}
@@ -146,6 +146,25 @@ func (l *DockerListener) init() {
 		checkNames, err := getCheckNamesFromLabels(co.Labels)
 		if err != nil {
 			log.Errorf("Error getting check names from docker labels on container %s: %v", co.ID, err)
+		}
+
+		containerImage, err := l.dockerUtil.ResolveImageName(co.Image)
+		if err != nil {
+			log.Warnf("Error while resolving image name: %s", err)
+			containerImage = ""
+		}
+		metricsExcluded := false
+		logsExcluded := false
+		for _, name := range co.Names {
+			if l.filters.IsExcluded(containers.MetricsFilter, name, containerImage, "") {
+				metricsExcluded = true
+			}
+			if l.filters.IsExcluded(containers.LogsFilter, name, containerImage, "") {
+				logsExcluded = true
+			}
+			if metricsExcluded && logsExcluded {
+				break
+			}
 		}
 
 		if findKubernetesInLabels(co.Labels) {
@@ -159,12 +178,14 @@ func (l *DockerListener) init() {
 			}
 		} else {
 			svc = &DockerService{
-				cID:           co.ID,
-				adIdentifiers: l.getConfigIDFromPs(co),
-				hosts:         l.getHostsFromPs(co),
-				ports:         l.getPortsFromPs(co),
-				creationTime:  integration.Before,
-				checkNames:    checkNames,
+				cID:             co.ID,
+				adIdentifiers:   l.getConfigIDFromPs(co),
+				hosts:           l.getHostsFromPs(co),
+				ports:           l.getPortsFromPs(co),
+				creationTime:    integration.Before,
+				checkNames:      checkNames,
+				metricsExcluded: metricsExcluded,
+				logsExcluded:    logsExcluded,
 			}
 		}
 		l.newService <- svc
@@ -633,4 +654,9 @@ func (s *DockerService) HasFilter(filter containers.FilterType) bool {
 		return s.logsExcluded
 	}
 	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *DockerService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

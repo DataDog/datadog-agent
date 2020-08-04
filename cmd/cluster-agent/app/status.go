@@ -83,7 +83,7 @@ func requestStatus() error {
 	r, e := util.DoGet(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
 			e = fmt.Errorf(err)
@@ -99,7 +99,7 @@ func requestStatus() error {
 	// The rendering is done in the client so that the agent has less work to do
 	if prettyPrintJSON {
 		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ")
+		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else if jsonStatus {
 		s = string(r)
@@ -112,7 +112,7 @@ func requestStatus() error {
 	}
 
 	if statusFilePath != "" {
-		ioutil.WriteFile(statusFilePath, []byte(s), 0644)
+		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}

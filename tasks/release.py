@@ -2,32 +2,38 @@
 Release helper tasks
 """
 from __future__ import print_function
+
+import hashlib
+import json
 import os
 import re
 import sys
-import json
-import hashlib
 from collections import OrderedDict
 from datetime import date
 
-from invoke import task, Failure
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke import Failure, task
+from invoke.exceptions import Exit
 
 
 @task
 def add_prelude(ctx, version):
     res = ctx.run("reno new prelude-release-{0}".format(version))
-    new_releasenote = res.stdout.split(' ')[-1].strip() # get the new releasenote file path
+    new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
 
     with open(new_releasenote, "w") as f:
-        f.write("""prelude:
+        f.write(
+            """prelude:
     |
     Release on: {1}
 
-    - Please refer to the `{0} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-{2}>`_ for the list of changes on the Core Checks\n""".format(version, date.today(), version.replace('.', '')))
+    - Please refer to the `{0} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-{2}>`_ for the list of changes on the Core Checks\n""".format(
+                version, date.today(), version.replace('.', '')
+            )
+        )
 
     ctx.run("git add {}".format(new_releasenote))
     ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+
 
 @task
 def update_changelog(ctx, new_version):
@@ -44,7 +50,7 @@ def update_changelog(ctx, new_version):
     # let's avoid losing uncommitted change with 'git reset --hard'
     try:
         ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure as e:
+    except Failure:
         print("Error: You have uncommitted change, please commit or stash before using update_changelog")
         return
 
@@ -54,7 +60,7 @@ def update_changelog(ctx, new_version):
     # let's check that the tag for the new version is present (needed by reno)
     try:
         ctx.run("git tag --list | grep {}".format(new_version))
-    except Failure as e:
+    except Failure:
         print("Missing '{}' git tag: mandatory to use 'reno'".format(new_version))
         raise
 
@@ -62,19 +68,27 @@ def update_changelog(ctx, new_version):
     branching_point = "{}.{}.0-devel".format(new_version_int[0], new_version_int[1])
     previous_minor = "{}.{}".format(new_version_int[0], new_version_int[1] - 1)
     if previous_minor == "7.15":
-        previous_minor = "6.15" # 7.15 is the first release in the 7.x series
-    log_result = ctx.run("git log {}...remotes/origin/{}.x --name-only --oneline | \
-            grep releasenotes/notes/ || true".format(branching_point, previous_minor))
+        previous_minor = "6.15"  # 7.15 is the first release in the 7.x series
+    log_result = ctx.run(
+        "git log {}...remotes/origin/{}.x --name-only --oneline | \
+            grep releasenotes/notes/ || true".format(
+            branching_point, previous_minor
+        )
+    )
     log_result = log_result.stdout.replace('\n', ' ').strip()
     if len(log_result) > 0:
         ctx.run("git rm --ignore-unmatch {}".format(log_result))
 
     # generate the new changelog
-    ctx.run("reno report \
+    ctx.run(
+        "reno report \
             --ignore-cache \
             --earliest-version {} \
             --version {} \
-            --no-show-source > /tmp/new_changelog.rst".format(branching_point, new_version))
+            --no-show-source > /tmp/new_changelog.rst".format(
+            branching_point, new_version
+        )
+    )
 
     # reseting git
     ctx.run("git reset --hard HEAD")
@@ -96,8 +110,13 @@ def update_changelog(ctx, new_version):
     ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
 
     # commit new CHANGELOG
-    ctx.run("git add CHANGELOG.rst \
-            && git commit -m \"Update CHANGELOG for {}\"".format(new_version))
+    ctx.run(
+        "git add CHANGELOG.rst \
+            && git commit -m \"Update CHANGELOG for {}\"".format(
+            new_version
+        )
+    )
+
 
 @task
 def _find_v6_tag(ctx, v7_tag):
@@ -111,8 +130,10 @@ def _find_v6_tag(ctx, v7_tag):
     # Find commit at which the v7_tag points
     commit = ctx.run("git rev-list --max-count=1 {}".format(v7_tag), hide='out').stdout.strip()
     try:
-        v6_tags = ctx.run("git tag --points-at {} | grep -E '^6\\.'".format(commit), hide='out').stdout.strip().split("\n")
-    except Failure as e:
+        v6_tags = (
+            ctx.run("git tag --points-at {} | grep -E '^6\\.'".format(commit), hide='out').stdout.strip().split("\n")
+        )
+    except Failure:
         print("Found no v6 tag pointing at same commit as '{}'.".format(v7_tag))
     else:
         v6_tag = v6_tags[0]
@@ -128,17 +149,13 @@ def _is_version_higher(version_1, version_2):
     if not version_2:
         return True
 
-    for part in ["major","minor","patch"]:
+    for part in ["major", "minor", "patch"]:
         if version_1[part] != version_2[part]:
             return version_1[part] > version_2[part]
 
-    if version_1["rc"] == None:
+    if version_1["rc"] is None or version_2["rc"] is None:
         # Everything else being equal, version_1 can only be higher than version_2 if version_2 is not a released version
-        return version_2["rc"] != None
-
-    if version_2["rc"] == None:
-        # Everything else being equal, version_1 cannot be higher than version_2 if it's a released version - at most it can be equal
-        return False
+        return version_2["rc"] is not None
 
     return version_1["rc"] > version_2["rc"]
 
@@ -149,32 +166,30 @@ def _create_version_dict_from_match(match):
         "major": int(groups[0]),
         "minor": int(groups[1]),
         "patch": int(groups[2]),
-        "rc": int(groups[4]) if groups[4] and groups[4] != 0 else None
+        "rc": int(groups[4]) if groups[4] and groups[4] != 0 else None,
     }
     return version
 
 
 def _stringify_version(version_dict):
-    version = "{}.{}.{}" \
-        .format(version_dict["major"],
-                version_dict["minor"],
-                version_dict["patch"])
-    if version_dict["rc"] != None and version_dict["rc"] != 0:
+    version = "{}.{}.{}".format(version_dict["major"], version_dict["minor"], version_dict["patch"])
+    if version_dict["rc"] is not None and version_dict["rc"] != 0:
         version = "{}-rc.{}".format(version, version_dict["rc"])
     return version
 
 
 def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
     import urllib.request
+
     password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
     password_mgr.add_password(None, "api.github.com", auth, "x-oauth-basic")
     opener = urllib.request.build_opener(urllib.request.HTTPBasicAuthHandler(password_mgr))
     if new_rc_version is not None:
-        response = opener.open("https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}"
-                               .format(repo, new_rc_version["major"]))
+        response = opener.open(
+            "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}".format(repo, new_rc_version["major"])
+        )
     else:
-        response = opener.open("https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/"
-                               .format(repo))
+        response = opener.open("https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo))
     tags = json.load(response)
     highest_version = None
     for tag in tags:
@@ -199,14 +214,30 @@ def _get_highest_version_from_release_json(release_json, highest_major, version_
                     highest_jmxfetch_version = _create_version_dict_from_match(match)
                     highest_version = this_version
                 else:
-                    print("{} does not have a valid JMXFETCH_VERSION ({}), ignoring".format(_stringify_version(this_version), value["JMXFETCH_VERSION"]))
+                    print(
+                        "{} does not have a valid JMXFETCH_VERSION ({}), ignoring".format(
+                            _stringify_version(this_version), value["JMXFETCH_VERSION"]
+                        )
+                    )
     return highest_version, highest_jmxfetch_version
 
 
-def _save_release_json(release_json, list_major_versions, highest_version, integration_version, omnibus_software_version, omnibus_ruby_version, jmxfetch_version):
+def _save_release_json(
+    release_json,
+    list_major_versions,
+    highest_version,
+    integration_version,
+    omnibus_software_version,
+    omnibus_ruby_version,
+    jmxfetch_version,
+):
     import urllib.request
-    jmxfetch = urllib.request.urlopen("https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar"
-        .format(jmxfetch_version, jmxfetch_version))
+
+    jmxfetch = urllib.request.urlopen(
+        "https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar".format(
+            jmxfetch_version, jmxfetch_version
+        )
+    )
     jmxfetch_sha256 = hashlib.sha256(jmxfetch.read()).hexdigest()
 
     print("Jmxfetch's SHA256 is {}".format(jmxfetch_sha256))
@@ -246,12 +277,13 @@ def _save_release_json(release_json, list_major_versions, highest_version, integ
 @task
 def finish(
     ctx,
-    major_versions = "6,7",
-    integration_version = None,
-    omnibus_software_version = None,
-    jmxfetch_version = None,
-    omnibus_ruby_version = None,
-    ignore_rc_tag = False):
+    major_versions="6,7",
+    integration_version=None,
+    omnibus_software_version=None,
+    jmxfetch_version=None,
+    omnibus_ruby_version=None,
+    ignore_rc_tag=False,
+):
 
     """
     Creates new entry in the release.json file for the new version. Removes all the RC entries.
@@ -274,7 +306,8 @@ def finish(
     if github_token is None:
         print(
             "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
-            " https://github.com/settings/tokens. It should have at least the 'repo' permissions.")
+            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
+        )
         return Exit(code=1)
 
     version_re = re.compile('(\\d+)[.](\\d+)[.](\\d+)(-rc\\.(\\d+))?')
@@ -282,7 +315,9 @@ def finish(
     with open("release.json", "r") as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
-    highest_version, highest_jmxfetch_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
+    highest_version, highest_jmxfetch_version = _get_highest_version_from_release_json(
+        release_json, highest_major, version_re
+    )
 
     # Erase RCs
     for major_version in list_major_versions:
@@ -305,42 +340,60 @@ def finish(
     if not integration_version:
         integration_version = _get_highest_repo_version(github_token, "integrations-core", highest_version, version_re)
         if integration_version is None:
-            print("EREROR: No version found for integrationscore - did you create the tag ?")
+            print("ERROR: No version found for integrations-core - did you create the tag?")
             return Exit(code=1)
-        if integration_version["rc"] != None:
-            print("ERROR: Integration-Core tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+        if integration_version["rc"] is not None:
+            print(
+                "ERROR: integrations-core tag is still an RC tag. That's probably NOT what you want in the final artifact."
+            )
             if ignore_rc_tag:
-                print("Continuing with RC tag on Integration-Core.")
+                print("Continuing with RC tag on integrations-core.")
             else:
                 print("Aborting.")
                 return Exit(code=1)
         integration_version = _stringify_version(integration_version)
-    print("Integration-Core's tag is {}".format(integration_version))
+    print("integrations-core's tag is {}".format(integration_version))
 
     if not omnibus_software_version:
-        omnibus_software_version = _get_highest_repo_version(github_token, "omnibus-software", highest_version, version_re)
+        omnibus_software_version = _get_highest_repo_version(
+            github_token, "omnibus-software", highest_version, version_re
+        )
         if omnibus_software_version is None:
-            print("EREROR: No version found for omnibus-software - did you create the tag ?")
+            print("ERROR: No version found for omnibus-software - did you create the tag?")
             return Exit(code=1)
-        if omnibus_software_version["rc"] != None:
-            print("ERROR: Omnibus-Software tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+        if omnibus_software_version["rc"] is not None:
+            print(
+                "ERROR: omnibus-software tag is still an RC tag. That's probably NOT what you want in the final artifact."
+            )
             if ignore_rc_tag:
-                print("Continuing with RC tag on Omnibus-Software.")
+                print("Continuing with RC tag on omnibus-software.")
             else:
                 print("Aborting.")
                 return Exit(code=1)
         omnibus_software_version = _stringify_version(omnibus_software_version)
-    print("Omnibus-Software's tag is {}".format(omnibus_software_version))
+    print("omnibus-software's tag is {}".format(omnibus_software_version))
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
         jmxfetch_version = _stringify_version(jmxfetch_version)
-    print("Jmxfetch's tag is {}".format(jmxfetch_version))
+    print("jmxfetch's tag is {}".format(jmxfetch_version))
 
     if not omnibus_ruby_version:
-        print("ERROR: No omnibus_ruby_version found. Please specify it manually via '--omnibus-ruby-version' until we start tagging omnibus-ruby builds.")
-        return Exit(code=1)
-
+        omnibus_ruby_version = _get_highest_repo_version(github_token, "omnibus-ruby", highest_version, version_re)
+        if omnibus_ruby_version is None:
+            print("ERROR: No version found for omnibus-ruby - did you create the tag?")
+            return Exit(code=1)
+        if omnibus_ruby_version["rc"] is not None:
+            print(
+                "ERROR: omnibus-ruby tag is still an RC tag. That's probably NOT what you want in the final artifact."
+            )
+            if ignore_rc_tag:
+                print("Continuing with RC tag on omnibus-ruby.")
+            else:
+                print("Aborting.")
+                return Exit(code=1)
+        omnibus_ruby_version = _stringify_version(omnibus_ruby_version)
+    print("omnibus-ruby's tag is {}".format(omnibus_ruby_version))
 
     _save_release_json(
         release_json,
@@ -349,17 +402,19 @@ def finish(
         integration_version,
         omnibus_software_version,
         omnibus_ruby_version,
-        jmxfetch_version)
+        jmxfetch_version,
+    )
 
 
 @task
 def create_rc(
     ctx,
-    major_versions = "6,7",
-    integration_version = None,
-    omnibus_software_version = None,
-    jmxfetch_version = None,
-    omnibus_ruby_version = None):
+    major_versions="6,7",
+    integration_version=None,
+    omnibus_software_version=None,
+    jmxfetch_version=None,
+    omnibus_ruby_version=None,
+):
 
     """
     Takes whatever version is the highest in release.json and adds a new RC to it.
@@ -383,7 +438,8 @@ def create_rc(
     if github_token is None:
         print(
             "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
-            " https://github.com/settings/tokens. It should have at least the 'repo' permissions.")
+            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
+        )
         return Exit(code=1)
 
     version_re = re.compile('(\\d+)[.](\\d+)[.](\\d+)(-rc\\.(\\d+))?')
@@ -391,7 +447,9 @@ def create_rc(
     with open("release.json", "r") as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
-    highest_version, highest_jmxfetch_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
+    highest_version, highest_jmxfetch_version = _get_highest_version_from_release_json(
+        release_json, highest_major, version_re
+    )
 
     if highest_version["rc"] is None:
         # No RC exists, create one
@@ -406,21 +464,24 @@ def create_rc(
     if not integration_version:
         integration_version = _get_highest_repo_version(github_token, "integrations-core", highest_version, version_re)
         integration_version = _stringify_version(integration_version)
-    print("Integration-Core's tag is {}".format(integration_version))
+    print("integrations-core's tag is {}".format(integration_version))
 
     if not omnibus_software_version:
-        omnibus_software_version = _get_highest_repo_version(github_token, "omnibus-software", highest_version, version_re)
+        omnibus_software_version = _get_highest_repo_version(
+            github_token, "omnibus-software", highest_version, version_re
+        )
         omnibus_software_version = _stringify_version(omnibus_software_version)
-    print("Omnibus-Software's tag is {}".format(omnibus_software_version))
+    print("omnibus-software's tag is {}".format(omnibus_software_version))
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
         jmxfetch_version = _stringify_version(jmxfetch_version)
-    print("Jmxfetch's tag is {}".format(jmxfetch_version))
+    print("jmxfetch's tag is {}".format(jmxfetch_version))
 
     if not omnibus_ruby_version:
-        print("ERROR: No omnibus_ruby_version found. Please specify it manually via '--omnibus-ruby-version' until we start tagging omnibus-ruby builds.")
-        return Exit(code=1)
+        omnibus_ruby_version = _get_highest_repo_version(github_token, "omnibus-ruby", highest_version, version_re)
+        omnibus_ruby_version = _stringify_version(omnibus_ruby_version)
+    print("omnibus-ruby's tag is {}".format(omnibus_ruby_version))
 
     _save_release_json(
         release_json,
@@ -429,4 +490,5 @@ def create_rc(
         integration_version,
         omnibus_software_version,
         omnibus_ruby_version,
-        jmxfetch_version)
+        jmxfetch_version,
+    )

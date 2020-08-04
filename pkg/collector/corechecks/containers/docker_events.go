@@ -105,7 +105,7 @@ func aggregateEvents(events []*docker.ContainerEvent, filteredActions []string) 
 			bundle = newDockerEventBundler(event.ImageName)
 			eventsByImage[event.ImageName] = bundle
 		}
-		bundle.addEvent(event)
+		bundle.addEvent(event) //nolint:errcheck
 	}
 
 	if len(filteredByType) > 0 {

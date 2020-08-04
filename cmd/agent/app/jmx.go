@@ -143,7 +143,7 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
 func runJmxCommandConsole(command string) error {
-	logLevel, err := standalone.SetupCLI(loggerName, confFilePath, jmxLogLevel, "debug")
+	logLevel, _, err := standalone.SetupCLI(loggerName, confFilePath, "", jmxLogLevel, "debug")
 	if err != nil {
 		fmt.Printf("Cannot initialize command: %v\n", err)
 		return err

@@ -14,23 +14,25 @@ import (
 )
 
 func TestNewDomainForwarder(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 120*time.Second)
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.numberOfWorkers)
 	assert.Equal(t, 10, forwarder.retryQueueLimit)
+	assert.Equal(t, 120*time.Second, forwarder.connectionResetInterval)
 	assert.Equal(t, Stopped, forwarder.State())
 	assert.Nil(t, forwarder.highPrio)
 	assert.Nil(t, forwarder.lowPrio)
 	assert.Nil(t, forwarder.requeuedTransaction)
 	assert.Nil(t, forwarder.stopRetry)
+	assert.Nil(t, forwarder.stopConnectionReset)
 	assert.Len(t, forwarder.workers, 0)
 	assert.Len(t, forwarder.retryQueue, 0)
 	assert.NotNil(t, forwarder.blockedList, 0)
 }
 
 func TestDomainForwarderStart(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 	err := forwarder.Start()
 
 	assert.Nil(t, err)
@@ -41,6 +43,7 @@ func TestDomainForwarderStart(t *testing.T) {
 	assert.NotNil(t, forwarder.lowPrio)
 	assert.NotNil(t, forwarder.requeuedTransaction)
 	assert.NotNil(t, forwarder.stopRetry)
+	assert.NotNil(t, forwarder.stopConnectionReset)
 
 	assert.NotNil(t, forwarder.Start())
 
@@ -48,14 +51,25 @@ func TestDomainForwarderStart(t *testing.T) {
 }
 
 func TestDomainForwarderInit(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 	forwarder.init()
 	assert.Len(t, forwarder.workers, 0)
 	assert.Len(t, forwarder.retryQueue, 0)
 }
 
 func TestDomainForwarderStop(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
+	forwarder.Stop(false) // this should be a noop
+	forwarder.Start()
+	assert.Equal(t, Started, forwarder.State())
+	forwarder.Stop(false)
+	assert.Len(t, forwarder.workers, 0)
+	assert.Len(t, forwarder.retryQueue, 0)
+	assert.Equal(t, Stopped, forwarder.State())
+}
+
+func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
+	forwarder := newDomainForwarder("test", 1, 10, 120*time.Second)
 	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
@@ -66,14 +80,14 @@ func TestDomainForwarderStop(t *testing.T) {
 }
 
 func TestDomainForwarderSubmitIfStopped(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 
 	require.NotNil(t, forwarder)
 	assert.NotNil(t, forwarder.sendHTTPTransactions(nil))
 }
 
 func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 	tr := newTestTransaction()
 
 	// fw is stopped, we should get an error
@@ -91,7 +105,7 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 }
 
 func TestRequeueTransaction(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 	tr := NewHTTPTransaction()
 	assert.Len(t, forwarder.retryQueue, 0)
 	forwarder.requeueTransaction(tr)
@@ -99,7 +113,7 @@ func TestRequeueTransaction(t *testing.T) {
 }
 
 func TestRetryTransactions(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 	forwarder.init()
 	forwarder.retryQueueLimit = 1
 
@@ -130,7 +144,7 @@ func TestRetryTransactions(t *testing.T) {
 }
 
 func TestForwarderRetry(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 	forwarder.Start()
 	defer forwarder.Stop(false)
 
@@ -162,7 +176,7 @@ func TestForwarderRetry(t *testing.T) {
 }
 
 func TestForwarderRetryLifo(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 	forwarder.init()
 
 	transaction1 := newTestTransaction()
@@ -191,7 +205,7 @@ func TestForwarderRetryLifo(t *testing.T) {
 }
 
 func TestForwarderRetryLimitQueue(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10)
+	forwarder := newDomainForwarder("test", 1, 10, 0)
 	forwarder.init()
 
 	forwarder.retryQueueLimit = 1

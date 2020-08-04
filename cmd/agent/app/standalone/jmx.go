@@ -108,9 +108,9 @@ func loadJMXConfigs(runner *jmxfetch.JMXFetch, selectedChecks []string) {
 			c.Instances = instances
 
 			jmx.AddScheduledConfig(c)
-			runner.ConfigureFromInitConfig(c.InitConfig)
+			runner.ConfigureFromInitConfig(c.InitConfig) //nolint:errcheck
 			for _, instance := range c.Instances {
-				runner.ConfigureFromInstance(instance)
+				runner.ConfigureFromInstance(instance) //nolint:errcheck
 			}
 		}
 	}

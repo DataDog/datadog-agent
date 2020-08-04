@@ -149,7 +149,7 @@ func (j *JMXFetch) Monitor() {
 		default:
 			// restart
 			log.Warnf("JMXFetch process had to be restarted.")
-			j.Start(false)
+			j.Start(false) //nolint:errcheck
 		}
 	}
 
@@ -277,6 +277,10 @@ func (j *JMXFetch) Start(manage bool) error {
 		"--reporter", reporter, // Reporter to use
 	)
 
+	if config.Datadog.GetBool("log_format_rfc3339") {
+		subprocessArgs = append(subprocessArgs, "--log_format_rfc3339")
+	}
+
 	subprocessArgs = append(subprocessArgs, j.Command)
 
 	j.cmd = exec.Command(j.JavaBinPath, subprocessArgs...)
@@ -342,8 +346,8 @@ func (j *JMXFetch) Wait() error {
 }
 
 func (j *JMXFetch) heartbeat(beat *time.Ticker) {
-	health := health.Register("jmxfetch")
-	defer health.Deregister()
+	health := health.RegisterLiveness("jmxfetch")
+	defer health.Deregister() //nolint:errcheck
 
 	for range beat.C {
 		select {

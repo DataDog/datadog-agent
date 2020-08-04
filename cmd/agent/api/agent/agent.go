@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
@@ -36,7 +37,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
@@ -56,7 +57,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
-	r.HandleFunc("/tags", getTags).Methods("GET")
+
+	return r
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +219,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
-	h := health.GetStatus()
+	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
 		log.Debugf("Healthcheck failed on: %v", h.Unhealthy)
@@ -297,11 +299,11 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	setting := vars["setting"]
 	log.Infof("Got a request to read a setting value: %s", setting)
 
-	val, err := config.GetRuntimeSetting(setting)
+	val, err := settings.GetRuntimeSetting(setting)
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
-		case *config.SettingNotFoundError:
+		case *settings.SettingNotFoundError:
 			http.Error(w, string(body), 400)
 		default:
 			http.Error(w, string(body), 500)
@@ -322,13 +324,13 @@ func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	setting := vars["setting"]
 	log.Infof("Got a request to change a setting: %s", setting)
-	r.ParseForm()
+	r.ParseForm() //nolint:errcheck
 	value := html.UnescapeString(r.Form.Get("value"))
 
-	if err := config.SetRuntimeSetting(setting, value); err != nil {
+	if err := settings.SetRuntimeSetting(setting, value); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
-		case *config.SettingNotFoundError:
+		case *settings.SettingNotFoundError:
 			http.Error(w, string(body), 400)
 		default:
 			http.Error(w, string(body), 500)
@@ -338,9 +340,13 @@ func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
-	configurableSettings := make(map[string]string)
-	for name, setting := range config.RuntimeSettings() {
-		configurableSettings[name] = setting.Description()
+
+	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
+	for name, setting := range settings.RuntimeSettings() {
+		configurableSettings[name] = settings.RuntimeSettingResponse{
+			Description: setting.Description(),
+			Hidden:      setting.Hidden(),
+		}
 	}
 	body, err := json.Marshal(configurableSettings)
 	if err != nil {
@@ -369,19 +375,6 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 
 type tagRequest struct {
 	Entity string
-}
-
-func getTags(w http.ResponseWriter, r *http.Request) {
-	// tagger should be init
-	request := tagRequest{}
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	tags, _ := tagger.Tag(request.Entity, collectors.HighCardinality)
-	body, _ := json.Marshal(tags)
-	w.Write(body)
 }
 
 func secretInfo(w http.ResponseWriter, r *http.Request) {

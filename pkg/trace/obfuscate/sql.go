@@ -162,10 +162,10 @@ func (f *groupingFilter) Reset() {
 	f.groupMulti = 0
 }
 
-// obfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
+// ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
-func (o *Obfuscator) obfuscateSQLString(in string) (*obfuscatedQuery, error) {
+func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
 	tok := NewSQLTokenizer(in, lesc)
 	out, err := attemptObfuscation(tok)
@@ -239,15 +239,15 @@ func (f *tableFinderFilter) Reset() {
 	f.csv.Reset()
 }
 
-// obfuscatedQuery specifies information about an obfuscated SQL query.
-type obfuscatedQuery struct {
-	query     string // the obfuscated SQL query
-	tablesCSV string // comma-separated list of tables that the query addresses
+// ObfuscatedQuery specifies information about an obfuscated SQL query.
+type ObfuscatedQuery struct {
+	Query     string // the obfuscated SQL query
+	TablesCSV string // comma-separated list of tables that the query addresses
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the
 // given set of filters.
-func attemptObfuscation(tokenizer *SQLTokenizer) (*obfuscatedQuery, error) {
+func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	filters := []tokenFilter{
 		&discardFilter{},
 		&replaceFilter{},
@@ -300,9 +300,9 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*obfuscatedQuery, error) {
 	if out.Len() == 0 {
 		return nil, errors.New("result is empty")
 	}
-	return &obfuscatedQuery{
-		query:     out.String(),
-		tablesCSV: tableFinder.CSV(),
+	return &ObfuscatedQuery{
+		Query:     out.String(),
+		TablesCSV: tableFinder.CSV(),
 	}, nil
 }
 
@@ -315,7 +315,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 		tags = append(tags, "outcome:empty-resource")
 		return
 	}
-	oq, err := o.obfuscateSQLString(span.Resource)
+	oq, err := o.ObfuscateSQLString(span.Resource)
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
@@ -331,14 +331,14 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	}
 
 	tags = append(tags, "outcome:success")
-	span.Resource = oq.query
+	span.Resource = oq.Query
 
-	if len(oq.tablesCSV) > 0 {
-		traceutil.SetMeta(span, "sql.tables", oq.tablesCSV)
+	if len(oq.TablesCSV) > 0 {
+		traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
 	}
 	if span.Meta != nil && span.Meta[sqlQueryTag] != "" {
 		// "sql.query" tag already set by user, do not change it.
 		return
 	}
-	traceutil.SetMeta(span, sqlQueryTag, oq.query)
+	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
 }

@@ -3,6 +3,7 @@
     <span class="stat_title">Agent Info</span>
     <span class="stat_data">
       Version: {{.version}}
+      <br>Flavor: {{.flavor}}
       <br>PID: {{.pid}}
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
@@ -155,7 +156,7 @@
     <span class="stat_data">
       {{- with .forwarderStats -}}
         {{- range $key, $value := .Transactions }}
-            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode")}}
+            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
           {{formatTitle $key}}: {{humanize $value}}<br>
             {{- end}}
         {{- end}}
@@ -341,5 +342,10 @@
         {{- end }}
       {{- end -}}
     </span>
+  </div>
+
+  <div class="stat" id="apmStats">
+    <span class="stat_title">APM</span>
+    <span class="stat_data">Loading...</span>
   </div>
 {{- end -}}

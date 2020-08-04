@@ -31,6 +31,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
+	configConverter := config.NewConfigConverter()
 	const cfgExt = ".yaml"
 	const dirExt = ".d"
 
@@ -53,7 +54,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 
 	// setup the configuration system
 	config.Datadog.AddConfigPath(newConfigDir)
-	err = config.Load()
+	_, err = config.Load()
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
@@ -65,9 +66,67 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// merge current agent configuration with the converted data
-	err = legacy.FromAgentConfig(agentConfig)
+	err = legacy.FromAgentConfig(agentConfig, configConverter)
 	if err != nil {
 		return fmt.Errorf("unable to convert configuration data from %s: %v", datadogConfPath, err)
+	}
+
+	// move existing config files to the new configuration directory
+	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Fprintln(color.Output,
+				fmt.Sprintf("%s does not exist, no config files to import.",
+					color.BlueString(filepath.Join(oldConfigDir, "conf.d"))),
+			)
+		} else {
+			return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
+		}
+	}
+
+	tr := []TransformationFunc{relocateMinCollectionInterval}
+
+	for _, f := range files {
+		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
+			continue
+		}
+		checkName := strings.TrimSuffix(f.Name(), cfgExt)
+
+		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
+		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
+
+		if f.Name() == "docker_daemon.yaml" {
+			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.d", "conf.yaml"), force, configConverter)
+			if err != nil {
+				return err
+			}
+			continue
+		} else if f.Name() == "docker.yaml" {
+			// if people upgrade from a very old version of the agent who ship the old docker check.
+			fmt.Fprintln(
+				color.Output,
+				fmt.Sprintf("Ignoring %s, old docker check has been deprecated.", color.YellowString(src)),
+			)
+			continue
+		} else if f.Name() == "kubernetes.yaml" {
+			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.d", "conf.yaml"), force, configConverter)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err := copyFile(src, dst, force, tr); err != nil {
+			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
+		}
+
+		fmt.Fprintln(
+			color.Output,
+			fmt.Sprintf("Copied %s over the new %s directory",
+				color.BlueString("conf.d/"+f.Name()),
+				color.BlueString(checkName+dirExt),
+			),
+		)
 	}
 
 	// backup the original datadog.yaml to datadog.yaml.bak
@@ -99,64 +158,6 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			datadogYamlPath,
 		),
 	)
-
-	// move existing config files to the new configuration directory
-	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Fprintln(color.Output,
-				fmt.Sprintf("%s does not exist, no config files to import.",
-					color.BlueString(filepath.Join(oldConfigDir, "conf.d"))),
-			)
-		} else {
-			return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
-		}
-	}
-
-	tr := []TransformationFunc{relocateMinCollectionInterval}
-
-	for _, f := range files {
-		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
-			continue
-		}
-		checkName := strings.TrimSuffix(f.Name(), cfgExt)
-
-		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
-		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
-
-		if f.Name() == "docker_daemon.yaml" {
-			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.yaml"), force)
-			if err != nil {
-				return err
-			}
-			continue
-		} else if f.Name() == "docker.yaml" {
-			// if people upgrade from a very old version of the agent who ship the old docker check.
-			fmt.Fprintln(
-				color.Output,
-				fmt.Sprintf("Ignoring %s, old docker check has been deprecated.", color.YellowString(src)),
-			)
-			continue
-		} else if f.Name() == "kubernetes.yaml" {
-			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.yaml"), force)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		if err := copyFile(src, dst, force, tr); err != nil {
-			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
-		}
-
-		fmt.Fprintln(
-			color.Output,
-			fmt.Sprintf("Copied %s over the new %s directory",
-				color.BlueString("conf.d/"+f.Name()),
-				color.BlueString(checkName+dirExt),
-			),
-		)
-	}
 
 	// move existing config templates to the new auto_conf directory
 	autoConfFiles, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
@@ -252,7 +253,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 		}
 	}
 
-	ioutil.WriteFile(dst, data, 0640)
+	ioutil.WriteFile(dst, data, 0640) //nolint:errcheck
 
 	ddGroup, errGroup := user.LookupGroup("dd-agent")
 	ddUser, errUser := user.LookupId("dd-agent")

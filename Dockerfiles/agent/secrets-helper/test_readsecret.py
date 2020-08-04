@@ -1,18 +1,17 @@
 #!/usr/bin/env python
 
 import argparse
+import os
 import shutil
 import tempfile
 import unittest
 
-from readsecret import *
+from readsecret import is_valid_folder, list_secret_names, read_file
 
 
 class TestListSecretNames(unittest.TestCase):
     def test_invalid_output(self):
-        with self.assertRaisesRegex(
-            ValueError, "Expecting value: line 1 column 1 \(char 0\)"
-        ):
+        with self.assertRaisesRegex(ValueError, r"Expecting value: line 1 column 1 \(char 0\)"):
             list_secret_names("")
 
     def test_invalid_version(self):
@@ -50,8 +49,7 @@ class TestReadFile(unittest.TestCase):
         with open(os.path.join(sensitive_path, "target"), "w") as f:
             f.write("sensitive")
         os.symlink(
-            os.path.join(sensitive_path, "target"),
-            os.path.join(allowed_path, "target"),
+            os.path.join(sensitive_path, "target"), os.path.join(allowed_path, "target"),
         )
 
         with self.assertRaisesRegex(ValueError, "outside of the specified folder"):
@@ -71,7 +69,7 @@ class TestReadFile(unittest.TestCase):
     def test_file_size_limit(self):
         filename = "big_file"
         with open(os.path.join(self.folder, filename), "w") as f:
-            for i in range(0, 2048):
+            for _ in range(0, 2048):
                 f.write("big")
         contents = read_file(self.folder, filename)
         self.assertEqual(len(contents), 1024)

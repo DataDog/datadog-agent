@@ -78,7 +78,7 @@ func (c *Collector) Stop() {
 		return
 	}
 
-	c.scheduler.Stop()
+	c.scheduler.Stop() //nolint:errcheck
 	c.scheduler = nil
 	c.runner.Stop()
 	c.runner = nil
@@ -158,7 +158,7 @@ func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data
 	}
 
 	// re-schedule
-	c.scheduler.Enter(check)
+	c.scheduler.Enter(check) //nolint:errcheck
 
 	return nil
 }

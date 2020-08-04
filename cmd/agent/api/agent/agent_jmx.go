@@ -81,7 +81,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	w.Write(jsonPayload)
+	w.Write(jsonPayload) //nolint:errcheck
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {

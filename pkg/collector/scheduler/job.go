@@ -34,6 +34,26 @@ func (jb *jobBucket) addJob(c check.Check) {
 	jb.jobs = append(jb.jobs, c)
 }
 
+// removeJob removes the check from the bucket, and returns
+// whether the check was indeed in the bucket (and therefore actually removed)
+func (jb *jobBucket) removeJob(id check.ID) bool {
+	jb.mu.Lock()
+	defer jb.mu.Unlock()
+
+	for i, c := range jb.jobs {
+		if c.ID() == id {
+			// delete the check from the jobs slice, making sure the backing array
+			// doesn't keep a reference to the check, so that it can be GC'ed.
+			// Logic from https://github.com/golang/go/wiki/SliceTricks
+			copy(jb.jobs[i:], jb.jobs[i+1:])
+			jb.jobs[len(jb.jobs)-1] = nil
+			jb.jobs = jb.jobs[:len(jb.jobs)-1]
+			return true
+		}
+	}
+	return false
+}
+
 // jobQueue contains a list of checks (called jobs) that need to be
 // scheduled at a certain interval.
 type jobQueue struct {
@@ -57,7 +77,7 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		interval:     interval,
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
-		health:       health.Register("collector-queue"),
+		health:       health.RegisterLiveness("collector-queue"),
 		bucketTicker: time.NewTicker(time.Second),
 	}
 
@@ -107,16 +127,10 @@ func (jq *jobQueue) removeJob(id check.ID) error {
 	jq.mu.Lock()
 	defer jq.mu.Unlock()
 
-	for i, bucket := range jq.buckets {
-		bucket.mu.Lock()
-		for j, c := range bucket.jobs {
-			if c.ID() == id {
-				jq.buckets[i].jobs = append(bucket.jobs[:j], bucket.jobs[j+1:]...)
-				bucket.mu.Unlock()
-				return nil
-			}
+	for _, bucket := range jq.buckets {
+		if found := bucket.removeJob(id); found {
+			return nil
 		}
-		bucket.mu.Unlock()
 	}
 
 	return fmt.Errorf("check with id %s is not in this Job Queue", id)
@@ -160,7 +174,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 
 	select {
 	case <-jq.stop:
-		jq.health.Deregister()
+		jq.health.Deregister() //nolint:errcheck
 		return false
 	case t := <-jq.bucketTicker.C:
 		log.Tracef("Bucket ticked... current index: %v", jq.currentBucketIdx)
@@ -190,7 +204,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 			// blocking, we'll be here as long as it takes
 			case s.checksPipe <- check:
 			case <-jq.stop:
-				jq.health.Deregister()
+				jq.health.Deregister() //nolint:errcheck
 				return false
 			}
 		}

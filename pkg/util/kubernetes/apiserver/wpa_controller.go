@@ -255,7 +255,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 		toDelete.External = autoscalers.InspectWPA(deletedWPA)
 		h.deleteFromLocalStore(toDelete.External)
 		log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
-		if !h.le.IsLeader() {
+		if !h.isLeaderFunc() {
 			return
 		}
 		log.Infof("Deleting entries of metrics from Ref %s/%s in the Global Store", deletedWPA.Namespace, deletedWPA.Name)

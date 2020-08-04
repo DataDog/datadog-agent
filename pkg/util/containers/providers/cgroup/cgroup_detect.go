@@ -24,7 +24,8 @@ import (
 )
 
 var (
-	containerRe = regexp.MustCompile("[0-9a-f]{64}")
+	// cloudfoundry garden container have IDs in the form aaaaaaaa-bbbb-cccc-dddd-eeee
+	containerRe = regexp.MustCompile("[0-9a-f]{64}|[0-9a-f]{8}(-[0-9a-f]{4}){4}")
 	// ErrMissingTarget is an error set when a cgroup target is missing.
 	ErrMissingTarget = errors.New("Missing cgroup target")
 	// dindCgroupRe represents the cgroup pattern that the container runs inside a dind container,
@@ -71,6 +72,16 @@ func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 		}
 	}
 	return filepath.Join(mount, targetPath, file)
+}
+
+// target = cpu, file = cpu.cfs_quota_us
+func (c ContainerCgroup) cgroupParentFilePath(target, file string) string {
+	folderPath := c.cgroupFilePath(target, "")
+	if len(folderPath) == 0 {
+		return folderPath
+	}
+
+	return filepath.Join(folderPath, "..", file)
 }
 
 // function to get the mount point of all cgroup. by default it should be under /sys/fs/cgroup but
@@ -204,7 +215,7 @@ func readCgroupsForPath(pidCgroupPath, prefix string) (string, map[string]string
 // 7:blkio:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e
 //
 // Returns the common containerID and a mapping of target => path
-// If the first line doesn't have a valid container ID we will return an empty string
+// If any line doesn't have a valid container ID we will return an empty string and an empty slice of paths
 func parseCgroupPaths(r io.Reader, prefix string) (string, map[string]string, error) {
 	var containerID string
 	paths := make(map[string]string)
@@ -214,7 +225,6 @@ func parseCgroupPaths(r io.Reader, prefix string) (string, map[string]string, er
 		cID, ok := containerIDFromCgroup(l, prefix)
 		if !ok {
 			log.Tracef("could not parse container id from path '%s'", l)
-			continue
 		}
 		if containerID == "" {
 			// Take the first valid containerID
@@ -227,11 +237,18 @@ func parseCgroupPaths(r io.Reader, prefix string) (string, map[string]string, er
 		// Target can be comma-separate values like cpu,cpuacct
 		tsp := strings.Split(sp[1], ",")
 		for _, target := range tsp {
-			paths[target] = sp[2]
+			if len(sp[2]) > 1 && sp[2] != "/docker" { // if the path is only one character it's the root cgroup
+				paths[target] = sp[2]
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return "", nil, err
+	}
+
+	// if we haven't picked up a container id from any cgroup, then we don't care about the paths either
+	if containerID == "" {
+		paths = make(map[string]string)
 	}
 
 	// In Ubuntu Xenial, we've encountered containers with no `cpu`

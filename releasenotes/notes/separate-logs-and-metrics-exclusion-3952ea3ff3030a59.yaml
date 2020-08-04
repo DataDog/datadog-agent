@@ -1,11 +1,11 @@
 ---
 features:
   - |
-    `container_exclude_metrics` and `container_include_metrics` can be used to filter metrics collection for autodiscovered containers.
-    `container_exclude_logs` and `container_include_logs` can be used to filter logs collection for autodiscovered containers.
+    ``container_exclude_metrics`` and ``container_include_metrics`` can be used to filter metrics collection for autodiscovered containers.
+    ``container_exclude_logs`` and ``container_include_logs`` can be used to filter logs collection for autodiscovered containers.
 deprecations:
   - |
-    `container_exclude` replaces `ac_exclude`.
-    `container_include` replaces `ac_include`.
-    `ac_exclude` and `ac_include` will keep being supported but the Agent ignores them
-    in favor of `container_exclude` and `container_include` if they're defined.
+    ``container_exclude`` replaces ``ac_exclude``.
+    ``container_include`` replaces ``ac_include``.
+    ``ac_exclude`` and ``ac_include`` will keep being supported but the Agent ignores them
+    in favor of ``container_exclude`` and ``container_include`` if they're defined.

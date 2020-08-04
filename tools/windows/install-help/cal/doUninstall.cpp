@@ -56,48 +56,56 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
     {
         sid = GetSidForUser(NULL, installedComplete.c_str());
 
-        // remove dd user from programdata root
-        removeUserPermsFromFile(programdataroot, sid);
+        // Do not try to do anything if we don't find the user.
+        if (sid != NULL) {
+            // remove dd user from programdata root
+            removeUserPermsFromFile(programdataroot, sid);
 
-        // remove dd user from log directory
-        removeUserPermsFromFile(logdir, sid);
+            // remove dd user from log directory
+            removeUserPermsFromFile(logdir, sid);
 
-        // remove dd user from conf directory
-        removeUserPermsFromFile(confddir, sid);
+            // remove dd user from conf directory
+            removeUserPermsFromFile(confddir, sid);
 
-        // remove dd user from datadog.yaml
-        removeUserPermsFromFile(datadogyamlfile, sid);
+            // remove dd user from datadog.yaml
+            removeUserPermsFromFile(datadogyamlfile, sid);
 
-        // remove dd user from Performance monitor users
-        DelUserFromGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
-        DelUserFromGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+            // remove dd user from Performance monitor users
+            DelUserFromGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+            DelUserFromGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
 
-        // remove dd user right for
-        //   SE_SERVICE_LOGON NAME
-        //   SE_DENY_REMOVE_INTERACTIVE_LOGON_NAME
-        //   SE_DENY_NETWORK_LOGIN_NAME
-        //   SE_DENY_INTERACTIVE_LOGIN_NAME
-        if ((hLsa = GetPolicyHandle()) != NULL) {
-            if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-                WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
+            // remove dd user right for
+            //   SE_SERVICE_LOGON NAME
+            //   SE_DENY_REMOVE_INTERACTIVE_LOGON_NAME
+            //   SE_DENY_NETWORK_LOGIN_NAME
+            //   SE_DENY_INTERACTIVE_LOGIN_NAME
+            if ((hLsa = GetPolicyHandle()) != NULL) {
+                if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+                    WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
+                }
+
+                if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+                    WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
+                }
+                if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+                    WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
+                }
+                if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+                    WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
+                }
             }
-
-            if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-                WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
+            // delete the user
+            er = DeleteUser(NULL, installedUser.c_str());
+            if (0 != er) {
+                // don't actually fail on failure.  We're doing an uninstall,
+                // and failing will just leave the system in a more confused state
+                WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
+                er = 0;
             }
-            if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-                WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
+            else {
+                // delete the home directory that was left behind
+                DeleteHomeDirectory(installedUser, sid);
             }
-            if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-                WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
-            }
-        }
-        // delete the user
-        er = DeleteUser(NULL, installedUser.c_str());
-        if (0 != er) {
-            // don't actually fail on failure.  We're doing an uninstall,
-            // and failing will just leave the system in a more confused state
-            WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
         }
     }
     // remove the auth token file altogether

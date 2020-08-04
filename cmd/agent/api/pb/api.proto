@@ -6,33 +6,34 @@ import "google/api/annotations.proto";
 
 // The greeting service definition.
 service Agent {
-  // get the hostname
-  rpc GetHostname (HostnameRequest) returns (HostnameReply) {
-    option (google.api.http) = {
-      get: "/v1/grpc/host"
-    };
-  }
-  rpc GetTags (TagRequest) returns (TagReply) {
-    option (google.api.http) = {
-      post: "/v1/grpc/tags"
-      body: "*"
-    };
-  }
+    // get the hostname
+    rpc GetHostname (HostnameRequest) returns (HostnameReply) {
+        option (google.api.http) = {
+            get: "/v1/grpc/host"
+        };
+    }
+
+    rpc GetTags (TagRequest) returns (TagReply) {
+        option (google.api.http) = {
+            post: "/v1/grpc/tags"
+            body: "*"
+        };
+    }
 }
 
 message HostnameRequest {}
 
-// The response message containing the greetings
+// The response message containing the requested hostname
 message HostnameReply {
     string hostname = 1;
-  }
-
-// The request message containing the user's name.
-message TagRequest {
-  string entity = 1;
 }
 
-// The response message containing the greetings
+// The request message containing the tag list for an entity.
+message TagRequest {
+    string entity = 1;
+}
+
+// The response message containing the tagger reply
 message TagReply {
-  repeated string tags = 1;
+    repeated string tags = 1;
 }

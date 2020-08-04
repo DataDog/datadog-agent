@@ -3,11 +3,14 @@ Dockerfiles/dogstatsd/alpine/static/
 
 # folders
 vendor/
+.vendor-new/
 bin/
 /dev/
 __pycache__
 .pytest_cache
 venv/
+venv27/
+venv3[78]/
 
 **/*.tmp
 **/debug.test
@@ -89,15 +92,26 @@ process-agent-msg.h
 # process agent test artifacts
 pkg/process/config/logs
 
+# sysprobe artifacts
+cmd/system-probe/windows_resources/system-probe-msg.rc
+cmd/system-probe/windows_resources/*.bin
+system-probe-msg.h
+
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
 cmd/dogstatsd/windows_resources/*.bin
 dogstatsd-msg.h
 
+# omnibus files
+omnibus/.tarball-version
+omnibus/files/sources
+omnibus/resources/agent/msi/cal/packages/
 
 #visual studio files
 *.aps
 omnibus/resources/agent/msi/cal/packages/
+omnibus/files/sources
+omnibus/.tarball-version
 tools/windows/install-help/cal/packages/
 [Dd]ebug/
 [Rr]elease/
@@ -114,6 +128,7 @@ Vagrantfile
 packer.json
 *.box
 devenv/iso
+devenv/output-virtualbox-iso/
 devenv/packer_cache
 
 # doxygen doc & error log
@@ -125,3 +140,7 @@ integrations-core/
 
 # file generated for templates
 pkg/status/templates.go
+cmd/agent/gui/templates.go
+
+# netlink message dump test files
+pkg/network/netlink/testdata/message_dump*

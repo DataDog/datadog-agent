@@ -11,8 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	ecscommon "github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 )
 
 type cloudProviderDetector struct {
@@ -26,13 +28,15 @@ type cloudProviderDetector struct {
 // * GCE
 // * Azure
 // * Alibaba
+// * Tencent
 func DetectCloudProvider() {
 	detectors := []cloudProviderDetector{
-		{name: ecs.CloudProviderName, callback: ecs.IsRunningOn},
+		{name: ecscommon.CloudProviderName, callback: ecs.IsRunningOn},
 		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn},
 		{name: gce.CloudProviderName, callback: gce.IsRunningOn},
 		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
 		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
+		{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
 	}
 
 	for _, cloudDetector := range detectors {

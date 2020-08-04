@@ -114,7 +114,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 		if err != nil {
 			return nil, err
 		}
-		defer platformLoaderDone()
+		defer platformLoaderDone() //nolint:errcheck
 	} else {
 		log.Infof("Skipping platform loading prep")
 	}

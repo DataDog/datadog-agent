@@ -81,6 +81,20 @@ struct bpf_map_def SEC("maps/tcp_close_events") tcp_close_event = {
     .namespace = "",
 };
 
+/* We use this map as a container for batching closed tcp connections
+ * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
+ * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
+ * some of the Kernels we support (4.4 ~ 4.6)
+ */
+struct bpf_map_def SEC("maps/tcp_close_batch") tcp_close_batch = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(batch_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
@@ -182,7 +196,7 @@ struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
     .namespace = "",
 };
 
-/* This maps is used for telemetry in kernelspace
+/* This map is used for telemetry in kernelspace
  * only key 0 is used
  * value is a telemetry object
  */
@@ -193,6 +207,20 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
     .max_entries = 1,
     .pinning = 0,
     .namespace = "",
+};
+
+/* This map is used for passing config from userspace.
+ * Only key 0 is used. If it is present, it means DNS stat collection
+ * is enabled.
+ * Value does not matter.
+ */
+struct bpf_map_def SEC("maps/config") config = {
+      .type = BPF_MAP_TYPE_HASH,
+      .key_size = sizeof(__u16),
+      .value_size = sizeof(__u8),
+      .max_entries = 1,
+      .pinning = 0,
+      .namespace = "",
 };
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
@@ -424,8 +452,12 @@ static void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_by
 
     // If already in our map, increment size in-place
     if (val != NULL) {
-        __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
-        __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
+        if (sent_bytes) {
+            __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
+        }
+        if (recv_bytes) {
+            __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
+        }
         val->timestamp = ts;
     }
 }
@@ -487,8 +519,48 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
         conn.conn_stats = *cst;
     }
 
-    // Send the connection data to the perf buffer
-    bpf_perf_event_output(ctx, &tcp_close_event, cpu, &conn, sizeof(conn));
+    // Batch TCP closed connections before generating a perf event
+    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    if (batch_ptr == NULL) {
+        return;
+    }
+
+    // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
+    switch (batch_ptr->pos) {
+    case 0:
+        batch_ptr->c0 = conn;
+        batch_ptr->pos++;
+        return;
+    case 1:
+        batch_ptr->c1 = conn;
+        batch_ptr->pos++;
+        return;
+    case 2:
+        batch_ptr->c2 = conn;
+        batch_ptr->pos++;
+        return;
+    case 3:
+        batch_ptr->c3 = conn;
+        batch_ptr->pos++;
+        return;
+    case 4:
+        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
+        // in order to cope with the eBPF stack limitation of 512 bytes.
+        batch_ptr->c4 = conn;
+        batch_ptr->pos++;
+        return;
+    }
+
+    // If we hit this section it means we had one or more interleaved tcp_close calls.
+    // This could result in a missed tcp_close event, so we track it using our telemetry map.
+    u64 key = 0;
+    telemetry_t empty = {};
+    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+
+    telemetry_t* val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val != NULL) {
+        __sync_fetch_and_add(&val->missed_tcp_close, 1);
+    }
 }
 
 __attribute__((always_inline))
@@ -697,6 +769,27 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
+SEC("kretprobe/tcp_close")
+int kretprobe__tcp_close(struct pt_regs* ctx) {
+    u32 cpu = bpf_get_smp_processor_id();
+    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    if (batch_ptr == NULL) {
+        return 0;
+    }
+
+    if (batch_ptr->pos >= TCP_CLOSED_BATCH_SIZE) {
+        // Here we copy the batch data to a variable allocated in the eBPF stack
+        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
+        // since you can't directly write a map entry to the perf buffer.
+        batch_t batch_copy = {};
+        __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
+        bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(batch_copy));
+        batch_ptr->pos = 0;
+    }
+
+    return 0;
+}
+
 /* Used exclusively for offset guessing */
 SEC("kprobe/tcp_get_info")
 int kprobe__tcp_get_info(struct pt_regs* ctx) {
@@ -707,8 +800,8 @@ int kprobe__tcp_get_info(struct pt_regs* ctx) {
         return 0;
     }
 
+    status->tcp_info_kprobe_status = 1;
     guess_offsets(status, sk);
-
     return 0;
 }
 
@@ -1091,6 +1184,7 @@ int socket__dns_filter(struct __sk_buff* skb) {
     __u8 l4_proto;
     size_t ip_hdr_size;
     size_t src_port_offset;
+    size_t dst_port_offset;
 
     switch (l3_proto) {
     case ETH_P_IP:
@@ -1108,16 +1202,22 @@ int socket__dns_filter(struct __sk_buff* skb) {
     switch (l4_proto) {
     case IPPROTO_UDP:
         src_port_offset = offsetof(struct udphdr, source);
+        dst_port_offset = offsetof(struct udphdr, dest);
         break;
     case IPPROTO_TCP:
         src_port_offset = offsetof(struct tcphdr, source);
+        dst_port_offset = offsetof(struct tcphdr, dest);
         break;
     default:
         return 0;
     }
 
     __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
-    if (src_port != 53)
+    __u16 dst_port = load_half(skb, ETH_HLEN + ip_hdr_size + dst_port_offset);
+    __u16 key = 0;
+    __u8* val = bpf_map_lookup_elem(&config, &key);
+
+    if (src_port != 53 && (val == NULL || dst_port != 53))
         return 0;
 
     return -1;

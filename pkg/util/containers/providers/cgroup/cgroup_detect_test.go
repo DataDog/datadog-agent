@@ -132,6 +132,23 @@ func TestParseCgroupPaths(t *testing.T) {
 		expectedContainer string
 		expectedPaths     map[string]string
 	}{
+		// test parsing of garden container cgroups in cloudfoundry
+		{
+			contents: []string{
+				"11:net_cls:/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"9:cpu,cpuacct:/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"8:memory:/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"7:blkio:/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+			},
+			expectedContainer: "bc3362fa-913c-4977-5812-d628",
+			expectedPaths: map[string]string{
+				"net_cls": "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"cpu":     "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"cpuacct": "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"memory":  "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"blkio":   "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+			},
+		},
 		{
 			contents: []string{
 				"11:net_cls:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e",
@@ -191,6 +208,8 @@ func TestParseCgroupPaths(t *testing.T) {
 				"5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
 				// Legacy systems
 				"6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+				// Docker under systemd
+				"7:systemd:/system.slice/myservice.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
 			},
 			expectedContainer: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
 			expectedPaths: map[string]string{
@@ -200,6 +219,7 @@ func TestParseCgroupPaths(t *testing.T) {
 				"kube1.7":    "/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
 				"coreos_7xx": "/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
 				"legacy":     "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+				"systemd":    "/system.slice/myservice.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
 			},
 		},
 		{
@@ -255,6 +275,37 @@ func TestParseCgroupPaths(t *testing.T) {
 				"cpuset":       "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
 			},
 		},
+		{
+			contents: []string{
+				"11:memory:/system.slice/ecs-agent.service",
+				"10:pids:/system.slice/ecs-agent.service",
+				"9:hugetlb:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"8:blkio:/system.slice/ecs-agent.service",
+				"7:net_cls,net_prio:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"6:devices:/system.slice/ecs-agent.service",
+				"5:perf_event:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"4:freezer:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"3:cpuset:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"2:cpu,cpuacct:/system.slice/ecs-agent.service",
+				"1:name=systemd:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+			},
+			expectedContainer: "1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+			expectedPaths: map[string]string{
+				"memory":       "/system.slice/ecs-agent.service",
+				"pids":         "/system.slice/ecs-agent.service",
+				"hugetlb":      "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"blkio":        "/system.slice/ecs-agent.service",
+				"net_cls":      "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"net_prio":     "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"devices":      "/system.slice/ecs-agent.service",
+				"perf_event":   "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"freezer":      "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"cpuset":       "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"cpu":          "/system.slice/ecs-agent.service",
+				"cpuacct":      "/system.slice/ecs-agent.service",
+				"name=systemd": "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+			},
+		},
 	} {
 		contents := strings.NewReader(strings.Join(tc.contents, "\n"))
 		c, p, err := parseCgroupPaths(contents, "")
@@ -265,23 +316,49 @@ func TestParseCgroupPaths(t *testing.T) {
 }
 
 func TestContainerIDFromCgroup(t *testing.T) {
-	for _, tc := range []string{
-		// Kubernetes < 1.6
-		"1:kube1.6:/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
-		// New CoreOS / most systems
-		"2:classic:/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
-		// Rancher
-		"3:rancher:/docker/864daa0a0b19aa4703231b6c76f85c6f369b2452a5a7f777f0c9101c0fd5772a/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
-		// Kubernetes 1.7+
-		"4:kube1.7:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
-		// Legacy CoreOS 7xx
-		"5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
-		// Legacy systems
-		"6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+	for _, tc := range []struct {
+		path       string
+		expectedID string
+	}{
+		{
+			// Kubernetes < 1.6
+			path:       "1:kube1.6:/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// New CoreOS / most systems
+			path:       "2:classic:/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Rancher
+			path:       "3:rancher:/docker/864daa0a0b19aa4703231b6c76f85c6f369b2452a5a7f777f0c9101c0fd5772a/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Kubernetes 1.7+
+			path:       "4:kube1.7:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Legacy CoreOS 7xx
+			path:       "5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Legacy systems
+			path:       "6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Cloudfoundry
+			path:       "7:cf:/system.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+			expectedID: "bc3362fa-913c-4977-5812-d628",
+		},
 	} {
-		c, err := containerIDFromCgroup(tc, "")
+		c, err := containerIDFromCgroup(tc.path, "")
 		assert.True(t, err)
-		assert.Equal(t, c, "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419")
+		assert.Equal(t, c, tc.expectedID)
 	}
 }
 

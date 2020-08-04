@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,6 +62,10 @@ func makePartialPoints(ts int) datadog.DataPoint {
 }
 
 func makePtr(val string) *string {
+	return &val
+}
+
+func makePtrInt(val int) *int {
 	return &val
 }
 
@@ -153,7 +158,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			}
 			fmt.Println(strippedTs)
 			for id, m := range tt.expected {
-				require.True(t, reflect.DeepEqual(m, strippedTs[id]))
+				require.Equal(t, m, strippedTs[id])
 			}
 		})
 	}
@@ -200,7 +205,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	tests := []struct {
 		desc       string
-		in         map[string]custommetrics.ExternalMetricValue
+		in         []string
 		out        []datadog.Series
 		batchCalls int
 		err        error
@@ -343,7 +348,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			}
 			p := &Processor{datadogClient: datadogClient}
 
-			_, err := p.queryExternalMetric(tt.in)
+			_, err := p.QueryExternalMetric(tt.in)
 			if err != nil || tt.err != nil {
 				assert.Contains(t, err.Error(), tt.err.Error())
 			}
@@ -352,13 +357,10 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 	}
 }
 
-func lambdaMakeChunks(numChunks int, chunkToExpand custommetrics.ExternalMetricValue) (expanded map[string]custommetrics.ExternalMetricValue) {
-	expanded = make(map[string]custommetrics.ExternalMetricValue)
+func lambdaMakeChunks(numChunks int, chunkToExpand custommetrics.ExternalMetricValue) []string {
+	expanded := make([]string, 0, numChunks)
 	for i := 0; i <= numChunks; i++ {
-		expanded[fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i)] = custommetrics.ExternalMetricValue{
-			MetricName: fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i),
-			Labels:     chunkToExpand.Labels,
-		}
+		expanded = append(expanded, getKey(fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i), chunkToExpand.Labels, "avg", 30))
 	}
 	return expanded
 }
@@ -497,7 +499,7 @@ func TestGetKey(t *testing.T) {
 			map[string]string{
 				"foo": "bar",
 			},
-			"kubernetes.io{foo:bar}",
+			"avg:kubernetes.io{foo:bar}.rollup(30)",
 		},
 		{
 			"correct name and labels",
@@ -507,18 +509,18 @@ func TestGetKey(t *testing.T) {
 				"afoo": "bar",
 				"ffoo": "bar",
 			},
-			"kubernetes.io{afoo:bar,ffoo:bar,zfoo:bar}",
+			"avg:kubernetes.io{afoo:bar,ffoo:bar,zfoo:bar}.rollup(30)",
 		},
 		{
 			"correct name, no labels",
 			"kubernetes.io",
 			nil,
-			"kubernetes.io{*}",
+			"avg:kubernetes.io{*}.rollup(30)",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			formatedKey := getKey(test.name, test.labels)
+			formatedKey := getKey(test.name, test.labels, "avg", 30)
 			require.Equal(t, test.expected, formatedKey)
 		})
 	}
@@ -628,20 +630,21 @@ func TestUpdateRateLimiting(t *testing.T) {
 			if err != nil {
 				assert.EqualError(t, tt.error, err.Error())
 			}
-			assert.Equal(t, rateLimitsLimit.(*mockGauge).values[queryEndpoint], tt.results.Limit)
-			assert.Equal(t, rateLimitsReset.(*mockGauge).values[queryEndpoint], tt.results.Reset)
-			assert.Equal(t, rateLimitsPeriod.(*mockGauge).values[queryEndpoint], tt.results.Period)
-			assert.Equal(t, rateLimitsRemaining.(*mockGauge).values[queryEndpoint], tt.results.Remaining)
+			key := strings.Join([]string{queryEndpoint, le.JoinLeaderValue}, ",")
+			assert.Equal(t, rateLimitsLimit.(*mockGauge).values[key], tt.results.Limit)
+			assert.Equal(t, rateLimitsReset.(*mockGauge).values[key], tt.results.Reset)
+			assert.Equal(t, rateLimitsPeriod.(*mockGauge).values[key], tt.results.Period)
+			assert.Equal(t, rateLimitsRemaining.(*mockGauge).values[key], tt.results.Remaining)
 		})
 		resetCounters(queryEndpoint)
 	}
 }
 
 func resetCounters(endpoint string) {
-	rateLimitsRemaining.Set(0, endpoint)
-	rateLimitsPeriod.Set(0, endpoint)
-	rateLimitsLimit.Set(0, endpoint)
-	rateLimitsReset.Set(0, endpoint)
+	rateLimitsRemaining.Set(0, endpoint, "true")
+	rateLimitsPeriod.Set(0, endpoint, "true")
+	rateLimitsLimit.Set(0, endpoint, "true")
+	rateLimitsReset.Set(0, endpoint, "true")
 }
 
 type mockGauge struct {

@@ -2,40 +2,43 @@
 Cluster Agent tasks
 """
 
-import os
 import glob
+import os
 import shutil
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags
+from .build_tags import get_build_tags, get_default_build_tags
 from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from .go import deps
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
-DEFAULT_BUILD_TAGS = [
-    "kubeapiserver",
-    "clusterchecks",
-    "secrets",
-    "orchestrator",
-    "zlib",
-]
 
 
 @task
-def build(ctx, rebuild=False, build_include=None, build_exclude=None,
-          race=False, development=True, skip_assets=False):
+def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False, development=True, skip_assets=False):
     """
     Build Cluster Agent
 
      Example invokation:
         inv cluster-agent.build
     """
-    build_common(ctx, "cluster-agent.build", BIN_PATH, DEFAULT_BUILD_TAGS, "", rebuild, build_include,
-                 build_exclude, race, development, skip_assets)
+    build_common(
+        ctx,
+        "cluster-agent.build",
+        BIN_PATH,
+        get_default_build_tags(build="cluster-agent"),
+        "",
+        rebuild,
+        build_include,
+        build_exclude,
+        race,
+        development,
+        skip_assets,
+    )
 
 
 @task
@@ -43,12 +46,7 @@ def refresh_assets(ctx, development=True):
     """
     Clean up and refresh cluster agent's assets and config files
     """
-    refresh_assets_common(
-        ctx,
-        BIN_PATH,
-        [os.path.join("./Dockerfiles/cluster-agent", "dist")],
-        development
-    )
+    refresh_assets_common(ctx, BIN_PATH, [os.path.join("./Dockerfiles/cluster-agent", "dist")], development)
 
 
 @task
@@ -60,7 +58,7 @@ def clean(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
     """
     Run integration tests for cluster-agent
     """
@@ -68,9 +66,10 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         deps(ctx)
 
     # We need docker for the kubeapiserver integration tests
-    tags = DEFAULT_BUILD_TAGS + ["docker"]
+    tags = get_default_build_tags(build="cluster-agent") + ["docker"]
 
     test_args = {
+        "go_mod": go_mod,
         "go_build_tags": " ".join(get_build_tags(tags, [])),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
@@ -83,7 +82,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     if remote_docker:
         test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
 
-    go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
 
     prefixes = [
         "./test/integration/util/kube_apiserver",
@@ -110,7 +109,7 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
     ctx.run("chmod +x {}".format(latest_file))
 
     build_context = "Dockerfiles/cluster-agent"
-    exec_path = "{}/datadog-cluster-agent.{}".format(build_context,arch)
+    exec_path = "{}/datadog-cluster-agent.{}".format(build_context, arch)
     dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
 
     shutil.copy2(latest_file, exec_path)
@@ -119,7 +118,6 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
 
     if push:
         ctx.run("docker push {}".format(tag))
-
 
 
 @task

@@ -22,6 +22,9 @@ build do
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
+            if ENV['WINDOWS_DDFILTER_DRIVER'] and not ENV['WINDOWS_DDFILTER_DRIVER'].empty?
+              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
+            end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
@@ -67,6 +70,7 @@ build do
             move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
             move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
             move "#{install_dir}/scripts/datadog-agent-sysprobe.conf", "/etc/init"
+            move "#{install_dir}/scripts/datadog-agent-security.conf", "/etc/init"
             systemd_directory = "/usr/lib/systemd/system"
             if debian?
                 # debian recommends using a different directory for systemd unit files
@@ -77,18 +81,21 @@ build do
                 move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
             end
             if suse?
                 mkdir "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-sysprobe.service", systemd_directory
+            move "#{install_dir}/scripts/datadog-agent-security.service", systemd_directory
 
             # Move configuration files
             mkdir "/etc/datadog-agent"

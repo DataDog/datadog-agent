@@ -72,7 +72,7 @@ to your datadog.yaml file.
 Exiting.`
 )
 
-func runAgent(exit chan bool) {
+func runAgent(exit chan struct{}) {
 	if opts.version {
 		fmt.Print(versionString("\n"))
 		cleanupAndExit(0)
@@ -110,7 +110,7 @@ func runAgent(exit chan bool) {
 
 	// Tagger must be initialized after agent config has been setup
 	tagger.Init()
-	defer tagger.Stop()
+	defer tagger.Stop() //nolint:errcheck
 
 	err = initInfo(cfg)
 	if err != nil {
@@ -165,7 +165,7 @@ func runAgent(exit chan bool) {
 
 	// Run a profile server.
 	go func() {
-		http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
+		http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil) //nolint:errcheck
 	}()
 
 	cl, err := NewCollector(cfg)
@@ -193,7 +193,7 @@ func debugCheckResults(cfg *config.AgentConfig, check string) error {
 	if check == checks.Connections.Name() {
 		// Connections check requires process-check to have occurred first (for process creation ts)
 		checks.Process.Init(cfg, sysInfo)
-		checks.Process.Run(cfg, 0)
+		checks.Process.Run(cfg, 0) //nolint:errcheck
 	}
 
 	names := make([]string, 0, len(checks.All))

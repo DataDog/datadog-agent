@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -23,7 +24,7 @@ import (
 type resolveHook func(co types.ContainerJSON) (string, error)
 
 // extractFromInspect extract tags for a container inspect JSON
-func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, []string, error) {
+func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, []string, []string) {
 	tags := utils.NewTagList()
 
 	dockerExtractImage(tags, co, c.dockerUtil.ResolveImageNameFromContainer)
@@ -33,8 +34,8 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 	tags.AddHigh("container_name", strings.TrimPrefix(co.Name, "/"))
 	tags.AddHigh("container_id", co.ID)
 
-	low, orchestrator, high := tags.Compute()
-	return low, orchestrator, high, nil
+	low, orchestrator, high, standard := tags.Compute()
+	return low, orchestrator, high, standard
 }
 
 func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve resolveHook) {
@@ -86,6 +87,7 @@ func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve res
 // extracts hard-coded labels from:
 // - Docker swarm
 // - Rancher
+// - Custom
 func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string, labelsAsTags map[string]string) {
 	for labelName, labelValue := range containerLabels {
 		switch labelName {
@@ -105,11 +107,28 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 
 		// Standard tags
 		case dockerLabelEnv:
-			tags.AddLow(tagKeyEnv, labelValue)
+			tags.AddStandard(tagKeyEnv, labelValue)
 		case dockerLabelVersion:
-			tags.AddLow(tagKeyVersion, labelValue)
+			tags.AddStandard(tagKeyVersion, labelValue)
 		case dockerLabelService:
-			tags.AddLow(tagKeyService, labelValue)
+			tags.AddStandard(tagKeyService, labelValue)
+
+		// Custom labels as tags
+		case "com.datadoghq.ad.tags":
+			tagNames := []string{}
+			err := json.Unmarshal([]byte(labelValue), &tagNames)
+			if err != nil {
+				log.Debugf("Cannot unmarshal AD tags: %s", err)
+			}
+			for _, tag := range tagNames {
+				tagParts := strings.Split(tag, ":")
+				// skip if tag is not in expected k:v format
+				if len(tagParts) != 2 {
+					log.Debugf("Tag '%s' is not in k:v format", tag)
+					continue
+				}
+				tags.AddHigh(tagParts[0], tagParts[1])
+			}
 
 		default:
 			if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {
@@ -157,11 +176,11 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 
 		// Standard tags
 		case envVarEnv:
-			tags.AddLow(tagKeyEnv, envValue)
+			tags.AddStandard(tagKeyEnv, envValue)
 		case envVarVersion:
-			tags.AddLow(tagKeyVersion, envValue)
+			tags.AddStandard(tagKeyVersion, envValue)
 		case envVarService:
-			tags.AddLow(tagKeyService, envValue)
+			tags.AddStandard(tagKeyService, envValue)
 
 		default:
 			if tagName, found := envAsTags[strings.ToLower(envSplit[0])]; found {

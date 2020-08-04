@@ -81,3 +81,8 @@ func (s *dummyService) GetCheckNames() []string {
 func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetExtraConfig isn't supported
+func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, nil
+}

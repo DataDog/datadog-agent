@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -67,10 +68,15 @@ func newTagger() *Tagger {
 // for this host. It then starts the collection logic and is ready for
 // requests.
 func (t *Tagger) Init(catalog collectors.Catalog) {
+	if config.Datadog.GetBool("clc_runner_enabled") {
+		log.Infof("Tagger not started on CLC")
+		return
+	}
+
 	t.Lock()
 
 	// Only register the health check when the tagger is started
-	t.health = health.Register("tagger")
+	t.health = health.RegisterLiveness("tagger")
 
 	// Populate collector candidate list from catalog
 	// as we'll remove entries we need to copy the map
@@ -80,7 +86,7 @@ func (t *Tagger) Init(catalog collectors.Catalog) {
 	t.Unlock()
 
 	t.startCollectors()
-	go t.run()
+	go t.run() //nolint:errcheck
 	go t.pull()
 }
 
@@ -99,19 +105,19 @@ func (t *Tagger) run() error {
 			t.pullTicker.Stop()
 			t.pruneTicker.Stop()
 			t.retryTicker.Stop()
-			t.health.Deregister()
+			t.health.Deregister() //nolint:errcheck
 			return nil
 		case <-t.health.C:
 		case msg := <-t.infoIn:
 			for _, info := range msg {
-				t.tagStore.processTagInfo(info)
+				t.tagStore.processTagInfo(info) //nolint:errcheck
 			}
 		case <-t.retryTicker.C:
 			go t.startCollectors()
 		case <-t.pullTicker.C:
 			go t.pull()
 		case <-t.pruneTicker.C:
-			t.tagStore.prune()
+			t.tagStore.prune() //nolint:errcheck
 		}
 	}
 }
@@ -181,7 +187,7 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 			if ok {
 				t.streamers[c.name] = stream
 				t.fetchers[c.name] = stream
-				go stream.Stream()
+				go stream.Stream() //nolint:errcheck
 			} else {
 				log.Errorf("error initializing collector %s: does not implement stream", c.name)
 			}
@@ -262,7 +268,7 @@ IterCollectors:
 			tagArrays = append(tagArrays, high)
 		}
 		// Submit to cache for next lookup
-		t.tagStore.processTagInfo(&collectors.TagInfo{
+		t.tagStore.processTagInfo(&collectors.TagInfo{ //nolint:errcheck
 			Entity:               entity,
 			Source:               name,
 			LowCardTags:          low,
@@ -276,6 +282,21 @@ IterCollectors:
 	computedTags := utils.ConcatenateTags(tagArrays)
 
 	return copyArray(computedTags), nil
+}
+
+// Standard returns standard tags for a given entity
+// It triggers a tagger fetch if the no tags are found
+func (t *Tagger) Standard(entity string) ([]string, error) {
+	if entity == "" {
+		return nil, fmt.Errorf("empty entity ID")
+	}
+	if hash := t.GetEntityHash(entity); hash == "" {
+		// entity not found yet in the tagger
+		// trigger tagger fetch operations
+		log.Debugf("Entity '%s' not found in tagger cache, will try to fetch it", entity)
+		_, _ = t.Tag(entity, collectors.LowCardinality)
+	}
+	return t.tagStore.lookupStandard(entity)
 }
 
 // List the content of the tagger

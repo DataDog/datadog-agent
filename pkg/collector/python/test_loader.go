@@ -8,6 +8,7 @@
 package python
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -120,6 +121,9 @@ func testLoadCustomCheck(t *testing.T) {
 	C.get_attr_string_return = 0
 
 	check, err := loader.Load(conf, conf.Instances[0])
+	// Remove check finalizer that may trigger race condition while testing
+	runtime.SetFinalizer(check, nil)
+
 	assert.Nil(t, err)
 	assert.Equal(t, "fake_check", check.(*PythonCheck).ModuleName)
 	assert.Equal(t, "unversioned", check.(*PythonCheck).version)
@@ -152,6 +156,9 @@ func testLoadWheelCheck(t *testing.T) {
 	C.get_attr_string_attr_value = C.CString("1.2.3")
 
 	check, err := loader.Load(conf, conf.Instances[0])
+	// Remove check finalizer that may trigger race condition while testing
+	runtime.SetFinalizer(check, nil)
+
 	assert.Nil(t, err)
 	assert.Equal(t, "fake_check", check.(*PythonCheck).ModuleName)
 	assert.Equal(t, "1.2.3", check.(*PythonCheck).version)

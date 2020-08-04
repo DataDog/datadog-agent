@@ -26,6 +26,9 @@ type Config struct {
 	// It is relevant *only* when DNSInspection is enabled.
 	CollectDNSStats bool
 
+	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
+	DNSTimeout time.Duration
+
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
@@ -36,6 +39,10 @@ type Config struct {
 	// the BPF module receives a tcp_close call, but TCP connections also age out to catch cases where
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
+
+	// TCPClosedTimeout represents the maximum amount of time a closed TCP connection can remain buffered in eBPF before
+	// being marked as idle and flushed to the perf ring.
+	TCPClosedTimeout time.Duration
 
 	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
 	MaxTrackedConnections uint
@@ -64,13 +71,12 @@ type Config struct {
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
-	// EnableENOBUFS will enable ENOBUF errors on the netlink socket, causing conntrack event processing
-	// to be halted when the socket buffer overruns. If enabled, this acts as a circuit breaker when we're
-	// not processing conntrack events fast enough.
-	EnableENOBUFS bool
-
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
+
+	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
+	// Setting it to -1 disables the limit and can result in a high CPU usage.
+	ConntrackRateLimit int
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
@@ -83,6 +89,12 @@ type Config struct {
 
 	// ExcludedDestinationConnections is a map of destination connections to blacklist
 	ExcludedDestinationConnections map[string][]string
+
+	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
+	OffsetGuessThreshold uint64
+
+	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
+	EnableMonotonicCount bool
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -93,11 +105,12 @@ func NewDefaultConfig() *Config {
 		CollectIPv6Conns:      true,
 		CollectLocalDNS:       false,
 		DNSInspection:         true,
-		CollectDNSStats:       false,
 		UDPConnTimeout:        30 * time.Second,
 		TCPConnTimeout:        2 * time.Minute,
+		TCPClosedTimeout:      20 * time.Second,
 		MaxTrackedConnections: 65536,
 		ConntrackMaxStateSize: 65536,
+		ConntrackRateLimit:    500,
 		ProcRoot:              "/proc",
 		BPFDebug:              false,
 		EnableConntrack:       true,
@@ -107,48 +120,10 @@ func NewDefaultConfig() *Config {
 		MaxDNSStatsBufferred:         75000,
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
+		// DNS Stats related configurations
+		CollectDNSStats:      false,
+		DNSTimeout:           15 * time.Second,
+		OffsetGuessThreshold: 400,
+		EnableMonotonicCount: false,
 	}
-}
-
-// EnabledKProbes returns a map of kprobes that are enabled per config settings.
-// This map does not include the probes used exclusively in the offset guessing process.
-func (c *Config) EnabledKProbes(pre410Kernel bool) map[KProbeName]struct{} {
-	enabled := make(map[KProbeName]struct{}, 0)
-
-	if c.CollectTCPConns {
-		if pre410Kernel {
-			enabled[TCPSendMsgPre410] = struct{}{}
-		} else {
-			enabled[TCPSendMsg] = struct{}{}
-		}
-		enabled[TCPCleanupRBuf] = struct{}{}
-		enabled[TCPClose] = struct{}{}
-		enabled[TCPRetransmit] = struct{}{}
-		enabled[InetCskAcceptReturn] = struct{}{}
-		enabled[TCPv4DestroySock] = struct{}{}
-
-		if c.BPFDebug {
-			enabled[TCPSendMsgReturn] = struct{}{}
-		}
-	}
-
-	if c.CollectUDPConns {
-		enabled[UDPRecvMsgReturn] = struct{}{}
-		enabled[SysSocket] = struct{}{}
-		enabled[SysSocketRet] = struct{}{}
-		enabled[SysBind] = struct{}{}
-		enabled[SysBindRet] = struct{}{}
-		enabled[UDPDestroySock] = struct{}{}
-
-		if pre410Kernel {
-			enabled[UDPSendMsgPre410] = struct{}{}
-			enabled[UDPRecvMsgPre410] = struct{}{}
-		} else {
-			enabled[UDPRecvMsg] = struct{}{}
-			enabled[UDPSendMsg] = struct{}{}
-		}
-
-	}
-
-	return enabled
 }

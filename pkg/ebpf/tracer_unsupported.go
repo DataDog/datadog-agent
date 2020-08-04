@@ -2,6 +2,8 @@
 
 package ebpf
 
+import "github.com/DataDog/datadog-agent/pkg/network"
+
 // Tracer is not implemented
 type Tracer struct{}
 
@@ -14,7 +16,7 @@ func NewTracer(_ *Config) (*Tracer, error) {
 func (t *Tracer) Stop() {}
 
 // GetActiveConnections is not implemented on this OS for Tracer
-func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
+func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -29,7 +31,7 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 }
 
 // DebugNetworkMaps is not implemented on this OS for Tracer
-func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
+func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ErrNotImplemented
 }
 

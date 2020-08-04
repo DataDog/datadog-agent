@@ -82,6 +82,14 @@ func TestContainerAddresses(t *testing.T) {
 	assert.Equal(t, results[0].Addresses, addrs)
 }
 
+func TestNoGardenContainerWithEmptyTags(t *testing.T) {
+	ctr := makeContainer("haha")
+	ctr.Type = containers.RuntimeNameGarden
+	// Tags should be empty after call to tagger, so container shouldn't be added
+	results := fmtContainers([]*containers.Container{ctr}, map[string]util.ContainerRateMetrics{}, time.Now())
+	assert.Equal(t, 0, len(results))
+}
+
 func TestContainerNils(t *testing.T) {
 	// Make sure formatting doesn't crash with nils
 	cur := []*containers.Container{{}}

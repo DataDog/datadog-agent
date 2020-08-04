@@ -155,13 +155,13 @@ func (d *DockerCheck) Run() error {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-		d.Warnf("Error initialising check: %s", err)
+		d.Warnf("Error initialising check: %s", err) //nolint:errcheck
 		return err
 	}
 	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-		d.Warnf("Error collecting containers: %s", err)
+		d.Warnf("Error collecting containers: %s", err) //nolint:errcheck
 		return err
 	}
 
@@ -189,21 +189,12 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
-		currentUnixTime := time.Now().Unix()
-		d.reportUptime(c.StartedAt, currentUnixTime, tags, sender)
-
 		if c.CPU != nil {
-			sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
-			sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
-			sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
-			sender.Gauge("docker.cpu.shares", float64(c.CPU.Shares), "", tags)
-			sender.Rate("docker.cpu.throttled", float64(c.CPU.NrThrottled), "", tags)
-			if c.CPU.ThreadCount != 0 {
-				sender.Gauge("docker.thread.count", float64(c.CPU.ThreadCount), "", tags)
-			}
+			d.reportCPUMetrics(c.CPU, &c.Limits, c.StartedAt, tags, sender)
 		} else {
 			log.Debugf("Empty CPU metrics for container %s", c.ID[:12])
 		}
+
 		if c.Memory != nil {
 			sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
 			sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
@@ -214,10 +205,10 @@ func (d *DockerCheck) Run() error {
 			if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
 				sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
-			} else if c.MemLimit > 0 && c.Memory.CommitBytes > 0 {
+			} else if c.Limits.MemLimit > 0 && c.Memory.CommitBytes > 0 {
 				// On Windows the mem limit is in container limits
-				sender.Gauge("docker.mem.limit", float64(c.MemLimit), "", tags)
-				sender.Gauge("docker.mem.in_use", float64(c.Memory.CommitBytes)/float64(c.MemLimit), "", tags)
+				sender.Gauge("docker.mem.limit", float64(c.Limits.MemLimit), "", tags)
+				sender.Gauge("docker.mem.in_use", float64(c.Memory.CommitBytes)/float64(c.Limits.MemLimit), "", tags)
 			}
 
 			sender.Gauge("docker.mem.failed_count", float64(c.Memory.MemFailCnt), "", tags)
@@ -253,8 +244,8 @@ func (d *DockerCheck) Run() error {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
 
-		if c.ThreadLimit != 0 {
-			sender.Gauge("docker.thread.limit", float64(c.ThreadLimit), "", tags)
+		if c.Limits.ThreadLimit != 0 {
+			sender.Gauge("docker.thread.limit", float64(c.Limits.ThreadLimit), "", tags)
 		}
 
 		if c.Network != nil {
@@ -303,7 +294,7 @@ func (d *DockerCheck) Run() error {
 	if err := d.countAndWeightImages(sender, imageTagsByImageID, du); err != nil {
 		log.Error(err.Error())
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-		d.Warnf("Error collecting images: %s", err)
+		d.Warnf("Error collecting images: %s", err) //nolint:errcheck
 		return err
 	}
 	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
@@ -311,7 +302,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
 		events, err := d.retrieveEvents(du)
 		if err != nil {
-			d.Warnf("Error collecting events: %s", err)
+			d.Warnf("Error collecting events: %s", err) //nolint:errcheck
 		} else {
 			if d.instance.CollectEvent {
 				err = d.reportEvents(events, sender)
@@ -331,7 +322,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectDiskStats {
 		stats, err := du.GetStorageStats()
 		if err != nil {
-			d.Warnf("Error collecting disk stats: %s", err)
+			d.Warnf("Error collecting disk stats: %s", err) //nolint:errcheck
 		} else {
 			for _, stat := range stats {
 				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
@@ -358,7 +349,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectVolumeCount {
 		attached, dangling, err := du.CountVolumes()
 		if err != nil {
-			d.Warnf("Error collecting volume stats: %s", err)
+			d.Warnf("Error collecting volume stats: %s", err) //nolint:errcheck
 		} else {
 			sender.Gauge("docker.volume.count", float64(attached), "", []string{"volume_state:attached"})
 			sender.Gauge("docker.volume.count", float64(dangling), "", []string{"volume_state:dangling"})
@@ -369,9 +360,32 @@ func (d *DockerCheck) Run() error {
 	return nil
 }
 
-func (d *DockerCheck) reportUptime(startTime int64, currentUnixTime int64, tags []string, sender aggregator.Sender) {
+func (d *DockerCheck) reportUptime(startTime, currentUnixTime int64, tags []string, sender aggregator.Sender) {
 	if startTime != 0 && currentUnixTime-startTime > 0 {
 		sender.Gauge("docker.uptime", float64(currentUnixTime-startTime), "", tags)
+	}
+}
+
+func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *cmetrics.ContainerLimits, startTime int64, tags []string, sender aggregator.Sender) {
+	if cpu == nil {
+		return
+	}
+
+	sender.Rate("docker.cpu.system", float64(cpu.System), "", tags)
+	sender.Rate("docker.cpu.user", float64(cpu.User), "", tags)
+	sender.Rate("docker.cpu.usage", cpu.UsageTotal, "", tags)
+	sender.Gauge("docker.cpu.shares", float64(cpu.Shares), "", tags)
+	sender.Rate("docker.cpu.throttled", float64(cpu.NrThrottled), "", tags)
+	sender.Rate("docker.cpu.throttled.time", cpu.ThrottledTime, "", tags)
+	if cpu.ThreadCount != 0 {
+		sender.Gauge("docker.thread.count", float64(cpu.ThreadCount), "", tags)
+	}
+
+	// limits.CPULimit is a percentage (i.e. 100.0%, not 1.0)
+	timeDiff := cpu.Timestsamp.Unix() - startTime
+	if limits.CPULimit > 0 && timeDiff > 0 {
+		availableCPUTimeHz := 100 * float64(timeDiff) // Converted to Hz to be consistent with UsageTotal
+		sender.Rate("docker.cpu.limit", limits.CPULimit/100*availableCPUTimeHz, "", tags)
 	}
 }
 
@@ -380,23 +394,23 @@ func (d *DockerCheck) reportIOMetrics(io *cmetrics.ContainerIOStats, tags []stri
 		return
 	}
 
-	// Read values per device, or fallback to sum
-	if len(io.DeviceReadBytes) > 0 {
-		for dev, value := range io.DeviceReadBytes {
-			sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev))
+	reportDeviceStat := func(metricName string, deviceMap map[string]uint64, fallbackValue uint64) {
+		if len(deviceMap) > 0 {
+			for dev, value := range deviceMap {
+				sender.Rate(metricName, float64(value), "", append(tags, "device:"+dev, "device_name:"+dev))
+			}
+		} else {
+			sender.Rate(metricName, float64(fallbackValue), "", tags)
 		}
-	} else {
-		sender.Rate("docker.io.read_bytes", float64(io.ReadBytes), "", tags)
 	}
 
-	// Write values per device, or fallback to sum
-	if len(io.DeviceWriteBytes) > 0 {
-		for dev, value := range io.DeviceWriteBytes {
-			sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev))
-		}
-	} else {
-		sender.Rate("docker.io.write_bytes", float64(io.WriteBytes), "", tags)
-	}
+	// Throughput
+	reportDeviceStat("docker.io.read_bytes", io.DeviceReadBytes, io.ReadBytes)
+	reportDeviceStat("docker.io.write_bytes", io.DeviceWriteBytes, io.WriteBytes)
+
+	// IOPS
+	reportDeviceStat("docker.io.read_operations", io.DeviceReadOperations, io.ReadOperations)
+	reportDeviceStat("docker.io.write_operations", io.DeviceWriteOperations, io.WriteOperations)
 
 	// Collect open file descriptor counts
 	sender.Gauge("docker.container.open_fds", float64(io.OpenFiles), "", tags)
@@ -409,7 +423,7 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 		return err
 	}
 
-	d.instance.Parse(config)
+	d.instance.Parse(config) //nolint:errcheck
 
 	if len(d.instance.FilteredEventType) == 0 {
 		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start", "exec_die"}

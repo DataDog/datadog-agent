@@ -19,17 +19,20 @@ import (
 )
 
 var (
-	infoMutex           sync.RWMutex
-	infoOnce            sync.Once
-	infoStart           = time.Now()
-	infoNotRunningTmpl  *template.Template
-	infoTmpl            *template.Template
-	infoErrorTmpl       *template.Template
-	infoDockerSocket    string
-	infoLastCollectTime string
-	infoProcCount       int
-	infoContainerCount  int
-	infoQueueSize       int
+	infoMutex             sync.RWMutex
+	infoOnce              sync.Once
+	infoStart             = time.Now()
+	infoNotRunningTmpl    *template.Template
+	infoTmpl              *template.Template
+	infoErrorTmpl         *template.Template
+	infoDockerSocket      string
+	infoLastCollectTime   string
+	infoProcCount         int
+	infoContainerCount    int
+	infoProcessQueueSize  int
+	infoPodQueueSize      int
+	infoProcessQueueBytes int
+	infoPodQueueBytes     int
 )
 
 const (
@@ -46,7 +49,10 @@ const (
   Docker socket: {{.Status.DockerSocket}}{{end}}
   Number of processes: {{.Status.ProcessCount}}
   Number of containers: {{.Status.ContainerCount}}
-  Queue length: {{.Status.QueueSize}}
+  Process Queue length: {{.Status.ProcessQueueSize}}
+  Pod Queue length: {{.Status.PodQueueSize}}
+  Process Bytes enqueued: {{.Status.ProcessQueueBytes}}
+  Pod Bytes enqueued: {{.Status.PodQueueBytes}}
 
   Logs: {{.Status.Config.LogFile}}{{if .Status.ProxyURL}}
   HttpProxy: {{.Status.ProxyURL}}{{end}}{{if ne .Status.ContainerID ""}}
@@ -136,16 +142,42 @@ func updateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount = containerCount
 }
 
-func updateQueueSize(c chan checkPayload) {
+func updateQueueSize(processQueueSize, podQueueSize int) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
-	infoQueueSize = len(c)
+	infoProcessQueueSize = processQueueSize
+	infoPodQueueSize = podQueueSize
 }
 
-func publishQueueSize() interface{} {
+func publishProcessQueueSize() interface{} {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
-	return infoQueueSize
+	return infoProcessQueueSize
+}
+
+func publishPodQueueSize() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoPodQueueSize
+}
+
+func updateQueueBytes(processQueueBytes, podQueueBytes int64) {
+	infoMutex.Lock()
+	defer infoMutex.Unlock()
+	infoProcessQueueBytes = int(processQueueBytes)
+	infoPodQueueBytes = int(podQueueBytes)
+}
+
+func publishProcessQueueBytes() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoProcessQueueBytes
+}
+
+func publishPodQueueBytes() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoPodQueueBytes
 }
 
 func publishContainerID() interface{} {
@@ -157,7 +189,7 @@ func publishContainerID() interface{} {
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	scanner := bufio.NewScanner(f)
 	// the content of the file should have "docker/" on each line, the last
 	// bit of each line after the "/" should be the container id, e.g.
@@ -196,21 +228,24 @@ type infoVersion struct {
 
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
-	Pid             int                    `json:"pid"`
-	Uptime          int                    `json:"uptime"`
-	MemStats        struct{ Alloc uint64 } `json:"memstats"`
-	Version         infoVersion            `json:"version"`
-	Config          config.AgentConfig     `json:"config"`
-	DockerSocket    string                 `json:"docker_socket"`
-	LastCollectTime string                 `json:"last_collect_time"`
-	ProcessCount    int                    `json:"process_count"`
-	ContainerCount  int                    `json:"container_count"`
-	QueueSize       int                    `json:"queue_size"`
-	ContainerID     string                 `json:"container_id"`
-	ProxyURL        string                 `json:"proxy_url"`
+	Pid               int                    `json:"pid"`
+	Uptime            int                    `json:"uptime"`
+	MemStats          struct{ Alloc uint64 } `json:"memstats"`
+	Version           infoVersion            `json:"version"`
+	Config            config.AgentConfig     `json:"config"`
+	DockerSocket      string                 `json:"docker_socket"`
+	LastCollectTime   string                 `json:"last_collect_time"`
+	ProcessCount      int                    `json:"process_count"`
+	ContainerCount    int                    `json:"container_count"`
+	ProcessQueueSize  int                    `json:"process_queue_size"`
+	PodQueueSize      int                    `json:"pod_queue_size"`
+	ProcessQueueBytes int                    `json:"process_queue_bytes"`
+	PodQueueBytes     int                    `json:"pod_queue_bytes"`
+	ContainerID       string                 `json:"container_id"`
+	ProxyURL          string                 `json:"proxy_url"`
 }
 
-func initInfo(conf *config.AgentConfig) error {
+func initInfo(_ *config.AgentConfig) error {
 	var err error
 
 	funcMap := template.FuncMap{
@@ -229,7 +264,10 @@ func initInfo(conf *config.AgentConfig) error {
 		expvar.Publish("last_collect_time", expvar.Func(publishLastCollectTime))
 		expvar.Publish("process_count", expvar.Func(publishProcCount))
 		expvar.Publish("container_count", expvar.Func(publishContainerCount))
-		expvar.Publish("queue_size", expvar.Func(publishQueueSize))
+		expvar.Publish("process_queue_size", expvar.Func(publishProcessQueueSize))
+		expvar.Publish("pod_queue_size", expvar.Func(publishPodQueueSize))
+		expvar.Publish("process_queue_bytes", expvar.Func(publishProcessQueueBytes))
+		expvar.Publish("pod_queue_bytes", expvar.Func(publishPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
@@ -250,7 +288,7 @@ func initInfo(conf *config.AgentConfig) error {
 }
 
 // Info is called when --info flag is enabled when executing the agent binary
-func Info(w io.Writer, conf *config.AgentConfig, expvarURL string) error {
+func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 	var err error
 	client := http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(expvarURL)
@@ -265,7 +303,7 @@ func Info(w io.Writer, conf *config.AgentConfig, expvarURL string) error {
 		})
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var info StatusInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {

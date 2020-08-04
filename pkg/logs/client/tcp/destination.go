@@ -108,7 +108,7 @@ func (d *Destination) runAsync() {
 	for {
 		select {
 		case payload := <-d.inputChan:
-			d.Send(payload)
+			d.Send(payload) //nolint:errcheck
 		case <-ctx.Done():
 			return
 		}

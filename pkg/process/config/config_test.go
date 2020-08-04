@@ -259,7 +259,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeSocketPath)
+	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
 	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
 	assert.Equal(500, agentConfig.ClosedChannelSize)
 	assert.True(agentConfig.SysProbeBPFDebug)
@@ -289,7 +289,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.False(agentConfig.SysProbeBPFDebug)
 	assert.Equal(1000, agentConfig.ClosedChannelSize)
 	assert.Equal(agentConfig.ExcludedBPFLinuxVersions, []string{"5.5.0", "4.2.1"})
-	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeSocketPath)
+	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
 	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
 	assert.True(agentConfig.DisableTCPTracing)
 	assert.True(agentConfig.DisableUDPTracing)
@@ -381,6 +381,84 @@ func TestEnvSiteConfig(t *testing.T) {
 	os.Unsetenv("DD_PROCESS_AGENT_URL")
 }
 
+func TestEnvProcessAdditionalEndpoints(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	assert := assert.New(t)
+
+	expected := make(map[string]string)
+	expected["key1"] = "url1.com"
+	expected["key2"] = "url2.com"
+	expected["key3"] = "url2.com"
+	expected["apikey_20"] = "my-process-app.datadoghq.com" // from config file
+
+	os.Setenv("DD_PROCESS_ADDITIONAL_ENDPOINTS", `{"https://url1.com": ["key1"], "https://url2.com": ["key2", "key3"]}`)
+	defer os.Unsetenv("DD_PROCESS_ADDITIONAL_ENDPOINTS")
+
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml",
+	)
+	assert.NoError(err)
+
+	for _, actual := range agentConfig.APIEndpoints {
+		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
+	}
+}
+
+func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	assert := assert.New(t)
+
+	expected := make(map[string]string)
+	expected["key1"] = "url1.com"
+	expected["key2"] = "url2.com"
+	expected["key3"] = "url2.com"
+	expected["apikey_20"] = "orchestrator.datadoghq.com" // from config file
+
+	os.Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://url1.com": ["key1"], "https://url2.com": ["key2", "key3"]}`)
+	defer os.Unsetenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
+
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml",
+	)
+	assert.NoError(err)
+
+	for _, actual := range agentConfig.OrchestratorEndpoints {
+		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
+	}
+}
+
+func TestEnvAdditionalEndpointsMalformed(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	assert := assert.New(t)
+
+	expected := make(map[string]string)
+	expected["apikey_20"] = "my-process-app.datadoghq.com" // from config file
+
+	os.Setenv("DD_PROCESS_ADDITIONAL_ENDPOINTS", `"https://url1.com","key1"`)
+	defer os.Unsetenv("DD_PROCESS_ADDITIONAL_ENDPOINTS")
+
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml",
+	)
+	assert.NoError(err)
+
+	for _, actual := range agentConfig.APIEndpoints {
+		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
+	}
+}
+
 func TestIsAffirmative(t *testing.T) {
 	value, err := isAffirmative("yes")
 	assert.Nil(t, err)
@@ -400,4 +478,34 @@ func TestIsAffirmative(t *testing.T) {
 	value, err = isAffirmative("ok")
 	assert.Nil(t, err)
 	assert.False(t, value)
+}
+
+func TestEnablingDNSStatsCollection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSStats)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		defer os.Unsetenv("DD_COLLECT_DNS_STATS")
+
+		os.Setenv("DD_COLLECT_DNS_STATS", "false")
+		cfg, err := NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.False(t, cfg.CollectDNSStats)
+
+		os.Setenv("DD_COLLECT_DNS_STATS", "true")
+		cfg, err = NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSStats)
+	})
 }

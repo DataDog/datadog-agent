@@ -18,6 +18,8 @@ const (
 	ProcessVersionHeader = "X-Dd-Processagentversion"
 	// ClusterIDHeader contains the orchestrator cluster ID of this agent
 	ClusterIDHeader = "X-Dd-Orchestrator-ClusterID"
+	// TimestampHeader contains the timestamp that the check data was created
+	TimestampHeader = "X-DD-Agent-Timestamp"
 )
 
 // Endpoint is a single endpoint where process data will be submitted.

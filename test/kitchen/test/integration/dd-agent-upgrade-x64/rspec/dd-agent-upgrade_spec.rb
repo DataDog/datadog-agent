@@ -1,7 +1,8 @@
 require 'spec_helper'
 
 describe 'the upgraded agent' do
-  include_examples 'Agent'
+  include_examples 'Agent install'
+  include_examples 'Agent behavior'
 
   # We retrieve the value defined in kitchen.yml because there is no simple way
   # to set env variables on the target machine or via parameters in Kitchen/Busser
@@ -19,4 +20,6 @@ describe 'the upgraded agent' do
     # Match the first line of the manifest file
     expect(File.open(version_manifest_file) {|f| f.readline.strip}).to match "datadog-agent #{agent_expected_version}"
   end
+
+  include_examples 'Agent uninstall'
 end

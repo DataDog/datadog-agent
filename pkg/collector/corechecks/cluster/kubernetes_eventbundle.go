@@ -24,24 +24,26 @@ import (
 )
 
 type kubernetesEventBundle struct {
-	objUID        types.UID      // Unique object Identifier used as the Aggregation key
-	namespace     string         // namespace of the bundle
-	readableKey   string         // Formated key used in the Title in the events
-	component     string         // Used to identify the Kubernetes component which generated the event
-	events        []*v1.Event    // List of events in the bundle
-	name          string         // name of the bundle
-	kind          string         // kind of the bundle
-	timeStamp     float64        // Used for the new events in the bundle to specify when they first occurred
-	lastTimestamp float64        // Used for the modified events in the bundle to specify when they last occurred
-	countByAction map[string]int // Map of count per action to aggregate several events from the same ObjUid in one event
-	nodename      string         // Stores the nodename that should be used to submit the events
+	objUID        types.UID              // Unique object Identifier used as the Aggregation key
+	namespace     string                 // namespace of the bundle
+	readableKey   string                 // Formated key used in the Title in the events
+	component     string                 // Used to identify the Kubernetes component which generated the event
+	events        []*v1.Event            // List of events in the bundle
+	name          string                 // name of the bundle
+	kind          string                 // kind of the bundle
+	timeStamp     float64                // Used for the new events in the bundle to specify when they first occurred
+	lastTimestamp float64                // Used for the modified events in the bundle to specify when they last occurred
+	countByAction map[string]int         // Map of count per action to aggregate several events from the same ObjUid in one event
+	nodename      string                 // Stores the nodename that should be used to submit the events
+	alertType     metrics.EventAlertType // The Datadog event type
 }
 
-func newKubernetesEventBundler(objUID types.UID, compName string) *kubernetesEventBundle {
+func newKubernetesEventBundler(event *v1.Event) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
-		objUID:        objUID,
-		component:     compName,
+		objUID:        event.InvolvedObject.UID,
+		component:     event.Source.Component,
 		countByAction: make(map[string]int),
+		alertType:     getDDAlertType(event.Type),
 	}
 }
 
@@ -87,7 +89,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		return metrics.Event{}, errors.New("no event to export")
 	}
 
-	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)}
+	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), addKindRelatedTag(b.kind, b.name)}
 
 	hostname := b.nodename
 	if b.nodename != "" {
@@ -119,6 +121,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		Ts:             int64(b.lastTimestamp),
 		Tags:           tags,
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
+		AlertType:      b.alertType,
 	}
 	if b.namespace != "" {
 		// TODO remove the deprecated namespace tag, we should only rely on kube_namespace
@@ -127,6 +130,23 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 	}
 	output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
 	return output, nil
+}
+
+func addKindRelatedTag(kind, name string) string {
+	var tags string
+	switch kind {
+	case "Pod":
+		tags = fmt.Sprintf("pod_name:%s", name)
+	case "Deployment":
+		tags = fmt.Sprintf("kube_deployment:%s", name)
+	case "ReplicaSet":
+		tags = fmt.Sprintf("kube_replica_set:%s", name)
+	case "ReplicationController":
+		tags = fmt.Sprintf("kube_replication_controller:%s", name)
+	case "StatefulSet":
+		tags = fmt.Sprintf("kube_stateful_set:%s", name)
+	}
+	return tags
 }
 
 func getHostProviderID(nodename string) string {
@@ -159,4 +179,17 @@ func formatStringIntMap(input map[string]int) string {
 		parts = append(parts, fmt.Sprintf("%d %s", v, k))
 	}
 	return strings.Join(parts, " ")
+}
+
+// getDDAlertType converts kubernetes event types into datadog alert types
+func getDDAlertType(k8sType string) metrics.EventAlertType {
+	switch k8sType {
+	case v1.EventTypeNormal:
+		return metrics.EventAlertTypeInfo
+	case v1.EventTypeWarning:
+		return metrics.EventAlertTypeWarning
+	default:
+		log.Debugf("Unknown event type '%s'", k8sType)
+		return metrics.EventAlertTypeInfo
+	}
 }

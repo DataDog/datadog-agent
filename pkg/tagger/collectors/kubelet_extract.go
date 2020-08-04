@@ -11,9 +11,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -25,11 +25,7 @@ const (
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
 	podTagsAnnotation                = podAnnotationPrefix + "tags"
-
-	podStandardLabelPrefix  = "tags.datadoghq.com/"
-	podStandardLabelEnv     = podStandardLabelPrefix + tagKeyEnv
-	podStandardLabelVersion = podStandardLabelPrefix + tagKeyVersion
-	podStandardLabelService = podStandardLabelPrefix + tagKeyService
+	podStandardLabelPrefix           = "tags.datadoghq.com/"
 )
 
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
@@ -54,17 +50,35 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		for name, value := range pod.Metadata.Labels {
 			// Standard pod labels
 			switch name {
-			case podStandardLabelEnv:
-				tags.AddLow(tagKeyEnv, value)
-			case podStandardLabelVersion:
-				tags.AddLow(tagKeyVersion, value)
-			case podStandardLabelService:
-				tags.AddLow(tagKeyService, value)
+			case kubernetes.EnvTagLabelKey:
+				tags.AddStandard(tagKeyEnv, value)
+			case kubernetes.VersionTagLabelKey:
+				tags.AddStandard(tagKeyVersion, value)
+			case kubernetes.ServiceTagLabelKey:
+				tags.AddStandard(tagKeyService, value)
+			case kubernetes.KubeAppNameLabelKey:
+				tags.AddLow(tagKeyKubeAppName, value)
+			case kubernetes.KubeAppInstanceLabelKey:
+				tags.AddLow(tagKeyKubeAppInstance, value)
+			case kubernetes.KubeAppVersionLabelKey:
+				tags.AddLow(tagKeyKubeAppVersion, value)
+			case kubernetes.KubeAppComponentLabelKey:
+				tags.AddLow(tagKeyKubeAppComponent, value)
+			case kubernetes.KubeAppPartOfLabelKey:
+				tags.AddLow(tagKeyKubeAppPartOf, value)
+			case kubernetes.KubeAppManagedByLabelKey:
+				tags.AddLow(tagKeyKubeAppManagedBy, value)
 			}
 			for pattern, tmpl := range c.labelsAsTags {
-				if ok, _ := filepath.Match(pattern, strings.ToLower(name)); ok {
-					tags.AddAuto(resolveTag(tmpl, name), value)
+				n := strings.ToLower(name)
+				if g, ok := c.globMap[pattern]; ok {
+					if !g.Match(n) {
+						continue
+					}
+				} else if pattern != n {
+					continue
 				}
+				tags.AddAuto(resolveTag(tmpl, name), value)
 			}
 		}
 
@@ -122,7 +136,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					tags.AddLow("kube_job", owner.Name)
 				}
 			case "ReplicaSet":
-				deployment := parseDeploymentForReplicaset(owner.Name)
+				deployment := parseDeploymentForReplicaSet(owner.Name)
 				if len(deployment) > 0 {
 					tags.AddOrchestrator("kube_replica_set", owner.Name)
 					tags.AddLow("kube_deployment", deployment)
@@ -134,7 +148,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 		}
 
-		low, orch, high := tags.Compute()
+		low, orch, high, standard := tags.Compute()
 		if pod.Metadata.UID != "" {
 			podInfo := &TagInfo{
 				Source:               kubeletCollectorName,
@@ -142,6 +156,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
+				StandardTags:         standard,
 			}
 			output = append(output, podInfo)
 		}
@@ -165,7 +180,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			for _, tag := range labelTags {
 				label := fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tag)
 				if value, ok := pod.Metadata.Labels[label]; ok {
-					cTags.AddLow(tag, value)
+					cTags.AddStandard(tag, value)
 				}
 			}
 
@@ -188,11 +203,11 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					for _, env := range containerSpec.Env {
 						switch env.Name {
 						case envVarEnv:
-							cTags.AddLow(tagKeyEnv, env.Value)
+							cTags.AddStandard(tagKeyEnv, env.Value)
 						case envVarVersion:
-							cTags.AddLow(tagKeyVersion, env.Value)
+							cTags.AddStandard(tagKeyVersion, env.Value)
 						case envVarService:
-							cTags.AddLow(tagKeyService, env.Value)
+							cTags.AddStandard(tagKeyService, env.Value)
 						}
 					}
 					imageName, shortImage, imageTag, err := containers.SplitImageName(containerSpec.Image)
@@ -211,7 +226,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				}
 			}
 
-			cLow, cOrch, cHigh := cTags.Compute()
+			cLow, cOrch, cHigh, standard := cTags.Compute()
 			entityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
 			if err != nil {
 				log.Warnf("Unable to parse container pName: %s / cName: %s / cId: %s / err: %s", pod.Metadata.Name, container.Name, container.ID, err)
@@ -223,6 +238,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				HighCardTags:         cHigh,
 				OrchestratorCardTags: cOrch,
 				LowCardTags:          cLow,
+				StandardTags:         standard,
 			}
 			output = append(output, info)
 		}
@@ -230,9 +246,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 	return output, nil
 }
 
-// parseDeploymentForReplicaset gets the deployment name from a replicaset,
+// parseDeploymentForReplicaSet gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
-func parseDeploymentForReplicaset(name string) string {
+func parseDeploymentForReplicaSet(name string) string {
 	lastDash := strings.LastIndexAny(name, "-")
 	if lastDash == -1 {
 		// No dash

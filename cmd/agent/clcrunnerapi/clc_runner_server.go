@@ -87,7 +87,7 @@ func StartCLCRunnerServer() error {
 	}
 	tlsListener := tls.NewListener(clcListener, &tlsConfig)
 
-	go srv.Serve(tlsListener)
+	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
 }
 

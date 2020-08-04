@@ -26,9 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// tagContainersTags specifies the name of the tag which holds key/value
-// pairs representing information about the container (Docker, EC2, etc).
-const tagContainersTags = "_dd.tags.container"
+const (
+	// tagContainersTags specifies the name of the tag which holds key/value
+	// pairs representing information about the container (Docker, EC2, etc).
+	tagContainersTags = "_dd.tags.container"
+)
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
@@ -48,7 +50,7 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	In  chan *api.Trace
+	In  chan *api.Payload
 	Out chan *writer.SampledSpans
 
 	// config
@@ -62,7 +64,7 @@ type Agent struct {
 // which may be cancelled in order to gracefully stop the agent.
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
-	in := make(chan *api.Trace, 5000)
+	in := make(chan *api.Payload, 1000)
 	out := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 
@@ -78,7 +80,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		EventProcessor:     newEventProcessor(conf),
 		TraceWriter:        writer.NewTraceWriter(conf, out),
 		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
-		obfuscator:         newObfuscator(conf.Obfuscation),
+		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
 		Out:                out,
 		conf:               conf,
@@ -110,13 +112,14 @@ func (a *Agent) Run() {
 }
 
 func (a *Agent) work() {
+	sublayerCalculator := stats.NewSublayerCalculator()
 	for {
 		select {
-		case t, ok := <-a.In:
+		case p, ok := <-a.In:
 			if !ok {
 				return
 			}
-			a.Process(t)
+			a.Process(p, sublayerCalculator)
 		}
 	}
 
@@ -145,22 +148,120 @@ func (a *Agent) loop() {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
-func (a *Agent) Process(t *api.Trace) {
-	if len(t.Spans) == 0 {
-		log.Debugf("Skipping received empty trace")
+func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalculator) {
+	if len(p.Traces) == 0 {
+		log.Debugf("Skipping received empty payload")
 		return
 	}
+	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
+	ts := p.Source
+	ss := new(writer.SampledSpans)
+	sinputs := make([]*stats.Input, 0, len(p.Traces))
+	for _, t := range p.Traces {
+		if len(t) == 0 {
+			log.Debugf("Skipping received empty trace")
+			continue
+		}
 
-	defer timing.Since("datadog.trace_agent.internal.process_trace_ms", time.Now())
+		tracen := int64(len(t))
+		atomic.AddInt64(&ts.SpansReceived, tracen)
+		err := normalizeTrace(p.Source, t)
+		if err != nil {
+			log.Debug("Dropping invalid trace: %s", err)
+			atomic.AddInt64(&ts.SpansDropped, tracen)
+			continue
+		}
 
-	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-	root := traceutil.GetRoot(t.Spans)
+		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
+		root := traceutil.GetRoot(t)
 
-	// We get the address of the struct holding the stats associated to no tags.
-	ts := a.Receiver.Stats.GetTagStats(*t.Source)
+		if !a.Blacklister.Allows(root) {
+			log.Debugf("Trace rejected by blacklister. root: %v", root)
+			atomic.AddInt64(&ts.TracesFiltered, 1)
+			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			return
+		}
 
-	// Extract priority early, as later goroutines might manipulate the Metrics map in parallel which isn't safe.
-	priority, hasPriority := sampler.GetSamplingPriority(root)
+		// Extra sanitization steps of the trace.
+		for _, span := range t {
+			a.obfuscator.Obfuscate(span)
+			Truncate(span)
+		}
+		a.Replacer.Replace(t)
+
+		{
+			// this section sets up any necessary tags on the root:
+			clientSampleRate := sampler.GetGlobalRate(root)
+			sampler.SetClientRate(root, clientSampleRate)
+
+			if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
+				rate := ratelimiter.RealRate()
+				sampler.SetPreSampleRate(root, rate)
+				sampler.AddGlobalRate(root, rate)
+			}
+			if p.ContainerTags != "" {
+				traceutil.SetMeta(root, tagContainersTags, p.ContainerTags)
+			}
+		}
+		// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
+		// which is not thread-safe while samplers and Concentrator might modify it too.
+		traceutil.ComputeTopLevel(t)
+
+		env := a.conf.DefaultEnv
+		if v := traceutil.GetEnv(t); v != "" {
+			// this trace has a user defined env.
+			env = v
+		}
+		pt := ProcessedTrace{
+			Trace:         t,
+			WeightedTrace: stats.NewWeightedTrace(t, root),
+			Root:          root,
+			Env:           env,
+			Sublayers:     make(map[*pb.Span][]stats.SublayerValue),
+		}
+
+		events, keep := a.sample(ts, pt)
+
+		subtraces := stats.ExtractSubtraces(t, root)
+		for _, subtrace := range subtraces {
+			subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
+			pt.Sublayers[subtrace.Root] = subtraceSublayers
+			if keep || len(events) > 0 {
+				stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
+			}
+		}
+		sinputs = append(sinputs, &stats.Input{
+			Trace:     pt.WeightedTrace,
+			Sublayers: pt.Sublayers,
+			Env:       pt.Env,
+		})
+
+		if keep {
+			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
+			ss.Size += t.Msgsize()
+			ss.SpanCount += int64(len(t))
+		}
+		if len(events) > 0 {
+			ss.Events = append(ss.Events, events...)
+			ss.Size += pb.Trace(events).Msgsize()
+		}
+		if ss.Size > writer.MaxPayloadSize {
+			a.Out <- ss
+			ss = new(writer.SampledSpans)
+		}
+	}
+	if ss.Size > 0 {
+		a.Out <- ss
+	}
+	if len(sinputs) > 0 {
+		a.Concentrator.In <- sinputs
+	}
+}
+
+// sample decides whether the trace will be kept and extracts any APM events
+// from it.
+func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span, keep bool) {
+	priority, hasPriority := sampler.GetSamplingPriority(pt.Root)
 
 	// Depending on the sampling priority, count that trace differently.
 	stat := &ts.TracesPriorityNone
@@ -177,96 +278,27 @@ func (a *Agent) Process(t *api.Trace) {
 	}
 	atomic.AddInt64(stat, 1)
 
-	if !a.Blacklister.Allows(root) {
-		log.Debugf("Trace rejected by blacklister. root: %v", root)
-		atomic.AddInt64(&ts.TracesFiltered, 1)
-		atomic.AddInt64(&ts.SpansFiltered, int64(len(t.Spans)))
-		return
+	if priority < 0 {
+		return nil, false
 	}
 
-	// Extra sanitization steps of the trace.
-	for _, span := range t.Spans {
-		a.obfuscator.Obfuscate(span)
-		Truncate(span)
-	}
-	a.Replacer.Replace(t.Spans)
-
-	{
-		// this section sets up any necessary tags on the root:
-		clientSampleRate := sampler.GetGlobalRate(root)
-		sampler.SetClientRate(root, clientSampleRate)
-
-		if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-			rate := ratelimiter.RealRate()
-			sampler.SetPreSampleRate(root, rate)
-			sampler.AddGlobalRate(root, rate)
-		}
-		if t.ContainerTags != "" {
-			traceutil.SetMeta(root, tagContainersTags, t.ContainerTags)
-		}
-	}
-
-	// Figure out the top-level spans and sublayers now as it involves modifying the Metrics map
-	// which is not thread-safe while samplers and Concentrator might modify it too.
-	traceutil.ComputeTopLevel(t.Spans)
-
-	subtraces := stats.ExtractSubtraces(t.Spans, root)
-	sublayers := make(map[*pb.Span][]stats.SublayerValue)
-	for _, subtrace := range subtraces {
-		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
-		sublayers[subtrace.Root] = subtraceSublayers
-		stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
-	}
-
-	pt := ProcessedTrace{
-		Trace:         t.Spans,
-		WeightedTrace: stats.NewWeightedTrace(t.Spans, root),
-		Root:          root,
-		Env:           a.conf.DefaultEnv,
-		Sublayers:     sublayers,
-	}
-	if tenv := traceutil.GetEnv(t.Spans); tenv != "" {
-		// this trace has a user defined env.
-		pt.Env = tenv
-	}
-
-	if priority >= 0 {
-		a.sample(ts, pt)
-	}
-
-	a.Concentrator.In <- &stats.Input{
-		Trace:     pt.WeightedTrace,
-		Sublayers: pt.Sublayers,
-		Env:       pt.Env,
-	}
-}
-
-// sample decides whether the trace will be kept and extracts any APM events
-// from it.
-func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
-	var ss writer.SampledSpans
-
-	sampled, rate := a.runSamplers(pt)
+	sampled, rate := a.runSamplers(pt, hasPriority)
 	if sampled {
 		sampler.AddGlobalRate(pt.Root, rate)
-		ss.Trace = pt.Trace
 	}
 
 	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
-	ss.Events = events
 
 	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
 	atomic.AddInt64(&ts.EventsSampled, int64(len(events)))
 
-	if !ss.Empty() {
-		a.Out <- &ss
-	}
+	return events, sampled
 }
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(pt ProcessedTrace) (bool, float64) {
-	if _, ok := pt.GetSamplingPriority(); ok {
+func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) (bool, float64) {
+	if hasPriority {
 		return a.samplePriorityTrace(pt)
 	}
 	return a.sampleNoPriorityTrace(pt)
@@ -316,25 +348,4 @@ func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 	}
 
 	return event.NewProcessor(extractors, conf.MaxEPS)
-}
-
-func newObfuscator(cfg *config.ObfuscationConfig) *obfuscate.Obfuscator {
-	if cfg == nil {
-		return obfuscate.NewObfuscator(nil)
-	}
-	return obfuscate.NewObfuscator(&obfuscate.Config{
-		ES: obfuscate.JSONSettings{
-			Enabled:    cfg.ES.Enabled,
-			KeepValues: cfg.ES.KeepValues,
-		},
-		Mongo: obfuscate.JSONSettings{
-			Enabled:    cfg.Mongo.Enabled,
-			KeepValues: cfg.Mongo.KeepValues,
-		},
-		RemoveQueryString: cfg.HTTP.RemoveQueryString,
-		RemovePathDigits:  cfg.HTTP.RemovePathDigits,
-		RemoveStackTraces: cfg.RemoveStackTraces,
-		Redis:             cfg.Redis.Enabled,
-		Memcached:         cfg.Memcached.Enabled,
-	})
 }

@@ -15,11 +15,20 @@ import (
 
 type testTransaction struct {
 	mock.Mock
-	processed chan bool
+	assertClient bool
+	processed    chan bool
 }
 
 func newTestTransaction() *testTransaction {
 	t := new(testTransaction)
+	t.assertClient = true
+	t.processed = make(chan bool, 1)
+	return t
+}
+
+func newTestTransactionWithoutClientAssert() *testTransaction {
+	t := new(testTransaction)
+	t.assertClient = false
 	t.processed = make(chan bool, 1)
 	return t
 }
@@ -30,7 +39,11 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 
 func (t *testTransaction) Process(_ context.Context, client *http.Client) error {
 	defer func() { t.processed <- true }()
-	return t.Called(client).Error(0) // we ignore the context to ease mocking
+	// we always ignore the context to ease mocking
+	if !t.assertClient {
+		return t.Called().Error(0)
+	}
+	return t.Called(client).Error(0)
 }
 
 func (t *testTransaction) GetTarget() string {
@@ -125,7 +138,7 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 	return nil, tf.Called(payload, extra).Error(0)
 }
 
-// SubmitPodChecks mock
-func (tf *MockedForwarder) SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error) {
+// SubmitOrchestratorChecks mock
+func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }

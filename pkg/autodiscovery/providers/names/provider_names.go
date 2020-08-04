@@ -18,5 +18,6 @@ const (
 	Kubernetes      = "kubernetes"
 	KubeServices    = "kubernetes-services"
 	KubeEndpoints   = "kubernetes-endpoints"
+	SNMP            = "snmp"
 	Zookeeper       = "zookeeper"
 )

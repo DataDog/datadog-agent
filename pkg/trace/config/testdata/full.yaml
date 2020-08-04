@@ -23,6 +23,8 @@ apm_config:
       - apikey2
     https://my2.endpoint.eu:
       - apikey3
+      - "apikey4              "
+      - "apikey5\n \n         "
   env: test
   receiver_port: 18126
   connection_limit: 123

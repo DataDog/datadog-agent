@@ -29,23 +29,18 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
+	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	maxRequestBodyLength = 10 * 1024 * 1024
-	tagTraceHandler      = "handler:traces"
 )
 
 // Version is a dumb way to version our collector handlers
@@ -76,21 +71,20 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out     chan *Trace
+	out     chan *Payload
 	conf    *config.AgentConfig
 	dynConf *sampler.DynamicConfig
 	server  *http.Server
 
-	maxRequestBodyLength int64
-	debug                bool
-	rateLimiterResponse  int // HTTP status code when refusing
+	debug               bool
+	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Trace) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if config.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -103,9 +97,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		conf:    conf,
 		dynConf: dynConf,
 
-		maxRequestBodyLength: maxRequestBodyLength,
-		debug:                strings.ToLower(conf.LogLevel) == "debug",
-		rateLimiterResponse:  rateLimiterResponse,
+		debug:               strings.ToLower(conf.LogLevel) == "debug",
+		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
 	}
@@ -127,6 +120,7 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -201,7 +195,11 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 		runtime.SetBlockProfileRate(0)
 	})
 
-	mux.Handle("/debug/vars", expvar.Handler())
+	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// allow the GUI to call this endpoint so that the status can be reported
+		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+mainconfig.Datadog.GetString("GUI_port"))
+		expvar.Handler().ServeHTTP(w, req)
+	}))
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.
@@ -232,12 +230,15 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	ln, err := newRateLimitedListener(tcpln, r.conf.ConnectionLimit)
-	go func() {
-		defer watchdog.LogOnPanic()
-		ln.Refresh(r.conf.ConnectionLimit)
-	}()
-	return ln, err
+	if climit := r.conf.ConnectionLimit; climit > 0 {
+		ln, err := newRateLimitedListener(tcpln, climit)
+		go func() {
+			defer watchdog.LogOnPanic()
+			ln.Refresh(climit)
+		}()
+		return ln, err
+	}
+	return tcpln, err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.
@@ -266,7 +267,8 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
-		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
+		// TODO(x): replace with httpt.MaxBytesReader
+		req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
 		f(v, w, req)
 	}
@@ -370,7 +372,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 	traces, err := r.decodeTraces(v, req)
 	if err != nil {
-		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		if err == ErrLimitedReaderLimitReached {
 			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, traceCount)
 		} else {
@@ -385,53 +387,40 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	r.wg.Add(1)
-	go func() {
-		defer func() {
-			r.wg.Done()
-			watchdog.LogOnPanic()
+	payload := &Payload{
+		Source:        ts,
+		Traces:        traces,
+		ContainerTags: getContainerTags(req.Header.Get(headerContainerID)),
+	}
+	select {
+	case r.out <- payload:
+		// ok
+	default:
+		// channel blocked, add a goroutine to ensure we never drop
+		r.wg.Add(1)
+		go func() {
+			metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
+			defer func() {
+				r.wg.Done()
+				watchdog.LogOnPanic()
+			}()
+			r.out <- payload
 		}()
-		containerID := req.Header.Get(headerContainerID)
-		r.processTraces(ts, containerID, traces)
-	}()
+	}
 }
 
-// Trace specifies information about a trace received by the API.
-type Trace struct {
+// Payload specifies information about a set of traces received by the API.
+type Payload struct {
 	// Source specifies information about the source of these traces, such as:
 	// language, interpreter, tracer version, etc.
-	Source *info.Tags
+	Source *info.TagStats
 
 	// ContainerTags specifies orchestrator tags corresponding to the origin of this
 	// trace (e.g. K8S pod, Docker image, ECS, etc). They are of the type "k1:v1,k2:v2".
 	ContainerTags string
 
-	// Spans holds the spans of this trace.
-	Spans pb.Trace
-}
-
-func (r *HTTPReceiver) processTraces(ts *info.TagStats, containerID string, traces pb.Traces) {
-	defer timing.Since("datadog.trace_agent.internal.normalize_ms", time.Now())
-
-	containerTags := getContainerTags(containerID)
-	for _, trace := range traces {
-		spans := len(trace)
-
-		atomic.AddInt64(&ts.SpansReceived, int64(spans))
-
-		err := normalizeTrace(ts, trace)
-		if err != nil {
-			log.Debug("Dropping invalid trace: %s", err)
-			atomic.AddInt64(&ts.SpansDropped, int64(spans))
-			continue
-		}
-
-		r.out <- &Trace{
-			Source:        &ts.Tags,
-			ContainerTags: containerTags,
-			Spans:         trace,
-		}
-	}
+	// Traces contains all the traces received in the payload
+	Traces pb.Traces
 }
 
 // handleServices handle a request with a list of several services

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -36,6 +38,7 @@ import (
 type ControllerContext struct {
 	IsLeaderFunc                 func() bool
 	UnassignedPodInformerFactory informers.SharedInformerFactory
+	InformerFactory              informers.SharedInformerFactory
 	Client                       kubernetes.Interface
 	StopCh                       chan struct{}
 	Hostname                     string
@@ -47,13 +50,19 @@ type ControllerContext struct {
 type Controller struct {
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
+	deployLister            appslisters.DeploymentLister
+	deployListerSync        cache.InformerSynced
+	rsLister                appslisters.ReplicaSetLister
+	rsListerSync            cache.InformerSynced
+	serviceLister           corelisters.ServiceLister
+	serviceListerSync       cache.InformerSynced
 	groupID                 int32
 	hostName                string
 	clusterName             string
 	clusterID               string
 	forwarder               forwarder.Forwarder
 	processConfig           *processcfg.AgentConfig
-	IsLeaderFunc            func() bool
+	isLeaderFunc            func() bool
 }
 
 // StartController starts the orchestrator controller
@@ -75,9 +84,13 @@ func StartController(ctx ControllerContext) error {
 	go orchestratorController.Run(ctx.StopCh)
 
 	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
+	ctx.InformerFactory.Start(ctx.StopCh)
 
-	return apiserver.SyncInformers(map[string]cache.SharedInformer{
-		"pods": ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
+	return apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
+		apiserver.PodsInformer:        ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
+		apiserver.DeploysInformer:     ctx.InformerFactory.Apps().V1().Deployments().Informer(),
+		apiserver.ReplicaSetsInformer: ctx.InformerFactory.Apps().V1().ReplicaSets().Informer(),
+		apiserver.ServicesInformer:    ctx.InformerFactory.Core().V1().Services().Informer(),
 	})
 }
 
@@ -87,6 +100,10 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	deployInformer := ctx.InformerFactory.Apps().V1().Deployments()
+	rsInformer := ctx.InformerFactory.Apps().V1().ReplicaSets()
+	serviceInformer := ctx.InformerFactory.Core().V1().Services()
 
 	cfg := processcfg.NewDefaultAgentConfig(true)
 	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
@@ -99,18 +116,24 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	}
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomain)
-	podForwarderOpts.EnableHealthChecking = false
+	podForwarderOpts.DisableAPIKeyChecking = true
 
 	oc := &Controller{
 		unassignedPodLister:     podInformer.Lister(),
 		unassignedPodListerSync: podInformer.Informer().HasSynced,
+		deployLister:            deployInformer.Lister(),
+		deployListerSync:        deployInformer.Informer().HasSynced,
+		rsLister:                rsInformer.Lister(),
+		rsListerSync:            rsInformer.Informer().HasSynced,
+		serviceLister:           serviceInformer.Lister(),
+		serviceListerSync:       serviceInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
 		clusterID:               clusterID,
 		processConfig:           cfg,
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
-		IsLeaderFunc:            ctx.IsLeaderFunc,
+		isLeaderFunc:            ctx.IsLeaderFunc,
 	}
 
 	oc.processConfig = cfg
@@ -127,23 +150,70 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync) {
+	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync) {
 		return
 	}
 
-	go wait.Until(o.processPods, 10*time.Second, stopCh)
+	processors := []func(){
+		o.processPods,
+		o.processReplicaSets,
+		o.processDeploys,
+		o.processServices,
+	}
+
+	spreadProcessors(processors, 2*time.Second, 10*time.Second, stopCh)
 
 	<-stopCh
 
 	o.forwarder.Stop()
 }
 
-func (o *Controller) processPods() {
-	if !o.IsLeaderFunc() {
+func (o *Controller) processDeploys() {
+	if !o.isLeaderFunc() {
 		return
 	}
-	podList, err := o.unassignedPodLister.List(labels.Everything())
 
+	deployList, err := o.deployLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("Unable to list deployments: %s", err)
+		return
+	}
+
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	if err != nil {
+		log.Errorf("Unable to process deployments list: %v", err)
+		return
+	}
+
+	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
+}
+
+func (o *Controller) processReplicaSets() {
+	if !o.isLeaderFunc() {
+		return
+	}
+
+	rsList, err := o.rsLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("Unable to list replica sets: %s", err)
+		return
+	}
+
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	if err != nil {
+		log.Errorf("Unable to process replica sets list: %v", err)
+		return
+	}
+
+	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
+}
+
+func (o *Controller) processPods() {
+	if !o.isLeaderFunc() {
+		return
+	}
+
+	podList, err := o.unassignedPodLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Unable to list pods: %s", err)
 		return
@@ -156,10 +226,35 @@ func (o *Controller) processPods() {
 		return
 	}
 
+	o.sendMessages(msg, forwarder.PayloadTypePod)
+}
+
+func (o *Controller) processServices() {
+	if !o.isLeaderFunc() {
+		return
+	}
+
+	serviceList, err := o.serviceLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("Unable to list services: %s", err)
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processServiceList(serviceList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	if err != nil {
+		log.Errorf("Unable to process service list: %s", err)
+		return
+	}
+
+	o.sendMessages(messages, forwarder.PayloadTypeService)
+}
+
+func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 	for _, m := range msg {
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(api.HostHeader, o.hostName)
 		extraHeaders.Set(api.ClusterIDHeader, o.clusterID)
+		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
 
 		body, err := encodePayload(m)
 		if err != nil {
@@ -168,7 +263,7 @@ func (o *Controller) processPods() {
 		}
 
 		payloads := forwarder.Payloads{&body}
-		responses, err := o.forwarder.SubmitPodChecks(payloads, extraHeaders)
+		responses, err := o.forwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			log.Errorf("Unable to submit payload: %s", err)
 			continue
@@ -194,4 +289,14 @@ func encodePayload(m model.MessageBody) ([]byte, error) {
 			Encoding: model.MessageEncodingZstdPB,
 			Type:     msgType,
 		}, Body: m})
+}
+
+func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.Duration, stopCh <-chan struct{}) {
+	for idx, p := range processors {
+		processor := p
+		time.AfterFunc(time.Duration(idx)*spreadInterval, func() {
+			go wait.Until(processor, processorPeriod, stopCh)
+		})
+	}
+
 }

@@ -44,9 +44,17 @@ type tags struct {
 	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
 }
 
+// InstallMethod is metadata about the agent's installation
+type InstallMethod struct {
+	Tool             *string `json:"tool"`
+	ToolVersion      string  `json:"tool_version"`
+	InstallerVersion *string `json:"installer_version"`
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Os            string            `json:"os"`
+	AgentFlavor   string            `json:"agent-flavor"`
 	PythonVersion string            `json:"python"`
 	SystemStats   *systemStats      `json:"systemStats"`
 	Meta          *Meta             `json:"meta"`
@@ -54,4 +62,5 @@ type Payload struct {
 	ContainerMeta map[string]string `json:"container-meta,omitempty"`
 	NetworkMeta   *NetworkMeta      `json:"network"`
 	LogsMeta      *LogsMeta         `json:"logs"`
+	InstallMethod *InstallMethod    `json:"install-method"`
 }

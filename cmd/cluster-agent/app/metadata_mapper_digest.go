@@ -89,7 +89,7 @@ func getMetadataMap(nodeName string) error {
 	// The rendering is done in the client so that the agent has less work to do
 	if prettyPrintJSON {
 		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ")
+		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else if jsonStatus {
 		s = string(r)
@@ -102,7 +102,7 @@ func getMetadataMap(nodeName string) error {
 	}
 
 	if statusFilePath != "" {
-		ioutil.WriteFile(statusFilePath, []byte(s), 0644)
+		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}

@@ -43,7 +43,7 @@ func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
 	for _, serie := range series {
 		found := false
 		for _, expectedSerie := range expected {
-			if ckey.Compare(serie.ContextKey, expectedSerie.ContextKey) == 0 {
+			if ckey.Equals(serie.ContextKey, expectedSerie.ContextKey) {
 				AssertSerieEqual(t, expectedSerie, serie)
 				found = true
 			}

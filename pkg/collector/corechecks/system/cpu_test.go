@@ -27,7 +27,6 @@ var (
 			Steal:     0,
 			Guest:     0,
 			GuestNice: 0,
-			Stolen:    0,
 		},
 	}
 	secondSample = []cpu.TimesStat{
@@ -43,7 +42,6 @@ var (
 			Steal:     2,
 			Guest:     0,
 			GuestNice: 0,
-			Stolen:    0,
 		},
 	}
 )
@@ -80,13 +78,15 @@ func TestCPUCheckLinux(t *testing.T) {
 	cpuCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(cpuCheck.ID())
+	mock.On("Gauge", "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
+	mock.On("Commit").Return().Times(1)
 
 	sample = firstSample
 	cpuCheck.Run()
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 0)
-	mock.AssertNumberOfCalls(t, "Commit", 0)
+	mock.AssertNumberOfCalls(t, "Gauge", 1)
+	mock.AssertNumberOfCalls(t, "Commit", 1)
 
 	sample = secondSample
 	mock.On("Gauge", "system.cpu.user", 0.1913803067769472, "", []string(nil)).Return().Times(1)
@@ -95,10 +95,11 @@ func TestCPUCheckLinux(t *testing.T) {
 	mock.On("Gauge", "system.cpu.idle", 94.74272612720159, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.cpu.stolen", 0.0018948545225440318, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	cpuCheck.Run()
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 6)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
+	mock.AssertNumberOfCalls(t, "Gauge", 8)
+	mock.AssertNumberOfCalls(t, "Commit", 2)
 }

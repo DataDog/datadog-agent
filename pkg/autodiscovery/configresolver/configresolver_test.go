@@ -30,6 +30,7 @@ type dummyService struct {
 	Hostname      string
 	CreationTime  integration.CreationTime
 	CheckNames    []string
+	ExtraConfig   map[string]string
 }
 
 // GetEntity returns the service entity name
@@ -90,6 +91,11 @@ func (s *dummyService) GetCheckNames() []string {
 // HasFilter returns false
 func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 	return false
+}
+
+// GetExtraConfig returns extra configuration
+func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte(s.ExtraConfig[string(key)]), nil
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -531,6 +537,25 @@ func TestResolve(t *testing.T) {
 				Entity:        "a5901276aed1",
 				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
 				Provider:      "file",
+			},
+		},
+		{
+			testName: "SNMP testing",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"snmp"},
+				ExtraConfig:   map[string]string{"user": "admin", "auth_key": "secret"},
+			},
+			tpl: integration.Config{
+				Name:          "device",
+				ADIdentifiers: []string{"snmp"},
+				Instances:     []integration.Data{integration.Data("user: %%extra_user%%\nauthKey: %%extra_auth_key%%")},
+			},
+			out: integration.Config{
+				Name:          "device",
+				ADIdentifiers: []string{"snmp"},
+				Instances:     []integration.Data{integration.Data("user: admin\nauthKey: secret")},
+				Entity:        "a5901276aed1",
 			},
 		},
 	}

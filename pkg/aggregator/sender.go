@@ -143,8 +143,8 @@ func GetDefaultSender() (Sender, error) {
 	}
 
 	senderInit.Do(func() {
-		var defaultCheckID check.ID // the default value is the zero value
-		aggregatorInstance.registerSender(defaultCheckID)
+		var defaultCheckID check.ID                       // the default value is the zero value
+		aggregatorInstance.registerSender(defaultCheckID) //nolint:errcheck
 		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn)
 	})
 

@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -45,12 +45,38 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 			},
 			expectedOut: []integration.Config{
 				{
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_service_uid://test"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
-					Source:        "kube_services:kube_service_uid://test",
+					Name:                    "http_check",
+					ADIdentifiers:           []string{"kube_service_uid://test"},
+					InitConfig:              integration.Data("{}"),
+					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:            true,
+					Source:                  "kube_services:kube_service_uid://test",
+					IgnoreAutodiscoveryTags: false,
+				},
+			},
+		},
+		{
+			name: "ignore AD tags",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":               "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs":              "[{}]",
+						"ad.datadoghq.com/service.instances":                 "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+						"ad.datadoghq.com/service.ignore_autodiscovery_tags": "true",
+					},
+				},
+			},
+			expectedOut: []integration.Config{
+				{
+					Name:                    "http_check",
+					ADIdentifiers:           []string{"kube_service_uid://test"},
+					InitConfig:              integration.Data("{}"),
+					Instances:               []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					ClusterCheck:            true,
+					Source:                  "kube_services:kube_service_uid://test",
+					IgnoreAutodiscoveryTags: true,
 				},
 			},
 		},

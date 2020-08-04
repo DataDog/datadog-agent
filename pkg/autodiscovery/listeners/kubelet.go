@@ -91,7 +91,7 @@ func NewKubeletListener() (ServiceListener, error) {
 		services: make(map[string]Service),
 		ticker:   time.NewTicker(config.Datadog.GetDuration("kubelet_listener_polling_interval") * time.Second),
 		stop:     make(chan bool),
-		health:   health.Register("ad-kubeletlistener"),
+		health:   health.RegisterLiveness("ad-kubeletlistener"),
 	}, nil
 }
 
@@ -110,7 +110,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
-				l.health.Deregister()
+				l.health.Deregister() //nolint:errcheck
 				return
 			case <-l.health.C:
 			case <-l.ticker.C:
@@ -394,6 +394,11 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
+// GetExtraConfig isn't supported
+func (s *KubeContainerService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
+}
+
 // GetCheckNames returns names of checks defined in pod annotations
 func (s *KubeContainerService) GetCheckNames() []string {
 	return s.checkNames
@@ -475,4 +480,9 @@ func (s *KubePodService) GetCheckNames() []string {
 // KubePodService doesn't implement this method
 func (s *KubePodService) HasFilter(filter containers.FilterType) bool {
 	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *KubePodService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

@@ -22,8 +22,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	// PayloadTypePod is the name of the pod payload type
+	PayloadTypePod = "pod"
+	// PayloadTypeDeployment is the name of the deployment payload type
+	PayloadTypeDeployment = "deployment"
+	// PayloadTypeReplicaSet is the name of the replica set payload type
+	PayloadTypeReplicaSet = "replicaset"
+	// PayloadTypeService is the name of the service payload type
+	PayloadTypeService = "service"
+)
+
 var (
 	forwarderExpvars              = expvar.NewMap("forwarder")
+	connectionEvents              = expvar.Map{}
 	transactionsExpvars           = expvar.Map{}
 	transactionsSeries            = expvar.Int{}
 	transactionsEvents            = expvar.Int{}
@@ -40,6 +52,9 @@ var (
 	transactionsIntakeRTContainer = expvar.Int{}
 	transactionsIntakeConnections = expvar.Int{}
 	transactionsIntakePod         = expvar.Int{}
+	transactionsIntakeDeployment  = expvar.Int{}
+	transactionsIntakeReplicaSet  = expvar.Int{}
+	transactionsIntakeService     = expvar.Int{}
 
 	tlm = telemetry.NewCounter("forwarder", "transactions",
 		[]string{"endpoint", "route"}, "Forwarder telemetry")
@@ -57,17 +72,19 @@ var (
 	hostMetadataEndpoint  = endpoint{"/api/v2/host_metadata", "host_metadata_v2"}
 	metadataEndpoint      = endpoint{"/api/v2/metadata", "metadata_v2"}
 
-	processesEndpoint   = endpoint{"/api/v1/collector", "process"}
-	rtProcessesEndpoint = endpoint{"/api/v1/collector", "rtprocess"}
-	containerEndpoint   = endpoint{"/api/v1/container", "container"}
-	rtContainerEndpoint = endpoint{"/api/v1/container", "rtcontainer"}
-	connectionsEndpoint = endpoint{"/api/v1/collector", "connections"}
-	podEndpoint         = endpoint{"/api/v1/orchestrator", "pod"}
+	processesEndpoint    = endpoint{"/api/v1/collector", "process"}
+	rtProcessesEndpoint  = endpoint{"/api/v1/collector", "rtprocess"}
+	containerEndpoint    = endpoint{"/api/v1/container", "container"}
+	rtContainerEndpoint  = endpoint{"/api/v1/container", "rtcontainer"}
+	connectionsEndpoint  = endpoint{"/api/v1/collector", "connections"}
+	orchestratorEndpoint = endpoint{"/api/v1/orchestrator", "orchestrator"}
 )
 
 func init() {
 	transactionsExpvars.Init()
+	connectionEvents.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
+	forwarderExpvars.Set("ConnectionEvents", &connectionEvents)
 	transactionsExpvars.Set("Series", &transactionsSeries)
 	transactionsExpvars.Set("Events", &transactionsEvents)
 	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
@@ -83,6 +100,9 @@ func init() {
 	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
 	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
 	transactionsExpvars.Set("Pods", &transactionsIntakePod)
+	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
+	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
+	transactionsExpvars.Set("Services", &transactionsIntakeService)
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
@@ -146,7 +166,7 @@ type Forwarder interface {
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -154,19 +174,33 @@ var _ Forwarder = &DefaultForwarder{}
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
-	NumberOfWorkers      int
-	RetryQueueSize       int
-	EnableHealthChecking bool
-	KeysPerDomain        map[string][]string
+	NumberOfWorkers          int
+	RetryQueueSize           int
+	DisableAPIKeyChecking    bool
+	APIKeyValidationInterval time.Duration
+	KeysPerDomain            map[string][]string
+	ConnectionResetInterval  time.Duration
 }
 
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
+	validationInterval := config.Datadog.GetInt("forwarder_apikey_validation_interval")
+	if validationInterval <= 0 {
+		log.Warnf(
+			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
+			validationInterval,
+			config.DefaultAPIKeyValidationInterval,
+		)
+		validationInterval = config.DefaultAPIKeyValidationInterval
+	}
+
 	return &Options{
-		NumberOfWorkers:      config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:       config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		EnableHealthChecking: true,
-		KeysPerDomain:        keysPerDomain,
+		NumberOfWorkers:          config.Datadog.GetInt("forwarder_num_workers"),
+		RetryQueueSize:           config.Datadog.GetInt("forwarder_retry_queue_max_size"),
+		DisableAPIKeyChecking:    false,
+		APIKeyValidationInterval: time.Duration(validationInterval) * time.Minute,
+		KeysPerDomain:            keysPerDomain,
+		ConnectionResetInterval:  time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
 }
 
@@ -189,10 +223,11 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		domainForwarders: map[string]*domainForwarder{},
 		keysPerDomains:   map[string][]string{},
 		internalState:    Stopped,
-	}
-
-	if options.EnableHealthChecking {
-		f.healthChecker = &forwarderHealth{keysPerDomains: options.KeysPerDomain}
+		healthChecker: &forwarderHealth{
+			keysPerDomains:        options.KeysPerDomain,
+			disableAPIKeyChecking: options.DisableAPIKeyChecking,
+			validationInterval:    options.APIKeyValidationInterval,
+		},
 	}
 
 	for domain, keys := range options.KeysPerDomain {
@@ -201,7 +236,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize)
+			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.ConnectionResetInterval)
 		}
 	}
 
@@ -231,9 +266,7 @@ func (f *DefaultForwarder) Start() error {
 	log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
-	if f.healthChecker != nil {
-		f.healthChecker.Start()
-	}
+	f.healthChecker.Start()
 	f.internalState = Started
 	return nil
 }
@@ -281,9 +314,7 @@ func (f *DefaultForwarder) Stop() {
 		}
 	}
 
-	if f.healthChecker != nil {
-		f.healthChecker.Stop()
-	}
+	f.healthChecker.Stop()
 
 	f.healthChecker = nil
 	f.domainForwarders = map[string]*domainForwarder{}
@@ -447,11 +478,20 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 	return f.submitProcessLikePayload(connectionsEndpoint, payload, extra, true)
 }
 
-// SubmitPodChecks sends pod checks
-func (f *DefaultForwarder) SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	transactionsIntakePod.Add(1)
+// SubmitOrchestratorChecks sends orchestrator checks
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	switch payloadType {
+	case PayloadTypePod:
+		transactionsIntakePod.Add(1)
+	case PayloadTypeDeployment:
+		transactionsIntakeDeployment.Add(1)
+	case PayloadTypeReplicaSet:
+		transactionsIntakeReplicaSet.Add(1)
+	case PayloadTypeService:
+		transactionsIntakeService.Add(1)
+	}
 
-	return f.submitProcessLikePayload(podEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {
@@ -464,10 +504,6 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	for _, txn := range transactions {
 		txn.retryable = retryable
 		txn.attemptHandler = func(transaction *HTTPTransaction) {
-			if v := transaction.Headers.Get("X-DD-Agent-Timestamp"); v == "" {
-				transaction.Headers.Set("X-DD-Agent-Timestamp", strconv.Itoa(int(transaction.GetCreatedAt().Unix())))
-			}
-
 			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
 				transaction.Headers.Set("X-DD-Agent-Attempts", "1")
 			} else {

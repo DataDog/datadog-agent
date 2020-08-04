@@ -16,6 +16,7 @@ const (
 	RuntimeNameDocker     string = "docker"
 	RuntimeNameContainerd string = "containerd"
 	RuntimeNameCRIO       string = "cri-o"
+	RuntimeNameGarden     string = "garden"
 )
 
 // Supported container states
@@ -27,6 +28,7 @@ const (
 	ContainerPausedState            = "paused"
 	ContainerExitedState            = "exited"
 	ContainerDeadState              = "dead"
+	ContainerActiveState            = "active"
 )
 
 // Supported container health
@@ -74,8 +76,8 @@ type Container struct {
 	AddressList []NetworkAddress
 	StartedAt   int64
 
-	metrics.ContainerLimits
 	metrics.ContainerMetrics
+	Limits  metrics.ContainerLimits
 	Network metrics.ContainerNetStats
 }
 

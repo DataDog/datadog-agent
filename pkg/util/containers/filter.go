@@ -20,28 +20,31 @@ const (
 	// - gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/gke-release/pause-win:1.1.0
 	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/gke-release/|/)pause(.*)`
-	pauseContainerOpenshift  = "image:openshift/origin-pod"
+	pauseContainerOpenshift3 = "image:(openshift/origin-pod|(.*)rhel7/pod-infrastructure)"
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
-	pauseContainerEKS        = "image:eks/pause-amd64"
+	pauseContainerEKS        = "image:(amazonaws.com/)?eks/pause-(amd64|windows)"
 	// pauseContainerAzure regex matches:
 	// - k8s-gcrio.azureedge.net/pause-amd64
 	// - gcrio.azureedge.net/google_containers/pause-amd64
 	pauseContainerAzure   = `image:(.*)azureedge\.net(/google_containers/|/)pause(.*)`
 	pauseContainerRancher = `image:rancher/pause(.*)`
-	pauseContainerAKS     = `image:mcr.microsoft.com/k8s/core/pause(.*)`
-	pauseContainerECR     = `image:ecr(.*)amazonaws.com/pause(.*)`
+	// pauseContainerAKS regex matches:
+	// - mcr.microsoft.com/k8s/core/pause-amd64
+	// - aksrepos.azurecr.io/mirror/pause-amd64
+	pauseContainerAKS = `image:(mcr.microsoft.com/k8s/core/|aksrepos.azurecr.io/mirror/|kubeletwin/)pause(.*)`
+	pauseContainerECR = `image:ecr(.*)amazonaws.com/pause(.*)`
 )
 
 // Filter holds the state for the container filtering logic
 type Filter struct {
-	Enabled            bool
-	ImageWhitelist     []*regexp.Regexp
-	NameWhitelist      []*regexp.Regexp
-	NamespaceWhitelist []*regexp.Regexp
-	ImageBlacklist     []*regexp.Regexp
-	NameBlacklist      []*regexp.Regexp
-	NamespaceBlacklist []*regexp.Regexp
+	Enabled              bool
+	ImageIncludeList     []*regexp.Regexp
+	NameIncludeList      []*regexp.Regexp
+	NamespaceIncludeList []*regexp.Regexp
+	ImageExcludeList     []*regexp.Regexp
+	NameExcludeList      []*regexp.Regexp
+	NamespaceExcludeList []*regexp.Regexp
 }
 
 var sharedFilter *Filter
@@ -75,13 +78,13 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	return imageFilters, nameFilters, namespaceFilters, nil
 }
 
-// GetSharedFilter allows to share the result of NewFilterFromConfig
+// GetSharedMetricFilter allows to share the result of NewFilterFromConfig
 // for several user classes
-func GetSharedFilter() (*Filter, error) {
+func GetSharedMetricFilter() (*Filter, error) {
 	if sharedFilter != nil {
 		return sharedFilter, nil
 	}
-	f, err := NewFilterFromConfig()
+	f, err := newMetricFilterFromConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -96,48 +99,53 @@ func ResetSharedFilter() {
 }
 
 // NewFilter creates a new container filter from a two slices of
-// regexp patterns for a whitelist and blacklist. Each pattern should have
+// regexp patterns for a include list and exclude list. Each pattern should have
 // the following format: "field:pattern" where field can be: [image, name].
 // An error is returned if any of the expression don't compile.
-func NewFilter(whitelist, blacklist []string) (*Filter, error) {
-	iwl, nwl, nswl, err := parseFilters(whitelist)
+func NewFilter(includeList, excludeList []string) (*Filter, error) {
+	imgIncl, nameIncl, nsIncl, err := parseFilters(includeList)
 	if err != nil {
 		return nil, err
 	}
-	ibl, nbl, nsbl, err := parseFilters(blacklist)
+	imgExcl, nameExcl, nsExcl, err := parseFilters(excludeList)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Filter{
-		Enabled:            len(whitelist) > 0 || len(blacklist) > 0,
-		ImageWhitelist:     iwl,
-		NameWhitelist:      nwl,
-		NamespaceWhitelist: nswl,
-		ImageBlacklist:     ibl,
-		NameBlacklist:      nbl,
-		NamespaceBlacklist: nsbl,
+		Enabled:              len(includeList) > 0 || len(excludeList) > 0,
+		ImageIncludeList:     imgIncl,
+		NameIncludeList:      nameIncl,
+		NamespaceIncludeList: nsIncl,
+		ImageExcludeList:     imgExcl,
+		NameExcludeList:      nameExcl,
+		NamespaceExcludeList: nsExcl,
 	}, nil
 }
 
-// NewFilterFromConfig creates a new container filter, sourcing patterns
-// from the pkg/config options
-func NewFilterFromConfig() (*Filter, error) {
-	whitelist := config.Datadog.GetStringSlice("container_include")
-	blacklist := config.Datadog.GetStringSlice("container_exclude")
-	if len(whitelist) == 0 {
+// newMetricFilterFromConfig creates a new container filter, sourcing patterns
+// from the pkg/config options, to be used only for metrics
+func newMetricFilterFromConfig() (*Filter, error) {
+	// We merge `container_include` and `container_include_metrics` as this filter
+	// is used by all core and python checks (so components sending metrics).
+	includeList := config.Datadog.GetStringSlice("container_include")
+	excludeList := config.Datadog.GetStringSlice("container_exclude")
+	includeList = append(includeList, config.Datadog.GetStringSlice("container_include_metrics")...)
+	excludeList = append(excludeList, config.Datadog.GetStringSlice("container_exclude_metrics")...)
+
+	if len(includeList) == 0 {
 		// support legacy "ac_include" config
-		whitelist = config.Datadog.GetStringSlice("ac_include")
+		includeList = config.Datadog.GetStringSlice("ac_include")
 	}
-	if len(blacklist) == 0 {
+	if len(excludeList) == 0 {
 		// support legacy "ac_exclude" config
-		blacklist = config.Datadog.GetStringSlice("ac_exclude")
+		excludeList = config.Datadog.GetStringSlice("ac_exclude")
 	}
 
 	if config.Datadog.GetBool("exclude_pause_container") {
-		blacklist = append(blacklist,
+		excludeList = append(excludeList,
 			pauseContainerGCR,
-			pauseContainerOpenshift,
+			pauseContainerOpenshift3,
 			pauseContainerKubernetes,
 			pauseContainerAzure,
 			pauseContainerECS,
@@ -147,7 +155,7 @@ func NewFilterFromConfig() (*Filter, error) {
 			pauseContainerECR,
 		)
 	}
-	return NewFilter(whitelist, blacklist)
+	return NewFilter(includeList, excludeList)
 }
 
 // NewAutodiscoveryFilter creates a new container filter for Autodiscovery
@@ -155,28 +163,28 @@ func NewFilterFromConfig() (*Filter, error) {
 // It allows to filter metrics and logs separately
 // For use in autodiscovery.
 func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
-	whitelist := []string{}
-	blacklist := []string{}
+	includeList := []string{}
+	excludeList := []string{}
 	switch filter {
 	case GlobalFilter:
-		whitelist = config.Datadog.GetStringSlice("container_include")
-		blacklist = config.Datadog.GetStringSlice("container_exclude")
-		if len(whitelist) == 0 {
+		includeList = config.Datadog.GetStringSlice("container_include")
+		excludeList = config.Datadog.GetStringSlice("container_exclude")
+		if len(includeList) == 0 {
 			// fallback and support legacy "ac_include" config
-			whitelist = config.Datadog.GetStringSlice("ac_include")
+			includeList = config.Datadog.GetStringSlice("ac_include")
 		}
-		if len(blacklist) == 0 {
+		if len(excludeList) == 0 {
 			// fallback and support legacy "ac_exclude" config
-			blacklist = config.Datadog.GetStringSlice("ac_exclude")
+			excludeList = config.Datadog.GetStringSlice("ac_exclude")
 		}
 	case MetricsFilter:
-		whitelist = config.Datadog.GetStringSlice("container_include_metrics")
-		blacklist = config.Datadog.GetStringSlice("container_exclude_metrics")
+		includeList = config.Datadog.GetStringSlice("container_include_metrics")
+		excludeList = config.Datadog.GetStringSlice("container_exclude_metrics")
 	case LogsFilter:
-		whitelist = config.Datadog.GetStringSlice("container_include_logs")
-		blacklist = config.Datadog.GetStringSlice("container_exclude_logs")
+		includeList = config.Datadog.GetStringSlice("container_include_logs")
+		excludeList = config.Datadog.GetStringSlice("container_exclude_logs")
 	}
-	return NewFilter(whitelist, blacklist)
+	return NewFilter(includeList, excludeList)
 }
 
 // IsExcluded returns a bool indicating if the container should be excluded
@@ -186,35 +194,35 @@ func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) 
 		return false
 	}
 
-	// Any whitelisted take precedence on excluded
-	for _, r := range cf.ImageWhitelist {
+	// Any includeListed take precedence on excluded
+	for _, r := range cf.ImageIncludeList {
 		if r.MatchString(containerImage) {
 			return false
 		}
 	}
-	for _, r := range cf.NameWhitelist {
+	for _, r := range cf.NameIncludeList {
 		if r.MatchString(containerName) {
 			return false
 		}
 	}
-	for _, r := range cf.NamespaceWhitelist {
+	for _, r := range cf.NamespaceIncludeList {
 		if r.MatchString(podNamespace) {
 			return false
 		}
 	}
 
-	// Check if blacklisted
-	for _, r := range cf.ImageBlacklist {
+	// Check if excludeListed
+	for _, r := range cf.ImageExcludeList {
 		if r.MatchString(containerImage) {
 			return true
 		}
 	}
-	for _, r := range cf.NameBlacklist {
+	for _, r := range cf.NameExcludeList {
 		if r.MatchString(containerName) {
 			return true
 		}
 	}
-	for _, r := range cf.NamespaceBlacklist {
+	for _, r := range cf.NamespaceExcludeList {
 		if r.MatchString(podNamespace) {
 			return true
 		}

@@ -883,6 +883,11 @@ void Two::setReadPersistentCacheCb(cb_read_persistent_cache_t cb)
     _set_read_persistent_cache_cb(cb);
 }
 
+void Two::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
+{
+    _set_obfuscate_sql_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.

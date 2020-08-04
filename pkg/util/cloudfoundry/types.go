@@ -11,14 +11,28 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"code.cloudfoundry.org/bbs/models"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"code.cloudfoundry.org/bbs/models"
 )
 
 const (
-	EnvAdVariableName           = "AD_DATADOGHQ_COM"
+	// EnvAdVariableName is the name of the environment variable storing AD settings
+	EnvAdVariableName = "AD_DATADOGHQ_COM"
+	// EnvVcapServicesVariableName is the name of the environment variable storing the services for the app
 	EnvVcapServicesVariableName = "VCAP_SERVICES"
-	ActualLrpStateRunning       = "RUNNING"
+	// EnvVcapApplicationName is the name of the environment variable storing the application definition
+	EnvVcapApplicationName = "VCAP_APPLICATION"
+	// ActualLrpStateRunning is the value for the running state o LRP
+	ActualLrpStateRunning = "RUNNING"
+	// ApplicationNameKey is the name of the key containing the app name in the env var VCAP_APPLICATION
+	ApplicationNameKey = "application_name"
+	// ApplicationIDKey is the name of the key containing the app GUID in the env var VCAP_APPLICATION
+	ApplicationIDKey = "application_id"
+)
+
+var (
+	envVcapApplicationKeys = []string{ApplicationNameKey, ApplicationIDKey}
 )
 
 // ADConfig represents the structure of ADConfig in AD_DATADOGHQ_COM environment variable
@@ -55,32 +69,40 @@ func (id ADIdentifier) GetActualLRP() *ActualLRP {
 	return id.actualLRP
 }
 
+// GetDesiredLRP returns DesiredLRP that is part of this ADIdentifier
+func (id ADIdentifier) GetDesiredLRP() *DesiredLRP {
+	return &(id.desiredLRP)
+}
+
 // String returns the string representation of this ADIdentifier
 func (id ADIdentifier) String() string {
-	ret := fmt.Sprintf("%s/%s", id.desiredLRP.ProcessGUID, id.svcName)
 	if id.actualLRP != nil {
-		ret = fmt.Sprintf("%s/%d", ret, id.actualLRP.Index)
+		// For container checks, use processGUID to have 1 check per container, even during rolling redeployments
+		return fmt.Sprintf("%s/%s/%d", id.desiredLRP.ProcessGUID, id.svcName, id.actualLRP.Index)
 	}
-	return ret
+	// For non container checks, use appGUID to have one check per service, even during rolling redeployments
+	return fmt.Sprintf("%s/%s", id.desiredLRP.AppGUID, id.svcName)
 }
 
 // ActualLRP carries the necessary data about an Actual LRP obtained through BBS API
 type ActualLRP struct {
-	AppGUID     string
-	CellID      string
-	ContainerIP string
-	Index       int32
-	Ports       []uint32
-	ProcessGUID string
-	State       string
+	CellID       string
+	ContainerIP  string
+	Index        int32
+	Ports        []uint32
+	ProcessGUID  string
+	InstanceGUID string
+	State        string
 }
 
 // DesiredLRP carries the necessary data about a Desired LRP obtained through BBS API
 type DesiredLRP struct {
-	AppGUID         string
-	EnvAD           ADConfig
-	EnvVcapServices map[string][]byte
-	ProcessGUID     string
+	AppGUID            string
+	AppName            string
+	EnvAD              ADConfig
+	EnvVcapServices    map[string][]byte
+	EnvVcapApplication map[string]string
+	ProcessGUID        string
 }
 
 // ActualLRPFromBBSModel creates a new ActualLRP from BBS's ActualLRP model
@@ -90,13 +112,13 @@ func ActualLRPFromBBSModel(bbsLRP *models.ActualLRP) ActualLRP {
 		ports = append(ports, pm.ContainerPort)
 	}
 	a := ActualLRP{
-		AppGUID:     appGUIDFromProcessGUID(bbsLRP.ProcessGuid),
-		CellID:      bbsLRP.CellId,
-		ContainerIP: bbsLRP.InstanceAddress,
-		Index:       bbsLRP.Index,
-		Ports:       ports,
-		ProcessGUID: bbsLRP.ProcessGuid,
-		State:       bbsLRP.State,
+		CellID:       bbsLRP.CellId,
+		ContainerIP:  bbsLRP.InstanceAddress,
+		Index:        bbsLRP.Index,
+		Ports:        ports,
+		ProcessGUID:  bbsLRP.ProcessGuid,
+		State:        bbsLRP.State,
+		InstanceGUID: bbsLRP.InstanceGuid,
 	}
 	return a
 }
@@ -105,8 +127,8 @@ func ActualLRPFromBBSModel(bbsLRP *models.ActualLRP) ActualLRP {
 func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 	envAD := ADConfig{}
 	envVS := map[string][]byte{}
+	envVA := map[string]string{}
 	actionEnvs := [][]*models.EnvironmentVariable{}
-	appGUID := appGUIDFromProcessGUID(bbsLRP.ProcessGuid)
 	// Actions are a nested structure, e.g parallel action might contain two serial actions etc
 	// We go through all actions breadth-first and record environment from all run actions,
 	// since these are the ones we need to find
@@ -138,14 +160,20 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 			if ev.Name == EnvAdVariableName {
 				err = json.Unmarshal([]byte(ev.Value), &envAD)
 				if err != nil {
-					log.Errorf("Failed unmarshalling %s env variable for app %s: %s",
-						EnvAdVariableName, appGUID, err.Error())
+					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+						EnvAdVariableName, bbsLRP.ProcessGuid, err.Error())
 				}
 			} else if ev.Name == EnvVcapServicesVariableName {
-				envVS, err = getVcapServicesMap(ev.Value, appGUID)
+				envVS, err = getVcapServicesMap(ev.Value, bbsLRP.ProcessGuid)
 				if err != nil {
-					log.Errorf("Failed unmarshalling %s env variable for app %s: %s",
-						EnvVcapServicesVariableName, appGUID, err.Error())
+					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+						EnvVcapServicesVariableName, bbsLRP.ProcessGuid, err.Error())
+				}
+			} else if ev.Name == EnvVcapApplicationName {
+				envVA, err = getVcapApplicationMap(ev.Value)
+				if err != nil {
+					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+						EnvVcapApplicationName, bbsLRP.ProcessGuid, err.Error())
 				}
 			}
 		}
@@ -154,20 +182,26 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 			break
 		}
 	}
+	appGUID, ok := envVA[ApplicationIDKey]
+	if !ok || appGUID == "" {
+		log.Errorf("Couldn't extract app GUID from LRP %s", bbsLRP.ProcessGuid)
+	}
+	appName, ok := envVA[ApplicationNameKey]
+	if !ok || appName == "" {
+		log.Errorf("Couldn't extract app name from LRP %s", bbsLRP.ProcessGuid)
+	}
 	d := DesiredLRP{
-		AppGUID:         appGUID,
-		EnvAD:           envAD,
-		EnvVcapServices: envVS,
-		ProcessGUID:     bbsLRP.ProcessGuid,
+		AppGUID:            appGUID,
+		AppName:            appName,
+		EnvAD:              envAD,
+		EnvVcapServices:    envVS,
+		EnvVcapApplication: envVA,
+		ProcessGUID:        bbsLRP.ProcessGuid,
 	}
 	return d
 }
 
-func appGUIDFromProcessGUID(processGUID string) string {
-	return processGUID[0:36]
-}
-
-func getVcapServicesMap(vcap, appGUID string) (map[string][]byte, error) {
+func getVcapServicesMap(vcap, processGUID string) (map[string][]byte, error) {
 	// VCAP_SERVICES maps broker names to lists of service instances
 	// e.g. {"broker": [{"name": "my-service-1", ...}, ...], ...}
 	var vcMap map[string][]map[string]interface{}
@@ -187,12 +221,12 @@ func getVcapServicesMap(vcap, appGUID string) (map[string][]byte, error) {
 			if name, ok := inst["name"]; ok {
 				nameStr, success := name.(string)
 				if !success {
-					log.Errorf("Failed converting name of instance %v of App %s to string", name, appGUID)
+					log.Errorf("Failed converting name of instance %v of LRP %s to string", name, processGUID)
 					continue
 				}
 				serializedInst, err := json.Marshal(inst)
 				if err != nil {
-					log.Errorf("Failed serializing instance %s of App %s to JSON", nameStr, appGUID)
+					log.Errorf("Failed serializing instance %s of LRP %s to JSON", nameStr, processGUID)
 					continue
 				}
 				ret[nameStr] = serializedInst
@@ -201,4 +235,34 @@ func getVcapServicesMap(vcap, appGUID string) (map[string][]byte, error) {
 	}
 
 	return ret, nil
+}
+
+func getVcapApplicationMap(vcap string) (map[string]string, error) {
+	// VCAP_APPLICATION describes the application
+	// e.g. {"application_id": "...", "application_name": "...", ...
+	var vcMap map[string]interface{}
+	var res = make(map[string]string)
+	if vcap == "" {
+		return res, nil
+	}
+
+	err := json.Unmarshal([]byte(vcap), &vcMap)
+	if err != nil {
+		return res, err
+	}
+
+	// Keep only needed keys
+	for _, key := range envVcapApplicationKeys {
+		val, ok := vcMap[key]
+		if !ok {
+			return res, fmt.Errorf("could not find key %s in VCAP_APPLICATION env var", key)
+		}
+		valString, ok := val.(string)
+		if !ok {
+			return res, fmt.Errorf("could not parse the value of %s as a string", key)
+		}
+		res[key] = valString
+	}
+
+	return res, nil
 }

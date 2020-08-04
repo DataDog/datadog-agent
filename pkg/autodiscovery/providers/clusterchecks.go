@@ -39,12 +39,21 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 	}
 
 	c.nodeName, _ = util.GetHostname()
+	if config.Datadog.GetBool("cloud_foundry") {
+		boshID := config.Datadog.GetString("bosh_id")
+		if boshID == "" {
+			log.Warn("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
+		} else {
+			c.nodeName = boshID
+		}
+	}
+
 	if cfg.GraceTimeSeconds > 0 {
 		c.graceDuration = time.Duration(cfg.GraceTimeSeconds) * time.Second
 	}
 
 	// Register in the cluster agent as soon as possible
-	c.IsUpToDate()
+	c.IsUpToDate() //nolint:errcheck
 
 	return c, nil
 }

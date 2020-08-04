@@ -23,6 +23,7 @@
 #include <sddl.h>
 #include <shlwapi.h>
 #include <shlobj.h>
+#include <UserEnv.h>
 
 #include <stdlib.h>
 #include <strsafe.h>

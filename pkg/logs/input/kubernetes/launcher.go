@@ -12,12 +12,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/input"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 const (
@@ -37,6 +37,7 @@ type Launcher struct {
 	addedServices      chan *service.Service
 	removedServices    chan *service.Service
 	collectAll         bool
+	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
 // NewLauncher returns a new launcher.
@@ -54,6 +55,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		stopped:            make(chan struct{}),
 		kubeutil:           kubeutil,
 		collectAll:         collectAll,
+		serviceNameFunc:    input.ServiceNameFromTags,
 	}
 	launcher.addedServices = services.GetAllAddedServices()
 	launcher.removedServices = services.GetAllRemovedServices()
@@ -150,6 +152,7 @@ const kubernetesIntegration = "kubernetes"
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
+	standardService := l.serviceNameFunc(container.Name, getTaggerEntityID(container.ID))
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {
@@ -160,18 +163,28 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
-		shortImageName, err := l.getShortImageName(container)
-		if err != nil {
+		if standardService != "" {
 			cfg = &config.LogsConfig{
 				Source:  kubernetesIntegration,
-				Service: kubernetesIntegration,
+				Service: standardService,
 			}
 		} else {
-			cfg = &config.LogsConfig{
-				Source:  shortImageName,
-				Service: shortImageName,
+			shortImageName, err := l.getShortImageName(container)
+			if err != nil {
+				cfg = &config.LogsConfig{
+					Source:  kubernetesIntegration,
+					Service: kubernetesIntegration,
+				}
+			} else {
+				cfg = &config.LogsConfig{
+					Source:  shortImageName,
+					Service: shortImageName,
+				}
 			}
 		}
+	}
+	if cfg.Service == "" && standardService != "" {
+		cfg.Service = standardService
 	}
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(basePath, pod, container)

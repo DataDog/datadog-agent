@@ -8,29 +8,32 @@ package cluster
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	cache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestFormatEvent(t *testing.T) {
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600)
-	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", 709662600)
+	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", 709662600)
+	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", "Normal", 709662600)
 
 	eventList := []*v1.Event{
 		ev1,
 		ev2,
 	}
 	b := &kubernetesEventBundle{
+		name:          "dca-789976f5d7-2ljx6",
 		events:        eventList,
 		objUID:        types.UID("some_id"),
 		component:     "Pod",
+		kind:          "Pod",
 		countByAction: make(map[string]int),
 	}
 
@@ -41,7 +44,7 @@ func TestFormatEvent(t *testing.T) {
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(b.lastTimestamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)},
+		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("pod_name:%s", b.name)},
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 	}
 	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
@@ -50,12 +53,13 @@ func TestFormatEvent(t *testing.T) {
 	output, err := b.formatEvents("", providerIDCache)
 
 	assert.Nil(t, err, "not nil")
-	assert.Equal(t, expectedOutput, output)
+	assert.Equal(t, expectedOutput.Text, output.Text)
+	assert.ElementsMatch(t, expectedOutput.Tags, output.Tags)
 }
 
 func TestFormatEventWithNodename(t *testing.T) {
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600)
-	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", 709662600)
+	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", 709662600)
+	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", "Normal", 709662600)
 
 	eventList := []*v1.Event{
 		ev1,
@@ -70,6 +74,8 @@ func TestFormatEventWithNodename(t *testing.T) {
 		events:        eventList,
 		objUID:        types.UID("some_id"),
 		component:     "Pod",
+		kind:          "Pod",
+		name:          "dca-789976f5d7-2ljx6",
 		countByAction: make(map[string]int),
 		nodename:      nodename,
 	}
@@ -81,7 +87,7 @@ func TestFormatEventWithNodename(t *testing.T) {
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(b.lastTimestamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("host_provider_id:%s", providerID)},
+		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("pod_name:%s", b.name), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("host_provider_id:%s", providerID)},
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 	}
 	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
@@ -91,5 +97,37 @@ func TestFormatEventWithNodename(t *testing.T) {
 	output, err := b.formatEvents(clusterName, providerIDCache)
 
 	assert.Nil(t, err, "not nil")
-	assert.Equal(t, expectedOutput, output)
+	assert.Equal(t, expectedOutput.Text, output.Text)
+	assert.ElementsMatch(t, expectedOutput.Tags, output.Tags)
+}
+
+func Test_getDDAlertType(t *testing.T) {
+	tests := []struct {
+		name    string
+		k8sType string
+		want    metrics.EventAlertType
+	}{
+		{
+			name:    "normal",
+			k8sType: "Normal",
+			want:    metrics.EventAlertTypeInfo,
+		},
+		{
+			name:    "warning",
+			k8sType: "Warning",
+			want:    metrics.EventAlertTypeWarning,
+		},
+		{
+			name:    "unknown",
+			k8sType: "Unknown",
+			want:    metrics.EventAlertTypeInfo,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getDDAlertType(tt.k8sType); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getDDAlertType() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

@@ -14,8 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -32,41 +34,21 @@ var timeFormat = "2006-01-02 15:04:05.000000 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
+	stats, err := getCommonStatus()
 	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
+		return nil, err
 	}
 
-	stats["version"] = version.AgentVersion
-	hostnameData, err := util.GetHostnameData()
-
-	var metadata *host.Payload
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		metadata = host.GetPayloadFromCache(hostnameData)
-	}
-	stats["metadata"] = metadata
-
+	stats["config"] = getPartialConfig()
+	metadata := stats["metadata"].(*host.Payload)
 	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))
 	hostTags = append(hostTags, metadata.HostTags.System...)
 	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
 	stats["hostTags"] = hostTags
 
-	stats["config"] = getPartialConfig()
-	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-
-	stats["pid"] = os.Getpid()
-	stats["go_version"] = runtime.Version()
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
-	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["hostinfo"] = host.GetStatusInformation()
-	stats["build_arch"] = runtime.GOARCH
-	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
 
 	stats["JMXStatus"] = GetJMXStatus()
 	stats["JMXStartupError"] = GetJMXStartupError()
@@ -84,7 +66,9 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
-	stats["systemProbeStats"] = getSystemProbeStats()
+	if config.Datadog.GetBool("system_probe_config.enabled") {
+		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	}
 
 	return stats, nil
 }
@@ -144,25 +128,15 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 
 // GetDCAStatus grabs the status from expvar and puts it into a map
 func GetDCAStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
+	stats, err := getCommonStatus()
 	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
+		return nil, err
 	}
+
 	stats["config"] = getDCAPartialConfig()
-	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-	stats["version"] = version.AgentVersion
-	stats["pid"] = os.Getpid()
-	hostnameData, err := util.GetHostnameData()
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
-	}
-	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
+
+	stats["logsStats"] = logs.GetStatus()
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -174,8 +148,10 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
+		stats["admissionWebhook"] = map[string]string{"Error": err.Error()}
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
+		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
 	}
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
@@ -207,6 +183,26 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 		log.Infof("Error formatting the status %q", err)
 		return nil, err
 	}
+	return []byte(st), nil
+}
+
+// GetAndFormatSecurityAgentStatus gets and formats the security agent status
+func GetAndFormatSecurityAgentStatus() ([]byte, error) {
+	s, err := GetStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := FormatSecurityAgentStatus(statusJSON)
+	if err != nil {
+		return nil, err
+	}
+
 	return []byte(st), nil
 }
 
@@ -249,45 +245,76 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 	return endpointsInfos, nil
 }
 
+// getCommonStatus grabs the status from expvar and puts it into a map.
+// It gets the status elements common to all Agent flavors.
+func getCommonStatus() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+	stats, err := expvarStats(stats)
+	if err != nil {
+		log.Errorf("Error Getting ExpVar Stats: %v", err)
+	}
+
+	stats["version"] = version.AgentVersion
+	stats["flavor"] = flavor.GetFlavor()
+	hostnameData, err := util.GetHostnameData()
+
+	if err != nil {
+		log.Errorf("Error grabbing hostname for status: %v", err)
+		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+	} else {
+		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
+	}
+
+	stats["conf_file"] = config.Datadog.ConfigFileUsed()
+	stats["pid"] = os.Getpid()
+	stats["go_version"] = runtime.Version()
+	stats["agent_start"] = startTime.Format(timeFormat)
+	stats["build_arch"] = runtime.GOARCH
+	now := time.Now()
+	stats["time"] = now.Format(timeFormat)
+
+	return stats, nil
+}
+
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
-	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
+	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
 	stats["forwarderStats"] = forwarderStats
 
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats)
+	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
 	stats["runnerStats"] = runnerStats
 
 	autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
 	autoConfigStats := make(map[string]interface{})
-	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats)
+	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
 	stats["autoConfigStats"] = autoConfigStats
 
 	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
 	checkSchedulerStats := make(map[string]interface{})
-	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats)
+	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
 	stats["checkSchedulerStats"] = checkSchedulerStats
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})
-	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
+	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
 	stats["aggregatorStats"] = aggregatorStats
 
 	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
 	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
 	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
 	dogstatsdStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
 	dogstatsdUdsStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats)
+	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
 	for name, value := range dogstatsdUdsStats {
 		dogstatsdStats["Uds"+name] = value
 	}
 	dogstatsdUDPStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats)
+	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
 	for name, value := range dogstatsdUDPStats {
 		dogstatsdStats["Udp"+name] = value
 	}
@@ -297,7 +324,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	if pyLoaderData != nil {
 		pyLoaderStatsJSON := []byte(pyLoaderData.String())
 		pyLoaderStats := make(map[string]interface{})
-		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats)
+		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
 		stats["pyLoaderStats"] = pyLoaderStats
 	} else {
 		stats["pyLoaderStats"] = nil
@@ -307,7 +334,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	if pythonInitData != nil {
 		pythonInitJSON := []byte(pythonInitData.String())
 		pythonInit := make(map[string]interface{})
-		json.Unmarshal(pythonInitJSON, &pythonInit)
+		json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
 		stats["pythonInit"] = pythonInit
 	} else {
 		stats["pythonInit"] = nil
@@ -315,10 +342,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
-	json.Unmarshal(hostnameStatsJSON, &hostnameStats)
+	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	if expvar.Get("ntpOffset").String() != "" {
+	ntpOffset := expvar.Get("ntpOffset")
+	if ntpOffset != nil && ntpOffset.String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
 
@@ -326,7 +354,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	var inventoriesStats map[string]interface{}
 	if inventories != nil {
 		inventoriesStatsJSON := []byte(inventories.String())
-		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
+		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
 	}
 
 	checkMetadata := map[string]map[string]string{}

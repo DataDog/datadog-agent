@@ -10,6 +10,7 @@ package python
 import (
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -170,7 +171,7 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 func WritePersistentCache(key, value *C.char) {
 	keyName := C.GoString(key)
 	val := C.GoString(value)
-	persistentcache.Write(keyName, val)
+	persistentcache.Write(keyName, val) //nolint:errcheck
 }
 
 // ReadPersistentCache retrieves a value for one check instance
@@ -184,4 +185,21 @@ func ReadPersistentCache(key *C.char) *C.char {
 		return nil
 	}
 	return TrackedCString(data)
+}
+
+var obfuscator = obfuscate.NewObfuscator(nil)
+
+// ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
+// fails
+//export ObfuscateSQL
+func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
+	s := C.GoString(rawQuery)
+	obfuscatedQuery, err := obfuscator.ObfuscateSQLString(s)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedQuery.Query)
 }

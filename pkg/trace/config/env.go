@@ -38,6 +38,7 @@ func loadEnv() {
 		{"DD_APM_ENV", "apm_config.env"},
 		{"DD_APM_NON_LOCAL_TRAFFIC", "apm_config.apm_non_local_traffic"},
 		{"DD_APM_DD_URL", "apm_config.apm_dd_url"},
+		{"DD_APM_CONNECTION_RESET_INTERVAL", "apm_config.connection_reset_interval"},
 		{"DD_RECEIVER_PORT", "apm_config.receiver_port"}, // deprecated
 		{"DD_APM_RECEIVER_PORT", "apm_config.receiver_port"},
 		{"DD_MAX_EPS", "apm_config.max_events_per_second"}, // deprecated

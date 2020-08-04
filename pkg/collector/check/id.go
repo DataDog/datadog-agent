@@ -24,8 +24,8 @@ func Identify(check Check, instance integration.Data, initConfig integration.Dat
 // BuildID returns an unique ID for a check name and its configuration
 func BuildID(checkName string, instance, initConfig integration.Data) ID {
 	h := fnv.New64()
-	h.Write([]byte(instance))
-	h.Write([]byte(initConfig))
+	h.Write([]byte(instance))   //nolint:errcheck
+	h.Write([]byte(initConfig)) //nolint:errcheck
 	name := instance.GetNameForInstance()
 
 	if name != "" {

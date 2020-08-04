@@ -8,8 +8,6 @@ package flare
 import (
 	"bufio"
 	"bytes"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -38,18 +36,10 @@ func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) 
 }
 
 func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
-	b := make([]byte, 10)
-	_, err := rand.Read(b)
+	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
 	}
-
-	dirName := hex.EncodeToString(b)
-	tempDir, err := ioutil.TempDir("", dirName)
-	if err != nil {
-		return "", err
-	}
-
 	defer os.RemoveAll(tempDir)
 
 	// Get hostname, if there's an error in getting the hostname,
@@ -61,13 +51,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 
 	// If the request against the API does not go through we don't collect the status log.
 	if local {
-		f := filepath.Join(tempDir, hostname, "local")
-		err = ensureParentDirsExist(f)
-		if err != nil {
-			return "", err
-		}
-
-		err = ioutil.WriteFile(f, []byte{}, os.ModePerm)
+		err = writeLocal(tempDir, hostname)
 		if err != nil {
 			return "", err
 		}
@@ -130,6 +114,11 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		}
 	}
 
+	err = zipClusterAgentTelemetry(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip telemetry payload: %v", err)
+	}
+
 	err = permsInfos.commit(tempDir, hostname, os.ModePerm)
 	if err != nil {
 		log.Infof("Error while creating permissions.log infos file: %s", err)
@@ -141,6 +130,15 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	}
 
 	return zipFilePath, nil
+}
+
+func writeLocal(tempDir, hostname string) error {
+	f := filepath.Join(tempDir, hostname, "local")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(f, []byte{}, os.ModePerm)
 }
 
 func zipDCAStatusFile(tempDir, hostname string) error {
@@ -210,7 +208,7 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterChecks(writer)
+	GetClusterChecks(writer) //nolint:errcheck
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
@@ -268,7 +266,7 @@ func zipClusterAgentConfigCheck(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterAgentConfigCheck(writer, true)
+	GetClusterAgentConfigCheck(writer, true) //nolint:errcheck
 	writer.Flush()
 
 	return writeConfigCheck(tempDir, hostname, b.Bytes())
@@ -278,7 +276,7 @@ func zipClusterAgentDiagnose(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterAgentDiagnose(writer)
+	GetClusterAgentDiagnose(writer) //nolint:errcheck
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
@@ -294,5 +292,27 @@ func zipClusterAgentDiagnose(tempDir, hostname string) error {
 	defer w.Close()
 
 	_, err = w.Write(b.Bytes())
+	return err
+}
+
+func zipClusterAgentTelemetry(tempDir, hostname string) error {
+	payload, err := QueryDCAMetrics()
+	if err != nil {
+		return err
+	}
+
+	f := filepath.Join(tempDir, hostname, "telemetry.log")
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = w.Write(payload)
 	return err
 }

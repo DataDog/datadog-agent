@@ -41,6 +41,7 @@ int verifyServices(CustomActionData& data);
 
 //delfiles.cpp
 BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dirs = false);
+BOOL DeleteHomeDirectory(const std::wstring &user, PSID userSID);
 
 //caninstall.cpp 
 bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword);

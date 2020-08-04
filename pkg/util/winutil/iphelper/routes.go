@@ -131,7 +131,7 @@ func GetIPv4RouteTable() (table []MIB_IPFORWARDROW, err error) {
 	}
 	count := uint32(binary.LittleEndian.Uint32(rawbuf))
 
-	entries := (*[1 << 30]MIB_IPFORWARDROW)(unsafe.Pointer(&rawbuf[4]))[:count:count]
+	entries := (*[1 << 24]MIB_IPFORWARDROW)(unsafe.Pointer(&rawbuf[4]))[:count:count]
 	for _, entry := range entries {
 
 		table = append(table, entry)
@@ -169,7 +169,7 @@ func GetExtendedTcpV4Table() (table map[uint32][]MIB_TCPROW_OWNER_PID, err error
 	count := uint32(binary.LittleEndian.Uint32(rawbuf))
 	table = make(map[uint32][]MIB_TCPROW_OWNER_PID)
 
-	entries := (*[1 << 30]MIB_TCPROW_OWNER_PID)(unsafe.Pointer(&rawbuf[4]))[:count:count]
+	entries := (*[1 << 24]MIB_TCPROW_OWNER_PID)(unsafe.Pointer(&rawbuf[4]))[:count:count]
 	for _, entry := range entries {
 		pid := entry.DwOwningPid
 
@@ -203,7 +203,7 @@ func GetIFTable() (table map[uint32]MIB_IFROW, err error) {
 	count := uint32(binary.LittleEndian.Uint32(rawbuf))
 	table = make(map[uint32]MIB_IFROW)
 
-	entries := (*[1 << 30]MIB_IFROW)(unsafe.Pointer(&rawbuf[4]))[:count:count]
+	entries := (*[1 << 20]MIB_IFROW)(unsafe.Pointer(&rawbuf[4]))[:count:count]
 	for _, entry := range entries {
 		idx := entry.DwIndex
 
