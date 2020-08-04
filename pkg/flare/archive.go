@@ -94,18 +94,6 @@ type Profile struct {
 	SecondHeapProfile []byte
 }
 
-// CreateTempDir creates a temporary directory in the current working directory.
-func CreateTempDir() (string, error) {
-	b := make([]byte, 10)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-
-	dirName := hex.EncodeToString(b)
-	return ioutil.TempDir("", dirName)
-}
-
 // CreateArchive packages up the files
 func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, profile *Profile) (string, error) {
 	zipFilePath := getArchivePath()
@@ -118,7 +106,7 @@ func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, profi
 }
 
 func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFilePath string, profile *Profile) (string, error) {
-	tempDir, err := CreateTempDir()
+	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
 	}
@@ -284,6 +272,16 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFile
 	return zipFilePath, nil
 }
 
+func createTempDir() (string, error) {
+	b := make([]byte, 10)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+
+	dirName := hex.EncodeToString(b)
+	return ioutil.TempDir("", dirName)
+}
 func zipStatusFile(tempDir, hostname string) error {
 	// Grab the status
 	s, err := status.GetAndFormatStatus()
