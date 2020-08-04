@@ -9,8 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"os"
 
 	"github.com/fatih/color"
@@ -189,17 +187,18 @@ func createArchive(logFile string, profile *flare.Profile) (string, error) {
 
 func createPerformanceProfile() (*flare.Profile, error) {
 	// Two heap profiles for diff
-	firstHeapProf, err := writeHTTPCallContent(heapProfURL)
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+	firstHeapProf, err := util.DoGet(c, heapProfURL)
 	if err != nil {
 		return nil, err
 	}
 
-	cpuProf, err := writeHTTPCallContent(cpuProfURL)
+	cpuProf, err := util.DoGet(c, cpuProfURL)
 	if err != nil {
 		return nil, err
 	}
 
-	secondHeapProf, err := writeHTTPCallContent(heapProfURL)
+	secondHeapProf, err := util.DoGet(c, heapProfURL)
 	if err != nil {
 		return nil, err
 	}
@@ -209,18 +208,4 @@ func createPerformanceProfile() (*flare.Profile, error) {
 		CPUProfile:        cpuProf,
 		SecondHeapProfile: secondHeapProf,
 	}, nil
-}
-
-func writeHTTPCallContent(url string) ([]byte, error) {
-	res, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
 }
