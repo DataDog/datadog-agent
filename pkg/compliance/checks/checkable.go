@@ -15,10 +15,13 @@ type checkable interface {
 	check(env env.Env) (*compliance.Report, error)
 }
 
-// checkableList abstracts a series of resource checks
+// checkableList abstracts a list of resource checks
 type checkableList []checkable
 
 // check implements checkable interface for checkableList
+// note that this implements AND for all checkables in a check:
+// failure or error from a single checkable fails the check, all checkables must
+// return Passed in order for the check to be successful.
 func (list checkableList) check(env env.Env) (*compliance.Report, error) {
 	var (
 		result *compliance.Report
@@ -27,7 +30,7 @@ func (list checkableList) check(env env.Env) (*compliance.Report, error) {
 
 	for _, c := range list {
 		result, err = c.check(env)
-		if err == nil && result.Passed {
+		if err != nil || !result.Passed {
 			break
 		}
 	}

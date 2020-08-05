@@ -265,6 +265,19 @@ func (e *Expression) Evaluate(instance *Instance) (interface{}, error) {
 	}
 }
 
+// BoolEvaluate evaluates an expression for an instance as a boolean value
+func (e *Expression) BoolEvaluate(instance *Instance) (bool, error) {
+	v, err := e.Evaluate(instance)
+	if err != nil {
+		return false, err
+	}
+	passed, ok := v.(bool)
+	if !ok {
+		return false, lexer.Errorf(e.Pos, "expression must evaluate to a boolean")
+	}
+	return passed, nil
+}
+
 // Evaluate implements Evaluatable interface
 func (c *Comparison) Evaluate(instance *Instance) (interface{}, error) {
 	lhs, err := c.Term.Evaluate(instance)
