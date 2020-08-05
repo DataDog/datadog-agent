@@ -463,6 +463,16 @@ pre_release_cluster_agent_image:
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
 
+
+.molecule_base: &molecule_base
+  image: python:2.7.17
+  before_script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export LC_CTYPE=en_US.UTF-8
+    - export LANG=en_US.UTF-8
+
 molecule_tests_vms:
   stage: acceptance
   needs:
@@ -470,11 +480,8 @@ molecule_tests_vms:
     - pre_release_rpm
     - pre_release_win
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s vms
   artifacts:
     when: always
@@ -489,10 +496,8 @@ molecule_tests_compose:
     - pre_release_image
   dependencies: []
   before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s compose
   artifacts:
     when: always
@@ -507,11 +512,8 @@ molecule_tests_local_install:
     - pre_release_deb
     - pre_release_rpm
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-   - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-   - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-   - export MOLECULE_RUN_ID=${CI_JOB_ID}
    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s localinstall
   only:
     - master
@@ -524,11 +526,8 @@ molecule_tests_kubernetes:
     - pre_release_cluster_agent_image
     - pre_release_image
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s kubernetes
   artifacts:
     when: always
@@ -542,11 +541,8 @@ molecule_tests_secrets:
   needs:
     - pre_release_deb
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s secrets
   only:
     - master
@@ -563,11 +559,8 @@ molecule_tests_nagios:
   needs:
     - pre_release_image
   dependencies: []
-  before_script: []
+  <<: *molecule_base
   script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s nagios
   artifacts:
     when: always
