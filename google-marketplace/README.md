@@ -33,6 +33,7 @@ Your development environment should contain the following tools:
 - [gcloud](https://cloud.google.com/sdk/gcloud/)
 - [kubectl](https://kubernetes.io/docs/reference/kubectl/overview/)
 - [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+- [helm + mpdev](https://github.com/GoogleCloudPlatform/marketplace-k8s-app-tools/blob/master/docs/tool-prerequisites.md)
 
 ##### Create a Datadog account
 
@@ -64,110 +65,20 @@ Clone this repository.
 git clone git@github.com:DataDog/datadog-agent.git
 ```
 
-###### Install the Application resource definition
+###### Deploy the application through mpdev
 
-An Application resource is a collection of individual Kubernetes components,
-such as Services, Deployments, and so on, that you can manage as a group.
+It's recommended to install the application in a dedicated namespace.
+Before launching installation you need to setup some varaibles:
 
-To set up your cluster to understand Application resources, navigate to the
-`google-marketplace` folder in the repository, and run the following command:
-
-```shell
-make crd/install
+```
+export REGISTRY=gcr.io/$(gcloud config get-value project | tr ':' '/')
+export APP_NAME=datadog
+export TAG=0.3.1 # Datadog Operator version that will be installed
 ```
 
-You need to run this command once.
+You may also to customize some parameters (name, namespace, APIKey)
 
-The Application resource is defined by the
-[Kubernetes SIG-apps](https://github.com/kubernetes/community/tree/master/sig-apps)
-community. The source code can be found on
-[github.com/kubernetes-sigs/application](https://github.com/kubernetes-sigs/application).
+docker build --build-arg TAG=$TAG --tag $REGISTRY/$APP_NAME/deployer . && docker push $REGISTRY/$APP_NAME/deployer && mpdev install \
+  --deployer=$REGISTRY/$APP_NAME/deployer \
+  --parameters='{"name": "datadog", "namespace": "datadog-agent", "datadog.credentials.apiKey": "<your_api_key>"}'
 
-#### Install the Application
-
-Navigate to the `google-marketplace` folder:
-
-```shell
-cd datadog-agent/google-marketplace
-```
-
-##### Configure the application with environment variables
-
-Choose an instance name and
-[namespace](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/)
-for the app. In most cases, you can use the `default` namespace.
-
-```shell
-export namespace=default
-export name=datadog-agent
-```
-
-Configure the container image:
-
-```shell
-export datadogAgentImage=datadog/agent:latest
-```
-
-The image above is referenced by
-[tag](https://docs.docker.com/engine/reference/commandline/tag). We recommend
-that you pin each image to an immutable
-[content digest](https://docs.docker.com/registry/spec/api/#content-digests).
-This ensures that the installed application always uses the same images,
-until you are ready to upgrade.
-
-Fill in your Datadog API key:
-
-```shell
-export apiKeyEncoded=$(echo YOUR_DATADOG_API_KEY | base64)
-```
-
-##### Configure the service account
-
-The Datadog Agent needs a service account in the target namespace with cluster wide
-permissions to inspect Kubernetes resources.
-
-Create a `ClusterRole` in your target Kubernetes cluster, a `ServiceAccount` in the namespace specified earlier, and a `ClusterRoleBinding` to tie them together:
-
-```shell
-export serviceAccount=datadog-agent-sa
-make rbac/install  # from the datadog-agent/google-marketplace folder
-```
-
-##### Install the Datadog application
-
-Install the Datadog Agent with the following command:
-
-```bash
-make app/install
-```
-
-This expands the templates located in the `datadog-agent/google-marketplace/manifest` folder with the parameters given previously, and apply them, creating a Secret for the API key, and a DaemonSet tied to the service account previously created.
-
-## Basic Usage
-
-Once the application is installed, your Kubernetes nodes show up in your [Datadog Infrastructure Map](https://app.datadoghq.com/infrastructure/map) and metrics start [flowing to your Datadog account](https://app.datadoghq.com/metric/summary)!
-
-To further configure your agents, and setup your account, refer to [the Datadog documentation](https://docs.datadoghq.com/).
-
-## Backup and restore
-
-The agent is stateless, and all your data is backed up in your Datadog account.
-
-## Image updates
-
-## Scaling
-
-The agent is deployed as a DaemonSet, it will automatically scale with your cluster.
-
-## Deletion
-
-Remove the agent resources following the [on-screen instructions](https://console.cloud.google.com/marketplace/details/datadog-saas/datadog).
-
-Or if you followed the command line instructions, by running the following commands from the `datadog-agent/google-marketplace` folder:
-
-```shell
-make app/uninstall
-make rbac/uninstall
-export serviceAccount=datadog-agent-sa
-make rbac/install  # from the datadog-agent/google-marketplace folder
-```
