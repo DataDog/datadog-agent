@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -757,12 +758,7 @@ func InitConfig(config Config) {
 }
 
 var (
-	ddURLs = map[string]interface{}{
-		"app.datadoghq.com": nil,
-		"app.datadoghq.eu":  nil,
-		"app.datad0g.com":   nil,
-		"app.datad0g.eu":    nil,
-	}
+	ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
 )
 
 // GetProxies returns the proxy settings from the configuration
@@ -992,8 +988,8 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 		return "", err
 	}
 
-	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
-	if _, found := ddURLs[u.Host]; !found {
+	// we don't update unknown URLs (ie: proxy or custom DD domain)
+	if !ddURLRegexp.MatchString(u.Host) {
 		return DDURL, nil
 	}
 
