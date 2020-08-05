@@ -14,9 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 )
 
-func checkCustom(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
-	if res.Custom == nil || res.Custom.Name == "" {
+type customCheck struct {
+	ruleID    string
+	custom    *compliance.Custom
+	expr      *eval.IterableExpression
+	checkFunc custom.CheckFunc
+}
+
+func newCustomCheck(ruleID string, res compliance.Resource) (checkable, error) {
+	if res.Custom == nil {
 		return nil, fmt.Errorf("expecting custom resource in custom check")
+	}
+
+	if res.Custom.Name == "" {
+		return nil, fmt.Errorf("expecting custom resource name in custom check")
 	}
 
 	expr, err := eval.Cache.ParseIterable(res.Condition)
@@ -29,5 +40,14 @@ func checkCustom(e env.Env, ruleID string, res compliance.Resource) (*compliance
 		return nil, fmt.Errorf("custom check with name: %s does not exist", res.Custom.Name)
 	}
 
-	return f(e, ruleID, res.Custom.Variables, expr)
+	return &customCheck{
+		ruleID:    ruleID,
+		custom:    res.Custom,
+		expr:      expr,
+		checkFunc: f,
+	}, nil
+}
+
+func (c *customCheck) check(e env.Env) (*compliance.Report, error) {
+	return c.checkFunc(e, c.ruleID, c.custom.Variables, c.expr)
 }

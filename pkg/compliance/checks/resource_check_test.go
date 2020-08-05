@@ -6,10 +6,12 @@
 package checks
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
@@ -20,8 +22,6 @@ func TestResourceCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	e := &mocks.Env{}
-	ruleID := "rule-id"
-	resource := compliance.Resource{}
 
 	fallbackReport := &compliance.Report{
 		Passed: false,
@@ -34,59 +34,115 @@ func TestResourceCheck(t *testing.T) {
 	fallback.On("check", e).Return(fallbackReport, nil)
 
 	tests := []struct {
-		name         string
-		checkFn      checkFunc
-		fallback     checkable
+		name              string
+		resourceCondition string
+		resourceResolved  interface{}
+		fallbackCondition string
+		fallback          checkable
+		reportedFields    []string
+
 		expectReport *compliance.Report
 		expectErr    error
 	}{
 		{
-			name: "no fallback provided",
-			checkFn: func(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
-				return &compliance.Report{
-					Passed: true,
-				}, nil
+			name:              "no fallback provided",
+			resourceCondition: "a > 3",
+			resourceResolved: &eval.Instance{
+				Vars: map[string]interface{}{
+					"a": 4,
+					"b": 8,
+				},
 			},
+			reportedFields: []string{"a"},
 			expectReport: &compliance.Report{
 				Passed: true,
+				Data: event.Data{
+					"a": 4,
+				},
 			},
 		},
 		{
-			name: "fallback not used",
-			checkFn: func(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
-				return &compliance.Report{
-					Passed: false,
-				}, nil
+			name:              "fallback not used",
+			resourceCondition: "a >= 3",
+			resourceResolved: &eval.Instance{
+				Vars: map[string]interface{}{
+					"a": 4,
+				},
 			},
-			fallback: fallback,
+			fallbackCondition: "a == 3",
+			fallback:          fallback,
+			reportedFields:    []string{"a"},
 			expectReport: &compliance.Report{
-				Passed: false,
+				Passed: true,
+				Data: event.Data{
+					"a": 4,
+				},
 			},
 		},
 		{
-			name: "fallback used",
-			checkFn: func(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
-				return nil, ErrResourceUseFallback
+			name:              "fallback used",
+			resourceCondition: "a >= 3",
+			resourceResolved: &eval.Instance{
+				Vars: map[string]interface{}{
+					"a": 3,
+				},
 			},
-			fallback:     fallback,
-			expectReport: fallbackReport,
+			fallbackCondition: "a == 3",
+			fallback:          fallback,
+			expectReport:      fallbackReport,
 		},
 		{
-			name: "fallback missing",
-			checkFn: func(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
-				return nil, ErrResourceUseFallback
+			name:              "cannot use fallback",
+			resourceCondition: "a >= 3",
+			resourceResolved: &instanceIterator{
+				instances: []*eval.Instance{
+					{
+						Vars: map[string]interface{}{
+							"a": 3,
+						},
+					},
+				},
 			},
-			expectErr: ErrResourceFallbackMissing,
+			fallbackCondition: "a == 3",
+			fallback:          fallback,
+			expectErr:         ErrResourceCannotUseFallback,
+		},
+		{
+			name:              "fallback missing",
+			resourceCondition: "a >= 3",
+			resourceResolved: &eval.Instance{
+				Vars: map[string]interface{}{
+					"a": 3,
+				},
+			},
+			fallbackCondition: "a == 3",
+			expectErr:         ErrResourceFallbackMissing,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+
+			resource := compliance.Resource{
+				Condition: test.resourceCondition,
+			}
+
+			if test.fallbackCondition != "" {
+				resource.Fallback = &compliance.Fallback{
+					Condition: test.fallbackCondition,
+				}
+			}
+
+			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.Resource) (interface{}, error) {
+				return test.resourceResolved, nil
+			}
+
 			c := &resourceCheck{
-				ruleID:   ruleID,
-				resource: resource,
-				checkFn:  test.checkFn,
-				fallback: test.fallback,
+				ruleID:         "rule-id",
+				resource:       resource,
+				resolve:        resolve,
+				fallback:       test.fallback,
+				reportedFields: test.reportedFields,
 			}
 
 			report, err := c.check(e)

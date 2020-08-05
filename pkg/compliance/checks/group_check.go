@@ -8,6 +8,7 @@ package checks
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,14 +31,9 @@ var groupReportedFields = []string{
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func checkGroup(e env.Env, id string, res compliance.Resource) (*compliance.Report, error) {
+func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resource) (interface{}, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
-	}
-
-	expr, err := eval.Cache.ParseIterable(res.Condition)
-	if err != nil {
-		return nil, err
 	}
 
 	group := res.Group
@@ -64,12 +60,7 @@ func checkGroup(e env.Env, id string, res compliance.Resource) (*compliance.Repo
 		return nil, ErrGroupNotFound
 	}
 
-	passed, err := expr.Evaluate(finder.instance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceToReport(finder.instance, passed, groupReportedFields), nil
+	return finder.instance, nil
 }
 
 type groupFinder struct {

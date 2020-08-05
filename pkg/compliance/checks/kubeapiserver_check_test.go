@@ -65,7 +65,10 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	kubeClient := fake.NewSimpleDynamicClient(runtime.NewScheme(), f.objects...)
 	env.On("KubeClient").Return(kubeClient)
 
-	report, err := checkKubeapiserver(env, "rule-id", f.resource)
+	kubeCheck, err := newResourceCheck(env, "rule-id", f.resource)
+	assert.NoError(err)
+
+	report, err := kubeCheck.check(env)
 	assert.Equal(f.expectReport, report)
 	if f.expectError != nil {
 		assert.EqualError(err, f.expectError.Error())

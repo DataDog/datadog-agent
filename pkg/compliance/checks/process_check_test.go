@@ -39,10 +39,12 @@ func (f *processFixture) run(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	result, err := checkProcess(env, "rule-id", f.resource)
+	processCheck, err := newResourceCheck(env, "rule-id", f.resource)
+	assert.NoError(err)
+
+	result, err := processCheck.check(env)
 	assert.Equal(f.expectReport, result)
 	assert.Equal(f.expectError, err)
-
 }
 
 func TestProcessCheck(t *testing.T) {
@@ -79,6 +81,12 @@ func TestProcessCheck(t *testing.T) {
 				Condition: `process.flag("--tlsverify") != ""`,
 				Fallback: &compliance.Fallback{
 					Condition: `!process.hasFlag("--tlsverify")`,
+					Resource: compliance.Resource{
+						Process: &compliance.Process{
+							Name: "proc2",
+						},
+						Condition: `process.hasFlag("--tlsverify")`,
+					},
 				},
 			},
 			processes: processes{
@@ -86,8 +94,19 @@ func TestProcessCheck(t *testing.T) {
 					Name:    "proc1",
 					Cmdline: []string{"arg1"},
 				},
+				38: {
+					Name:    "proc2",
+					Cmdline: []string{"arg1", "--tlsverify"},
+				},
 			},
-			expectError: ErrResourceUseFallback,
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
+					"process.name":    "proc2",
+					"process.exe":     "",
+					"process.cmdLine": []string{"arg1", "--tlsverify"},
+				},
+			},
 		},
 		{
 			name: "process not found",

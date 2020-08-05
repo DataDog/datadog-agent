@@ -120,7 +120,10 @@ func TestAuditCheck(t *testing.T) {
 				test.setup(t, env)
 			}
 
-			result, err := checkAudit(env, "rule-id", test.resource)
+			auditCheck, err := newResourceCheck(env, "rule-id", test.resource)
+			assert.NoError(err)
+
+			result, err := auditCheck.check(env)
 
 			assert.Equal(test.expectError, err)
 			assert.Equal(test.expectReport, result)

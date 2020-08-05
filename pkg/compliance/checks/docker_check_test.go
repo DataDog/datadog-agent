@@ -69,7 +69,10 @@ func TestDockerImageCheck(t *testing.T) {
 	defer env.AssertExpectations(t)
 	env.On("DockerClient").Return(client)
 
-	report, err := checkDocker(env, "rule-id", resource)
+	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
+	assert.NoError(err)
+
+	report, err := dockerCheck.check(env)
 	assert.NoError(err)
 
 	assert.False(report.Passed)
@@ -98,7 +101,10 @@ func TestDockerNetworkCheck(t *testing.T) {
 	defer env.AssertExpectations(t)
 	env.On("DockerClient").Return(client)
 
-	report, err := checkDocker(env, "rule-id", resource)
+	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
+	assert.NoError(err)
+
+	report, err := dockerCheck.check(env)
 	assert.NoError(err)
 
 	assert.True(report.Passed)
@@ -209,7 +215,10 @@ func TestDockerContainerCheck(t *testing.T) {
 			defer env.AssertExpectations(t)
 			env.On("DockerClient").Return(client)
 
-			report, err := checkDocker(env, "rule-id", resource)
+			dockerCheck, err := newResourceCheck(env, "rule-id", resource)
+			assert.NoError(err)
+
+			report, err := dockerCheck.check(env)
 			assert.NoError(err)
 
 			assert.Equal(test.expectPassed, report.Passed)
@@ -241,7 +250,10 @@ func TestDockerInfoCheck(t *testing.T) {
 	defer env.AssertExpectations(t)
 	env.On("DockerClient").Return(client)
 
-	report, err := checkDocker(env, "rule-id", resource)
+	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
+	assert.NoError(err)
+
+	report, err := dockerCheck.check(env)
 	assert.NoError(err)
 
 	assert.False(report.Passed)
@@ -268,7 +280,10 @@ func TestDockerVersionCheck(t *testing.T) {
 	defer env.AssertExpectations(t)
 	env.On("DockerClient").Return(client)
 
-	report, err := checkDocker(env, "rule-id", resource)
+	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
+	assert.NoError(err)
+
+	report, err := dockerCheck.check(env)
 	assert.NoError(err)
 
 	assert.False(report.Passed)

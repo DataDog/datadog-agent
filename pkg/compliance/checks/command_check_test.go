@@ -53,7 +53,10 @@ func (f *commandFixture) run(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	result, err := checkCommand(env, "rule-id", f.resource)
+	commandCheck, err := newResourceCheck(env, "rule-id", f.resource)
+	assert.NoError(err)
+
+	result, err := commandCheck.check(env)
 	assert.Equal(f.expectReport, result)
 	assert.Equal(f.expectError, err)
 

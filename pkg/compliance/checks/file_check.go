@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,14 +24,9 @@ var fileReportedFields = []string{
 	compliance.FileFieldGroup,
 }
 
-func checkFile(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
-	}
-
-	expr, err := eval.Cache.ParseIterable(res.Condition)
-	if err != nil {
-		return nil, err
 	}
 
 	file := res.File
@@ -88,16 +84,9 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource) (*compliance.R
 		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 
-	it := &instanceIterator{
+	return &instanceIterator{
 		instances: instances,
-	}
-
-	result, err := expr.EvaluateIterator(it, globalInstance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceResultToReport(result, fileReportedFields), nil
+	}, nil
 }
 
 func fileQuery(path string, get getter) eval.Function {

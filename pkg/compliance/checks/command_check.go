@@ -24,14 +24,9 @@ var commandReportedFields = []string{
 	compliance.CommandFieldExitCode,
 }
 
-func checkCommand(_ env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
+func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
 	if res.Command == nil {
 		return nil, fmt.Errorf("%s: expecting command resource in command check", ruleID)
-	}
-
-	expr, err := eval.Cache.ParseIterable(res.Condition)
-	if err != nil {
-		return nil, err
 	}
 
 	command := res.Command
@@ -55,7 +50,7 @@ func checkCommand(_ env.Env, ruleID string, res compliance.Resource) (*complianc
 		commandTimeout = time.Duration(command.TimeoutSeconds) * time.Second
 	}
 
-	context, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	context, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
 
 	exitCode, stdout, err := commandRunner(context, execCommand.Name, execCommand.Args, true)
@@ -63,17 +58,10 @@ func checkCommand(_ env.Env, ruleID string, res compliance.Resource) (*complianc
 		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
 	}
 
-	instance := &eval.Instance{
+	return &eval.Instance{
 		Vars: eval.VarMap{
 			compliance.CommandFieldExitCode: exitCode,
 			compliance.CommandFieldStdout:   string(stdout),
 		},
-	}
-
-	passed, err := expr.Evaluate(instance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceToReport(instance, passed, commandReportedFields), nil
+	}, nil
 }

@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -26,14 +27,9 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func checkProcess(e env.Env, id string, res compliance.Resource) (*compliance.Report, error) {
+func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Resource) (interface{}, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
-	}
-
-	expr, err := eval.Cache.ParseIterable(res.Condition)
-	if err != nil {
-		return nil, err
 	}
 
 	process := res.Process
@@ -66,31 +62,13 @@ func checkProcess(e env.Env, id string, res compliance.Resource) (*compliance.Re
 		instances = append(instances, instance)
 	}
 
-	it := &instanceIterator{
+	if len(instances) == 1 {
+		return instances[0], nil
+	}
+
+	return &instanceIterator{
 		instances: instances,
-	}
-
-	result, err := expr.EvaluateIterator(it, globalInstance)
-	if err != nil {
-		return nil, err
-	}
-
-	if res.Fallback != nil {
-		fallbackExpr, err := eval.Cache.ParseExpression(res.Fallback.Condition)
-		if err != nil {
-			return nil, err
-		}
-
-		useFallback, err := fallbackExpr.BoolEvaluate(result.Instance)
-		if err != nil {
-			return nil, err
-		}
-		if useFallback {
-			return nil, ErrResourceUseFallback
-		}
-	}
-
-	return instanceResultToReport(result, processReportedFields), nil
+	}, nil
 }
 
 func processFlag(flagValues map[string]string) eval.Function {

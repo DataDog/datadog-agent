@@ -286,7 +286,10 @@ func TestFileCheck(t *testing.T) {
 				test.setup(t, env, test.resource.File)
 			}
 
-			report, err := checkFile(env, "rule-id", test.resource)
+			fileCheck, err := newResourceCheck(env, "rule-id", test.resource)
+			assert.NoError(err)
+
+			report, err := fileCheck.check(env)
 
 			if test.expectError != nil {
 				assert.EqualError(err, test.expectError.Error())

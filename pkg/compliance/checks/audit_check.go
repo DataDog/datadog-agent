@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -21,14 +22,9 @@ var auditReportedFields = []string{
 	compliance.AuditFieldPermissions,
 }
 
-func checkAudit(e env.Env, ruleID string, res compliance.Resource) (*compliance.Report, error) {
+func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
-	}
-
-	expr, err := eval.Cache.ParseIterable(res.Condition)
-	if err != nil {
-		return nil, err
 	}
 
 	audit := res.Audit
@@ -70,16 +66,9 @@ func checkAudit(e env.Env, ruleID string, res compliance.Resource) (*compliance.
 		}
 	}
 
-	it := &instanceIterator{
+	return &instanceIterator{
 		instances: instances,
-	}
-
-	result, err := expr.EvaluateIterator(it, globalInstance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceResultToReport(result, auditReportedFields), nil
+	}, nil
 }
 
 func auditPermissionsString(r *rule.FileWatchRule) string {

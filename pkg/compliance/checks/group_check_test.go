@@ -71,7 +71,10 @@ func TestGroupCheck(t *testing.T) {
 			env := &mocks.Env{}
 			env.On("EtcGroupPath").Return(test.etcGroupFile)
 
-			result, err := checkGroup(env, "rule-id", test.resource)
+			groupCheck, err := newResourceCheck(env, "rule-id", test.resource)
+			assert.NoError(err)
+
+			result, err := groupCheck.check(env)
 			assert.Equal(test.expectReport, result)
 			assert.Equal(test.expectError, err)
 		})
