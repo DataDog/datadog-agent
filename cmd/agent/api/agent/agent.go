@@ -12,11 +12,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io"
 	"net/http"
 	"sort"
 
 	"github.com/gorilla/mux"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
@@ -34,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
@@ -83,14 +83,12 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 func makeFlare(w http.ResponseWriter, r *http.Request) {
 	var profile *flare.Profile
 
-	err := json.NewDecoder(r.Body).Decode(&profile)
-	switch {
-	case err == io.EOF:
-		log.Debugf("No profile, continuing.")
-	case err != nil:
-		log.Errorf("Error while decoding profile from request body: %s", err)
-		http.Error(w, err.Error(), 500)
-		return
+	if r.Body != http.NoBody {
+		if err := json.NewDecoder(r.Body).Decode(&profile); err != nil {
+			log.Errorf("Error while decoding profile from request body: %s", err)
+			http.Error(w, err.Error(), 500)
+			return
+		}
 	}
 
 	logFile := config.Datadog.GetString("log_file")
