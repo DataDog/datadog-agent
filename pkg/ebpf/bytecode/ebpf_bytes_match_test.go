@@ -17,8 +17,8 @@ func TestEbpfBytesCorrect(t *testing.T) {
 		"../c/tracer-ebpf-debug.o":     "pkg/ebpf/c/tracer-ebpf-debug.o",
 		"../c/oom-kill-kern.c":         "pkg/ebpf/c/oom-kill-kern.c",
 		"../c/tcp-queue-length-kern.c": "pkg/ebpf/c/tcp-queue-length-kern.c",
-		"../c/offset-guess.o":			"pkg/ebpf/c/offset-guess.o",
-		"../c/offset-guess-debug.o":	"pkg/ebpf/c/offset-guess-debug.o",
+		"../c/offset-guess.o":          "pkg/ebpf/c/offset-guess.o",
+		"../c/offset-guess-debug.o":    "pkg/ebpf/c/offset-guess-debug.o",
 	}
 
 	for ondiskFilename, bundleFilename := range bundledFiles {
