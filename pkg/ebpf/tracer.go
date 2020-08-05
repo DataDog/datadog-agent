@@ -48,6 +48,7 @@ type Tracer struct {
 	reverseDNS network.ReverseDNS
 
 	perfMap      *manager.PerfMap
+	perfHandler  *bytecode.PerfHandler
 	batchManager *PerfBatchManager
 
 	// Telemetry
@@ -227,6 +228,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		conntracker:    conntracker,
 		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		perfHandler:    perfHandler,
 	}
 
 	tcpCloseMap, _ := tr.getMap(bytecode.TcpCloseBatchMap)
@@ -398,6 +400,7 @@ func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
 	_ = t.m.Stop(manager.CleanAll)
 	_ = t.perfMap.Stop(manager.CleanAll)
+	t.perfHandler.Stop()
 	t.conntracker.Close()
 }
 

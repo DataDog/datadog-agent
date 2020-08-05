@@ -3,12 +3,15 @@
 package bytecode
 
 import (
+	"sync"
+
 	"github.com/DataDog/ebpf/manager"
 )
 
 type PerfHandler struct {
 	ClosedChannel chan []byte
 	LostChannel   chan uint64
+	once          sync.Once
 }
 
 func NewPerfHandler(closedChannelSize int) *PerfHandler {
@@ -24,4 +27,11 @@ func (c *PerfHandler) dataHandler(CPU int, batchData []byte, perfMap *manager.Pe
 
 func (c *PerfHandler) lostHandler(CPU int, lostCount uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	c.LostChannel <- lostCount
+}
+
+func (c *PerfHandler) Stop() {
+	c.once.Do(func() {
+		close(c.ClosedChannel)
+		close(c.LostChannel)
+	})
 }
