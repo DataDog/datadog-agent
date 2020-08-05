@@ -45,17 +45,21 @@ func (c *resourceCheck) check(env env.Env) (*compliance.Report, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
+	resolved, err := c.resolve(ctx, env, c.ruleID, c.resource)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.evaluate(env, resolved)
+}
+
+func (c *resourceCheck) evaluate(env env.Env, resolved interface{}) (*compliance.Report, error) {
 	conditionExpression, err := eval.Cache.ParseIterable(c.resource.Condition)
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := c.resolve(ctx, env, c.ruleID, c.resource)
-	if err != nil {
-		return nil, err
-	}
-
-	switch v := v.(type) {
+	switch resolved := resolved.(type) {
 	case *eval.Instance:
 		if c.resource.Fallback != nil {
 			if c.fallback == nil {
@@ -67,7 +71,7 @@ func (c *resourceCheck) check(env env.Env) (*compliance.Report, error) {
 				return nil, err
 			}
 
-			useFallback, err := fallbackExpression.BoolEvaluate(v)
+			useFallback, err := fallbackExpression.BoolEvaluate(resolved)
 			if err != nil {
 				return nil, err
 			}
@@ -76,18 +80,18 @@ func (c *resourceCheck) check(env env.Env) (*compliance.Report, error) {
 			}
 		}
 
-		passed, err := conditionExpression.Evaluate(v)
+		passed, err := conditionExpression.Evaluate(resolved)
 		if err != nil {
 			return nil, err
 		}
-		return instanceToReport(v, passed, c.reportedFields), nil
+		return instanceToReport(resolved, passed, c.reportedFields), nil
 
 	case eval.Iterator:
 		if c.resource.Fallback != nil {
 			return nil, ErrResourceCannotUseFallback
 		}
 
-		result, err := conditionExpression.EvaluateIterator(v, globalInstance)
+		result, err := conditionExpression.EvaluateIterator(resolved, globalInstance)
 		if err != nil {
 			return nil, err
 		}
@@ -100,6 +104,7 @@ func (c *resourceCheck) check(env env.Env) (*compliance.Report, error) {
 func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) (checkable, error) {
 	// TODO: validate resource here
 	kind := resource.Kind()
+
 	switch kind {
 	case compliance.KindCustom:
 		return newCustomCheck(ruleID, resource)

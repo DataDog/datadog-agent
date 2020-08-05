@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -21,22 +22,33 @@ type customCheck struct {
 	checkFunc custom.CheckFunc
 }
 
+type checkFactoryFunc func(name string) custom.CheckFunc
+
+var customCheckFactory = custom.GetCustomCheck
+
 func newCustomCheck(ruleID string, res compliance.Resource) (checkable, error) {
 	if res.Custom == nil {
-		return nil, fmt.Errorf("expecting custom resource in custom check")
+		return nil, errors.New("expecting custom resource in custom check")
 	}
 
 	if res.Custom.Name == "" {
-		return nil, fmt.Errorf("expecting custom resource name in custom check")
+		return nil, errors.New("missing check name in custom check")
 	}
 
-	expr, err := eval.Cache.ParseIterable(res.Condition)
-	if err != nil {
-		return nil, err
+	var (
+		expr *eval.IterableExpression
+		err  error
+	)
+
+	if res.Condition != "" {
+		expr, err = eval.Cache.ParseIterable(res.Condition)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	f := custom.GetCustomCheck(res.Custom.Name)
-	if f != nil {
+	checkFunc := customCheckFactory(res.Custom.Name)
+	if checkFunc == nil {
 		return nil, fmt.Errorf("custom check with name: %s does not exist", res.Custom.Name)
 	}
 
@@ -44,7 +56,7 @@ func newCustomCheck(ruleID string, res compliance.Resource) (checkable, error) {
 		ruleID:    ruleID,
 		custom:    res.Custom,
 		expr:      expr,
-		checkFunc: f,
+		checkFunc: checkFunc,
 	}, nil
 }
 
