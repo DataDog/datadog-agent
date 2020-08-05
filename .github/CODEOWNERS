@@ -9,7 +9,29 @@
 # Rules are matched bottom-to-top, so one team can own subdirectories
 # and another the rest of the directory.
 
-*                                       @DataDog/agent-platform
+# Config files for various CI systems / tasks
+/.*                                     @DataDog/agent-platform
+
+/CHANGELOG.rst                          @DataDog/agent-platform
+/CHANGELOG-DCA.rst                      @DataDog/container-integrations
+
+/*.md                                   @DataDog/agent-platform @DataDog/documentation
+/NOTICE                                 @DataDog/agent-platform @DataDog/documentation
+
+/LICENSE*                               @DataDog/agent-platform
+
+# Todo: is this file still needed?
+/Makefile.trace                         @DataDog/agent-platform
+
+/release.json                           @DataDog/agent-platform
+/requirements.txt                       @DataDog/agent-platform
+/pyproject.toml                         @DataDog/agent-platform
+/setup.cfg                              @DataDog/agent-platform
+
+/.circleci/                             @DataDog/agent-platform
+/.github/                               @DataDog/agent-platform
+
+/chocolatey/                            @DataDog/agent-platform
 
 /cmd/                                   @DataDog/agent-core
 /cmd/trace-agent/                       @DataDog/agent-apm
@@ -28,6 +50,9 @@
 /cmd/system-probe/                      @DataDog/networks
 /cmd/security-agent/                    @DataDog/container-integrations @DataDog/agent-security
 
+/dev/                                   @DataDog/agent-platform
+/devenv/                                @DataDog/agent-platform
+
 /Dockerfiles/                           @DataDog/container-integrations
 
 /docs/                                  @DataDog/documentation @DataDog/agent-platform
@@ -36,6 +61,8 @@
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
+
+/google-marketplace/                    @DataDog/container-integrations
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
@@ -95,10 +122,12 @@
 /pkg/process/util/orchestrator/         @DataDog/container-app
 /pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
-/pkg/quantile/                           @DataDog/metrics-aggregation
-/pkg/compliance/                         @DataDog/container-integrations
-/pkg/kubestatemetrics                    @DataDog/container-integrations
+/pkg/quantile/                          @DataDog/metrics-aggregation
+/pkg/compliance/                        @DataDog/container-integrations
+/pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
+
+/pkg-config/                            @DataDog/agent-platform
 
 /releasenotes-dca/                      @DataDog/container-integrations
 
@@ -112,10 +141,14 @@
 /tasks/trace.py                         @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 
+/test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-core
 /test/e2e/                              @DataDog/container-integrations
 /test/integration/                      @DataDog/container-integrations
 /test/kitchen/                          @DataDog/agent-platform
 /test/system/                           @DataDog/agent-core
 
+/tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/networks
+/tools/gdb/                             @DataDog/agent-core
+/tools/windows/                         @DataDog/agent-platform
