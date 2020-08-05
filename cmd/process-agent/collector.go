@@ -191,6 +191,9 @@ func (l *Collector) run(exit chan struct{}) error {
 		queueSizeTicker := time.NewTicker(10 * time.Second)
 		defer queueSizeTicker.Stop()
 
+		queueLogTicker := time.NewTicker(time.Minute)
+		defer queueLogTicker.Stop()
+
 		tags := []string{
 			fmt.Sprintf("version:%s", Version),
 			fmt.Sprintf("revision:%s", GitCommit),
@@ -202,6 +205,11 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-queueSizeTicker.C:
 				updateQueueBytes(processResults.Weight(), podResults.Weight())
 				updateQueueSize(processResults.Len(), podResults.Len())
+			case <-queueLogTicker.C:
+				log.Infof(
+					"Delivery queues: process[size=%d, weight=%d], pod[size=%d, weight=%d]",
+					processResults.Len(), processResults.Weight(), podResults.Len(), podResults.Weight(),
+				)
 			case <-exit:
 				return
 			}
