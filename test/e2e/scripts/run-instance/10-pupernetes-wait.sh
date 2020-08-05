@@ -21,7 +21,7 @@ _wait_binary() {
     if which "$1" 2> /dev/null; then
         echo "$1 appeared in PATH after $i seconds"
     else
-        echo "$1 didn’t appear in PATH after $i seconds"
+        echo "$1 didn't appear in PATH after $i seconds"
         exit 1
     fi
 }
