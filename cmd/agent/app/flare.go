@@ -187,7 +187,7 @@ func createArchive(logFile string, profile *flare.Profile) (string, error) {
 
 func createPerformanceProfile() (*flare.Profile, error) {
 	// Two heap profiles for diff
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(false)
 	firstHeapProf, err := util.DoGet(c, heapProfURL)
 	if err != nil {
 		return nil, err
