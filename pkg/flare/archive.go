@@ -39,8 +39,9 @@ import (
 )
 
 const (
-	heapProfileName = "heap_profile.log"
-	cpuProfileName  = "cpu_profile.pprof"
+	firstHeapProfileName  = "first-heap.profile"
+	secondHeapProfileName = "second-heap.profile"
+	cpuProfileName        = "cpu.profile"
 
 	routineDumpFilename = "go-routine-dump.log"
 
@@ -90,8 +91,37 @@ type filePermsInfo struct {
 // Profile is a performance profile containing heap and CPU profiles.
 type Profile struct {
 	FirstHeapProfile  []byte
-	CPUProfile        []byte
 	SecondHeapProfile []byte
+	CPUProfile        []byte
+}
+
+// CreatePerformanceProfile creates a CPU and Heap profile to include
+func CreatePerformanceProfile(profileDuration int) (*Profile, error) {
+	cpuProfURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=%d", config.Datadog.GetString("expvar_port"), profileDuration)
+	heapProfURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap", config.Datadog.GetString("expvar_port"))
+
+	// Two heap profiles for diff
+	c := apiutil.GetClient(false)
+	firstHeapProf, err := apiutil.DoGet(c, heapProfURL)
+	if err != nil {
+		return nil, err
+	}
+
+	cpuProf, err := apiutil.DoGet(c, cpuProfURL)
+	if err != nil {
+		return nil, err
+	}
+
+	secondHeapProf, err := apiutil.DoGet(c, heapProfURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Profile{
+		FirstHeapProfile:  firstHeapProf,
+		CPUProfile:        cpuProf,
+		SecondHeapProfile: secondHeapProf,
+	}, nil
 }
 
 // CreateArchive packages up the files
@@ -770,22 +800,29 @@ func zipPerformanceProfile(tempDir, hostname string, profile *Profile) error {
 	}
 	defer cpuProfile.Close()
 
-	heapProfilePath := filepath.Join(tempDir, hostname, heapProfileName)
-	heapProfile, err := os.OpenFile(heapProfilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
+	firstHeapProfilePath := filepath.Join(tempDir, hostname, firstHeapProfileName)
+	firstHeapProfile, err := os.OpenFile(firstHeapProfilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		return err
 	}
-	defer heapProfile.Close()
+	defer firstHeapProfile.Close()
+
+	secondHeapProfilePath := filepath.Join(tempDir, hostname, secondHeapProfileName)
+	secondHeapProfile, err := os.OpenFile(secondHeapProfilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer secondHeapProfile.Close()
 
 	_, err = cpuProfile.Write(profile.CPUProfile)
 	if err != nil {
 		return err
 	}
-	_, err = heapProfile.Write(profile.FirstHeapProfile)
+	_, err = firstHeapProfile.Write(profile.FirstHeapProfile)
 	if err != nil {
 		return err
 	}
-	_, err = heapProfile.Write(profile.SecondHeapProfile)
+	_, err = secondHeapProfile.Write(profile.SecondHeapProfile)
 	return err
 }
 

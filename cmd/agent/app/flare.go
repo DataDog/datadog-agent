@@ -22,10 +22,6 @@ import (
 )
 
 var (
-	cpuProfURL  string
-	heapProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap?debug=2",
-		config.Datadog.GetString("expvar_port"))
-
 	customerEmail string
 	autoconfirm   bool
 	forceLocal    bool
@@ -38,7 +34,7 @@ func init() {
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
-	flareCmd.Flags().IntVarP(&profiling, "profile", "p", 0, "Add performance profiling data to the flare. Will collect the CPU profile for the configured amount of seconds, with a minimum of 30s")
+	flareCmd.Flags().IntVarP(&profiling, "profile", "p", -1, "Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -51,8 +47,6 @@ var flareCmd = &cobra.Command{
 		if flagNoColor {
 			color.NoColor = true
 		}
-
-		cpuProfURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=%d", config.Datadog.GetString("expvar_port"), profiling)
 
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
@@ -94,13 +88,14 @@ func makeFlare(caseID string) error {
 	var err error
 	if profiling >= 30 {
 		fmt.Fprintln(color.Output, color.BlueString("Creating a %ds performance profile.", profiling))
-		profile, err = createPerformanceProfile()
+		profile, err = flare.CreatePerformanceProfile(profiling)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
 			return err
 		}
-	} else {
-		fmt.Fprintln(color.Output, color.YellowString("Profiling not configured or below 30 seconds, skipping it."))
+	} else if profiling != -1 {
+		fmt.Fprintln(color.Output, color.RedString("Invalid second value for profiling, please enter an integer of at least 30."))
+		return err
 	}
 
 	var filePath string
@@ -160,6 +155,7 @@ func requestArchive(logFile string, profile *flare.Profile) (string, error) {
 	if profile != nil {
 		if err := json.NewEncoder(b).Encode(profile); err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", e)))
+			return "", err
 		}
 	}
 
@@ -183,29 +179,4 @@ func createArchive(logFile string, profile *flare.Profile) (string, error) {
 		return "", e
 	}
 	return filePath, nil
-}
-
-func createPerformanceProfile() (*flare.Profile, error) {
-	// Two heap profiles for diff
-	c := util.GetClient(false)
-	firstHeapProf, err := util.DoGet(c, heapProfURL)
-	if err != nil {
-		return nil, err
-	}
-
-	cpuProf, err := util.DoGet(c, cpuProfURL)
-	if err != nil {
-		return nil, err
-	}
-
-	secondHeapProf, err := util.DoGet(c, heapProfURL)
-	if err != nil {
-		return nil, err
-	}
-
-	return &flare.Profile{
-		FirstHeapProfile:  firstHeapProf,
-		CPUProfile:        cpuProf,
-		SecondHeapProfile: secondHeapProf,
-	}, nil
 }

@@ -89,6 +89,8 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("No profile, continuing.")
 	case err != nil:
 		log.Errorf("Error while decoding profile from request body: %s", err)
+		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	logFile := config.Datadog.GetString("log_file")
