@@ -643,6 +643,10 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
 
+	// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
+	assert.Equal(t, uint32(1), conn.MonotonicTCPEstablished)
+	assert.Equal(t, uint32(1), conn.MonotonicTCPClosed)
+
 	// Confirm that the connection has been cleaned up since the last get
 	connections = getConnections(t, tr)
 
@@ -1641,4 +1645,92 @@ func TestConntrackExpiration(t *testing.T) {
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
+}
+
+func TestTCPEstablished(t *testing.T) {
+	// Ensure closed connections are flushed as soon as possible
+	cfg := NewDefaultConfig()
+	cfg.TCPClosedTimeout = time.Millisecond
+
+	tr, err := NewTracer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	// Warm-up state
+	getConnections(t, tr)
+
+	server := NewTCPServer(func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+	defer close(doneChan)
+
+	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
+	c.Write([]byte("hello"))
+
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(laddr, raddr, connections)
+
+	assert.True(t, ok)
+	assert.Equal(t, uint32(1), conn.LastTCPEstablished)
+	assert.Equal(t, uint32(0), conn.LastTCPClosed)
+
+	c.Close()
+	// Wait for the connection to be sent from the perf buffer
+	time.Sleep(10 * time.Millisecond)
+
+	connections = getConnections(t, tr)
+	conn, ok = findConnection(laddr, raddr, connections)
+	assert.True(t, ok)
+	assert.Equal(t, uint32(0), conn.LastTCPEstablished)
+	assert.Equal(t, uint32(1), conn.LastTCPClosed)
+}
+
+func TestTCPEstablishedPreExistingConn(t *testing.T) {
+	server := NewTCPServer(func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+	defer close(doneChan)
+
+	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
+
+	// Ensure closed connections are flushed as soon as possible
+	cfg := NewDefaultConfig()
+	cfg.TCPClosedTimeout = time.Millisecond
+
+	tr, err := NewTracer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	// Warm-up state
+	getConnections(t, tr)
+
+	c.Write([]byte("hello"))
+	c.Close()
+	// Wait for the connection to be sent from the perf buffer
+	time.Sleep(10 * time.Millisecond)
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(laddr, raddr, connections)
+
+	assert.True(t, ok)
+	assert.Equal(t, uint32(0), conn.MonotonicTCPEstablished)
+	assert.Equal(t, uint32(1), conn.MonotonicTCPClosed)
 }

@@ -1,8 +1,8 @@
 """
 Boostrapping related logic goes here
 """
-import os
 import json
+import os
 import sys
 
 from .utils import get_gopath

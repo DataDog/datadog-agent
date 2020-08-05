@@ -38,6 +38,10 @@ unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) 
     return ino;
 }
 
+void __attribute__((always_inline)) write_inode_ino(struct inode *inode, unsigned long *ino) {
+    bpf_probe_read(ino, sizeof(inode), &inode->i_ino);
+}
+
 dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
     dev_t dev;
     struct super_block *sb;
@@ -174,6 +178,10 @@ unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentr
     return get_inode_ino(d_inode);
 }
 
+void __attribute__((always_inline)) write_dentry_inode(struct dentry *dentry, struct inode **d_inode) {
+    bpf_probe_read(d_inode, sizeof(d_inode), &dentry->d_inode);
+}
+
 struct inode* __attribute__((always_inline)) get_file_inode(struct file *file) {
     struct inode *f_inode;
     bpf_probe_read(&f_inode, sizeof(f_inode), &file->f_inode);
@@ -215,6 +223,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     struct path_key_t next_key = key;
     struct qstr qstr;
     struct dentry *d_parent;
+    struct inode *d_inode = NULL;
 
 #pragma unroll
     for (int i = 0; i < DENTRY_MAX_DEPTH; i++)
@@ -224,7 +233,8 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
 
         key = next_key;
         if (dentry != d_parent) {
-            next_key.ino = get_dentry_ino(d_parent);
+            write_dentry_inode(d_parent, &d_inode);
+            write_inode_ino(d_inode, &next_key.ino);
         }
 
         // discard filename and its parent only in order to limit the number of lookup

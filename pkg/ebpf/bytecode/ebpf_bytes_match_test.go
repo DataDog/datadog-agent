@@ -12,24 +12,22 @@ import (
 )
 
 func TestEbpfBytesCorrect(t *testing.T) {
-	files := []string{"tracer-ebpf", "offset-guess"}
-	for _, f := range files {
-		t.Run(f, func(t *testing.T) {
-			bs, err := ioutil.ReadFile(fmt.Sprintf("../c/%s.o", f))
-			require.NoError(t, err)
+	bundledFiles := map[string]string{
+		"../c/tracer-ebpf.o":           "pkg/ebpf/c/tracer-ebpf.o",
+		"../c/tracer-ebpf-debug.o":     "pkg/ebpf/c/tracer-ebpf-debug.o",
+		"../c/oom-kill-kern.c":         "pkg/ebpf/c/oom-kill-kern.c",
+		"../c/tcp-queue-length-kern.c": "pkg/ebpf/c/tcp-queue-length-kern.c",
+		"../c/offset-guess.o":			"pkg/ebpf/c/offset-guess.o",
+		"../c/offset-guess-debug.o":	"pkg/ebpf/c/offset-guess-debug.o",
+	}
 
-			actual, err := Asset(fmt.Sprintf("pkg/ebpf/c/%s.o", f))
-			require.NoError(t, err)
+	for ondiskFilename, bundleFilename := range bundledFiles {
+		bs, err := ioutil.ReadFile(ondiskFilename)
+		require.NoError(t, err)
 
-			assert.Equal(t, bs, actual)
+		actual, err := Asset(bundleFilename)
+		require.NoError(t, err)
 
-			bsDebug, err := ioutil.ReadFile(fmt.Sprintf("../c/%s-debug.o", f))
-			require.NoError(t, err)
-
-			actualDebug, err := Asset(fmt.Sprintf("pkg/ebpf/c/%s-debug.o", f))
-			require.NoError(t, err)
-
-			assert.Equal(t, bsDebug, actualDebug)
-		})
+		assert.Equal(t, bs, actual, fmt.Sprintf("on-disk file %s and bundled content %s are different", ondiskFilename, bundleFilename))
 	}
 }

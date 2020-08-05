@@ -140,7 +140,7 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*rules.RuleSet, error) {
 	var result *multierror.Error
 
-	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants, sprobe.InvalidDiscarders))
 
 	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
 	if err != nil {

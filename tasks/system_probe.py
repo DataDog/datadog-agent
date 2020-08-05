@@ -1,27 +1,27 @@
+import contextlib
 import datetime
+import getpass
 import glob
 import os
-import getpass
-import contextlib
 import shutil
 import sys
 import tempfile
+from subprocess import CalledProcessError, check_output
 
 from invoke import task
 from invoke.exceptions import Exit
-from subprocess import check_output, CalledProcessError
 
+from .build_tags import get_default_build_tags
 from .utils import (
+    REPO_PATH,
     bin_name,
     get_build_flags,
-    REPO_PATH,
-    get_version,
     get_git_branch_name,
-    get_go_version,
     get_git_commit,
+    get_go_version,
+    get_version,
     get_version_numeric_only,
 )
-from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))

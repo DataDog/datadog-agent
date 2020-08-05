@@ -61,6 +61,7 @@ func NewManager(closedHandler *PerfHandler) *manager.Manager {
 			{Section: string(TCPCleanupRBuf)},
 			{Section: string(TCPClose)},
 			{Section: string(TCPCloseReturn), KProbeMaxActive: maxActive},
+			{Section: string(TCPSetState)},
 			{Section: string(UDPSendMsg)},
 			{Section: string(UDPSendMsgPre410)},
 			{Section: string(UDPRecvMsg)},

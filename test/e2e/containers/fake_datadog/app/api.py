@@ -1,14 +1,13 @@
 import logging
 import os
 import sys
-import ujson as json
 import zlib
 from os import path
 
-import pymongo
-from flask import Flask, request, Response, jsonify
-
 import monitoring
+import pymongo
+import ujson as json
+from flask import Flask, Response, jsonify, request
 
 app = application = Flask("datadoghq")
 monitoring.monitor_flask(app)

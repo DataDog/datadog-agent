@@ -2,13 +2,13 @@
 Pylauncher tasks
 """
 from __future__ import print_function
+
 import os
 
 from invoke import task
 
 from .build_tags import get_default_build_tags
 from .utils import REPO_PATH, bin_name, get_root
-
 
 # constants
 PYLAUNCHER_BIN_PATH = os.path.join(get_root(), "bin", "pylauncher")

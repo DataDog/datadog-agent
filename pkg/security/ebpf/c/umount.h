@@ -6,6 +6,7 @@
 struct umount_event_t {
     struct event_t event;
     struct process_data_t process;
+    char container_id[CONTAINER_ID_LEN];
     int mount_id;
 
 };
@@ -35,6 +36,13 @@ SYSCALL_KRETPROBE(umount) {
     };
 
     fill_process_data(&event.process);
+
+    // add process cache data
+    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
+    if (entry) {
+        copy_container_id(event.container_id, entry->container_id);
+        event.process.numlower = entry->numlower;
+    }
 
     send_mountpoints_events(ctx, event);
 

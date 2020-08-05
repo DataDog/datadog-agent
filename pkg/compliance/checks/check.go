@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -100,14 +101,14 @@ func (c *complianceCheck) Run() error {
 	return err
 }
 
-func reportToEventData(report *report, err error) (event.Data, string) {
+func reportToEventData(report *compliance.Report, err error) (event.Data, string) {
 	var (
 		data   event.Data
 		passed bool
 	)
 	if report != nil {
-		data = report.data
-		passed = report.passed
+		data = report.Data
+		passed = report.Passed
 	}
 	if err != nil {
 		data = event.Data{

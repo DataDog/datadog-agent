@@ -30,6 +30,7 @@ func (c *Config) EnabledProbes(pre410Kernel bool) (map[bytecode.ProbeName]struct
 		enabled[bytecode.TCPRetransmit] = struct{}{}
 		enabled[bytecode.InetCskAcceptReturn] = struct{}{}
 		enabled[bytecode.TCPv4DestroySock] = struct{}{}
+		enabled[bytecode.TCPSetState] = struct{}{}
 
 		if c.BPFDebug {
 			enabled[bytecode.TCPSendMsgReturn] = struct{}{}

@@ -19,9 +19,10 @@ import (
 )
 
 type metricsExpected struct {
-	val  float64
-	name string
-	tags []string
+	val      float64
+	name     string
+	tags     []string
+	hostname string
 }
 
 func TestProcessMetrics(t *testing.T) {
@@ -101,9 +102,10 @@ func TestProcessMetrics(t *testing.T) {
 			metricTransformers: metricTransformers,
 			expected: []metricsExpected{
 				{
-					name: "kubernetes_state.container.running",
-					val:  1,
-					tags: []string{"kube_container_name:kube-state-metrics", "kube_namespace:default", "pod_name:kube-state-metrics-b7fbc487d-4phhj", "host:minikube"},
+					name:     "kubernetes_state.container.running",
+					val:      1,
+					tags:     []string{"kube_container_name:kube-state-metrics", "kube_namespace:default", "pod_name:kube-state-metrics-b7fbc487d-4phhj", "host:minikube"},
+					hostname: "minikube",
 				},
 			},
 		},
@@ -154,9 +156,10 @@ func TestProcessMetrics(t *testing.T) {
 			metricTransformers: metricTransformers,
 			expected: []metricsExpected{
 				{
-					name: "kubernetes_state.deployment.replicas",
-					val:  1,
-					tags: []string{"kube_namespace:default", "kube_deployment:redis", "env:dev", "service:redis", "version:v1"},
+					name:     "kubernetes_state.deployment.replicas",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_deployment:redis", "env:dev", "service:redis", "version:v1"},
+					hostname: "",
 				},
 			},
 		},
@@ -179,15 +182,16 @@ func TestProcessMetrics(t *testing.T) {
 			},
 			metricsToGet: []ksmstore.DDMetricsFam{},
 			metricTransformers: map[string]metricTransformerFunc{
-				"kube_pod_status_phase": func(s aggregator.Sender, n string, m ksmstore.DDMetric, t []string) {
+				"kube_pod_status_phase": func(s aggregator.Sender, n string, m ksmstore.DDMetric, h string, t []string) {
 					s.Gauge("kube_pod_status_phase_transformed", 1, "", []string{"transformed:tag"})
 				},
 			},
 			expected: []metricsExpected{
 				{
-					name: "kube_pod_status_phase_transformed",
-					val:  1,
-					tags: []string{"transformed:tag"},
+					name:     "kube_pod_status_phase_transformed",
+					val:      1,
+					tags:     []string{"transformed:tag"},
+					hostname: "",
 				},
 			},
 		},
@@ -201,7 +205,7 @@ func TestProcessMetrics(t *testing.T) {
 		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, test.metricsToGet)
 		t.Run(test.name, func(t *testing.T) {
 			for _, expectMetric := range test.expected {
-				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, "", expectMetric.tags)
+				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, expectMetric.hostname, expectMetric.tags)
 			}
 			if len(test.expected) == 0 {
 				mocked.AssertNotCalled(t, "Gauge")
@@ -251,16 +255,17 @@ func Test_isMatching(t *testing.T) {
 	}
 }
 
-func TestKSMCheck_prepareTags(t *testing.T) {
+func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	type args struct {
 		labels       map[string]string
 		metricsToGet []ksmstore.DDMetricsFam
 	}
 	tests := []struct {
-		name     string
-		config   *KSMConfig
-		args     args
-		wantTags []string
+		name         string
+		config       *KSMConfig
+		args         args
+		wantTags     []string
+		wantHostname string
 	}{
 		{
 			name: "join labels, multiple match",
@@ -281,7 +286,8 @@ func TestKSMCheck_prepareTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags: []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantHostname: "",
 		},
 		{
 			name: "join labels, multiple get",
@@ -302,7 +308,8 @@ func TestKSMCheck_prepareTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags: []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantHostname: "",
 		},
 		{
 			name: "no label match",
@@ -323,7 +330,8 @@ func TestKSMCheck_prepareTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags: []string{"baz_label:baz_value"},
+			wantTags:     []string{"baz_label:baz_value"},
+			wantHostname: "",
 		},
 		{
 			name: "no metric name match",
@@ -344,7 +352,8 @@ func TestKSMCheck_prepareTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags: []string{"foo_label:foo_value"},
+			wantTags:     []string{"foo_label:foo_value"},
+			wantHostname: "",
 		},
 		{
 			name: "join labels, multiple metric match",
@@ -373,7 +382,8 @@ func TestKSMCheck_prepareTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags: []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value", "baf_label:baf_value"},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value", "baf_label:baf_value"},
+			wantHostname: "",
 		},
 		{
 			name: "join all labels",
@@ -394,7 +404,8 @@ func TestKSMCheck_prepareTags(t *testing.T) {
 					},
 				},
 			},
-			wantTags: []string{"foo_label:foo_value", "foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantTags:     []string{"foo_label:foo_value", "foo_label:foo_value", "bar_label:bar_value", "baz_label:baz_value"},
+			wantHostname: "",
 		},
 		{
 			name: "add check instance tags",
@@ -404,13 +415,47 @@ func TestKSMCheck_prepareTags(t *testing.T) {
 			args: args{
 				labels: map[string]string{"foo_label": "foo_value"},
 			},
-			wantTags: []string{"foo_label:foo_value", "instance:tag"},
+			wantTags:     []string{"foo_label:foo_value", "instance:tag"},
+			wantHostname: "",
+		},
+		{
+			name:   "hostname from labels",
+			config: &KSMConfig{},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value", "node": "foo"},
+			},
+			wantTags:     []string{"foo_label:foo_value", "node:foo"},
+			wantHostname: "foo",
+		},
+		{
+			name: "hostname from label joins",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"bar_label", "node"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "node": "foo", "bar_label": "bar_value"}}},
+					},
+				},
+			},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
+			wantHostname: "foo",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
-			assert.ElementsMatch(t, tt.wantTags, kubeStateMetricsSCheck.prepareTags(tt.args.labels, tt.args.metricsToGet))
+			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, tt.args.metricsToGet)
+			assert.ElementsMatch(t, tt.wantTags, tags)
+			assert.Equal(t, tt.wantHostname, hostname)
 		})
 	}
 }

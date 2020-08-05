@@ -4,6 +4,7 @@
 #include <linux/kconfig.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <net/tcp_states.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/ptrace.h>
@@ -354,8 +355,12 @@ static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes
 
     // If already in our map, increment size in-place
     if (val != NULL) {
-        __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
-        __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
+        if (sent_bytes) {
+            __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
+        }
+        if (recv_bytes) {
+            __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
+        }
         val->timestamp = ts;
     }
 }
@@ -385,6 +390,10 @@ static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats)
         val->rtt = stats.rtt >> 3;
         val->rtt_var = stats.rtt_var >> 2;
     }
+
+    if (stats.state_transitions > 0) {
+        val->state_transitions |= stats.state_transitions;
+    }
 }
 
 static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_tuple_t* tup) {
@@ -409,6 +418,7 @@ static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unus
     if (tst != NULL) {
         conn.tcp_stats = *tst;
     }
+    conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
 
     if (cst != NULL) {
         cst->timestamp = bpf_ktime_get_ns();
@@ -711,6 +721,28 @@ int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_retransmit\n");
 
     return handle_retransmit(sk);
+}
+
+SEC("kprobe/tcp_set_state")
+int kprobe__tcp_set_state(struct pt_regs* ctx) {
+    u8 state = (u8)PT_REGS_PARM2(ctx);
+
+    // For now we're tracking only TCP_ESTABLISHED
+    if (state != TCP_ESTABLISHED) {
+        return 0;
+    }
+
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    tcp_stats_t stats = { .state_transitions = (1 << state) };
+    update_tcp_stats(&t, stats);
+
+    return 0;
 }
 
 SEC("kretprobe/inet_csk_accept")

@@ -10,24 +10,24 @@ import (
 	"unsafe"
 )
 
-// EventType - Type of an event
+// EventType is the type of an event
 type EventType = string
 
-// Event - Interface that an Event has to implement for the evaluation
+// Event is an interface that an Event has to implement for the evaluation
 type Event interface {
-	// GetID - Returns the ID of the Event
+	// GetID returns the ID of the Event
 	GetID() string
-	// GetType - Returns the Type of the Event
+	// GetType returns the Type of the Event
 	GetType() EventType
-	// GetFieldEventType - Returns the Event Type for the given Field
+	// GetFieldEventType returns the Event Type for the given Field
 	GetFieldEventType(field Field) (EventType, error)
-	// SetFieldValue - Set the value of the given Field
+	// SetFieldValue sets the value of the given Field
 	SetFieldValue(field Field, value interface{}) error
-	// GetFieldValue - Returns the value of the given Field
+	// GetFieldValue returns the value of the given Field
 	GetFieldValue(field Field) (interface{}, error)
-	// GetFieldType - Returns the Type of the Field
+	// GetFieldType returns the Type of the Field
 	GetFieldType(field Field) (reflect.Kind, error)
-	// GetPointer() - Returns an unsafe.Pointer of this object
+	// GetPointer returns an unsafe.Pointer of this object
 	GetPointer() unsafe.Pointer
 }
 
