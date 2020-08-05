@@ -12,7 +12,9 @@ service Agent {
             get: "/v1/grpc/host"
         };
     }
+}
 
+service AgentSecure {
     rpc GetTags (TagRequest) returns (TagReply) {
         option (google.api.http) = {
             post: "/v1/grpc/tags"
