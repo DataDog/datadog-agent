@@ -340,6 +340,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 			}
 		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname
+		} else {
+			log.Errorf("Cannot get hostname: %v", err)
 		}
 	}
 
