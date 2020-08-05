@@ -78,6 +78,9 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
   mkdir conf_dir
+  if linux?
+    mkdir "#{conf_dir}/runtime-security.d"
+  end
   mkdir "#{install_dir}/bin"
   unless windows?
     mkdir "#{install_dir}/run/"
@@ -148,6 +151,7 @@ build do
   else
     command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
     copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
+    copy 'bin/security-agent/dist/runtime-security.d/default.policy', "#{conf_dir}/runtime-security.d"
   end
 
   if linux?

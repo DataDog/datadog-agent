@@ -2,14 +2,13 @@
 systray tasks
 """
 from __future__ import print_function
+
 import os
 import sys
 
 from invoke import task
 
-from .utils import bin_name, get_version_numeric_only
-from .utils import REPO_PATH
-from .utils import get_version_ldflags
+from .utils import REPO_PATH, bin_name, get_version_ldflags, get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -21,8 +20,6 @@ def build(
     ctx,
     rebuild=False,
     race=False,
-    build_include=None,
-    build_exclude=None,
     iot=False,
     development=True,
     precompile_only=False,
@@ -74,7 +71,7 @@ def build(
 
 
 @task
-def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, iot=False, skip_build=False):
+def run(ctx, rebuild=False, race=False, skip_build=False):
     """
     Execute the systray binary.
 
@@ -82,7 +79,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, iot)
+        build(ctx, rebuild, race)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("ddtray.exe")))
 

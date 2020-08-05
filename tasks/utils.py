@@ -3,12 +3,11 @@ Miscellaneous functions, no tasks here
 """
 from __future__ import print_function
 
+import json
 import os
 import re
 import sys
-import json
 from subprocess import check_output
-
 
 # constants
 ORG_PATH = "github.com/DataDog"

@@ -2,6 +2,7 @@
 Pylauncher tasks
 """
 from __future__ import print_function
+
 import os
 
 from invoke import task
@@ -9,17 +10,16 @@ from invoke import task
 from .build_tags import get_default_build_tags
 from .utils import REPO_PATH, bin_name, get_root
 
-
 # constants
 PYLAUNCHER_BIN_PATH = os.path.join(get_root(), "bin", "pylauncher")
 
 
 @task
-def build(ctx, rebuild=False):
+def build(ctx, rebuild=False, arch="x64"):
     """
     Build the pylauncher executable
     """
-    build_tags = get_default_build_tags()  # pass all the build flags
+    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
 
     cmd = "go build -mod={go_mod} {build_type} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/cmd/py-launcher/"
     args = {

@@ -9,7 +9,29 @@
 # Rules are matched bottom-to-top, so one team can own subdirectories
 # and another the rest of the directory.
 
-*                                       @DataDog/agent-platform
+# Config files for various CI systems / tasks
+/.*                                     @DataDog/agent-platform
+
+/CHANGELOG.rst                          @DataDog/agent-platform
+/CHANGELOG-DCA.rst                      @DataDog/container-integrations
+
+/*.md                                   @DataDog/agent-platform @DataDog/documentation
+/NOTICE                                 @DataDog/agent-platform @DataDog/documentation
+
+/LICENSE*                               @DataDog/agent-platform
+
+# Todo: is this file still needed?
+/Makefile.trace                         @DataDog/agent-platform
+
+/release.json                           @DataDog/agent-platform
+/requirements.txt                       @DataDog/agent-platform
+/pyproject.toml                         @DataDog/agent-platform
+/setup.cfg                              @DataDog/agent-platform
+
+/.circleci/                             @DataDog/agent-platform
+/.github/                               @DataDog/agent-platform
+
+/chocolatey/                            @DataDog/agent-platform
 
 /cmd/                                   @DataDog/agent-core
 /cmd/trace-agent/                       @DataDog/agent-apm
@@ -26,7 +48,10 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/networks
-/cmd/security-agent/                    @DataDog/container-integrations
+/cmd/security-agent/                    @DataDog/container-integrations @DataDog/agent-security
+
+/dev/                                   @DataDog/agent-platform
+/devenv/                                @DataDog/agent-platform
 
 /Dockerfiles/                           @DataDog/container-integrations
 
@@ -37,8 +62,14 @@
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
 
-/go.mod                                 @DataDog/agent-all
-/go.sum                                 @DataDog/agent-all
+/google-marketplace/                    @DataDog/container-integrations
+
+# These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
+# Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
+# that should be fine since rarely we make PRs that only change those files alone.
+/releasenotes/                          @DataDog/do-not-notify
+/go.mod                                 @DataDog/do-not-notify
+/go.sum                                 @DataDog/do-not-notify
 
 /Makefile.trace                         @DataDog/agent-apm
 
@@ -62,6 +93,7 @@
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/clusteragent/                      @DataDog/container-integrations
+/pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
@@ -87,13 +119,16 @@
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/process/util/orchestrator/         @DataDog/container-app
 /pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
-/pkg/quantile/                           @DataDog/metrics-aggregation
-/pkg/compliance/                         @DataDog/container-integrations
-/pkg/kubestatemetrics                    @DataDog/container-integrations
+/pkg/quantile/                          @DataDog/metrics-aggregation
+/pkg/compliance/                        @DataDog/container-integrations
+/pkg/kubestatemetrics                   @DataDog/container-integrations
+/pkg/security/                          @DataDog/agent-security
 
-/releasenotes/                          @DataDog/agent-all
+/pkg-config/                            @DataDog/agent-platform
+
 /releasenotes-dca/                      @DataDog/container-integrations
 
 /rtloader/                              @DataDog/agent-core
@@ -104,12 +139,16 @@
 /tasks/process-agent.py                 @DataDog/processes
 /tasks/system-probe.py                  @DataDog/networks
 /tasks/trace.py                         @DataDog/agent-apm
+/tasks/security_agent.py                @DataDog/agent-security
 
+/test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-core
 /test/e2e/                              @DataDog/container-integrations
-/test/integration/                      @DataDog/agent-all
+/test/integration/                      @DataDog/container-integrations
 /test/kitchen/                          @DataDog/agent-platform
 /test/system/                           @DataDog/agent-core
-/test/util/                             @DataDog/agent-all
 
+/tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/networks
+/tools/gdb/                             @DataDog/agent-core
+/tools/windows/                         @DataDog/agent-platform

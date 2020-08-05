@@ -214,24 +214,6 @@ public:
       Only const members should be setting errors on the RtLoader instance.
     */
     void setError(const char *msg) const;
-#ifndef _WIN32
-
-    //! handleCrashes member.
-    /*!
-      \param coredump A boolean flag indicating if we also want to generate a coredump in the
-      event of a crash.
-      \return A boolean with the status on whether the crash handler was correctly installed.
-
-      If core dumps are enabled, you will NOT get the go-routine dump in the event of a crash.
-      Core dumps generated from go-land are not as useful as C-stack has unwound, and so we
-      get no real visibility into how rtloader may have crashed. On the counterpart, when generating
-      the core dumps from C-land, we terminate early, and miss the Go panic handler that would
-      provide the go-routine dump. If you need both, just crash twice trying both options :)
-
-      Currently only SEGFAULT is handled.
-    */
-    bool handleCrashes(const bool coredump) const;
-#endif
 
     // Python Helpers
     //! getIntegrationList member.

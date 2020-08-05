@@ -1,15 +1,16 @@
 """
 Docker related tasks
 """
-from __future__ import print_function, absolute_import
-import tempfile
-import shutil
-import sys
+from __future__ import absolute_import, print_function
+
 import os
 import re
+import shutil
+import sys
+import tempfile
 import time
-import yaml
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
