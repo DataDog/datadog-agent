@@ -231,14 +231,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		perfHandler:    perfHandler,
 	}
 
-	tcpCloseMap, _ := tr.getMap(bytecode.TcpCloseBatchMap)
-	batchManager, err := NewPerfBatchManager(tcpCloseMap, config.TCPClosedTimeout)
-	if err != nil {
-		return nil, err
-	}
-	tr.batchManager = batchManager
-
-	tr.perfMap, err = tr.initPerfPolling(perfHandler)
+	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
 	if err != nil {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
 	}
@@ -317,13 +310,22 @@ func (t *Tracer) expvarStats() {
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
-func (t *Tracer) initPerfPolling(perf *bytecode.PerfHandler) (*manager.PerfMap, error) {
+func (t *Tracer) initPerfPolling(perf *bytecode.PerfHandler) (*manager.PerfMap, *PerfBatchManager, error) {
 	pm, found := t.m.GetPerfMap(string(bytecode.TcpCloseEventMap))
 	if !found {
-		return nil, fmt.Errorf("unable to find perf map %s", bytecode.TcpCloseEventMap)
+		return nil, nil, fmt.Errorf("unable to find perf map %s", bytecode.TcpCloseEventMap)
 	}
+
+	tcpCloseEventMap, _ := t.getMap(bytecode.TcpCloseEventMap)
+	tcpCloseMap, _ := t.getMap(bytecode.TcpCloseBatchMap)
+	numCPUs := int(tcpCloseEventMap.ABI().MaxEntries)
+	batchManager, err := NewPerfBatchManager(tcpCloseMap, t.config.TCPClosedTimeout, numCPUs)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if err := pm.Start(); err != nil {
-		return nil, fmt.Errorf("error starting perf map: %s", err)
+		return nil, nil, fmt.Errorf("error starting perf map: %s", err)
 	}
 
 	go func() {
@@ -366,7 +368,7 @@ func (t *Tracer) initPerfPolling(perf *bytecode.PerfHandler) (*manager.PerfMap, 
 		}
 	}()
 
-	return pm, nil
+	return pm, batchManager, nil
 }
 
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:

@@ -12,9 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	numTestBatches = 4
+)
+
 func TestPerfBatchManagerExtract(t *testing.T) {
 	t.Run("normal flush", func(t *testing.T) {
-		manager := PerfBatchManager{stateByCPU: make([]batchState, maxNumberBatches)}
+		manager := PerfBatchManager{stateByCPU: make([]batchState, numTestBatches)}
 
 		batch := new(batch)
 		batch.c0.tup.pid = 1
@@ -34,7 +38,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 	})
 
 	t.Run("partial flush", func(t *testing.T) {
-		manager := PerfBatchManager{stateByCPU: make([]batchState, maxNumberBatches)}
+		manager := PerfBatchManager{stateByCPU: make([]batchState, numTestBatches)}
 
 		batch := new(batch)
 		batch.c0.tup.pid = 1
@@ -103,7 +107,7 @@ func newTestBatchManager(t *testing.T, idleTime time.Duration) (manager *PerfBat
 	require.NoError(t, err)
 
 	tcpCloseMap, _ := tr.getMap(bytecode.TcpCloseBatchMap)
-	manager, err = NewPerfBatchManager(tcpCloseMap, idleTime)
+	manager, err = NewPerfBatchManager(tcpCloseMap, idleTime, numTestBatches)
 	require.NoError(t, err)
 
 	doneFn = func() { tr.Stop() }

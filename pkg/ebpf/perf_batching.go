@@ -11,13 +11,6 @@ import (
 	"github.com/DataDog/ebpf"
 )
 
-const (
-	maxNumberBatches = 1024
-
-	// maximum number of attempts we query a "blank" batch on eBPF
-	maxIgnoredCoreAttempts = 5
-)
-
 // PerfBatchManager is reponsbile for two things:
 //
 // * Keeping track of the state of each batch object we read off the perf ring;
@@ -40,12 +33,12 @@ type PerfBatchManager struct {
 
 // NewPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func NewPerfBatchManager(batchMap *ebpf.Map, maxIdleInterval time.Duration) (*PerfBatchManager, error) {
+func NewPerfBatchManager(batchMap *ebpf.Map, maxIdleInterval time.Duration, numBatches int) (*PerfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
 
-	for i := 0; i < maxNumberBatches; i++ {
+	for i := 0; i < numBatches; i++ {
 		b := new(batch)
 		b.cpu = _Ctype_ushort(i)
 		batchMap.Put(unsafe.Pointer(&i), unsafe.Pointer(b))
@@ -53,7 +46,7 @@ func NewPerfBatchManager(batchMap *ebpf.Map, maxIdleInterval time.Duration) (*Pe
 
 	return &PerfBatchManager{
 		batchMap:        batchMap,
-		stateByCPU:      make([]batchState, maxNumberBatches),
+		stateByCPU:      make([]batchState, numBatches),
 		maxIdleInterval: maxIdleInterval.Nanoseconds(),
 	}, nil
 }
@@ -83,7 +76,7 @@ func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats
 	for i := 0; i < len(p.stateByCPU); i++ {
 		state := &p.stateByCPU[i]
 
-		if state.ignore() || (nowTS-state.updated) < p.maxIdleInterval {
+		if (nowTS - state.updated) < p.maxIdleInterval {
 			continue
 		}
 
@@ -111,23 +104,6 @@ func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats
 }
 
 type batchState struct {
-	offset   int
-	updated  int64
-	attempts int
-}
-
-// since we completely overshoot the number of CPU cores, we keep track of the number
-// of times we checked a batch and got not updates in order to detect which batches we can
-// ignore and avoid querying on eBPF.
-func (bs *batchState) ignore() bool {
-	if bs.attempts >= maxIgnoredCoreAttempts {
-		return true
-	}
-
-	// If there are no updates to this batch then the associated CPU core probably doesn't exist
-	if bs.updated == 0 {
-		bs.attempts++
-	}
-
-	return false
+	offset  int
+	updated int64
 }
