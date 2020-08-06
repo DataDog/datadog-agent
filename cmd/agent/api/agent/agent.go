@@ -373,10 +373,6 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonTags)
 }
 
-type tagRequest struct {
-	Entity string
-}
-
 func secretInfo(w http.ResponseWriter, r *http.Request) {
 	info, err := secrets.GetDebugInfo()
 	if err != nil {
