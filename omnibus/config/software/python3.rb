@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.8.1"
+default_version "3.8.5"
 
 if ohai["platform"] != "windows"
   dependency "libffi"
