@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.8.1"
+default_version "3.8.5"
 
 if ohai["platform"] != "windows"
   dependency "libffi"
@@ -71,13 +71,13 @@ else
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-withcrt-x86.zip",
-            :sha256 => "212a3a2112ef0ca2fd4baebe71c149f89fa5bda4b746c102b7b292fe6e1209ef"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
+            :sha256 => "3429dea4f0ad7ab03fb611948285386fa46ebf0f3f905cdde18a5419c87650e9"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-withcrt-amd64.zip",
-         :sha256 => "1da0a5e43c24ed62a43c9f3a4d42e72abb4905b0e1fa4923f01c9ee5814ef9e7"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
+         :sha256 => "27adbfb9cba23d0403f0dd2a1e7681fb101ef263eefea17c225c65c25a4a30e5"
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
