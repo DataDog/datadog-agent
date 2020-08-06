@@ -101,6 +101,8 @@ static const __u8 TRACER_IPV6_ENABLED = 1;
 typedef struct {
     __u64 tcp_sent_miscounts;
     __u64 missed_tcp_close;
+    __u64 udp_send_processed;
+    __u64 udp_send_missed;
 } telemetry_t;
 
 typedef struct {
