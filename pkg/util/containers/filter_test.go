@@ -195,6 +195,14 @@ func TestFilter(t *testing.T) {
 			},
 			ns: "default",
 		},
+		{
+			c: Container{
+				ID:    "25",
+				Name:  "eu_gcr",
+				Image: "eu.gcr.io/k8s-artifacts-prod/pause:3.3",
+			},
+			ns: "default",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -203,25 +211,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25"},
 		},
 		{
 			excludeList: []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25"},
 		},
 		{
 			excludeList: []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25"},
 		},
 		{
 			includeList: []string{},
 			excludeList: []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25"},
 		},
 		{
 			includeList: []string{"name:mysql"},
 			excludeList: []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25"},
 		},
 		{
 			excludeList: []string{"kube_namespace:.*"},
@@ -230,22 +238,25 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			excludeList: []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25"},
 		},
 		// Test kubernetes defaults
 		{
 			excludeList: []string{
 				pauseContainerGCR,
+				pauseContainerOpenshift,
 				pauseContainerOpenshift3,
 				pauseContainerKubernetes,
 				pauseContainerAzure,
 				pauseContainerECS,
 				pauseContainerEKS,
 				pauseContainerRancher,
+				pauseContainerMCR,
+				pauseContainerWin,
 				pauseContainerAKS,
 				pauseContainerECR,
 			},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "14", "15"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {

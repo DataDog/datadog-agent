@@ -23,8 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// MetricPrefix is the prefix of the metrics sent by the runtime security agent
-const MetricPrefix = "datadog.runtime_security"
+const (
+	// MetricPrefix is the prefix of the metrics sent by the runtime security agent
+	MetricPrefix = "datadog.runtime_security"
+)
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
@@ -414,7 +416,7 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	if err := p.Load(); err != nil {
+	if err = p.Load(); err != nil {
 		return err
 	}
 
@@ -768,18 +770,16 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 					}
 
 					if err = p.Module.RegisterKprobe(kprobe); err == nil {
-						active++
-
 						log.Infof("kProbe `%s` registered", kprobe.Name)
-						break
+						active++
+					} else {
+						log.Debugf("failed to register kProbe `%s`", kprobe.Name)
 					}
-					log.Debugf("failed to register kProbe `%s`", kprobe.Name)
 				}
 				if len(hookPoint.Tracepoint) > 0 && err == nil {
 					if err = p.Module.RegisterTracepoint(hookPoint.Tracepoint); err == nil {
+						log.Infof("tracepoint `%s` registered", hookPoint.Tracepoint)
 						active++
-
-						log.Debugf("tracepoint `%s` registered", hookPoint.Tracepoint)
 					} else {
 						log.Debugf("failed to register tracepoint `%s`", hookPoint.Tracepoint)
 					}
@@ -791,7 +791,9 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 					}
 				}
 
-				log.Infof("Hook Point `%s` registered with %d active kProbes", hookPoint.Name, active)
+				if active > 0 {
+					log.Infof("Hook Point `%s` registered with %d active kProbes", hookPoint.Name, active)
+				}
 				already[hookPoint] = true
 			}
 		}

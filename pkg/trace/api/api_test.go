@@ -29,6 +29,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
+	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
 // Traces shouldn't come from more than 5 different sources
@@ -350,7 +351,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
 	})
 
 	t.Run("with-header", func(t *testing.T) {
@@ -364,7 +365,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
 	})
 }
 
@@ -397,6 +398,86 @@ func TestTraceCount(t *testing.T) {
 		count, err := traceCount(req)
 		assert.NoError(t, err)
 		assert.Equal(t, count, int64(123))
+	})
+}
+
+func TestDecodeV05(t *testing.T) {
+	assert := assert.New(t)
+	data := [2]interface{}{
+		0: []string{
+			0:  "Service2",
+			1:  "Name2",
+			2:  "Resource",
+			3:  "Service",
+			4:  "Name",
+			5:  "A",
+			6:  "B",
+			7:  "X",
+			8:  "y",
+			9:  "sql",
+			10: "Resource2",
+			11: "c",
+			12: "d",
+		},
+		1: [][][12]interface{}{
+			{
+				{uint32(3), uint32(4), uint32(2), uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[uint32]uint32{5: 6}, map[uint32]float64{7: 1.2}, uint32(9)},
+				{uint32(0), uint32(1), uint32(10), uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[uint32]uint32{11: 12}, map[uint32]float64{8: 1.4}, uint32(9)},
+				{uint32(0), uint32(1), uint32(10), uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[uint32]uint32{11: 12}, map[uint32]float64{}, uint32(9)},
+			},
+		},
+	}
+	b, err := vmsgp.Marshal(&data)
+	assert.NoError(err)
+	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
+	assert.NoError(err)
+	traces, err := decodeTraces(v05, req)
+	assert.NoError(err)
+	assert.EqualValues(traces, pb.Traces{
+		{
+			{
+				Service:  "Service",
+				Name:     "Name",
+				Resource: "Resource",
+				TraceID:  1,
+				SpanID:   2,
+				ParentID: 3,
+				Start:    123,
+				Duration: 456,
+				Error:    1,
+				Meta:     map[string]string{"A": "B"},
+				Metrics:  map[string]float64{"X": 1.2},
+				Type:     "sql",
+			},
+			{
+				Service:  "Service2",
+				Name:     "Name2",
+				Resource: "Resource2",
+				TraceID:  2,
+				SpanID:   3,
+				ParentID: 3,
+				Start:    789,
+				Duration: 456,
+				Error:    0,
+				Meta:     map[string]string{"c": "d"},
+				Metrics:  map[string]float64{"y": 1.4},
+				Type:     "sql",
+			},
+			{
+				Service:  "Service2",
+				Name:     "Name2",
+				Resource: "Resource2",
+				TraceID:  2,
+				SpanID:   3,
+				ParentID: 3,
+				Start:    789,
+				Duration: 456,
+				Error:    0,
+				Meta:     map[string]string{"c": "d"},
+				Metrics:  nil,
+				Type:     "sql",
+			},
+		},
 	})
 }
 
@@ -437,7 +518,7 @@ func TestHandleTraces(t *testing.T) {
 
 	// We test stats for each app
 	for _, lang := range langs {
-		ts, ok := rs.Stats[info.Tags{Lang: lang}]
+		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived)
 		assert.Equal(int64(59222), ts.TracesBytes)

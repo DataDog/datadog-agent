@@ -38,7 +38,16 @@ def get_go_env(ctx, go_version):
 
 
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7', arch="x64", go_mod="vendor"):
+def build(
+    ctx,
+    race=False,
+    go_version=None,
+    incremental_build=False,
+    major_version='7',
+    arch="x64",
+    go_mod="vendor",
+    skip_assets=False,
+):
     """
     Build the security agent
     """
@@ -92,6 +101,14 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+    if not skip_assets:
+        dist_folder = os.path.join(BIN_DIR, "dist", "runtime-security.d")
+        if not os.path.exists(dist_folder):
+            os.makedirs(dist_folder)
+
+        cmd = 'go run ./pkg/security/config/genconfig -output {default_policy}'
+        ctx.run(cmd.format(default_policy=os.path.join(dist_folder, "default.policy")), env=env)
 
 
 @task()

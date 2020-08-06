@@ -21,7 +21,7 @@ func init() {
 	registerCustomCheck("kubernetesDefaultServiceAccounts", kubernetesDefaultServiceAccountsCheck)
 }
 
-func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[string]string, expr *eval.IterableExpression) (*compliance.Report, error) {
+func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[string]string, _ *eval.IterableExpression) (*compliance.Report, error) {
 	if e.KubeClient() == nil {
 		return nil, fmt.Errorf("unable to run kubernetesDefaultServiceAccounts check for rule: %s - Kubernetes client not initialized", ruleID)
 	}

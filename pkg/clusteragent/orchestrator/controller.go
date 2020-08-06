@@ -8,7 +8,6 @@
 package orchestrator
 
 import (
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -63,6 +62,7 @@ type Controller struct {
 	forwarder               forwarder.Forwarder
 	processConfig           *processcfg.AgentConfig
 	isLeaderFunc            func() bool
+	isScrubbingEnabled      bool
 }
 
 // StartController starts the orchestrator controller
@@ -134,6 +134,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		processConfig:           cfg,
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		isLeaderFunc:            ctx.IsLeaderFunc,
+		isScrubbingEnabled:      config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled"),
 	}
 
 	oc.processConfig = cfg
@@ -179,7 +180,7 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
 		log.Errorf("Unable to process deployments list: %v", err)
 		return
@@ -199,7 +200,7 @@ func (o *Controller) processReplicaSets() {
 		return
 	}
 
-	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
 		log.Errorf("Unable to process replica sets list: %v", err)
 		return
@@ -220,7 +221,7 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID)
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
@@ -256,7 +257,7 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 		extraHeaders.Set(api.ClusterIDHeader, o.clusterID)
 		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
 
-		body, err := encodePayload(m)
+		body, err := api.EncodePayload(m)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
 			continue
@@ -277,20 +278,6 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 	}
 }
 
-func encodePayload(m model.MessageBody) ([]byte, error) {
-	msgType, err := model.DetectMessageType(m)
-	if err != nil {
-		return nil, fmt.Errorf("unable to detect message type: %s", err)
-	}
-
-	return model.EncodeMessage(model.Message{
-		Header: model.MessageHeader{
-			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingZstdPB,
-			Type:     msgType,
-		}, Body: m})
-}
-
 func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.Duration, stopCh <-chan struct{}) {
 	for idx, p := range processors {
 		processor := p
@@ -298,5 +285,4 @@ func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.
 			go wait.Until(processor, processorPeriod, stopCh)
 		})
 	}
-
 }

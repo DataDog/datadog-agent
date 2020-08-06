@@ -45,6 +45,7 @@ type Resource struct {
 	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
 	Custom        *Custom             `yaml:"custom,omitempty"`
 	Condition     string              `yaml:"condition"`
+	Fallback      *Fallback           `yaml:"fallback,omitempty"`
 }
 
 // Kind returns ResourceKind of the resource
@@ -69,6 +70,12 @@ func (r *Resource) Kind() ResourceKind {
 	default:
 		return KindInvalid
 	}
+}
+
+// Fallback specifies optional fallback configuration for a resource
+type Fallback struct {
+	Condition string   `yaml:"condition,omitempty"`
+	Resource  Resource `yaml:"resource"`
 }
 
 // Fields & functions available for File

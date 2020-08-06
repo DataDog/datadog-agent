@@ -20,7 +20,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"

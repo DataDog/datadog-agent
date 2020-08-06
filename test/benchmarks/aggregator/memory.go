@@ -10,7 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/test/util"
 	log "github.com/cihub/seelog"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -19,7 +18,7 @@ import (
 func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {
 
 	metricMap := make(map[string][]*metrics.MetricSample)
-	metricTemplate := "benchmark.metric." + util.RandomString(7)
+	metricTemplate := "benchmark.metric." + RandomString(7)
 
 	for mType := metrics.GaugeType; mType <= metrics.DistributionType; mType++ {
 		// Not supported for now
@@ -38,7 +37,7 @@ func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {
 				Tags:       []string{"a", "b:21", "c"},
 				Host:       "localhost",
 				SampleRate: 1,
-				Timestamp:  util.TimeNowNano(),
+				Timestamp:  TimeNowNano(),
 			}
 			samples[i] = s
 		}
@@ -76,7 +75,7 @@ func preAllocateServiceChecks(n int) []*metrics.ServiceCheck {
 
 	for i := range scs {
 		sc := &metrics.ServiceCheck{
-			CheckName: "benchmark.sc." + util.RandomString(4),
+			CheckName: "benchmark.sc." + RandomString(4),
 			Status:    metrics.ServiceCheckOK,
 			Host:      "localhost",
 			Ts:        time.Now().Unix(),
