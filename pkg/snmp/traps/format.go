@@ -13,12 +13,8 @@ import (
 )
 
 const (
-	// *In theory* devices should only send the "instance" (".0") variants of the OIDs,
-	// But we're being overly cautious given that SNMP may not be strictly observed by all devices.
-	sysUpTimeOID         = "1.3.6.1.2.1.1.3"
 	sysUpTimeInstanceOID = "1.3.6.1.2.1.1.3.0"
 	snmpTrapOID          = "1.3.6.1.6.3.1.1.4.1"
-	snmpTrapInstanceOID  = "1.3.6.1.6.3.1.1.4.1.0"
 )
 
 // FormatPacketToJSON converts an SNMP trap packet to a JSON-serializable object.
@@ -81,8 +77,8 @@ func normalizeOID(value string) string {
 
 func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
 	name := normalizeOID(variable.Name)
-	if name != sysUpTimeOID && name != sysUpTimeInstanceOID {
-		return 0, fmt.Errorf("expected OID %s or %s, got %s", sysUpTimeOID, sysUpTimeInstanceOID, name)
+	if name != sysUpTimeInstanceOID {
+		return 0, fmt.Errorf("expected OID %s, got %s", sysUpTimeInstanceOID, name)
 	}
 
 	value, ok := variable.Value.(uint32)
@@ -95,8 +91,8 @@ func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
 
 func parseSnmpTrapOID(variable gosnmp.SnmpPDU) (string, error) {
 	name := normalizeOID(variable.Name)
-	if name != snmpTrapOID && name != snmpTrapInstanceOID {
-		return "", fmt.Errorf("expected OID %s or %s, got %s", snmpTrapOID, snmpTrapInstanceOID, name)
+	if name != snmpTrapOID {
+		return "", fmt.Errorf("expected OID %s, got %s", snmpTrapOID, name)
 	}
 
 	value := ""

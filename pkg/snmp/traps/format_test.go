@@ -19,7 +19,7 @@ func createTestPacket() *SnmpPacket {
 		Content: &gosnmp.SnmpPacket{
 			Version:   gosnmp.Version2c,
 			Community: "public",
-			Variables: netSNMPExampleHeartbeatNotificationVariables,
+			Variables: NetSNMPExampleHeartbeatNotificationVariables,
 		},
 		Addr: &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
 	}
@@ -59,8 +59,8 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 	require.Error(t, err)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
-		// sysUpTime and data, but no snmpTrapOID
-		{Name: "1.3.6.1.2.1.1.3", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+		// sysUpTimeInstance and data, but no snmpTrapOID
+		{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
 	}
@@ -68,8 +68,8 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 	require.Error(t, err)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
-		// snmpTrapOID and data, but no sysUpTime
-		{Name: "1.3.6.1.2.1.1.3", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+		// snmpTrapOID and data, but no sysUpTimeInstance
+		{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
 	}

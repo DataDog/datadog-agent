@@ -22,7 +22,7 @@ import (
 // List of variables for a NetSNMP::ExampleHeartBeatNotification trap message.
 // See: http://www.circitor.fr/Mibs/Html/N/NET-SNMP-EXAMPLES-MIB.php#netSnmpExampleHeartbeatNotification
 var (
-	netSNMPExampleHeartbeatNotificationVariables = []gosnmp.SnmpPDU{
+	NetSNMPExampleHeartbeatNotificationVariables = []gosnmp.SnmpPDU{
 		// sysUpTimeInstance
 		{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
 		// snmpTrapOID
@@ -77,7 +77,7 @@ func sendTestV2Trap(t *testing.T, trapConfig Config, community string) *gosnmp.G
 	require.NoError(t, err)
 	defer params.Conn.Close()
 
-	trap := gosnmp.SnmpTrap{Variables: netSNMPExampleHeartbeatNotificationVariables}
+	trap := gosnmp.SnmpTrap{Variables: NetSNMPExampleHeartbeatNotificationVariables}
 	_, err = params.SendTrap(trap)
 	require.NoError(t, err)
 
@@ -90,7 +90,7 @@ func receivePacket(t *testing.T) *SnmpPacket {
 	case packet := <-GetPacketsChannel():
 		return packet
 	case <-time.After(3 * time.Second):
-		t.Errorf("Trap not received")
+		t.Error("Trap not received")
 		return nil
 	}
 }
@@ -110,9 +110,9 @@ func assertV2Variables(t *testing.T, packet *SnmpPacket) {
 	variables := packet.Content.Variables
 	assert.Equal(t, 4, len(variables))
 
-	uptime := variables[0]
-	assert.Equal(t, ".1.3.6.1.2.1.1.3.0", uptime.Name)
-	assert.Equal(t, gosnmp.TimeTicks, uptime.Type)
+	sysUptimeInstance := variables[0]
+	assert.Equal(t, ".1.3.6.1.2.1.1.3.0", sysUptimeInstance.Name)
+	assert.Equal(t, gosnmp.TimeTicks, sysUptimeInstance.Type)
 
 	snmptrapOID := variables[1]
 	assert.Equal(t, ".1.3.6.1.6.3.1.1.4.1", snmptrapOID.Name)
@@ -133,7 +133,7 @@ func assertV2Variables(t *testing.T, packet *SnmpPacket) {
 func assertNoPacketReceived(t *testing.T) {
 	select {
 	case <-GetPacketsChannel():
-		t.Errorf("Unexpectedly received an unauthorized packet")
+		t.Error("Unexpectedly received an unauthorized packet")
 	case <-time.After(100 * time.Millisecond):
 		break
 	}

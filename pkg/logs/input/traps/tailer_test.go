@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/soniah/gosnmp"
 
@@ -29,22 +30,21 @@ func TestTrapsShouldReceiveMessages(t *testing.T) {
 		Content: &gosnmp.SnmpPacket{
 			Version:   gosnmp.Version2c,
 			Community: "public",
-			Variables: []gosnmp.SnmpPDU{
-				// sysUpTime
-				{Name: "1.3.6.1.2.1.1.3", Type: gosnmp.TimeTicks, Value: uint32(1000)},
-				// snmpTrapOID
-				{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
-				// heartBeatRate
-				{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
-				// heartBeatName
-				{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
-			},
+			Variables: traps.NetSNMPExampleHeartbeatNotificationVariables,
 		},
 		Addr: &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 1620},
 	}
 
 	inputChan <- p
-	msg := <-outputChan
+
+	var msg *message.Message
+	select {
+	case msg = <-outputChan:
+		break
+	case <-time.After(1 * time.Second):
+		t.Error("Message not received")
+		return
+	}
 
 	assert.Equal(t, message.StatusInfo, msg.GetStatus())
 	assert.Equal(t, format(t, p), msg.Content)
