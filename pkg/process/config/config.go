@@ -105,6 +105,7 @@ type AgentConfig struct {
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
 	KubeClusterName                string
+	IsScrubbingEnabled             bool
 
 	// Check config
 	EnabledChecks  []string

@@ -63,6 +63,7 @@ type Controller struct {
 	forwarder               forwarder.Forwarder
 	processConfig           *processcfg.AgentConfig
 	isLeaderFunc            func() bool
+	isScrubbingEnabled      bool
 }
 
 // StartController starts the orchestrator controller
@@ -134,6 +135,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		processConfig:           cfg,
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		isLeaderFunc:            ctx.IsLeaderFunc,
+		isScrubbingEnabled:      config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled"),
 	}
 
 	oc.processConfig = cfg
@@ -179,7 +181,7 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
 		log.Errorf("Unable to process deployments list: %v", err)
 		return
@@ -199,7 +201,7 @@ func (o *Controller) processReplicaSets() {
 		return
 	}
 
-	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
 		log.Errorf("Unable to process replica sets list: %v", err)
 		return
@@ -220,7 +222,7 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID)
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
