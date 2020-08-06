@@ -22,6 +22,7 @@ import (
 )
 
 var (
+	pprofURL      string
 	customerEmail string
 	autoconfirm   bool
 	forceLocal    bool
@@ -84,11 +85,12 @@ func makeFlare(caseID string) error {
 		logFile = common.DefaultLogFile
 	}
 
+	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
 	var profile *flare.Profile
 	var err error
 	if profiling >= 30 {
 		fmt.Fprintln(color.Output, color.BlueString("Creating a %ds performance profile.", profiling))
-		profile, err = flare.CreatePerformanceProfile(profiling)
+		profile, err = flare.CreatePerformanceProfile(pprofURL, profiling)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
 			return err

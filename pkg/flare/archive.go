@@ -96,9 +96,9 @@ type Profile struct {
 }
 
 // CreatePerformanceProfile creates a CPU and Heap profile to include
-func CreatePerformanceProfile(profileDuration int) (*Profile, error) {
-	cpuProfURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/profile?seconds=%d", config.Datadog.GetString("expvar_port"), profileDuration)
-	heapProfURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/heap", config.Datadog.GetString("expvar_port"))
+func CreatePerformanceProfile(pprofURL string, profileDuration int) (*Profile, error) {
+	cpuProfURL := fmt.Sprintf("%s/profile?seconds=%d", pprofURL, profileDuration)
+	heapProfURL := fmt.Sprintf("%s/heap", pprofURL)
 
 	// Two heap profiles for diff
 	c := apiutil.GetClient(false)
@@ -119,8 +119,8 @@ func CreatePerformanceProfile(profileDuration int) (*Profile, error) {
 
 	return &Profile{
 		FirstHeapProfile:  firstHeapProf,
-		CPUProfile:        cpuProf,
 		SecondHeapProfile: secondHeapProf,
+		CPUProfile:        cpuProf,
 	}, nil
 }
 
