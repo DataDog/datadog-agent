@@ -387,7 +387,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, tableName string, mo
 }
 
 // ApplyApprovers applies approvers
-func (p *Probe) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
+func (p *Probe) ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	fnc, exists := allApproversFncs[eventType]
 	if !exists {
 		return nil

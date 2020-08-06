@@ -24,7 +24,7 @@ type RuleSetApplier struct {
 type Applier interface {
 	Init() error
 	ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error
-	ApplyApprovers(eventType eval.EventType, hook *HookPoint, approvers rules.Approvers) error
+	ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error
 	RegisterKProbe(kprobe *KProbe) error
 	RegisterTracepoint(tracepoint string) error
 }
@@ -41,13 +41,13 @@ func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, tableName
 	return nil
 }
 
-func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, hook *HookPoint, approvers rules.Approvers, applier Applier) error {
-	if err := rsa.reporter.ApplyApprovers(eventType, hook, approvers); err != nil {
+func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers rules.Approvers, applier Applier) error {
+	if err := rsa.reporter.ApplyApprovers(eventType, approvers); err != nil {
 		return err
 	}
 
 	if applier != nil {
-		return applier.ApplyApprovers(eventType, hook, approvers)
+		return applier.ApplyApprovers(eventType, approvers)
 	}
 
 	return nil
@@ -69,7 +69,7 @@ func (rsa *RuleSetApplier) RegisterTracepoint(tracepoint string, applier Applier
 	return nil
 }
 
-func (rsa *RuleSetApplier) setupHookPoint(rs *rules.RuleSet, eventType eval.EventType, hookPoint *HookPoint, applier Applier) error {
+func (rsa *RuleSetApplier) setupKProbe(rs *rules.RuleSet, eventType eval.EventType, applier Applier) error {
 	policyTable := allPolicyTables[eventType]
 	if policyTable == "" {
 		return nil
@@ -103,7 +103,7 @@ func (rsa *RuleSetApplier) setupHookPoint(rs *rules.RuleSet, eventType eval.Even
 		return nil
 	}
 
-	if err := rsa.applyApprovers(eventType, hookPoint, approvers, applier); err != nil {
+	if err := rsa.applyApprovers(eventType, approvers, applier); err != nil {
 		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
 			return err
 		}
@@ -120,7 +120,8 @@ func (rsa *RuleSetApplier) setupHookPoint(rs *rules.RuleSet, eventType eval.Even
 // Apply applies the loaded set of rules and returns a report
 // of the applied approvers for it.
 func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, error) {
-	already := make(map[*HookPoint]bool)
+	alreadySetup := make(map[eval.EventType]bool)
+	alreadyRegistered := make(map[*HookPoint]bool)
 
 	if applier != nil {
 		if err := applier.Init(); err != nil {
@@ -135,17 +136,22 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, e
 
 		// first set policies
 		for _, eventType := range hookPoint.EventTypes {
+			if _, ok := alreadySetup[eventType]; ok {
+				continue
+			}
+
 			if rs.HasRulesForEventType(eventType) {
-				if err := rsa.setupHookPoint(rs, eventType, hookPoint, applier); err != nil {
+				if err := rsa.setupKProbe(rs, eventType, applier); err != nil {
 					return nil, err
 				}
+				alreadySetup[eventType] = true
 			}
 		}
 
 		// then register kprobes
 		for _, eventType := range hookPoint.EventTypes {
 			if eventType == "*" || rs.HasRulesForEventType(eventType) {
-				if _, ok := already[hookPoint]; ok {
+				if _, ok := alreadyRegistered[hookPoint]; ok {
 					continue
 				}
 
@@ -167,7 +173,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, e
 						return nil, err
 					}
 				}
-				already[hookPoint] = true
+				alreadyRegistered[hookPoint] = true
 			}
 		}
 	}

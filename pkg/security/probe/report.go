@@ -52,7 +52,7 @@ func (r *Reporter) ApplyFilterPolicy(eventType eval.EventType, tableName string,
 }
 
 // ApplyApprovers is called when approvers are applied for an event type
-func (r *Reporter) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
+func (r *Reporter) ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	policyReport := r.getPolicyReport(eventType)
 	policyReport.Approvers = approvers
 	return nil
