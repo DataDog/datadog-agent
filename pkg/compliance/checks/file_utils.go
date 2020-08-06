@@ -38,7 +38,7 @@ func (m pathMapper) relativeToHostRoot(path string) string {
 }
 
 func resolvePath(e env.Env, path string) (string, error) {
-	pathExpr, err := eval.ParsePath(path)
+	pathExpr, err := eval.Cache.ParsePath(path)
 	if err != nil {
 		return "", err
 	}

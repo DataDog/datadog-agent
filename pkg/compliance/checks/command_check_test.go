@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
@@ -54,10 +53,10 @@ func (f *commandFixture) run(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	expr, err := eval.ParseIterable(f.resource.Condition)
+	commandCheck, err := newResourceCheck(env, "rule-id", f.resource)
 	assert.NoError(err)
 
-	result, err := checkCommand(env, "rule-id", f.resource, expr)
+	result, err := commandCheck.check(env)
 	assert.Equal(f.expectReport, result)
 	assert.Equal(f.expectError, err)
 

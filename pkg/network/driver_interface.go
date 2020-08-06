@@ -3,12 +3,12 @@
 package network
 
 /*
-//! These includes are needed to use constants defined in the ddfilterapi
+//! These includes are needed to use constants defined in the ddnpmapi
 #include <WinDef.h>
 #include <WinIoCtl.h>
 
 //! Defines the objects used to communicate with the driver as well as its control codes
-#include "../ebpf/c/ddfilterapi.h"
+#include "../ebpf/c/ddnpmapi.h"
 */
 import "C"
 import (
@@ -28,7 +28,7 @@ type HandleType string
 
 const (
 	// deviceName identifies the name and location of the windows driver
-	deviceName = `\\.\ddfilter`
+	deviceName = `\\.\ddnpm`
 
 	// FlowHandle is keyed to return 5-tuples from the driver that represents a flow. Used with: (#define FILTER_LAYER_TRANSPORT ((uint64_t) 1)
 	FlowHandle HandleType = "Flow"
@@ -41,8 +41,8 @@ const (
 )
 
 var (
-	// Buffer holding datadog driver filterapi (ddfilterapi) signature to ensure consistency with driver.
-	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_FILTER_SIGNATURE)
+	// Buffer holding datadog driver filterapi (ddnpmapi) signature to ensure consistency with driver.
+	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_NPMDRIVER_SIGNATURE)
 )
 
 // Creates a buffer that Driver will use to verify proper versions are communicating
@@ -236,7 +236,7 @@ func (dh *DriverHandle) setFilters(filters []C.struct__filterDefinition) error {
 	var id int64
 	for _, filter := range filters {
 		err := windows.DeviceIoControl(dh.handle,
-			C.DDFILTER_IOCTL_SET_FLOW_FILTER,
+			C.DDNPMDRIVER_IOCTL_SET_FLOW_FILTER,
 			(*byte)(unsafe.Pointer(&filter)),
 			uint32(unsafe.Sizeof(filter)),
 			(*byte)(unsafe.Pointer(&id)),
@@ -254,7 +254,7 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 		statbuf       = make([]byte, C.sizeof_struct_driver_stats)
 	)
 
-	err := windows.DeviceIoControl(dh.handle, C.DDFILTER_IOCTL_GETSTATS, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	err := windows.DeviceIoControl(dh.handle, C.DDNPMDRIVER_IOCTL_GETSTATS, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
 	}
@@ -344,7 +344,7 @@ func createFlowHandleFilters() (filters []C.struct__filterDefinition, err error)
 // NewDDAPIFilter returns a filter we can apply to the driver
 func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.struct__filterDefinition {
 	var fd C.struct__filterDefinition
-	fd.filterVersion = C.DD_FILTER_SIGNATURE
+	fd.filterVersion = C.DD_NPMDRIVER_SIGNATURE
 	fd.size = C.sizeof_struct__filterDefinition
 	// TODO Remove direction setting for flow filters once all verification code has been removed from driver
 	fd.direction = direction

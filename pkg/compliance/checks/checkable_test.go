@@ -29,7 +29,7 @@ func TestCheckableList(t *testing.T) {
 		expected outcome
 	}{
 		{
-			name: "first succeeds and is the result",
+			name: "first=passed, second=failed => result=[failed from second]",
 			list: []outcome{
 				{
 					report: &compliance.Report{
@@ -50,15 +50,15 @@ func TestCheckableList(t *testing.T) {
 			},
 			expected: outcome{
 				report: &compliance.Report{
-					Passed: true,
+					Passed: false,
 					Data: event.Data{
-						"something": "passed",
+						"something": "failed",
 					},
 				},
 			},
 		},
 		{
-			name: "first is error and second succeeds and is the result",
+			name: "first=error, second=passed => result[error from first]",
 			list: []outcome{
 				{
 					err: errors.New("some error"),
@@ -73,16 +73,11 @@ func TestCheckableList(t *testing.T) {
 				},
 			},
 			expected: outcome{
-				report: &compliance.Report{
-					Passed: true,
-					Data: event.Data{
-						"something else": "passed",
-					},
-				},
+				err: errors.New("some error"),
 			},
 		},
 		{
-			name: "first not passed and second succeeds and is the result",
+			name: "first=failed, second=passed => result[failed from first]",
 			list: []outcome{
 				{
 					report: &compliance.Report{
@@ -103,15 +98,15 @@ func TestCheckableList(t *testing.T) {
 			},
 			expected: outcome{
 				report: &compliance.Report{
-					Passed: true,
+					Passed: false,
 					Data: event.Data{
-						"something else": "passed",
+						"something": "failed",
 					},
 				},
 			},
 		},
 		{
-			name: "first not passed and second is error and is the result",
+			name: "first=failed, second=error => result[failed from first]",
 			list: []outcome{
 				{
 					report: &compliance.Report{
@@ -126,7 +121,12 @@ func TestCheckableList(t *testing.T) {
 				},
 			},
 			expected: outcome{
-				err: errors.New("some other error"),
+				report: &compliance.Report{
+					Passed: false,
+					Data: event.Data{
+						"something": "failed",
+					},
+				},
 			},
 		},
 	}

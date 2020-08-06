@@ -32,7 +32,7 @@ func checkRights(path string) error {
 	// checking that we own the executable
 	usr, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("can't query current user UID")
+		return fmt.Errorf("can't query current user UID: %s", err)
 	}
 
 	// checking we own the executable. This is useless since we won't be able

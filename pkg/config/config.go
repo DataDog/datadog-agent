@@ -179,6 +179,8 @@ func InitConfig(config Config) {
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
+	// overridden in Heroku buildpack
+	config.BindEnvAndSetDefault("heroku_dyno", false)
 
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
@@ -432,12 +434,13 @@ func InitConfig(config Config) {
 
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
+	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300) // value in milliseconds
+	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
-	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
@@ -731,11 +734,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
+	// Datadog security agent (common)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
+	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
+
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
-	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)

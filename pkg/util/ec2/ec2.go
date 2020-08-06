@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,12 +23,15 @@ import (
 var (
 	metadataURL        = "http://169.254.169.254/latest/meta-data"
 	tokenURL           = "http://169.254.169.254/latest/api/token"
-	timeout            = 100 * time.Millisecond
 	oldDefaultPrefixes = []string{"ip-", "domu"}
 	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"
+
+	// cache keys
+	instanceIDCacheKey = cache.BuildAgentKey("ec2", "GetInstanceID")
+	hostnameCacheKey   = cache.BuildAgentKey("ec2", "GetHostname")
 )
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
@@ -35,7 +39,19 @@ func GetInstanceID() (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	return getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+
+	instanceID, err := getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	if err != nil {
+		if instanceID, found := cache.Cache.Get(instanceIDCacheKey); found {
+			log.Debugf("Unable to get ec2 instanceID from aws metadata, returning cached instanceID '%s': %s", instanceID, err)
+			return instanceID.(string), nil
+		}
+		return "", err
+	}
+
+	cache.Cache.Set(instanceIDCacheKey, instanceID, cache.NoExpiration)
+
+	return instanceID, nil
 }
 
 // GetLocalIPv4 gets the local IPv4 for the currently running host using the EC2 metadata API.
@@ -64,7 +80,19 @@ func GetHostname() (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	return getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+
+	hostname, err := getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	if err != nil {
+		if hostname, found := cache.Cache.Get(hostnameCacheKey); found {
+			log.Debugf("Unable to get ec2 hostname from aws metadata, returning cached hostname '%s': %s", hostname, err)
+			return hostname.(string), nil
+		}
+		return "", err
+	}
+
+	cache.Cache.Set(hostnameCacheKey, hostname, cache.NoExpiration)
+
+	return hostname, nil
 }
 
 // GetNetworkID retrieves the network ID using the EC2 metadata endpoint. For
@@ -162,7 +190,7 @@ func extractClusterName(tags []string) (string, error) {
 
 func doHTTPRequest(url string, method string, headers map[string]string, retriableWithFreshToken bool) (*http.Response, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
 
 	req, err := http.NewRequest(method, url, nil)
@@ -195,7 +223,7 @@ func doHTTPRequest(url string, method string, headers map[string]string, retriab
 
 func getToken() (string, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
 
 	req, err := http.NewRequest(http.MethodPut, tokenURL, nil)

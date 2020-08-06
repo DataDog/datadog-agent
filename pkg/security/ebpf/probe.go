@@ -73,14 +73,16 @@ func (p *Probe) RegisterTable(table string) error {
 }
 
 // Stop the eBPF probe and its associated perf event arrays
-func (p *Probe) Stop() {
+func (p *Probe) Stop() error {
 	for _, perfMap := range p.perfMapsMap {
 		perfMap.Stop()
 	}
 
 	if p.Module != nil {
-		p.Module.Close()
+		return p.Module.Close()
 	}
+
+	return nil
 }
 
 // Start the eBPF probe and its associated perf event arrays

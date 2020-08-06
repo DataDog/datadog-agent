@@ -16,7 +16,7 @@ Write-Host -ForegroundColor Green "Installing Python version $maj $min $patch"
 if($maj -eq "2") {
     $url = "https://www.python.org/ftp/python/$Version/python-$Version.amd64.msi"
 } elseif ($maj -eq "3"){
-    $url = "https://www.python.org/ftp/python/$Version/python-$Version-amd64.exe"  
+    $url = "https://www.python.org/ftp/python/$Version/python-$Version-amd64.exe"
 } else {
     Write-Host -ForegroundColor Red "Unknown major version $Maj.  I don't know how to do this"
     exit 1
@@ -26,7 +26,7 @@ if($x86 -eq $true){
     if($maj -eq "2") {
         $url = "https://www.python.org/ftp/python/$Version/python-$Version.msi"
     } elseif ($maj -eq "3"){
-        $url = "https://www.python.org/ftp/python/$Version/python-$Version.exe"  
+        $url = "https://www.python.org/ftp/python/$Version/python-$Version.exe"
     }
     $outzip = "python-windows-$Version-x86.zip"
 }
@@ -52,10 +52,20 @@ if($md5sum){
 
 Write-Host -ForegroundColor Green "Installing package in container..."
 if($maj -eq "2") {
-    Start-Process msiexec -ArgumentList "/q /i $dlfullpath TARGETDIR=c:\pythonroot ADDLOCAL=DefaultFeature,Tools,TclTk,Testsuite" -Wait
-} 
+    $p = Start-Process msiexec -ArgumentList "/q /i $dlfullpath TARGETDIR=c:\pythonroot ADDLOCAL=DefaultFeature,Tools,TclTk,Testsuite" -Wait -Passthru
+
+    if ($p.ExitCode -ne 0) {
+        Write-Host -ForegroundColor Red ("Failed to install Python, exit code 0x{0:X}" -f $p.ExitCode)
+        exit 1
+    }
+}
 elseif ($maj -eq "3") {
-    Start-Process $dlfullpath -ArgumentList "/quiet DefaultJustForMeTargetDir=c:\pythonroot TARGETDIR=c:\pythonroot AssociateFiles=0 Include_doc=0 Include_launcher=0 Include_pip=0 Include_tcltk=0" -Wait
+    $p = Start-Process $dlfullpath -ArgumentList "/quiet DefaultJustForMeTargetDir=c:\pythonroot TARGETDIR=c:\pythonroot AssociateFiles=0 Include_doc=0 Include_launcher=0 Include_pip=0 Include_tcltk=0" -Wait -Passthru
+
+    if ($p.ExitCode -ne 0) {
+        Write-Host -ForegroundColor Red ("Failed to install Python, exit code 0x{0:X}" -f $p.ExitCode)
+        exit 1
+    }
     if (Test-Path c:\pythonroot\vcruntime*.dll) {
         Write-Host -ForegroundColor Green "NOT deleting included cruntime"
     }

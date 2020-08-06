@@ -14,26 +14,39 @@ import (
 )
 
 const (
-	// pauseContainerGCR regex matches:
+	// Pause container image names that should be filtered out.
+	// Where appropriate, each constant is loosely structured as
+	// image:domain.*/pause.*
+
+	pauseContainerKubernetes = "image:kubernetes/pause"
+	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
+	pauseContainerOpenshift  = "image:openshift/origin-pod"
+	pauseContainerOpenshift3 = "image:.*rhel7/pod-infrastructure"
+
 	// - k8s.gcr.io/pause-amd64:3.1
 	// - asia.gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/gke-release/pause-win:1.1.0
-	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/gke-release/|/)pause(.*)`
-	pauseContainerOpenshift3 = "image:(openshift/origin-pod|(.*)rhel7/pod-infrastructure)"
-	pauseContainerKubernetes = "image:kubernetes/pause"
-	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
-	pauseContainerEKS        = "image:(amazonaws.com/)?eks/pause-(amd64|windows)"
-	// pauseContainerAzure regex matches:
+	// - eu.gcr.io/k8s-artifacts-prod/pause:3.3
+	pauseContainerGCR = `image:.*gcr\.io(.*)/pause.*`
+
 	// - k8s-gcrio.azureedge.net/pause-amd64
 	// - gcrio.azureedge.net/google_containers/pause-amd64
-	pauseContainerAzure   = `image:(.*)azureedge\.net(/google_containers/|/)pause(.*)`
-	pauseContainerRancher = `image:rancher/pause(.*)`
-	// pauseContainerAKS regex matches:
+	pauseContainerAzure = `image:.*azureedge\.net(.*)/pause.*`
+
+	// amazonaws.com/eks/pause-windows:latest
+	// eks/pause-amd64
+	pauseContainerEKS = `image:(amazonaws\.com/)?eks/pause.*`
+	// rancher/pause-amd64:3.0
+	pauseContainerRancher = `image:rancher/pause.*`
 	// - mcr.microsoft.com/k8s/core/pause-amd64
+	pauseContainerMCR = `image:mcr\.microsoft\.com(.*)/pause.*`
 	// - aksrepos.azurecr.io/mirror/pause-amd64
-	pauseContainerAKS = `image:(mcr.microsoft.com/k8s/core/|aksrepos.azurecr.io/mirror/|kubeletwin/)pause(.*)`
-	pauseContainerECR = `image:ecr(.*)amazonaws.com/pause(.*)`
+	pauseContainerAKS = `image:aksrepos\.azurecr\.io(.*)/pause.*`
+	// - kubeletwin/pause:latest
+	pauseContainerWin = `image:kubeletwin/pause.*`
+	// - ecr.us-east-1.amazonaws.com/pause
+	pauseContainerECR = `image:ecr(.*)amazonaws\.com/pause.*`
 )
 
 // Filter holds the state for the container filtering logic
@@ -145,12 +158,15 @@ func newMetricFilterFromConfig() (*Filter, error) {
 	if config.Datadog.GetBool("exclude_pause_container") {
 		excludeList = append(excludeList,
 			pauseContainerGCR,
+			pauseContainerOpenshift,
 			pauseContainerOpenshift3,
 			pauseContainerKubernetes,
 			pauseContainerAzure,
 			pauseContainerECS,
 			pauseContainerEKS,
 			pauseContainerRancher,
+			pauseContainerMCR,
+			pauseContainerWin,
 			pauseContainerAKS,
 			pauseContainerECR,
 		)
