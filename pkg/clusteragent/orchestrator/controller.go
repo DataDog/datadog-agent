@@ -153,13 +153,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	processors := []func(){
-		o.processPods,
-		o.processReplicaSets,
-		o.processDeploys,
-		o.processServices,
-	}
-
+	processors := o.getActivatedProcessors()
 	spreadProcessors(processors, 2*time.Second, 10*time.Second, stopCh)
 
 	<-stopCh
@@ -283,4 +277,25 @@ func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.
 			go wait.Until(processor, processorPeriod, stopCh)
 		})
 	}
+}
+
+func (o *Controller) getActivatedProcessors() []func() {
+	var processors []func()
+	if config.Datadog.GetBool("orchestrator_explorer.pod.enabled") {
+		log.Info("Orchestrator explorer pod collection is enabled")
+		processors = append(processors, o.processPods)
+	}
+	if config.Datadog.GetBool("orchestrator_explorer.replicaset.enabled") {
+		log.Info("Orchestrator explorer replicaset collection is enabled")
+		processors = append(processors, o.processReplicaSets)
+	}
+	if config.Datadog.GetBool("orchestrator_explorer.deployment.enabled") {
+		log.Info("Orchestrator explorer deployment collection is enabled")
+		processors = append(processors, o.processDeploys)
+	}
+	if config.Datadog.GetBool("orchestrator_explorer.service.enabled") {
+		log.Info("Orchestrator explorer service collection is enabled")
+		processors = append(processors, o.processServices)
+	}
+	return processors
 }

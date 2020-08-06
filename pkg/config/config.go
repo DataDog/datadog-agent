@@ -629,8 +629,16 @@ func InitConfig(config Config) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
-	// Ochestrator explorer
+	// Orchestrator explorer
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
+
+	// Activating single resources
+	// Note: you cannot activate single resources without activating the orchestrator_explorer.
+	// Note: activating additional resources will potentially increase the CPU and Mem usage of the DCA.
+	config.BindEnvAndSetDefault("orchestrator_explorer.service.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.deployment.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.pod.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.replicaset.enabled", false)
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
