@@ -138,7 +138,7 @@ func makesketch(n int) *quantile.Sketch {
 	return s
 }
 
-// Makeseries creates a Sketchseries of size i+5
+// Makeseries creates a SketchSeries with i+5 Sketch Points
 func Makeseries(i int) SketchSeries {
 	// makeseries is deterministic so that we can test for mutation.
 	ss := SketchSeries{
@@ -151,6 +151,7 @@ func Makeseries(i int) SketchSeries {
 		Interval: int64(i),
 	}
 
+	// We create i+5 Sketch Points to insure all hosts have at least 5 Sketch Points for tests
 	for j := 0; j < i+5; j++ {
 		ss.Points = append(ss.Points, SketchPoint{
 			Ts:     10 * int64(j),
