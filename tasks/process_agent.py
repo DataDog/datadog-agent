@@ -3,20 +3,21 @@ import os
 import shutil
 import sys
 import tempfile
+
 from invoke import task
 from invoke.exceptions import Exit
 
+from .build_tags import get_default_build_tags
 from .utils import (
+    REPO_PATH,
     bin_name,
     get_build_flags,
-    REPO_PATH,
-    get_version,
     get_git_branch_name,
-    get_go_version,
     get_git_commit,
+    get_go_version,
+    get_version,
     get_version_numeric_only,
 )
-from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
@@ -89,7 +90,7 @@ def build(
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(iot=False, process=True, arch=arch)
+    build_tags = get_default_build_tags(build="process-agent", arch=arch)
 
     ## secrets is not supported on windows because the process agent still runs as
     ## root.  No matter what `get_default_build_tags()` returns, take secrets out.

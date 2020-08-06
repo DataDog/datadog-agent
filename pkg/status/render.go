@@ -71,12 +71,16 @@ func FormatDCAStatus(data []byte) (string, error) {
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	endpointsInfos := stats["endpointsInfos"]
+	logsStats := stats["logsStats"]
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
 	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, nil, "")
 	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
 	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
+	if config.Datadog.GetBool("compliance_config.enabled") {
+		renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
+	}
 
 	return b.String(), nil
 }

@@ -2,6 +2,7 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 import os
+
 from invoke import Collection
 
 from . import (
@@ -26,25 +27,22 @@ from . import (
     trace_agent,
     uninstallcmd,
 )
-
-
-from .go import fmt, lint, vet, cyclo, golangci_lint, deps, lint_licenses, generate_licenses, reset, generate
+from .build_tags import audit_tag_impact
+from .go import cyclo, deps, fmt, generate, generate_licenses, golangci_lint, lint, lint_licenses, reset, vet
 from .test import (
-    test,
-    integration_tests,
-    lint_teamassignment,
-    lint_releasenote,
-    lint_milestone,
-    lint_filenames,
-    lint_python,
+    check_gitlab_broken_dependencies,
     e2e_tests,
+    install_shellcheck,
+    integration_tests,
+    lint_filenames,
+    lint_milestone,
+    lint_python,
+    lint_releasenote,
+    lint_teamassignment,
     make_kitchen_gitlab_yml,
     make_simple_gitlab_yml,
-    check_gitlab_broken_dependencies,
-    install_shellcheck,
+    test,
 )
-from .build_tags import audit_tag_impact
-
 
 # the root namespace
 ns = Collection()

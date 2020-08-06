@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	assert "github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ func TestCheckableList(t *testing.T) {
 	assert := assert.New(t)
 
 	type outcome struct {
-		report *report
+		report *compliance.Report
 		err    error
 	}
 
@@ -28,94 +29,89 @@ func TestCheckableList(t *testing.T) {
 		expected outcome
 	}{
 		{
-			name: "first succeeds and is the result",
+			name: "first=passed, second=failed => result=[failed from second]",
 			list: []outcome{
 				{
-					report: &report{
-						passed: true,
-						data: event.Data{
+					report: &compliance.Report{
+						Passed: true,
+						Data: event.Data{
 							"something": "passed",
 						},
 					},
 				},
 				{
-					report: &report{
-						passed: false,
-						data: event.Data{
+					report: &compliance.Report{
+						Passed: false,
+						Data: event.Data{
 							"something": "failed",
 						},
 					},
 				},
 			},
 			expected: outcome{
-				report: &report{
-					passed: true,
-					data: event.Data{
-						"something": "passed",
+				report: &compliance.Report{
+					Passed: false,
+					Data: event.Data{
+						"something": "failed",
 					},
 				},
 			},
 		},
 		{
-			name: "first is error and second succeeds and is the result",
+			name: "first=error, second=passed => result[error from first]",
 			list: []outcome{
 				{
 					err: errors.New("some error"),
 				},
 				{
-					report: &report{
-						passed: true,
-						data: event.Data{
+					report: &compliance.Report{
+						Passed: true,
+						Data: event.Data{
 							"something else": "passed",
 						},
 					},
 				},
 			},
 			expected: outcome{
-				report: &report{
-					passed: true,
-					data: event.Data{
-						"something else": "passed",
-					},
-				},
+				err: errors.New("some error"),
 			},
 		},
 		{
-			name: "first not passed and second succeeds and is the result",
+			name: "first=failed, second=passed => result[failed from first]",
 			list: []outcome{
 				{
-					report: &report{
-						passed: false,
-						data: event.Data{
+					report: &compliance.Report{
+						Passed: false,
+						Data: event.Data{
 							"something": "failed",
 						},
 					},
 				},
 				{
-					report: &report{
-						passed: true,
-						data: event.Data{
+					report: &compliance.Report{
+						Passed: true,
+						Data: event.Data{
 							"something else": "passed",
 						},
 					},
 				},
 			},
 			expected: outcome{
-				report: &report{
-					passed: true,
-					data: event.Data{
-						"something else": "passed",
+				report: &compliance.Report{
+					Passed: false,
+					Data: event.Data{
+						"something": "failed",
 					},
 				},
 			},
 		},
 		{
-			name: "first not passed and second is error and is the result",
+			name: "first=failed, second=error => result[failed from first]",
 			list: []outcome{
 				{
-					report: &report{
-						passed: false,
-						data: event.Data{
+					report: &compliance.Report{
+						Passed: false,
+						Data: event.Data{
 							"something": "failed",
 						},
 					},
@@ -125,7 +121,12 @@ func TestCheckableList(t *testing.T) {
 				},
 			},
 			expected: outcome{
-				err: errors.New("some other error"),
+				report: &compliance.Report{
+					Passed: false,
+					Data: event.Data{
+						"something": "failed",
+					},
+				},
 			},
 		},
 	}

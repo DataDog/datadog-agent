@@ -1,6 +1,7 @@
-import unittest
-import docker
 import os
+import unittest
+
+import docker
 
 # The DOCKER_IMAGE envvar is needed to specify what
 # image to test

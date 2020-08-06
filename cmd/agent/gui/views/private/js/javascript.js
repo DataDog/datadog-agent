@@ -495,7 +495,7 @@ function disableCheckSettings(editor) {
       $(".success").delay(3000).fadeOut("slow");
       $("#checks_description").html("Disable check.");
       $("#save_check").addClass("inactive");
-
+      $("#disable_check").addClass("inactive");
       // If this was a default file, we just saved it under a new (non-default) name,
       // so we need to change the displayed name & update the associated file name
       $('#check_input').data('file_name', fileName);

@@ -1,8 +1,9 @@
-import sys
 import os
+import sys
 import time
-from flask import request, Flask, Response, g
-from prometheus_client import Counter, Histogram, CollectorRegistry, multiprocess, generate_latest, CONTENT_TYPE_LATEST
+
+from flask import Flask, Response, g, request
+from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Histogram, generate_latest, multiprocess
 
 
 def extract_exception_name(exc_info=None):

@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
@@ -33,7 +32,7 @@ type commandFixture struct {
 	expectCommandName string
 	expectCommandArgs []string
 
-	expectReport *report
+	expectReport *compliance.Report
 	expectError  error
 }
 
@@ -54,10 +53,10 @@ func (f *commandFixture) run(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	expr, err := eval.ParseIterable(f.resource.Condition)
+	commandCheck, err := newResourceCheck(env, "rule-id", f.resource)
 	assert.NoError(err)
 
-	result, err := checkCommand(env, "rule-id", f.resource, expr)
+	result, err := commandCheck.check(env)
 	assert.Equal(f.expectReport, result)
 	assert.Equal(f.expectError, err)
 
@@ -81,9 +80,9 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      nil,
 			expectCommandName: "myCommand",
 			expectCommandArgs: []string{"--foo=bar", "--baz"},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"command.exitCode": 0,
 				},
 			},
@@ -103,9 +102,9 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      nil,
 			expectCommandName: getDefaultShell().Name,
 			expectCommandArgs: append(getDefaultShell().Args, "my command --foo=bar --baz"),
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"command.exitCode": 0,
 				},
 			},
@@ -129,9 +128,9 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      nil,
 			expectCommandName: "zsh",
 			expectCommandArgs: []string{"-someoption", "-c", "my command --foo=bar --baz"},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"command.exitCode": 0,
 				},
 			},
@@ -169,9 +168,9 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      nil,
 			expectCommandName: "myCommand",
 			expectCommandArgs: []string{"--foo=bar", "--baz"},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"command.exitCode": 2,
 				},
 			},

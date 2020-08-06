@@ -12,6 +12,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,6 +32,17 @@ type Weights []Weight
 func (w Weights) Len() int           { return len(w) }
 func (w Weights) Less(i, j int) bool { return w[i].busyness > w[j].busyness }
 func (w Weights) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
+
+type RebalancingDecision struct {
+	CheckID     string
+	CheckWeight int
+
+	SourceNodeName string
+	SourceDiff     int
+
+	DestNodeName string
+	DestDiff     int
+}
 
 func (d *dispatcher) calculateAvg() (int, error) {
 	busyness := 0
@@ -163,7 +175,10 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 
 // rebalance tries to optimize the checks repartition on cluster level check
 // runners with less possible check moves based on the runner stats.
-func (d *dispatcher) rebalance() {
+func (d *dispatcher) rebalance() []types.RebalanceResponse {
+	// Collect CLC runners stats and update cache before rebalancing
+	d.updateRunnersStats()
+
 	start := time.Now()
 	defer func() {
 		rebalancingDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
@@ -173,10 +188,13 @@ func (d *dispatcher) rebalance() {
 	totalAvg, err := d.calculateAvg()
 	if err != nil {
 		log.Debugf("Cannot rebalance checks: %v", err)
-		return
+		return nil
 	}
+
+	checksMoved := []types.RebalanceResponse{}
 	diffMap, weights := d.getDiffAndWeights(totalAvg)
 	sort.Sort(weights)
+
 	for _, nodeWeight := range weights {
 		for diffMap[nodeWeight.nodeName] > 0 {
 			// try to move checks from a node only of the node busyness is above the average
@@ -187,26 +205,41 @@ func (d *dispatcher) rebalance() {
 				break
 			}
 
-			pickedNodeName := pickNode(diffMap, sourceNodeName)
-			if diffMap[pickedNodeName]+checkWeight < int(float64(diffMap[sourceNodeName])*tolerationMargin) {
-				// move a check to a new node only if it keeps the busyness of the new node
-				// lower than the original node's busyness multiplied by the tolerationMargin value
-				// the toleration margin is used to lean towards stability over perfectly optimal balance
+			destNodeName := pickNode(diffMap, sourceNodeName)
+			sourceDiff := diffMap[sourceNodeName]
+			destDiff := diffMap[destNodeName]
+
+			// move a check to a new node only if it keeps the
+			// busyness of the new node lower than the original
+			// node's busyness multiplied by the tolerationMargin
+			// value the toleration margin is used to lean towards
+			// stability over perfectly optimal balance
+			if destDiff+checkWeight < int(float64(sourceDiff)*tolerationMargin) {
 				rebalancingDecisions.Inc(le.JoinLeaderValue)
-				err = d.moveCheck(sourceNodeName, pickedNodeName, checkID)
+				err = d.moveCheck(sourceNodeName, destNodeName, checkID)
 				if err != nil {
 					log.Debugf("Cannot move check %s: %v", checkID, err)
 					continue
 				}
 
 				successfulRebalancing.Inc(le.JoinLeaderValue)
-				log.Tracef("Check %s with weight %d moved, total avg: %d, source diff: %d, dest diff: %d", checkID, checkWeight, totalAvg, diffMap[sourceNodeName], diffMap[pickedNodeName])
-
+				log.Tracef("Check %s with weight %d moved, total avg: %d, source diff: %d, dest diff: %d",
+					checkID, checkWeight, totalAvg, sourceDiff, destDiff)
 				// diffMap needs to be updated on every check moved
 				diffMap = d.updateDiff(totalAvg)
+				checksMoved = append(checksMoved, types.RebalanceResponse{
+					CheckID:        checkID,
+					CheckWeight:    checkWeight,
+					SourceNodeName: sourceNodeName,
+					SourceDiff:     sourceDiff,
+					DestNodeName:   destNodeName,
+					DestDiff:       destDiff,
+				})
 			} else {
 				break
 			}
 		}
 	}
+
+	return checksMoved
 }

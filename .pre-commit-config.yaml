@@ -1,5 +1,5 @@
 default_language_version:
-  python: python3.8
+  python: python3
 
 repos:
 - repo: https://gitlab.com/pycqa/flake8
@@ -12,6 +12,10 @@ repos:
   rev: 19.10b0
   hooks:
     - id: black
+- repo: https://github.com/timothycrosley/isort/
+  rev: 5.2.2
+  hooks:
+    - id: isort
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
   rev: 2.1.1
   hooks:

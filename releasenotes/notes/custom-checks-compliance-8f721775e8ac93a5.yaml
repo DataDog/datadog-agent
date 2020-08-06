@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    compliance: Add support for Go custom compliance checks and implement two for CIS Kubernetes

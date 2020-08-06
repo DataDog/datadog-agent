@@ -28,6 +28,7 @@ var factories = []api.Factory{
 	modules.NetworkTracer,
 	modules.TCPQueueLength,
 	modules.OOMKillProbe,
+	modules.SecurityRuntime,
 }
 
 // Flag values
@@ -98,20 +99,27 @@ func runAgent(exit <-chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	// if a debug port is specified, we expose the default handler to that port
+	if cfg.SystemProbeDebugPort > 0 {
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
+	}
+
 	loader := NewLoader()
 	httpMux := http.NewServeMux()
 
 	err = loader.Register(cfg, httpMux, factories)
-	if err != nil && strings.HasPrefix(err.Error(), modules.ErrSysprobeUnsupported.Error()) {
-		// If tracer is unsupported by this operating system, then exit gracefully
-		log.Infof("%s, exiting.", err)
-		gracefulExit()
-	}
 	if err != nil {
+		loader.Close()
+
+		if strings.HasPrefix(err.Error(), modules.ErrSysprobeUnsupported.Error()) {
+			// If tracer is unsupported by this operating system, then exit gracefully
+			log.Infof("%s, exiting.", err)
+			gracefulExit()
+		}
+
 		log.Criticalf("failed to create system probe: %s", err)
 		cleanupAndExit(1)
 	}
-	defer loader.Close()
 
 	// Register stats endpoint
 	httpMux.HandleFunc("/debug/stats", func(w http.ResponseWriter, req *http.Request) {
@@ -123,6 +131,7 @@ func runAgent(exit <-chan struct{}) {
 		err = http.Serve(conn.GetListener(), httpMux)
 		if err != nil {
 			log.Criticalf("Error creating HTTP server: %s", err)
+			loader.Close()
 			cleanupAndExit(1)
 		}
 	}()

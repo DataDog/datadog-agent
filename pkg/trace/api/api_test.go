@@ -29,6 +29,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
+	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
 // Traces shouldn't come from more than 5 different sources
@@ -45,7 +46,7 @@ var headerFields = map[string]string{
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
-	rawTraceChan := make(chan *Trace, 5000)
+	rawTraceChan := make(chan *Payload, 5000)
 	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan)
 
 	return receiver
@@ -148,13 +149,15 @@ func TestLegacyReceiver(t *testing.T) {
 
 			// now we should be able to read the trace data
 			select {
-			case rt := <-tc.r.out:
-				assert.Len(rt.Spans, 1)
-				span := rt.Spans[0]
+			case p := <-tc.r.out:
+				assert.Len(p.Traces, 1)
+				rt := p.Traces[0]
+				assert.Len(rt, 1)
+				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_is_amazing", span.Service)
-				assert.Equal("something_that_should_be_a_metric", span.Name)
+				assert.Equal("fennel_IS amazing!", span.Service)
+				assert.Equal("something &&<@# that should be a metric!", span.Name)
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -211,13 +214,14 @@ func TestReceiverJSONDecoder(t *testing.T) {
 
 			// now we should be able to read the trace data
 			select {
-			case rt := <-tc.r.out:
-				assert.Len(rt.Spans, 1)
-				span := rt.Spans[0]
+			case p := <-tc.r.out:
+				rt := p.Traces[0]
+				assert.Len(rt, 1)
+				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
 				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_is_amazing", span.Service)
-				assert.Equal("something_that_should_be_a_metric", span.Name)
+				assert.Equal("fennel_IS amazing!", span.Service)
+				assert.Equal("something &&<@# that should be a metric!", span.Name)
 				assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 				assert.Equal("192.168.0.1", span.Meta["http.host"])
 				assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -278,13 +282,14 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 
 				// now we should be able to read the trace data
 				select {
-				case rt := <-tc.r.out:
-					assert.Len(rt.Spans, 1)
-					span := rt.Spans[0]
+				case p := <-tc.r.out:
+					rt := p.Traces[0]
+					assert.Len(rt, 1)
+					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
-					assert.Equal("fennel_is_amazing", span.Service)
-					assert.Equal("something_that_should_be_a_metric", span.Name)
+					assert.Equal("fennel_IS amazing!", span.Service)
+					assert.Equal("something &&<@# that should be a metric!", span.Name)
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -300,13 +305,15 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 
 				// now we should be able to read the trace data
 				select {
-				case rt := <-tc.r.out:
-					assert.Len(rt.Spans, 1)
-					span := rt.Spans[0]
+				case p := <-tc.r.out:
+					rt := p.Traces[0]
+					assert.Len(rt, 1)
+					span := rt[0]
+					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
-					assert.Equal("fennel_is_amazing", span.Service)
-					assert.Equal("something_that_should_be_a_metric", span.Name)
+					assert.Equal("fennel_IS amazing!", span.Service)
+					assert.Equal("something &&<@# that should be a metric!", span.Name)
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
@@ -344,7 +351,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
 	})
 
 	t.Run("with-header", func(t *testing.T) {
@@ -358,7 +365,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{}).TracesDropped.DecodingError)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
 	})
 }
 
@@ -391,6 +398,86 @@ func TestTraceCount(t *testing.T) {
 		count, err := traceCount(req)
 		assert.NoError(t, err)
 		assert.Equal(t, count, int64(123))
+	})
+}
+
+func TestDecodeV05(t *testing.T) {
+	assert := assert.New(t)
+	data := [2]interface{}{
+		0: []string{
+			0:  "Service2",
+			1:  "Name2",
+			2:  "Resource",
+			3:  "Service",
+			4:  "Name",
+			5:  "A",
+			6:  "B",
+			7:  "X",
+			8:  "y",
+			9:  "sql",
+			10: "Resource2",
+			11: "c",
+			12: "d",
+		},
+		1: [][][12]interface{}{
+			{
+				{uint32(3), uint32(4), uint32(2), uint64(1), uint64(2), uint64(3), int64(123), int64(456), 1, map[uint32]uint32{5: 6}, map[uint32]float64{7: 1.2}, uint32(9)},
+				{uint32(0), uint32(1), uint32(10), uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[uint32]uint32{11: 12}, map[uint32]float64{8: 1.4}, uint32(9)},
+				{uint32(0), uint32(1), uint32(10), uint64(2), uint64(3), uint64(3), int64(789), int64(456), 0, map[uint32]uint32{11: 12}, map[uint32]float64{}, uint32(9)},
+			},
+		},
+	}
+	b, err := vmsgp.Marshal(&data)
+	assert.NoError(err)
+	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
+	assert.NoError(err)
+	traces, err := decodeTraces(v05, req)
+	assert.NoError(err)
+	assert.EqualValues(traces, pb.Traces{
+		{
+			{
+				Service:  "Service",
+				Name:     "Name",
+				Resource: "Resource",
+				TraceID:  1,
+				SpanID:   2,
+				ParentID: 3,
+				Start:    123,
+				Duration: 456,
+				Error:    1,
+				Meta:     map[string]string{"A": "B"},
+				Metrics:  map[string]float64{"X": 1.2},
+				Type:     "sql",
+			},
+			{
+				Service:  "Service2",
+				Name:     "Name2",
+				Resource: "Resource2",
+				TraceID:  2,
+				SpanID:   3,
+				ParentID: 3,
+				Start:    789,
+				Duration: 456,
+				Error:    0,
+				Meta:     map[string]string{"c": "d"},
+				Metrics:  map[string]float64{"y": 1.4},
+				Type:     "sql",
+			},
+			{
+				Service:  "Service2",
+				Name:     "Name2",
+				Resource: "Resource2",
+				TraceID:  2,
+				SpanID:   3,
+				ParentID: 3,
+				Start:    789,
+				Duration: 456,
+				Error:    0,
+				Meta:     map[string]string{"c": "d"},
+				Metrics:  nil,
+				Type:     "sql",
+			},
+		},
 	})
 }
 
@@ -431,7 +518,7 @@ func TestHandleTraces(t *testing.T) {
 
 	// We test stats for each app
 	for _, lang := range langs {
-		ts, ok := rs.Stats[info.Tags{Lang: lang}]
+		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived)
 		assert.Equal(int64(59222), ts.TracesBytes)
