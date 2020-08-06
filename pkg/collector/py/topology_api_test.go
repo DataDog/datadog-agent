@@ -21,14 +21,14 @@ func TestComponentTopology(t *testing.T) {
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "type", URL: "url"}
-	components, relations := getAgentIntegrationTopology(t, "testtopology:c3d960f8ff8a5c55", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, "type:url", instance, expectedTopology)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
 			StopSnapshot:  true,
 			Instance:      instance,
-			Components: append(components, []topology.Component{
+			Components: []topology.Component{
 				{
 					ExternalID: "myid",
 					Type:       topology.Type{Name: "mytype"},
@@ -42,8 +42,15 @@ func TestComponentTopology(t *testing.T) {
 						},
 					},
 				},
-			}...),
-			Relations: relations,
+			},
+			Relations: []topology.Relation{},
+		},
+		"type:url": {
+			StartSnapshot: false,
+			StopSnapshot:  false,
+			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
+			Components:    components,
+			Relations:     relations,
 		},
 	}), expectedTopology)
 }
@@ -57,15 +64,15 @@ func TestRelationTopology(t *testing.T) {
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "type", URL: "url"}
-	components, relations := getAgentIntegrationTopology(t, "testtopology:c3d960f8ff8a5c55", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, "type:url", instance, expectedTopology)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
 			StopSnapshot:  true,
 			Instance:      instance,
-			Components:    components,
-			Relations: append(relations, []topology.Relation{
+			Components:    []topology.Component{},
+			Relations: []topology.Relation{
 				{
 					ExternalID: "source-mytype-target",
 					SourceID:   "source",
@@ -78,7 +85,14 @@ func TestRelationTopology(t *testing.T) {
 						"emptykey":     map[string]interface{}{},
 					},
 				},
-			}...),
+			},
+		},
+		"type:url": {
+			StartSnapshot: false,
+			StopSnapshot:  false,
+			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
+			Components:    components,
+			Relations:     relations,
 		},
 	}), expectedTopology)
 }
@@ -92,13 +106,20 @@ func TestStartSnapshotCheck(t *testing.T) {
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "type", URL: "url"}
-	components, relations := getAgentIntegrationTopology(t, "testtopology:c3d960f8ff8a5c55", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, "type:url", instance, expectedTopology)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
 			StopSnapshot:  true,
 			Instance:      instance,
+			Components:    []topology.Component{},
+			Relations:     []topology.Relation{},
+		},
+		"type:url": {
+			StartSnapshot: false,
+			StopSnapshot:  false,
+			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
 			Components:    components,
 			Relations:     relations,
 		},
@@ -114,13 +135,20 @@ func TestStopSnapshotCheck(t *testing.T) {
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "type", URL: "url"}
-	components, relations := getAgentIntegrationTopology(t, "testtopology:c3d960f8ff8a5c55", instance, expectedTopology)
+	components, relations := getAgentIntegrationTopology(t, "type:url", instance, expectedTopology)
 
 	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
 		"testtopology:c3d960f8ff8a5c55": {
 			StartSnapshot: true,
 			StopSnapshot:  true,
 			Instance:      instance,
+			Components:    []topology.Component{},
+			Relations:     []topology.Relation{},
+		},
+		"type:url": {
+			StartSnapshot: false,
+			StopSnapshot:  false,
+			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
 			Components:    components,
 			Relations:     relations,
 		},
@@ -135,6 +163,7 @@ func TestAgentIntegration(t *testing.T) {
 	err := chk.Run()
 	assert.Nil(t, err)
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
+	t.Logf("ExpectedTopology: %v\n", expectedTopology)
 	instance := topology.Instance{Type: "type", URL: "url"}
 	var hostCPUUsageIdentifier, responses2xxIdentifier, responses5xxIdentifier string
 	for _, e := range expectedTopology["testcheck_agent_integration:c3d960f8ff8a5c55"].Components[3].Data["metrics"].([]interface{}) {
@@ -162,9 +191,9 @@ func TestAgentIntegration(t *testing.T) {
 					ExternalID: "urn:example:/host:this_host",
 					Type:       topology.Type{Name: "Host"},
 					Data: topology.Data{
-						"name":        "this-host",
-						"labels":      []interface{}{"host:this_host", "region:eu-west-1"},
-						"tags":        []interface{}{
+						"name":   "this-host",
+						"labels": []interface{}{"host:this_host", "region:eu-west-1"},
+						"tags": []interface{}{
 							fmt.Sprintf("integration-type:%s", instance.Type),
 							fmt.Sprintf("integration-url:%s", instance.URL),
 						},
@@ -225,8 +254,8 @@ func TestAgentIntegration(t *testing.T) {
 					ExternalID: "urn:example:/application:some_application",
 					Type:       topology.Type{Name: "Application"},
 					Data: topology.Data{
-						"labels":      []interface{}{"application:some_application", "region:eu-west-1", "hosted_on:this-host"},
-						"tags":        []interface{}{
+						"labels": []interface{}{"application:some_application", "region:eu-west-1", "hosted_on:this-host"},
+						"tags": []interface{}{
 							fmt.Sprintf("integration-type:%s", instance.Type),
 							fmt.Sprintf("integration-url:%s", instance.URL),
 						},
@@ -385,8 +414,8 @@ func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.I
 					"name": fmt.Sprintf("%s:%s", instance.Type, instance.URL),
 					"tags": []interface{}{
 						fmt.Sprintf("hostname:%s", host),
-						fmt.Sprintf("integration-url:%s", instance.URL),
 						fmt.Sprintf("integration-type:%s", instance.Type),
+						fmt.Sprintf("integration-url:%s", instance.URL),
 					},
 					"hostname":    host,
 					"integration": instance.Type,
