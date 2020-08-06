@@ -13,23 +13,7 @@ done
 
 set -e
 
-./argo install --image-pull-policy IfNotPresent
-
-# TODO use a more restrictive SA
-kubectl apply -f - << EOF
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: argo-admin
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: default
-EOF
+kubectl apply -f https://raw.githubusercontent.com/argoproj/argo/master/manifests/install.yaml
 
 set +e
 
