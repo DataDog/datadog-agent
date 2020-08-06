@@ -52,7 +52,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 
 // newProfileProxy creates a single-host reverse proxy with the given target, attaching
 // the specified apiKey.
-func newProfileProxy(transport *http.Transport, target *url.URL, apiKey, tags string) *httputil.ReverseProxy {
+func newProfileProxy(transport http.RoundTripper, target *url.URL, apiKey, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		req.URL = target
 		req.Host = target.Host
