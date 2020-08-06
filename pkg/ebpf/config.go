@@ -68,6 +68,9 @@ type Config struct {
 	// BPFDebug enables bpf debug logs
 	BPFDebug bool
 
+	// BPFDir is the directory to load the eBPF program from
+	BPFDir string
+
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
