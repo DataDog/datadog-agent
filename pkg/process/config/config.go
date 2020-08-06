@@ -27,9 +27,6 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultSystemProbeLogFilePath is the default logging file for the system probe
-	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
-
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
 	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/usr/share/system-probe/ebpf"
 
