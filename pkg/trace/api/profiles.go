@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -24,10 +24,10 @@ const (
 
 // profilingEndpoint returns the profiling intake API URL based on agent configuration.
 func profilingEndpoint() string {
-	if v := mainconfig.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
+	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		return v
 	}
-	if site := mainconfig.Datadog.GetString("site"); site != "" {
+	if site := config.Datadog.GetString("site"); site != "" {
 		return fmt.Sprintf(profilingURLTemplate, site)
 	}
 	return profilingURLDefault
