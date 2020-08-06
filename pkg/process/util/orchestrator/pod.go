@@ -35,7 +35,7 @@ const (
 )
 
 // ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -61,12 +61,15 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		}
 
 		// scrub & generate YAML
-		for c := 0; c < len(podList[p].Spec.Containers); c++ {
-			ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+		if withScrubbing {
+			for c := 0; c < len(podList[p].Spec.Containers); c++ {
+				ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+			}
+			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
+				ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+			}
 		}
-		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-			ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
-		}
+
 		// k8s objects only have json "omitempty" annotations
 		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
