@@ -96,7 +96,7 @@ func makeFlare(caseID string) error {
 			return err
 		}
 	} else if profiling != -1 {
-		fmt.Fprintln(color.Output, color.RedString("Invalid second value for profiling, please enter an integer of at least 30."))
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", profiling)))
 		return err
 	}
 
@@ -153,15 +153,13 @@ func requestArchive(logFile string, profile *flare.Profile) (string, error) {
 		return createArchive(logFile, profile)
 	}
 
-	b := bytes.NewBuffer([]byte{})
-	if profile != nil {
-		if err := json.NewEncoder(b).Encode(profile); err != nil {
-			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", e)))
-			return "", err
-		}
+	p, err := json.Marshal(profile)
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", e)))
+		return "", err
 	}
 
-	r, e := util.DoPost(c, urlstr, "application/json", b)
+	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
 	if e != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))

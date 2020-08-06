@@ -85,8 +85,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 	if r.Body != http.NoBody {
 		if err := json.NewDecoder(r.Body).Decode(&profile); err != nil {
-			log.Errorf("Error while decoding profile from request body: %s", err)
-			http.Error(w, err.Error(), 500)
+			http.Error(w, log.Errorf("Error while decoding profile from request body: %s", err).Error(), 500)
 			return
 		}
 	}

@@ -798,6 +798,11 @@ func zipPerformanceProfile(tempDir, hostname string, profile *Profile) error {
 	if err != nil {
 		return err
 	}
+
+	if err := ensureParentDirsExist(cpuProfilePath); err != nil {
+		return err
+	}
+
 	defer cpuProfile.Close()
 
 	firstHeapProfilePath := filepath.Join(tempDir, hostname, firstHeapProfileName)
