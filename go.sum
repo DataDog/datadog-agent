@@ -85,8 +85,12 @@ github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q
 github.com/DATA-DOG/go-sqlmock v1.4.1/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/DataDog/agent-payload v0.0.0-20200731100214-6a8609f0fa8f h1:MSzvyjnhvkFASoZ+bo5bV4O91PrgSi44zO8dtEwWC5k=
 github.com/DataDog/agent-payload v0.0.0-20200731100214-6a8609f0fa8f/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
-github.com/DataDog/agent-payload v0.0.0-20200731151908-66289dafe784 h1:dME6MxFOD61zvv+d5m6RIu7qESqn9CtJ/SXu+lz/ZTA=
-github.com/DataDog/agent-payload v0.0.0-20200731151908-66289dafe784/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v0.0.0-20200803141324-88e73ec658a0 h1:hKSRXt/k5k93WNZMBtEnhtZ1uGszG59ZBzqn6jeIUfw=
+github.com/DataDog/agent-payload v0.0.0-20200803141324-88e73ec658a0/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v0.0.0-20200804132429-73f5ac9374eb h1:qvZCi+bBZB+v7SfkWPnHZUMf8Usafkoz4QJE+5j1vrg=
+github.com/DataDog/agent-payload v0.0.0-20200804132429-73f5ac9374eb/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
+github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go v3.5.0+incompatible h1:AShr9cqkF+taHjyQgcBcQUt/ZNK+iPq4ROaZwSX5c/U=
 github.com/DataDog/datadog-go v3.5.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
@@ -1273,6 +1277,10 @@ github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936 h1:J9gO8RJCAFlln
 github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936/go.mod h1:ZjcWmFBXmLKZu9Nxj3WKYEafiSqer2rnvPr0en9UNpI=
 github.com/vito/go-sse v1.0.0 h1:e6/iTrrvy8BRrOwJwmQmlndlil+TLdxXvHi55ZDzH6M=
 github.com/vito/go-sse v1.0.0/go.mod h1:2wkcaQ+jtlZ94Uve8gYZjFpL68luAjssTINA2hpgcZs=
+github.com/vmihailenco/msgpack/v4 v4.3.11 h1:Q47CePddpNGNhk4GCnAx9DDtASi2rasatE0cd26cZoE=
+github.com/vmihailenco/msgpack/v4 v4.3.11/go.mod h1:gborTTJjAo/GWTqqRjrLCn9pgNN+NXzzngzBKDPIqw4=
+github.com/vmihailenco/tagparser v0.1.1 h1:quXMXlA39OCbd2wAdTsGDlK9RkOk6Wuw+x37wVyIuWY=
+github.com/vmihailenco/tagparser v0.1.1/go.mod h1:OeAg3pn3UbLjkWt+rN9oFYB6u/cQgqMEUPoW2WPyhdI=
 github.com/vmware/govmomi v0.20.1/go.mod h1:URlwyTFZX72RmxtxuaFL2Uj3fD1JTvZdx59bHWk6aFU=
 github.com/vmware/photon-controller-go-sdk v0.0.0-20170310013346-4a435daef6cc/go.mod h1:e6humHha1ekIwTCm+A5Qed5mG8V4JL+ChHcUOJ+L/8U=
 github.com/xanzy/go-cloudstack v0.0.0-20160728180336-1e2cbf647e57/go.mod h1:s3eL3z5pNXF5FVybcT+LIVdId8pYn709yv6v5mrkrQE=

@@ -39,7 +39,7 @@ rules:
     expression: >-
       chmod.filename =~ "/etc/*" || chmod.filename =~ "/etc/*" ||
       chmod.filename =~ "/sbin/*" || chmod.filename =~ "/usr/sbin/*" ||
-      chmod.filename =~ "/usr/local/sbin*" || chmod.filename =~ "/usr/bin/local/*" ||
+      chmod.filename =~ "/usr/local/sbin/*" || chmod.filename =~ "/usr/local/bin/*" ||
       chmod.filename =~ "/var/log/*" || chmod.filename =~ "/usr/lib/*"
     tags:
       mitre: T1099

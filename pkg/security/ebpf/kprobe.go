@@ -10,7 +10,14 @@ package ebpf
 import (
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
+	"time"
+)
+
+const (
+	// maxEnableRetry number of retry for resource busy fail
+	maxEnableRetry = 3
 )
 
 // KProbe describes a Linux Kprobe
@@ -20,15 +27,30 @@ type KProbe struct {
 	ExitFunc  string
 }
 
+func (m *Module) tryEnableKprobe(secName string) (err error) {
+	for i := 0; i != maxEnableRetry; i++ {
+		if err = m.EnableKprobe(secName, 512); err == nil {
+			break
+		}
+		// not available, not a temporary error
+		if strings.Contains(err.Error(), syscall.ENOENT.Error()) {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+
+	return err
+}
+
 // RegisterKprobe registers a Kprobe
 func (m *Module) RegisterKprobe(k *KProbe) error {
 	if k.EntryFunc != "" {
-		if err := m.EnableKprobe(k.EntryFunc, 512); err != nil {
+		if err := m.tryEnableKprobe(k.EntryFunc); err != nil {
 			return fmt.Errorf("failed to load Kprobe %v: %s", k.EntryFunc, err)
 		}
 	}
 	if k.ExitFunc != "" {
-		if err := m.EnableKprobe(k.ExitFunc, 512); err != nil {
+		if err := m.tryEnableKprobe(k.ExitFunc); err != nil {
 			return fmt.Errorf("failed to load Kretprobe %v: %s", k.ExitFunc, err)
 		}
 	}

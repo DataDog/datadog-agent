@@ -115,7 +115,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	sizeInBytes := 0
 
 	for _, m := range messages {
-		body, err := encodePayload(m)
+		body, err := api.EncodePayload(m)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
 			continue
@@ -427,20 +427,6 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 	}
 
 	return statuses
-}
-
-func encodePayload(m model.MessageBody) ([]byte, error) {
-	msgType, err := model.DetectMessageType(m)
-	if err != nil {
-		return nil, fmt.Errorf("unable to detect message type: %s", err)
-	}
-
-	return model.EncodeMessage(model.Message{
-		Header: model.MessageHeader{
-			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingZstdPB,
-			Type:     msgType,
-		}, Body: m})
 }
 
 func keysPerDomains(endpoints []api.Endpoint) map[string][]string {

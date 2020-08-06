@@ -23,7 +23,10 @@ func TestEbpfBytesCorrect(t *testing.T) {
 		bs, err := ioutil.ReadFile(ondiskFilename)
 		require.NoError(t, err)
 
-		actual, err := Asset(bundleFilename)
+		actualReader, err := GetReader("", bundleFilename)
+		require.NoError(t, err)
+
+		actual, err := ioutil.ReadAll(actualReader)
 		require.NoError(t, err)
 
 		assert.Equal(t, bs, actual, fmt.Sprintf("on-disk file %s and bundled content %s are different", ondiskFilename, bundleFilename))
