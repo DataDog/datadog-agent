@@ -36,7 +36,10 @@ func TestComponentTopology(t *testing.T) {
 						"nestedobject": map[string]interface{}{"nestedkey": "nestedValue"},
 						"key":          "value",
 						"intlist":      []interface{}{int64(1)}, "emptykey": map[string]interface{}{},
-						"tags": []interface{}{fmt.Sprintf("%s:%s", instance.Type, instance.URL)},
+						"tags": []interface{}{
+							fmt.Sprintf("integration-type:%s", instance.Type),
+							fmt.Sprintf("integration-url:%s", instance.URL),
+						},
 					},
 				},
 			}...),
@@ -161,7 +164,10 @@ func TestAgentIntegration(t *testing.T) {
 					Data: topology.Data{
 						"name":        "this-host",
 						"labels":      []interface{}{"host:this_host", "region:eu-west-1"},
-						"tags":        []interface{}{fmt.Sprintf("%s:%s", instance.Type, instance.URL)},
+						"tags":        []interface{}{
+							fmt.Sprintf("integration-type:%s", instance.Type),
+							fmt.Sprintf("integration-url:%s", instance.URL),
+						},
 						"layer":       "Hosts",
 						"environment": "Production",
 						"checks": []interface{}{
@@ -220,7 +226,10 @@ func TestAgentIntegration(t *testing.T) {
 					Type:       topology.Type{Name: "Application"},
 					Data: topology.Data{
 						"labels":      []interface{}{"application:some_application", "region:eu-west-1", "hosted_on:this-host"},
-						"tags":        []interface{}{fmt.Sprintf("%s:%s", instance.Type, instance.URL)},
+						"tags":        []interface{}{
+							fmt.Sprintf("integration-type:%s", instance.Type),
+							fmt.Sprintf("integration-url:%s", instance.URL),
+						},
 						"environment": "Production",
 						"version":     "0.2.0",
 						"name":        "some-application",
@@ -339,7 +348,6 @@ func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.I
 					"tags": []interface{}{
 						fmt.Sprintf("hostname:%s", host),
 						"stackstate-agent",
-						fmt.Sprintf("%s:%s", instance.Type, instance.URL),
 					},
 				},
 			},
@@ -348,9 +356,8 @@ func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.I
 				Type:       topology.Type{Name: "agent-integration"},
 				Data: topology.Data{
 					"tags": []interface{}{
-						fmt.Sprintf("agent-integration:%s", instance.Type),
 						fmt.Sprintf("hostname:%s", host),
-						fmt.Sprintf("%s:%s", instance.Type, instance.URL),
+						fmt.Sprintf("integration-type:%s", instance.Type),
 					},
 					"hostname":    host,
 					"integration": instance.Type,
@@ -377,10 +384,9 @@ func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.I
 				Data: topology.Data{
 					"name": fmt.Sprintf("%s:%s", instance.Type, instance.URL),
 					"tags": []interface{}{
-						fmt.Sprintf("agent-integration-url:%s", instance.URL),
-						fmt.Sprintf("agent-integration:%s", instance.Type),
 						fmt.Sprintf("hostname:%s", host),
-						fmt.Sprintf("%s:%s", instance.Type, instance.URL),
+						fmt.Sprintf("integration-url:%s", instance.URL),
+						fmt.Sprintf("integration-type:%s", instance.Type),
 					},
 					"hostname":    host,
 					"integration": instance.Type,

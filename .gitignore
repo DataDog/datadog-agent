@@ -72,6 +72,7 @@ cmd/agent/android/gradlew*
 cmd/agent/android/gradle
 cmd/agent/android/build
 cmd/agent/android/app/build
+cmd/agent/dist/datadog.yml
 
 # local copy of device signing cert
 platform.pk8
