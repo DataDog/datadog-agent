@@ -97,6 +97,12 @@ func StartServer() error {
 		panic(err)
 	}
 
+	err = pb.RegisterAgentSecureHandlerFromEndpoint(
+		ctx, gwmux, tlsAddr, dopts)
+	if err != nil {
+		panic(err)
+	}
+
 	// Setup multiplexer
 	// create the REST HTTP router
 	agentMux := gorilla.NewRouter()
