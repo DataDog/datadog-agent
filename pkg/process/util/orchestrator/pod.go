@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
-	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -69,16 +68,13 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
 		}
 		// k8s objects only have json "omitempty" annotations
-		// we're doing json<>yaml to get rid of the null properties
+		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
 		if err != nil {
-			log.Debugf("Could not marshal pod in JSON: %s", err)
+			log.Debugf("Could not marshal pod to JSON: %s", err)
 			continue
 		}
-		var jsonObj interface{}
-		yaml.Unmarshal(jsonPod, &jsonObj) //nolint:errcheck
-		yamlPod, _ := yaml.Marshal(jsonObj)
-		podModel.Yaml = yamlPod
+		podModel.Yaml = jsonPod
 
 		podMsgs = append(podMsgs, podModel)
 	}

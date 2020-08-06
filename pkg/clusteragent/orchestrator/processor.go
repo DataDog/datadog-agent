@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
-	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -38,11 +37,13 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		}
 
 		// k8s objects only have json "omitempty" annotations
-		// we're doing json<>yaml to get rid of the null properties
-		if err := extractYaml(&deployModel.Yaml, deploymentList[d]); err != nil {
-			log.Debugf("Could not marshal deployment into JSON: %s", err)
+		// and marshalling is more performant than YAML
+		jsonDeploy, err := jsoniter.Marshal(deploymentList[d])
+		if err != nil {
+			log.Debugf("Could not marshal deployment to JSON: %s", err)
 			continue
 		}
+		deployModel.Yaml = jsonDeploy
 
 		deployMsgs = append(deployMsgs, deployModel)
 	}
@@ -103,11 +104,13 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		}
 
 		// k8s objects only have json "omitempty" annotations
-		// we're doing json<>yaml to get rid of the null properties
-		if err := extractYaml(&rsModel.Yaml, rsList[rs]); err != nil {
-			log.Debugf("Could not marshal replica set into JSON: %s", err)
+		// and marshalling is more performant than YAML
+		jsonRS, err := jsoniter.Marshal(rsList[rs])
+		if err != nil {
+			log.Debugf("Could not marshal replica set to JSON: %s", err)
 			continue
 		}
+		rsModel.Yaml = jsonRS
 
 		rsMsgs = append(rsMsgs, rsModel)
 	}
@@ -159,10 +162,14 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 	for s := 0; s < len(serviceList); s++ {
 		serviceModel := extractService(serviceList[s])
 
-		if err := extractYaml(&serviceModel.Yaml, serviceList[s]); err != nil {
-			log.Debugf("Could not marshal service into JSON: %s", err)
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonSvc, err := jsoniter.Marshal(serviceList[s])
+		if err != nil {
+			log.Debugf("Could not marshal service to JSON: %s", err)
 			continue
 		}
+		serviceModel.Yaml = jsonSvc
 
 		serviceMsgs = append(serviceMsgs, serviceModel)
 	}
@@ -207,20 +214,4 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 	}
 
 	return chunks
-}
-
-// extractYaml retrieves the YAML representation of its input and writes this at
-// destination.
-func extractYaml(destination *[]byte, in interface{}) error {
-	jsonIn, err := jsoniter.Marshal(in)
-	if err != nil {
-		return err
-	}
-
-	var yamlObject interface{}
-	_ = yaml.Unmarshal(jsonIn, &yamlObject)
-	data, _ := yaml.Marshal(yamlObject)
-	*destination = data
-
-	return nil
 }
