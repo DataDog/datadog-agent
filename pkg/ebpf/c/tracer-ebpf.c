@@ -516,10 +516,10 @@ static void increment_telemetry_count(enum telemetry_counter counter_name) {
             __sync_fetch_and_add(&val->missed_tcp_close, 1);
             break;
         case udp_send_processed:
-            __sync_fetch_and_add(&val->udp_send_processed, 1);
+            __sync_fetch_and_add(&val->udp_sends_processed, 1);
             break;
         case udp_send_missed:
-            __sync_fetch_and_add(&val->udp_send_processed, 1);
+            __sync_fetch_and_add(&val->udp_sends_missed, 1);
             break;
     }
     return;
