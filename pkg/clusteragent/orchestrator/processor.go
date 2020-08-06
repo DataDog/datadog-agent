@@ -20,7 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
 
@@ -29,11 +29,13 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		deployModel := extractDeployment(deploymentList[d])
 
 		// scrub & generate YAML
-		for c := 0; c < len(deploymentList[d].Spec.Template.Spec.InitContainers); c++ {
-			orchestrator.ScrubContainer(&deploymentList[d].Spec.Template.Spec.InitContainers[c], cfg)
-		}
-		for c := 0; c < len(deploymentList[d].Spec.Template.Spec.Containers); c++ {
-			orchestrator.ScrubContainer(&deploymentList[d].Spec.Template.Spec.Containers[c], cfg)
+		if withScrubbing {
+			for c := 0; c < len(deploymentList[d].Spec.Template.Spec.InitContainers); c++ {
+				orchestrator.ScrubContainer(&deploymentList[d].Spec.Template.Spec.InitContainers[c], cfg)
+			}
+			for c := 0; c < len(deploymentList[d].Spec.Template.Spec.Containers); c++ {
+				orchestrator.ScrubContainer(&deploymentList[d].Spec.Template.Spec.Containers[c], cfg)
+			}
 		}
 
 		// k8s objects only have json "omitempty" annotations
@@ -87,7 +89,7 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 	return chunks
 }
 
-func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
 
@@ -96,11 +98,13 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		rsModel := extractReplicaSet(rsList[rs])
 
 		// scrub & generate YAML
-		for c := 0; c < len(rsList[rs].Spec.Template.Spec.InitContainers); c++ {
-			orchestrator.ScrubContainer(&rsList[rs].Spec.Template.Spec.InitContainers[c], cfg)
-		}
-		for c := 0; c < len(rsList[rs].Spec.Template.Spec.Containers); c++ {
-			orchestrator.ScrubContainer(&rsList[rs].Spec.Template.Spec.Containers[c], cfg)
+		if withScrubbing {
+			for c := 0; c < len(rsList[rs].Spec.Template.Spec.InitContainers); c++ {
+				orchestrator.ScrubContainer(&rsList[rs].Spec.Template.Spec.InitContainers[c], cfg)
+			}
+			for c := 0; c < len(rsList[rs].Spec.Template.Spec.Containers); c++ {
+				orchestrator.ScrubContainer(&rsList[rs].Spec.Template.Spec.Containers[c], cfg)
+			}
 		}
 
 		// k8s objects only have json "omitempty" annotations
