@@ -11,8 +11,8 @@ from subprocess import check_output
 
 
 # constants
-ORG_PATH = "github.com/DataDog"
-REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
+ORG_PATH = "github.com/StackVista"
+REPO_PATH = "{}/stackstate-agent".format(ORG_PATH)
 
 
 def bin_name(name, android=False):
@@ -70,7 +70,7 @@ def get_build_flags(
     rtloader_root=None,
     python_home_2=None,
     python_home_3=None,
-    major_version='7',
+    major_version='2',
     python_runtimes='3',
     arch="x64",
 ):
@@ -89,7 +89,7 @@ def get_build_flags(
 
     if embedded_path is None:
         # fall back to local dev path
-        embedded_path = "{}/src/github.com/DataDog/datadog-agent/dev".format(get_gopath(ctx))
+        embedded_path = "{}/src/github.com/StackVista/stackstate-agent/dev".format(get_gopath(ctx))
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_multi_python_location(embedded_path, rtloader_root)
 
@@ -257,7 +257,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
 
 
 def get_version(
-    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ, major_version='7'
+    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ, major_version='2'
 ):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
 
@@ -277,7 +277,7 @@ def get_version(
     return str(version)
 
 
-def get_version_numeric_only(ctx, env=os.environ, major_version='7'):
+def get_version_numeric_only(ctx, env=os.environ, major_version='2'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
 
     version, _, _, _ = query_version(ctx, major_version_hint=major_version)
@@ -292,3 +292,15 @@ def load_release_versions(ctx, target_version):
             # environment when running a subprocess.
             return {str(k): str(v) for k, v in versions[target_version].items()}
     raise Exception("Could not find '{}' version in release.json".format(target_version))
+
+
+def do_go_rename(ctx, rename, at):
+    ctx.run("gofmt -l -w -r {} {}".format(rename, at))
+
+
+def do_sed_rename(ctx, rename, at):
+    ctx.run("sed -i '{}' {}".format(rename, at))
+
+
+def do_sed_rename_quoted(ctx, rename, at):
+    ctx.run("sed -i \"{}\" {}".format(rename, at))

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/StackVista/stackstate-agent/pkg/process/config"
 )
 
 func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {

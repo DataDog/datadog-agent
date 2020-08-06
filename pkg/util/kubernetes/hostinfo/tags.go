@@ -10,8 +10,8 @@ package hostinfo
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/tagger/utils"
 )
 
 // GetTags gets the tags from the kubernetes apiserver

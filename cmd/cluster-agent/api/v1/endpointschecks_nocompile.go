@@ -8,7 +8,7 @@
 package v1
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
 	"github.com/gorilla/mux"
 )
 

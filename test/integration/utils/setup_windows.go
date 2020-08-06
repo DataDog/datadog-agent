@@ -7,4 +7,4 @@
 
 package utils
 
-import _ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
+import _ "github.com/StackVista/stackstate-agent/pkg/util/containers/providers/windows"

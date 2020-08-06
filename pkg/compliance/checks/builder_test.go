@@ -9,7 +9,7 @@ package checks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/StackVista/stackstate-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
 )
 

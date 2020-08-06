@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	_ "github.com/StackVista/stackstate-agent/pkg/util/containers/providers/windows"
+	"github.com/StackVista/stackstate-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"

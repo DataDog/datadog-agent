@@ -21,7 +21,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/secrets"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
-        "github.com/StackVista/stackstate-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"
 )
@@ -127,6 +127,7 @@ func (ac *AutoConfig) checkTagFreshness() {
 		ac.processDelService(service)
 		ac.processNewService(service)
 	}
+}
 
 // Stop just shuts down AutoConfig in a clean way.
 // AutoConfig is not supposed to be restarted, so this is expected

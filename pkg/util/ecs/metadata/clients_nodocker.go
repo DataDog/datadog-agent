@@ -8,11 +8,11 @@
 package metadata
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 
-	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
-	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
-	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
+	v1 "github.com/StackVista/stackstate-agent/pkg/util/ecs/metadata/v1"
+	v2 "github.com/StackVista/stackstate-agent/pkg/util/ecs/metadata/v2"
+	v3 "github.com/StackVista/stackstate-agent/pkg/util/ecs/metadata/v3"
 )
 
 // V1 returns a client for the ECS metadata API v1, also called introspection

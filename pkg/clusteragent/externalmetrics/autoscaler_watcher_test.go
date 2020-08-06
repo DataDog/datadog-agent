@@ -17,7 +17,7 @@ import (
 	kube_informer "k8s.io/client-go/informers"
 	kube_fake "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/externalmetrics/model"
 	datadoghq "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	dd_fake_clientset "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned/fake"
 	wpa_informer "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"

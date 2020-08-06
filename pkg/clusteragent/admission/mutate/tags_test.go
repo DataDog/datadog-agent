@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"

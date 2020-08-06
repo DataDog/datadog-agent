@@ -8,7 +8,7 @@ import (
 	"net"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
+	"github.com/StackVista/stackstate-agent/pkg/ebpf/tcpqueuelength"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
 )

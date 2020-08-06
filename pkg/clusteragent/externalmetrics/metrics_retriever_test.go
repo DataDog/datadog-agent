@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/autoscalers"
 
 	"github.com/stretchr/testify/assert"
 )

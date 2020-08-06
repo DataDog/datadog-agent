@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	core "k8s.io/client-go/testing"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/externalmetrics/model"
 	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
 	dd_fake_clientset "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned/fake"
 	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"

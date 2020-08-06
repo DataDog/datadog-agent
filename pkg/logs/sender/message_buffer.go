@@ -6,7 +6,7 @@
 package sender
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 )
 
 // MessageBuffer accumulates messages to a buffer until the max capacity is reached.

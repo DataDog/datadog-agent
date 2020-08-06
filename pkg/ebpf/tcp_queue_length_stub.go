@@ -2,7 +2,7 @@
 
 package ebpf
 
-import "github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
+import "github.com/StackVista/stackstate-agent/pkg/ebpf/tcpqueuelength"
 
 // TCPQueueLengthTracer is not implemented on non-linux systems
 type TCPQueueLengthTracer struct{}

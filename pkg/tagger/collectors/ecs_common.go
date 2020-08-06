@@ -8,7 +8,7 @@ package collectors
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/StackVista/stackstate-agent/pkg/tagger/utils"
 )
 
 func addResourceTags(t *utils.TagList, m map[string]string) {

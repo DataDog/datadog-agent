@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
 )
 

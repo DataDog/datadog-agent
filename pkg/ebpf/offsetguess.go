@@ -17,7 +17,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/iovisor/gobpf/elf"
 	"github.com/pkg/errors"
 )

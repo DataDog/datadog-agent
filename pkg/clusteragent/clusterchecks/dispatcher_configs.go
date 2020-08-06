@@ -71,7 +71,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	// Remove config from previous node if found
 	// We double-check the config actually changed nodes, to
 	// prevent de-scheduling the check we just scheduled.
-	// See https://github.com/DataDog/datadog-agent/pull/3023
+	// See https://github.com/StackVista/stackstate-agent/pull/3023
 	if foundCurrent && currentNode != targetNode {
 		currentNode.Lock()
 		currentNode.removeConfig(digest)

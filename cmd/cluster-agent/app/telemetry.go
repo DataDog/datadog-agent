@@ -10,7 +10,7 @@ package app
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/StackVista/stackstate-agent/pkg/flare"
 	"github.com/spf13/cobra"
 )
 

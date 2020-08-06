@@ -1,6 +1,6 @@
 package network
 
-import "github.com/DataDog/datadog-agent/pkg/process/util"
+import "github.com/StackVista/stackstate-agent/pkg/process/util"
 
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {

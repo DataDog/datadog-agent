@@ -6,7 +6,7 @@
 package containers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
 )
 
 // SetMetrics stores results from a ContainerMetrics to the embedded struct inside Container

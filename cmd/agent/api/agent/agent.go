@@ -18,12 +18,12 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/api/response"
+	"github.com/StackVista/stackstate-agent/cmd/agent/app/settings"
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 	"github.com/StackVista/stackstate-agent/cmd/agent/common/signals"
 	"github.com/StackVista/stackstate-agent/cmd/agent/gui"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
-
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/flare"
 	"github.com/StackVista/stackstate-agent/pkg/secrets"
@@ -33,7 +33,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-
 	yaml "gopkg.in/yaml.v2"
 )
 

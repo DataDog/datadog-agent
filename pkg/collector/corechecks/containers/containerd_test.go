@@ -31,7 +31,7 @@ import (
 	containersutil "github.com/StackVista/stackstate-agent/pkg/util/containers"
 )
 
-type mockContainer struct {
+func int64Ptr(v int64) *int64 {
 	return &v
 }
 

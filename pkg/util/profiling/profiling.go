@@ -8,7 +8,7 @@ package profiling
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 )

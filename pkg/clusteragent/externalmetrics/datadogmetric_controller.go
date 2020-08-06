@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
 	dd_clientset "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned"

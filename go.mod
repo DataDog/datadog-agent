@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent
+module github.com/StackVista/stackstate-agent
 
 go 1.13
 

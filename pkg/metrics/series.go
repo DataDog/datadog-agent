@@ -17,14 +17,9 @@ import (
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
 
-<<<<<<< HEAD
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/ckey"
 	"github.com/StackVista/stackstate-agent/pkg/serializer/marshaler"
-=======
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
->>>>>>> 739f13794e0acd59dadfeeffcbef952a117b9d64
+	"github.com/StackVista/stackstate-agent/pkg/telemetry"
 )
 
 var (

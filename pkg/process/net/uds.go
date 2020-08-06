@@ -7,8 +7,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/process/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // UDSListener (Unix Domain Socket Listener)

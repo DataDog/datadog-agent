@@ -8,7 +8,7 @@ package jsonquery
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 	"github.com/itchyny/gojq"
 	"github.com/stretchr/testify/assert"
 )

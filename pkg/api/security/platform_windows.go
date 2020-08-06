@@ -10,7 +10,7 @@ import (
 	"io/ioutil"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	acl "github.com/hectane/go-acl"
 	"golang.org/x/sys/windows"
 )

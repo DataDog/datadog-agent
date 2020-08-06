@@ -2,7 +2,7 @@
 
 package ebpf
 
-import "github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
+import "github.com/StackVista/stackstate-agent/pkg/ebpf/oomkill"
 
 // OOMKillProbe is not implemented on non-linux systems
 type OOMKillProbe struct{}

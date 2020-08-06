@@ -11,8 +11,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 )
 
 func newDockerClient() (DockerClient, error) {

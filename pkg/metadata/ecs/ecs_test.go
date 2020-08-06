@@ -13,7 +13,7 @@ import (
 	payload "github.com/DataDog/agent-payload/gogen"
 	"github.com/stretchr/testify/assert"
 
-	v1 "github.com/stackstate/stackstate-agent/pkg/util/ecs/metadata/v1"
+	v1 "github.com/StackVista/stackstate-agent/pkg/util/ecs/metadata/v1"
 )
 
 var nextTestTasks []v1.Task

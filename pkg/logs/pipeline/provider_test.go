@@ -6,7 +6,7 @@
 package pipeline
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"testing"
 
 	"github.com/stretchr/testify/suite"

@@ -7,9 +7,9 @@ package checks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/StackVista/stackstate-agent/pkg/compliance"
+	"github.com/StackVista/stackstate-agent/pkg/compliance/mocks"
+	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 
 	"github.com/DataDog/gopsutil/process"
 

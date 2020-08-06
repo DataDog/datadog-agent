@@ -6,8 +6,8 @@
 package checks
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/compliance"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 func evalCondition(property string, condition *compliance.Condition) bool {

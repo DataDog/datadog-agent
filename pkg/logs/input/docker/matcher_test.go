@@ -7,8 +7,8 @@
 package docker
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

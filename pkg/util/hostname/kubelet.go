@@ -8,7 +8,7 @@
 package hostname
 
 import (
-import "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
+	"github.com/StackVista/stackstate-agent/pkg/util/hostname/kubelet"
 )
 
 func init() {

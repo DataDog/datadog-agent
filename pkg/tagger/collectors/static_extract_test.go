@@ -8,7 +8,7 @@ package collectors
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 func TestGetTagInfo(t *testing.T) {

@@ -8,8 +8,8 @@ package kubernetes
 import (
 	"bytes"
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
+	lineParser "github.com/StackVista/stackstate-agent/pkg/logs/parser"
 )
 
 const (

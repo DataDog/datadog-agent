@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"

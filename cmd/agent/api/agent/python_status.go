@@ -16,8 +16,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/collector/python"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 func getPythonStatus(w http.ResponseWriter, r *http.Request) {

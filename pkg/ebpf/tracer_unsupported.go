@@ -2,7 +2,7 @@
 
 package ebpf
 
-import "github.com/DataDog/datadog-agent/pkg/network"
+import "github.com/StackVista/stackstate-agent/pkg/network"
 
 // Tracer is not implemented
 type Tracer struct{}

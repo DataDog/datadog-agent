@@ -3,9 +3,9 @@
 package mocks
 
 import (
-	check "github.com/DataDog/datadog-agent/pkg/collector/check"
+	check "github.com/StackVista/stackstate-agent/pkg/collector/check"
 
-	compliance "github.com/DataDog/datadog-agent/pkg/compliance"
+	compliance "github.com/StackVista/stackstate-agent/pkg/compliance"
 
 	mock "github.com/stretchr/testify/mock"
 )

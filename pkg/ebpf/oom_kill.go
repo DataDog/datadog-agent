@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
+	"github.com/StackVista/stackstate-agent/pkg/ebpf/oomkill"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
 )

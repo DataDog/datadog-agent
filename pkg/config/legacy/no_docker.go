@@ -10,7 +10,7 @@ package legacy
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 // ImportDockerConf is a place holder if the agent is built without the docker flag

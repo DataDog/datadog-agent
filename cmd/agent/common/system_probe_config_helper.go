@@ -12,8 +12,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	proc_config "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	proc_config "github.com/StackVista/stackstate-agent/pkg/process/config"
 )
 
 const sysProbeConfigFile = "system-probe.yaml"

@@ -1,7 +1,7 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 // IsCheckEnabled returns if we want telemetry for the given check.

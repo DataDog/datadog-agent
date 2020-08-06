@@ -3,7 +3,7 @@ package testinit
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
+	"github.com/StackVista/stackstate-agent/rtloader/test/helpers"
 )
 
 func TestInit(t *testing.T) {

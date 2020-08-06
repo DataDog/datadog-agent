@@ -8,7 +8,7 @@ package sender
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 )
 
 var (

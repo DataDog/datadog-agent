@@ -3,7 +3,7 @@
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 )
 
 func isAgentKubeHostNetwork() (bool, error) {

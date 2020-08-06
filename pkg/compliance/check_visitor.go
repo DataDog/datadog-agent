@@ -5,7 +5,7 @@
 
 package compliance
 
-import "github.com/DataDog/datadog-agent/pkg/collector/check"
+import "github.com/StackVista/stackstate-agent/pkg/collector/check"
 
 // CheckVisitor defines a visitor func for compliance checks
 type CheckVisitor func(check.Check) error

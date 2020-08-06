@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 

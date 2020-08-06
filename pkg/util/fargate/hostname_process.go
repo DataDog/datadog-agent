@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 
-	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	ecsmeta "github.com/StackVista/stackstate-agent/pkg/util/ecs/metadata"
 )
 
 // GetFargateHost returns the hostname to be used

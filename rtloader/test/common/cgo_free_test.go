@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
+	"github.com/StackVista/stackstate-agent/rtloader/test/helpers"
 )
 
 func TestMain(m *testing.M) {

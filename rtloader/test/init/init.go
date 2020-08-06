@@ -3,8 +3,8 @@ package testinit
 import (
 	"fmt"
 
-	common "github.com/DataDog/datadog-agent/rtloader/test/common"
-	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
+	common "github.com/StackVista/stackstate-agent/rtloader/test/common"
+	"github.com/StackVista/stackstate-agent/rtloader/test/helpers"
 )
 
 // #include <datadog_agent_rtloader.h>

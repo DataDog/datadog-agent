@@ -10,10 +10,10 @@ import (
 	"runtime"
 	"sync/atomic"
 	"time"
-
 	"github.com/StackVista/stackstate-agent/pkg/trace/api"
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/event"
+	"github.com/StackVista/stackstate-agent/pkg/features"
 	"github.com/StackVista/stackstate-agent/pkg/trace/filters"
 	"github.com/StackVista/stackstate-agent/pkg/trace/info"
 	"github.com/StackVista/stackstate-agent/pkg/trace/metrics/timing"

@@ -149,6 +149,7 @@ type Serializer struct {
 	enableEvents                  bool
 	enableSeries                  bool
 	enableServiceChecks           bool
+	enableCheckRuns               bool	
 	enableSketches                bool
 	enableJSONToV1Intake          bool
 	enableJSONStream              bool
@@ -164,6 +165,7 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
 		enableServiceChecks:           config.Datadog.GetBool("enable_payloads.service_checks"),
+		enableCheckRuns:               config.Datadog.GetBool("enable_payloads.check_runs"),
 		enableSketches:                config.Datadog.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake:          config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
 		enableJSONStream:              jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
@@ -355,7 +357,7 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 		return nil
 	}
 
-	compress := true
+	compress := false // TODO: enable compression once the backend supports it on this endpoint
 	useV1API := false // Sketches only have a v2 endpoint
 	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
 	if err != nil {

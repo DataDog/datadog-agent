@@ -6,7 +6,7 @@
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/ckey"
 	// stdlib
 	"math"
 	"testing"

@@ -11,7 +11,7 @@ package python
 import (
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 // Any platform-specific initialization belongs here.

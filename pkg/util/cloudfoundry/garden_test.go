@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"code.cloudfoundry.org/garden"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 )
 

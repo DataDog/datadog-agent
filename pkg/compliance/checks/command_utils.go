@@ -13,7 +13,7 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/StackVista/stackstate-agent/pkg/compliance"
 )
 
 var (

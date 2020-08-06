@@ -12,6 +12,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_build_tags
 from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from .go import deps
+from .utils import do_go_rename, do_sed_rename
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "stackstate-cluster-agent")
@@ -77,6 +78,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
      Example invokation:
         inv cluster-agent.build
     """
+    apply_branding(ctx)
     build_common(
         ctx,
         "cluster-agent.build",

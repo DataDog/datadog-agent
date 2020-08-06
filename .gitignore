@@ -142,3 +142,10 @@ cmd/agent/gui/templates.go
 
 # netlink message dump test files
 pkg/network/netlink/testdata/message_dump*
+
+# Merge artifacts
+*.orig
+
+
+#sts
+version.txt

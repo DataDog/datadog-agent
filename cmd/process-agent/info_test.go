@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/StackVista/stackstate-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 )
 

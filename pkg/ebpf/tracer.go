@@ -12,11 +12,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/ebpf/bytecode"
+	"github.com/StackVista/stackstate-agent/pkg/network"
+	"github.com/StackVista/stackstate-agent/pkg/network/netlink"
+	"github.com/StackVista/stackstate-agent/pkg/process/util"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
 
@@ -63,7 +63,7 @@ type Tracer struct {
 	// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
 	// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
 	//
-	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
+	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/StackVista/stackstate-agent/pull/3728
 	// to determine whether a connection is truly closed or not
 	expiredTCPConns int64
 	closedConns     int64

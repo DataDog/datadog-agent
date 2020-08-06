@@ -453,7 +453,7 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	series, sketches := agg.GetSeriesAndSketches()
 	if len(series) != 0 {
 		// Workaround to get the raw sequence of metrics, see:
-		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
+		// https://github.com/StackVista/stackstate-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
 		var data map[string]interface{}
 		sj, _ := json.Marshal(series)
 		json.Unmarshal(sj, &data) //nolint:errcheck

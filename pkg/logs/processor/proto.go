@@ -8,8 +8,8 @@ package processor
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pb"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/pb"
 )
 
 // ProtoEncoder is a shared proto encoder.

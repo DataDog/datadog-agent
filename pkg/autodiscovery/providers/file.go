@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/configresolver"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers/names"
 
 	"gopkg.in/yaml.v2"
 

@@ -7,7 +7,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/StackVista/stackstate-agent/pkg/network"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
 

@@ -7,7 +7,7 @@
 
 package metrics
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import "github.com/StackVista/stackstate-agent/pkg/telemetry"
 
 const (
 	SecretControllerName   = "secrets"

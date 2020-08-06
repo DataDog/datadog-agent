@@ -12,7 +12,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
 )
 
 // Install registers v1 API endpoints for endpoints checks

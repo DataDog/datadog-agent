@@ -9,8 +9,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	featuresconfig "github.com/StackVista/stackstate-agent/pkg/features/config"
-	interpreterconfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config"
 	"net/url"
 	"regexp"
 	"strings"
@@ -105,12 +103,6 @@ type WriterConfig struct {
 	// FlushPeriodSeconds specifies the frequency at which the writer's buffer
 	// will be flushed to the sender, in seconds. Fractions are permitted.
 	FlushPeriodSeconds float64 `mapstructure:"flush_period_seconds"`
-}
-
-type features struct {
-	HTTPRequestTimeoutSecs int `mapstructure:"http_request_timeout_secs"`
-	RetryIntervalSecs      int `mapstructure:"retry_interval_secs"`
-	MaxRetries             int `mapstructure:"max_retries"`
 }
 
 func (c *AgentConfig) applyDatadogConfig() error {
@@ -255,9 +247,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			}
 		}
 	}
-
-	c.InterpreterConfig = readInterpreterConfigYaml()
-	c.FeaturesConfig = readFeaturesConfigYaml()
 
 	// undocumented
 	if config.Datadog.IsSet("apm_config.max_cpu_percent") {

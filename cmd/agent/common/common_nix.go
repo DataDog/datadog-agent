@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 
 	// Init packages
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
+	_ "github.com/StackVista/stackstate-agent/pkg/util/containers/providers/cgroup"
 )
 
 const (

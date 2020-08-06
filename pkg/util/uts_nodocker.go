@@ -3,7 +3,7 @@
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 )
 
 // GetAgentUTSMode retrieves from Docker the UTS mode of the Agent container

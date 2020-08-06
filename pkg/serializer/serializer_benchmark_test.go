@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
-	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/StackVista/stackstate-agent/pkg/forwarder"
+	"github.com/StackVista/stackstate-agent/pkg/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/serializer/jsonstream"
+	"github.com/StackVista/stackstate-agent/pkg/serializer/split"
 )
 
 func buildSeries(numberOfSeries int) metrics.Series {

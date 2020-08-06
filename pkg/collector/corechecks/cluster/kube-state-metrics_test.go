@@ -10,9 +10,9 @@ package cluster
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
+	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	ksmstore "github.com/StackVista/stackstate-agent/pkg/kubestatemetrics/store"
 )
 
 type metricsExpected struct {

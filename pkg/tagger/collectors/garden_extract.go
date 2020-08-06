@@ -3,8 +3,8 @@ package collectors
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/cloudfoundry"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 func (c *GardenCollector) extractTags(nodename string) (tagsByInstanceGUID map[string][]string, err error) {

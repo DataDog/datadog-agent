@@ -19,7 +19,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	s "github.com/DataDog/datadog-agent/pkg/secrets"
+	s "github.com/StackVista/stackstate-agent/pkg/secrets"
 )
 
 const (

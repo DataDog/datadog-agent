@@ -8,7 +8,7 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/secrets"
+	"github.com/StackVista/stackstate-agent/cmd/secrets"
 )
 
 func init() {

@@ -4,10 +4,10 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/process/util"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/StackVista/stackstate-agent/pkg/ebpf"
 )
 
 // SysProbeConfigFromConfig returns a valid tracer-bpf config sourced from our agent config

@@ -18,7 +18,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/api/util"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/flare"
-        "github.com/DataDog/datadog-agent/pkg/util/input"
+        "github.com/StackVista/stackstate-agent/pkg/util/input"
 )
 
 var (

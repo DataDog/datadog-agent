@@ -8,8 +8,8 @@
 package clusterchecks
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/telemetry"
+	le "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
 var (

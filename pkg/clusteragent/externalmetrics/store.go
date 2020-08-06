@@ -10,7 +10,7 @@ package externalmetrics
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/externalmetrics/model"
 )
 
 const (

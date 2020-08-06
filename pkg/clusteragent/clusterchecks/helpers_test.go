@@ -10,7 +10,7 @@ package clusterchecks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 func Test_busynessFunc(t *testing.T) {

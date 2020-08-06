@@ -11,9 +11,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
+	v2 "github.com/StackVista/stackstate-agent/pkg/util/ecs/metadata/v2"
 	"github.com/stretchr/testify/assert"
 )
 

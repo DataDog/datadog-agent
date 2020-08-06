@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config/legacy"
+	"github.com/StackVista/stackstate-agent/pkg/config/legacy"
 )
 
 func TestBasicMinCollectionIntervalRelocation(t *testing.T) {

@@ -6,7 +6,7 @@ package flare
 import (
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/StackVista/stackstate-agent/pkg/diagnose"
 )
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer

@@ -8,8 +8,8 @@ package docker
 
 import (
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
 )
 
 // InitializeDecoder returns a properly initialized Decoder

@@ -12,9 +12,9 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/compliance"
+	"github.com/StackVista/stackstate-agent/pkg/util/jsonquery"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
 )

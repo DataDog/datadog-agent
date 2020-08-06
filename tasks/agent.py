@@ -22,6 +22,7 @@ from .utils import (
     get_win_py_runtime_var,
 )
 from .utils import REPO_PATH
+from .utils import do_go_rename, do_sed_rename
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, WINDOWS_32BIT_EXCLUDE_TAGS
 from .go import deps, generate
 from .docker import pull_base_images
@@ -60,10 +61,12 @@ AGENT_CORECHECKS = [
     "containerd",
     "cpu",
     "cri",
+    "docker",
     "file_handle",
     "go_expvar",
     "io",
     "jmx",
+    "kubernetes_apiserver",
     "load",
     "memory",
     "ntp",
@@ -95,6 +98,7 @@ def apply_branding(ctx):
     sts_camel_replace = 's/Data[dD]og/StackState/g'
     sts_lower_replace = 's/datadog/stackstate/g'
     datadog_metrics_replace = 's/"datadog./"stackstate./g'
+    datadog_checks_replace = 's/"datadog_checks./"stackstate_checks./g'
 
     # Config
     do_go_rename(ctx, '"\\"dd_url\\" -> \\"sts_url\\""', "./pkg/config")
@@ -242,12 +246,9 @@ def apply_branding(ctx):
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/agent/agent.go")
     do_go_rename(ctx, '"\\"datadog.conf\\" -> \\"stackstate.conf\\""', "./pkg/trace/agent")
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/event/sampler_max_eps.go")
-    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/service_nix_test.go")
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/trace.go")
-    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/service.go")
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/stats.go")
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/stats_test.go")
-    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/trace_nix_test.go")
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/info/stats.go")
 
     # Defaults
@@ -283,9 +284,6 @@ def apply_branding(ctx):
     do_sed_rename(ctx, sts_camel_replace, "./pkg/config/config_windows.go")
 
     # Windows MSI installation
-    do_sed_rename(ctx, sts_camel_replace, "./omnibus/resources/agent/msi/cal/CustomAction.cpp")
-    do_sed_rename(ctx, sts_lower_replace, "./omnibus/resources/agent/msi/cal/CustomAction.cpp")
-    do_sed_rename(ctx, sts_camel_replace, "./omnibus/resources/agent/msi/cal/CustomAction.def")
     do_sed_rename(ctx, sts_camel_replace, "./omnibus/resources/agent/msi/localization-en-us.wxl.erb")
     do_sed_rename(ctx, 's/"datadog\.yaml\.example"/"stackstate\.yaml\.example"/', "./omnibus/resources/agent/msi/source.wxs.erb")
     do_sed_rename(ctx, 's/datadoghq\.com/www\.stackstate\.com/', "./omnibus/resources/agent/msi/source.wxs.erb")
@@ -314,9 +312,9 @@ def apply_branding(ctx):
     # stackstate_checks
     do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./cmd/agent/app")
     do_sed_rename(ctx, 's/datadog_checks_base/stackstate_checks_base/g', "./cmd/agent/app/integrations.go")
-    do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./pkg/collector/py")
-    do_go_rename(ctx, '"\\"An error occurred while grabbing the python datadog integration list\\" -> \\"An error occurred while grabbing the python StackState integration list\\""', "./pkg/collector/py")
-    do_sed_rename(ctx, datadog_metrics_replace, "./pkg/collector/py/loader.go")
+    do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./pkg/collector/python")
+    do_go_rename(ctx, '"\\"An error occurred while grabbing the python datadog integration list\\" -> \\"An error occurred while grabbing the python StackState integration list\\""', "./pkg/collector/python")
+#    do_sed_rename(ctx, datadog_checks_replace, "./pkg/collector/python/loader.go")
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/collector/runner/runner.go")
 
     # cluster agent client
@@ -337,9 +335,26 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/com.datadoghq.ad/com.stackstate.ad/g', "./pkg/autodiscovery/providers/ecs.go")
 
 @task
-def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
-          skip_assets=False, use_venv=False):
+def build(
+    ctx,
+    rebuild=False,
+    race=False,
+    build_include=None,
+    build_exclude=None,
+    iot=False,
+    development=True,
+    precompile_only=False,
+    skip_assets=False,
+    embedded_path=None,
+    rtloader_root=None,
+    python_home_2=None,
+    python_home_3=None,
+    major_version='',
+    python_runtimes='3',
+    arch='x64',
+    exclude_rtloader=False,
+    go_mod="vendor",
+):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -430,8 +445,13 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if iot else "agent",
     }
+    print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print(cmd.format(**args))
+    print("~~~~~~")
+    print("~~~")
+    print(ldflags)
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     ctx.run(cmd.format(**args), env=env)
-
     # Remove cross-compiling bits to render config
     env.update(
         {"GOOS": "", "GOARCH": "",}
@@ -622,7 +642,7 @@ def omnibus_build(
     skip_deps=False,
     skip_sign=False,
     release_version="nightly",
-    major_version='7',
+    major_version='',
     python_runtimes='3',
     omnibus_s3_cache=False,
     hardened_runtime=False,
@@ -642,6 +662,7 @@ def omnibus_build(
         deps_end = datetime.datetime.now()
         deps_elapsed = deps_end - deps_start
 
+    apply_branding(ctx)
     # omnibus config overrides
     overrides = []
 

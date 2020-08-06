@@ -9,6 +9,10 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	// [sts]
+	featuresconfig "github.com/StackVista/stackstate-agent/pkg/features/config"
+	interpreterconfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config"
+	// /[sts]
 	"net"
 	"net/http"
 	"net/url"
@@ -118,11 +122,12 @@ type AgentConfig struct {
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
 
-	// InterpreterConfig contains span interpreter config.
+	// InterpreterConfig contains span interpreter config. [sts]
 	InterpreterConfig *interpreterconfig.Config
 
-	// Features
+	// Features [sts]
 	FeaturesConfig featuresconfig.FeaturesConfig
+
 }
 
 // New returns a configuration with the default values.

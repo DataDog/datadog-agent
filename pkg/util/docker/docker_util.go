@@ -21,7 +21,7 @@ import (
 	"github.com/docker/docker/client"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
-	dderrors "github.com/stackstate/datadog-agent/pkg/errors"
+	dderrors "github.com/StackVista/stackstate-agent/pkg/errors"
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers/providers"

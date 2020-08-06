@@ -13,7 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/StackVista/stackstate-agent/pkg/process/config"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"

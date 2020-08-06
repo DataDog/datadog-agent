@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unsafe"
 
-	common "github.com/DataDog/datadog-agent/rtloader/test/common"
-	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
+	common "github.com/StackVista/stackstate-agent/rtloader/test/common"
+	"github.com/StackVista/stackstate-agent/rtloader/test/helpers"
 )
 
 /*

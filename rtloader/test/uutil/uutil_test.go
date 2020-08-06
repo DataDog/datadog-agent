@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
+	"github.com/StackVista/stackstate-agent/rtloader/test/helpers"
 )
 
 var (

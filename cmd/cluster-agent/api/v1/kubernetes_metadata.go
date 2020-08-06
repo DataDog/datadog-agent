@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	as "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 )

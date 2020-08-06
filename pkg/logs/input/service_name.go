@@ -8,8 +8,8 @@ package input
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/tagger"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // taggerFunc purpose is to ease testing ServiceNameFromTags

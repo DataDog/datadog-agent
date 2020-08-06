@@ -8,8 +8,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
+	"github.com/StackVista/stackstate-agent/pkg/ebpf/oomkill"
+	"github.com/StackVista/stackstate-agent/pkg/ebpf/tcpqueuelength"
 )
 
 const (

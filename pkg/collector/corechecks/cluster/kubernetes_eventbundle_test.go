@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/metrics"
 
 	cache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"

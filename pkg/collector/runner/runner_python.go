@@ -8,7 +8,7 @@
 package runner
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/StackVista/stackstate-agent/pkg/collector/python"
 )
 
 func terminateChecksRunningProcesses() {

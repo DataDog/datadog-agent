@@ -8,7 +8,7 @@ package collectors
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/StackVista/stackstate-agent/pkg/tagger/utils"
 	"github.com/stretchr/testify/assert"
 )
 

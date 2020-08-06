@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/StackVista/stackstate-agent/pkg/api/security"
 )
 
 var (

@@ -10,12 +10,12 @@ package admission
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/admission/controllers/secret"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/admission/controllers/webhook"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"

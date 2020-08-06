@@ -10,7 +10,7 @@ package mutate
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	corev1 "k8s.io/api/core/v1"
 )
 

@@ -14,8 +14,8 @@ import (
 
 	// 3p
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/ckey"
+	"github.com/StackVista/stackstate-agent/pkg/quantile"
 	"github.com/stretchr/testify/assert"
 )
 

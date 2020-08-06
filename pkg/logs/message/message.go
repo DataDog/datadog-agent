@@ -5,7 +5,7 @@
 
 package message
 
-import "github.com/DataDog/datadog-agent/pkg/logs/config"
+import "github.com/StackVista/stackstate-agent/pkg/logs/config"
 
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
