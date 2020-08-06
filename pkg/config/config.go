@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -631,6 +632,9 @@ func InitConfig(config Config) {
 
 	// Ochestrator explorer
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
+	// enabling/disabling the environment variables & command scrubbing from the container specs
+	// this option will potentially impact the CPU usage of the agent
+	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
@@ -659,6 +663,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.log_file")
 	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
+	config.SetKnown("system_probe_config.bpf_dir")
 	config.SetKnown("system_probe_config.disable_tcp")
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
@@ -735,13 +740,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
 	// Datadog security agent (common)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
-	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -758,12 +763,7 @@ func InitConfig(config Config) {
 }
 
 var (
-	ddURLs = map[string]interface{}{
-		"app.datadoghq.com": nil,
-		"app.datadoghq.eu":  nil,
-		"app.datad0g.com":   nil,
-		"app.datad0g.eu":    nil,
-	}
+	ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
 )
 
 // GetProxies returns the proxy settings from the configuration
@@ -993,8 +993,8 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 		return "", err
 	}
 
-	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
-	if _, found := ddURLs[u.Host]; !found {
+	// we don't update unknown URLs (ie: proxy or custom DD domain)
+	if !ddURLRegexp.MatchString(u.Host) {
 		return DDURL, nil
 	}
 

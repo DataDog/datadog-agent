@@ -92,11 +92,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
 	}
 
-	buf, err := bytecode.ReadBPFModule(config.BPFDebug)
+	buf, err := bytecode.ReadBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
-	offsetBuf, err := bytecode.ReadOffsetBPFModule(config.BPFDebug)
+	offsetBuf, err := bytecode.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
 	}
@@ -256,7 +256,7 @@ func overrideProbeSectionNames(m *manager.Manager) {
 	}
 }
 
-func runOffsetGuessing(config *Config, buf *bytes.Reader) ([]manager.ConstantEditor, error) {
+func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
 	// Enable kernel probes used for offset guessing.
 	offsetMgr := bytecode.NewOffsetManager()
 	offsetOptions := manager.Options{

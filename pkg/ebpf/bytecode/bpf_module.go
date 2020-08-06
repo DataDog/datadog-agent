@@ -3,36 +3,35 @@
 package bytecode
 
 import (
-	"bytes"
 	"fmt"
 )
 
 // ReadBPFModule from the asset file
-func ReadBPFModule(debug bool) (*bytes.Reader, error) {
+func ReadBPFModule(bpfDir string, debug bool) (AssetReader, error) {
 	file := "pkg/ebpf/c/tracer-ebpf.o"
 	if debug {
 		file = "pkg/ebpf/c/tracer-ebpf-debug.o"
 	}
 
-	buf, err := Asset(file)
+	ebpfReader, err := GetReader(bpfDir, file)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
 
-	return bytes.NewReader(buf), nil
+	return ebpfReader, nil
 }
 
 // ReadOffsetBPFModule from the asset file
-func ReadOffsetBPFModule(debug bool) (*bytes.Reader, error) {
+func ReadOffsetBPFModule(bpfDir string, debug bool) (AssetReader, error) {
 	file := "pkg/ebpf/c/offset-guess.o"
 	if debug {
 		file = "pkg/ebpf/c/offset-guess-debug.o"
 	}
 
-	buf, err := Asset(file)
+	ebpfReader, err := GetReader(bpfDir, file)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
 
-	return bytes.NewReader(buf), nil
+	return ebpfReader, nil
 }

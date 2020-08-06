@@ -3,7 +3,6 @@
 package network
 
 import (
-	"bytes"
 	"math/rand"
 	"net"
 	"strings"
@@ -21,7 +20,7 @@ import (
 
 func getSnooper(
 	t *testing.T,
-	buf *bytes.Reader,
+	buf bytecode.AssetReader,
 	collectStats bool,
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
@@ -101,7 +100,7 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	buf, err := bytecode.ReadBPFModule(false)
+	buf, err := bytecode.ReadBPFModule("", false)
 	require.NoError(t, err)
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)
@@ -134,7 +133,7 @@ const (
 )
 
 func initDNSTests(t *testing.T) (*manager.Manager, *SocketFilterSnooper) {
-	buf, err := bytecode.ReadBPFModule(false)
+	buf, err := bytecode.ReadBPFModule("", false)
 	require.NoError(t, err)
 	return getSnooper(t, buf, true, false, 1*time.Second)
 }
@@ -271,7 +270,7 @@ func TestDNSOverUDPSnoopingWithTimedOutResponse(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	buf, err := bytecode.ReadBPFModule(false)
+	buf, err := bytecode.ReadBPFModule("", false)
 	require.NoError(t, err)
 
 	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second)

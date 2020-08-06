@@ -30,6 +30,9 @@ var (
 	// defaultSystemProbeFilePath is the default logging file for the system probe
 	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
 
+	// defaultSystemProbeBPFDir is the default path for eBPF programs
+	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/usr/share/system-probe/ebpf"
+
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
 )
@@ -84,6 +87,7 @@ type AgentConfig struct {
 	CollectLocalDNS                bool
 	SystemProbeAddress             string
 	SystemProbeLogFile             string
+	SystemProbeBPFDir              string
 	MaxTrackedConnections          uint
 	SysProbeBPFDebug               bool
 	ExcludedBPFLinuxVersions       []string
@@ -106,6 +110,7 @@ type AgentConfig struct {
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
 	KubeClusterName                string
+	IsScrubbingEnabled             bool
 
 	// Check config
 	EnabledChecks  []string
@@ -210,6 +215,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableDNSInspection:  false,
 		SystemProbeAddress:    defaultSystemProbeAddress,
 		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		SystemProbeBPFDir:     defaultSystemProbeBPFDir,
 		MaxTrackedConnections: defaultMaxTrackedConnections,
 		EnableConntrack:       true,
 		ClosedChannelSize:     500,
@@ -342,6 +348,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 			}
 		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname
+		} else {
+			log.Errorf("Cannot get hostname: %v", err)
 		}
 	}
 

@@ -49,6 +49,7 @@ def build(
     windows=False,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
+    bundle_ebpf=True,
 ):
     """
     Build the system_probe
@@ -56,7 +57,7 @@ def build(
 
     # Only build ebpf files on unix
     if not windows:
-        build_object_files(ctx, install=True)
+        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
     ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
@@ -112,6 +113,8 @@ def build(
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
+    if bundle_ebpf:
+        build_tags.append("ebpf_bindata")
 
     if with_bcc:
         build_tags.append(BCC_TAG)
@@ -164,7 +167,7 @@ def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_bui
 
 
 @task
-def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
+def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=True):
     """
     Run tests on eBPF parts
     If skip_object_files is set to True, this won't rebuild object files
@@ -173,7 +176,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     """
 
     if not skip_object_files:
-        build_object_files(ctx, install=False)
+        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
     pkg = "./pkg/ebpf/... ./pkg/network/..."
 
@@ -184,7 +187,9 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
+    bpf_tag = BPF_TAG
     if only_check_bpf_bytes:
+        bpf_tag += ",ebpf_bindata"
         cmd += " -run=TestEbpfBytesCorrect"
     else:
         if getpass.getuser() != "root":
@@ -196,7 +201,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
             )
             raise Exit(code=1)
 
-    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=BPF_TAG, pkg=pkg))
+    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=bpf_tag, pkg=pkg))
 
 
 @task
@@ -204,9 +209,9 @@ def nettop(ctx, incremental_build=False, go_mod="vendor"):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, install=True)
+    build_object_files(ctx, bundle_ebpf=False)
 
-    cmd = 'go build -mod={go_mod} {build_type} -tags "linux_bpf" -o {bin_path} {path}'
+    cmd = 'go build -mod={go_mod} {build_type} -tags linux_bpf,ebpf_bindata -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
     ctx.run(
@@ -259,14 +264,14 @@ def build_dev_docker_image(ctx, image_name, push=False):
 
 
 @task
-def object_files(ctx, install=True):
+def object_files(ctx, bundle_ebpf=True):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, install=install)
+    build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
 
-def build_object_files(ctx, install=True):
+def build_object_files(ctx, bundle_ebpf=False):
     """build_object_files builds only the eBPF object
-    set install to False to disable replacing the assets
+    set bundle_ebpf to False to disable replacing the assets
     """
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently, and result in us not building a
@@ -340,15 +345,12 @@ def build_object_files(ctx, install=True):
         "tracer-ebpf",
         "offset-guess",
     ]
-    test_dir = os.path.join(bpf_dir, "testdata")
     bindata_files = [
         os.path.join(c_dir, "tcp-queue-length-kern.c"),
-        os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
+        os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
         os.path.join(c_dir, "oom-kill-kern.c"),
-        os.path.join(c_dir, "oom-kill-kern-user.h"),
+        os.path.join(bpf_dir, "oom-kill-kern-user.h"),
         os.path.join(c_dir, "bpf-common.h"),
-        os.path.join(test_dir, "test-asset.c"),
-        os.path.join(test_dir, "test-header.h"),
     ]
     for p in compiled_programs:
         # Build both the standard and debug version
@@ -368,8 +370,8 @@ def build_object_files(ctx, install=True):
     # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_c_file = os.path.join(security_agent_c_dir, "probe.c")
-    security_bc_file = os.path.join(security_agent_c_dir, "probe.bc")
-    security_agent_obj_file = os.path.join(security_agent_c_dir, "probe.o")
+    security_bc_file = os.path.join(security_agent_c_dir, "runtime-security.bc")
+    security_agent_obj_file = os.path.join(security_agent_c_dir, "runtime-security.o")
 
     commands.append(
         cmd.format(
@@ -378,8 +380,8 @@ def build_object_files(ctx, install=True):
     )
     commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
 
-    security_agent_syscall_wrapper_bc_file = os.path.join(security_agent_c_dir, "probe-syscall-wrapper.bc")
-    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "probe-syscall-wrapper.o")
+    security_agent_syscall_wrapper_bc_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.bc")
+    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.o")
     commands.append(
         cmd.format(
             flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
@@ -394,31 +396,15 @@ def build_object_files(ctx, install=True):
             obj_file=security_agent_syscall_wrapper_obj_file,
         )
     )
+    bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
 
-    if install:
+    if bundle_ebpf:
         assets_cmd = (
             os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
+            + "/bin/go-bindata -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
         commands.append(assets_cmd.format(c_dir=c_dir, go_file=go_file, bindata_files="' '".join(bindata_files)))
-
-        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
-
-        # security runtime bindata
-        assets_cmd = (
-            os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg probe -modtime 1 -o '{go_file}' '{security_agent_obj_file}' '{security_agent_syscall_wrapper_obj_file}'"
-        )
-        go_file = os.path.join(".", "pkg", "security", "probe", "ebpf.go")
-        commands.append(
-            assets_cmd.format(
-                go_file=go_file,
-                security_agent_obj_file=security_agent_obj_file,
-                security_agent_syscall_wrapper_obj_file=security_agent_syscall_wrapper_obj_file,
-            )
-        )
-
         commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
 
     for cmd in commands:

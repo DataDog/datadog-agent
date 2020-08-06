@@ -13,6 +13,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -32,6 +33,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
+	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -118,4 +120,23 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
+	if err != nil {
+		log.Errorf("Unable to marshal runtime config response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
+	if err != nil {
+		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(scrubbed)
 }
