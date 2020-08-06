@@ -217,10 +217,6 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		return nil, err
 	}
 
-	if err := log.ChangeLogLevel(logger, "debug"); err != nil {
-		return nil, err
-	}
-
 	return testMod, nil
 }
 
@@ -384,18 +380,21 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 }
 
 func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
+	var logLevel seelog.LogLevel = seelog.InfoLvl
 	if testing.Verbose() {
-		var err error
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, seelog.DebugLvl, "%Ns [%LEVEL] %Msg\n")
-		if err != nil {
-			return nil, err
-		}
-		err = seelog.ReplaceLogger(logger)
-		if err != nil {
-			return nil, err
-		}
-		log.SetupDatadogLogger(logger, "info")
+		logLevel = seelog.DebugLvl
 	}
+
+	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
+	if err != nil {
+		return nil, err
+	}
+
+	err = seelog.ReplaceLogger(logger)
+	if err != nil {
+		return nil, err
+	}
+	log.SetupDatadogLogger(logger, logLevel.String())
 
 	root, err := ioutil.TempDir("", "test-secagent-root")
 	if err != nil {
