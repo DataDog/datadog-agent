@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -11,6 +10,7 @@ import (
 
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,7 +47,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		})
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
-	return newProfileProxy(r.conf.HTTPTransport(), u, r.conf.APIKey(), tags)
+	return newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)
 }
 
 // newProfileProxy creates a single-host reverse proxy with the given target, attaching
@@ -74,8 +74,8 @@ func newProfileProxy(transport *http.Transport, target *url.URL, apiKey, tags st
 	}
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director: director,
-		ErrorLog:     stdlog.New(logger, "profiling.Proxy: ", 0),
+		Director:  director,
+		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
 		Transport: transport,
 	}
 }

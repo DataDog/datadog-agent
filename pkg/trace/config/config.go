@@ -207,18 +207,18 @@ func (c *AgentConfig) acquireHostname() error {
 	return err
 }
 
-// HTTPClient returns a new http.Client to be used for outgoing connections to the
+// NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
-func (c *AgentConfig) HTTPClient() *http.Client {
+func (c *AgentConfig) NewHTTPClient() *http.Client {
 	return &http.Client{
 		Timeout:   10 * time.Second,
-		Transport: c.HTTPTransport(),
+		Transport: c.NewHTTPTransport(),
 	}
 }
 
-// HTTPTransport returns a new http.Transport to be used for outgoing connections to
+// NewHTTPTransport returns a new http.Transport to be used for outgoing connections to
 // the Datadog API.
-func (c *AgentConfig) HTTPTransport() *http.Transport {
+func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
 		// below field values are from http.DefaultTransport (go1.12)
