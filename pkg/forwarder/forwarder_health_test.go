@@ -40,17 +40,23 @@ func TestHasValidAPIKey(t *testing.T) {
 
 func TestComputeDomainsURL(t *testing.T) {
 	keysPerDomains := map[string][]string{
-		"https://app.datadoghq.com":          {"api_key1"},
-		"https://custom.datadoghq.com":       {"api_key2"},
-		"https://custom.agent.datadoghq.com": {"api_key3"},
-		"https://app.datadoghq.eu":           {"api_key4"},
-		"https://app.myproxy.com":            {"api_key5"},
+		"https://app.datadoghq.com":              {"api_key1"},
+		"https://custom.datadoghq.com":           {"api_key2"},
+		"https://custom.agent.datadoghq.com":     {"api_key3"},
+		"https://app.datadoghq.eu":               {"api_key4"},
+		"https://app.us2.datadoghq.com":          {"api_key5"},
+		"https://custom.agent.us2.datadoghq.com": {"api_key6"},
+		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
+		"https://app.datadoghq.internal": {"api_key7"},
+		"https://app.myproxy.com":        {"api_key8"},
 	}
 
 	expectedMap := map[string][]string{
-		"https://api.datadoghq.com": {"api_key1", "api_key2", "api_key3"},
-		"https://api.datadoghq.eu":  {"api_key4"},
-		"https://app.myproxy.com":   {"api_key5"},
+		"https://api.datadoghq.com":      {"api_key1", "api_key2", "api_key3"},
+		"https://api.datadoghq.eu":       {"api_key4"},
+		"https://api.us2.datadoghq.com":  {"api_key5", "api_key6"},
+		"https://api.datadoghq.internal": {"api_key7"},
+		"https://app.myproxy.com":        {"api_key8"},
 	}
 
 	fh := forwarderHealth{keysPerDomains: keysPerDomains}
