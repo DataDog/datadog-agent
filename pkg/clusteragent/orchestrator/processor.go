@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
-	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
@@ -37,16 +37,13 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		}
 
 		// k8s objects only have json "omitempty" annotations
-		// we're doing json<>yaml to get rid of the null properties
+		// and marshalling is more performant than YAML
 		jsonDeploy, err := jsoniter.Marshal(deploymentList[d])
 		if err != nil {
-			log.Debugf("Could not marshal deployment in JSON: %s", err)
+			log.Debugf("Could not marshal deployment to JSON: %s", err)
 			continue
 		}
-		var jsonObj interface{}
-		_ = yaml.Unmarshal(jsonDeploy, &jsonObj)
-		yamlDeploy, _ := yaml.Marshal(jsonObj)
-		deployModel.Yaml = yamlDeploy
+		deployModel.Yaml = jsonDeploy
 
 		deployMsgs = append(deployMsgs, deployModel)
 	}
@@ -107,16 +104,13 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		}
 
 		// k8s objects only have json "omitempty" annotations
-		// we're doing json<>yaml to get rid of the null properties
-		jsonRs, err := jsoniter.Marshal(rsList[rs])
+		// and marshalling is more performant than YAML
+		jsonRS, err := jsoniter.Marshal(rsList[rs])
 		if err != nil {
-			log.Debugf("Could not marshal replica set in JSON: %s", err)
+			log.Debugf("Could not marshal replica set to JSON: %s", err)
 			continue
 		}
-		var jsonObj interface{}
-		_ = yaml.Unmarshal(jsonRs, &jsonObj)
-		yamlDeploy, _ := yaml.Marshal(jsonObj)
-		rsModel.Yaml = yamlDeploy
+		rsModel.Yaml = jsonRS
 
 		rsMsgs = append(rsMsgs, rsModel)
 	}
@@ -130,7 +124,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorReplicaSet{
 			ClusterName: clusterName,
-			Replicasets: chunked[i],
+			ReplicaSets: chunked[i],
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
@@ -155,6 +149,68 @@ func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int
 			chunkEnd = len(replicaSets)
 		}
 		chunks = append(chunks, replicaSets[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+// processServiceList process a service list into process messages.
+func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	serviceMsgs := make([]*model.Service, 0, len(serviceList))
+
+	for s := 0; s < len(serviceList); s++ {
+		serviceModel := extractService(serviceList[s])
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonSvc, err := jsoniter.Marshal(serviceList[s])
+		if err != nil {
+			log.Debugf("Could not marshal service to JSON: %s", err)
+			continue
+		}
+		serviceModel.Yaml = jsonSvc
+
+		serviceMsgs = append(serviceMsgs, serviceModel)
+	}
+
+	groupSize := len(serviceMsgs) / cfg.MaxPerMessage
+	if len(serviceMsgs)%cfg.MaxPerMessage > 0 {
+		groupSize++
+	}
+
+	chunks := chunkServices(serviceMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorService{
+			ClusterName: clusterName,
+			ClusterId:   clusterID,
+			GroupId:     groupID,
+			GroupSize:   int32(groupSize),
+			Services:    chunks[i],
+		})
+	}
+
+	log.Debugf("Collected & enriched %d services in %s", len(serviceMsgs), time.Now().Sub(start))
+	return messages, nil
+}
+
+// chunkServices chunks the given list of services, honoring the given chunk count and size.
+// The last chunk may be smaller than the others.
+func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*model.Service {
+	chunks := make([][]*model.Service, 0, chunkCount)
+
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(services)
+		}
+		chunks = append(chunks, services[chunkStart:chunkEnd])
 	}
 
 	return chunks

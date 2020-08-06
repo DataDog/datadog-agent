@@ -1,4 +1,12 @@
----
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
+package config
+
+// DefaultPolicy holds the default runtime security agent rules
+var DefaultPolicy = `---
 version: 1.0.0
 rules:
   - id: credential_modified
@@ -47,3 +55,4 @@ rules:
       open.filename =~ "/lib/modules/*" && open.flags & O_CREAT > 0
     tags:
       mitre: T1215
+`

@@ -215,6 +215,11 @@ api_key:
 #
 # collect_ec2_tags: false
 
+## @param ec2_metadata_timeout - integer - optional - default: 300
+## Timeout in milliseconds on calls to the AWS EC2 metadata endpoints.
+#
+# ec2_metadata_timeout: 300
+
 ## @param collect_gce_tags - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
 #
@@ -938,7 +943,7 @@ api_key:
   ## Syscall monitoring
   #
   # syscall_monitor:
-  
+
     ## @param enabled - boolean - optional - default: false
     ## Set to true to enable the Syscall monitoring.
     #

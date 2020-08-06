@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
@@ -24,7 +23,7 @@ type kubeApiserverFixture struct {
 	name         string
 	resource     compliance.Resource
 	objects      []runtime.Object
-	expectReport *report
+	expectReport *compliance.Report
 	expectError  error
 }
 
@@ -66,10 +65,10 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	kubeClient := fake.NewSimpleDynamicClient(runtime.NewScheme(), f.objects...)
 	env.On("KubeClient").Return(kubeClient)
 
-	expr, err := eval.ParseIterable(f.resource.Condition)
+	kubeCheck, err := newResourceCheck(env, "rule-id", f.resource)
 	assert.NoError(err)
 
-	report, err := checkKubeapiserver(env, "rule-id", f.resource, expr)
+	report, err := kubeCheck.check(env)
 	assert.Equal(f.expectReport, report)
 	if f.expectError != nil {
 		assert.EqualError(err, f.expectError.Error())
@@ -95,14 +94,14 @@ func TestKubeApiserverCheck(t *testing.T) {
 			objects: []runtime.Object{
 				newDummyObject("testns", "dummy1"),
 			},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
-					kubeResourceFieldName:      "dummy1",
-					kubeResourceFieldNamespace: "testns",
-					kubeResourceFieldKind:      "MyObj",
-					kubeResourceFieldVersion:   "v1",
-					kubeResourceFieldGroup:     "mygroup.com",
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
+					compliance.KubeResourceFieldName:      "dummy1",
+					compliance.KubeResourceFieldNamespace: "testns",
+					compliance.KubeResourceFieldKind:      "MyObj",
+					compliance.KubeResourceFieldVersion:   "v1",
+					compliance.KubeResourceFieldGroup:     "mygroup.com",
 				},
 			},
 		},
@@ -125,14 +124,14 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns2", "dummy1"),
 			},
-			expectReport: &report{
-				passed: false,
-				data: event.Data{
-					kubeResourceFieldName:      "dummy1",
-					kubeResourceFieldNamespace: "testns",
-					kubeResourceFieldKind:      "MyObj",
-					kubeResourceFieldVersion:   "v1",
-					kubeResourceFieldGroup:     "mygroup.com",
+			expectReport: &compliance.Report{
+				Passed: false,
+				Data: event.Data{
+					compliance.KubeResourceFieldName:      "dummy1",
+					compliance.KubeResourceFieldNamespace: "testns",
+					compliance.KubeResourceFieldKind:      "MyObj",
+					compliance.KubeResourceFieldVersion:   "v1",
+					compliance.KubeResourceFieldGroup:     "mygroup.com",
 				},
 			},
 		},
@@ -155,14 +154,14 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy2"),
 				newDummyObject("testns2", "dummy1"),
 			},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
-					kubeResourceFieldName:      "dummy1",
-					kubeResourceFieldNamespace: "testns",
-					kubeResourceFieldKind:      "MyObj",
-					kubeResourceFieldVersion:   "v1",
-					kubeResourceFieldGroup:     "mygroup.com",
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
+					compliance.KubeResourceFieldName:      "dummy1",
+					compliance.KubeResourceFieldNamespace: "testns",
+					compliance.KubeResourceFieldKind:      "MyObj",
+					compliance.KubeResourceFieldVersion:   "v1",
+					compliance.KubeResourceFieldGroup:     "mygroup.com",
 				},
 			},
 		},
@@ -185,14 +184,14 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns2", "dummy1"),
 			},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
-					kubeResourceFieldName:      "dummy1",
-					kubeResourceFieldNamespace: "testns",
-					kubeResourceFieldKind:      "MyObj",
-					kubeResourceFieldVersion:   "v1",
-					kubeResourceFieldGroup:     "mygroup.com",
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
+					compliance.KubeResourceFieldName:      "dummy1",
+					compliance.KubeResourceFieldNamespace: "testns",
+					compliance.KubeResourceFieldKind:      "MyObj",
+					compliance.KubeResourceFieldVersion:   "v1",
+					compliance.KubeResourceFieldGroup:     "mygroup.com",
 				},
 			},
 		},
@@ -215,14 +214,14 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns", "dummy2"),
 			},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
-					kubeResourceFieldName:      "dummy1",
-					kubeResourceFieldNamespace: "testns",
-					kubeResourceFieldKind:      "MyObj",
-					kubeResourceFieldVersion:   "v1",
-					kubeResourceFieldGroup:     "mygroup.com",
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
+					compliance.KubeResourceFieldName:      "dummy1",
+					compliance.KubeResourceFieldNamespace: "testns",
+					compliance.KubeResourceFieldKind:      "MyObj",
+					compliance.KubeResourceFieldVersion:   "v1",
+					compliance.KubeResourceFieldGroup:     "mygroup.com",
 				},
 			},
 		},
@@ -264,14 +263,14 @@ func TestKubeApiserverCheck(t *testing.T) {
 			objects: []runtime.Object{
 				newDummyObject("testns", "dummy1"),
 			},
-			expectReport: &report{
-				passed: false,
-				data: event.Data{
-					kubeResourceFieldName:      "dummy1",
-					kubeResourceFieldNamespace: "testns",
-					kubeResourceFieldKind:      "MyObj",
-					kubeResourceFieldVersion:   "v1",
-					kubeResourceFieldGroup:     "mygroup.com",
+			expectReport: &compliance.Report{
+				Passed: false,
+				Data: event.Data{
+					compliance.KubeResourceFieldName:      "dummy1",
+					compliance.KubeResourceFieldNamespace: "testns",
+					compliance.KubeResourceFieldKind:      "MyObj",
+					compliance.KubeResourceFieldVersion:   "v1",
+					compliance.KubeResourceFieldGroup:     "mygroup.com",
 				},
 			},
 		},
@@ -313,14 +312,14 @@ func TestKubeApiserverCheck(t *testing.T) {
 				newDummyObject("testns", "dummy1"),
 				newDummyObject("testns2", "dummy1"),
 			},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
-					kubeResourceFieldName:      "dummy1",
-					kubeResourceFieldNamespace: "testns",
-					kubeResourceFieldKind:      "MyObj",
-					kubeResourceFieldVersion:   "v1",
-					kubeResourceFieldGroup:     "mygroup.com",
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
+					compliance.KubeResourceFieldName:      "dummy1",
+					compliance.KubeResourceFieldNamespace: "testns",
+					compliance.KubeResourceFieldKind:      "MyObj",
+					compliance.KubeResourceFieldVersion:   "v1",
+					compliance.KubeResourceFieldGroup:     "mygroup.com",
 				},
 			},
 		},

@@ -10,7 +10,6 @@ package ebpf
 import (
 	"fmt"
 	"os"
-	"strings"
 	"syscall"
 )
 
@@ -40,15 +39,21 @@ func (m *Module) RegisterKprobe(k *KProbe) error {
 // UnregisterKprobe unregisters a Kprobe
 func (m *Module) UnregisterKprobe(k *KProbe) error {
 	if k.EntryFunc != "" {
-		funcName := strings.TrimPrefix(k.EntryFunc, "kprobe/")
-		if err := disableKprobe("r" + funcName); err != nil {
-			return fmt.Errorf("failed to unregister Kprobe %v: %s", k.EntryFunc, err)
+		kp := m.Kprobe(k.EntryFunc)
+		if kp == nil {
+			return fmt.Errorf("couldn't find kprobe %s with section %s", k.Name, k.EntryFunc)
+		}
+		if err := kp.Detach(); err != nil {
+			return err
 		}
 	}
 	if k.ExitFunc != "" {
-		funcName := strings.TrimPrefix(k.ExitFunc, "kretprobe/")
-		if err := disableKprobe("r" + funcName); err != nil {
-			return fmt.Errorf("failed to unregister Kprobe %v: %s", k.ExitFunc, err)
+		kp := m.Kprobe(k.ExitFunc)
+		if kp == nil {
+			return fmt.Errorf("couldn't find kretprobe %s with section %s", k.Name, k.ExitFunc)
+		}
+		if err := kp.Detach(); err != nil {
+			return err
 		}
 	}
 

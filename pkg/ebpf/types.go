@@ -32,6 +32,9 @@ const (
 	// This probe is used for offset guessing only
 	TCPGetInfo KProbeName = "kprobe/tcp_get_info"
 
+	// TCPSetState traces the tcp_set_state() kernel function
+	TCPSetState KProbeName = "kprobe/tcp_set_state"
+
 	// TCPCleanupRBuf traces the tcp_cleanup_rbuf() system call
 	TCPCleanupRBuf KProbeName = "kprobe/tcp_cleanup_rbuf"
 	// TCPClose traces the tcp_close() system call

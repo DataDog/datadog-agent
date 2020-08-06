@@ -59,7 +59,6 @@ func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
 
 // Evaluator is the interface of an evaluator
 type Evaluator interface {
-	StringValue(ctx *Context) string
 	Eval(ctx *Context) interface{}
 }
 
@@ -70,11 +69,6 @@ type BoolEvaluator struct {
 	Value   bool
 
 	isPartial bool
-}
-
-// StringValue returns a string representation of the evaluation result
-func (b *BoolEvaluator) StringValue(ctx *Context) string {
-	return fmt.Sprintf("%t", b.EvalFnc(nil))
 }
 
 // Eval returns the result of the evaluation
@@ -91,14 +85,9 @@ type IntEvaluator struct {
 	isPartial bool
 }
 
-// StringValue returns a string representation of the evaluation result
-func (i *IntEvaluator) StringValue(ctx *Context) string {
-	return fmt.Sprintf("%d", i.EvalFnc(nil))
-}
-
 // Eval returns the result of the evaluation
 func (i *IntEvaluator) Eval(ctx *Context) interface{} {
-	return i.EvalFnc(nil)
+	return i.EvalFnc(ctx)
 }
 
 // StringEvaluator returns a string as result of the evaluation
@@ -108,11 +97,6 @@ type StringEvaluator struct {
 	Value   string
 
 	isPartial bool
-}
-
-// StringValue returns a string representation of the evaluation result
-func (s *StringEvaluator) StringValue(ctx *Context) string {
-	return s.EvalFnc(ctx)
 }
 
 // Eval returns the result of the evaluation

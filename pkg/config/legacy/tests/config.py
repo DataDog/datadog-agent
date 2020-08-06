@@ -3,23 +3,22 @@
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2016-2020 Datadog, Inc.
 
-# stdlib
-import ConfigParser
-from cStringIO import StringIO
+# 3p
+import json
 import logging
 import logging.config
 import logging.handlers
 import os
 import re
-from socket import gaierror, gethostbyname
 import string
 import sys
-from urlparse import urlparse
+from socket import gaierror, gethostbyname
 from urllib.request import getproxies
 
-# 3p
-import json
-
+# stdlib
+import ConfigParser
+from cStringIO import StringIO
+from urlparse import urlparse
 
 # CONSTANTS
 TRACE_CONFIG = 'trace_config'  # used for tracing config load by service discovery
@@ -98,7 +97,7 @@ def _windows_commondata_path():
     how-do-i-find-the-windows-common-application-data-folder-using-python
     """
     import ctypes
-    from ctypes import wintypes, windll
+    from ctypes import windll, wintypes
 
     CSIDL_COMMON_APPDATA = 35
 

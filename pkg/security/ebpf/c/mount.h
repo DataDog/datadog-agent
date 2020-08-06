@@ -8,6 +8,7 @@
 struct mount_event_t {
     struct event_t event;
     struct process_data_t process;
+    char container_id[CONTAINER_ID_LEN];
     int new_mount_id;
     int new_group_id;
     dev_t new_device;
@@ -22,7 +23,7 @@ struct mount_event_t {
 SYSCALL_KPROBE(mount) {
     struct syscall_cache_t syscall = {};
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&syscall.mount.fstype, sizeof(void *), &PT_REGS_PARM3(ctx));
 #else
     syscall.mount.fstype = (void *)PT_REGS_PARM3(ctx);
@@ -45,7 +46,7 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
-    resolve_dentry(dentry, syscall->mount.root_key);
+    resolve_dentry(dentry, syscall->mount.root_key, NULL);
 
     return 0;
 }
@@ -64,7 +65,7 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
-    resolve_dentry(dentry, syscall->mount.root_key);
+    resolve_dentry(dentry, syscall->mount.root_key, NULL);
 
     return 0;
 }
@@ -99,7 +100,14 @@ SYSCALL_KRETPROBE(mount) {
     }
 
     fill_process_data(&event.process);
-    resolve_dentry(dentry, path_key);
+    resolve_dentry(dentry, path_key, NULL);
+
+    // add process cache data
+    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
+    if (entry) {
+        copy_container_id(event.container_id, entry->container_id);
+        event.process.numlower = entry->numlower;
+    }
 
     send_mountpoints_events(ctx, event);
 

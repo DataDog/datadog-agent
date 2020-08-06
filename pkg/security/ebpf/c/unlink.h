@@ -4,9 +4,19 @@
 #include "syscalls.h"
 #include "process.h"
 
+struct bpf_map_def SEC("maps/unlink_path_inode_discarders") unlink_path_inode_discarders = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct path_key_t),
+    .value_size = sizeof(struct filter_t),
+    .max_entries = 512,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct unlink_event_t {
     struct event_t event;
     struct process_data_t process;
+    char container_id[CONTAINER_ID_LEN];
     unsigned long inode;
     int mount_id;
     int overlay_numlower;
@@ -14,7 +24,7 @@ struct unlink_event_t {
     int padding;
 };
 
-int trace__sys_unlink(int flags) {
+int __attribute__((always_inline)) trace__sys_unlink(int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .unlink = {
@@ -32,8 +42,9 @@ SYSCALL_KPROBE(unlink) {
 
 SYSCALL_KPROBE(unlinkat) {
     int flags;
+
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
 #else
     flags = (int) PT_REGS_PARM3(ctx);
@@ -56,8 +67,17 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
     syscall->unlink.path_key.ino = get_dentry_ino(dentry);
+
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    resolve_dentry(dentry, syscall->unlink.path_key);
+    int ret = 0;
+    if (syscall->policy.mode == NO_FILTER) {
+        ret = resolve_dentry(dentry, syscall->unlink.path_key, NULL);
+    } else {
+        ret = resolve_dentry(dentry, syscall->unlink.path_key, &unlink_path_inode_discarders);
+    }
+    if (ret < 0) {
+        pop_syscall();
+    }
 
     return 0;
 }
@@ -82,6 +102,13 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     };
 
     fill_process_data(&event.process);
+
+    // add process cache data
+    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
+    if (entry) {
+        copy_container_id(event.container_id, entry->container_id);
+        event.process.numlower = entry->numlower;
+    }
 
     send_event(ctx, event);
 

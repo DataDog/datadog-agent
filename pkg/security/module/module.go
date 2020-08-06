@@ -124,8 +124,8 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (m *Module) EventDiscarderFound(event eval.Event, field string) {
-	if err := m.probe.OnNewDiscarder(event.(*sprobe.Event), field); err != nil {
+func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
+	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field); err != nil {
 		log.Debug(err)
 	}
 }
@@ -140,7 +140,7 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*rules.RuleSet, error) {
 	var result *multierror.Error
 
-	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants, sprobe.InvalidDiscarders))
 
 	policyFiles, err := ioutil.ReadDir(config.PoliciesDir)
 	if err != nil {

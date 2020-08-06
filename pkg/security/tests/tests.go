@@ -9,6 +9,7 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"net"
 	"os"
@@ -36,6 +37,7 @@ import (
 var (
 	eventChanLength     = 100
 	discarderChanLength = 100
+	logger              seelog.LoggerInterface
 )
 
 const grpcAddr = "127.0.0.1:18787"
@@ -52,6 +54,12 @@ runtime_security_config:
   socket: /tmp/test-security-probe.sock
 {{if not .EnableFilters}}
   enable_kernel_filters: false
+{{end}}
+{{if .DisableApprovers}}
+  enable_approvers: false
+{{end}}
+{{if .DisableDiscarders}}
+  enable_discarders: false
 {{end}}
 
   policies:
@@ -80,7 +88,9 @@ type testEvent struct {
 }
 
 type testOpts struct {
-	enableFilters bool
+	enableFilters     bool
+	disableApprovers  bool
+	disableDiscarders bool
 }
 
 type testModule struct {
@@ -100,6 +110,7 @@ type testProbe struct {
 	probe      *sprobe.Probe
 	events     chan *sprobe.Event
 	discarders chan *testDiscarder
+	rs         *rules.RuleSet
 }
 
 type testEventHandler struct {
@@ -115,7 +126,7 @@ func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 
 func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
 
-func (h *testEventHandler) EventDiscarderFound(event eval.Event, field string) {
+func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 	h.discarders <- &testDiscarder{event: event, field: field}
 }
 
@@ -137,8 +148,10 @@ func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir": path.Dir(testPolicyFile.Name()),
-		"EnableFilters":   opts.enableFilters,
+		"TestPoliciesDir":   path.Dir(testPolicyFile.Name()),
+		"EnableFilters":     opts.enableFilters,
+		"DisableApprovers":  opts.disableApprovers,
+		"DisableDiscarders": opts.disableDiscarders,
 	}); err != nil {
 		return "", fail(err)
 	}
@@ -203,6 +216,10 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		return nil, err
 	}
 
+	if err := log.ChangeLogLevel(logger, "debug"); err != nil {
+		return nil, err
+	}
+
 	return testMod, nil
 }
 
@@ -214,7 +231,7 @@ func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
 	tm.events <- testEvent{event: event, rule: rule}
 }
 
-func (tm *testModule) EventDiscarderFound(event eval.Event, field string) {
+func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 }
 
 func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
@@ -241,6 +258,25 @@ func (tm *testModule) Close() {
 	time.Sleep(time.Second)
 }
 
+func waitProcScan(test *testProbe) error {
+	// Consume test.events so that testEventHandler.HandleEvent doesn't block
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		for {
+			select {
+			case <-test.events:
+			case <-test.discarders:
+				continue
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	time.Sleep(5 * time.Second)
+	cancel()
+	return log.ChangeLogLevel(logger, "debug")
+}
+
 func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testProbe, error) {
 	st, err := newSimpleTest(macros, rules)
 	if err != nil {
@@ -263,16 +299,8 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	if err := probe.Start(); err != nil {
-		return nil, err
-	}
-
 	ruleSet, err := module.LoadPolicies(config, probe)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := probe.Snapshot(); err != nil {
 		return nil, err
 	}
 
@@ -291,12 +319,23 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	return &testProbe{
+	if err := probe.Snapshot(); err != nil {
+		return nil, err
+	}
+
+	test := &testProbe{
 		st:         st,
 		probe:      probe,
 		events:     events,
 		discarders: discarders,
-	}, nil
+		rs:         ruleSet,
+	}
+
+	if err := waitProcScan(test); err != nil {
+		return nil, err
+	}
+
+	return test, nil
 }
 
 func (tp *testProbe) Root() string {
@@ -345,7 +384,8 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 
 func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
 	if testing.Verbose() {
-		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, seelog.DebugLvl, "%Ns [%LEVEL] %Msg\n")
+		var err error
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, seelog.DebugLvl, "%Ns [%LEVEL] %Msg\n")
 		if err != nil {
 			return nil, err
 		}
@@ -353,7 +393,7 @@ func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		if err != nil {
 			return nil, err
 		}
-		log.SetupDatadogLogger(logger, "debug")
+		log.SetupDatadogLogger(logger, "info")
 	}
 
 	root, err := ioutil.TempDir("", "test-secagent-root")

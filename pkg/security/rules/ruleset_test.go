@@ -6,6 +6,7 @@
 package rules
 
 import (
+	"fmt"
 	"reflect"
 	"syscall"
 	"testing"
@@ -24,7 +25,7 @@ type testHandler struct {
 func (f *testHandler) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
-func (f *testHandler) EventDiscarderFound(event eval.Event, field string) {
+func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string) {
 	values, ok := f.filters[event.GetType()]
 	if !ok {
 		values = make(testFieldValues)
@@ -37,7 +38,10 @@ func (f *testHandler) EventDiscarderFound(event eval.Event, field string) {
 	}
 	evaluator, _ := f.model.GetEvaluator(field)
 
-	value := evaluator.(eval.Evaluator).Eval(&eval.Context{})
+	ctx := &eval.Context{}
+	ctx.SetObject(event.GetPointer())
+
+	value := evaluator.(eval.Evaluator).Eval(ctx)
 
 	found := false
 	for _, d := range discarders {
@@ -47,29 +51,37 @@ func (f *testHandler) EventDiscarderFound(event eval.Event, field string) {
 	}
 
 	if !found {
-		discarders = append(discarders, evaluator.(eval.Evaluator).Eval(&eval.Context{}))
+		discarders = append(discarders, evaluator.(eval.Evaluator).Eval(ctx))
 	}
 	values[field] = discarders
 }
 
-func addRuleExpr(t *testing.T, rs *RuleSet, id, expr string) {
-	ruleDef := &policy.RuleDefinition{
-		ID:         id,
-		Expression: expr,
-		Tags:       make(map[string]string),
+func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
+	var ruleDefs []*policy.RuleDefinition
+
+	for i, expr := range exprs {
+		ruleDef := &policy.RuleDefinition{
+			ID:         fmt.Sprintf("ID%d", i),
+			Expression: expr,
+			Tags:       make(map[string]string),
+		}
+		ruleDefs = append(ruleDefs, ruleDef)
 	}
-	if _, err := rs.AddRule(ruleDef); err != nil {
-		t.Fatal(err)
-	}
-	if err := rs.generatePartials(); err != nil {
+
+	if err := rs.AddRules(ruleDefs); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRuleBuckets(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
-	addRuleExpr(t, rs, "id1", `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
-	addRuleExpr(t, rs, "id2", `(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`)
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(true, testConstants, nil))
+
+	exprs := []string{
+		`(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`,
+		`(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`,
+	}
+
+	addRuleExpr(t, rs, exprs...)
 
 	if bucket, ok := rs.eventRuleBuckets["open"]; !ok || len(bucket.rules) != 1 {
 		t.Fatal("unable to find `open` rules or incorrect number of rules")
@@ -93,13 +105,17 @@ func TestRuleSetDiscarders(t *testing.T) {
 		model:   model,
 		filters: make(map[string]testFieldValues),
 	}
-	rs := NewRuleSet(model, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(model, func() eval.Event { return &testEvent{} }, NewOptsWithParams(true, testConstants, nil))
 	rs.AddListener(handler)
 
-	addRuleExpr(t, rs, "id1", `open.filename == "/etc/passwd" && process.uid != 0`)
-	addRuleExpr(t, rs, "id2", `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
-	addRuleExpr(t, rs, "id3", `(open.filename =~ "/var/run/*") && open.flags & O_CREAT > 0 && process.uid != 0`)
-	addRuleExpr(t, rs, "id4", `(mkdir.filename =~ "/var/run/*") && process.uid != 0`)
+	exprs := []string{
+		`open.filename == "/etc/passwd" && process.uid != 0`,
+		`(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`,
+		`(open.filename =~ "/var/run/*") && open.flags & O_CREAT > 0 && process.uid != 0`,
+		`(mkdir.filename =~ "/var/run/*") && process.uid != 0`,
+	}
+
+	addRuleExpr(t, rs, exprs...)
 
 	event := &testEvent{
 		process: testProcess{
@@ -149,9 +165,9 @@ func TestRuleSetDiscarders(t *testing.T) {
 }
 
 func TestRuleSetFilters1(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(true, testConstants, nil))
 
-	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 || process.gid == 0)`)
+	addRuleExpr(t, rs, `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 || process.gid == 0)`)
 
 	caps := FieldCapabilities{
 		{
@@ -207,10 +223,14 @@ func TestRuleSetFilters1(t *testing.T) {
 }
 
 func TestRuleSetFilters2(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(true, testConstants, nil))
 
-	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && process.uid == 0`)
-	addRuleExpr(t, rs, "id2", `open.flags & O_CREAT > 0 && (process.uid == 0 || process.gid == 0)`)
+	exprs := []string{
+		`open.filename in ["/etc/passwd", "/etc/shadow"] && process.uid == 0`,
+		`open.flags & O_CREAT > 0 && (process.uid == 0 || process.gid == 0)`,
+	}
+
+	addRuleExpr(t, rs, exprs...)
 
 	caps := FieldCapabilities{
 		{
@@ -259,9 +279,9 @@ func TestRuleSetFilters2(t *testing.T) {
 }
 
 func TestRuleSetFilters3(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(true, testConstants, nil))
 
-	addRuleExpr(t, rs, "id1", `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
+	addRuleExpr(t, rs, `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
 
 	caps := FieldCapabilities{
 		{
@@ -285,9 +305,9 @@ func TestRuleSetFilters3(t *testing.T) {
 }
 
 func TestRuleSetFilters4(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(true, testConstants, nil))
 
-	addRuleExpr(t, rs, "id1", `open.filename =~ "/etc/passwd" && process.uid == 0`)
+	addRuleExpr(t, rs, `open.filename =~ "/etc/passwd" && process.uid == 0`)
 
 	caps := FieldCapabilities{
 		{
@@ -313,9 +333,9 @@ func TestRuleSetFilters4(t *testing.T) {
 }
 
 func TestRuleSetFilters5(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(true, testConstants, nil))
 
-	addRuleExpr(t, rs, "id1", `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
+	addRuleExpr(t, rs, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
 
 	caps := FieldCapabilities{
 		{
@@ -337,9 +357,9 @@ func TestRuleSetFilters5(t *testing.T) {
 func TestRuleSetFilters6(t *testing.T) {
 	t.Skip()
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, eval.NewOptsWithParams(true, testConstants))
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(true, testConstants, nil))
 
-	addRuleExpr(t, rs, "id1", `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) || process.name == "httpd"`)
+	addRuleExpr(t, rs, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) || process.name == "httpd"`)
 
 	caps := FieldCapabilities{
 		{
@@ -350,5 +370,37 @@ func TestRuleSetFilters6(t *testing.T) {
 
 	if _, err := rs.GetApprovers("open", caps); err == nil {
 		t.Fatal("shouldn't get any approver")
+	}
+}
+
+func TestRuleSetInvalidDiscarders(t *testing.T) {
+	discarders := map[eval.Field][]interface{}{
+		"open.filename": {
+			"aaa",
+			111,
+			false,
+		},
+	}
+
+	rs := NewRuleSet(nil, nil, NewOptsWithParams(true, nil, discarders))
+
+	if !rs.isInvalidDiscarder("open.filename", "aaa") {
+		t.Errorf("should be an invalid discarder")
+	}
+
+	if !rs.isInvalidDiscarder("open.filename", 111) {
+		t.Errorf("should be an invalid discarder")
+	}
+
+	if !rs.isInvalidDiscarder("open.filename", false) {
+		t.Errorf("should be an invalid discarder")
+	}
+
+	if rs.isInvalidDiscarder("open.basename", false) {
+		t.Errorf("shouldn't be an invalid discarder")
+	}
+
+	if rs.isInvalidDiscarder("open.filename", "eee") {
+		t.Errorf("shouldn't be an invalid discarder")
 	}
 }

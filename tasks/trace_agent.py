@@ -3,10 +3,9 @@ import sys
 
 from invoke import task
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only
-from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, filter_incompatible_tags
+from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .go import deps
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
 
