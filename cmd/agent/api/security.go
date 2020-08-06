@@ -15,6 +15,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type contextKey int
+
+const (
+	contextKeyTokenInfoID contextKey = iota
+)
+
 var (
 	tlsKeyPair  *tls.Certificate
 	tlsCertPool *x509.CertPool
@@ -58,7 +64,7 @@ func grpcAuth(ctx context.Context) (context.Context, error) {
 	}
 
 	// do we need this at all?
-	newCtx := context.WithValue(ctx, "tokenInfo", tokenInfo)
+	newCtx := context.WithValue(ctx, contextKeyTokenInfoID, tokenInfo)
 
 	return newCtx, nil
 }
