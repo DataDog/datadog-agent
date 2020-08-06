@@ -3,7 +3,7 @@
 package ebpf
 
 /*
-#include "c/ddfilterapi.h"
+#include "c/ddnpmapi.h"
 */
 import "C"
 import (
