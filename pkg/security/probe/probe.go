@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/iovisor/gobpf/elf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -54,28 +53,6 @@ type Probe struct {
 	tables           map[string]*ebpf.Table
 	eventsStats      EventsStats
 	syscallMonitor   *SyscallMonitor
-}
-
-// cache of the syscall prefix depending on kernel version
-var syscallPrefix string
-
-func getSyscallFnName(name string) string {
-	if syscallPrefix == "" {
-		syscall, err := elf.GetSyscallFnName("open")
-		if err != nil {
-			panic(err)
-		}
-		syscallPrefix = strings.TrimSuffix(syscall, "open")
-	}
-
-	return syscallPrefix + name
-}
-
-func syscallKprobe(name string) []*ebpf.KProbe {
-	return []*ebpf.KProbe{{
-		EntryFunc: "kprobe/" + getSyscallFnName(name),
-		ExitFunc:  "kretprobe/" + getSyscallFnName(name),
-	}}
 }
 
 // NewRuleSet returns a new rule set
