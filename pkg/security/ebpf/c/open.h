@@ -61,13 +61,13 @@ struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discar
 };
 
 struct open_event_t {
-    struct event_t event;
-    struct process_data_t process;
-    int flags;
-    int mode;
-    unsigned long inode;
-    int mount_id;
-    int overlay_numlower;
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t file;
+    u32 flags;
+    u32 mode;
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
@@ -96,7 +96,7 @@ SYSCALL_KPROBE(open) {
     int flags;
     umode_t mode;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM2(ctx));
     bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM3(ctx));
 #else
@@ -110,7 +110,7 @@ SYSCALL_KPROBE(openat) {
     int flags;
     umode_t mode;
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
     bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM4(ctx));
 #else
@@ -127,7 +127,7 @@ int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *s
     struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
     if (filter) {
 #ifdef DEBUG
-        printk("kprobe/vfs_open basename %s approved\n", basename.value);
+        bpf_printk("kprobe/vfs_open basename %s approved\n", basename.value);
 #endif
         return 1;
     }
@@ -139,7 +139,7 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
 #ifdef DEBUG
-        printk("kprobe/vfs_open flags %d approved\n", syscall->open.flags);
+        bpf_printk("kprobe/vfs_open flags %d approved\n", syscall->open.flags);
 #endif
         return 1;
     }
@@ -151,7 +151,7 @@ int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *sysc
     u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &key);
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
 #ifdef DEBUG
-        printk("kprobe/vfs_open flags %d discarded\n", syscall->open.flags);
+        bpf_printk("kprobe/vfs_open flags %d discarded\n", syscall->open.flags);
 #endif
         return 1;
     }
@@ -159,11 +159,15 @@ int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *sysc
 }
 
 int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache_t *syscall) {
-    u64 inode = pid_inode(syscall->pid);
+    struct proc_cache_t *proc = get_pid_cache(syscall->pid);
+    if (!proc) {
+        return 0;
+    }
+    u64 inode = proc->executable.inode;
     struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_approvers, &inode);
     if (filter) {
 #ifdef DEBUG
-        printk("kprobe/vfs_open pid %d with inode %d approved\n", syscall->pid, inode);
+        bpf_printk("kprobe/vfs_open pid %d with inode %d approved\n", syscall->pid, inode);
 #endif
         return 1;
     }
@@ -234,26 +238,32 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         return 0;
 
     struct open_event_t event = {
-        .event.retval = retval,
         .event.type = EVENT_OPEN,
-        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall = {
+            .retval = retval,
+            .timestamp = bpf_ktime_get_ns(),
+        },
+        .file = {
+            .inode = syscall->open.path_key.ino,
+            .mount_id = syscall->open.path_key.mount_id,
+            .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
+        },
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
-        .mount_id = syscall->open.path_key.mount_id,
-        .inode = syscall->open.path_key.ino,
-        .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
     };
 
-    fill_process_data(&event.process);
-
-    struct bpf_map_def *discarders = &open_path_inode_discarders;
-    if (syscall->policy.mode == NO_FILTER)
-        discarders = NULL;
-
-    retval = resolve_dentry(syscall->open.dentry, syscall->open.path_key, discarders);
-    if (retval < 0) {
+    int ret = 0;
+    if (syscall->policy.mode == NO_FILTER) {
+        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, NULL);
+    } else {
+        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, &open_path_inode_discarders);
+    }
+    if (ret < 0) {
         return 0;
     }
+
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
     send_event(ctx, event);
 

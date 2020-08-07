@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
@@ -65,6 +66,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
+		traps.NewLauncher(sources, pipelineProvider),
 	}
 
 	return &Agent{

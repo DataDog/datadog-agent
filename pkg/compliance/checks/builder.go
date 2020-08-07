@@ -43,7 +43,6 @@ const (
 // Builder defines an interface to build checks from rules
 type Builder interface {
 	ChecksFromFile(file string, onCheck compliance.CheckVisitor) error
-	CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error)
 	Close() error
 }
 
@@ -243,30 +242,42 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 		return err
 	}
 
-	if b.suiteMatcher != nil && !b.suiteMatcher(&suite.Meta) {
-		log.Tracef("%s/%s: skipped suite from %s", suite.Meta.Name, suite.Meta.Version, file)
-		return nil
+	if b.suiteMatcher != nil {
+		if b.suiteMatcher(&suite.Meta) {
+			log.Infof("%s/%s: matched suite in %s", suite.Meta.Name, suite.Meta.Version, file)
+		} else {
+			log.Tracef("%s/%s: skipped suite in %s", suite.Meta.Name, suite.Meta.Version, file)
+			return nil
+		}
 	}
 
 	log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, file)
+
+	matchedCount := 0
 	for _, r := range suite.Rules {
-		if b.ruleMatcher != nil && !b.ruleMatcher(&r) {
-			log.Tracef("%s/%s: skipped rule %s from %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
-			continue
+		if b.ruleMatcher != nil {
+			if b.ruleMatcher(&r) {
+				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
+			} else {
+				log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
+				continue
+			}
 		}
+		matchedCount++
 
 		if len(r.Resources) == 0 {
-			log.Debugf("%s/%s: skipping rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
+			log.Infof("%s/%s: skipped rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
 			continue
 		}
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
-		check, err := b.CheckFromRule(&suite.Meta, &r)
+		check, err := b.checkFromRule(&suite.Meta, &r)
 
 		if err != nil {
 			if err != ErrRuleDoesNotApply {
 				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
 			}
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
 			continue
 		}
 
@@ -278,10 +289,14 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 		}
 	}
 
+	if b.ruleMatcher != nil && matchedCount == 0 {
+		log.Infof("%s/%s: no rules matched", suite.Meta.Name, suite.Meta.Version)
+	}
+
 	return nil
 }
 
-func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
 	ruleScope, err := getRuleScope(meta, rule)
 	if err != nil {
 		return nil, err
@@ -601,14 +616,7 @@ func valueFromProcessFlag(name string, flag string) (interface{}, error) {
 	matchedProcesses := processes.findProcessesByName(name)
 	for _, mp := range matchedProcesses {
 		flagValues := parseProcessCmdLine(mp.Cmdline)
-		flagValue, found := flagValues[flag]
-		if !found {
-			return false, nil
-		}
-		if flagValue == "" {
-			return true, nil
-		}
-		return flagValue, nil
+		return flagValues[flag], nil
 	}
 	return "", fmt.Errorf("failed to find process: %s", name)
 }

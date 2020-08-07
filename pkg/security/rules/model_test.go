@@ -44,10 +44,6 @@ type testEvent struct {
 type testModel struct {
 }
 
-func (e *testEvent) GetID() string {
-	return e.id
-}
-
 func (e *testEvent) GetType() string {
 	return e.kind
 }
@@ -79,7 +75,7 @@ func (m *testModel) ValidateField(key string, value eval.FieldValue) error {
 	return nil
 }
 
-func (m *testModel) GetEvaluator(key string) (interface{}, error) {
+func (m *testModel) GetEvaluator(key string) (eval.Evaluator, error) {
 	switch key {
 
 	case "process.name":

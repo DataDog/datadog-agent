@@ -9,9 +9,6 @@ package tests
 
 import (
 	"bytes"
-	"fmt"
-	"go/build"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -19,21 +16,12 @@ import (
 	"text/template"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 )
 
 func TestConfig(t *testing.T) {
 	tmpl, err := template.New("test_config").Parse(testConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gopath := os.Getenv("GOPATH")
-	if gopath == "" {
-		gopath = build.Default.GOPATH
-	}
-
-	defaultPolicy, err := os.Open(fmt.Sprintf("%s/src/github.com/DataDog/datadog-agent/cmd/agent/dist/conf.d/runtime_security_agent.d/default.policy", gopath))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,16 +32,7 @@ func TestConfig(t *testing.T) {
 	}
 	defer os.RemoveAll(root)
 
-	testDefaultPolicy, err := os.Create(path.Join(root, "default.policy"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := io.Copy(testDefaultPolicy, defaultPolicy); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := testDefaultPolicy.Close(); err != nil {
+	if err := ioutil.WriteFile(path.Join(root, "default.policy"), []byte(config.DefaultPolicy), 0644); err != nil {
 		t.Fatal(err)
 	}
 

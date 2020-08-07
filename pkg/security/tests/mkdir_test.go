@@ -17,12 +17,18 @@ import (
 )
 
 func TestMkdir(t *testing.T) {
-	rule := &policy.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `mkdir.filename == "{{.Root}}/test-mkdir" || mkdir.filename == "{{.Root}}/testat-mkdir" || (event.type == "mkdir" && event.retval == EPERM)`,
+	rules := []*policy.RuleDefinition{
+		{
+			ID:         "test_rule",
+			Expression: `mkdir.filename == "{{.Root}}/test-mkdir" || mkdir.filename == "{{.Root}}/testat-mkdir"`,
+		},
+		{
+			ID:         "test_rule2",
+			Expression: `mkdir.retval == EACCES`,
+		},
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, rules, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,6 +83,11 @@ func TestMkdir(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	_, testatFilePtr, err = test.Path("testat2-mkdir")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if err := os.Chmod(test.Root(), 0711); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +117,7 @@ func TestMkdir(t *testing.T) {
 			t.Errorf("expected mkdir event, got %s", event.GetType())
 		}
 
-		if retval := event.Event.Retval; retval != -int64(syscall.EACCES) {
+		if retval := event.Mkdir.Retval; retval != -int64(syscall.EACCES) {
 			t.Errorf("expected retval != EACCES, got %d", retval)
 		}
 	}

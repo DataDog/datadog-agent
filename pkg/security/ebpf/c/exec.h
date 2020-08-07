@@ -3,12 +3,41 @@
 
 #include "filters.h"
 #include "syscalls.h"
+#include "container.h"
 
-struct bpf_map_def SEC("maps/exec_pid_inode") exec_pid_inode = {
+struct _tracepoint_sched_process_fork
+{
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    char parent_comm[16];
+    pid_t parent_pid;
+    char child_comm[16];
+    pid_t child_pid;
+};
+
+void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *dst, struct proc_cache_t *src) {
+    dst->executable = src->executable;
+    copy_container_id(dst->container_id, src->container_id);
+    return;
+}
+
+struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u64),
-    .value_size = sizeof(u64),
-    .max_entries = 4096,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct proc_cache_t),
+    .max_entries = 4095,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/pid_cookie") pid_cookie = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 4097,
     .pinning = 0,
     .namespace = "",
 };
@@ -31,51 +60,79 @@ SYSCALL_KPROBE(execveat) {
     return trace__sys_execveat();
 }
 
+struct proc_cache_t * __attribute__((always_inline)) get_pid_cache(u64 pid) {
+    u32 pid_key = pid >> 32;
+    u32 *cookie = (u32 *) bpf_map_lookup_elem(&pid_cookie, &pid_key);
+    if (cookie) {
+        // Select the old cache entry
+        u32 cookie_key = *cookie;
+        struct proc_cache_t *entry = bpf_map_lookup_elem(&proc_cache, &cookie_key);
+        if (entry) {
+            return entry;
+        }
+    }
+    return 0;
+}
+
 int __attribute__((always_inline)) vfs_handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    u64 ino = get_path_ino((struct path *)PT_REGS_PARM1(ctx));
-    u64 pid = syscall->pid;
-    bpf_map_update_elem(&exec_pid_inode, &pid, &ino, BPF_ANY);
-    
+    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+
+    // new cache entry
+    struct proc_cache_t entry = {
+        .executable = {
+            .inode = get_path_ino(path),
+            .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
+            .mount_id = get_path_mount_id(path),
+        },
+        .container_id = {},
+    };
+
+    // select parent cache entry
+    u64 pid = bpf_get_current_pid_tgid();
+    struct proc_cache_t *parent_entry = get_pid_cache(pid);
+    if (parent_entry) {
+        // inherit container ID
+        copy_container_id(entry.container_id, parent_entry->container_id);
+    }
+
+    // insert new proc cache entry
+    u32 cookie = bpf_get_prandom_u32();
+    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
+
+    // insert pid <-> cookie mapping
+    u32 tgid = pid >> 32;
+    bpf_map_update_elem(&pid_cookie, &tgid, &cookie, BPF_ANY);
+
     pop_syscall();
 
     return 0;
 }
 
-u64 __attribute__((always_inline)) pid_inode(u64 pid) {
-    u64 *inode = (u64 *) bpf_map_lookup_elem(&exec_pid_inode, &pid);
-    if (inode)
-        return *inode;
-    return 0;
-}
+SEC("tracepoint/sched/sched_process_fork")
+int sched_process_fork(struct _tracepoint_sched_process_fork *args)
+{
+    u32 pid = 0;
+    u32 ppid = 0;
+    bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
+    bpf_probe_read(&ppid, sizeof(ppid), &args->parent_pid);
 
-int __attribute__((always_inline)) trace__do_fork_ret(struct pt_regs *ctx) {
-    u64 pid = bpf_get_current_pid_tgid();
-    u64 rc = PT_REGS_RC(ctx);
-
-    u64 *inode = (u64 *) bpf_map_lookup_elem(&exec_pid_inode, &pid);
-    if (inode) {
-        u64 value = *inode;
-        bpf_map_update_elem(&exec_pid_inode, &rc, &value, BPF_ANY);
+    // Ensures pid and ppid point to the same cookie
+    u32 *cookie = (u32 *) bpf_map_lookup_elem(&pid_cookie, &ppid);
+    if (cookie) {
+        // Select the old cache entry
+        u32 cookie_key = *cookie;
+        bpf_map_update_elem(&pid_cookie, &pid, &cookie_key, BPF_ANY);
     }
-
     return 0;
-}
-
-SEC("kretprobe/_do_fork")
-int kprobe_do_fork(struct pt_regs *ctx) {
-    return trace__do_fork_ret(ctx);
-}
-
-SEC("kretprobe/do_fork")
-int kprobe__do_fork(struct pt_regs *ctx) {
-    return trace__do_fork_ret(ctx);
 }
 
 SEC("kprobe/do_exit")
 int kprobe_do_exit(struct pt_regs *ctx) {
     u64 pid = bpf_get_current_pid_tgid();
-    bpf_map_delete_elem(&exec_pid_inode, &pid);
 
+    // Delete pid <-> cookie mapping
+    bpf_map_delete_elem(&pid_cookie, &pid);
+    // (do not delete cookie <-> proc_cache entry since it can be used by a parent process)
     return 0;
 }
 

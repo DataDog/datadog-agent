@@ -14,13 +14,13 @@ struct bpf_map_def SEC("maps/unlink_path_inode_discarders") unlink_path_inode_di
 };
 
 struct unlink_event_t {
-    struct event_t event;
-    struct process_data_t process;
-    unsigned long inode;
-    int mount_id;
-    int overlay_numlower;
-    int flags;
-    int padding;
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t file;
+    u32 flags;
+    u32 padding;
 };
 
 int __attribute__((always_inline)) trace__sys_unlink(int flags) {
@@ -43,7 +43,7 @@ SYSCALL_KPROBE(unlinkat) {
     int flags;
 
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
 #else
     flags = (int) PT_REGS_PARM3(ctx);
@@ -67,13 +67,14 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
     syscall->unlink.path_key.ino = get_dentry_ino(dentry);
 
-    struct bpf_map_def *discarders = &unlink_path_inode_discarders;
-    if (syscall->policy.mode == NO_FILTER)
-        discarders = NULL;
-
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    int retval = resolve_dentry(dentry, syscall->unlink.path_key, discarders);
-    if (retval < 0) {
+    int ret = 0;
+    if (syscall->policy.mode == NO_FILTER) {
+        ret = resolve_dentry(dentry, syscall->unlink.path_key, NULL);
+    } else {
+        ret = resolve_dentry(dentry, syscall->unlink.path_key, &unlink_path_inode_discarders);
+    }
+    if (ret < 0) {
         pop_syscall();
     }
 
@@ -90,16 +91,21 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         return 0;
 
     struct unlink_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_UNLINK,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .mount_id = syscall->unlink.path_key.mount_id,
-        .inode = syscall->unlink.path_key.ino,
-        .overlay_numlower = syscall->unlink.overlay_numlower,
+        .syscall = {
+            .retval = retval,
+            .timestamp = bpf_ktime_get_ns(),
+        },
+        .file = {
+            .mount_id = syscall->unlink.path_key.mount_id,
+            .inode = syscall->unlink.path_key.ino,
+            .overlay_numlower = syscall->unlink.overlay_numlower,
+        },
         .flags = syscall->unlink.flags,
     };
 
-    fill_process_data(&event.process);
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
     send_event(ctx, event);
 

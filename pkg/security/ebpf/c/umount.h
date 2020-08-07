@@ -5,7 +5,8 @@
 
 struct umount_event_t {
     struct event_t event;
-    struct process_data_t process;
+    struct process_context_t process;
+    struct container_context_t container;
     int mount_id;
 
 };
@@ -34,7 +35,8 @@ SYSCALL_KRETPROBE(umount) {
         .mount_id = get_vfsmount_mount_id(syscall->umount.vfs),
     };
 
-    fill_process_data(&event.process);
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
     send_mountpoints_events(ctx, event);
 

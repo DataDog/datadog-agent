@@ -8,24 +8,25 @@
 package probe
 
 import (
-	"bytes"
+	"fmt"
 	"math"
 	"strings"
 
-	"github.com/pkg/errors"
-
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/iovisor/gobpf/elf"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/statsd"
 )
 
-// MetricPrefix is the prefix of the metrics sent by the runtime security agent
-const MetricPrefix = "datadog.runtime_security"
+const (
+	// MetricPrefix is the prefix of the metrics sent by the runtime security agent
+	MetricPrefix = "datadog.runtime_security"
+)
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
@@ -68,6 +69,7 @@ type Capabilities map[eval.Field]Capability
 type HookPoint struct {
 	Name            string
 	KProbes         []*ebpf.KProbe
+	Tracepoint      string
 	Optional        bool
 	EventTypes      map[eval.EventType]Capabilities
 	OnNewApprovers  onApproversFnc
@@ -349,7 +351,7 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *eval.Opts) *rules.RuleSet {
+func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers)
 	}
@@ -366,6 +368,7 @@ func (p *Probe) getTableNames() []string {
 	}
 
 	tables = append(tables, openTables...)
+	tables = append(tables, execTables...)
 	tables = append(tables, unlinkTables...)
 
 	return tables
@@ -397,23 +400,23 @@ func (p *Probe) getPerfMaps() []*ebpf.PerfMapDefinition {
 
 // Start the runtime security probe
 func (p *Probe) Start() error {
-	asset := "pkg/security/ebpf/c/probe"
+	asset := "pkg/security/ebpf/c/runtime-security"
 	openSyscall := getSyscallFnName("open")
 	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
 		asset += "-syscall-wrapper"
 	}
 
-	bytecode, err := Asset(asset + ".o") // ioutil.ReadFile("pkg/security/ebpf/c/probe.o")
+	bytecodeReader, err := bytecode.GetReader(p.config.BPFDir, asset+".o")
 	if err != nil {
 		return err
 	}
 
-	p.Module, err = ebpf.NewModuleFromReader(bytes.NewReader(bytecode))
+	p.Module, err = ebpf.NewModuleFromReader(bytecodeReader)
 	if err != nil {
 		return err
 	}
 
-	if err := p.Load(); err != nil {
+	if err = p.Load(); err != nil {
 		return err
 	}
 
@@ -474,19 +477,18 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 		return err
 	}
 
-	if err := statsdClient.Count(MetricPrefix+".events.received", p.eventsStats.GetAndResetReceived(), nil, 1.0); err != nil {
-		return err
-	}
-
+	receivedEvents := MetricPrefix + ".events.received"
 	for i := range p.eventsStats.PerEventType {
 		if i == 0 {
 			continue
 		}
 
 		eventType := EventType(i)
-		key := MetricPrefix + ".events." + eventType.String()
-		if err := statsdClient.Count(key, p.eventsStats.GetAndResetEventCount(eventType), nil, 1.0); err != nil {
-			return err
+		tags := []string{fmt.Sprintf("event_type:%s", eventType.String())}
+		if value := p.eventsStats.GetAndResetEventCount(eventType); value > 0 {
+			if err := statsdClient.Count(receivedEvents, value, tags, 1.0); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -500,7 +502,6 @@ func (p *Probe) GetStats() (map[string]interface{}, error) {
 	syscalls, err := p.syscallMonitor.GetStats()
 
 	stats["events"] = map[string]interface{}{
-		"received": p.eventsStats.GetReceived(),
 		"lost":     p.eventsStats.GetLost(),
 		"syscalls": syscalls,
 	}
@@ -530,27 +531,21 @@ func (p *Probe) handleLostEvents(count uint64) {
 }
 
 func (p *Probe) handleEvent(data []byte) {
-	log.Debugf("Handling dentry event (len %d)", len(data))
-	p.eventsStats.CountReceived(1)
+	log.Debugf("Handling event (len %d)", len(data))
 
 	offset := 0
 	event := NewEvent(p.resolvers)
 
-	read, err := event.Event.UnmarshalBinary(data)
+	read, err := event.UnmarshalBinary(data)
 	if err != nil {
 		log.Errorf("failed to decode event: %s", err)
 		return
 	}
 	offset += read
 
-	read, err = event.Process.UnmarshalBinary(data[offset:])
-	if err != nil {
-		log.Errorf("failed to decode process event: %s", err)
-		return
-	}
-	offset += read
+	eventType := EventType(event.Type)
+	log.Debugf("Decoding event %s", eventType.String())
 
-	eventType := EventType(event.Event.Type)
 	switch eventType {
 	case FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
@@ -730,7 +725,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 
 		// first set policies
 		for eventType, capabilities := range hookPoint.EventTypes {
-			if eventType == "*" || rs.HasRulesForEventType(eventType) {
+			if rs.HasRulesForEventType(eventType) {
 				if hookPoint.PolicyTable == "" {
 					continue
 				}
@@ -763,12 +758,19 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 					}
 
 					if err = p.Module.RegisterKprobe(kprobe); err == nil {
-						active++
-
 						log.Infof("kProbe `%s` registered", kprobe.Name)
-						break
+						active++
+					} else {
+						log.Debugf("failed to register kProbe `%s`", kprobe.Name)
 					}
-					log.Debugf("failed to register kProbe `%s`", kprobe.Name)
+				}
+				if len(hookPoint.Tracepoint) > 0 && err == nil {
+					if err = p.Module.RegisterTracepoint(hookPoint.Tracepoint); err == nil {
+						log.Infof("tracepoint `%s` registered", hookPoint.Tracepoint)
+						active++
+					} else {
+						log.Debugf("failed to register tracepoint `%s`", hookPoint.Tracepoint)
+					}
 				}
 
 				if err != nil {
@@ -777,7 +779,9 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 					}
 				}
 
-				log.Infof("Hook Point `%s` registered with %d active kProbes", hookPoint.Name, active)
+				if active > 0 {
+					log.Infof("Hook Point `%s` registered with %d active kProbes", hookPoint.Name, active)
+				}
 				already[hookPoint] = true
 			}
 		}
@@ -789,11 +793,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
-	// Sync with the current mount points of the system
-	if err := p.resolvers.MountResolver.SyncCache(0); err != nil {
-		return errors.Wrap(err, "couldn't sync mount points of the host")
-	}
-	return nil
+	return p.resolvers.Snapshot(5)
 }
 
 // NewProbe instantiates a new runtime security agent probe
@@ -810,21 +810,12 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		PerfMaps: p.getPerfMaps(),
 	}
 
-	dentryResolver, err := NewDentryResolver(p.Probe)
+	resolvers, err := NewResolvers(p.Probe)
 	if err != nil {
 		return nil, err
 	}
 
-	timeResolver, err := NewTimeResolver()
-	if err != nil {
-		return nil, err
-	}
-
-	p.resolvers = &Resolvers{
-		DentryResolver: dentryResolver,
-		MountResolver:  NewMountResolver(),
-		TimeResolver:   timeResolver,
-	}
+	p.resolvers = resolvers
 
 	return p, nil
 }

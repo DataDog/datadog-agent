@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// +build linux_bpf
+
 package module
 
 import (
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,12 +53,14 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	if err != nil {
 		return
 	}
-	log.Infof("Sending event message for rule `%s` to security-agent `%s` with tags %v", rule.ID, string(data), rule.Tags)
+	tags := append(rule.Tags, "rule_id:"+rule.ID)
+	tags = append(tags, event.(*sprobe.Event).GetTags()...)
+	log.Infof("Sending event message for rule `%s` to security-agent `%s` with tags %v", rule.ID, string(data), tags)
 
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.ID,
 		Type:   event.GetType(),
-		Tags:   append(rule.Tags, "type:"+event.GetType(), "rule_id:"+rule.ID),
+		Tags:   tags,
 		Data:   data,
 	}
 

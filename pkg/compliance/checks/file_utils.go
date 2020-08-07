@@ -38,7 +38,7 @@ func (m pathMapper) relativeToHostRoot(path string) string {
 }
 
 func resolvePath(e env.Env, path string) (string, error) {
-	pathExpr, err := eval.ParsePath(path)
+	pathExpr, err := eval.Cache.ParsePath(path)
 	if err != nil {
 		return "", err
 	}
@@ -47,15 +47,19 @@ func resolvePath(e env.Env, path string) (string, error) {
 		return *pathExpr.Path, nil
 	}
 
-	v, err := e.EvaluateFromCache(pathExpr)
+	v, err := e.EvaluateFromCache(pathExpr.Expression)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to resolve path: %w", err)
 	}
 
-	path, ok := v.(string)
+	res, ok := v.(string)
 	if !ok {
-		return "", fmt.Errorf("resource path expression not resolved to string: %s", path)
+		return "", fmt.Errorf(`failed to resolve path: expected string from %s got "%v"`, path, v)
 	}
 
-	return path, nil
+	if res == "" {
+		return "", fmt.Errorf("failed to resolve path: empty path from %s", path)
+	}
+
+	return res, nil
 }

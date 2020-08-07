@@ -7,7 +7,8 @@
 
 struct mount_event_t {
     struct event_t event;
-    struct process_data_t process;
+    struct process_context_t process;
+    struct container_context_t container;
     int new_mount_id;
     int new_group_id;
     dev_t new_device;
@@ -22,7 +23,7 @@ struct mount_event_t {
 SYSCALL_KPROBE(mount) {
     struct syscall_cache_t syscall = {};
 #if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) ctx->di;
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
     bpf_probe_read(&syscall.mount.fstype, sizeof(void *), &PT_REGS_PARM3(ctx));
 #else
     syscall.mount.fstype = (void *)PT_REGS_PARM3(ctx);
@@ -98,7 +99,9 @@ SYSCALL_KRETPROBE(mount) {
         return 0;
     }
 
-    fill_process_data(&event.process);
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
+
     resolve_dentry(dentry, path_key, NULL);
 
     send_mountpoints_events(ctx, event);

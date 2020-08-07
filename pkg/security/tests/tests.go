@@ -9,6 +9,7 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"net"
 	"os"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
@@ -36,6 +38,7 @@ import (
 var (
 	eventChanLength     = 100
 	discarderChanLength = 100
+	logger              seelog.LoggerInterface
 )
 
 const grpcAddr = "127.0.0.1:18787"
@@ -128,13 +131,13 @@ func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Eve
 	h.discarders <- &testDiscarder{event: event, field: field}
 }
 
-func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
+func setTestConfig(dir string, macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return "", err
 	}
 
-	testPolicyFile, err := ioutil.TempFile("", "secagent-policy.*.policy")
+	testPolicyFile, err := ioutil.TempFile(dir, "secagent-policy.*.policy")
 	if err != nil {
 		return "", err
 	}
@@ -190,13 +193,13 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(cfgFilename)
 
-	mod, err := module.NewModule(nil)
+	mod, err := module.NewModule(pconfig.NewDefaultAgentConfig(false))
 	if err != nil {
 		return nil, err
 	}
@@ -252,19 +255,37 @@ func (tm *testModule) Close() {
 	time.Sleep(time.Second)
 }
 
+func waitProcScan(test *testProbe) {
+	// Consume test.events so that testEventHandler.HandleEvent doesn't block
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		for {
+			select {
+			case <-test.events:
+			case <-test.discarders:
+				continue
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	time.Sleep(5 * time.Second)
+	cancel()
+}
+
 func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testProbe, error) {
 	st, err := newSimpleTest(macros, rules)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(cfgFilename)
 
-	config, err := config.NewConfig()
+	config, err := config.NewConfig(pconfig.NewDefaultAgentConfig(false))
 	if err != nil {
 		return nil, err
 	}
@@ -274,16 +295,8 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	if err := probe.Start(); err != nil {
-		return nil, err
-	}
-
 	ruleSet, err := module.LoadPolicies(config, probe)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := probe.Snapshot(); err != nil {
 		return nil, err
 	}
 
@@ -302,13 +315,21 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	return &testProbe{
+	if err := probe.Snapshot(); err != nil {
+		return nil, err
+	}
+
+	test := &testProbe{
 		st:         st,
 		probe:      probe,
 		events:     events,
 		discarders: discarders,
 		rs:         ruleSet,
-	}, nil
+	}
+
+	waitProcScan(test)
+
+	return test, nil
 }
 
 func (tp *testProbe) Root() string {
@@ -356,17 +377,21 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 }
 
 func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
+	var logLevel seelog.LogLevel = seelog.InfoLvl
 	if testing.Verbose() {
-		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, seelog.DebugLvl, "%Ns [%LEVEL] %Msg\n")
-		if err != nil {
-			return nil, err
-		}
-		err = seelog.ReplaceLogger(logger)
-		if err != nil {
-			return nil, err
-		}
-		log.SetupDatadogLogger(logger, "debug")
+		logLevel = seelog.DebugLvl
 	}
+
+	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
+	if err != nil {
+		return nil, err
+	}
+
+	err = seelog.ReplaceLogger(logger)
+	if err != nil {
+		return nil, err
+	}
+	log.SetupDatadogLogger(logger, logLevel.String())
 
 	root, err := ioutil.TempDir("", "test-secagent-root")
 	if err != nil {

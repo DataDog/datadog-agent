@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,24 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	fileFieldPath        = "file.path"
-	fileFieldPermissions = "file.permissions"
-	fileFieldUser        = "file.user"
-	fileFieldGroup       = "file.group"
-
-	fileFuncJQ   = "file.jq"
-	fileFuncYAML = "file.yaml"
-)
-
 var fileReportedFields = []string{
-	fileFieldPath,
-	fileFieldPermissions,
-	fileFieldUser,
-	fileFieldGroup,
+	compliance.FileFieldPath,
+	compliance.FileFieldPermissions,
+	compliance.FileFieldUser,
+	compliance.FileFieldGroup,
 }
 
-func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -66,23 +57,24 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 
 		instance := &eval.Instance{
 			Vars: eval.VarMap{
-				fileFieldPath:        relPath,
-				fileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
+				compliance.FileFieldPath:        relPath,
+				compliance.FileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
 			},
 			Functions: eval.FunctionMap{
-				fileFuncJQ:   fileJQ(path),
-				fileFuncYAML: fileYAML(path),
+				compliance.FileFuncJQ:     fileJQ(path),
+				compliance.FileFuncYAML:   fileYAML(path),
+				compliance.FileFuncRegexp: fileRegexp(path),
 			},
 		}
 
 		user, err := getFileUser(fi)
 		if err == nil {
-			instance.Vars[fileFieldUser] = user
+			instance.Vars[compliance.FileFieldUser] = user
 		}
 
 		group, err := getFileGroup(fi)
 		if err == nil {
-			instance.Vars[fileFieldGroup] = group
+			instance.Vars[compliance.FileFieldGroup] = group
 		}
 
 		instances = append(instances, instance)
@@ -92,16 +84,9 @@ func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.Ite
 		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 
-	it := &instanceIterator{
+	return &instanceIterator{
 		instances: instances,
-	}
-
-	result, err := expr.EvaluateIterator(it, globalInstance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceResultToReport(result, fileReportedFields), nil
+	}, nil
 }
 
 func fileQuery(path string, get getter) eval.Function {
@@ -123,4 +108,8 @@ func fileJQ(path string) eval.Function {
 
 func fileYAML(path string) eval.Function {
 	return fileQuery(path, yamlGetter)
+}
+
+func fileRegexp(path string) eval.Function {
+	return fileQuery(path, regexpGetter)
 }

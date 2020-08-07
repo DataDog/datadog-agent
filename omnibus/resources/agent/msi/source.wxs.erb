@@ -376,7 +376,7 @@
             <!-- todo service declaration -->
             <?if $(var.IncludeSysprobe) = true ?>
               <Directory Id="DRIVER" Name="driver">
-                <Merge Id="ddfilterinstall" SourceFile="$(var.BinFiles)\ddfilter.msm" DiskId="1" Language="1033" />
+                <Merge Id="ddnpminstall" SourceFile="$(var.BinFiles)\ddnpm.msm" DiskId="1" Language="1033" />
               </Directory>
               <Component Id="DATADOGSYSPROBESERVICE" Guid="5D41ECDB-B91E-4802-878C-CDBA84721623">
                 <File Id="system_probe.exe"
@@ -556,7 +556,7 @@
                AllowAdvertise="no"
                >
         <ComponentRef Id="DATADOGSYSPROBESERVICE" />
-        <MergeRef Id="ddfilterinstall"/>
+        <MergeRef Id="ddnpminstall"/>
         <ComponentRef Id="system_probe.yaml.example" />
         <!--
         <Condition Level="1"><![CDATA[ADDLOCAL >< "WindowsNP" OR ADDLOCAL = "ALL" ]]></Condition>

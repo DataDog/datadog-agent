@@ -1,4 +1,3 @@
-
 #ifndef _FILTERS_H
 #define _FILTERS_H
 

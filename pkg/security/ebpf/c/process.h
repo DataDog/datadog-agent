@@ -4,7 +4,7 @@
 #include <linux/tty.h>
 #include <linux/sched.h>
 
-static u64 fill_process_data(struct process_data_t *data) {
+static struct proc_cache_t * __attribute__((always_inline)) fill_process_data(struct process_context_t *data) {
     // Process data
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
 
@@ -34,7 +34,13 @@ static u64 fill_process_data(struct process_data_t *data) {
     u64 userid = bpf_get_current_uid_gid();
     data->uid = userid >> 32;
     data->gid = userid;
-    return id;
+
+    struct proc_cache_t *entry = get_pid_cache(data->pid);
+    if (entry) {
+        data->executable = entry->executable;
+    }
+
+    return entry;
 }
 
 #endif

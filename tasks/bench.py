@@ -2,16 +2,14 @@
 Benchmarking tasks
 """
 from __future__ import print_function
+
 import os
 import sys
 
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .utils import bin_name
-from .utils import get_git_branch_name
-from .utils import REPO_PATH
-
+from .utils import REPO_PATH, bin_name, get_git_branch_name
 
 # constants
 BENCHMARKS_BIN_PATH = os.path.join(".", "bin", "benchmarks")

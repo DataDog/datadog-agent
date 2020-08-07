@@ -3,8 +3,8 @@ from __future__ import print_function
 from invoke import task
 from invoke.exceptions import Exit
 
-from .deploy.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
 from .deploy.gitlab import Gitlab
+from .deploy.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
 
 
 @task

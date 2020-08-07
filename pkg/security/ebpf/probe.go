@@ -46,28 +46,43 @@ func (p *Probe) StartTime() time.Time {
 }
 
 func (p *Probe) registerTables() error {
-	p.tablesMap = make(map[string]*Table)
-	for _, name := range p.Tables {
-		t, err := p.Module.RegisterTable(name)
-		if err != nil {
+	if p.tablesMap == nil {
+		p.tablesMap = make(map[string]*Table)
+	}
+	for _, table := range p.Tables {
+		if err := p.RegisterTable(table); err != nil {
 			return err
 		}
-		p.tablesMap[name] = t
-		log.Debugf("Registered table %s", name)
 	}
 
 	return nil
 }
 
+// RegisterTable registers a new table in the eBPF Module
+func (p *Probe) RegisterTable(table string) error {
+	if p.tablesMap == nil {
+		p.tablesMap = make(map[string]*Table)
+	}
+	t, err := p.Module.RegisterTable(table)
+	if err != nil {
+		return err
+	}
+	p.tablesMap[table] = t
+	log.Debugf("Registered table %s", table)
+	return nil
+}
+
 // Stop the eBPF probe and its associated perf event arrays
-func (p *Probe) Stop() {
+func (p *Probe) Stop() error {
 	for _, perfMap := range p.perfMapsMap {
 		perfMap.Stop()
 	}
 
 	if p.Module != nil {
-		p.Module.Close()
+		return p.Module.Close()
 	}
+
+	return nil
 }
 
 // Start the eBPF probe and its associated perf event arrays

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/elastic/go-libaudit/rule"
@@ -27,7 +26,7 @@ func TestAuditCheck(t *testing.T) {
 		rules        []*rule.FileWatchRule
 		resource     compliance.Resource
 		setup        setupEnvFunc
-		expectReport *report
+		expectReport *compliance.Report
 		expectError  error
 	}{
 		{
@@ -39,8 +38,8 @@ func TestAuditCheck(t *testing.T) {
 				},
 				Condition: "audit.enabled",
 			},
-			expectReport: &report{
-				passed: false,
+			expectReport: &compliance.Report{
+				Passed: false,
 			},
 		},
 		{
@@ -62,9 +61,9 @@ func TestAuditCheck(t *testing.T) {
 				},
 				Condition: `audit.enabled && audit.permissions =~ "w"`,
 			},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"audit.enabled":     true,
 					"audit.path":        "/etc/docker/daemon.json",
 					"audit.permissions": "rwa",
@@ -93,9 +92,9 @@ func TestAuditCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env) {
 				env.On("EvaluateFromCache", mock.Anything).Return("/etc/docker/daemon.json", nil)
 			},
-			expectReport: &report{
-				passed: true,
-				data: event.Data{
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
 					"audit.enabled":     true,
 					"audit.path":        "/etc/docker/daemon.json",
 					"audit.permissions": "rw",
@@ -121,10 +120,10 @@ func TestAuditCheck(t *testing.T) {
 				test.setup(t, env)
 			}
 
-			expr, err := eval.ParseIterable(test.resource.Condition)
+			auditCheck, err := newResourceCheck(env, "rule-id", test.resource)
 			assert.NoError(err)
 
-			result, err := checkAudit(env, "rule-id", test.resource, expr)
+			result, err := auditCheck.check(env)
 
 			assert.Equal(test.expectError, err)
 			assert.Equal(test.expectReport, result)

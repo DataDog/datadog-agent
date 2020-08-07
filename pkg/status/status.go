@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -135,6 +136,8 @@ func GetDCAStatus() (map[string]interface{}, error) {
 
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
+
+	stats["logsStats"] = logs.GetStatus()
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -382,6 +385,8 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	} else {
 		stats["agent_metadata"] = map[string]string{}
 	}
+
+	stats["snmpTrapsStats"] = traps.GetStatus()
 
 	return stats, err
 }
