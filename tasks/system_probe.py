@@ -183,13 +183,15 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=T
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
 
-    cmd = 'go test -mod={go_mod} -v -tags "{bpf_tag}" {pkg}'
+    cmd = 'go test -mod={go_mod} -v -tags {bpf_tag} {pkg}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
     bpf_tag = BPF_TAG
+    # temporary measure until we have a good default for BPFDir for testing
+    bpf_tag += ",ebpf_bindata"
     if only_check_bpf_bytes:
-        bpf_tag += ",ebpf_bindata"
+        # bpf_tag += ",ebpf_bindata"
         cmd += " -run=TestEbpfBytesCorrect"
     else:
         if getpass.getuser() != "root":
