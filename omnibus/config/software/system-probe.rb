@@ -9,6 +9,9 @@ if ENV['WITH_BCC'] == 'true'
   dependency 'libbcc'
 end
 
+source path: '..'
+relative_path 'src/github.com/DataDog/datadog-agent'
+
 build do
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy ENV['SYSTEM_PROBE_BIN'], "#{install_dir}/embedded/bin/system-probe"
