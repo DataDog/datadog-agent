@@ -183,6 +183,10 @@ build do
             strip_exclude("*psycopg2*")
             strip_exclude("*cffi_backend*")
 
+            # Do not strip eBPF programs
+            strip_exclude("*tracer-ebpf*")
+            strip_exclude("*runtime-security*")
+
         elsif osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
