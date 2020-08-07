@@ -3706,6 +3706,10 @@ deploy_staging_process_and_sysprobe:
     - echo "Uploading with name=$NAME"
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/bin/process-agent s3://$PROCESS_S3_BUCKET/process-agent-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
     - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/bin/system-probe s3://$PROCESS_S3_BUCKET/system-probe-amd64-$NAME --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
+    - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/tracer-ebpf.o s3://$PROCESS_S3_BUCKET/tracer-ebpf.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
+    - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/tracer-ebpf-debug.o s3://$PROCESS_S3_BUCKET/tracer-ebpf-debug.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
+    - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/runtime-security.o s3://$PROCESS_S3_BUCKET/runtime-security.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
+    - $S3_CP_CMD ./out$DATADOG_AGENT_EMBEDDED_PATH/share/system-probe/ebpf/runtime-security-syscall-wrapper.o s3://$PROCESS_S3_BUCKET/runtime-security-syscall-wrapper.o --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=612548d92af7fa77f7ad7bcab230494f7310438ac6332e904a8fb2e6daa5cb23
 
 #
 # Docker releases
