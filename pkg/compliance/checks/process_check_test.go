@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -40,13 +39,12 @@ func (f *processFixture) run(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	expr, err := eval.ParseIterable(f.resource.Condition)
+	processCheck, err := newResourceCheck(env, "rule-id", f.resource)
 	assert.NoError(err)
 
-	result, err := checkProcess(env, "rule-id", f.resource, expr)
+	result, err := processCheck.check(env)
 	assert.Equal(f.expectReport, result)
 	assert.Equal(f.expectError, err)
-
 }
 
 func TestProcessCheck(t *testing.T) {
@@ -71,6 +69,42 @@ func TestProcessCheck(t *testing.T) {
 					"process.name":    "proc1",
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--path=foo"},
+				},
+			},
+		},
+		{
+			name: "fallback case",
+			resource: compliance.Resource{
+				Process: &compliance.Process{
+					Name: "proc1",
+				},
+				Condition: `process.flag("--tlsverify") != ""`,
+				Fallback: &compliance.Fallback{
+					Condition: `!process.hasFlag("--tlsverify")`,
+					Resource: compliance.Resource{
+						Process: &compliance.Process{
+							Name: "proc2",
+						},
+						Condition: `process.hasFlag("--tlsverify")`,
+					},
+				},
+			},
+			processes: processes{
+				42: {
+					Name:    "proc1",
+					Cmdline: []string{"arg1"},
+				},
+				38: {
+					Name:    "proc2",
+					Cmdline: []string{"arg1", "--tlsverify"},
+				},
+			},
+			expectReport: &compliance.Report{
+				Passed: true,
+				Data: event.Data{
+					"process.name":    "proc2",
+					"process.exe":     "",
+					"process.cmdLine": []string{"arg1", "--tlsverify"},
 				},
 			},
 		},

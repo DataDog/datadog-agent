@@ -129,7 +129,7 @@ var openHookPoints = []*HookPoint{
 				fsEvent := event.Open
 				table := "open_path_inode_discarders"
 
-				isDiscarded, err := discardParentInode(probe, rs, field, discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
+				isDiscarded, err := discardParentInode(probe, rs, "open", discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
 				if !isDiscarded || err != nil {
 					// not able to discard the parent then only discard the filename
 					_, err = discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)

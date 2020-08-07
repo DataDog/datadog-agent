@@ -22,6 +22,8 @@ func TestSerialization(t *testing.T) {
 				MonotonicRecvBytes:   100,
 				LastRecvBytes:        101,
 				LastUpdateEpoch:      50,
+				LastTCPEstablished:   1,
+				LastTCPClosed:        1,
 				MonotonicRetransmits: 201,
 				LastRetransmits:      201,
 				Pid:                  6000,
@@ -48,13 +50,15 @@ func TestSerialization(t *testing.T) {
 	out := &model.Connections{
 		Conns: []*model.Connection{
 			{
-				Laddr:             &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
-				Raddr:             &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
-				LastBytesSent:     2,
-				LastBytesReceived: 101,
-				LastRetransmits:   201,
-				Pid:               int32(6000),
-				NetNS:             7,
+				Laddr:              &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr:              &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
+				LastBytesSent:      2,
+				LastBytesReceived:  101,
+				LastRetransmits:    201,
+				LastTcpEstablished: 1,
+				LastTcpClosed:      1,
+				Pid:                int32(6000),
+				NetNS:              7,
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",

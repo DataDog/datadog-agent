@@ -284,14 +284,13 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx.SetObject(event.GetPointer())
 
 	eventType := event.GetType()
-	eventID := event.GetID()
 
 	result := false
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return result
 	}
-	log.Debugf("Evaluating event `%s` of type `%s` against set of %d rules", eventID, eventType, len(bucket.rules))
+	log.Debugf("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
@@ -303,7 +302,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	if !result {
-		log.Debugf("Looking for discarders for event `%s`", eventID)
+		log.Debugf("Looking for discarders for event of type `%s`", eventType)
 
 		for _, field := range bucket.fields {
 			evaluator, err := rs.model.GetEvaluator(field)

@@ -86,6 +86,8 @@ type ConnectionsTelemetry struct {
 	MonotonicDNSPacketsProcessed       int64
 	MonotonicConnsClosed               int64
 	ConnsBpfMapSize                    int64
+	MonotonicUDPSendsProcessed         int64
+	MonotonicUDPSendsMissed            int64
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -107,6 +109,18 @@ type ConnectionStats struct {
 
 	RTT    uint32 // Stored in µs
 	RTTVar uint32
+
+	// MonotonicTCPEstablished indicates whether or not the TCP connection was established
+	// after system-probe initialization.
+	// * A value of 0 means that this connection was established before system-probe was initialized;
+	// * Value 1 represents a connection that was established after system-probe started;
+	// * Values greater than 1 should be rare, but can occur when multiple connections
+	//   are established with the same tuple betweeen two agent checks;
+	MonotonicTCPEstablished uint32
+	LastTCPEstablished      uint32
+
+	MonotonicTCPClosed uint32
+	LastTCPClosed      uint32
 
 	Pid   uint32
 	NetNS uint32

@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
-	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -36,7 +35,7 @@ const (
 )
 
 // ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -62,23 +61,23 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		}
 
 		// scrub & generate YAML
-		for c := 0; c < len(podList[p].Spec.Containers); c++ {
-			ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+		if withScrubbing {
+			for c := 0; c < len(podList[p].Spec.Containers); c++ {
+				ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+			}
+			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
+				ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+			}
 		}
-		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-			ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
-		}
+
 		// k8s objects only have json "omitempty" annotations
-		// we're doing json<>yaml to get rid of the null properties
+		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
 		if err != nil {
-			log.Debugf("Could not marshal pod in JSON: %s", err)
+			log.Debugf("Could not marshal pod to JSON: %s", err)
 			continue
 		}
-		var jsonObj interface{}
-		yaml.Unmarshal(jsonPod, &jsonObj) //nolint:errcheck
-		yamlPod, _ := yaml.Marshal(jsonObj)
-		podModel.Yaml = yamlPod
+		podModel.Yaml = jsonPod
 
 		podMsgs = append(podMsgs, podModel)
 	}

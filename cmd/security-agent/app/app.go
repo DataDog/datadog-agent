@@ -11,6 +11,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	_ "expvar" // Blank import used because this isn't directly used in this file
+	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
@@ -19,10 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -74,25 +80,27 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
+	pidfilePath string
 	confPath    string
 	flagNoColor bool
 	stopCh      chan struct{}
 )
 
 func init() {
-	// attach the command to the root
-	SecurityAgentCmd.AddCommand(startCmd)
+	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
 
-	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	SecurityAgentCmd.AddCommand(startCmd)
 }
 
 func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
+		httpConnectivity = logshttp.CheckConnectivity(endpoints.Main)
 	}
 
 	endpoints, err := config.BuildEndpoints(httpConnectivity)
@@ -141,6 +149,15 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if pidfilePath != "" {
+		err = pidfile.WritePID(pidfilePath)
+		if err != nil {
+			return log.Errorf("Error while writing PID file, exiting: %v", err)
+		}
+		defer os.Remove(pidfilePath)
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
+	}
+
 	// Check if we have at least one component to start based on config
 	if !coreconfig.Datadog.GetBool("compliance_config.enabled") && !coreconfig.Datadog.GetBool("runtime_security_config.enabled") {
 		log.Infof("All security-agent components are deactivated, exiting")
@@ -151,6 +168,14 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Critical("no API key configured, exiting")
 		return nil
 	}
+
+	// Setup expvar server
+	var port = coreconfig.Datadog.GetString("security_agent.expvar_port")
+	coreconfig.Datadog.Set("expvar_port", port)
+	if coreconfig.Datadog.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
+	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
 
 	// get hostname
 	// FIXME: use gRPC cross-agent communication API to retrieve hostname
@@ -186,11 +211,12 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// start runtime security agent
-	if err = startRuntimeSecurity(hostname, endpoints, dstContext, stopper); err != nil {
+	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper)
+	if err != nil {
 		return err
 	}
 
-	srv, err := api.NewServer()
+	srv, err := api.NewServer(runtimeAgent)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

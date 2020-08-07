@@ -14,6 +14,7 @@ workflow:
     - if: $CI_COMMIT_TAG =~ /^dca-/ || $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
 
 stages:
+  - maintenance_jobs
   - deps_build
   - deps_fetch
   - source_test
@@ -89,7 +90,7 @@ variables:
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2653795-e59e3fd
   DATADOG_AGENT_BUILDERS: v2782547-a0df417
-  DATADOG_AGENT_WINBUILDIMAGES: v2724986-3bcb1ae
+  DATADOG_AGENT_WINBUILDIMAGES: v2837773-5dbab85
   DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
   DATADOG_AGENT_ARMBUILDIMAGES: v2653795-e59e3fd
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2653795-e59e3fd
@@ -1270,7 +1271,7 @@ windows_choco_online_7_x64:
     - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir .omnibus\pkg
-    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\chocopack.bat online
+    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat online
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg .omnibus\pkg
   artifacts:
@@ -1292,7 +1293,7 @@ windows_choco_offline_7_x64:
     - $ErrorActionPreference = "Stop"
     - Get-ChildItem .omnibus\pkg
     - copy .omnibus\pkg\*.msi .\chocolatey\tools-offline\
-    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
+    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat offline
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg .omnibus\pkg
   artifacts:
@@ -1319,7 +1320,7 @@ publish_choco_7_x64:
     - mkdir nupkg
     - copy .omnibus\pkg\*.nupkg nupkg\
     - Get-ChildItem nupkg
-    - docker run --rm -v "$(Get-Location):c:\mnt" -e CHOCOLATEY_API_KEY=${chocolateyApiKey} 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\chocopush.bat
+    - docker run --rm -v "$(Get-Location):c:\mnt" -e CHOCOLATEY_API_KEY=${chocolateyApiKey} 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopush.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 # build Agent package for android
@@ -3860,70 +3861,69 @@ latest_release_7:
 #
 # Use these steps to revert the latest tags to a previous release
 # while maintaining content trust signatures
-# - remove the leading dot from the name
-# - set the RELEASE envvar
+# - Create a pipeline on master with the RELEASE_6 and/or RELEASE_7 env vars
 # - in the gitlab pipeline view, trigger the step (in the first column)
 #
-
-.latest_revert_to_previous_release_6:
+revert_dockerhub_latest_6:
   rules:
-    - when: manual
+    - <<: *if_master_branch
+      when: manual
       allow_failure: true
   <<: *docker_tag_job_definition
-  stage: source_test
+  stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
-    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
+    NEW_LATEST_RELEASE_6: ""  # tag name of the non-jmx version, for example "6.21.0"
   script:
-    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2 --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
-    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
-    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
-    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
+    - if [[ -z "$NEW_LATEST_RELEASE_6" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2 --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6},linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2-jmx --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6}-jmx,linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6},linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6}-jmx,linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6}-jmx,linux/arm64
 
-.latest_revert_to_previous_release_7:
+revert_dockerhub_latest_7:
   rules:
-    - when: manual
+    - <<: *if_master_branch
+      when: manual
       allow_failure: true
   <<: *docker_tag_job_definition
-  stage: source_test
+  stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
-    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
+    NEW_LATEST_RELEASE_7: ""  # tag name of the non-jmx version, for example "7.21.0"
   script:
-    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - if [[ -z "$NEW_LATEST_RELEASE_7" ]]; then echo "Need release version to revert to"; exit 1; fi
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest
-      --image datadog/agent-amd64:${RELEASE},linux/amd64
-      --image datadog/agent-amd64:${RELEASE}-win1809,windows/amd64
-      --image datadog/agent-amd64:${RELEASE}-win1909,windows/amd64
-      --image datadog/agent-arm64:${RELEASE},linux/arm64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx
-      --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64
-      --image datadog/agent-amd64:${RELEASE}-jmx-win1809,windows/amd64
-      --image datadog/agent-amd64:${RELEASE}-jmx-win1909,windows/amd64
-      --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7
-      --image datadog/agent-amd64:${RELEASE},linux/amd64
-      --image datadog/agent-amd64:${RELEASE}-win1809,windows/amd64
-      --image datadog/agent-amd64:${RELEASE}-win1909,windows/amd64
-      --image datadog/agent-arm64:${RELEASE},linux/arm64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-jmx
-      --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64
-      --image datadog/agent-amd64:${RELEASE}-jmx-win1809,windows/amd64
-      --image datadog/agent-amd64:${RELEASE}-jmx-win1909,windows/amd64
-    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
-    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:7
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
+    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:latest
+    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:7
 
 #
 # Use this step to delete a tag of a given image
 # We call the Docker Hub API because docker cli doesn't support deleting tags
-# - remove the leading dot from the name
-# - set the IMAGE and TAG envvars
+# - Run a pipeline on master with the IMAGE and TAG env vars
 # - in the gitlab pipeline view, trigger the step (in the first column)
-#
-.delete_docker_tag:
+delete_docker_tag:
   rules:
-    - when: manual
+    - <<: *if_master_branch
+      when: manual
       allow_failure: true
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
@@ -3934,7 +3934,7 @@ latest_release_7:
     - |
       export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
   dependencies: [] # Don't download Gitlab artefacts
-  stage: source_test
+  stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
     IMAGE: ""  # image name, for example "agent"
