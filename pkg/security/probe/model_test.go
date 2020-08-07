@@ -29,9 +29,11 @@ func TestMkdirJSON(t *testing.T) {
 		GID:     9,
 	}
 	e.Mkdir = MkdirEvent{
-		Inode:       33,
-		Mode:        0777,
-		PathnameStr: "/etc/passwd",
+		FileEvent: FileEvent{
+			Inode:       33,
+			PathnameStr: "/etc/passwd",
+		},
+		Mode: 0777,
 	}
 
 	data, err := json.Marshal(e)

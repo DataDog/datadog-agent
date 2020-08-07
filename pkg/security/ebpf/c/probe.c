@@ -21,6 +21,7 @@
 #include "dentry.h"
 #include "exec.h"
 #include "process.h"
+#include "container.h"
 #include "setattr.h"
 #include "mnt.h"
 #include "filename.h"

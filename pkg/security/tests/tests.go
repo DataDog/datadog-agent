@@ -131,13 +131,13 @@ func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Eve
 	h.discarders <- &testDiscarder{event: event, field: field}
 }
 
-func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
+func setTestConfig(dir string, macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return "", err
 	}
 
-	testPolicyFile, err := ioutil.TempFile("", "secagent-policy.*.policy")
+	testPolicyFile, err := ioutil.TempFile(dir, "secagent-policy.*.policy")
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +193,7 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +280,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
