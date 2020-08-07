@@ -42,6 +42,7 @@ func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfigPath = filepath.Join(pd, "datadog.yaml")
+		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
 		defaultConfdPath = filepath.Join(pd, "conf.d")
 		defaultLogFilePath = filepath.Join(pd, "logs", "process-agent.log")
 	}

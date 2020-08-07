@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
@@ -198,7 +199,7 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	}
 	defer os.Remove(cfgFilename)
 
-	mod, err := module.NewModule(nil)
+	mod, err := module.NewModule(pconfig.NewDefaultAgentConfig(false))
 	if err != nil {
 		return nil, err
 	}
@@ -213,10 +214,6 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	rs.AddListener(testMod)
 
 	if err := mod.Register(nil); err != nil {
-		return nil, err
-	}
-
-	if err := log.ChangeLogLevel(logger, "debug"); err != nil {
 		return nil, err
 	}
 
@@ -289,7 +286,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 	}
 	defer os.Remove(cfgFilename)
 
-	config, err := config.NewConfig()
+	config, err := config.NewConfig(pconfig.NewDefaultAgentConfig(false))
 	if err != nil {
 		return nil, err
 	}
@@ -383,18 +380,21 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 }
 
 func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
+	var logLevel seelog.LogLevel = seelog.InfoLvl
 	if testing.Verbose() {
-		var err error
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, seelog.DebugLvl, "%Ns [%LEVEL] %Msg\n")
-		if err != nil {
-			return nil, err
-		}
-		err = seelog.ReplaceLogger(logger)
-		if err != nil {
-			return nil, err
-		}
-		log.SetupDatadogLogger(logger, "info")
+		logLevel = seelog.DebugLvl
 	}
+
+	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
+	if err != nil {
+		return nil, err
+	}
+
+	err = seelog.ReplaceLogger(logger)
+	if err != nil {
+		return nil, err
+	}
+	log.SetupDatadogLogger(logger, logLevel.String())
 
 	root, err := ioutil.TempDir("", "test-secagent-root")
 	if err != nil {
