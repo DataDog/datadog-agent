@@ -31,7 +31,10 @@ rules:
   - id: logs_removed
     description: log entries removed
     expression: >-
-      unlink.filename =~ "/var/log/*"
+      unlink.filename =~ "/var/log/*" &&
+      unlink.filename != "/var/log/datadog/system-probe.log" &&
+      unlink.basename !~ "*.tmp" &&
+      process.name != "kubelet"
     tags:
       mitre: T1070
   - id: permissions_changed
@@ -39,14 +42,17 @@ rules:
     expression: >-
       chmod.filename =~ "/etc/*" || chmod.filename =~ "/etc/*" ||
       chmod.filename =~ "/sbin/*" || chmod.filename =~ "/usr/sbin/*" ||
-      chmod.filename =~ "/usr/local/sbin*" || chmod.filename =~ "/usr/bin/local/*" ||
+      chmod.filename =~ "/usr/local/sbin/*" || chmod.filename =~ "/usr/local/bin/*" ||
       chmod.filename =~ "/var/log/*" || chmod.filename =~ "/usr/lib/*"
     tags:
       mitre: T1099
   - id: hidden_file
     description: hidden file creation
     expression: >-
-      open.basename =~ ".*" && open.flags & O_CREAT > 0
+      open.basename =~ ".*" && open.flags & O_CREAT > 0 &&
+      open.filename !~ "/run/containerd/io.containerd.runtime.v1.linux/k8s.io/*" &&
+      open.basename !~ ".*.pid" &&
+      process.name != "runc"
     tags:
       mitre: T1158
   - id: kernel_module

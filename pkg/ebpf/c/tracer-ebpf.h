@@ -78,6 +78,8 @@ typedef struct {
 typedef struct {
     __u64 tcp_sent_miscounts;
     __u64 missed_tcp_close;
+    __u64 udp_sends_processed;
+    __u64 udp_sends_missed;
 } telemetry_t;
 
 #define PORT_LISTENING 1

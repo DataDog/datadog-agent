@@ -86,6 +86,8 @@ type ConnectionsTelemetry struct {
 	MonotonicDNSPacketsProcessed       int64
 	MonotonicConnsClosed               int64
 	ConnsBpfMapSize                    int64
+	MonotonicUDPSendsProcessed         int64
+	MonotonicUDPSendsMissed            int64
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned

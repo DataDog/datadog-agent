@@ -131,13 +131,13 @@ func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Eve
 	h.discarders <- &testDiscarder{event: event, field: field}
 }
 
-func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
+func setTestConfig(dir string, macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return "", err
 	}
 
-	testPolicyFile, err := ioutil.TempFile("", "secagent-policy.*.policy")
+	testPolicyFile, err := ioutil.TempFile(dir, "secagent-policy.*.policy")
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +193,7 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -214,10 +214,6 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	rs.AddListener(testMod)
 
 	if err := mod.Register(nil); err != nil {
-		return nil, err
-	}
-
-	if err := log.ChangeLogLevel(logger, "debug"); err != nil {
 		return nil, err
 	}
 
@@ -259,7 +255,7 @@ func (tm *testModule) Close() {
 	time.Sleep(time.Second)
 }
 
-func waitProcScan(test *testProbe) error {
+func waitProcScan(test *testProbe) {
 	// Consume test.events so that testEventHandler.HandleEvent doesn't block
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -275,7 +271,6 @@ func waitProcScan(test *testProbe) error {
 	}()
 	time.Sleep(5 * time.Second)
 	cancel()
-	return log.ChangeLogLevel(logger, "debug")
 }
 
 func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testProbe, error) {
@@ -284,7 +279,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -332,9 +327,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		rs:         ruleSet,
 	}
 
-	if err := waitProcScan(test); err != nil {
-		return nil, err
-	}
+	waitProcScan(test)
 
 	return test, nil
 }
@@ -384,18 +377,21 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 }
 
 func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
+	var logLevel seelog.LogLevel = seelog.InfoLvl
 	if testing.Verbose() {
-		var err error
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, seelog.DebugLvl, "%Ns [%LEVEL] %Msg\n")
-		if err != nil {
-			return nil, err
-		}
-		err = seelog.ReplaceLogger(logger)
-		if err != nil {
-			return nil, err
-		}
-		log.SetupDatadogLogger(logger, "info")
+		logLevel = seelog.DebugLvl
 	}
+
+	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
+	if err != nil {
+		return nil, err
+	}
+
+	err = seelog.ReplaceLogger(logger)
+	if err != nil {
+		return nil, err
+	}
+	log.SetupDatadogLogger(logger, logLevel.String())
 
 	root, err := ioutil.TempDir("", "test-secagent-root")
 	if err != nil {

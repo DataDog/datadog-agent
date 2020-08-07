@@ -27,9 +27,6 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultSystemProbeFilePath is the default logging file for the system probe
-	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
-
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
 	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/usr/share/system-probe/ebpf"
 
@@ -214,7 +211,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableIPv6Tracing:    false,
 		DisableDNSInspection:  false,
 		SystemProbeAddress:    defaultSystemProbeAddress,
-		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		SystemProbeLogFile:    defaultSystemProbeLogFilePath,
 		SystemProbeBPFDir:     defaultSystemProbeBPFDir,
 		MaxTrackedConnections: defaultMaxTrackedConnections,
 		EnableConntrack:       true,

@@ -14,15 +14,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) error {
+func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
-		return nil
+		return nil, nil
 	}
 
-	return errors.New("Datadog runtime security agent is only supported on Linux")
+	return nil, errors.New("Datadog runtime security agent is only supported on Linux")
 }

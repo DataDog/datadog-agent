@@ -531,33 +531,21 @@ func (p *Probe) handleLostEvents(count uint64) {
 }
 
 func (p *Probe) handleEvent(data []byte) {
-	log.Debugf("Handling dentry event (len %d)", len(data))
+	log.Debugf("Handling event (len %d)", len(data))
 
 	offset := 0
 	event := NewEvent(p.resolvers)
 
-	read, err := event.Event.UnmarshalBinary(data)
+	read, err := event.UnmarshalBinary(data)
 	if err != nil {
 		log.Errorf("failed to decode event: %s", err)
 		return
 	}
 	offset += read
 
-	read, err = event.Process.UnmarshalBinary(data[offset:])
-	if err != nil {
-		log.Errorf("failed to decode process event: %s", err)
-		return
-	}
-	offset += read
+	eventType := EventType(event.Type)
+	log.Debugf("Decoding event %s", eventType.String())
 
-	read, err = event.Container.UnmarshalBinary(data[offset:], p.resolvers)
-	if err != nil {
-		log.Errorf("failed to decode container event: %v offset:%d", err, offset)
-		return
-	}
-	offset += read
-
-	eventType := EventType(event.Event.Type)
 	switch eventType {
 	case FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {

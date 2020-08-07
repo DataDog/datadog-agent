@@ -412,6 +412,11 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
+	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
@@ -701,6 +706,7 @@ func InitConfig(config Config) {
 	config.SetKnown("apm_config.max_memory")
 	config.SetKnown("apm_config.log_file")
 	config.SetKnown("apm_config.apm_dd_url")
+	config.SetKnown("apm_config.profiling_dd_url")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
 	config.SetKnown("apm_config.receiver_socket")
@@ -1234,4 +1240,22 @@ func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) 
 		}
 	}
 	return mappings, nil
+}
+
+// IsCLCRunner returns whether the Agent is in cluster check runner mode
+func IsCLCRunner() bool {
+	if !Datadog.GetBool("clc_runner_enabled") {
+		return false
+	}
+	var cp []ConfigurationProviders
+	if err := Datadog.UnmarshalKey("config_providers", &cp); err == nil {
+		for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+			cp = append(cp, ConfigurationProviders{Name: name})
+		}
+		if len(cp) == 1 && cp[0].Name == "clusterchecks" {
+			// A cluster check runner is an Agent configured to run clusterchecks only
+			return true
+		}
+	}
+	return false
 }

@@ -19,6 +19,8 @@
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
                                       : "=r"(var))
 
+enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, udp_send_processed, udp_send_missed};
+
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
  */
@@ -396,6 +398,33 @@ static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats)
     }
 }
 
+static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
+    __u64 key = 0;
+    telemetry_t empty = {};
+    telemetry_t* val;
+    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+    val = bpf_map_lookup_elem(&telemetry, &key);
+
+    if (val == NULL) {
+        return;
+    }
+    switch (counter_name) {
+        case tcp_sent_miscounts:
+            __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
+            break;
+        case missed_tcp_close:
+            __sync_fetch_and_add(&val->missed_tcp_close, 1);
+            break;
+        case udp_send_processed:
+            __sync_fetch_and_add(&val->udp_sends_processed, 1);
+            break;
+        case udp_send_missed:
+            __sync_fetch_and_add(&val->udp_sends_missed, 1);
+            break;
+    }
+    return;
+}
+
 static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_tuple_t* tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
@@ -459,14 +488,7 @@ static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unus
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
     // This could result in a missed tcp_close event, so we track it using our telemetry map.
-    u64 key = 0;
-    telemetry_t empty = {};
-    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
-
-    telemetry_t* val = bpf_map_lookup_elem(&telemetry, &key);
-    if (val != NULL) {
-        __sync_fetch_and_add(&val->missed_tcp_close, 1);
-    }
+    increment_telemetry_count(missed_tcp_close);
 }
 
 static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
@@ -540,15 +562,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     // If ret < 0 it means an error occurred but we still counted the bytes as being sent
     // let's increment our miscount count
     if (ret < 0) {
-        // Initialize the counter if it does not exist
-        __u64 key = 0;
-        telemetry_t empty = {};
-        telemetry_t* val;
-        bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
-        val = bpf_map_lookup_elem(&telemetry, &key);
-        if (val != NULL) {
-            __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
-        }
+        increment_telemetry_count(tcp_sent_miscounts);
     }
 
     return 0;
@@ -628,11 +642,13 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        increment_telemetry_count(udp_send_missed);
         return 0;
     }
 
     log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
+    increment_telemetry_count(udp_send_processed);
 
     return 0;
 }
@@ -645,11 +661,13 @@ int kprobe__udp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        increment_telemetry_count(udp_send_missed);
         return 0;
     }
 
     log_debug("kprobe/udp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
+    increment_telemetry_count(udp_send_processed);
 
     return 0;
 }

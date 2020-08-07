@@ -14,6 +14,8 @@
 #endif
 
 #define TTY_NAME_LEN 64
+#define CONTAINER_ID_LEN 64
+
 
 #define bpf_printk(fmt, ...)                       \
 	({                                             \
@@ -46,20 +48,40 @@ struct event_t {
     s64 retval;
 };
 
-struct process_data_t {
-    // Process data
-    u64  pidns;
-    char comm[TASK_COMM_LEN];
-    char tty_name[TTY_NAME_LEN];
-    u32  pid;
-    u32  tid;
-    u32  uid;
-    u32  gid;
-    u32  numlower;
-    u32  padding;
+struct kevent_t {
+    u64 type;
 };
 
-#define CONTAINER_ID_LEN 64
+struct file_t {
+    u64 inode;
+    u32 mount_id;
+    u32 overlay_numlower;
+};
+
+struct syscall_t {
+    u64 timestamp;
+    s64 retval;
+};
+
+struct process_context_t {
+    u64 pidns;
+    char comm[TASK_COMM_LEN];
+    char tty_name[TTY_NAME_LEN];
+    u32 pid;
+    u32 tid;
+    u32 uid;
+    u32 gid;
+    struct file_t executable;
+};
+
+struct container_context_t {
+    char container_id[CONTAINER_ID_LEN];
+};
+
+struct proc_cache_t {
+    struct file_t executable;
+    char container_id[CONTAINER_ID_LEN];
+};
 
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
@@ -85,16 +107,16 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
 #define send_mountpoints_events(ctx, event) \
     bpf_perf_event_output(ctx, &mountpoints_events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
-static __attribute__((always_inline)) u32 get_character_value(u8 c, u32 base_multiplier) {
+static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {
-        return (c - 48) * base_multiplier;
+        return c - 48;
     }
     return 0;
 }
 
 #define CHAR_TO_UINT32_BASE_10_MAX_LEN 11
 
-static __attribute__((always_inline)) u32 char_to_uint32_base_10(char *buff) {
+static __attribute__((always_inline)) u32 atoi(char *buff) {
     u32 res = 0;
     int base_multiplier = 1;
     u8 c = 0;
@@ -113,25 +135,12 @@ static __attribute__((always_inline)) u32 char_to_uint32_base_10(char *buff) {
             return res;
         }
         bpf_probe_read(&c, sizeof(c), buffer + cursor);
-        res += get_character_value(c, base_multiplier);
+        res += ord(c) * base_multiplier;
         base_multiplier = base_multiplier * 10;
         cursor--;
     }
 
     return res;
-}
-
-static __attribute__((always_inline)) u32 copy_container_id(char dst[CONTAINER_ID_LEN], char src[CONTAINER_ID_LEN]) {
-    if (src[0] == 0) {
-        return 0;
-    }
-
-#pragma unroll
-    for (int i = 0; i < CONTAINER_ID_LEN; i++)
-    {
-        dst[i] = src[i];
-    }
-    return CONTAINER_ID_LEN;
 }
 
 #endif
