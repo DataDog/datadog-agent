@@ -412,6 +412,11 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
+	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")

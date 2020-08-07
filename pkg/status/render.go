@@ -16,6 +16,7 @@ import (
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 )
 
 var fmap = Textfmap()
@@ -39,6 +40,7 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
+	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
@@ -55,6 +57,9 @@ func FormatStatus(data []byte) (string, error) {
 	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
 	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
+	}
+	if traps.IsEnabled() {
+		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 	}
 
 	return b.String(), nil
