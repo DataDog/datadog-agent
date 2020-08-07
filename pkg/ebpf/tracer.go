@@ -410,6 +410,15 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 	if pp, ok := dnsStats["packets_processed"]; ok {
 		tm.MonotonicDNSPacketsProcessed = pp
 	}
+
+	ebpfStats := t.getEbpfTelemetry()
+	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
+		tm.MonotonicUDPSendsProcessed = usp
+	}
+	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
+		tm.MonotonicUDPSendsMissed = usm
+	}
+
 	return tm
 }
 
@@ -612,8 +621,10 @@ func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	}
 
 	return map[string]int64{
-		"tcp_sent_miscounts": int64(telemetry.tcp_sent_miscounts),
-		"missed_tcp_close":   int64(telemetry.missed_tcp_close),
+		"tcp_sent_miscounts":  int64(telemetry.tcp_sent_miscounts),
+		"missed_tcp_close":    int64(telemetry.missed_tcp_close),
+		"udp_sends_processed": int64(telemetry.udp_sends_processed),
+		"udp_sends_missed":    int64(telemetry.udp_sends_missed),
 	}
 }
 
