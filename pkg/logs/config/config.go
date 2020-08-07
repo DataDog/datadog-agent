@@ -64,7 +64,7 @@ func DefaultSources() []*LogSource {
 	if traps.IsEnabled() && traps.IsRunning() {
 		// Append a new source to forward SNMP traps as logs.
 		source := NewLogSource(SnmpTraps, &LogsConfig{
-			Type:    SnmpTrapType,
+			Type:    SnmpTrapsType,
 			Service: "snmp",
 			Source:  "snmp",
 		})

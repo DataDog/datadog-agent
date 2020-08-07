@@ -23,7 +23,7 @@ type Launcher struct {
 func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider) *Launcher {
 	return &Launcher{
 		pipelineProvider: pipelineProvider,
-		sources:          sources.GetAddedForType("traps"),
+		sources:          sources.GetAddedForType(config.SnmpTrapsType),
 		stop:             make(chan interface{}, 1),
 	}
 }

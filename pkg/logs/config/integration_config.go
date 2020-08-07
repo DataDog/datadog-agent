@@ -18,7 +18,7 @@ const (
 	DockerType       = "docker"
 	JournaldType     = "journald"
 	WindowsEventType = "windows_event"
-	SnmpTrapType     = "snmp_trap"
+	SnmpTrapsType    = "snmp_traps"
 )
 
 // LogsConfig represents a log source config, which can be for instance
