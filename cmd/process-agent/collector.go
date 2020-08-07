@@ -115,7 +115,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	sizeInBytes := 0
 
 	for _, m := range messages {
-		body, err := encodePayload(m)
+		body, err := api.EncodePayload(m)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
 			continue
@@ -191,6 +191,9 @@ func (l *Collector) run(exit chan struct{}) error {
 		queueSizeTicker := time.NewTicker(10 * time.Second)
 		defer queueSizeTicker.Stop()
 
+		queueLogTicker := time.NewTicker(time.Minute)
+		defer queueLogTicker.Stop()
+
 		tags := []string{
 			fmt.Sprintf("version:%s", Version),
 			fmt.Sprintf("revision:%s", GitCommit),
@@ -202,6 +205,11 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-queueSizeTicker.C:
 				updateQueueBytes(processResults.Weight(), podResults.Weight())
 				updateQueueSize(processResults.Len(), podResults.Len())
+			case <-queueLogTicker.C:
+				log.Infof(
+					"Delivery queues: process[size=%d, weight=%d], pod[size=%d, weight=%d]",
+					processResults.Len(), processResults.Weight(), podResults.Len(), podResults.Weight(),
+				)
 			case <-exit:
 				return
 			}
@@ -309,7 +317,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			case checks.Pod.Name():
-				responses, err = fwd.SubmitPodChecks(forwarderPayload, payload.headers)
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, checks.Pod.Name())
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}
@@ -419,20 +427,6 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 	}
 
 	return statuses
-}
-
-func encodePayload(m model.MessageBody) ([]byte, error) {
-	msgType, err := model.DetectMessageType(m)
-	if err != nil {
-		return nil, fmt.Errorf("unable to detect message type: %s", err)
-	}
-
-	return model.EncodeMessage(model.Message{
-		Header: model.MessageHeader{
-			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingZstdPB,
-			Type:     msgType,
-		}, Body: m})
 }
 
 func keysPerDomains(endpoints []api.Endpoint) map[string][]string {

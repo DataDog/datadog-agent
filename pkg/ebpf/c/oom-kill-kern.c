@@ -2,7 +2,7 @@
 #include <linux/oom.h>
 
 #include "pkg/ebpf/c/bpf-common.h"
-#include "pkg/ebpf/c/oom-kill-kern-user.h"
+#include "pkg/ebpf/oom-kill-kern-user.h"
 
 
 /*
@@ -10,12 +10,6 @@
  * the statistics per pid
  */
 BPF_HASH(oomStats, u32, struct oom_stats);
-
-static inline __attribute__((always_inline))
-bool is_memcg_oom(struct oom_control *oc)
-{
-  return oc->memcg != NULL;
-}
 
 int kprobe__oom_kill_process(struct pt_regs *ctx, struct oom_control *oc, const char *message) {
     struct oom_stats zero = {};

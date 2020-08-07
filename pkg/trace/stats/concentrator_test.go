@@ -161,7 +161,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
 		flushTime := now
 		c := NewConcentrator([]string{}, testBucketInterval, statsChan)
-		c.addNow(testTrace, time.Now().UnixNano())
+		c.addNow(testTrace)
 
 		for i := 0; i < c.bufferLen; i++ {
 			stats := c.flushNow(flushTime)
@@ -191,7 +191,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		flushTime := now
 		c := NewConcentrator([]string{}, testBucketInterval, statsChan)
 		c.oldestTs = alignTs(now, c.bsize) - int64(c.bufferLen-1)*c.bsize
-		c.addNow(testTrace, time.Now().UnixNano())
+		c.addNow(testTrace)
 
 		for i := 0; i < c.bufferLen-1; i++ {
 			stats := c.flushNow(flushTime)
@@ -262,7 +262,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		Env:   "none",
 		Trace: wt,
 	}
-	c.addNow(testTrace, time.Now().UnixNano())
+	c.addNow(testTrace)
 
 	var duration float64
 	var hits float64
@@ -375,7 +375,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		Env:   "none",
 		Trace: wt,
 	}
-	c.addNow(testTrace, time.Now().UnixNano())
+	c.addNow(testTrace)
 
 	// flush every testBucketInterval
 	flushTime := now
@@ -448,7 +448,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 		Sublayers: sublayers,
 	}
 
-	c.addNow(testTrace, time.Now().UnixNano())
+	c.addNow(testTrace)
 	stats := c.flushNow(alignedNow + int64(c.bufferLen)*c.bsize)
 
 	if !assert.Equal(1, len(stats), "We should get exactly 1 Bucket") {
@@ -493,8 +493,8 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	countValsEq(t, expectedCountValByKey, receivedCounts)
 }
 
-// TestConcentratorAddNow tests the count aggregation behavior of addNow.
-func TestConcentratorAddNow(t *testing.T) {
+// TestConcentratorAdd tests the count aggregation behavior of addNow.
+func TestConcentratorAdd(t *testing.T) {
 	now := time.Now().UnixNano()
 	for name, test := range map[string]struct {
 		in  pb.Trace
@@ -570,7 +570,7 @@ func TestConcentratorAddNow(t *testing.T) {
 			}
 			testTrace.Sublayers = sublayers
 			c := NewConcentrator([]string{}, testBucketInterval, statsChan)
-			c.addNow(testTrace, time.Now().UnixNano())
+			c.addNow(testTrace)
 			stats := c.flushNow(now + (int64(c.bufferLen) * testBucketInterval))
 			countValsEq(t, test.out, stats[0].Counts)
 		})

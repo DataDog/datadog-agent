@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
+import os.path
 import subprocess
 import sys
-import os.path
 
 # Exclude some folders since go vet fails there
 EXCLUDED_FOLDERS = {

@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -15,19 +16,13 @@ import (
 	"github.com/elastic/go-libaudit/rule"
 )
 
-const (
-	auditFieldPath        = "audit.path"
-	auditFieldEnabled     = "audit.enabled"
-	auditFieldPermissions = "audit.permissions"
-)
-
 var auditReportedFields = []string{
-	auditFieldPath,
-	auditFieldEnabled,
-	auditFieldPermissions,
+	compliance.AuditFieldPath,
+	compliance.AuditFieldEnabled,
+	compliance.AuditFieldPermissions,
 }
 
-func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
@@ -63,24 +58,17 @@ func checkAudit(e env.Env, ruleID string, res compliance.Resource, expr *eval.It
 			log.Debugf("%s: audit check - match %s", ruleID, path)
 			instances = append(instances, &eval.Instance{
 				Vars: eval.VarMap{
-					auditFieldPath:        path,
-					auditFieldEnabled:     true,
-					auditFieldPermissions: auditPermissionsString(auditRule),
+					compliance.AuditFieldPath:        path,
+					compliance.AuditFieldEnabled:     true,
+					compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
 				},
 			})
 		}
 	}
 
-	it := &instanceIterator{
+	return &instanceIterator{
 		instances: instances,
-	}
-
-	result, err := expr.EvaluateIterator(it, globalInstance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceResultToReport(result, auditReportedFields), nil
+	}, nil
 }
 
 func auditPermissionsString(r *rule.FileWatchRule) string {

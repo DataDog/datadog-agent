@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
+	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
 func TestParseFloat64(t *testing.T) {
@@ -43,4 +44,108 @@ func TestParseFloat64(t *testing.T) {
 	f, err = parseFloat64(reader)
 	assert.NoError(err)
 	assert.Equal(3.14, f)
+}
+
+func TestDecode(t *testing.T) {
+	want := Traces{
+		{{Service: "A", Name: "op"}},
+		{{Service: "B"}},
+		{{Service: "C"}},
+	}
+	var buf bytes.Buffer
+	if err := msgp.Encode(&buf, &want); err != nil {
+		t.Fatal(err)
+	}
+	var got Traces
+	if err := msgp.Decode(&buf, &got); err != nil {
+		t.Fatal(err)
+	}
+	assert.ElementsMatch(t, want, got)
+}
+
+var data = [2]interface{}{
+	0: []string{
+		0:  "baggage",
+		1:  "item",
+		2:  "elasticsearch.version",
+		3:  "7.0",
+		4:  "my-name",
+		5:  "X",
+		6:  "my-service",
+		7:  "my-resource",
+		8:  "_dd.sampling_rate_whatever",
+		9:  "value whatever",
+		10: "sql",
+	},
+	1: [][][12]interface{}{
+		{
+			{
+				6,
+				4,
+				7,
+				uint64(1),
+				uint64(2),
+				uint64(3),
+				int64(123),
+				int64(456),
+				1,
+				map[interface{}]interface{}{
+					8: 9,
+					0: 1,
+					2: 3,
+				},
+				map[interface{}]float64{
+					5: 1.2,
+				},
+				10,
+			},
+		},
+	},
+}
+
+func TestDecodeMsgDictionary(t *testing.T) {
+	b, err := vmsgp.Marshal(&data)
+	assert.NoError(t, err)
+	dc := NewMsgpReader(bytes.NewReader(b))
+	defer FreeMsgpReader(dc)
+
+	var traces Traces
+	if err := traces.DecodeMsgDictionary(dc); err != nil {
+		t.Fatal(err)
+	}
+	assert.EqualValues(t, traces[0][0], &Span{
+		Service:  "my-service",
+		Name:     "my-name",
+		Resource: "my-resource",
+		TraceID:  1,
+		SpanID:   2,
+		ParentID: 3,
+		Start:    123,
+		Duration: 456,
+		Error:    1,
+		Meta: map[string]string{
+			"baggage":                    "item",
+			"elasticsearch.version":      "7.0",
+			"_dd.sampling_rate_whatever": "value whatever",
+		},
+		Metrics: map[string]float64{"X": 1.2},
+		Type:    "sql",
+	})
+}
+
+var benchOut Traces
+
+func BenchmarkDecodeMsgDictionary(b *testing.B) {
+	bb, err := vmsgp.Marshal(&data)
+	assert.NoError(b, err)
+	r := bytes.NewReader(bb)
+	dc := NewMsgpReader(r)
+	defer FreeMsgpReader(dc)
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bb)))
+	for i := 0; i < b.N; i++ {
+		r.Reset(bb)
+		assert.NoError(b, benchOut.DecodeMsgDictionary(dc))
+	}
 }

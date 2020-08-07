@@ -138,7 +138,7 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 	return nil, tf.Called(payload, extra).Error(0)
 }
 
-// SubmitPodChecks mock
-func (tf *MockedForwarder) SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error) {
+// SubmitOrchestratorChecks mock
+func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
