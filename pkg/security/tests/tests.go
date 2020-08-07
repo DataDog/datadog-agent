@@ -255,7 +255,7 @@ func (tm *testModule) Close() {
 	time.Sleep(time.Second)
 }
 
-func waitProcScan(test *testProbe) error {
+func waitProcScan(test *testProbe) {
 	// Consume test.events so that testEventHandler.HandleEvent doesn't block
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -271,7 +271,6 @@ func waitProcScan(test *testProbe) error {
 	}()
 	time.Sleep(5 * time.Second)
 	cancel()
-	return log.ChangeLogLevel(logger, "debug")
 }
 
 func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testProbe, error) {
@@ -328,9 +327,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		rs:         ruleSet,
 	}
 
-	if err := waitProcScan(test); err != nil {
-		return nil, err
-	}
+	waitProcScan(test)
 
 	return test, nil
 }
