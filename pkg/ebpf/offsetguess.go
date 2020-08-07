@@ -17,13 +17,15 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/iovisor/gobpf/elf"
+	"github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
 )
 
 /*
-#include "c/tracer-ebpf.h"
+#include "c/offset-guess.h"
 */
 import "C"
 
@@ -174,10 +176,10 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 	return nil, errors.New("unstable TCP socket params")
 }
 
-func offsetGuessProbes(c *Config) []KProbeName {
-	probes := []KProbeName{TCPGetInfo}
+func offsetGuessProbes(c *Config) []bytecode.ProbeName {
+	probes := []bytecode.ProbeName{bytecode.TCPGetInfo}
 	if c.CollectIPv6Conns {
-		probes = append(probes, TCPv6Connect, TCPv6ConnectReturn)
+		probes = append(probes, bytecode.TCPv6Connect, bytecode.TCPv6ConnectReturn)
 	}
 	return probes
 }
@@ -231,10 +233,10 @@ func generateRandomIPv6Address() (addr [4]uint32) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracerStatus, expected *fieldValues, maxRetries *int, threshold uint64) error {
+func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
-	if err := module.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
 		return fmt.Errorf("error reading tracer_status: %v", err)
 	}
 
@@ -337,7 +339,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			logSuccessfulGuess(guessDaddrIPv6, status.offset_daddr_ipv6)
 			// at this point, we've guessed all the offsets we need,
 			// set the status to "stateReady"
-			return setReadyState(module, mp, status)
+			return setReadyState(mp, status)
 		}
 		status.offset_daddr_ipv6++
 	default:
@@ -346,29 +348,29 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 
 	// This assumes `guessDaddrIPv6` is the last stage of the process.
 	if status.what == guessDaddrIPv6 && status.ipv6_enabled == disableV6 {
-		return setReadyState(module, mp, status)
+		return setReadyState(mp, status)
 	}
 
 	status.state = stateChecking
 	// update the map with the new offset/field to check
-	if err := module.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status), 0); err != nil {
+	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
 	}
 
 	return nil
 }
 
-func setReadyState(m *elf.Module, mp *elf.Map, status *tracerStatus) error {
+func setReadyState(mp *ebpf.Map, status *tracerStatus) error {
 	status.state = stateReady
-	if err := m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status), 0); err != nil {
+	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
 	}
 	return nil
 }
 
-// guessOffsets expects elf.Module to hold a tracer-bpf object and initializes the
+// guessOffsets expects manager.Manager to contain a map named tracer_status and helps initialize the
 // tracer by guessing the right struct sock kernel struct offsets. Results are
-// stored in the `tracer_status` map as used by the module.
+// returned as constants which are runtime-edited into the tracer eBPF code.
 //
 // To guess the offsets, we create connections from localhost (127.0.0.1) to
 // 127.0.0.2:$PORT, where we have a server listening. We store the current
@@ -380,8 +382,11 @@ func setReadyState(m *elf.Module, mp *elf.Map, status *tracerStatus) error {
 // check that value against the expected value of the field, advancing the
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
-func guessOffsets(m *elf.Module, cfg *Config) error {
-	mp := m.Map(string(tracerStatusMap))
+func guessOffsets(m *manager.Manager, cfg *Config) ([]manager.ConstantEditor, error) {
+	mp, _, err := m.GetMap(string(bytecode.TracerStatusMap))
+	if err != nil {
+		return nil, fmt.Errorf("unable to find map %s: %s", string(bytecode.TracerStatusMap), err)
+	}
 
 	// When reading kernel structs at different offsets, don't go over the set threshold
 	// Defaults to 400, with a max of 3000. This is an arbitrary choice to avoid infinite loops.
@@ -412,20 +417,20 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 	}
 
 	// if we already have the offsets, just return
-	err := m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
+	err = mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(status))
 	if err == nil && status.state == stateReady {
-		return nil
+		return getConstantEditors(status), nil
 	}
 
 	eventGenerator, err := newEventGenerator()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer eventGenerator.Close()
 
 	// initialize map
-	if err := m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status), 0); err != nil {
-		return fmt.Errorf("error initializing tracer_status map: %v", err)
+	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
+		return nil, fmt.Errorf("error initializing tracer_status map: %v", err)
 	}
 
 	// If the kretprobe for tcp_v4_connect() is configured with a too-low maxactive, some kretprobe might be missing.
@@ -435,17 +440,17 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 	// Retrieve expected values from local connection
 	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5)
 	if err != nil {
-		return errors.Wrap(err, "error retrieving expected value")
+		return nil, errors.Wrap(err, "error retrieving expected value")
 	}
 
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for status.state != stateReady {
 		if err := eventGenerator.Generate(status, expected); err != nil {
-			return err
+			return nil, err
 		}
 
-		if err := checkAndUpdateCurrentOffset(m, mp, status, expected, &maxRetries, threshold); err != nil {
-			return err
+		if err := checkAndUpdateCurrentOffset(mp, status, expected, &maxRetries, threshold); err != nil {
+			return nil, err
 		}
 
 		// Stop at a reasonable offset so we don't run forever.
@@ -455,11 +460,27 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 			status.offset_sport >= thresholdInetSock || uint64(status.offset_dport) >= threshold ||
 			uint64(status.offset_netns) >= threshold || uint64(status.offset_family) >= threshold ||
 			uint64(status.offset_daddr_ipv6) >= threshold {
-			return fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
+			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
 
-	return nil
+	return getConstantEditors(status), nil
+}
+
+func getConstantEditors(status *tracerStatus) []manager.ConstantEditor {
+	return []manager.ConstantEditor{
+		{Name: "offset_saddr", Value: uint64(status.offset_saddr)},
+		{Name: "offset_daddr", Value: uint64(status.offset_daddr)},
+		{Name: "offset_sport", Value: uint64(status.offset_sport)},
+		{Name: "offset_dport", Value: uint64(status.offset_dport)},
+		{Name: "offset_netns", Value: uint64(status.offset_netns)},
+		{Name: "offset_ino", Value: uint64(status.offset_ino)},
+		{Name: "offset_family", Value: uint64(status.offset_family)},
+		{Name: "offset_rtt", Value: uint64(status.offset_rtt)},
+		{Name: "offset_rtt_var", Value: uint64(status.offset_rtt_var)},
+		{Name: "offset_daddr_ipv6", Value: uint64(status.offset_daddr_ipv6)},
+		{Name: "ipv6_enabled", Value: uint64(status.ipv6_enabled)},
+	}
 }
 
 type eventGenerator struct {

@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/google/gopacket/afpacket"
-	bpflib "github.com/iovisor/gobpf/elf"
 )
 
 const (
@@ -54,7 +54,7 @@ type SocketFilterSnooper struct {
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(
 	rootPath string,
-	filter *bpflib.SocketFilter,
+	filter *manager.Probe,
 	collectDNSStats bool,
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
@@ -258,11 +258,11 @@ func (s *SocketFilterSnooper) getCachedTranslation() *translation {
 // packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type packetSource struct {
 	*afpacket.TPacket
-	socketFilter *bpflib.SocketFilter
+	socketFilter *manager.Probe
 	socketFD     int
 }
 
-func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
+func newPacketSource(filter *manager.Probe) (*packetSource, error) {
 	rawSocket, err := afpacket.NewTPacket(
 		afpacket.OptPollTimeout(1*time.Second),
 		// This setup will require ~4Mb that is mmap'd into the process virtual space
@@ -279,7 +279,8 @@ func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
 	socketFD := int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
 
 	// Attaches DNS socket filter to the RAW_SOCKET
-	if err := bpflib.AttachSocketFilter(filter, socketFD); err != nil {
+	filter.SocketFD = socketFD
+	if err := filter.Attach(); err != nil {
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
 
@@ -291,7 +292,7 @@ func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
 }
 
 func (p *packetSource) Close() {
-	if err := bpflib.DetachSocketFilter(p.socketFilter, p.socketFD); err != nil {
+	if err := p.socketFilter.Detach(); err != nil {
 		log.Errorf("error detaching socket filter: %s", err)
 	}
 

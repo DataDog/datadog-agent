@@ -185,6 +185,7 @@ build do
 
             # Do not strip eBPF programs
             strip_exclude("*tracer-ebpf*")
+            strip_exclude("*offset-guess*")
             strip_exclude("*runtime-security*")
 
         elsif osx?

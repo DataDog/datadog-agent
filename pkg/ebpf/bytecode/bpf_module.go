@@ -4,12 +4,10 @@ package bytecode
 
 import (
 	"fmt"
-
-	bpflib "github.com/iovisor/gobpf/elf"
 )
 
 // ReadBPFModule from the asset file
-func ReadBPFModule(bpfDir string, debug bool) (*bpflib.Module, error) {
+func ReadBPFModule(bpfDir string, debug bool) (AssetReader, error) {
 	file := "pkg/ebpf/c/tracer-ebpf.o"
 	if debug {
 		file = "pkg/ebpf/c/tracer-ebpf-debug.o"
@@ -20,9 +18,20 @@ func ReadBPFModule(bpfDir string, debug bool) (*bpflib.Module, error) {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
 
-	m := bpflib.NewModuleFromReader(ebpfReader)
-	if m == nil {
-		return nil, fmt.Errorf("BPF not supported")
+	return ebpfReader, nil
+}
+
+// ReadOffsetBPFModule from the asset file
+func ReadOffsetBPFModule(bpfDir string, debug bool) (AssetReader, error) {
+	file := "pkg/ebpf/c/offset-guess.o"
+	if debug {
+		file = "pkg/ebpf/c/offset-guess-debug.o"
 	}
-	return m, nil
+
+	ebpfReader, err := GetReader(bpfDir, file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return ebpfReader, nil
 }
