@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io/ioutil"
 	"net/http"
 	"sort"
 
@@ -84,8 +85,14 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	var profile *flare.Profile
 
 	if r.Body != http.NoBody {
-		if err := json.NewDecoder(r.Body).Decode(&profile); err != nil {
-			http.Error(w, log.Errorf("Error while decoding profile from request body: %s", err).Error(), 500)
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &profile); err != nil {
+			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
 			return
 		}
 	}

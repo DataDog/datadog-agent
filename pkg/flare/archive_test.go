@@ -281,3 +281,40 @@ func TestZipTaggerList(t *testing.T) {
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")
 }
+
+func TestPerformanceProfile(t *testing.T) {
+	testProfile := &Profile{
+		FirstHeapProfile:  []byte{},
+		SecondHeapProfile: []byte{},
+		CPUProfile:        []byte{},
+	}
+	zipFilePath := getArchivePath()
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", testProfile)
+
+	assert.NoError(t, err)
+	assert.Equal(t, zipFilePath, filePath)
+
+	// Open a zip archive for reading.
+	z, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		assert.Fail(t, "Unable to open the flare archive")
+	}
+	defer z.Close()
+	defer os.Remove(zipFilePath)
+
+	firstHeap, secondHeap, cpu := false, false, false
+	for _, f := range z.File {
+		switch path.Base(f.Name) {
+		case firstHeapProfileName:
+			firstHeap = true
+		case secondHeapProfileName:
+			secondHeap = true
+		case cpuProfileName:
+			cpu = true
+		}
+	}
+
+	assert.True(t, firstHeap, "first-heap.profile should've been included")
+	assert.True(t, secondHeap, "second-heap.profile should've been included")
+	assert.True(t, cpu, "cpu.profile should've been included")
+}

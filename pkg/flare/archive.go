@@ -794,12 +794,13 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 
 func zipPerformanceProfile(tempDir, hostname string, profile *Profile) error {
 	cpuProfilePath := filepath.Join(tempDir, hostname, cpuProfileName)
-	cpuProfile, err := os.OpenFile(cpuProfilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
+
+	if err := ensureParentDirsExist(cpuProfilePath); err != nil {
 		return err
 	}
 
-	if err := ensureParentDirsExist(cpuProfilePath); err != nil {
+	cpuProfile, err := os.OpenFile(cpuProfilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
 		return err
 	}
 
