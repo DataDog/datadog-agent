@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,10 +60,20 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.myproxy.com":        {"api_key8"},
 	}
 
+	// just sort the expected map for easy comparison
+	for _, keys := range expectedMap {
+		sort.Strings(keys)
+	}
+
 	fh := forwarderHealth{keysPerDomains: keysPerDomains}
 	fh.init()
 
-	assert.True(t, reflect.DeepEqual(expectedMap, fh.keysPerAPIEndpoint))
+	// lexicographical sort for assert
+	for _, keys := range fh.keysPerAPIEndpoint {
+		sort.Strings(keys)
+	}
+
+	assert.Equal(t, expectedMap, fh.keysPerAPIEndpoint)
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
