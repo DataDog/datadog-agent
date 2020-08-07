@@ -3,7 +3,7 @@
 
 static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ctx) {
     char *pid_buff = (char *) PT_REGS_PARM2(ctx);
-    u32 pid = char_to_uint32_base_10(pid_buff);
+    u32 pid = atoi(pid_buff);
     struct proc_cache_t new_entry = {};
     struct proc_cache_t *old_entry;
     u8 new_cookie = 0;

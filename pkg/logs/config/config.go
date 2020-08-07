@@ -13,11 +13,15 @@ import (
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
+
+// SnmpTraps is the name of the integration that collects logs from SNMP traps received by the Agent
+const SnmpTraps = "snmp_traps"
 
 // logs-intake endpoint prefix.
 const (
@@ -53,6 +57,16 @@ func DefaultSources() []*LogSource {
 			Type:    DockerType,
 			Service: "docker",
 			Source:  "docker",
+		})
+		sources = append(sources, source)
+	}
+
+	if traps.IsEnabled() && traps.IsRunning() {
+		// Append a new source to forward SNMP traps as logs.
+		source := NewLogSource(SnmpTraps, &LogsConfig{
+			Type:    SnmpTrapsType,
+			Service: "snmp",
+			Source:  "snmp",
 		})
 		sources = append(sources, source)
 	}

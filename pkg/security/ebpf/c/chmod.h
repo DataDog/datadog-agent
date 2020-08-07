@@ -4,13 +4,12 @@
 #include "syscalls.h"
 
 struct chmod_event_t {
-    struct event_t event;
-    struct process_data_t process;
-    char container_id[CONTAINER_ID_LEN];
-    int mode;
-    int mount_id;
-    unsigned long inode;
-    int overlay_numlower;
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t file;
+    u32 mode;
     u32 padding;
 };
 
@@ -70,24 +69,24 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
         return 0;
 
     struct chmod_event_t event = {
-        .event.retval = retval,
         .event.type = EVENT_CHMOD,
-        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall = {
+            .retval = retval,
+            .timestamp = bpf_ktime_get_ns(),
+        },
+        .file = {
+            .mount_id = syscall->setattr.path_key.mount_id,
+            .inode = syscall->setattr.path_key.ino,
+            .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
+        },
+        .padding = 0,
         .mode = syscall->setattr.mode,
-        .mount_id = syscall->setattr.path_key.mount_id,
-        .inode = syscall->setattr.path_key.ino,
-        .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
     };
 
-    fill_process_data(&event.process);
-    resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, NULL);
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
-    // add process cache data
-    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
-    if (entry) {
-        copy_container_id(event.container_id, entry->container_id);
-        event.process.numlower = entry->numlower;
-    }
+    resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, NULL);
 
     send_event(ctx, event);
 

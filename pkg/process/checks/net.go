@@ -134,6 +134,8 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		DnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
 		ConnsClosed:               tel.MonotonicConnsClosed - c.lastTelemetry.ConnsClosed,
 		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
+		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
+		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
 	}
 	c.saveTelemetry(tel)
 	return cct
@@ -150,6 +152,8 @@ func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
 	c.lastTelemetry.ConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
 	c.lastTelemetry.DnsPacketsProcessed = tel.MonotonicDnsPacketsProcessed
 	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
+	c.lastTelemetry.UdpSendsProcessed = tel.MonotonicUdpSendsProcessed
+	c.lastTelemetry.UdpSendsMissed = tel.MonotonicUdpSendsMissed
 }
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.

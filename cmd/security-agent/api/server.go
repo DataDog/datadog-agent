@@ -24,21 +24,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/gorilla/mux"
 )
 
 // Server implements security agent API server
 type Server struct {
 	listener net.Listener
+	agent    *agent.Agent
 }
 
 // NewServer creates a new Server instance
-func NewServer() (*Server, error) {
+func NewServer(runtimeAgent *secagent.RuntimeSecurityAgent) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
 	}
-	return &Server{listener: listener}, nil
+	return &Server{
+		listener: listener,
+		agent:    agent.NewAgent(runtimeAgent),
+	}, nil
 }
 
 // Start creates the router and starts the HTTP server
@@ -47,7 +52,7 @@ func (s *Server) Start() error {
 	r := mux.NewRouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
+	s.agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
 
 	// Validate token for every request
 	r.Use(validateToken)
