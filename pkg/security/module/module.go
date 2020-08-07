@@ -119,7 +119,7 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
 	} else {
-		log.Debugf("Event %s on rule %s was dropped due to rate limiting", event.GetID(), rule.ID)
+		log.Debugf("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
 }
 

@@ -64,7 +64,7 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
 		value, ok := field.Value.(string)
 		if ok {
-			if value != path.Clean(value) || strings.HasPrefix(value, "..") {
+			if value != path.Clean(value) || !path.IsAbs(value) {
 				return fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
 			}
 		}
@@ -1120,9 +1120,11 @@ type eventMarshaler struct {
 
 // MarshalJSON returns the JSON encoding of the event
 func (e *Event) MarshalJSON() ([]byte, error) {
+	eventID, _ := uuid.NewRandom()
+
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"id":"%s",`, e.ID)
+	fmt.Fprintf(&buf, `"id":"%s",`, eventID)
 
 	entries := []eventMarshaler{
 		{
@@ -1240,11 +1242,6 @@ func (e *Event) GetTags() []string {
 	return []string{"type:" + e.GetType()}
 }
 
-// GetID returns the event identifier
-func (e *Event) GetID() string {
-	return e.ID
-}
-
 // GetPointer return an unsafe.Pointer of the Event
 func (e *Event) GetPointer() unsafe.Pointer {
 	return unsafe.Pointer(e)
@@ -1262,9 +1259,7 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 
 // NewEvent returns a new event
 func NewEvent(resolvers *Resolvers) *Event {
-	id, _ := uuid.NewRandom()
 	return &Event{
-		ID:        id.String(),
 		resolvers: resolvers,
 	}
 }
