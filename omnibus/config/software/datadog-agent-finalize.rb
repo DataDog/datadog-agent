@@ -103,6 +103,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
 
             # Move SELinux policy
             if debian? || redhat?
@@ -181,6 +182,10 @@ build do
             # skipped.
             strip_exclude("*psycopg2*")
             strip_exclude("*cffi_backend*")
+
+            # Do not strip eBPF programs
+            strip_exclude("*tracer-ebpf*")
+            strip_exclude("*runtime-security*")
 
         elsif osx?
             # Remove linux specific configs
