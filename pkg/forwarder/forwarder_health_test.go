@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,7 +63,7 @@ func TestComputeDomainsURL(t *testing.T) {
 	fh := forwarderHealth{keysPerDomains: keysPerDomains}
 	fh.init()
 
-	assert.Equal(t, expectedMap, fh.keysPerAPIEndpoint)
+	assert.True(t, reflect.DeepEqual(expectedMap, fh.keysPerAPIEndpoint))
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
