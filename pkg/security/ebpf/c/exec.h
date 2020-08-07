@@ -3,6 +3,7 @@
 
 #include "filters.h"
 #include "syscalls.h"
+#include "container.h"
 
 struct _tracepoint_sched_process_fork
 {
@@ -17,16 +18,8 @@ struct _tracepoint_sched_process_fork
     pid_t child_pid;
 };
 
-struct proc_cache_t {
-    u64 inode;
-    u32 numlower;
-    u32 padding;
-    char container_id[CONTAINER_ID_LEN];
-};
-
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *dst, struct proc_cache_t *src) {
-    dst->inode = src->inode;
-    dst->numlower = src->numlower;
+    dst->executable = src->executable;
     copy_container_id(dst->container_id, src->container_id);
     return;
 }
@@ -86,8 +79,11 @@ int __attribute__((always_inline)) vfs_handle_exec_event(struct pt_regs *ctx, st
 
     // new cache entry
     struct proc_cache_t entry = {
-        .inode = get_path_ino(path),
-        .numlower = get_overlay_numlower(get_path_dentry(path)),
+        .executable = {
+            .inode = get_path_ino(path),
+            .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
+            .mount_id = get_path_mount_id(path),
+        },
         .container_id = {},
     };
 

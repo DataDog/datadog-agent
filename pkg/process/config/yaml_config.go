@@ -61,6 +61,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	a.SysProbeBPFDebug = config.Datadog.GetBool(key(spNS, "bpf_debug"))
+	if config.Datadog.IsSet(key(spNS, "bpf_dir")) {
+		a.SystemProbeBPFDir = config.Datadog.GetString(key(spNS, "bpf_dir"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "excluded_linux_versions")) {
 		a.ExcludedBPFLinuxVersions = config.Datadog.GetStringSlice(key(spNS, "excluded_linux_versions"))
 	}
@@ -91,7 +95,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if logFile := config.Datadog.GetString(key(spNS, "log_file")); logFile != "" {
-		a.LogFile = logFile
+		a.SystemProbeLogFile = logFile
 	}
 
 	// The maximum number of connections per message. Note: Only change if the defaults are causing issues.
@@ -377,6 +381,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			a.KubeClusterName = clusterName
 		}
 	}
+	a.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.scrubbing.enabled")
 
 	return nil
 }

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -636,6 +637,9 @@ func InitConfig(config Config) {
 
 	// Ochestrator explorer
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
+	// enabling/disabling the environment variables & command scrubbing from the container specs
+	// this option will potentially impact the CPU usage of the agent
+	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
@@ -664,6 +668,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.log_file")
 	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
+	config.SetKnown("system_probe_config.bpf_dir")
 	config.SetKnown("system_probe_config.disable_tcp")
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
@@ -700,6 +705,7 @@ func InitConfig(config Config) {
 	config.SetKnown("apm_config.max_memory")
 	config.SetKnown("apm_config.log_file")
 	config.SetKnown("apm_config.apm_dd_url")
+	config.SetKnown("apm_config.profiling_dd_url")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
 	config.SetKnown("apm_config.receiver_socket")
@@ -762,12 +768,7 @@ func InitConfig(config Config) {
 }
 
 var (
-	ddURLs = map[string]interface{}{
-		"app.datadoghq.com": nil,
-		"app.datadoghq.eu":  nil,
-		"app.datad0g.com":   nil,
-		"app.datad0g.eu":    nil,
-	}
+	ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
 )
 
 // GetProxies returns the proxy settings from the configuration
@@ -997,8 +998,8 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 		return "", err
 	}
 
-	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
-	if _, found := ddURLs[u.Host]; !found {
+	// we don't update unknown URLs (ie: proxy or custom DD domain)
+	if !ddURLRegexp.MatchString(u.Host) {
 		return DDURL, nil
 	}
 
@@ -1238,4 +1239,22 @@ func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) 
 		}
 	}
 	return mappings, nil
+}
+
+// IsCLCRunner returns whether the Agent is in cluster check runner mode
+func IsCLCRunner() bool {
+	if !Datadog.GetBool("clc_runner_enabled") {
+		return false
+	}
+	var cp []ConfigurationProviders
+	if err := Datadog.UnmarshalKey("config_providers", &cp); err == nil {
+		for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+			cp = append(cp, ConfigurationProviders{Name: name})
+		}
+		if len(cp) == 1 && cp[0].Name == "clusterchecks" {
+			// A cluster check runner is an Agent configured to run clusterchecks only
+			return true
+		}
+	}
+	return false
 }

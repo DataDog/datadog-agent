@@ -26,6 +26,7 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -79,19 +80,21 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
+	pidfilePath string
 	confPath    string
 	flagNoColor bool
 	stopCh      chan struct{}
 )
 
 func init() {
-	// attach the command to the root
-	SecurityAgentCmd.AddCommand(startCmd)
+	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
 
-	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	SecurityAgentCmd.AddCommand(startCmd)
 }
 
 func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
@@ -144,6 +147,15 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
+	}
+
+	if pidfilePath != "" {
+		err = pidfile.WritePID(pidfilePath)
+		if err != nil {
+			return log.Errorf("Error while writing PID file, exiting: %v", err)
+		}
+		defer os.Remove(pidfilePath)
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
 	// Check if we have at least one component to start based on config
@@ -199,11 +211,12 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// start runtime security agent
-	if err = startRuntimeSecurity(hostname, endpoints, dstContext, stopper); err != nil {
+	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper)
+	if err != nil {
 		return err
 	}
 
-	srv, err := api.NewServer()
+	srv, err := api.NewServer(runtimeAgent)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

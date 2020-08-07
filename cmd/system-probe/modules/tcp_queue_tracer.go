@@ -19,7 +19,7 @@ var TCPQueueLength = api.Factory{
 			return nil, api.ErrNotEnabled
 		}
 
-		t, err := ebpf.NewTCPQueueLengthTracer()
+		t, err := ebpf.NewTCPQueueLengthTracer(config.SysProbeConfigFromConfig(cfg))
 		if err != nil {
 			log.Errorf("unable to start the TCP queue length tracer: %v", err)
 		}

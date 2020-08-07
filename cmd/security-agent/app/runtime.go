@@ -46,21 +46,21 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
-func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) error {
+func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
-		return nil
+		return nil, nil
 	}
 
 	reporter, err := newRuntimeReporter(stopper, "runtime-security-agent", "runtime-security", endpoints, context)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter)
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security agent instance")
+		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
 	}
 	agent.Start()
 
@@ -68,5 +68,5 @@ func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context 
 
 	log.Info("Datadog runtime security agent is now running")
 
-	return nil
+	return agent, nil
 }
