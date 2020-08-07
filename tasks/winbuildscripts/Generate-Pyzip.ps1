@@ -60,13 +60,15 @@ if($maj -eq "2") {
     }
 }
 elseif ($maj -eq "3") {
+    $Env:PATH="$Env:PATH;c:\tools\msys64\mingw64\bin"
     $p = Start-Process $dlfullpath -ArgumentList "/quiet DefaultJustForMeTargetDir=c:\pythonroot TARGETDIR=c:\pythonroot AssociateFiles=0 Include_doc=0 Include_launcher=0 Include_pip=0 Include_tcltk=0" -Wait -Passthru
 
     if ($p.ExitCode -ne 0) {
         Write-Host -ForegroundColor Red ("Failed to install Python, exit code 0x{0:X}" -f $p.ExitCode)
         exit 1
     }
-    if (Test-Path c:\pythonroot\vcruntime*.dll) {
+
+if (Test-Path c:\pythonroot\vcruntime*.dll) {
         Write-Host -ForegroundColor Green "NOT deleting included cruntime"
     }
     Write-Host -ForegroundColor Green "Generating import library"
@@ -97,10 +99,10 @@ if (Test-Path c:\pythonroot) {
 }
 
 if($OutDir -and (Test-Path $OutDir)){
-    Write-Host -ForegroundColor green "Copying zip to $OutDir"
-    Copy-Item -Path "c:\tmp\$outzip" -Destination $OutDir
+    Write-Host -ForegroundColor green "Copying zip c:\tmp\$($outzip)to $OutDir"
+    Copy-Item -Path "c:\tmp\$($outzip)" -Destination "$($OutDir)"
     Write-Host -ForegroundColor Green "... Done."
 }
-$shasum = (Get-FileHash $outzip).Hash.ToLower()
+$shasum = (Get-FileHash "c:\tmp\$($outzip)").Hash.ToLower()
 Write-Host -ForegroundColor Green "SHA256 Sum of resulting zip: $shasum"
 
