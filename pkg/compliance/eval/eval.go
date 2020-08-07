@@ -52,6 +52,12 @@ const (
 	countFn = "count"
 )
 
+var (
+	builtInVars VarMap = VarMap{
+		"_": true,
+	}
+)
+
 // EvaluateIterator evaluates an iterable expression for an iterator
 func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*InstanceResult, error) {
 	if e.IterableComparison == nil {
@@ -259,6 +265,19 @@ func (e *Expression) Evaluate(instance *Instance) (interface{}, error) {
 	}
 }
 
+// BoolEvaluate evaluates an expression for an instance as a boolean value
+func (e *Expression) BoolEvaluate(instance *Instance) (bool, error) {
+	v, err := e.Evaluate(instance)
+	if err != nil {
+		return false, err
+	}
+	passed, ok := v.(bool)
+	if !ok {
+		return false, lexer.Errorf(e.Pos, "expression must evaluate to a boolean")
+	}
+	return passed, nil
+}
+
 // Evaluate implements Evaluatable interface
 func (c *Comparison) Evaluate(instance *Instance) (interface{}, error) {
 	lhs, err := c.Term.Evaluate(instance)
@@ -452,6 +471,9 @@ func (v *Value) Evaluate(instance *Instance) (interface{}, error) {
 		)
 		if instance.Vars != nil {
 			value, ok = instance.Vars[*v.Variable]
+		}
+		if !ok {
+			value, ok = builtInVars[*v.Variable]
 		}
 		if !ok {
 			return nil, lexer.Errorf(v.Pos, `unknown variable %q`, *v.Variable)

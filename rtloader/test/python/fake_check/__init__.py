@@ -1,5 +1,6 @@
 from datadog_checks.base.checks import AgentCheck
 
+
 # Fake check for testing purposes
 class FakeCheck(AgentCheck):
     def get_warnings(self):

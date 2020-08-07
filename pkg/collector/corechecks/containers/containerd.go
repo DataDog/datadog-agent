@@ -85,8 +85,8 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 		return err
 	}
 	c.sub.Filters = c.instance.ContainerdFilters
-	// GetSharedFilter should not return a nil instance of *Filter if there is an error during its setup.
-	fil, err := ddContainers.GetSharedFilter()
+	// GetSharedMetricFilter should not return a nil instance of *Filter if there is an error during its setup.
+	fil, err := ddContainers.GetSharedMetricFilter()
 	if err != nil {
 		return err
 	}

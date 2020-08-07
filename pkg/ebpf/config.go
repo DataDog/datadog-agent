@@ -68,6 +68,9 @@ type Config struct {
 	// BPFDebug enables bpf debug logs
 	BPFDebug bool
 
+	// BPFDir is the directory to load the eBPF program from
+	BPFDir string
+
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
@@ -92,6 +95,9 @@ type Config struct {
 
 	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
 	OffsetGuessThreshold uint64
+
+	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
+	EnableMonotonicCount bool
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -121,5 +127,6 @@ func NewDefaultConfig() *Config {
 		CollectDNSStats:      false,
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
+		EnableMonotonicCount: false,
 	}
 }

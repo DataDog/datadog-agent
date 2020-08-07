@@ -9,7 +9,6 @@ package checks
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -71,8 +70,8 @@ func WithHostname(hostname string) BuilderOption {
 func WithHostRootMount(hostRootMount string) BuilderOption {
 	return func(b *builder) error {
 		log.Infof("Host root filesystem will be remapped to %s", hostRootMount)
-		b.pathMapper = func(path string) string {
-			return filepath.Join(hostRootMount, path)
+		b.pathMapper = &pathMapper{
+			hostMountPath: hostRootMount,
 		}
 		return nil
 	}
@@ -156,6 +155,18 @@ func MayFail(o BuilderOption) BuilderOption {
 	}
 }
 
+// WithNodeLabels configures a builder to use specified Kubernetes node labels
+func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
+	return func(b *builder) error {
+		b.nodeLabels = map[string]string{}
+		for k, v := range nodeLabels {
+			k, v := hostinfo.LabelPreprocessor(k, v)
+			b.nodeLabels[k] = v
+		}
+		return nil
+	}
+}
+
 // IsFramework matches a compliance suite by the name of the framework
 func IsFramework(framework string) SuiteMatcher {
 	return func(s *compliance.SuiteMeta) bool {
@@ -192,8 +203,6 @@ func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, err
 	return b, nil
 }
 
-type pathMapper func(string) string
-
 type builder struct {
 	checkInterval time.Duration
 
@@ -201,8 +210,9 @@ type builder struct {
 	valueCache *cache.Cache
 
 	hostname     string
-	pathMapper   pathMapper
+	pathMapper   *pathMapper
 	etcGroupPath string
+	nodeLabels   map[string]string
 
 	suiteMatcher SuiteMatcher
 	ruleMatcher  RuleMatcher
@@ -245,19 +255,25 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 			continue
 		}
 
+		if len(r.Resources) == 0 {
+			log.Debugf("%s/%s: skipping rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
+			continue
+		}
+
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.CheckFromRule(&suite.Meta, &r)
 
 		if err != nil {
-			if err == ErrRuleDoesNotApply {
-				continue
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
 			}
-			return err
+			continue
 		}
 
 		log.Debugf("%s/%s: init check %s", suite.Meta.Name, suite.Meta.Version, check.ID())
 		err = onCheck(check)
 		if err != nil {
+			log.Errorf("%s/%s: onCheck failed %s", suite.Meta.Name, suite.Meta.Version, check.ID())
 			return err
 		}
 	}
@@ -266,7 +282,7 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 }
 
 func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
-	ruleScope, err := b.getRuleScope(meta, rule)
+	ruleScope, err := getRuleScope(meta, rule)
 	if err != nil {
 		return nil, err
 	}
@@ -284,75 +300,110 @@ func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 	return b.newCheck(meta, ruleScope, rule), nil
 }
 
-func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (string, error) {
+func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.RuleScope, error) {
 	switch {
-	case rule.Scope.Docker:
+	case rule.Scope.Includes(compliance.DockerScope):
 		return compliance.DockerScope, nil
-	case rule.Scope.KubernetesNode:
+	case rule.Scope.Includes(compliance.KubernetesNodeScope):
 		return compliance.KubernetesNodeScope, nil
-	case rule.Scope.KubernetesCluster:
+	case rule.Scope.Includes(compliance.KubernetesClusterScope):
 		return compliance.KubernetesClusterScope, nil
 	default:
 		return "", ErrRuleScopeNotSupported
 	}
 }
 
-func (b *builder) hostMatcher(scope string, rule *compliance.Rule) (bool, error) {
-	if scope == compliance.KubernetesNodeScope {
-		if config.IsKubernetes() {
-			labels, err := hostinfo.GetNodeLabels()
-			if err != nil {
-				return false, err
-			}
-
-			return b.isKubernetesNodeEligible(rule.HostSelector, labels), nil
+func (b *builder) hostMatcher(scope compliance.RuleScope, rule *compliance.Rule) (bool, error) {
+	switch scope {
+	case compliance.DockerScope:
+		if b.dockerClient == nil {
+			log.Infof("rule %s skipped - not running in a docker environment", rule.ID)
+			return false, nil
 		}
-
-		log.Infof("rule %s discarded as we're not running on a Kubernetes node", rule.ID)
+	case compliance.KubernetesClusterScope:
+		if b.kubeClient == nil {
+			log.Infof("rule %s skipped - not running as Cluster Agent", rule.ID)
+			return false, nil
+		}
+	case compliance.KubernetesNodeScope:
+		if config.IsKubernetes() {
+			return b.isKubernetesNodeEligible(rule.HostSelector)
+		}
+		log.Infof("rule %s skipped - not running on a Kubernetes node", rule.ID)
 		return false, nil
 	}
 
 	return true, nil
 }
 
-func (b *builder) isKubernetesNodeEligible(hostSelector *compliance.HostSelector, nodeLabels map[string]string) bool {
-	if hostSelector == nil {
-		return true
+func (b *builder) isKubernetesNodeEligible(hostSelector string) (bool, error) {
+	if hostSelector == "" {
+		return true, nil
 	}
 
-	// No filtering, no need to fetch node labels
-	if len(hostSelector.KubernetesNodeLabels) == 0 && len(hostSelector.KubernetesNodeRole) == 0 {
-		return true
+	expr, err := eval.ParseExpression(hostSelector)
+	if err != nil {
+		return false, err
 	}
 
-	// Check selector
-	for _, selector := range hostSelector.KubernetesNodeLabels {
-		value, found := nodeLabels[selector.Label]
-		if !found {
-			return false
-		}
+	nodeInstance := &eval.Instance{
+		Functions: eval.FunctionMap{
+			"node.hasLabel": b.nodeHasLabel,
+			"node.label":    b.nodeLabel,
+		},
 
-		if value != selector.Value {
-			return false
-		}
+		Vars: eval.VarMap{
+			"node.labels": b.nodeLabelKeys(),
+		},
 	}
 
-	if len(hostSelector.KubernetesNodeRole) > 0 {
-		// Specific node role matching as multiple syntax exists
-		for key, value := range nodeLabels {
-			key, value = hostinfo.LabelPreprocessor(key, value)
-			if key == hostinfo.NormalizedRoleLabel && value == hostSelector.KubernetesNodeRole {
-				return true
-			}
-		}
-
-		return false
+	result, err := expr.Evaluate(nodeInstance)
+	if err != nil {
+		return false, err
 	}
 
-	return true
+	eligible, ok := result.(bool)
+	if !ok {
+		return false, fmt.Errorf("hostSelector %q does not evaluate to a boolean value", hostSelector)
+	}
+
+	return eligible, nil
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope string, rule *compliance.Rule) *complianceCheck {
+func (b *builder) getNodeLabel(args ...interface{}) (string, bool, error) {
+	if len(args) == 0 {
+		return "", false, errors.New(`expecting one argument for label`)
+	}
+	label, ok := args[0].(string)
+	if !ok {
+		return "", false, fmt.Errorf(`expecting string value for label argument`)
+	}
+	if b.nodeLabels == nil {
+		return "", false, nil
+	}
+	v, ok := b.nodeLabels[label]
+	return v, ok, nil
+}
+
+func (b *builder) nodeHasLabel(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+	_, ok, err := b.getNodeLabel(args...)
+	return ok, err
+}
+
+func (b *builder) nodeLabel(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+	v, _, err := b.getNodeLabel(args...)
+	return v, err
+}
+
+func (b *builder) nodeLabelKeys() []string {
+	var keys []string
+	for k := range b.nodeLabels {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule) *complianceCheck {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
 
 	if err != nil {
@@ -363,15 +414,16 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope string, rule *c
 	return &complianceCheck{
 		Env: b,
 
-		name:     rule.ID,
-		ruleID:   rule.ID,
-		interval: b.checkInterval,
+		ruleID:      rule.ID,
+		description: rule.Description,
+		interval:    b.checkInterval,
 
 		framework: meta.Framework,
 		suiteName: meta.Name,
 		version:   meta.Version,
 
-		resourceType: ruleScope,
+		// For now we are using rule scope (e.g. docker, kubernetesNode) as resource type
+		resourceType: string(ruleScope),
 		resourceID:   b.hostname,
 		configError:  err,
 		checkable:    checkable,
@@ -402,11 +454,18 @@ func (b *builder) EtcGroupPath() string {
 	return b.etcGroupPath
 }
 
-func (b *builder) NormalizePath(path string) string {
+func (b *builder) NormalizeToHostRoot(path string) string {
 	if b.pathMapper == nil {
 		return path
 	}
-	return b.pathMapper(path)
+	return b.pathMapper.normalizeToHostRoot(path)
+}
+
+func (b *builder) RelativeToHostRoot(path string) string {
+	if b.pathMapper == nil {
+		return path
+	}
+	return b.pathMapper.relativeToHostRoot(path)
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
@@ -542,14 +601,7 @@ func valueFromProcessFlag(name string, flag string) (interface{}, error) {
 	matchedProcesses := processes.findProcessesByName(name)
 	for _, mp := range matchedProcesses {
 		flagValues := parseProcessCmdLine(mp.Cmdline)
-		flagValue, found := flagValues[flag]
-		if !found {
-			return false, nil
-		}
-		if flagValue == "" {
-			return true, nil
-		}
-		return flagValue, nil
+		return flagValues[flag], nil
 	}
 	return "", fmt.Errorf("failed to find process: %s", name)
 }
@@ -564,7 +616,7 @@ func (b *builder) evalValueFromFile(get getter) eval.Function {
 			return nil, fmt.Errorf(`expecting string value for path argument`)
 		}
 
-		path = b.NormalizePath(path)
+		path = b.NormalizeToHostRoot(path)
 
 		query, ok := args[1].(string)
 		if !ok {

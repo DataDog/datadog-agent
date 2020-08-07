@@ -19,11 +19,11 @@ type Data map[string]interface{}
 
 // Event describes a log event sent for an evaluated compliance/security rule.
 type Event struct {
-	AgentRuleID      string   `json:"agent_rule_id,omitempty"`
-	AgentRuleVersion int      `json:"agent_rule_version,omitempty"`
-	Result           string   `json:"result,omitempty"`
-	ResourceType     string   `json:"resource_type,omitempty"`
-	ResourceID       string   `json:"resource_id,omitempty"`
-	Tags             []string `json:"tags"`
-	Data             Data     `json:"data,omitempty"`
+	AgentRuleID      string      `json:"agent_rule_id,omitempty"`
+	AgentRuleVersion int         `json:"agent_rule_version,omitempty"`
+	Result           string      `json:"result,omitempty"`
+	ResourceType     string      `json:"resource_type,omitempty"`
+	ResourceID       string      `json:"resource_id,omitempty"`
+	Tags             []string    `json:"tags"`
+	Data             interface{} `json:"data,omitempty"`
 }

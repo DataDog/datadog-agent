@@ -6,8 +6,10 @@
 package checks
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -15,91 +17,76 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	fileFieldPath        = "file.path"
-	fileFieldPermissions = "file.permissions"
-	fileFieldUser        = "file.user"
-	fileFieldGroup       = "file.group"
-
-	fileFuncJQ   = "file.jq"
-	fileFuncYAML = "file.yaml"
-)
-
 var fileReportedFields = []string{
-	fileFieldPath,
-	fileFieldPermissions,
-	fileFieldUser,
-	fileFieldGroup,
+	compliance.FileFieldPath,
+	compliance.FileFieldPermissions,
+	compliance.FileFieldUser,
+	compliance.FileFieldGroup,
 }
 
-func checkFile(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*report, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
 
 	file := res.File
 
-	log.Debugf("%s: running file check: %v", ruleID, file)
+	log.Debugf("%s: running file check for %q", ruleID, file.Path)
 
 	path, err := resolvePath(e, file.Path)
 	if err != nil {
 		return nil, err
 	}
 
-	paths := []string{
-		path,
+	paths, err := filepath.Glob(e.NormalizeToHostRoot(path))
+	if err != nil {
+		return nil, err
 	}
 
 	var instances []*eval.Instance
 
 	for _, path := range paths {
-		normalizedPath := e.NormalizePath(path)
-
-		fi, err := os.Stat(normalizedPath)
+		// Re-computing relative after glob filtering
+		relPath := e.RelativeToHostRoot(path)
+		fi, err := os.Stat(path)
 		if err != nil {
 			// This is not a failure unless we don't have any paths to act on
-			log.Debugf("%s: file check failed to stat %s", ruleID, path)
+			log.Debugf("%s: file check failed to stat %s [%s]", ruleID, path, relPath)
 			continue
 		}
 
 		instance := &eval.Instance{
 			Vars: eval.VarMap{
-				fileFieldPath:        path,
-				fileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
+				compliance.FileFieldPath:        relPath,
+				compliance.FileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
 			},
 			Functions: eval.FunctionMap{
-				fileFuncJQ:   fileJQ(normalizedPath),
-				fileFuncYAML: fileYAML(normalizedPath),
+				compliance.FileFuncJQ:     fileJQ(path),
+				compliance.FileFuncYAML:   fileYAML(path),
+				compliance.FileFuncRegexp: fileRegexp(path),
 			},
 		}
 
 		user, err := getFileUser(fi)
 		if err == nil {
-			instance.Vars[fileFieldUser] = user
+			instance.Vars[compliance.FileFieldUser] = user
 		}
 
 		group, err := getFileGroup(fi)
 		if err == nil {
-			instance.Vars[fileFieldGroup] = group
+			instance.Vars[compliance.FileFieldGroup] = group
 		}
 
 		instances = append(instances, instance)
 	}
 
 	if len(instances) == 0 {
-		return nil, fmt.Errorf("no files found for file check")
+		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 
-	it := &instanceIterator{
+	return &instanceIterator{
 		instances: instances,
-	}
-
-	result, err := expr.EvaluateIterator(it, globalInstance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceResultToReport(result, fileReportedFields), nil
+	}, nil
 }
 
 func fileQuery(path string, get getter) eval.Function {
@@ -121,4 +108,8 @@ func fileJQ(path string) eval.Function {
 
 func fileYAML(path string) eval.Function {
 	return fileQuery(path, yamlGetter)
+}
+
+func fileRegexp(path string) eval.Function {
+	return fileQuery(path, regexpGetter)
 }

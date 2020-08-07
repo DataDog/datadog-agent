@@ -2,17 +2,19 @@
 Golang related tasks go here
 """
 from __future__ import print_function
+
+import csv
 import datetime
 import os
 import shutil
 import sys
-import csv
 
 from invoke import task
 from invoke.exceptions import Exit
+
+from .bootstrap import get_deps, process_deps
 from .build_tags import get_default_build_tags
 from .utils import get_build_flags, get_gopath
-from .bootstrap import get_deps, process_deps
 
 # We use `basestring` in the code for compat with python2 unicode strings.
 # This makes the same code work in python3 as well.
@@ -131,7 +133,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
 
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
-    tags = build_tags or get_default_build_tags(arch=arch)
+    tags = build_tags or get_default_build_tags(build="test", arch=arch)
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
@@ -164,7 +166,7 @@ def cyclo(ctx, targets, limit=15):
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
@@ -176,14 +178,15 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags()
-
+    tags = build_tags or get_default_build_tags(build="test", arch=arch)
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
         print("running golangci on {}".format(target))
         ctx.run(
-            "golangci-lint run -c .golangci.yml --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)),
+            "golangci-lint run --timeout 10m0s -c .golangci.yml --build-tags '{}' {}".format(
+                " ".join(tags), "{}/...".format(target)
+            ),
             env=env,
         )
 

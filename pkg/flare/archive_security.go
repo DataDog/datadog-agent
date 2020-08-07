@@ -71,6 +71,11 @@ func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath stri
 		return "", err
 	}
 
+	err = zipRuntimeFiles(tempDir, hostname, permsInfos)
+	if err != nil {
+		return "", err
+	}
+
 	err = zipExpVar(tempDir, hostname)
 	if err != nil {
 		return "", err
@@ -137,6 +142,33 @@ func zipComplianceFiles(tempDir, hostname string, permsInfos permissionsInfos) e
 		}
 
 		dst := filepath.Join(tempDir, hostname, "compliance.d", f.Name())
+
+		if permsInfos != nil {
+			permsInfos.add(src)
+		}
+
+		return util.CopyFileAll(src, dst)
+	})
+
+	return err
+}
+
+func zipRuntimeFiles(tempDir, hostname string, permsInfos permissionsInfos) error {
+	runtimeDir := config.Datadog.GetString("runtime_security_config.policies.dir")
+
+	if permsInfos != nil {
+		addParentPerms(runtimeDir, permsInfos)
+	}
+
+	err := filepath.Walk(runtimeDir, func(src string, f os.FileInfo, err error) error {
+		if f == nil {
+			return nil
+		}
+		if f.IsDir() {
+			return nil
+		}
+
+		dst := filepath.Join(tempDir, hostname, "runtime-security.d", f.Name())
 
 		if permsInfos != nil {
 			permsInfos.add(src)

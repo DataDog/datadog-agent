@@ -191,7 +191,7 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 
 	mRes := make(map[string][]DDMetricsFam)
 
-	for u, metricFamList := range s.metrics {
+	for _, metricFamList := range s.metrics {
 		for _, metricFam := range metricFamList {
 			if !familyFilter(metricFam) {
 				continue
@@ -201,11 +201,9 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 				if !metricFilter(metric) {
 					continue
 				}
-				tags := metric.Labels
-				tags["uid"] = string(u)
 				resMetric = append(resMetric, DDMetric{
 					Val:    metric.Val,
-					Labels: tags,
+					Labels: metric.Labels,
 				})
 			}
 			mRes[metricFam.Name] = append(mRes[metricFam.Name], DDMetricsFam{

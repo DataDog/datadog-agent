@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,9 +21,9 @@ import (
 type complianceCheck struct {
 	env.Env
 
-	name     string
-	ruleID   string
-	interval time.Duration
+	ruleID      string
+	description string
+	interval    time.Duration
 
 	framework    string
 	suiteName    string
@@ -39,7 +40,7 @@ func (c *complianceCheck) Stop() {
 }
 
 func (c *complianceCheck) String() string {
-	return c.name
+	return fmt.Sprintf("%s: %s", c.ruleID, c.description)
 }
 
 func (c *complianceCheck) Configure(config, initConfig integration.Data, source string) error {
@@ -79,24 +80,17 @@ func (c *complianceCheck) Run() error {
 		return c.configError
 	}
 
-	var (
-		passed bool
-		data   event.Data
-	)
-
 	report, err := c.checkable.check(c)
-	if err == nil {
-		data = report.data
-		passed = report.passed
-	} else {
+	if err != nil {
 		log.Warnf("%s: check run failed: %v", c.ruleID, err)
 	}
+	data, result := reportToEventData(report, err)
 
 	e := &event.Event{
 		AgentRuleID:  c.ruleID,
 		ResourceID:   c.resourceID,
 		ResourceType: c.resourceType,
-		Result:       eventResult(passed, err),
+		Result:       result,
 		Data:         data,
 	}
 
@@ -105,6 +99,23 @@ func (c *complianceCheck) Run() error {
 	c.Reporter().Report(e)
 
 	return err
+}
+
+func reportToEventData(report *compliance.Report, err error) (event.Data, string) {
+	var (
+		data   event.Data
+		passed bool
+	)
+	if report != nil {
+		data = report.Data
+		passed = report.Passed
+	}
+	if err != nil {
+		data = event.Data{
+			"error": err.Error(),
+		}
+	}
+	return data, eventResult(passed, err)
 }
 
 func eventResult(passed bool, err error) string {

@@ -1,0 +1,12 @@
+Runtime Security
+================
+
+{{- if not .RuntimeSecurityStatus}}
+  Not enabled
+{{- else}}
+  {{- with .RuntimeSecurityStatus}}
+  Connected: {{.connected}}
+  Events received: {{.eventReceived}}
+  {{- end }}
+{{- end }}
+

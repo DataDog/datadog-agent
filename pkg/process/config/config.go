@@ -27,8 +27,8 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultSystemProbeFilePath is the default logging file for the system probe
-	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
+	// defaultSystemProbeBPFDir is the default path for eBPF programs
+	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/usr/share/system-probe/ebpf"
 
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
@@ -36,12 +36,17 @@ var (
 
 type proxyFunc func(*http.Request) (*url.URL, error)
 
-// WindowsConfig stores all windows-specific configuration for the process-agent.
+// WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
 type WindowsConfig struct {
 	// Number of checks runs between refreshes of command-line arguments
 	ArgsRefreshInterval int
 	// Controls getting process arguments immediately when a new process is discovered
 	AddNewArgs bool
+
+	//System Probe Configuration
+
+	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
+	EnableMonotonicCount bool
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -79,6 +84,7 @@ type AgentConfig struct {
 	CollectLocalDNS                bool
 	SystemProbeAddress             string
 	SystemProbeLogFile             string
+	SystemProbeBPFDir              string
 	MaxTrackedConnections          uint
 	SysProbeBPFDebug               bool
 	ExcludedBPFLinuxVersions       []string
@@ -100,6 +106,7 @@ type AgentConfig struct {
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
 	KubeClusterName                string
+	IsScrubbingEnabled             bool
 
 	// Check config
 	EnabledChecks  []string
@@ -203,7 +210,8 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableIPv6Tracing:    false,
 		DisableDNSInspection:  false,
 		SystemProbeAddress:    defaultSystemProbeAddress,
-		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		SystemProbeLogFile:    defaultSystemProbeLogFilePath,
+		SystemProbeBPFDir:     defaultSystemProbeBPFDir,
 		MaxTrackedConnections: defaultMaxTrackedConnections,
 		EnableConntrack:       true,
 		ClosedChannelSize:     500,
@@ -228,8 +236,9 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 		// Windows process config
 		Windows: WindowsConfig{
-			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
-			AddNewArgs:          true,
+			ArgsRefreshInterval:  15, // with default 20s check interval we refresh every 5m
+			AddNewArgs:           true,
+			EnableMonotonicCount: false,
 		},
 	}
 
@@ -334,6 +343,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 			}
 		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname
+		} else {
+			log.Errorf("Cannot get hostname: %v", err)
 		}
 	}
 
