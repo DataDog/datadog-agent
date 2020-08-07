@@ -353,8 +353,13 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
 	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
-	if sources := config.Datadog.GetStringSlice(key(ns, "container_source")); len(sources) > 0 {
-		util.SetContainerSources(sources)
+	containerSourceKey := key(ns, "container_source")
+	if config.Datadog.Get(containerSourceKey) != nil {
+		// container_source can be nil since we're not forcing default values in the main config file
+		// make sure we don't pass nil value to GetStringSlice to avoid spammy warnings
+		if sources := config.Datadog.GetStringSlice(containerSourceKey); len(sources) > 0 {
+			util.SetContainerSources(sources)
+		}
 	}
 
 	// Pull additional parameters from the global config file.
