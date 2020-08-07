@@ -791,7 +791,7 @@ func bindataPkgEbpfCTracerebpfdebugo() (*asset, error) {
 		name:        "pkg/ebpf/c/tracer-ebpf-debug.o",
 		size:        63984,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -4239,7 +4239,7 @@ func bindataPkgSecurityEbpfCRuntimesecuritysyscallwrappero() (*asset, error) {
 		name:        "pkg/security/ebpf/c/runtime-security-syscall-wrapper.o",
 		size:        487856,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
