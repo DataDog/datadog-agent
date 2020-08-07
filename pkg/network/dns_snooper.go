@@ -38,11 +38,10 @@ type SocketFilterSnooper struct {
 	translation *translation
 
 	// packet telemetry
-	captured  int64
-	processed int64
-	dropped   int64
-	polls     int64
-
+	captured       int64
+	processed      int64
+	dropped        int64
+	polls          int64
 	decodingErrors int64
 	truncatedPkts  int64
 
@@ -132,8 +131,7 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["queries"] = atomic.LoadInt64(&s.queries)
 	stats["successes"] = atomic.LoadInt64(&s.successes)
 	stats["errors"] = atomic.LoadInt64(&s.errors)
-	stats["last_tick_micro_seconds"] = atomic.LoadInt64(&s.lastTickMicroSecs)
-
+	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
 	return stats
 }
 
