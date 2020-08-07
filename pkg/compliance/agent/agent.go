@@ -99,18 +99,22 @@ func (a *Agent) Run() error {
 }
 
 func runCheck(check check.Check) error {
-	log.Infof("%s: Running check %s [%s]", check.ID(), check.String(), check.Version())
-	return check.Run()
+	log.Infof("%s: Running check: %s [version=%s]", check.ID(), check.String(), check.Version())
+	err := check.Run()
+	if err != nil {
+		log.Errorf("%s: Check failed: %v", check.ID(), err)
+	}
+	return nil
 }
 
 // RunChecks runs checks with no scheduling
 func (a *Agent) RunChecks() error {
 	return a.buildChecks(runCheck)
-
 }
 
 // RunChecksFromFile runs checks from the specified file with no scheduling
 func (a *Agent) RunChecksFromFile(file string) error {
+	log.Infof("Loading compliance rules from %s", file)
 	return a.builder.ChecksFromFile(file, runCheck)
 }
 
