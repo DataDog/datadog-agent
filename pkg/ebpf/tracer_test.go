@@ -82,7 +82,6 @@ func TestTracerExpvar(t *testing.T) {
 			"Errors",
 			"Expired",
 			"Ips",
-			"LastTickMicroSeconds",
 			"Lookups",
 			"Oversized",
 			"PacketsCaptured",
@@ -92,6 +91,7 @@ func TestTracerExpvar(t *testing.T) {
 			"Resolved",
 			"SocketPolls",
 			"Successes",
+			"TimestampMicroSecs",
 			"TruncatedPackets",
 		},
 		"kprobes": {
