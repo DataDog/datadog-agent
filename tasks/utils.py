@@ -144,12 +144,12 @@ def get_payload_version():
             pkgname = whitespace_split[0]
             if pkgname == "github.com/DataDog/agent-payload":
                 # Example of line: github.com/DataDog/agent-payload v4.40.0+incompatible
-                comment_split = re.split(r'[ +]', line)
-                if len(comment_split) < 2:
+                version_split = re.split(r'[ +]', line)
+                if len(version_split) < 2:
                     raise Exception(
                         "Versioning of agent-payload in go.mod has changed, the version logic needs to be updated"
                     )
-                version = comment_split[1].strip()
+                version = version_split[1].strip()
                 if not re.search(r"^v\d+(\.\d+){2}$", version):
                     raise Exception("Version of agent-payload in go.mod is invalid: '{}'".format(version))
                 return version
