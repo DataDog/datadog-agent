@@ -19,6 +19,8 @@ build do
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
   copy 'pkg/ebpf/bytecode/tracer-ebpf.o', "#{install_dir}/embedded/share/system-probe/ebpf/"
   copy 'pkg/ebpf/bytecode/tracer-ebpf-debug.o', "#{install_dir}/embedded/share/system-probe/ebpf/"
+  copy 'pkg/ebpf/bytecode/offset-guess.o', "#{install_dir}/embedded/share/system-probe/ebpf/"
+  copy 'pkg/ebpf/bytecode/offset-guess-debug.o', "#{install_dir}/embedded/share/system-probe/ebpf/"
   copy 'pkg/ebpf/c/oom-kill-kern.c', "#{install_dir}/embedded/share/system-probe/ebpf/"
   copy 'pkg/ebpf/c/tcp-queue-length-kern.c', "#{install_dir}/embedded/share/system-probe/ebpf/"
 
