@@ -43,21 +43,13 @@ type SocketFilterSnooper struct {
 	dropped   int64
 	polls     int64
 
-	// DNS telemetry, values calculated *till* the last tick in pollStats
 	decodingErrors int64
 	truncatedPkts  int64
-	queries        int64
-	successes      int64
-	errors         int64
 
-	// running counters for DNS telemetry
-	curDecodingErrors int64
-	curTruncatedPkts  int64
-	curQueries        int64
-	curSuccesses      int64
-	curErrors         int64
-
-	lastTickMicroSecs int64
+	// DNS telemetry, values calculated *till* the last tick in pollStats
+	queries   int64
+	successes int64
+	errors    int64
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
@@ -169,9 +161,9 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
-			atomic.AddInt64(&s.curTruncatedPkts, 1)
+			atomic.AddInt64(&s.truncatedPkts, 1)
 		default:
-			atomic.AddInt64(&s.curDecodingErrors, 1)
+			atomic.AddInt64(&s.decodingErrors, 1)
 			log.Tracef("error decoding DNS payload: %v", err)
 		}
 		return
@@ -183,11 +175,11 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 
 	if pktInfo.pktType == SuccessfulResponse {
 		s.cache.Add(t, time.Now())
-		atomic.AddInt64(&s.curSuccesses, 1)
+		atomic.AddInt64(&s.successes, 1)
 	} else if pktInfo.pktType == FailedResponse {
-		atomic.AddInt64(&s.curErrors, 1)
+		atomic.AddInt64(&s.errors, 1)
 	} else {
-		atomic.AddInt64(&s.curQueries, 1)
+		atomic.AddInt64(&s.queries, 1)
 	}
 }
 
@@ -242,14 +234,6 @@ func (s *SocketFilterSnooper) pollStats() {
 			atomic.AddInt64(&s.processed, sourceStats.Packets-prevProcessed)
 			atomic.AddInt64(&s.captured, int64(socketStats.Packets())-prevCaptured)
 			atomic.AddInt64(&s.dropped, int64(socketStats.Drops())-prevDropped)
-
-			s.truncatedPkts = atomic.LoadInt64(&s.curTruncatedPkts)
-			s.decodingErrors = atomic.LoadInt64(&s.curDecodingErrors)
-			s.queries = atomic.LoadInt64(&s.curQueries)
-			s.successes = atomic.LoadInt64(&s.curSuccesses)
-			s.errors = atomic.LoadInt64(&s.curErrors)
-
-			s.lastTickMicroSecs = int64(microSecs(time.Now()))
 
 			prevPolls = sourceStats.Polls
 			prevProcessed = sourceStats.Packets
