@@ -278,7 +278,6 @@ linux_armhf_go_deps:
     NEW_BUILDER: "false"
 
 run_old_tests_windows-x64:
-  # temporarily allow failure for tests
   extends: .run_old_tests_windows_base
   variables:
     PYTHON_RUNTIMES: 3
@@ -287,9 +286,7 @@ run_old_tests_windows-x64:
 run_old_tests_windows-x86:
   rules:
     - <<: *if_not_deploy
-  # temporarily allow failure for tests
   extends: .run_old_tests_windows_base
-  allow_failure: true
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x86"
@@ -304,7 +301,6 @@ run_old_tests_windows-x86:
     NEW_BUILDER: "true"
 
 run_tests_windows-x64:
-  # temporarily allow failure for tests
   extends: .run_tests_windows_base
   variables:
     PYTHON_RUNTIMES: 3
@@ -315,7 +311,6 @@ run_tests_windows-x86:
     - <<: *if_not_deploy
   # temporarily allow failure for tests
   extends: .run_tests_windows_base
-  allow_failure: true
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x86"
