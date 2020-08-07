@@ -15,7 +15,7 @@ import (
 
 /*
 #include <string.h>
-#include "c/tcp-queue-length-kern-user.h"
+#include "tcp-queue-length-kern-user.h"
 */
 import "C"
 
@@ -24,8 +24,8 @@ type TCPQueueLengthTracer struct {
 	queueMap *bpflib.Table
 }
 
-func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
-	source, err := processHeaders("pkg/ebpf/c/tcp-queue-length-kern.c")
+func NewTCPQueueLengthTracer(cfg *Config) (*TCPQueueLengthTracer, error) {
+	source, err := processHeaders(cfg.BPFDir, "pkg/ebpf/c/tcp-queue-length-kern.c")
 	if err != nil {
 		return nil, fmt.Errorf("Couldn’t process headers for asset “pkg/ebpf/c/tcp-queue-length-kern.c”: %v", err)
 	}

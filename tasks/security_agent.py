@@ -128,21 +128,62 @@ def gen_mocks(ctx):
 
 @task
 def functional_tests(
-    ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output=''
+    ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output='', build_tags=''
 ):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
 
-    cmd = 'sudo -E go test -tags functionaltests,linux_bpf {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
+    cmd = 'sudo -E go test -tags functionaltests,linux_bpf,{build_tags} {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
 
     args = {
         "verbose_opt": "-v" if verbose else "",
         "race_opt": "-race" if race else "",
         "output_opt": "-c -o " + output if output else "",
         "run_opt": "-run " + pattern if pattern else "",
+        "build_tags": build_tags,
         "REPO_PATH": REPO_PATH,
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+
+@task
+def docker_functional_tests(ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern=''):
+    functional_tests(
+        ctx,
+        race=race,
+        verbose=verbose,
+        go_version=go_version,
+        arch=arch,
+        major_version=major_version,
+        output="pkg/security/tests/testsuite",
+    )
+
+    container_name = 'security-agent-tests'
+    capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
+
+    cmd = 'docker run --name {container_name} {caps} -d '
+    cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests debian:bullseye sleep 3600'
+
+    args = {
+        "GOPATH": get_gopath(ctx),
+        "REPO_PATH": REPO_PATH,
+        "container_name": container_name,
+        "caps": ' '.join(['--cap-add ' + cap for cap in capabilities]),
+    }
+
+    ctx.run(cmd.format(**args))
+
+    cmd = 'docker exec {container_name} mount -t debugfs none /sys/kernel/debug'
+    ctx.run(cmd.format(**args))
+
+    cmd = 'docker exec {container_name} /tests/testsuite {pattern}'
+    if verbose:
+        cmd += ' -test.v'
+    try:
+        ctx.run(cmd.format(pattern='-test.run ' + pattern if pattern else '', **args))
+    finally:
+        cmd = 'docker rm -f {container_name}'
+        ctx.run(cmd.format(**args))

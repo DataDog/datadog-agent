@@ -90,7 +90,7 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	m, err := bytecode.ReadBPFModule(false)
+	m, err := bytecode.ReadBPFModule("", false)
 	require.NoError(t, err)
 	defer m.Close()
 
@@ -123,7 +123,7 @@ const (
 )
 
 func initDNSTests(t *testing.T) (*bpflib.Module, *SocketFilterSnooper) {
-	m, err := bytecode.ReadBPFModule(false)
+	m, err := bytecode.ReadBPFModule("", false)
 	require.NoError(t, err)
 	reverseDNS := getSnooper(t, m, true, false, 1*time.Second)
 	return m, reverseDNS
@@ -261,7 +261,7 @@ func TestDNSOverUDPSnoopingWithTimedOutResponse(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	m, err := bytecode.ReadBPFModule(false)
+	m, err := bytecode.ReadBPFModule("", false)
 	require.NoError(t, err)
 	defer m.Close()
 

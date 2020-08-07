@@ -226,7 +226,7 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 
 // NewModule instantiates a runtime security system-probe module
 func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
-	config, err := config.NewConfig()
+	config, err := config.NewConfig(cfg)
 	if err != nil {
 		log.Errorf("invalid security runtime module configuration: %s", err)
 		return nil, err
