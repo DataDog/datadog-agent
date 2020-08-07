@@ -1235,3 +1235,21 @@ func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) 
 	}
 	return mappings, nil
 }
+
+// IsCLCRunner returns whether the Agent is in cluster check runner mode
+func IsCLCRunner() bool {
+	if !Datadog.GetBool("clc_runner_enabled") {
+		return false
+	}
+	var cp []ConfigurationProviders
+	if err := Datadog.UnmarshalKey("config_providers", &cp); err == nil {
+		for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+			cp = append(cp, ConfigurationProviders{Name: name})
+		}
+		if len(cp) == 1 && cp[0].Name == "clusterchecks" {
+			// A cluster check runner is an Agent configured to run clusterchecks only
+			return true
+		}
+	}
+	return false
+}
