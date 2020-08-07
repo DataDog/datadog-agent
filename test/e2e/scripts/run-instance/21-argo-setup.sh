@@ -13,7 +13,8 @@ done
 
 set -e
 
-kubectl apply -f https://raw.githubusercontent.com/argoproj/argo/master/manifests/install.yaml
+kubectl create ns argo
+kubectl apply -n argo -f https://raw.githubusercontent.com/argoproj/argo/master/manifests/install.yaml
 
 set +e
 
