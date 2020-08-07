@@ -2,10 +2,6 @@
 
 package ebpf
 
-/*
-#include "c/ddfilterapi.h"
-*/
-import "C"
 import (
 	"expvar"
 	"fmt"

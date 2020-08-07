@@ -44,10 +44,6 @@ type testEvent struct {
 type testModel struct {
 }
 
-func (e *testEvent) GetID() string {
-	return e.id
-}
-
 func (e *testEvent) GetType() string {
 	return e.kind
 }

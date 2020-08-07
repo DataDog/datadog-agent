@@ -752,7 +752,7 @@ int installServices(CustomActionData& data, const wchar_t *password) {
                    L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"DataDog System Probe", L"Send network metrics to DataDog",
                    sysprobe_exe.c_str(),
-                   L"datadogagent\0ddfilter\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };
     // by default, don't add sysprobe
@@ -845,7 +845,7 @@ int uninstallServices(CustomActionData& data) {
                    L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"DataDog System Probe", L"Send network metrics to DataDog",
                    sysprobe_exe.c_str(),
-                   L"datadogagent\0ddfilter\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };
 #else 
@@ -898,7 +898,7 @@ int verifyServices(CustomActionData& data)
                    L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"DataDog System Probe", L"Send network metrics to DataDog",
                    sysprobe_exe.c_str(),
-                   L"datadogagent\0ddfilter\0\0", SERVICE_DEMAND_START, NULL, NULL)
+                   L"datadogagent\0ddnpm\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };
     // by default, don't add sysprobe

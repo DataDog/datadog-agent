@@ -119,7 +119,7 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
 	} else {
-		log.Debugf("Event %s on rule %s was dropped due to rate limiting", event.GetID(), rule.ID)
+		log.Debugf("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
 }
 
@@ -226,7 +226,7 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 
 // NewModule instantiates a runtime security system-probe module
 func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
-	config, err := config.NewConfig()
+	config, err := config.NewConfig(cfg)
 	if err != nil {
 		log.Errorf("invalid security runtime module configuration: %s", err)
 		return nil, err

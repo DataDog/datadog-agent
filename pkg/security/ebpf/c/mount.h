@@ -7,8 +7,8 @@
 
 struct mount_event_t {
     struct event_t event;
-    struct process_data_t process;
-    char container_id[CONTAINER_ID_LEN];
+    struct process_context_t process;
+    struct container_context_t container;
     int new_mount_id;
     int new_group_id;
     dev_t new_device;
@@ -99,15 +99,10 @@ SYSCALL_KRETPROBE(mount) {
         return 0;
     }
 
-    fill_process_data(&event.process);
-    resolve_dentry(dentry, path_key, NULL);
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
-    // add process cache data
-    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
-    if (entry) {
-        copy_container_id(event.container_id, entry->container_id);
-        event.process.numlower = entry->numlower;
-    }
+    resolve_dentry(dentry, path_key, NULL);
 
     send_mountpoints_events(ctx, event);
 
