@@ -23,3 +23,5 @@
 
          # TODO: Try to get these passing down from the command?
          #       without resorting to os.environ to hold these.
+         #       This also affects isolated builds and it should.
+
