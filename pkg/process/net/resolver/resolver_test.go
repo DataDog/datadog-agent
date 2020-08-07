@@ -5,7 +5,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/DataDog/agent-payload/process"
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
@@ -301,7 +300,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		"127.0.0.1:1260": "foo6",
 	}
 
-	resolver.Resolve(&process.Connections{Conns: tests})
+	resolver.Resolve(&model.Connections{Conns: tests})
 
 	for _, te := range tests {
 		found := false
