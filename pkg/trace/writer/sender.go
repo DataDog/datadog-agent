@@ -33,7 +33,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
-	client := httputils.NewResetClient(cfg.ConnectionResetInterval, cfg.HTTPClient)
+	client := httputils.NewResetClient(cfg.ConnectionResetInterval, cfg.NewHTTPClient)
 	// spread out the the maximum connection limit (climit) between senders
 	maxConns := math.Max(1, float64(climit/len(cfg.Endpoints)))
 	senders := make([]*sender, len(cfg.Endpoints))
