@@ -205,18 +205,11 @@ def integration_remove(package)
   end
 end
 
-def pip_list
-  if os == :windows
-    if info.include? "v6."
-      pip_command = '& "C:\Program Files\Datadog\Datadog Agent\embedded2\python.exe" -m pip'
-    else
-      pip_command = '& "C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe" -m pip'
-    end
-  else
-    pip_command = '/opt/datadog-agent/embedded/bin/python -m pip'
-  end
-  `#{pip_command} list 2>&1`.tap do |output|
-    raise "Failed to get pip list - #{output}" unless $? == 0
+# Note: datadog-agent integration list got added in 6.22.0/7.22.0.
+# Now both list and freeze do the same thing, and use pip list.
+def integration_list
+  `#{agent_command} integration list 2>&1`.tap do |output|
+    raise "Failed to get integrations list - #{output}" unless $? == 0
   end
 end
 
@@ -663,8 +656,8 @@ shared_examples_for 'an Agent with integrations' do
 
     expect do
       integration_remove('datadog-cilium')
-    end.to change { pip_list.match?(%r{datadog-cilium\s+.*}) }.from(true).to(false)
-       .and change { integration_freeze.match?(%r{datadog-cilium}) }.from(true).to(false)
+    end.to change { integration_list.match?(%r{datadog-cilium\s+.*}) }.from(true).to(false)
+       .and change { integration_freeze.match?(%r{datadog-cilium\s+.*}) }.from(true).to(false)
   end
 
   it 'can install a new package' do
@@ -672,14 +665,15 @@ shared_examples_for 'an Agent with integrations' do
 
     expect do
       integration_install('datadog-cilium==1.0.1')
-    end.to change { pip_list.match?(%r{datadog-cilium\s+1\.0\.1}) }.from(false).to(true)
-       .and change { integration_freeze.match?(%r{datadog-cilium}) }.from(false).to(true)
+    end.to change { integration_list.match?(%r{datadog-cilium\s+1\.0\.1}) }.from(false).to(true)
+       .and change { integration_freeze.match?(%r{datadog-cilium\s+1\.0\.1}) }.from(false).to(true)
   end
 
   it 'can upgrade an installed package' do
     expect do
       integration_install('datadog-cilium==1.0.2')
-    end.to change { pip_list.match?(%r{datadog-cilium\s+1\.0\.2}) }.from(false).to(true)
+    end.to change { integration_list.match?(%r{datadog-cilium\s+1\.0\.2}) }.from(false).to(true)
+       .and change { integration_freeze.match?(%r{datadog-cilium\s+1\.0\.2}) }.from(false).to(true)
   end
 
   it 'can downgrade an installed package' do
@@ -688,7 +682,8 @@ shared_examples_for 'an Agent with integrations' do
 
     expect do
       integration_install('datadog-cilium==1.0.1')
-    end.to change { pip_list.match?(%r{datadog-cilium\s+1\.0\.1}) }.from(false).to(true)
+    end.to change { integration_list.match?(%r{datadog-cilium\s+1\.0\.1}) }.from(false).to(true)
+       .and change { integration_freeze.match?(%r{datadog-cilium\s+1\.0\.1}) }.from(false).to(true)
   end
 
   it 'cannot downgrade an installed package to a version older than the one shipped with the agent' do
