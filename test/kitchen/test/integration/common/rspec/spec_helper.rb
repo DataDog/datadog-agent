@@ -205,6 +205,12 @@ def integration_remove(package)
   end
 end
 
+def pip_list
+  `/opt/datadog-agent/embedded/bin/pip list 2>&1`.tap do |output|
+    raise "Failed to get pip list - #{output}" unless $? == 0
+  end
+end
+
 def integration_freeze
   `#{agent_command} integration freeze 2>&1`.tap do |output|
     raise "Failed to get integrations freeze - #{output}" unless $? == 0
@@ -648,7 +654,8 @@ shared_examples_for 'an Agent with integrations' do
 
     expect do
       integration_remove('datadog-cilium')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==.*}) }.from(true).to(false)
+    end.to change { pip_list.match?(%r{datadog-cilium\s+.*}) }.from(true).to(false)
+       .and change { integration_freeze.match?(%r{datadog-cilium}) }.from(true).to(false)
   end
 
   it 'can install a new package' do
@@ -656,13 +663,14 @@ shared_examples_for 'an Agent with integrations' do
 
     expect do
       integration_install('datadog-cilium==1.0.1')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.1}) }.from(false).to(true)
+    end.to change { pip_list.match?(%r{datadog-cilium\s+1\.0\.1}) }.from(false).to(true)
+       .and change { integration_freeze.match?(%r{datadog-cilium}) }.from(false).to(true)
   end
 
   it 'can upgrade an installed package' do
     expect do
       integration_install('datadog-cilium==1.0.2')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.2}) }.from(false).to(true)
+    end.to change { pip_list.match?(%r{datadog-cilium\s+1\.0\.2}) }.from(false).to(true)
   end
 
   it 'can downgrade an installed package' do
@@ -671,7 +679,7 @@ shared_examples_for 'an Agent with integrations' do
 
     expect do
       integration_install('datadog-cilium==1.0.1')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.1}) }.from(false).to(true)
+    end.to change { pip_list.match?(%r{datadog-cilium\s+1\.0\.1}) }.from(false).to(true)
   end
 
   it 'cannot downgrade an installed package to a version older than the one shipped with the agent' do
