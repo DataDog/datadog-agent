@@ -206,7 +206,16 @@ def integration_remove(package)
 end
 
 def pip_list
-  `/opt/datadog-agent/embedded/bin/pip list 2>&1`.tap do |output|
+  if os == :windows
+    if info.include? "v6."
+      pip_command = '& "C:\Program Files\Datadog\Datadog Agent\embedded2\python.exe" -m pip'
+    else
+      pip_command = '& "C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe" -m pip'
+    end
+  else
+    pip_command = '/opt/datadog-agent/embedded/bin/python -m pip'
+  end
+  `#{pip_command} list 2>&1`.tap do |output|
     raise "Failed to get pip list - #{output}" unless $? == 0
   end
 end
