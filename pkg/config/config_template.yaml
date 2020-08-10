@@ -221,11 +221,11 @@ api_key:
 # ec2_metadata_timeout: 300
 
 ## @param ec2_prefer_imdsv2 - boolean - optional - default: false
-## If this flags is true then the agent will request EC2 metadata using IMDS v2,
-## which offer additional security while accessing metadata. However to properly
-## work in some situation (like a containerized agent on a plain EC2 instance)
-## it may require additional configuration on the AWS side. Please check AWS
-## guidelines for further details:
+## If this flag is true then the agent will request EC2 metadata using IMDS v2,
+## which offers additional security for accessing metadata. However, in some
+## situations (such as a containerized agent on a plain EC2 instance) it may
+## require additional configuration on the AWS side. See the AWS guidelines
+## for further details:
 ## https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html#instance-metadata-transition-to-version-2
 #
 # ec2_prefer_imdsv2: false

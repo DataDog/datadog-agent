@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    When requesting EC2 metadata, using IMDSv2 may be preferred by
-    turning on a new configuration option (``ec2_prefer_imdsv2``).
+    When requesting EC2 metadata, you can use IMDSv2 by turning
+    on a new configuration option (``ec2_prefer_imdsv2``).
