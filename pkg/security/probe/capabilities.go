@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+var allCapabilities = make(map[eval.EventType]Capabilities)
+
 // Capability represents the type of values we are able to filter kernel side
 type Capability struct {
 	PolicyFlags     PolicyFlag
@@ -53,4 +55,8 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 	}
 
 	return fcs
+}
+
+func init() {
+	allCapabilities["open"] = openCapabilities
 }

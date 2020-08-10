@@ -7,7 +7,10 @@
 
 package probe
 
-import "github.com/DataDog/datadog-agent/pkg/security/ebpf"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+)
 
 // execTables holds the list of eBPF tables used by the process kprobes
 var execTables = []string{
@@ -22,74 +25,58 @@ var execHookPoints = []*HookPoint{
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/" + getSyscallFnName("execve"),
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "sys_execveat",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/" + getSyscallFnName("execveat"),
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
-		Optional: true,
+		EventTypes: []eval.EventType{"*"},
+		Optional:   true,
 	},
 	{
 		Name:       "sched_process_fork",
 		Tracepoint: "tracepoint/sched/sched_process_fork",
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "do_exit",
 		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/do_exit",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "cgroup_procs_write",
 		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/cgroup_procs_write",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
-		Optional: true,
+		EventTypes: []eval.EventType{"*"},
+		Optional:   true,
 	},
 	{
 		Name: "cgroup1_procs_write",
 		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/cgroup1_procs_write",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
-		Optional: true,
+		EventTypes: []eval.EventType{"*"},
+		Optional:   true,
 	},
 	{
 		Name: "cgroup_tasks_write",
 		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/cgroup_tasks_write",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
-		Optional: true,
+		EventTypes: []eval.EventType{"*"},
+		Optional:   true,
 	},
 	{
 		Name: "cgroup1_tasks_write",
 		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/cgroup1_tasks_write",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
-		Optional: true,
+		EventTypes: []eval.EventType{"*"},
+		Optional:   true,
 	},
 }

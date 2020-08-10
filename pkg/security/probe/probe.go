@@ -146,7 +146,7 @@ func (p *Probe) Start() error {
 			continue
 		}
 
-		for eventType := range hookpoint.EventTypes {
+		for _, eventType := range hookpoint.EventTypes {
 			if hookpoint.OnNewDiscarders != nil {
 				fncs := p.onDiscardersFncs[eventType]
 				fncs = append(fncs, hookpoint.OnNewDiscarders)
@@ -432,11 +432,13 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 		}
 
 		// first set policies
-		for eventType, capabilities := range hookPoint.EventTypes {
+		for _, eventType := range hookPoint.EventTypes {
 			if rs.HasRulesForEventType(eventType) {
 				if hookPoint.PolicyTable == "" {
 					continue
 				}
+
+				capabilities := allCapabilities[eventType]
 
 				if err := p.setKProbePolicy(hookPoint, rs, eventType, capabilities, applier); err != nil {
 					return nil, err
@@ -449,7 +451,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
 		}
 
 		// then register kprobes
-		for eventType := range hookPoint.EventTypes {
+		for _, eventType := range hookPoint.EventTypes {
 			if eventType == "*" || rs.HasRulesForEventType(eventType) {
 				if _, ok := already[hookPoint]; ok {
 					continue

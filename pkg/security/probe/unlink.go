@@ -24,9 +24,7 @@ var UnlinkHookPoints = []*HookPoint{
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_unlink",
 		}},
-		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": {},
-		},
+		EventTypes: []eval.EventType{"unlink"},
 		OnNewDiscarders: func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 			field := discarder.Field
 
@@ -47,17 +45,13 @@ var UnlinkHookPoints = []*HookPoint{
 		},
 	},
 	{
-		Name:    "sys_unlink",
-		KProbes: syscallKprobe("unlink"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": {},
-		},
+		Name:       "sys_unlink",
+		KProbes:    syscallKprobe("unlink"),
+		EventTypes: []eval.EventType{"unlink"},
 	},
 	{
-		Name:    "sys_unlinkat",
-		KProbes: syscallKprobe("unlinkat"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"unlink": {},
-		},
+		Name:       "sys_unlinkat",
+		KProbes:    syscallKprobe("unlinkat"),
+		EventTypes: []eval.EventType{"unlink"},
 	},
 }

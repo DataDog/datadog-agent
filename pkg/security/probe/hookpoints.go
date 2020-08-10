@@ -18,7 +18,7 @@ type HookPoint struct {
 	KProbes         []*ebpf.KProbe
 	Tracepoint      string
 	Optional        bool
-	EventTypes      map[eval.EventType]Capabilities
+	EventTypes      []eval.EventType
 	OnNewApprovers  onApproversFnc
 	OnNewDiscarders onDiscarderFnc
 	PolicyTable     string
@@ -30,214 +30,151 @@ var allHookPoints = []*HookPoint{
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/security_inode_setattr",
 		}},
-		EventTypes: map[eval.EventType]Capabilities{
-			"chmod":  {},
-			"chown":  {},
-			"utimes": {},
-		},
+		EventTypes: []eval.EventType{"chmod", "chown", "utimes"},
 	},
 	{
-		Name:    "sys_chmod",
-		KProbes: syscallKprobe("chmod"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"chmod": {},
-		},
+		Name:       "sys_chmod",
+		KProbes:    syscallKprobe("chmod"),
+		EventTypes: []eval.EventType{"chmod"},
 	},
 	{
-		Name:    "sys_fchmod",
-		KProbes: syscallKprobe("fchmod"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"chmod": {},
-		},
+		Name:       "sys_fchmod",
+		KProbes:    syscallKprobe("fchmod"),
+		EventTypes: []eval.EventType{"chmod"},
 	},
 	{
-		Name:    "sys_fchmodat",
-		KProbes: syscallKprobe("fchmodat"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"chmod": {},
-		},
+		Name:       "sys_fchmodat",
+		KProbes:    syscallKprobe("fchmodat"),
+		EventTypes: []eval.EventType{"chmod"},
 	},
 	{
-		Name:    "sys_chown",
-		KProbes: syscallKprobe("chown"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"chown": {},
-		},
+		Name:       "sys_chown",
+		KProbes:    syscallKprobe("chown"),
+		EventTypes: []eval.EventType{"chown"},
 	},
 	{
-		Name:    "sys_fchown",
-		KProbes: syscallKprobe("fchown"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"chown": {},
-		},
+		Name:       "sys_fchown",
+		KProbes:    syscallKprobe("fchown"),
+		EventTypes: []eval.EventType{"chown"},
 	},
 	{
-		Name:    "sys_fchownat",
-		KProbes: syscallKprobe("fchownat"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"chown": {},
-		},
+		Name:       "sys_fchownat",
+		KProbes:    syscallKprobe("fchownat"),
+		EventTypes: []eval.EventType{"chown"},
 	},
 	{
-		Name:    "sys_lchown",
-		KProbes: syscallKprobe("lchown"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"chown": {},
-		},
+		Name:       "sys_lchown",
+		KProbes:    syscallKprobe("lchown"),
+		EventTypes: []eval.EventType{"chown"},
 	},
 	{
 		Name: "mnt_want_write",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write",
 		}},
-		EventTypes: map[eval.EventType]Capabilities{
-			"utimes": {},
-			"chmod":  {},
-			"chown":  {},
-			"rmdir":  {},
-			"unlink": {},
-			"rename": {},
-		},
+		EventTypes: []eval.EventType{"utimes", "chmod", "chown", "rmdir", "unlink", "rename"},
 	},
 	{
 		Name: "mnt_want_write_file",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write_file",
 		}},
-		EventTypes: map[eval.EventType]Capabilities{
-			"chown": {},
-		},
+		EventTypes: []eval.EventType{"chown"},
 	},
 	{
-		Name:    "sys_utime",
-		KProbes: syscallKprobe("utime"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"utimes": {},
-		},
+		Name:       "sys_utime",
+		KProbes:    syscallKprobe("utime"),
+		EventTypes: []eval.EventType{"utimes"},
 	},
 	{
-		Name:    "sys_utimes",
-		KProbes: syscallKprobe("utimes"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"utimes": {},
-		},
+		Name:       "sys_utimes",
+		KProbes:    syscallKprobe("utimes"),
+		EventTypes: []eval.EventType{"utimes"},
 	},
 	{
-		Name:    "sys_utimensat",
-		KProbes: syscallKprobe("utimensat"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"utimes": {},
-		},
+		Name:       "sys_utimensat",
+		KProbes:    syscallKprobe("utimensat"),
+		EventTypes: []eval.EventType{"utimes"},
 	},
 	{
-		Name:    "sys_futimesat",
-		KProbes: syscallKprobe("futimesat"),
-		EventTypes: map[string]Capabilities{
-			"utimes": {},
-		},
+		Name:       "sys_futimesat",
+		KProbes:    syscallKprobe("futimesat"),
+		EventTypes: []eval.EventType{"utimes"},
 	},
 	{
 		Name: "vfs_mkdir",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_mkdir",
 		}},
-		EventTypes: map[eval.EventType]Capabilities{
-			"mkdir": {},
-		},
+		EventTypes: []eval.EventType{"mkdir"},
 	},
 	{
 		Name: "filename_create",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/filename_create",
 		}},
-		EventTypes: map[string]Capabilities{
-			"mkdir": {},
-			"link":  {},
-		},
+		EventTypes: []eval.EventType{"mkdir", "link"},
 	},
 	{
-		Name:    "sys_mkdir",
-		KProbes: syscallKprobe("mkdir"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"mkdir": {},
-		},
+		Name:       "sys_mkdir",
+		KProbes:    syscallKprobe("mkdir"),
+		EventTypes: []eval.EventType{"mkdir"},
 	},
 	{
-		Name:    "sys_mkdirat",
-		KProbes: syscallKprobe("mkdirat"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"mkdir": {},
-		},
+		Name:       "sys_mkdirat",
+		KProbes:    syscallKprobe("mkdirat"),
+		EventTypes: []eval.EventType{"mkdir"},
 	},
 	{
 		Name: "vfs_rmdir",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_rmdir",
 		}},
-		EventTypes: map[string]Capabilities{
-			"rmdir":  {},
-			"unlink": {},
-		},
+		EventTypes: []eval.EventType{"rmdir", "unlink"},
 	},
 	{
-		Name:    "sys_rmdir",
-		KProbes: syscallKprobe("rmdir"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"rmdir": {},
-		},
+		Name:       "sys_rmdir",
+		KProbes:    syscallKprobe("rmdir"),
+		EventTypes: []eval.EventType{"rmdir"},
 	},
 	{
 		Name: "vfs_rename",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_rename",
 		}},
-		EventTypes: map[eval.EventType]Capabilities{
-			"rename": {},
-		},
+		EventTypes: []eval.EventType{"rename"},
 	},
 	{
-		Name:    "sys_rename",
-		KProbes: syscallKprobe("rename"),
-		EventTypes: map[string]Capabilities{
-			"rename": {},
-		},
+		Name:       "sys_rename",
+		KProbes:    syscallKprobe("rename"),
+		EventTypes: []eval.EventType{"rename"},
 	},
 	{
-		Name:    "sys_renameat",
-		KProbes: syscallKprobe("renameat"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"rename": {},
-		},
+		Name:       "sys_renameat",
+		KProbes:    syscallKprobe("renameat"),
+		EventTypes: []eval.EventType{"rename"},
 	},
 	{
-		Name:    "sys_renameat2",
-		KProbes: syscallKprobe("renameat2"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"rename": {},
-		},
+		Name:       "sys_renameat2",
+		KProbes:    syscallKprobe("renameat2"),
+		EventTypes: []eval.EventType{"rename"},
 	},
 	{
 		Name: "vfs_link",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_link",
 		}},
-		EventTypes: map[string]Capabilities{
-			"link": {},
-		},
+		EventTypes: []eval.EventType{"link"},
 	},
 	{
-		Name:    "sys_link",
-		KProbes: syscallKprobe("link"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"link": {},
-		},
+		Name:       "sys_link",
+		KProbes:    syscallKprobe("link"),
+		EventTypes: []eval.EventType{"link"},
 	},
 	{
-		Name:    "sys_linkat",
-		KProbes: syscallKprobe("linkat"),
-		EventTypes: map[eval.EventType]Capabilities{
-			"link": {},
-		},
+		Name:       "sys_linkat",
+		KProbes:    syscallKprobe("linkat"),
+		EventTypes: []eval.EventType{"link"},
 	},
 }
 

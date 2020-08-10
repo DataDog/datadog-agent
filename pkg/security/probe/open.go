@@ -27,47 +27,43 @@ var openTables = []string{
 	"open_path_inode_discarders",
 }
 
+var openCapabilities = Capabilities{
+	"open.filename": {
+		PolicyFlags:     PolicyFlagBasename,
+		FieldValueTypes: eval.ScalarValueType,
+	},
+	"open.basename": {
+		PolicyFlags:     PolicyFlagBasename,
+		FieldValueTypes: eval.ScalarValueType,
+	},
+	"open.flags": {
+		PolicyFlags:     PolicyFlagFlags,
+		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+	},
+	"process.filename": {
+		PolicyFlags:     PolicyFlagProcessInode,
+		FieldValueTypes: eval.ScalarValueType,
+	},
+}
+
 // openHookPoints holds the list of open's kProbes
 var openHookPoints = []*HookPoint{
 	{
-		Name:    "sys_open",
-		KProbes: syscallKprobe("open"),
-		EventTypes: map[string]Capabilities{
-			"open": {},
-		},
+		Name:       "sys_open",
+		KProbes:    syscallKprobe("open"),
+		EventTypes: []eval.EventType{"open"},
 	},
 	{
-		Name:    "sys_openat",
-		KProbes: syscallKprobe("openat"),
-		EventTypes: map[string]Capabilities{
-			"open": {},
-		},
+		Name:       "sys_openat",
+		KProbes:    syscallKprobe("openat"),
+		EventTypes: []eval.EventType{"open"},
 	},
 	{
 		Name: "vfs_open",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_open",
 		}},
-		EventTypes: map[string]Capabilities{
-			"open": {
-				"open.filename": {
-					PolicyFlags:     PolicyFlagBasename,
-					FieldValueTypes: eval.ScalarValueType,
-				},
-				"open.basename": {
-					PolicyFlags:     PolicyFlagBasename,
-					FieldValueTypes: eval.ScalarValueType,
-				},
-				"open.flags": {
-					PolicyFlags:     PolicyFlagFlags,
-					FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
-				},
-				"process.filename": {
-					PolicyFlags:     PolicyFlagProcessInode,
-					FieldValueTypes: eval.ScalarValueType,
-				},
-			},
-		},
+		EventTypes:  []eval.EventType{"open"},
 		PolicyTable: "open_policy",
 		OnNewApprovers: func(probe *Probe, approvers rules.Approvers) error {
 			stringValues := func(fvs rules.FilterValues) []string {
