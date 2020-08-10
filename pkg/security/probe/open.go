@@ -12,7 +12,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -60,7 +59,7 @@ var openHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_open",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/vfs_open",
 		}},
 		EventTypes:  []eval.EventType{"open"},

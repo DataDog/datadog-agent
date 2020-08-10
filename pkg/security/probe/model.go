@@ -22,12 +22,16 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
-var dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+var (
+	byteOrder              = ebpf.ByteOrder
+	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+)
 
 // InvalidDiscarders exposes list of values that are not discarders
 var InvalidDiscarders = map[eval.Field][]interface{}{

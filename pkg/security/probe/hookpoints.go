@@ -8,14 +8,20 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
+
+// KProbe describes a Linux Kprobe
+type KProbe struct {
+	Name      string
+	EntryFunc string
+	ExitFunc  string
+}
 
 // HookPoint represents
 type HookPoint struct {
 	Name            string
-	KProbes         []*ebpf.KProbe
+	KProbes         []*KProbe
 	Tracepoint      string
 	Optional        bool
 	EventTypes      []eval.EventType
@@ -27,7 +33,7 @@ type HookPoint struct {
 var allHookPoints = []*HookPoint{
 	{
 		Name: "security_inode_setattr",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/security_inode_setattr",
 		}},
 		EventTypes: []eval.EventType{"chmod", "chown", "utimes"},
@@ -69,14 +75,14 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name: "mnt_want_write",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/mnt_want_write",
 		}},
 		EventTypes: []eval.EventType{"utimes", "chmod", "chown", "rmdir", "unlink", "rename"},
 	},
 	{
 		Name: "mnt_want_write_file",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/mnt_want_write_file",
 		}},
 		EventTypes: []eval.EventType{"chown"},
@@ -103,14 +109,14 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_mkdir",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/vfs_mkdir",
 		}},
 		EventTypes: []eval.EventType{"mkdir"},
 	},
 	{
 		Name: "filename_create",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/filename_create",
 		}},
 		EventTypes: []eval.EventType{"mkdir", "link"},
@@ -127,7 +133,7 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_rmdir",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/vfs_rmdir",
 		}},
 		EventTypes: []eval.EventType{"rmdir", "unlink"},
@@ -139,7 +145,7 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_rename",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/vfs_rename",
 		}},
 		EventTypes: []eval.EventType{"rename"},
@@ -161,7 +167,7 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_link",
-		KProbes: []*ebpf.KProbe{{
+		KProbes: []*KProbe{{
 			EntryFunc: "kprobe/vfs_link",
 		}},
 		EventTypes: []eval.EventType{"link"},

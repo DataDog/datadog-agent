@@ -9,7 +9,6 @@ package probe
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -49,7 +48,6 @@ type Probe struct {
 	handler          EventHandler
 	resolvers        *Resolvers
 	onDiscardersFncs map[eval.EventType][]onDiscarderFnc
-	enableFilters    bool
 	tables           map[string]*ebpf.Table
 	eventsStats      EventsStats
 	syscallMonitor   *SyscallMonitor
@@ -365,139 +363,60 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 	return nil
 }
 
-// Applier describes the set of methods required to apply kernel event passing policies
-type Applier interface {
-	ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error
-	ApplyApprovers(eventType eval.EventType, hook *HookPoint, approvers rules.Approvers) error
-	GetReport() *Report
-}
-
-func (p *Probe) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleSet, eventType eval.EventType, capabilities Capabilities, applier Applier) error {
-	if !p.enableFilters {
-		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeNoFilter, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// if approver disabled
-	if !p.config.EnableApprovers {
-		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
-	if err != nil {
-		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	if err := applier.ApplyApprovers(eventType, hookPoint, approvers); err != nil {
-		log.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
-		if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	if err := applier.ApplyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeDeny, capabilities.GetFlags()); err != nil {
-		return err
+func (p *Probe) Init() error {
+	if !p.config.EnableKernelFilters {
+		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
 	return nil
 }
 
-// ApplyRuleSet applies the loaded set of rules and returns a report
-// of the applied approvers for it. If dryRun is set to true,
-// the rules won't be applied but the report will still be returned.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet, dryRun bool) (*Report, error) {
-	var applier Applier = NewReporter()
-	if !dryRun {
-		applier = &KFilterApplier{probe: p, reporter: applier}
+// ApplyFilterPolicy is called when a passing policy for an event type is applied
+func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
+	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
+	table := p.Table(tableName)
+	if table == nil {
+		return fmt.Errorf("unable to find policy table `%s`", tableName)
 	}
 
-	already := make(map[*HookPoint]bool)
-
-	if !p.enableFilters {
-		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	policy := &FilterPolicy{
+		Mode:  mode,
+		Flags: flags,
 	}
 
-	for _, hookPoint := range allHookPoints {
-		if hookPoint.EventTypes == nil {
-			continue
-		}
+	return table.Set(ebpf.ZeroUint32TableItem, policy)
+}
 
-		// first set policies
-		for _, eventType := range hookPoint.EventTypes {
-			if rs.HasRulesForEventType(eventType) {
-				if hookPoint.PolicyTable == "" {
-					continue
-				}
+// ApplyApprovers applies approvers
+func (p *Probe) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, approvers rules.Approvers) error {
+	err := hookPoint.OnNewApprovers(p, approvers)
+	if err != nil {
+		log.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
+	}
+	return err
+}
 
-				capabilities := allCapabilities[eventType]
+func (p *Probe) RegisterKProbe(kprobe *KProbe) error {
+	ekb := ebpf.KProbe(*kprobe)
 
-				if err := p.setKProbePolicy(hookPoint, rs, eventType, capabilities, applier); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		if dryRun {
-			continue
-		}
-
-		// then register kprobes
-		for _, eventType := range hookPoint.EventTypes {
-			if eventType == "*" || rs.HasRulesForEventType(eventType) {
-				if _, ok := already[hookPoint]; ok {
-					continue
-				}
-
-				var active int
-				var err error
-
-				log.Infof("Registering Hook Point `%s`", hookPoint.Name)
-				for _, kprobe := range hookPoint.KProbes {
-					// use hook point name if kprobe name not provided
-					if len(kprobe.Name) == 0 {
-						kprobe.Name = hookPoint.Name
-					}
-
-					if err = p.Module.RegisterKprobe(kprobe); err == nil {
-						log.Infof("kProbe `%s` registered", kprobe.Name)
-						active++
-					} else {
-						log.Debugf("failed to register kProbe `%s`", kprobe.Name)
-					}
-				}
-				if len(hookPoint.Tracepoint) > 0 && err == nil {
-					if err = p.Module.RegisterTracepoint(hookPoint.Tracepoint); err == nil {
-						log.Infof("tracepoint `%s` registered", hookPoint.Tracepoint)
-						active++
-					} else {
-						log.Debugf("failed to register tracepoint `%s`", hookPoint.Tracepoint)
-					}
-				}
-
-				if err != nil {
-					if !hookPoint.Optional {
-						return nil, err
-					}
-				}
-
-				if active > 0 {
-					log.Infof("Hook Point `%s` registered with %d active kProbes", hookPoint.Name, active)
-				}
-				already[hookPoint] = true
-			}
-		}
+	err := p.Module.RegisterKprobe(&ekb)
+	if err == nil {
+		log.Infof("kProbe `%s` registered", kprobe.Name)
+	} else {
+		log.Errorf("failed to register kProbe `%s`", kprobe.Name)
 	}
 
-	return applier.GetReport(), nil
+	return err
+}
+
+func (p *Probe) RegisterTracepoint(tracepoint string) error {
+	err := p.Module.RegisterTracepoint(tracepoint)
+	if err == nil {
+		log.Infof("tracepoint `%s` registered", tracepoint)
+	} else {
+		log.Errorf("failed to register tracepoint `%s`", tracepoint)
+	}
+	return err
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -511,7 +430,6 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	p := &Probe{
 		config:           config,
 		onDiscardersFncs: make(map[eval.EventType][]onDiscarderFnc),
-		enableFilters:    config.EnableKernelFilters,
 		tables:           make(map[string]*ebpf.Table),
 	}
 
