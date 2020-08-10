@@ -243,6 +243,9 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 	if useV1API && s.enableCheckRuns {
 		return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
 	}
+	if useV1API {
+		return s.Forwarder.SubmitV1Intake(serviceCheckPayloads, extraHeaders)
+	}
 	return s.Forwarder.SubmitServiceChecks(serviceCheckPayloads, extraHeaders)
 }
 
