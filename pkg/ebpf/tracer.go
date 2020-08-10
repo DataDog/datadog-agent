@@ -149,12 +149,10 @@ func NewTracer(config *Config) (*Tracer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
-	for probeName := range enabledProbes {
-		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(probeName))
-	}
+
 	enableSocketFilter := config.DNSInspection && !pre410Kernel
 	if enableSocketFilter {
-		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(bytecode.SocketDnsFilter))
+		enabledProbes[bytecode.SocketDnsFilter] = struct{}{}
 		if config.CollectDNSStats {
 			mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
 				Name:  "dns_stats_enabled",
@@ -163,6 +161,15 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
+	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
+	for _, p := range m.Probes {
+		if _, enabled := enabledProbes[bytecode.ProbeName(p.Section)]; !enabled {
+			mgrOptions.ExcludedProbes = append(mgrOptions.ExcludedProbes, p.Section)
+		}
+	}
+	for probeName := range enabledProbes {
+		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(probeName))
+	}
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
@@ -265,7 +272,13 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 			Max: math.MaxUint64,
 		},
 	}
-	for _, probeName := range offsetGuessProbes(config) {
+	enabledProbes := offsetGuessProbes(config)
+	for _, p := range offsetMgr.Probes {
+		if _, enabled := enabledProbes[bytecode.ProbeName(p.Section)]; !enabled {
+			offsetOptions.ExcludedProbes = append(offsetOptions.ExcludedProbes, p.Section)
+		}
+	}
+	for probeName := range enabledProbes {
 		offsetOptions.ActivatedProbes = append(offsetOptions.ActivatedProbes, string(probeName))
 	}
 	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
