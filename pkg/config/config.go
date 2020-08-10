@@ -185,7 +185,7 @@ func initConfig(config Config) {
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.BindEnvAndSetDefault("enable_payloads.events", true)
 	config.BindEnvAndSetDefault("enable_payloads.series", true)
-	config.BindEnvAndSetDefault("enable_payloads.service_checks", false)
+	config.BindEnvAndSetDefault("enable_payloads.service_checks", true)
 	config.BindEnvAndSetDefault("enable_payloads.check_runs", false)
 	config.BindEnvAndSetDefault("enable_payloads.sketches", false)
 	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)

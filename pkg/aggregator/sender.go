@@ -272,24 +272,20 @@ func (s *checkSender) SendRawServiceCheck(sc *metrics.ServiceCheck) {
 // ServiceCheck submits a service check
 func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
-
-	// send service checks as events to StackState
-	serviceCheck := metrics.Event{
-		Title:          checkName,
-		Text:           message,
-		Ts:             time.Now().Unix(),
-		Host:           hostname,
-		Tags:           append(append(tags, s.checkTags...), fmt.Sprintf("status:%s", status)),
-		AggregationKey: checkName,
-		SourceTypeName: "service-check",
-		EventType:      "service-check",
+	serviceCheck := metrics.ServiceCheck{
+		CheckName: checkName,
+		Status:    status,
+		Host:      hostname,
+		Ts:        time.Now().Unix(),
+		Tags:      append(tags, s.checkTags...),
+		Message:   message,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
 		serviceCheck.Host = s.defaultHostname
 	}
 
-	s.eventOut <- serviceCheck
+	s.serviceCheckOut <- serviceCheck
 
 	s.metricStats.Lock.Lock()
 	s.metricStats.ServiceChecks++
