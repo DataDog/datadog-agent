@@ -99,7 +99,7 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example" unless windows_arch_i386?
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
   copy 'bin/agent', "#{install_dir}/bin/"
 
