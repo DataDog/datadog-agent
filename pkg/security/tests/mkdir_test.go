@@ -13,11 +13,11 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMkdir(t *testing.T) {
-	rules := []*policy.RuleDefinition{
+	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
 			Expression: `mkdir.filename == "{{.Root}}/test-mkdir" || mkdir.filename == "{{.Root}}/testat-mkdir"`,

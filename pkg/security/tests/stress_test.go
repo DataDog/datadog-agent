@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 type stressEventHandler struct {
@@ -33,12 +33,12 @@ func (h *stressEventHandler) HandleEvent(event *sprobe.Event) {
 }
 
 func BenchmarkE2EOpen(b *testing.B) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		b.Fatal(err)
 	}

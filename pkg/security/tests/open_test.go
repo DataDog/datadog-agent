@@ -15,16 +15,16 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestOpen(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestOpen(t *testing.T) {
 	}
 }
 
-func benchmarkOpenSameFile(b *testing.B, enableFilters bool, rules ...*policy.RuleDefinition) {
+func benchmarkOpenSameFile(b *testing.B, enableFilters bool, rules ...*rules.RuleDefinition) {
 	test, err := newTestModule(nil, rules, testOpts{enableFilters: enableFilters})
 	if err != nil {
 		b.Fatal(err)
@@ -83,7 +83,7 @@ func benchmarkOpenSameFile(b *testing.B, enableFilters bool, rules ...*policy.Ru
 }
 
 func BenchmarkOpenNoApprover(b *testing.B) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
@@ -92,7 +92,7 @@ func BenchmarkOpenNoApprover(b *testing.B) {
 }
 
 func BenchmarkOpenWithApprover(b *testing.B) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
@@ -126,7 +126,7 @@ func createFolder(current string, filesPerFolder, maxDepth int) error {
 	return nil
 }
 
-func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*policy.RuleDefinition) {
+func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*rules.RuleDefinition) {
 	test, err := newTestModule(nil, rules, testOpts{})
 	if err != nil {
 		b.Fatal(err)
@@ -148,7 +148,7 @@ func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*policy.
 }
 
 func BenchmarkFind(b *testing.B) {
-	benchmarkFind(b, 128, 8, &policy.RuleDefinition{
+	benchmarkFind(b, 128, 8, &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	})
