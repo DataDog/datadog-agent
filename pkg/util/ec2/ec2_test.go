@@ -434,7 +434,7 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	tokenURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	ips, err := GetLocalIPv4()
