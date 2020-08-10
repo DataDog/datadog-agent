@@ -7,6 +7,10 @@ Param(
 
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
+
+# Install dev tools, including invoke
+pip3 install -r requirements.txt
+
 $outputDirectory = "c:\mnt\build-out"
 $rawAgentVersion = (inv agent.version)
 $copyright = "Datadog {0}" -f (Get-Date).Year
