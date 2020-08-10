@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/agent-payload v4.40.0+incompatible
 	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200527110245-7850164045c8
-	github.com/DataDog/ebpf v0.0.0-20200728214655-d148b742bc92
+	github.com/DataDog/ebpf v0.0.0-20200810204017-170f39a7810a
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
@@ -153,10 +153,11 @@ require (
 	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20200728102440-3e129f6d46b1
+	golang.org/x/sys v0.0.0-20200810151505-1b9f1253b3ed
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.0.0-20200327195553-82bb89366a1e
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20200513103714-09dca8ec2884
 	google.golang.org/grpc v1.27.1

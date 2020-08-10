@@ -100,6 +100,8 @@ github.com/DataDog/ebpf v0.0.0-20200728145639-7d2844fe0fe3 h1:2VZHyAPSPYwz4I2s98
 github.com/DataDog/ebpf v0.0.0-20200728145639-7d2844fe0fe3/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
 github.com/DataDog/ebpf v0.0.0-20200728214655-d148b742bc92 h1:F+vgt0/dSR6v3jvw2bBkq5SXZsJPpK7pOacHl7QrsXQ=
 github.com/DataDog/ebpf v0.0.0-20200728214655-d148b742bc92/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200810204017-170f39a7810a h1:oFmjBcE1Oq3YyWfs8K2HszM+G/hAmRwZEqy6IwcEP6o=
+github.com/DataDog/ebpf v0.0.0-20200810204017-170f39a7810a/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
 github.com/DataDog/gobpf v0.0.0-20200131184214-6763fd92fd3f h1:vPk11ERhqpKweLLyXanBlUwKFdkpqDTEDWanr/fLZok=
 github.com/DataDog/gobpf v0.0.0-20200131184214-6763fd92fd3f/go.mod h1:rNvi5cSHdpxN6495MOYAWN3yukac8lORoluL+9Osrsw=
 github.com/DataDog/gobpf v0.0.0-20200728095841-88e65b29b186 h1:M/TmXm0VnfBmg9zkqdz+JQpaPgdgohQ81UE+tClyGiQ=
@@ -1548,6 +1550,8 @@ golang.org/x/sys v0.0.0-20200727154430-2d971f7391a4 h1:gtF+PUC1CD1a9ocwQHbVNXuTp
 golang.org/x/sys v0.0.0-20200727154430-2d971f7391a4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200728102440-3e129f6d46b1 h1:sIky/MyNRSHTrdxfsiUSS4WIAMvInbeXljJz+jDjeYE=
 golang.org/x/sys v0.0.0-20200728102440-3e129f6d46b1/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20200810151505-1b9f1253b3ed h1:WBkVNH1zd9jg/dK4HCM4lNANnmd12EHC9z+LmcCG4ns=
+golang.org/x/sys v0.0.0-20200810151505-1b9f1253b3ed/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.0.0-20160726164857-2910a502d2bf/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180805044716-cb6730876b98/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
@@ -1615,6 +1619,8 @@ golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8T
 golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 h1:go1bK/D/BFZV2I8cIQd1NKEZ+0owSTG1fDTci4IqFcE=
+golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 gomodules.xyz/jsonpatch/v2 v2.0.1/go.mod h1:IhYNNY4jnS53ZnfE4PAmpKtDpTCj1JFXc+3mwe7XcUU=
 gomodules.xyz/jsonpatch/v3 v3.0.1 h1:Te7hKxV52TKCbNYq3t84tzKav3xhThdvSsSp/W89IyI=
 gomodules.xyz/jsonpatch/v3 v3.0.1/go.mod h1:CBhndykehEwTOlEfnsfJwvkFQbSN8YZFr9M+cIHAJto=
