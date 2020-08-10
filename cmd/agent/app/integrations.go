@@ -69,7 +69,6 @@ func init() {
 	integrationCmd.AddCommand(installCmd)
 	integrationCmd.AddCommand(removeCmd)
 	integrationCmd.AddCommand(freezeCmd)
-	integrationCmd.AddCommand(listCmd)
 	integrationCmd.AddCommand(showCmd)
 	integrationCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
@@ -113,13 +112,6 @@ var removeCmd = &cobra.Command{
 
 var freezeCmd = &cobra.Command{
 	Use:   "freeze",
-	Short: "Print the list of installed packages in the agent's python environment",
-	Long:  ``,
-	RunE:  list,
-}
-
-var listCmd = &cobra.Command{
-	Use:   "list",
 	Short: "Print the list of installed packages in the agent's python environment",
 	Long:  ``,
 	RunE:  list,
@@ -843,6 +835,7 @@ func list(cmd *cobra.Command, args []string) error {
 
 	pipArgs := []string{
 		"list",
+		"--format=freeze",
 	}
 
 	pipStdo := bytes.NewBuffer(nil)
