@@ -20,14 +20,11 @@ type KProbe struct {
 
 // HookPoint represents
 type HookPoint struct {
-	Name            string
-	KProbes         []*KProbe
-	Tracepoint      string
-	Optional        bool
-	EventTypes      []eval.EventType
-	OnNewApprovers  onApproversFnc
-	OnNewDiscarders onDiscarderFnc
-	PolicyTable     string
+	Name       string
+	KProbes    []*KProbe
+	Tracepoint string
+	Optional   bool
+	EventTypes []eval.EventType
 }
 
 var allHookPoints = []*HookPoint{

@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux_bpf -output model_accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux -output model_accessors.go
 
 package probe
 

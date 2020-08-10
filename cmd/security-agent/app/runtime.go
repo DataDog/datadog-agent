@@ -24,7 +24,7 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,17 +53,24 @@ func init() {
 }
 
 func checkPolicies(cmd *cobra.Command, args []string) error {
-	cfg := secconfig.Config{
+	cfg := &secconfig.Config{
 		PoliciesDir:         checkPoliciesArgs.dir,
 		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants, sprobe.InvalidDiscarders))
-	if err := policy.LoadPolicies(config, ruleSet); err != nil {
-		return nil, err
+	probe, err := sprobe.NewProbe(cfg)
+	if err != nil {
+		return err
 	}
 
-	rsa := probe.NewRuleSetApplier(cfg)
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(false, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+	if err := policy.LoadPolicies(cfg, ruleSet); err != nil {
+		return err
+	}
+
+	rsa := sprobe.NewRuleSetApplier(cfg)
 
 	report, err := rsa.Apply(ruleSet, nil)
 	if err != nil {

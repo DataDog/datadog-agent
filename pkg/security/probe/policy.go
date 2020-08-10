@@ -10,7 +10,11 @@ package probe
 import (
 	"errors"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
+
+var allPolicyTables = make(map[eval.EventType]string)
 
 // PolicyMode represents the policy mode (accept or deny)
 type PolicyMode uint8
@@ -76,4 +80,8 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 		flags = append(flags, `"name"`)
 	}
 	return []byte("[" + strings.Join(flags, ",") + "]"), nil
+}
+
+func init() {
+	allPolicyTables["open"] = "open_policy"
 }

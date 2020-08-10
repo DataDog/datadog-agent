@@ -69,9 +69,14 @@ func (rsa *RuleSetApplier) RegisterTracepoint(tracepoint string, applier Applier
 	return nil
 }
 
-func (rsa *RuleSetApplier) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleSet, eventType eval.EventType, capabilities Capabilities, applier Applier) error {
+func (rsa *RuleSetApplier) setupHookPoint(rs *rules.RuleSet, eventType eval.EventType, hookPoint *HookPoint, applier Applier) error {
+	policyTable := allPolicyTables[eventType]
+	if policyTable == "" {
+		return nil
+	}
+
 	if !rsa.config.EnableKernelFilters {
-		if err := rsa.applyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeNoFilter, math.MaxUint8, applier); err != nil {
+		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeNoFilter, math.MaxUint8, applier); err != nil {
 			return err
 		}
 		return nil
@@ -79,28 +84,33 @@ func (rsa *RuleSetApplier) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleS
 
 	// if approvers disabled
 	if !rsa.config.EnableApprovers {
-		if err := rsa.applyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
+		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
 			return err
 		}
 		return nil
 	}
 
+	capabilities, exists := allCapabilities[eventType]
+	if !exists {
+		return &ErrCapabilityNotFound{EventType: eventType}
+	}
+
 	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
 	if err != nil {
-		if err := rsa.applyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
+		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
 			return err
 		}
 		return nil
 	}
 
 	if err := rsa.applyApprovers(eventType, hookPoint, approvers, applier); err != nil {
-		if err := rsa.applyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
+		if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeAccept, math.MaxUint8, applier); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if err := rsa.applyFilterPolicy(eventType, hookPoint.PolicyTable, PolicyModeDeny, capabilities.GetFlags(), applier); err != nil {
+	if err := rsa.applyFilterPolicy(eventType, policyTable, PolicyModeDeny, capabilities.GetFlags(), applier); err != nil {
 		return err
 	}
 
@@ -112,8 +122,10 @@ func (rsa *RuleSetApplier) setKProbePolicy(hookPoint *HookPoint, rs *rules.RuleS
 func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, error) {
 	already := make(map[*HookPoint]bool)
 
-	if err := applier.Init(); err != nil {
-		return nil, err
+	if applier != nil {
+		if err := applier.Init(); err != nil {
+			return nil, err
+		}
 	}
 
 	for _, hookPoint := range allHookPoints {
@@ -124,13 +136,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, e
 		// first set policies
 		for _, eventType := range hookPoint.EventTypes {
 			if rs.HasRulesForEventType(eventType) {
-				if hookPoint.PolicyTable == "" {
-					continue
-				}
-
-				capabilities := allCapabilities[eventType]
-
-				if err := rsa.setKProbePolicy(hookPoint, rs, eventType, capabilities, applier); err != nil {
+				if err := rsa.setupHookPoint(rs, eventType, hookPoint, applier); err != nil {
 					return nil, err
 				}
 			}

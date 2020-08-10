@@ -8,6 +8,8 @@
 package probe
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -55,6 +57,15 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 	}
 
 	return fcs
+}
+
+// ErrCapabilityNotFound is returned when there is not capabilities defined for an event type
+type ErrCapabilityNotFound struct {
+	EventType eval.EventType
+}
+
+func (e ErrCapabilityNotFound) Error() string {
+	return fmt.Sprintf("capability not found for event type `%s`", e.EventType)
 }
 
 func init() {
