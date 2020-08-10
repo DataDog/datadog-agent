@@ -6,12 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+enhancements:
   - |
     The integrations freeze cli command now relies on pip list under the
     hood, this has been prompted by the implementation of PEP610 in more
     recent pip versions (>20.1). Thus, pip freeze is no longer appropriate
     for version listing.
-    The change has resulted in a new format for the integration versions
-    listing. If customers relied on the `datadog-agent integration freeze`
-    command for automation or processing, this change could affect them.
