@@ -182,14 +182,14 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 
 	// no custom tags
 	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", nil, "test message")
-	sc := <-serviceCheckChan
-	assert.Nil(t, sc.Tags)
+	sc := <-eventChan
+	assert.Equal(t, []string{"status:OK"}, sc.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
 	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
-	sc = <-serviceCheckChan
-	assert.Equal(t, checkTags, sc.Tags)
+	sc = <-eventChan
+	assert.Equal(t, append(checkTags, "status:OK"), sc.Tags)
 
 	// simulate tags in the configuration file
 	customTags := []string{"custom:tag1", "custom:tag2"}
@@ -198,13 +198,13 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 
 	// only tags coming from the configuration file
 	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", nil, "test message")
-	sc = <-serviceCheckChan
-	assert.Equal(t, customTags, sc.Tags)
+	sc = <-eventChan
+	assert.Equal(t, append(customTags, "status:OK"), sc.Tags)
 
 	// tags added by the check + tags coming from the configuration file
 	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
-	sc = <-serviceCheckChan
-	assert.Equal(t, append(checkTags, customTags...), sc.Tags)
+	sc = <-eventChan
+	assert.Equal(t, append(append(checkTags, customTags...), "status:OK"), sc.Tags)
 }
 
 func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
@@ -315,12 +315,13 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.EqualValues(t, checkID1, commitSenderSample.id)
 	assert.Equal(t, true, commitSenderSample.commit)
 
-	serviceCheck := <-serviceCheckChan
-	assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-	assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
+	serviceCheck := <-eventChan
+	assert.Equal(t, "my_service.can_connect", serviceCheck.Title)
+	assert.Equal(t, "service-check", serviceCheck.SourceTypeName)
+	assert.Equal(t, "my_service.can_connect", serviceCheck.AggregationKey)
 	assert.Equal(t, "my-hostname", serviceCheck.Host)
-	assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
-	assert.Equal(t, "message", serviceCheck.Message)
+	assert.Equal(t, []string{"foo", "bar", fmt.Sprintf("status:%s", metrics.ServiceCheckOK.String())}, serviceCheck.Tags)
+	assert.Equal(t, "message", serviceCheck.Text)
 
 	event := <-eventChan
 	assert.Equal(t, submittedEvent, event)
@@ -384,12 +385,13 @@ func TestCheckSenderHostname(t *testing.T) {
 			assert.Equal(t, tc.expectedHostname, gaugeSenderSample.metricSample.Host)
 			assert.Equal(t, false, gaugeSenderSample.commit)
 
-			serviceCheck := <-serviceCheckChan
-			assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-			assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
+			serviceCheck := <-eventChan
+			assert.Equal(t, "my_service.can_connect", serviceCheck.Title)
+			assert.Equal(t, "service-check", serviceCheck.SourceTypeName)
+			assert.Equal(t, "my_service.can_connect", serviceCheck.AggregationKey)
 			assert.Equal(t, tc.expectedHostname, serviceCheck.Host)
-			assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
-			assert.Equal(t, "message", serviceCheck.Message)
+			assert.Equal(t, []string{"foo", "bar", fmt.Sprintf("status:%s", metrics.ServiceCheckOK.String())}, serviceCheck.Tags)
+			assert.Equal(t, "message", serviceCheck.Text)
 
 			event := <-eventChan
 			assert.Equal(t, "Something happened", event.Title)
