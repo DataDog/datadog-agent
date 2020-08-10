@@ -32,9 +32,7 @@ rules:
     description: log entries removed
     expression: >-
       unlink.filename =~ "/var/log/*" &&
-      unlink.filename != "/var/log/datadog/system-probe.log" &&
-      unlink.basename !~ "*.tmp" &&
-      process.name != "kubelet"
+      unlink.filename != "/var/log/datadog/system-probe.log"
     tags:
       mitre: T1070
   - id: permissions_changed
