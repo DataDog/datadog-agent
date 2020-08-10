@@ -209,7 +209,7 @@ func doHTTPRequest(url string, method string, headers map[string]string, useToke
 	if useToken {
 		token, err := getToken()
 		if err != nil {
-			log.Info("ec2_prefer_imdsv2 is set to true in configuration but the agent was unable to get a token: %s", err)
+			log.Warnf("ec2_prefer_imdsv2 is set to true in configuration but the agent was unable to get a token: %s", err)
 		} else {
 			headers["X-aws-ec2-metadata-token"] = token
 		}
