@@ -347,10 +347,10 @@ func TestAgentIntegration(t *testing.T) {
 
 func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.Instance, expectedTopology batcher.Topologies) ([]topology.Component, []topology.Relation) {
 	var integrationIdentifier, integrationInstanceIdentifier string
-	for _, e := range expectedTopology[key].Components[1].Data["events"].([]interface{}) {
+	for _, e := range expectedTopology[key].Components[1].Data["service_checks"].([]interface{}) {
 		integrationIdentifier = e.(map[string]interface{})["identifier"].(string)
 	}
-	for _, e := range expectedTopology[key].Components[2].Data["events"].([]interface{}) {
+	for _, e := range expectedTopology[key].Components[2].Data["service_checks"].([]interface{}) {
 		integrationInstanceIdentifier = e.(map[string]interface{})["identifier"].(string)
 	}
 
@@ -395,7 +395,7 @@ func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.I
 							"stream_id": int64(-1), "name": "Integration Health", "is_service_check_health_check": int64(1),
 						},
 					},
-					"events": []interface{}{map[string]interface{}{
+					"service_checks": []interface{}{map[string]interface{}{
 						"stream_id":  int64(-1),
 						"identifier": integrationIdentifier,
 						"conditions": []interface{}{
@@ -426,7 +426,7 @@ func getAgentIntegrationTopology(t *testing.T, key check.ID, instance topology.I
 							"is_service_check_health_check": int64(1),
 						},
 					},
-					"events": []interface{}{
+					"service_checks": []interface{}{
 						map[string]interface{}{
 							"conditions": []interface{}{
 								map[string]interface{}{"value": host, "key": "host"},
