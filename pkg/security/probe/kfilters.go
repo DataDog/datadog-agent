@@ -124,7 +124,7 @@ func isParentPathDiscarder(rs *rules.RuleSet, eventType eval.EventType, filename
 	}
 
 	if isDiscarder {
-		log.Debugf("`%s` discovered as parent discarder", dirname)
+		log.Tracef("`%s` discovered as parent discarder", dirname)
 	}
 
 	return isDiscarder, nil

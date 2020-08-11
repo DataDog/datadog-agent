@@ -290,7 +290,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	if !exists {
 		return result
 	}
-	log.Debugf("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+	log.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
@@ -302,7 +302,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	if !result {
-		log.Debugf("Looking for discarders for event of type `%s`", eventType)
+		log.Tracef("Looking for discarders for event of type `%s`", eventType)
 
 		for _, field := range bucket.fields {
 			evaluator, err := rs.model.GetEvaluator(field)
@@ -327,7 +327,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				}
 			}
 			if isDiscarder {
-				log.Debugf("Found a discarder for field `%s` with value `%s`\n", field, value)
+				log.Tracef("Found a discarder for field `%s` with value `%s`\n", field, value)
 				rs.NotifyDiscarderFound(event, field)
 			}
 		}

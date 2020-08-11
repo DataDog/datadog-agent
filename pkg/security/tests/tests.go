@@ -379,7 +379,7 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
 	var logLevel seelog.LogLevel = seelog.InfoLvl
 	if testing.Verbose() {
-		logLevel = seelog.DebugLvl
+		logLevel = seelog.TraceLvl
 	}
 
 	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
