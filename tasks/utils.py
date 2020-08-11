@@ -152,7 +152,7 @@ def get_payload_version():
                 version = version_split[1].strip()
                 if not re.search(r"^v\d+(\.\d+){2}$", version):
                     raise Exception("Version of agent-payload in go.mod is invalid: '{}'".format(version))
-                return version
+                return version[1:]
 
     raise Exception("Could not find valid version for agent-payload in go.mod file")
 
