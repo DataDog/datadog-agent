@@ -17,6 +17,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/tagger/utils"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -43,6 +44,12 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		// Pod name
 		tags.AddOrchestrator("pod_name", pod.Metadata.Name)
 		tags.AddLow("kube_namespace", pod.Metadata.Namespace)
+		// sts
+		clusterName := clustername.GetClusterName()
+		if clusterName != "" {
+			tags.AddLow("kube_cluster_name", clusterName)
+		}
+		// sts
 
 		// Pod labels
 		for name, value := range pod.Metadata.Labels {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -122,6 +123,7 @@ func TestParsePods(t *testing.T) {
 				Entity: dockerEntityID,
 				LowCardTags: []string{
 					"kube_namespace:default",
+					"kube_cluster_name:test-cluster",
 					"kube_container_name:dd-agent",
 					"kube_daemon_set:dd-agent-rc",
 					"image_tag:latest5",
@@ -551,6 +553,8 @@ func TestParseDeploymentForReplicaset(t *testing.T) {
 		"frontend-56a89cfff7": "", // no vowels allowed
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			mockConfig := config.Mock()
+			mockConfig.Set("cluster_name", "test-cluster")
 			collector := &KubeletCollector{}
 			assert.Equal(t, out, collector.parseDeploymentForReplicaset(in))
 		})
