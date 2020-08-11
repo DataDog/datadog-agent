@@ -115,11 +115,18 @@ func isParentPathDiscarder(rs *rules.RuleSet, eventType eval.EventType, filename
 	//       ex: open.filename == "/etc/passwd"
 	//           open.basename == "shadow"
 	//       These rules won't return any discarder
-	isDiscarder, err := rs.IsDiscarder(eventType+".basename", path.Base(dirname))
-	if err != nil {
-		if _, ok := err.(*eval.ErrFieldNotFound); ok {
-			// no basename rule so we can discard
-			isDiscarder = true
+	var isDiscarder bool
+
+	field := eventType + ".basename"
+	if values := rs.GetFieldValues(field); len(values) == 0 {
+		isDiscarder = true
+	} else {
+		isDiscarder, err = rs.IsDiscarder(field, path.Base(dirname))
+		if err != nil {
+			if _, ok := err.(*eval.ErrFieldNotFound); ok {
+				// no basename rule so we can discard
+				isDiscarder = true
+			}
 		}
 	}
 
