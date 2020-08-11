@@ -150,8 +150,7 @@ func (s *SocketFilterSnooper) Close() {
 // the reverse DNS cache. The underlying packet data can't be referenced after this method
 // call since the underlying memory content gets invalidated by `afpacket`.
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
-func (s *SocketFilterSnooper) processPacket(data []byte) {
-	ts := time.Now() // record the timestamp before we do any processing
+func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
@@ -183,7 +182,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 
 func (s *SocketFilterSnooper) pollPackets() {
 	for {
-		data, _, err := s.source.ZeroCopyReadPacketData()
+		data, captureInfo, err := s.source.ZeroCopyReadPacketData()
 
 		// Properly synchronizes termination process
 		select {
@@ -193,7 +192,7 @@ func (s *SocketFilterSnooper) pollPackets() {
 		}
 
 		if err == nil {
-			s.processPacket(data)
+			s.processPacket(data, captureInfo.Timestamp)
 			continue
 		}
 
