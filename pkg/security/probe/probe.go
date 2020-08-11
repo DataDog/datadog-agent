@@ -531,8 +531,6 @@ func (p *Probe) handleLostEvents(count uint64) {
 }
 
 func (p *Probe) handleEvent(data []byte) {
-	log.Debugf("Handling event (len %d)", len(data))
-
 	offset := 0
 	event := NewEvent(p.resolvers)
 
@@ -544,7 +542,7 @@ func (p *Probe) handleEvent(data []byte) {
 	offset += read
 
 	eventType := EventType(event.Type)
-	log.Debugf("Decoding event %s", eventType.String())
+	log.Tracef("Decoding event %s", eventType.String())
 
 	switch eventType {
 	case FileOpenEventType:
@@ -620,7 +618,7 @@ func (p *Probe) handleEvent(data []byte) {
 
 	p.eventsStats.CountEventType(eventType, 1)
 
-	log.Debugf("Dispatching event %+v\n", event)
+	log.Tracef("Dispatching event %+v\n", event)
 	p.DispatchEvent(event)
 }
 
@@ -631,7 +629,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	log.Debugf("New discarder event %+v for field %s\n", event, field)
+	log.Tracef("New discarder event %+v for field %s\n", event, field)
 
 	eventType, err := event.GetFieldEventType(field)
 	if err != nil {
