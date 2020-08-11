@@ -26,7 +26,7 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("runtime_security_config.run_path"), health)
+	auditor := auditor.New(coreconfig.Datadog.GetString("runtime_security_config.run_path"), "runtime-security-registry.json", health)
 	auditor.Start()
 	stopper.Add(auditor)
 
