@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,31 +24,51 @@ const (
 )
 
 // profilingEndpoint returns the profiling intake API URL based on agent configuration.
-func profilingEndpoint() string {
+func profilingEndpoints() []string {
 	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
-		return v
+		return strings.Split(v, ",")
 	}
 	if site := config.Datadog.GetString("site"); site != "" {
-		return fmt.Sprintf(profilingURLTemplate, site)
+		return []string{fmt.Sprintf(profilingURLTemplate, site)}
 	}
-	return profilingURLDefault
+	return []string{profilingURLDefault}
 }
 
 // profileProxyHandler returns a new HTTP handler which will proxy requests to the profiling intake.
 // If the URL can not be computed because of a malformed 'site' config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
-	target := profilingEndpoint()
-	u, err := url.Parse(target)
-	if err != nil {
-		log.Errorf("Profile forwarder is OFF because of invalid intake URL: %v", err)
+	targets := profilingEndpoints()
+	proxies := []*httputil.ReverseProxy{}
+	for _, target := range targets {
+		u, err := url.Parse(target)
+		if err != nil {
+			log.Errorf("Error parsing intake URL %s: %v", target, err)
+			continue
+		}
+		tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
+		proxy := newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)
+		if proxy != nil {
+			proxies = append(proxies, proxy)
+		}
+	}
+	switch len(proxies) {
+	case 0:
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			msg := fmt.Sprintf("Agent is misconfigured with an invalid intake URL: %q", target)
+			msg := fmt.Sprintf("Profile forwarder is OFF because of invalid intake URL configuration: %v", targets)
 			http.Error(w, msg, http.StatusInternalServerError)
 		})
+	case 1:
+		return proxies[0]
+	default:
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			proxies[0].ServeHTTP(w, req)
+			for _, proxy := range proxies[1:] {
+				// for additional endpoints we ignore the response
+				proxy.ServeHTTP(&dummyResponseWriter{}, req)
+			}
+		})
 	}
-	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
-	return newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)
 }
 
 // newProfileProxy creates a single-host reverse proxy with the given target, attaching
@@ -63,7 +84,6 @@ func newProfileProxy(transport http.RoundTripper, target *url.URL, apiKey, tags 
 			// that net/http gives it: Go-http-client/1.1
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
-
 		}
 		containerID := req.Header.Get(headerContainerID)
 		if ctags := getContainerTags(containerID); ctags != "" {
@@ -79,3 +99,15 @@ func newProfileProxy(transport http.RoundTripper, target *url.URL, apiKey, tags 
 		Transport: transport,
 	}
 }
+
+type dummyResponseWriter struct{}
+
+func (d *dummyResponseWriter) Header() http.Header {
+	return make(map[string][]string)
+}
+
+func (d *dummyResponseWriter) Write([]byte) (int, error) {
+	return 0, nil
+}
+
+func (d *dummyResponseWriter) WriteHeader(statusCode int) {}

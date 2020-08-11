@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -57,24 +58,37 @@ func TestProfileProxy(t *testing.T) {
 	}
 }
 
-func TestProfilingEndpoint(t *testing.T) {
+func TestProfilingEndpoints(t *testing.T) {
 	t.Run("dd_url", func(t *testing.T) {
 		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
-		if v := profilingEndpoint(); v != "https://intake.profile.datadoghq.fr/v1/input" {
-			t.Fatalf("invalid endpoint: %s", v)
+		endpoints := profilingEndpoints()
+		if len(endpoints) != 1 || endpoints[0] != "https://intake.profile.datadoghq.fr/v1/input" {
+			t.Fatalf("invalid endpoints: %v", endpoints)
+		}
+	})
+
+	t.Run("multiple dd_url", func(t *testing.T) {
+		defer mockConfig("apm_config.profiling_dd_url",
+			"https://intake.profile.datadoghq.fr/v1/input,https://intake.profile.datadoghq.com/v1/input")()
+		endpoints := profilingEndpoints()
+		if len(endpoints) != 2 || endpoints[0] != "https://intake.profile.datadoghq.fr/v1/input" ||
+			endpoints[1] != "https://intake.profile.datadoghq.com/v1/input" {
+			t.Fatalf("invalid endpoints: %v", endpoints)
 		}
 	})
 
 	t.Run("site", func(t *testing.T) {
 		defer mockConfig("site", "datadoghq.eu")()
-		if v := profilingEndpoint(); v != "https://intake.profile.datadoghq.eu/v1/input" {
-			t.Fatalf("invalid endpoint: %s", v)
+		endpoints := profilingEndpoints()
+		if len(endpoints) != 1 || endpoints[0] != "https://intake.profile.datadoghq.eu/v1/input" {
+			t.Fatalf("invalid endpoints: %v", endpoints)
 		}
 	})
 
 	t.Run("default", func(t *testing.T) {
-		if v := profilingEndpoint(); v != "https://intake.profile.datadoghq.com/v1/input" {
-			t.Fatalf("invalid endpoint: %s", v)
+		endpoints := profilingEndpoints()
+		if len(endpoints) != 1 || endpoints[0] != "https://intake.profile.datadoghq.com/v1/input" {
+			t.Fatalf("invalid endpoint: %v", endpoints)
 		}
 	})
 }
@@ -119,8 +133,29 @@ func TestProfileProxyHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(slurp), "misconfigured") {
+		if !strings.Contains(string(slurp), "invalid intake URL") {
 			t.Fatalf("invalid message: %q", slurp)
+		}
+	})
+
+	t.Run("multiple", func(t *testing.T) {
+		called := make(map[string]bool)
+		handler := func(w http.ResponseWriter, req *http.Request) {
+			called[req.Host] = true
+		}
+		srv1 := httptest.NewServer(http.HandlerFunc(handler))
+		srv2 := httptest.NewServer(http.HandlerFunc(handler))
+		defer mockConfig("apm_config.profiling_dd_url", fmt.Sprintf("%s,%s", srv1.URL, srv2.URL))()
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conf := newTestReceiverConfig()
+		conf.Hostname = "myhost"
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		if len(called) != 2 {
+			t.Fatalf("request not proxied to both targets %v", called)
 		}
 	})
 }
