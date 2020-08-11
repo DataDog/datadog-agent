@@ -26,6 +26,8 @@ build do
   end
 
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
+  copy 'pkg/ebpf/c/bpf-common.h', "#{install_dir}/embedded/share/system-probe/ebpf/"
+
   copy 'pkg/ebpf/c/oom-kill-kern.c', "#{install_dir}/embedded/share/system-probe/ebpf/"
   copy 'pkg/ebpf/oom-kill-kern-user.h', "#{install_dir}/embedded/share/system-probe/ebpf/"
 

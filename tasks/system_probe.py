@@ -49,7 +49,7 @@ def build(
     windows=False,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
-    bundle_ebpf=True,
+    bundle_ebpf=False,
 ):
     """
     Build the system_probe
