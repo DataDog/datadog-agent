@@ -188,11 +188,12 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 }
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
-func GetAndFormatSecurityAgentStatus() ([]byte, error) {
+func GetAndFormatSecurityAgentStatus(runtimeStatus map[string]interface{}) ([]byte, error) {
 	s, err := GetStatus()
 	if err != nil {
 		return nil, err
 	}
+	s["runtimeSecurityStatus"] = runtimeStatus
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {
