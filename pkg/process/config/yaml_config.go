@@ -390,7 +390,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			a.KubeClusterName = clusterName
 		}
 	}
-	a.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.scrubbing.enabled")
+	a.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
 
 	return nil
 }
