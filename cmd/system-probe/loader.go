@@ -4,6 +4,7 @@ package main
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -16,6 +17,7 @@ import (
 // * Module termination;
 // * Module telemetry consolidation;
 type Loader struct {
+	once    sync.Once
 	modules map[string]api.Module
 }
 
@@ -58,9 +60,11 @@ func (l *Loader) GetStats() map[string]interface{} {
 
 // Close each registered module
 func (l *Loader) Close() {
-	for _, module := range l.modules {
-		module.Close()
-	}
+	l.once.Do(func() {
+		for _, module := range l.modules {
+			module.Close()
+		}
+	})
 }
 
 // NewLoader returns a new Loader instance
