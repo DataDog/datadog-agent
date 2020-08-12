@@ -9,22 +9,40 @@ from .deploy.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
 
 @task
 def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
+    """
+    Trigger a deploy pipeline on the given git ref.
+    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
+    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
+    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to.
+    """
     pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, repo_branch, deploy=True)
     wait_for_pipeline("DataDog/datadog-agent", pipeline_id)
 
 
 @task
-def run_with_all_tests(
-    ctx, git_ref="master", here=False, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="none"
-):
+def run_all_tests(ctx, git_ref="master", here=False, release_version_6="nightly", release_version_7="nightly-a7"):
+    """
+    Trigger a pipeline on the given git ref, or on the current branch if --here is given. This pipeline will run
+    all tests, including kitchen tests.
+    The packages built won't be deployed to the staging repository. Use invoke pipeline.trigger if you want to
+    deploy them.
+    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
+    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
+    """
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-    pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, repo_branch, deploy=False)
+    pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, "none", deploy=False)
     wait_for_pipeline("DataDog/datadog-agent", pipeline_id)
 
 
 @task
 def follow(ctx, id=None, git_ref=None, here=False):
+    """
+    Follow a pipeline's progress in the CLI.
+    Use --here to follow the latest pipeline on your current branch.
+    Use --git-ref to follow the latest pipeline on a given tag or branch.
+    Use --id to follow a specific pipeline.
+    """
     if id is not None:
         wait_for_pipeline("DataDog/datadog-agent", id)
     elif git_ref is not None:
