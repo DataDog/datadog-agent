@@ -153,6 +153,7 @@ func runAgent(exit <-chan struct{}) {
 	}()
 
 	<-exit
+	loader.Close()
 }
 
 func gracefulExit() {
