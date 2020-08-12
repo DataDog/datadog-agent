@@ -155,60 +155,88 @@ func TestSQLUTF8(t *testing.T) {
 
 func TestSQLTableFinder(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "table_names")
+		os.Setenv("DD_APM_FEATURES", "table_names,normalize_sql_tables")
 		defer os.Unsetenv("DD_APM_FEATURES")
 
 		for _, tt := range []struct {
-			query  string
-			tables string
+			query      string
+			tables     string
+			obfuscated string
 		}{
 			{
 				"select * from users where id = 42",
 				"users",
+				"select * from users where id = ?",
 			},
 			{
 				"select * from `backslashes` where id = 42",
 				"backslashes",
+				"select * from backslashes where id = ?",
 			},
 			{
 				`select * from "double-quotes" where id = 42`,
 				"double-quotes",
+				`select * from double-quotes where id = ?`,
 			},
 			{
 				"SELECT host, status FROM ec2_status WHERE org_id = 42",
 				"ec2_status",
+				"SELECT host, status FROM ec?_status WHERE org_id = ?",
 			},
 			{
 				"SELECT * FROM (SELECT * FROM nested_table)",
 				"nested_table",
+				"SELECT * FROM (SELECT * FROM nested_table)",
 			},
 			{
 				"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
 				"users",
+				"select * from users where id = ?",
 			},
 			{
 				"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20",
 				"articles",
+				"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?, ?",
 			},
 			{
 				"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
 				"user_dash_pref",
+				"UPDATE user_dash_pref SET json_prefs = ?, modified = ? WHERE user_id = ? AND url = ?",
 			},
 			{
 				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
 				"host,host_alias",
+				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = ? AND host.name NOT IN ( ? ) AND host.name IN ( ? )",
 			},
 			{
 				`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
 				"Orders",
+				`update Orders set created = ?, gross = ?, payment_type = ?, mg_fee = ?, fee_collected = ?, event = ?, status = ?, survey_type = ?, tx_time_limit = ?, invite = ?, ip_address = ?, currency = ?, gross_USD = ?, tax_USD = ?, journal_activity_id = ?, eb_tax = ?, eb_tax_USD = ?, cart_uuid = ?, changed = ? where id = ?`,
 			},
 			{
 				"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
 				"clients,owners",
+				"SELECT * FROM clients WHERE (clients.first_name = ?) LIMIT ? BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ( ? ) COMMIT",
 			},
 			{
 				"DELETE FROM table WHERE table.a=1",
 				"table",
+				"DELETE FROM table WHERE table.a = ?",
+			},
+			{
+				"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
+				"wp_woocommerce_order_items,wp_postmeta",
+				"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
+			},
+			{
+				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
+				"sales_2019_07_01,item1001",
+				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE (), [ qty ], ? )",
+			},
+			{
+				"SELECT * FROM 春送x猪福1001福2",
+				"春送x猪福1001福2",
+				"SELECT * FROM 春送x猪福?福2?",
 			},
 		} {
 			t.Run("", func(t *testing.T) {
@@ -224,6 +252,19 @@ func TestSQLTableFinder(t *testing.T) {
 		oq, err := NewObfuscator(nil).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
 		assert.Empty(t, oq.TablesCSV)
+	})
+}
+
+func BenchmarkTableNormalizer(b *testing.B) {
+	rf := &replaceFilter{}
+	os.Setenv("DD_APM_FEATURES", "normalize_sql_tables")
+	defer os.Unsetenv("DD_APM_FEATURES")
+
+	b.Run("", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			rf.replaceTableDigits([]byte("sales_2019_07_01_orders"))
+		}
 	})
 }
 
@@ -545,6 +586,23 @@ ORDER BY [b].[Name]`,
 		{
 			"SELECT MIN(`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_8720d2c0e0824ec2910ab9479085839c`) AS `MIN_BECR_DATE_CREATED` FROM (SELECT `49a39c4cc9ae4fdda07bcf49e99f8224`.`submittedOn` AS `scoped_8720d2c0e0824ec2910ab9479085839c`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`domain` AS `scoped_847e4dcfa1c54d72aad6dbeb231c46de`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventConsumer` AS `scoped_7b2f7b8da15646d1b75aa03901460eb2`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventType` AS `scoped_77a1b9308b384a9391b69d24335ba058` FROM (`SorDesignTime`.`businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e` AS `49a39c4cc9ae4fdda07bcf49e99f8224`) WHERE (`49a39c4cc9ae4fdda07bcf49e99f8224`.`systemData.ClientID`) = ('35c1ccc0-a83c-4812-a189-895e9d4dd223')) AS `scoped_49a39c4cc9ae4fdda07bcf49e99f8224` WHERE ((`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_847e4dcfa1c54d72aad6dbeb231c46de`) = ('Benefits') AND ((`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_7b2f7b8da15646d1b75aa03901460eb2`) = ('benefits') AND (`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_77a1b9308b384a9391b69d24335ba058`) = ('DMXSync'))); ",
 			"SELECT MIN ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_8720d2c0e0824ec2910ab9479085839c ) FROM ( SELECT 49a39c4cc9ae4fdda07bcf49e99f8224 . submittedOn, 49a39c4cc9ae4fdda07bcf49e99f8224 . domain, 49a39c4cc9ae4fdda07bcf49e99f8224 . eventConsumer, 49a39c4cc9ae4fdda07bcf49e99f8224 . eventType FROM ( SorDesignTime . businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e ) WHERE ( 49a39c4cc9ae4fdda07bcf49e99f8224 . systemData.ClientID ) = ( ? ) ) WHERE ( ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_847e4dcfa1c54d72aad6dbeb231c46de ) = ( ? ) AND ( ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_7b2f7b8da15646d1b75aa03901460eb2 ) = ( ? ) AND ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_77a1b9308b384a9391b69d24335ba058 ) = ( ? ) ) )",
+		},
+		{
+			"SELECT org_id,metric_key,metric_type,interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(ARRAY[?,?,?,?,?])",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ? ] )",
+		},
+		{
+			`SELECT wp_woocommerce_order_items.order_id As No_Commande
+			FROM  wp_woocommerce_order_items
+			LEFT JOIN
+				(
+					SELECT meta_value As Prenom
+					FROM wp_postmeta
+					WHERE meta_key = '_shipping_first_name'
+				) AS a
+			ON wp_woocommerce_order_items.order_id = a.post_id
+			WHERE  wp_woocommerce_order_items.order_id =2198`,
+			"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
 		},
 	}
 

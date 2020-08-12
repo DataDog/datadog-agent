@@ -106,9 +106,37 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 	switch token {
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
 		return FilteredGroupable, []byte("?"), nil
+	case '?':
+		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
+		return FilteredGroupable, []byte("?"), nil
+	case Table:
+		if config.HasFeature("normalize_sql_tables") {
+			return token, f.replaceTableDigits(buffer), nil
+		}
+		fallthrough
 	default:
 		return token, buffer, nil
 	}
+}
+
+// replaceTableDigits replaces consecutive sequences of digits with '?',
+// example: "jobs_2020_1597876964" --> "jobs_?_?"
+func (f *replaceFilter) replaceTableDigits(buffer []byte) []byte {
+	buf := make([]byte, 0, len(buffer))
+	scanningDigit := false
+	for _, c := range string(buffer) {
+		if isDigit(c) {
+			if scanningDigit {
+				continue
+			}
+			scanningDigit = true
+			buf = append(buf, byte('?'))
+			continue
+		}
+		scanningDigit = false
+		buf = append(buf, byte(c))
+	}
+	return buf
 }
 
 // Reset implements tokenFilter.
@@ -196,20 +224,24 @@ type tableFinderFilter struct {
 // Filter implements tokenFilter.
 func (f *tableFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	switch lastToken {
-	case From:
+	case From, Join:
 		// SELECT ... FROM [tableName]
 		// DELETE FROM [tableName]
+		// ... JOIN [tableName]
 		if r, _ := utf8.DecodeRune(buffer); !unicode.IsLetter(r) {
 			// first character in buffer is not a letter; we might have a nested
 			// query like SELECT * FROM (SELECT ...)
 			break
 		}
 		fallthrough
-	case Update, Into, Join:
+	case Update, Into:
 		// UPDATE [tableName]
 		// INSERT INTO [tableName]
-		// ... JOIN [tableName]
-		f.storeName(string(buffer))
+		token = Table
+
+		if config.HasFeature("table_names") {
+			f.storeName(string(buffer))
+		}
 	}
 	return token, buffer, nil
 }
@@ -251,13 +283,14 @@ type ObfuscatedQuery struct {
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	filters := []tokenFilter{
 		&discardFilter{},
-		&replaceFilter{},
-		&groupingFilter{},
 	}
 	tableFinder := &tableFinderFilter{}
-	if config.HasFeature("table_names") {
+	if config.HasFeature("table_names") || config.HasFeature("normalize_sql_tables") {
 		filters = append(filters, tableFinder)
 	}
+	filters = append(filters, &replaceFilter{})
+	filters = append(filters, &groupingFilter{})
+
 	var (
 		out       bytes.Buffer
 		err       error
