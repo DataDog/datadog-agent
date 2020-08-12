@@ -724,6 +724,24 @@ func BenchmarkWatchdog(b *testing.B) {
 	}
 }
 
+func TestReplyOKV5(t *testing.T) {
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+
+	data, err := vmsgp.Marshal([2][]interface{}{{}, {}})
+	assert.NoError(t, err)
+	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
+	assert.NoError(t, err)
+	slurp, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	assert.Contains(t, string(slurp), `"rate_by_service"`)
+}
+
 func TestExpvar(t *testing.T) {
 	if testing.Short() {
 		return
