@@ -14,7 +14,7 @@ import (
 
 const (
 	sysUpTimeInstanceOID = "1.3.6.1.2.1.1.3.0"
-	snmpTrapOID          = "1.3.6.1.6.3.1.1.4.1"
+	snmpTrapOID          = "1.3.6.1.6.3.1.1.4.1.0"
 )
 
 // FormatPacketToJSON converts an SNMP trap packet to a JSON-serializable object.
