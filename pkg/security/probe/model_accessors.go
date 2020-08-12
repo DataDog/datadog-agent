@@ -155,14 +155,6 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "container.overlay_numlower":
-
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Container.OverlayNumlower) },
-
-			Field: field,
-		}, nil
-
 	case "link.retval":
 
 		return &eval.IntEvaluator{
@@ -863,10 +855,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Container.ResolveContainerID(e.resolvers), nil
 
-	case "container.overlay_numlower":
-
-		return int(e.Container.OverlayNumlower), nil
-
 	case "link.retval":
 
 		return int(e.Link.Retval), nil
@@ -1203,9 +1191,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.id":
 		return "*", nil
 
-	case "container.overlay_numlower":
-		return "*", nil
-
 	case "link.retval":
 		return "link", nil
 
@@ -1487,10 +1472,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "container.id":
 
 		return reflect.String, nil
-
-	case "container.overlay_numlower":
-
-		return reflect.Int, nil
 
 	case "link.retval":
 
@@ -1909,15 +1890,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Container.ID, ok = value.(string); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Container.ID"}
 		}
-		return nil
-
-	case "container.overlay_numlower":
-
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Container.OverlayNumlower"}
-		}
-		e.Container.OverlayNumlower = uint32(v)
 		return nil
 
 	case "link.retval":
