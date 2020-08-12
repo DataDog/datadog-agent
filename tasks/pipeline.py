@@ -9,7 +9,17 @@ from .deploy.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
 
 @task
 def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
-    pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, repo_branch)
+    pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, repo_branch, deploy=True)
+    wait_for_pipeline("DataDog/datadog-agent", pipeline_id)
+
+
+@task
+def run_with_all_tests(
+    ctx, git_ref="master", here=False, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="none"
+):
+    if here:
+        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, repo_branch, deploy=False)
     wait_for_pipeline("DataDog/datadog-agent", pipeline_id)
 
 

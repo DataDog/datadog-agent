@@ -135,12 +135,13 @@ variables:
 # - web (when the build is triggered by a specific build request through the
 #        web interface.  This way, if a kitchen run is desired on a specific branch,
 #        it can be triggered by requesting a specific build)
+# - api (when the build is triggered by an API call)
 #
 .if_test_kitchen_deploy: &if_test_kitchen_deploy
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web"
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
 
 .if_not_test_kitchen_deploy: &if_not_test_kitchen_deploy
-  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web"
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web" && $CI_PIPELINE_SOURCE != "api"
 
 # true only on deploys and when RELEASE_VERSION_X is NOT "nightly". In this setting
 # we are building either a new tagged version of the agent (an RC for example).
