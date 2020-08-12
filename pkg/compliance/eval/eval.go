@@ -52,15 +52,21 @@ const (
 	countFn = "count"
 )
 
-// Evaluate evaluates an iterable expression for an iterator
-func (e *IterableExpression) Evaluate(it Iterator, global *Instance) (*InstanceResult, error) {
+var (
+	builtInVars VarMap = VarMap{
+		"_": true,
+	}
+)
+
+// EvaluateIterator evaluates an iterable expression for an iterator
+func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*InstanceResult, error) {
 	if e.IterableComparison == nil {
 		return e.iterate(
 			it,
 			e.Expression,
 			func(instance *Instance, passed bool) bool {
 				// First failure stops the iteration
-				return !passed
+				return passed
 			},
 		)
 	}
@@ -106,7 +112,7 @@ func (e *IterableExpression) Evaluate(it Iterator, global *Instance) (*InstanceR
 	}, nil
 }
 
-func (e *IterableExpression) evaluatePassed(global *Instance, passedCount, totalCount int64) (bool, error) {
+func (e *IterableExpression) evaluatePassed(instance *Instance, passedCount, totalCount int64) (bool, error) {
 	fn := *e.IterableComparison.Fn
 	switch fn {
 	case allFn:
@@ -125,7 +131,7 @@ func (e *IterableExpression) evaluatePassed(global *Instance, passedCount, total
 			return false, lexer.Errorf(e.Pos, `expecting operator for iterable comparison using "%s()"`, fn)
 		}
 
-		rhs, err := comparison.Next.Evaluate(global)
+		rhs, err := comparison.Next.Evaluate(instance)
 		if err != nil {
 			return false, err
 		}
@@ -147,6 +153,7 @@ func (e *IterableExpression) evaluatePassed(global *Instance, passedCount, total
 func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool) (*InstanceResult, error) {
 	var (
 		instance *Instance
+		first    *Instance
 		err      error
 		passed   bool
 	)
@@ -155,25 +162,63 @@ func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkR
 		if err != nil {
 			return nil, err
 		}
-
-		v, err := expression.Evaluate(instance)
-		if err != nil {
-			return nil, err
+		if first == nil {
+			first = instance
 		}
 
-		var ok bool
-		if passed, ok = v.(bool); !ok {
-			return nil, lexer.Errorf(e.Pos, "expression in iteration must evaluate to a boolean")
+		passed, err = e.evaluateSubExpression(instance, expression)
+		if err != nil {
+			return nil, err
 		}
 
 		if !checkResult(instance, passed) {
 			break
 		}
 	}
+
+	if passed {
+		instance = first
+	}
+
 	return &InstanceResult{
 		Instance: instance,
 		Passed:   passed,
 	}, nil
+}
+
+func (e *IterableExpression) evaluateSubExpression(instance *Instance, expression *Expression) (bool, error) {
+	v, err := expression.Evaluate(instance)
+	if err != nil {
+		return false, err
+	}
+
+	passed, ok := v.(bool)
+	if !ok {
+		return false, lexer.Errorf(e.Pos, "expression in iteration must evaluate to a boolean")
+	}
+	return passed, nil
+}
+
+// Evaluate evaluates an iterable expression for a single instance
+func (e *IterableExpression) Evaluate(instance *Instance) (bool, error) {
+	if e.IterableComparison == nil {
+		return e.evaluateSubExpression(instance, e.Expression)
+	}
+
+	passed, err := e.evaluateSubExpression(instance, e.IterableComparison.Expression)
+	if err != nil {
+		return false, err
+	}
+	var (
+		passedCount int64
+		totalCount  = int64(1)
+	)
+
+	if passed {
+		passedCount = 1
+	}
+
+	return e.evaluatePassed(instance, passedCount, totalCount)
 }
 
 // Evaluate evaluates a path expression for an instance
@@ -218,6 +263,19 @@ func (e *Expression) Evaluate(instance *Instance) (interface{}, error) {
 	default:
 		return nil, lexer.Errorf(e.Pos, "unsupported operator %q in boolean expression", *e.Op)
 	}
+}
+
+// BoolEvaluate evaluates an expression for an instance as a boolean value
+func (e *Expression) BoolEvaluate(instance *Instance) (bool, error) {
+	v, err := e.Evaluate(instance)
+	if err != nil {
+		return false, err
+	}
+	passed, ok := v.(bool)
+	if !ok {
+		return false, lexer.Errorf(e.Pos, "expression must evaluate to a boolean")
+	}
+	return passed, nil
 }
 
 // Evaluate implements Evaluatable interface
@@ -415,6 +473,9 @@ func (v *Value) Evaluate(instance *Instance) (interface{}, error) {
 			value, ok = instance.Vars[*v.Variable]
 		}
 		if !ok {
+			value, ok = builtInVars[*v.Variable]
+		}
+		if !ok {
 			return nil, lexer.Errorf(v.Pos, `unknown variable %q`, *v.Variable)
 		}
 		return coerceIntegers(value), nil
@@ -434,7 +495,7 @@ func (a *Array) Evaluate(instance *Instance) (interface{}, error) {
 		if !ok {
 			return nil, lexer.Errorf(a.Pos, `unknown variable %q used as array`, *a.Ident)
 		}
-		return value, nil
+		return coerceArrays(value), nil
 	}
 	var result []interface{}
 	for _, value := range a.Values {
@@ -470,8 +531,8 @@ func (c *Call) Evaluate(instance *Instance) (interface{}, error) {
 
 	value, err := fn(instance, args...)
 	if err != nil {
-		return nil, lexer.Errorf(c.Pos, `call to "%s()" failed`, c.Name)
+		return nil, lexer.Errorf(c.Pos, `call to "%s()" failed: %v`, c.Name, err)
 	}
 
-	return coerceIntegers(value), nil
+	return coerceValues(value), nil
 }

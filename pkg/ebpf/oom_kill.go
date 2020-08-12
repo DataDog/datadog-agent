@@ -7,13 +7,14 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
 )
 
 /*
 #include <string.h>
-#include "c/oom-kill-kern-user.h"
+#include "oom-kill-kern-user.h"
 */
 import "C"
 
@@ -22,8 +23,8 @@ type OOMKillProbe struct {
 	oomMap *bpflib.Table
 }
 
-func NewOOMKillProbe() (*OOMKillProbe, error) {
-	source, err := processHeaders("pkg/ebpf/c/oom-kill-kern.c")
+func NewOOMKillProbe(cfg *Config) (*OOMKillProbe, error) {
+	source, err := processHeaders(cfg.BPFDir, "pkg/ebpf/c/oom-kill-kern.c")
 	if err != nil {
 		return nil, fmt.Errorf("Couldn’t process headers for asset “pkg/ebpf/c/oom-kill-kern.c”: %v", err)
 	}
@@ -75,6 +76,8 @@ func (k *OOMKillProbe) Get() []oomkill.Stats {
 
 		results = append(results, convertStats(stat))
 	}
+
+	log.Debugf("OOM Kill stats gathered from kernel probe: %v", results)
 	return results
 }
 

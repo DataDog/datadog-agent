@@ -52,12 +52,10 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			zipFilePath := getArchivePath()
-			filePath, err := createSecurityAgentArchive(zipFilePath, test.local, logFilePath)
+			zipFilePath, err := CreateSecurityAgentArchive(test.local, logFilePath, nil)
 			defer os.Remove(zipFilePath)
 
 			assert.NoError(err)
-			assert.Equal(zipFilePath, filePath)
 
 			// asserts that it as indeed created a permissions.log file
 			z, err := zip.OpenReader(zipFilePath)

@@ -189,6 +189,9 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
+		currentUnixTime := time.Now().Unix()
+		d.reportUptime(c.StartedAt, currentUnixTime, tags, sender)
+
 		if c.CPU != nil {
 			d.reportCPUMetrics(c.CPU, &c.Limits, c.StartedAt, tags, sender)
 		} else {
@@ -394,23 +397,23 @@ func (d *DockerCheck) reportIOMetrics(io *cmetrics.ContainerIOStats, tags []stri
 		return
 	}
 
-	// Read values per device, or fallback to sum
-	if len(io.DeviceReadBytes) > 0 {
-		for dev, value := range io.DeviceReadBytes {
-			sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev, "device_name:"+dev))
+	reportDeviceStat := func(metricName string, deviceMap map[string]uint64, fallbackValue uint64) {
+		if len(deviceMap) > 0 {
+			for dev, value := range deviceMap {
+				sender.Rate(metricName, float64(value), "", append(tags, "device:"+dev, "device_name:"+dev))
+			}
+		} else {
+			sender.Rate(metricName, float64(fallbackValue), "", tags)
 		}
-	} else {
-		sender.Rate("docker.io.read_bytes", float64(io.ReadBytes), "", tags)
 	}
 
-	// Write values per device, or fallback to sum
-	if len(io.DeviceWriteBytes) > 0 {
-		for dev, value := range io.DeviceWriteBytes {
-			sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev, "device_name:"+dev))
-		}
-	} else {
-		sender.Rate("docker.io.write_bytes", float64(io.WriteBytes), "", tags)
-	}
+	// Throughput
+	reportDeviceStat("docker.io.read_bytes", io.DeviceReadBytes, io.ReadBytes)
+	reportDeviceStat("docker.io.write_bytes", io.DeviceWriteBytes, io.WriteBytes)
+
+	// IOPS
+	reportDeviceStat("docker.io.read_operations", io.DeviceReadOperations, io.ReadOperations)
+	reportDeviceStat("docker.io.write_operations", io.DeviceWriteOperations, io.WriteOperations)
 
 	// Collect open file descriptor counts
 	sender.Gauge("docker.container.open_fds", float64(io.OpenFiles), "", tags)

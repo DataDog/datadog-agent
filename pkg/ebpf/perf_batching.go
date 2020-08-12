@@ -8,14 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	bpflib "github.com/iovisor/gobpf/elf"
-)
-
-const (
-	maxNumberBatches = 1024
-
-	// maximum number of attempts we query a "blank" batch on eBPF
-	maxIgnoredCoreAttempts = 5
+	"github.com/DataDog/ebpf"
 )
 
 // PerfBatchManager is reponsbile for two things:
@@ -27,8 +20,7 @@ const (
 // event remains stored in the eBPF map before being processed by the NetworkAgent.
 type PerfBatchManager struct {
 	// eBPF
-	module   *bpflib.Module
-	batchMap *bpflib.Map
+	batchMap *ebpf.Map
 
 	// stateByCPU contains the state of each batch.
 	// The slice is indexed by the CPU core number.
@@ -41,24 +33,20 @@ type PerfBatchManager struct {
 
 // NewPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func NewPerfBatchManager(module *bpflib.Module, batchMap *bpflib.Map, maxIdleInterval time.Duration) (*PerfBatchManager, error) {
-	if module == nil {
-		return nil, fmt.Errorf("module is nil")
-	}
+func NewPerfBatchManager(batchMap *ebpf.Map, maxIdleInterval time.Duration, numBatches int) (*PerfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
 
-	for i := 0; i < maxNumberBatches; i++ {
+	for i := 0; i < numBatches; i++ {
 		b := new(batch)
 		b.cpu = _Ctype_ushort(i)
-		module.UpdateElement(batchMap, unsafe.Pointer(&i), unsafe.Pointer(b), 0)
+		batchMap.Put(unsafe.Pointer(&i), unsafe.Pointer(b))
 	}
 
 	return &PerfBatchManager{
-		module:          module,
 		batchMap:        batchMap,
-		stateByCPU:      make([]batchState, maxNumberBatches),
+		stateByCPU:      make([]batchState, numBatches),
 		maxIdleInterval: maxIdleInterval.Nanoseconds(),
 	}, nil
 }
@@ -88,12 +76,12 @@ func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats
 	for i := 0; i < len(p.stateByCPU); i++ {
 		state := &p.stateByCPU[i]
 
-		if state.ignore() || (nowTS-state.updated) < p.maxIdleInterval {
+		if (nowTS - state.updated) < p.maxIdleInterval {
 			continue
 		}
 
 		// we have an idle batch, so let's retrieve its data from eBPF
-		err := p.module.LookupElement(p.batchMap, unsafe.Pointer(&i), unsafe.Pointer(batch))
+		err := p.batchMap.Lookup(unsafe.Pointer(&i), unsafe.Pointer(batch))
 		if err != nil {
 			continue
 		}
@@ -116,23 +104,6 @@ func (p *PerfBatchManager) GetIdleConns(now time.Time) []network.ConnectionStats
 }
 
 type batchState struct {
-	offset   int
-	updated  int64
-	attempts int
-}
-
-// since we completely overshoot the number of CPU cores, we keep track of the number
-// of times we checked a batch and got not updates in order to detect which batches we can
-// ignore and avoid querying on eBPF.
-func (bs *batchState) ignore() bool {
-	if bs.attempts >= maxIgnoredCoreAttempts {
-		return true
-	}
-
-	// If there are no updates to this batch then the associated CPU core probably doesn't exist
-	if bs.updated == 0 {
-		bs.attempts++
-	}
-
-	return false
+	offset  int
+	updated int64
 }

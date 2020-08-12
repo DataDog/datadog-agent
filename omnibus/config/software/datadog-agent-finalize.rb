@@ -22,7 +22,7 @@ build do
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
-            if ENV['WINDOWS_DDFILTER_DRIVER'] and not ENV['WINDOWS_DDFILTER_DRIVER'].empty?
+            if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
             end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
@@ -103,6 +103,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
 
             # Move SELinux policy
             if debian? || redhat?
@@ -181,6 +182,11 @@ build do
             # skipped.
             strip_exclude("*psycopg2*")
             strip_exclude("*cffi_backend*")
+
+            # Do not strip eBPF programs
+            strip_exclude("*tracer-ebpf*")
+            strip_exclude("*offset-guess*")
+            strip_exclude("*runtime-security*")
 
         elsif osx?
             # Remove linux specific configs

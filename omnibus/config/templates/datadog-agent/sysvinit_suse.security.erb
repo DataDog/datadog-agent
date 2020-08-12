@@ -1,9 +1,9 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-agent-trace
-# Short-Description: Start and stop datadog trace agent
-# Description: Datadog Trace Agent (APM)
+# Provides: datadog-agent-security
+# Short-Description: Start and stop datadog security agent
+# Description: Datadog Security Agent
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
 # Default-Start: 2 3 4 5
@@ -15,7 +15,6 @@ INSTALL_DIR="<%= install_dir %>"
 AGENTPATH="$INSTALL_DIR/embedded/bin/security-agent"
 PIDFILE="$INSTALL_DIR/run/security-agent.pid"
 AGENT_ARGS="start -c=$ETC_DIR/datadog.yaml -p=$PIDFILE"
-AGENT_USER="dd-agent"
 NAME="datadog-agent-security"
 DESC="Datadog Security Agent"
 

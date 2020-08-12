@@ -8,230 +8,299 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/stretchr/testify/assert"
+
 	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
 )
 
 func TestFileCheck(t *testing.T) {
-	type setupFunc func(t *testing.T, env *mocks.Env) *fileCheck
-	type validateFunc func(t *testing.T, kv event.Data)
+	assert := assert.New(t)
 
-	setupFile := func(file *compliance.File) setupFunc {
-		return func(t *testing.T, env *mocks.Env) *fileCheck {
-			if file.Path != "" {
-				env.On("NormalizePath", file.Path).Return(file.Path)
-			}
+	type setupFileFunc func(t *testing.T, env *mocks.Env, file *compliance.File)
+	type validateFunc func(t *testing.T, file *compliance.File, report *compliance.Report)
 
-			return &fileCheck{
-				baseCheck: newTestBaseCheck(env, checkKindFile),
-				file:      file,
-			}
+	normalizePath := func(t *testing.T, env *mocks.Env, file *compliance.File) {
+		t.Helper()
+		env.On("NormalizeToHostRoot", file.Path).Return(file.Path)
+		env.On("RelativeToHostRoot", file.Path).Return(file.Path)
+	}
+
+	cleanUpDirs := make([]string, 0)
+	createTempFiles := func(t *testing.T, numFiles int) (string, []string) {
+		paths := make([]string, 0, numFiles)
+		dir, err := ioutil.TempDir("", "cmplFileTest")
+		assert.NoError(err)
+		cleanUpDirs = append(cleanUpDirs, dir)
+
+		for i := 0; i < numFiles; i++ {
+			fileName := fmt.Sprintf("test-%d-%d.dat", i, time.Now().Unix())
+			filePath := path.Join(dir, fileName)
+			paths = append(paths, filePath)
+
+			f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+			defer f.Close()
+			assert.NoError(err)
 		}
+
+		return dir, paths
 	}
 
 	tests := []struct {
-		name     string
-		setup    setupFunc
-		validate validateFunc
+		name        string
+		resource    compliance.Resource
+		setup       setupFileFunc
+		validate    validateFunc
+		expectError error
 	}{
 		{
-			name: "permissions",
-			setup: func(t *testing.T, env *mocks.Env) *fileCheck {
-				dir := os.TempDir()
-
-				fileName := fmt.Sprintf("test-permissions-file-check-%d.dat", time.Now().Unix())
-				filePath := path.Join(dir, fileName)
-
-				f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
-				defer f.Close()
-				assert.NoError(t, err)
-
-				env.On("NormalizePath", fileName).Return(filePath)
-
-				file := &compliance.File{
-					Path: fileName,
-					Report: compliance.Report{
-						{
-							Property: "permissions",
-							Kind:     compliance.PropertyKindAttribute,
-						},
-					},
-				}
-				return &fileCheck{
-					baseCheck: newTestBaseCheck(env, checkKindFile),
-					file:      file,
-				}
-			},
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t, event.Data{
-					"permissions": "644",
-				}, kv)
-			},
-		},
-		{
-			name: "owner root",
-			setup: setupFile(&compliance.File{
-				Path: "/tmp",
-				Report: compliance.Report{
-					{
-						Property: "owner",
-						Kind:     compliance.PropertyKindAttribute,
-					},
-					{
-						Property: "path",
-						Kind:     compliance.PropertyKindAttribute,
-					},
+			name: "file permissions",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/etc/test-permissions.dat",
 				},
-			}),
-			validate: func(t *testing.T, kv event.Data) {
-				owner, ok := kv["owner"].(string)
-				assert.True(t, ok)
-				parts := strings.SplitN(owner, ":", 2)
-				assert.Equal(t, parts[0], "root")
-				assert.Contains(t, []string{"root", "wheel"}, parts[1])
-				assert.Equal(t, "/tmp", kv["path"])
+				Condition: "file.permissions == 0644",
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				_, filePaths := createTempFiles(t, 1)
+
+				env.On("NormalizeToHostRoot", file.Path).Return(filePaths[0])
+				env.On("RelativeToHostRoot", filePaths[0]).Return(file.Path)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
+				assert.Equal(file.Path, report.Data["file.path"])
+				assert.Equal(uint64(0644), report.Data["file.permissions"])
 			},
 		},
 		{
-			name: "jsonquery log-driver",
-			setup: setupFile(&compliance.File{
-				Path: "./testdata/file/daemon.json",
-				Report: compliance.Report{
-					{
-						// Need to use .[] syntax when attributes have - in their name
-						Property: `.["log-driver"]`,
-						Kind:     compliance.PropertyKindJSONQuery,
-						As:       "log_driver",
-					},
+			name: "file permissions (glob)",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/etc/*.dat",
 				},
-			}),
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t, event.Data{
-					"log_driver": "json-file",
-				}, kv)
+				Condition: "file.permissions == 0644",
 			},
-		},
-		{
-			name: "jsonquery experimental",
-			setup: setupFile(&compliance.File{
-				Path: "./testdata/file/daemon.json",
-				Report: compliance.Report{
-					{
-						Property: ".experimental",
-						Kind:     "jsonquery",
-						As:       "experimental",
-					},
-				},
-			}),
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t, event.Data{
-					"experimental": "false",
-				}, kv)
-			},
-		},
-		{
-			name: "jsonquery experimental (pathFrom)",
-			setup: func(t *testing.T, env *mocks.Env) *fileCheck {
-				file := &compliance.File{
-					PathFrom: compliance.ValueFrom{
-						{
-							Process: &compliance.ValueFromProcess{
-								Name: "dockerd",
-								Flag: "--config-file",
-							},
-						},
-					},
-					Report: compliance.Report{
-						{
-							Property: ".experimental",
-							Kind:     "jsonquery",
-							As:       "experimental",
-						},
-					},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				tempDir, filePaths := createTempFiles(t, 2)
+				for _, filePath := range filePaths {
+					env.On("RelativeToHostRoot", filePath).Return(path.Join("/etc/", path.Base(filePath)))
 				}
 
-				path := "./testdata/file/daemon.json"
-				env.On("ResolveValueFrom", file.PathFrom).Return(path, nil)
-				env.On("NormalizePath", path).Return(path)
-
-				return setupFile(file)(t, env)
+				env.On("NormalizeToHostRoot", file.Path).Return(path.Join(tempDir, "/*.dat"))
 			},
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t, event.Data{
-					"experimental": "false",
-				}, kv)
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
+				assert.Regexp("/etc/test-[0-9]-[0-9]+", report.Data["file.path"])
+				assert.Equal(uint64(0644), report.Data["file.permissions"])
 			},
 		},
 		{
-			name: "jsonquery ulimits",
-			setup: setupFile(&compliance.File{
-				Path: "./testdata/file/daemon.json",
-				Report: compliance.Report{
-					{
-						Property: `.["default-ulimits"].nofile.Hard`,
-						Kind:     "jsonquery",
-						As:       "nofile_hard",
-					},
+			name: "file user and group",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/tmp",
 				},
-			}),
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t, event.Data{
-					"nofile_hard": "64000",
-				}, kv)
+				Condition: `file.user == "root" && file.group in ["root", "wheel"]`,
+			},
+			setup: normalizePath,
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
+				assert.Equal("/tmp", report.Data["file.path"])
+				assert.Equal("root", report.Data["file.user"])
+				assert.Contains([]string{"root", "wheel"}, report.Data["file.group"])
 			},
 		},
 		{
-			name: "yamlquery pod",
-			setup: setupFile(&compliance.File{
-				Path: "./testdata/file/pod.yaml",
-				Report: compliance.Report{
-					{
-						Property: ".apiVersion",
-						Kind:     "yamlquery",
-						As:       "apiVersion",
-					},
+			name: "jq(log-driver) - passed",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/etc/docker/daemon.json",
 				},
-			}),
-			validate: func(t *testing.T, kv event.Data) {
-				assert.Equal(t, event.Data{
-					"apiVersion": "v1",
-				}, kv)
+				Condition: `file.jq(".\"log-driver\"") == "json-file"`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
+				assert.Equal("/etc/docker/daemon.json", report.Data["file.path"])
+				assert.NotEmpty(report.Data["file.user"])
+				assert.NotEmpty(report.Data["file.group"])
+			},
+		},
+		{
+			name: "jq(experimental) - failed",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/etc/docker/daemon.json",
+				},
+				Condition: `file.jq(".experimental") == "true"`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.False(report.Passed)
+				assert.Equal("/etc/docker/daemon.json", report.Data["file.path"])
+				assert.NotEmpty(report.Data["file.user"])
+				assert.NotEmpty(report.Data["file.group"])
+			},
+		},
+		{
+			name: "jq(experimental) and path expression",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: `process.flag("dockerd", "--config-file")`,
+				},
+				Condition: `file.jq(".experimental") == "false"`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				path := "/etc/docker/daemon.json"
+				env.On("EvaluateFromCache", mock.Anything).Return(path, nil)
+				env.On("NormalizeToHostRoot", path).Return("./testdata/file/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(path)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
+				assert.Equal("/etc/docker/daemon.json", report.Data["file.path"])
+				assert.NotEmpty(report.Data["file.user"])
+				assert.NotEmpty(report.Data["file.group"])
+			},
+		},
+		{
+			name: "jq(experimental) and path expression - empty path",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: `process.flag("dockerd", "--config-file")`,
+				},
+				Condition: `file.jq(".experimental") == "false"`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("EvaluateFromCache", mock.Anything).Return("", nil)
+			},
+			expectError: errors.New(`failed to resolve path: empty path from process.flag("dockerd", "--config-file")`),
+		},
+		{
+			name: "jq(experimental) and path expression - wrong type",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: `process.flag("dockerd", "--config-file")`,
+				},
+				Condition: `file.jq(".experimental") == "false"`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("EvaluateFromCache", mock.Anything).Return(true, nil)
+			},
+			expectError: errors.New(`failed to resolve path: expected string from process.flag("dockerd", "--config-file") got "true"`),
+		},
+		{
+			name: "jq(experimental) and path expression - expression failed",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: `process.unknown()`,
+				},
+				Condition: `file.jq(".experimental") == "false"`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("EvaluateFromCache", mock.Anything).Return(nil, errors.New("1:1: unknown function process.unknown()"))
+			},
+			expectError: errors.New(`failed to resolve path: 1:1: unknown function process.unknown()`),
+		},
+		{
+			name: "jq(ulimits)",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/etc/docker/daemon.json",
+				},
+				Condition: `file.jq(".[\"default-ulimits\"].nofile.Hard") == "64000"`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
+				assert.Equal("/etc/docker/daemon.json", report.Data["file.path"])
+				assert.NotEmpty(report.Data["file.user"])
+				assert.NotEmpty(report.Data["file.group"])
+			},
+		},
+		{
+			name: "yaml(apiVersion)",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/etc/pod.yaml",
+				},
+				Condition: `file.yaml(".apiVersion") == "v1"`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/pod.yaml")
+				env.On("RelativeToHostRoot", "./testdata/file/pod.yaml").Return(file.Path)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
+				assert.Equal("/etc/pod.yaml", report.Data["file.path"])
+				assert.NotEmpty(report.Data["file.user"])
+				assert.NotEmpty(report.Data["file.group"])
+			},
+		},
+		{
+			name: "regexp",
+			resource: compliance.Resource{
+				File: &compliance.File{
+					Path: "/proc/mounts",
+				},
+				Condition: `file.regexp("[a-zA-Z0-9-_/]+ /boot/efi [a-zA-Z0-9-_/]+") != ""`,
+			},
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/mounts")
+				env.On("RelativeToHostRoot", "./testdata/file/mounts").Return(file.Path)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
+				assert.Equal("/proc/mounts", report.Data["file.path"])
+				assert.NotEmpty(report.Data["file.user"])
+				assert.NotEmpty(report.Data["file.group"])
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reporter := &mocks.Reporter{}
-			defer reporter.AssertExpectations(t)
-
 			env := &mocks.Env{}
 			defer env.AssertExpectations(t)
 
-			env.On("Reporter").Return(reporter)
+			if test.setup != nil {
+				test.setup(t, env, test.resource.File)
+			}
 
-			fc := test.setup(t, env)
+			fileCheck, err := newResourceCheck(env, "rule-id", test.resource)
+			assert.NoError(err)
 
-			reporter.On(
-				"Report",
-				mock.AnythingOfType("*event.Event"),
-			).Run(func(args mock.Arguments) {
-				event := args.Get(0).(*event.Event)
-				test.validate(t, event.Data)
-			})
+			report, err := fileCheck.check(env)
 
-			err := fc.Run()
-			assert.NoError(t, err)
+			if test.expectError != nil {
+				assert.EqualError(err, test.expectError.Error())
+			} else {
+				assert.NoError(err)
+				test.validate(t, test.resource.File, report)
+			}
 		})
+	}
+
+	for _, dir := range cleanUpDirs {
+		os.RemoveAll(dir)
 	}
 }

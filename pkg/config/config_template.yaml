@@ -215,6 +215,11 @@ api_key:
 #
 # collect_ec2_tags: false
 
+## @param ec2_metadata_timeout - integer - optional - default: 300
+## Timeout in milliseconds on calls to the AWS EC2 metadata endpoints.
+#
+# ec2_metadata_timeout: 300
+
 ## @param collect_gce_tags - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
 #
@@ -845,6 +850,28 @@ api_key:
   #   - '*pass*d*'
 
 {{ end -}}
+{{- if .Compliance }}
+#############################################
+## Security Agent Compliance Configuration ##
+#############################################
+## @param compliance_config - custom object - optional
+## Enter specific configuration for continuous compliance checks.
+# compliance_config:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable continuous compliance checks
+  #
+  # enabled: false
+
+  ## @param dir - string - optional - default: /etc/datadog-agent/compliance.d
+  ## Directory path for compliance checks configuration containing enabled benchmarks
+  #
+  # dir: /etc/datadog-agent/compliance.d
+
+  ## @param check_interval - duration - optional - default: 20m
+  ## Check interval (see  https://golang.org/pkg/time/#ParseDuration for available options)
+  # check_interval: 20m
+{{ end -}}
 {{- if .SystemProbe }}
 
 ##################################
@@ -873,6 +900,55 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+{{- if .SecurityModule }}
+
+##########################################
+## Security Agent Runtime Configuration ##
+##                                      ##
+## Settings to sent logs to DataDog are ##
+## fetched from section `logs_config`   ##
+##########################################
+
+# runtime_security_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Security Runtime Module.
+  #
+  # enabled: false
+
+  ## @param debug - boolean - optional - default: false
+  ## Enable debug mode.
+  #
+  # debug: false
+
+  ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
+  ## The full path to the location of the unix socket where security runtime module is accessed.
+  #
+  # socket: /opt/datadog-agent/run/runtime-security.sock
+
+  ## @param policies - custom object - optional
+  ## Policy files
+  # policies:
+
+    ## @param dir - string - default: /etc/datadog-agent/runtime-security.d
+    ## Path from where the policy files will be loaded
+    #
+    # dir: /etc/datadog-agent/runtime-security.d
+
+  ## @param enable_kernel_filters - boolean - optional - default: true
+  ## Enable filtering events from the kernel
+  #
+  # enable_kernel_filters: true
+
+  ## @param syscall_monitor - custom object - optional
+  ## Syscall monitoring
+  #
+  # syscall_monitor:
+
+    ## @param enabled - boolean - optional - default: false
+    ## Set to true to enable the Syscall monitoring.
+    #
+    #  enabled: false
+{{ end -}}
 {{ end -}}
 {{- if .Dogstatsd }}
 
@@ -1745,3 +1821,47 @@ api_key:
   # key_file: ""
 
 {{ end -}}
+{{- if .SNMP }}
+
+########################
+## SNMP Configuration ##
+########################
+
+## @param snmp_traps_enabled - boolean - optional - default: false
+## Set to true to enable collection of traps.
+#
+# snmp_traps_enabled: false
+
+## @param snmp_traps_config - custom object - optional
+## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
+## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
+## change in the future. Only SNMPv2 is supported.
+#
+# snmp_traps_config:
+
+  ## @param port - integer - optional - default: 162
+  ## The UDP port to use when listening for incoming trap packets.
+  #
+  # port: 162
+
+  ## @param community_strings - list of strings - required
+  ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
+  ## Traps with an unknown community string are ignored.
+  ## Must be non-empty.
+  #
+  # community_strings:
+  #   - <COMMUNITY_1>
+  #   - <COMMUNITY_2>
+
+  ## @param bind_host - string - optional
+  ## The hostname to listen on for incoming trap packets.
+  ## Defaults to the global `bind_host` config option value.
+  #
+  # bind_host: <BIND_HOST>
+
+  ## stop_timeout - float - optional - default: 5.0
+  ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+  #
+  # stop_timeout: 5.0
+
+{{end -}}

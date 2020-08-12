@@ -19,12 +19,9 @@ import (
 )
 
 // CreateSecurityAgentArchive packages up the files
-func CreateSecurityAgentArchive(local bool, logFilePath string) (string, error) {
+func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus map[string]interface{}) (string, error) {
 	zipFilePath := getArchivePath()
-	return createSecurityAgentArchive(zipFilePath, local, logFilePath)
-}
 
-func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath string) (string, error) {
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -47,7 +44,7 @@ func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath stri
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err = zipSecurityAgentStatusFile(tempDir, hostname)
+		err = zipSecurityAgentStatusFile(tempDir, hostname, runtimeStatus)
 		if err != nil {
 			log.Infof("Error getting the status of the Security Agent, %q", err)
 			return "", err
@@ -67,6 +64,11 @@ func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath stri
 	}
 
 	err = zipComplianceFiles(tempDir, hostname, permsInfos)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipRuntimeFiles(tempDir, hostname, permsInfos)
 	if err != nil {
 		return "", err
 	}
@@ -94,10 +96,10 @@ func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath stri
 	return zipFilePath, nil
 }
 
-func zipSecurityAgentStatusFile(tempDir, hostname string) error {
+func zipSecurityAgentStatusFile(tempDir, hostname string, runtimeStatus map[string]interface{}) error {
 	// Grab the status
 	log.Infof("Zipping the status at %s for %s", tempDir, hostname)
-	s, err := status.GetAndFormatSecurityAgentStatus()
+	s, err := status.GetAndFormatSecurityAgentStatus(runtimeStatus)
 	if err != nil {
 		log.Infof("Error zipping the status: %q", err)
 		return err
@@ -137,6 +139,33 @@ func zipComplianceFiles(tempDir, hostname string, permsInfos permissionsInfos) e
 		}
 
 		dst := filepath.Join(tempDir, hostname, "compliance.d", f.Name())
+
+		if permsInfos != nil {
+			permsInfos.add(src)
+		}
+
+		return util.CopyFileAll(src, dst)
+	})
+
+	return err
+}
+
+func zipRuntimeFiles(tempDir, hostname string, permsInfos permissionsInfos) error {
+	runtimeDir := config.Datadog.GetString("runtime_security_config.policies.dir")
+
+	if permsInfos != nil {
+		addParentPerms(runtimeDir, permsInfos)
+	}
+
+	err := filepath.Walk(runtimeDir, func(src string, f os.FileInfo, err error) error {
+		if f == nil {
+			return nil
+		}
+		if f.IsDir() {
+			return nil
+		}
+
+		dst := filepath.Join(tempDir, hostname, "runtime-security.d", f.Name())
 
 		if permsInfos != nil {
 			permsInfos.add(src)

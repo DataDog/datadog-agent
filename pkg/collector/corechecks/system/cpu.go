@@ -69,8 +69,10 @@ func (c *CPUCheck) Run() error {
 		sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
 		sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
 		sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
-		sender.Commit()
 	}
+
+	sender.Gauge("system.cpu.num_cores", c.nbCPU, "", nil)
+	sender.Commit()
 
 	c.lastNbCycle = nbCycle
 	c.lastTimes = t

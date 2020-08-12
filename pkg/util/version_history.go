@@ -40,7 +40,7 @@ func logVersionHistoryToFile(versionHistoryFilePath, agentVersion string, timest
 	history := versionHistoryEntries{}
 
 	if err != nil {
-		log.Warnf("Cannot read file: %s, will create a new one. %v", versionHistoryFilePath, err)
+		log.Infof("Cannot read file: %s, will create a new one. %v", versionHistoryFilePath, err)
 	} else {
 		err = json.Unmarshal(file, &history)
 		if err != nil {
