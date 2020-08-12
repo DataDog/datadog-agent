@@ -25,8 +25,8 @@ def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_
 @task
 def run_all_tests(ctx, git_ref="master", here=False, release_version_6="nightly", release_version_7="nightly-a7"):
     """
-    Trigger a pipeline on the given git ref, or on the current branch if --here is given. This pipeline will run
-    all tests, including kitchen tests.
+    Trigger a pipeline on the given git ref, or on the current branch if --here is given.
+    This pipeline will run all tests, including kitchen tests.
     The packages built won't be deployed to the staging repository. Use invoke pipeline.trigger if you want to
     deploy them.
     The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
