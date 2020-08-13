@@ -23,8 +23,6 @@ type Loader struct {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, factories []api.Factory) error {
-	atLeastOneModuleLoaded := false
-
 	for _, factory := range factories {
 		module, err := factory.Fn(cfg)
 
@@ -48,10 +46,9 @@ func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, facto
 		l.modules[factory.Name] = module
 
 		log.Infof("module: %s started", factory.Name)
-		atLeastOneModuleLoaded = true
 	}
 
-	if !atLeastOneModuleLoaded {
+	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")
 	}
 
