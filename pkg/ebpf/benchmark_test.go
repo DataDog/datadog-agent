@@ -55,7 +55,7 @@ func setBPFStatsCollection(b *testing.B, enable bool) error {
 	}
 	cmd := exec.Command("sysctl", "-w", fmt.Sprintf("kernel.bpf_stats_enabled=%d", flag))
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("error enabling bpf stats: %s %w", out, err)
+		return fmt.Errorf("error setting sysctl kernel.bpf_stats_enabled: %s %w", out, err)
 	}
 	return nil
 }
