@@ -6,7 +6,11 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
+#include <array>
+#include <sstream>
 #include "Process.h"
+#include "Service.h"
+#include "Win32Exception.h"
 
 namespace
 {
@@ -24,7 +28,6 @@ BOOL WINAPI CtrlHandle(DWORD dwCtrlType)
     case CTRL_SHUTDOWN_EVENT:
         std::cout << "[ENTRYPOINT][INFO] CTRL signal received, shutting down..." << std::endl;
         SetEvent(StopEvent);
-        StopEvent = INVALID_HANDLE_VALUE;
         break;
 
     default:
@@ -34,118 +37,70 @@ BOOL WINAPI CtrlHandle(DWORD dwCtrlType)
     return TRUE;
 }
 
-HRESULT WaitForProcessToExit(Process& process, DWORD timeoutValueInMs = 30000)
+void ExecuteInitScripts()
 {
-    HRESULT hr = S_OK;
-
-    const DWORD waitResult = WaitForSingleObject(process.GetProcessHandle(), timeoutValueInMs);
-    if (waitResult == WAIT_TIMEOUT)
+    auto directoryIt = std::filesystem::directory_iterator("entrypoint-ps1");
+    for (auto& script : directoryIt)
     {
-        if (!TerminateProcess(process.GetProcessHandle(), STATUS_TIMEOUT))
+        Process pwsh = Process::Create(L"pwsh " + script.path().wstring());
+        DWORD exitCode = pwsh.WaitForExit();
+        if (exitCode != 0)
         {
-            hr = HRESULT_FROM_WIN32(GetLastError());
-            std::cout << "[ENTRYPOINT][ERROR] Failed to terminate process with error [" << std::hex << hr << "]" << std::endl;
+            std::cout << "[ENTRYPOINT][WARNING] " << script.path() << " exited with code [" << std::hex << exitCode << "]" << std::endl;
         }
     }
-    else if (waitResult == WAIT_OBJECT_0)
+}
+
+void RunService(const std::wstring& serviceName)
+{
+    Service service(serviceName);
+    std::wcout << L"[ENTRYPOINT][INFO] Starting service " << serviceName << std::endl;
+    service.Start();
+    std::wcout << L"[ENTRYPOINT][INFO] Success. Waiting for exit signal." << std::endl;
+    WaitForSingleObject(StopEvent, INFINITE);
+    std::wcout << L"[ENTRYPOINT][INFO] Stopping service " << serviceName << std::endl;
+    try
     {
-        DWORD exitCode;
-        hr = process.GetExitCode(exitCode);
-        if (hr != S_OK)
-        {
-            std::cout << "[ENTRYPOINT][ERROR] Failed get process exit code with error [0x" << std::hex << hr << "]" << std::endl;
-        }
-        else
-        {
-            std::cout << std::endl << "[ENTRYPOINT][INFO] Process exited with code [0x" << std::hex << exitCode << "]" << std::endl;
-            // Store exitCode in hr so that we can return that as our own exit code
-            hr = exitCode;
-        }
+        service.Stop();
+    }
+    catch (...)
+    {
+        std::wcout << L"[ENTRYPOINT][INFO] Could not stop " << serviceName << ". Trying to kill process." << std::endl;
+        TerminateProcess(OpenProcess(PROCESS_ALL_ACCESS, FALSE, service.PID()), STATUS_TIMEOUT);
+        throw;
+    }
+    return;
+}
+
+void RunExecutable(std::wstring command)
+{
+    std::wcout << L"[ENTRYPOINT][INFO] Starting process " << command << std::endl;
+    Process process = Process::Create(command);
+    std::wcout << GetLastError() << std::endl;
+    HANDLE events[2] =
+    {
+        // Process handle needs to be last so that WaitForMultipleObjects
+        // would return our StopEvent first in case they are signaled at the same time
+        StopEvent,
+        process.GetProcessHandle()
+    };
+    const DWORD waitResult = WaitForMultipleObjects(2, events, FALSE, INFINITE);
+    DWORD exitCode;
+    if (waitResult == WAIT_FAILED)
+    {
+        throw Win32Exception("Failed to wait for objects");
+    }
+
+    if (waitResult == WAIT_OBJECT_0)
+    {
+        exitCode = process.WaitForExit();
     }
     else
     {
-        hr = HRESULT_FROM_WIN32(GetLastError());
-        std::cout << "[ENTRYPOINT][ERROR] Failed to wait for process with error [0x" << std::hex << hr << "]" << std::endl;
+        exitCode = process.GetExitCode();
+        SetEvent(StopEvent);
     }
-
-    return hr;
-}
-
-HRESULT MonitorProcess(std::wstring const & processCommandLine, bool restartUntilStopReceived)
-{
-    HRESULT hr = S_OK;
-    do
-    {
-        std::cout << "[ENTRYPOINT][INFO] Starting process..." << std::endl;
-        Process process;
-        hr = process.Create(processCommandLine);
-        if (hr != S_OK)
-        {
-            std::cout << "[ENTRYPOINT][ERROR] Failed to create process with error [0x" << std::hex << hr << "]" << std::endl;
-            break;
-        }
-        HANDLE events[2] =
-        {
-            // Process handle needs to be last so that WaitForMultipleObjects
-            // would return our StopEvent first in case they are signaled at the same time
-            StopEvent,
-            process.GetProcessHandle()
-        };
-        const DWORD waitResult = WaitForMultipleObjects(2, events, FALSE, INFINITE);
-
-        if (waitResult == WAIT_OBJECT_0)
-        {
-            // Our stop event was signaled, we need to check the process
-            hr = WaitForProcessToExit(process);
-            break;
-        }
-
-        DWORD exitCode;
-        hr = process.GetExitCode(exitCode);
-        if (hr != S_OK)
-        {
-            std::cout << "[ENTRYPOINT][ERROR] Failed get process exit code with error [0x" << std::hex << hr << "]" << std::endl;
-            break;
-        }
-        std::cout << "[ENTRYPOINT][INFO] Process exited with exit code [0x" << std::hex << exitCode << "]." << std::endl;
-
-        if (restartUntilStopReceived)
-        {
-            std::cout << "[ENTRYPOINT][WARNING] Process exited before receiving stop signal, restarting..." << std::endl;
-        }
-    } while (restartUntilStopReceived);
-    return hr;
-}
-
-HRESULT ExecuteInitScripts()
-{
-    HRESULT hr = S_OK;
-    std::error_code ec;
-    auto directoryIt = std::filesystem::directory_iterator("entrypoint-ps1", ec);
-    if (ec)
-    {
-        hr = ec.value();
-        std::cout << "[ENTRYPOINT][ERROR] Failed to get iterator to init scripts folder with error [0x" << std::hex << hr << "]" << std::endl;
-        return hr;
-    }
-
-    for (auto& script : directoryIt)
-    {
-        std::wstring processCommandLine = L"pwsh " + script.path().wstring();
-        Process pwsh;
-        hr = pwsh.Create(processCommandLine);
-        if (hr == S_OK)
-        {
-            hr = WaitForProcessToExit(pwsh);
-        }
-        if (hr != S_OK)
-        {
-            std::cout << "[ENTRYPOINT][ERROR] Failed to run init script " << script.path() << " with error [0x" << std::hex << hr << "]" << std::endl;
-            break;
-        }
-    }
-
-    return hr;
+    std::wcout << L"[ENTRYPOINT][INFO] Command '" << command << L"' exited with code [0x" << std::hex << exitCode << L"]" << std::endl;
 }
 
 int _tmain(int argc, _TCHAR** argv)
@@ -154,7 +109,7 @@ int _tmain(int argc, _TCHAR** argv)
 
     if (argc <= 1)
     {
-        std::cout << "Usage: entrypoint.exe <agent path> <agent args>" << std::endl;
+        std::cout << "Usage: entrypoint.exe <service> | <executable> <args>" << std::endl;
         goto Cleanup;
     }
 
@@ -180,19 +135,39 @@ int _tmain(int argc, _TCHAR** argv)
 
     if (SUCCEEDED(hr) && StopEvent != INVALID_HANDLE_VALUE)
     {
-        if ((hr = ExecuteInitScripts()) != S_OK)
+        try
         {
-            goto Cleanup;
-        }
+            ExecuteInitScripts();
+            std::wstring command = argv[1];
 
-        std::wstring processCommandLine = argv[1];
-        for (int i = 2; i < argc; ++i)
+            const std::array <std::wstring, 3> servicesName =
+            {
+                L"datadogagent",
+                L"datadog-process-agent",
+                L"datadog-trace-agent"
+            };
+
+            for (const std::wstring& serviceName : servicesName)
+            {
+                if (command == serviceName)
+                {
+                    RunService(serviceName);
+                    break;
+                }
+            }
+
+            std::wstringstream commandLine;
+            commandLine << command;
+            for (int i = 2; i < argc; ++i)
+            {
+                commandLine << L" " << argv[i];
+            }
+            RunExecutable(commandLine.str());
+        }
+        catch (std::exception & ex)
         {
-            processCommandLine += L" ";
-            processCommandLine += argv[i];
+            std::cout << "[ENTRYPOINT][ERROR] " << ex.what() << std::endl;
         }
-
-        hr = MonitorProcess(processCommandLine, false);
     }
 
 Cleanup:

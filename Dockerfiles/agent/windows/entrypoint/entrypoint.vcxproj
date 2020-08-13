@@ -159,9 +159,13 @@
   <ItemGroup>
     <ClCompile Include="entrypoint.cpp" />
     <ClCompile Include="Process.cpp" />
+    <ClCompile Include="Service.cpp" />
+    <ClCompile Include="Win32Exception.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Process.h" />
+    <ClInclude Include="Service.h" />
+    <ClInclude Include="Win32Exception.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
