@@ -69,7 +69,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
 		// snmpTrapOID and data, but no sysUpTimeInstance
-		{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
+		{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
 		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
 	}
