@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
@@ -84,17 +85,19 @@ func TestSublayerDurations(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.KillAgent()
-
+	baseStart := agent.Year2000NanosecTS
 	span := func(id, parentId uint64, service, spanType string, start, duration int64) *pb.Span {
 		return &pb.Span{
+			Name:     "foo",
+			Resource: "foo",
 			TraceID:  1,
 			SpanID:   id,
 			ParentID: parentId,
 			Service:  service,
 			Type:     spanType,
-			Start:    start,
+			Start:    baseStart + start,
 			Duration: duration,
-			Metrics:  make(map[string]float64),
+			Metrics:  map[string]float64{},
 		}
 	}
 	payload := pb.Traces{{
@@ -123,23 +126,23 @@ func TestSublayerDurations(t *testing.T) {
 			metric    string
 			duration  float64
 		}{
-			{0, "_sublayers.duration.by_service.sublayer_service:web-server", 130.0},
-			{0, "_sublayers.duration.by_service.sublayer_service:pg", 50.0},
-			{0, "_sublayers.duration.by_service.sublayer_service:render", 30.0},
-			{0, "_sublayers.duration.by_service.sublayer_service:pg-read", 30.0},
-			{0, "_sublayers.duration.by_service.sublayer_service:redis", 55.0},
-			{0, "_sublayers.duration.by_service.sublayer_service:rpc1", 60.0},
-			{0, "_sublayers.duration.by_service.sublayer_service:alert", 40.0},
-			{0, "_sublayers.duration.by_type.sublayer_type:cache", 55.000000},
-			{0, "_sublayers.duration.by_type.sublayer_type:db", 80.000000},
-			{0, "_sublayers.duration.by_type.sublayer_type:rpc", 100.000000},
-			{0, "_sublayers.duration.by_type.sublayer_type:web", 160.000000},
-			{1, "_sublayers.duration.by_service.sublayer_service:pg", 50.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:web-server", 15.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:pg", 12.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:render", 15.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:pg-read", 15.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:redis", 27.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:rpc1", 30.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:alert", 35.0},
+			{0, "_sublayers.duration.by_type.sublayer_type:cache", 27.0},
+			{0, "_sublayers.duration.by_type.sublayer_type:db", 27.0},
+			{0, "_sublayers.duration.by_type.sublayer_type:rpc", 65.0},
+			{0, "_sublayers.duration.by_type.sublayer_type:web", 30.0},
+			{1, "_sublayers.duration.by_service.sublayer_service:pg", 20.0},
 			{1, "_sublayers.duration.by_service.sublayer_service:pg-read", 30.0},
-			{1, "_sublayers.duration.by_type.sublayer_type:db", 80.000000},
-			{5, "_sublayers.duration.by_service.sublayer_service:rpc1", 60.0},
+			{1, "_sublayers.duration.by_type.sublayer_type:db", 50.0},
+			{5, "_sublayers.duration.by_service.sublayer_service:rpc1", 50.0},
 			{5, "_sublayers.duration.by_service.sublayer_service:alert", 40.0},
-			{5, "_sublayers.duration.by_type.sublayer_type:rpc", 100.000000},
+			{5, "_sublayers.duration.by_type.sublayer_type:rpc", 90.0},
 		} {
 			val, ok := spans[tt.spanIndex].Metrics[tt.metric]
 			if !ok {
