@@ -20,7 +20,7 @@ var (
 	// defaultLabelsMapper contains the default label to tag names mapping
 	defaultLabelsMapper = map[string]string{
 		"namespace":                        "kube_namespace",
-		"job":                              "kube_job",
+		"job_name":                         "kube_job",
 		"cronjob":                          "kube_cronjob",
 		"pod":                              "pod_name",
 		"phase":                            "pod_phase",
