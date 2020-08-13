@@ -305,13 +305,11 @@ func TestProcess(t *testing.T) {
 			{
 				trace: pb.Trace{
 					{
-						Service: "something &&<@# that should be a metric!",
 						TraceID: 1,
 						SpanID:  1,
 						Metrics: map[string]float64{sampler.KeySamplingPriority: 2},
 					},
 					{
-						Service:  "something &&<@# that should be a metric!",
 						TraceID:  1,
 						SpanID:   2,
 						ParentID: 1,
@@ -323,13 +321,11 @@ func TestProcess(t *testing.T) {
 			{
 				trace: pb.Trace{
 					{
-						Service: "something &&<@# that should be a metric!",
 						TraceID: 1,
 						SpanID:  1,
 						Metrics: map[string]float64{sampler.KeySamplingPriority: -1},
 					},
 					{
-						Service:  "something &&<@# that should be a metric!",
 						TraceID:  1,
 						SpanID:   2,
 						ParentID: 1,
