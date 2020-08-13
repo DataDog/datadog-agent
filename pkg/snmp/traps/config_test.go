@@ -60,16 +60,16 @@ func TestDefaultStopTimeout(t *testing.T) {
 	config, err := ReadConfig()
 	assert.NoError(t, err)
 
-	assert.Equal(t, 5 * time.Second, config.StopTimeout)
+	assert.Equal(t, 5*time.Second, config.StopTimeout)
 }
 
 func TestStopTimeout(t *testing.T) {
 	Configure(t, Config{
 		CommunityStrings: []string{"public"},
-		StopTimeout: 11 * time.Second,
+		StopTimeout:      11 * time.Second,
 	})
 	config, err := ReadConfig()
 	assert.NoError(t, err)
 
-	assert.Equal(t, 11 * time.Second, config.StopTimeout)
+	assert.Equal(t, 11*time.Second, config.StopTimeout)
 }
