@@ -132,6 +132,7 @@ func (s *TrapServer) Stop() {
 
 	go func() {
 		log.Infof("Stop listening on %s", s.config.Addr())
+		time.Sleep(2000 * time.Millisecond)
 		s.listener.Close()
 		close(stopped)
 	}()
