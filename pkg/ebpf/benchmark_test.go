@@ -96,14 +96,14 @@ func RunEBPFBenchmark(b *testing.B, fn func(*testing.B)) {
 
 	err := setBPFStatsCollection(b, true)
 	if err != nil {
-		log.Fatal(err)
+		b.Fatal(err)
 	}
 	defer setBPFStatsCollection(b, false)
 
 	// Enable BPF-based system probe
 	t, err := NewTracer(NewDefaultConfig())
 	if err != nil {
-		log.Fatal(err)
+		b.Fatal(err)
 	}
 	defer t.Stop()
 
