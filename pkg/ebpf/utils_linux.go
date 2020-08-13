@@ -3,13 +3,87 @@
 package ebpf
 
 import (
+	"bufio"
 	"fmt"
+	"github.com/pkg/errors"
+	"os"
 	"path"
 	"strings"
+
+	"github.com/DataDog/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
+var requiredKernelFuncs = []string{
+	// Maps (3.18)
+	"bpf_map_lookup_elem",
+	"bpf_map_update_elem",
+	"bpf_map_delete_elem",
+	// bpf_probe_read intentionally omitted since it was renamed in kernel 5.5
+	// Perf events (4.4)
+	"bpf_perf_event_output",
+	"bpf_perf_event_read",
+}
+
+func verifyKernelFuncs(path string) ([]string, error) {
+	// Will hold the found functions
+	found := make(map[string]bool, len(requiredKernelFuncs))
+	for _, f := range requiredKernelFuncs {
+		found[f] = false
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error reading kallsyms file from: %s", path)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanLines)
+
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 3 {
+			continue
+		}
+
+		name := fields[2]
+		if _, ok := found[name]; ok {
+			found[name] = true
+		}
+	}
+
+	missing := []string{}
+	for probe, b := range found {
+		if !b {
+			missing = append(missing, probe)
+		}
+	}
+
+	return missing, nil
+}
+
+// IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
+// along with some context on why it's not supported
+func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
+	currentKernelCode, err := ebpf.CurrentKernelVersion()
+	if err == ErrNotImplemented {
+		log.Infof("Could not detect OS, will assume supported.")
+	} else if err != nil {
+		return false, fmt.Sprintf("could not get kernel version: %s", err)
+	}
+
+	platform, err := util.GetPlatform()
+	if err != nil {
+		log.Warnf("error retrieving current platform: %s", err)
+	} else {
+		log.Infof("running on platform: %s", platform)
+	}
+	return verifyOSVersion(currentKernelCode, platform, exclusionList)
+}
 
 func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
 	for _, version := range exclusionList {
