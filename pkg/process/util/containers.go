@@ -1,6 +1,8 @@
 package util
 
 import (
+	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -28,6 +30,10 @@ func SetContainerSources(names []string) {
 // GetContainers autodetects the best backend from available sources
 // if the users don't specify the preferred container sources
 func GetContainers() ([]*containers.Container, error) {
+	if runtime.GOOS == "darwin" {
+		nil, fmt.Errorf("containers collection not available for darwin")
+	}
+
 	// Detect sources
 	if detectors == nil {
 		// Container sources aren't configured, autodetect the best available source
