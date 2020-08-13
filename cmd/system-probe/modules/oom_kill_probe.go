@@ -21,7 +21,11 @@ var OOMKillProbe = api.Factory{
 
 		log.Infof("Starting the OOM Kill probe")
 		okp, err := ebpf.NewOOMKillProbe(config.SysProbeConfigFromConfig(cfg))
-		return &oomKillModule{okp}, err
+		if err != nil {
+			log.Errorf("unable to start the OOM kill probe: %v", err)
+			return nil, err
+		}
+		return &oomKillModule{okp}, nil
 	},
 }
 
