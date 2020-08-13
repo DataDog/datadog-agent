@@ -139,7 +139,7 @@ func (s *TrapServer) Stop() {
 	select {
 	case <-stopped:
 	case <-time.After(time.Duration(s.config.StopTimeout) * time.Second):
-		log.Error("Stopping server. Timeout after: %d", s.config.StopTimeout)
+		log.Errorf("Stopping server. Timeout after: %d", s.config.StopTimeout)
 	}
 
 	// Let consumers know that we will not be sending any more packets.
