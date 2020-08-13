@@ -30,6 +30,10 @@ func SetContainerSources(names []string) {
 // GetContainers autodetects the best backend from available sources
 // if the users don't specify the preferred container sources
 func GetContainers() ([]*containers.Container, error) {
+	// The docker build tag is no longer removed for darwin. However, there's no
+	// provider that implements containers collection on this platform. This check
+	// must be skipped until it's safe to remove the build tag or a darwin
+	// provider is implemented.
 	if runtime.GOOS == "darwin" {
 		return nil, fmt.Errorf("containers collection not available for darwin")
 	}
