@@ -6,11 +6,9 @@
 package traps
 
 import (
-	"testing"
-	"time"
-
 	"github.com/soniah/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestConfig(t *testing.T) {
@@ -60,16 +58,16 @@ func TestDefaultStopTimeout(t *testing.T) {
 	config, err := ReadConfig()
 	assert.NoError(t, err)
 
-	assert.Equal(t, 5*time.Second, config.StopTimeout)
+	assert.Equal(t, 5, config.StopTimeout)
 }
 
 func TestStopTimeout(t *testing.T) {
 	Configure(t, Config{
 		CommunityStrings: []string{"public"},
-		StopTimeout:      11 * time.Second,
+		StopTimeout:      11,
 	})
 	config, err := ReadConfig()
 	assert.NoError(t, err)
 
-	assert.Equal(t, 11*time.Second, config.StopTimeout)
+	assert.Equal(t, 11, config.StopTimeout)
 }
