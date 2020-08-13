@@ -7,6 +7,7 @@ package traps
 
 import (
 	"testing"
+	"time"
 
 	"github.com/soniah/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -50,4 +51,25 @@ func TestCommunityStringsMissing(t *testing.T) {
 	Configure(t, Config{})
 	_, err := ReadConfig()
 	assert.Error(t, err)
+}
+
+func TestDefaultStopTimeout(t *testing.T) {
+	Configure(t, Config{
+		CommunityStrings: []string{"public"},
+	})
+	config, err := ReadConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, 5 * time.Second, config.StopTimeout)
+}
+
+func TestStopTimeout(t *testing.T) {
+	Configure(t, Config{
+		CommunityStrings: []string{"public"},
+		StopTimeout: 11 * time.Second,
+	})
+	config, err := ReadConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, 11 * time.Second, config.StopTimeout)
 }
