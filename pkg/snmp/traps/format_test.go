@@ -83,7 +83,6 @@ func TestGetTags(t *testing.T) {
 	assert.Equal(t, tags, []string{
 		"snmp_version:2",
 		"snmp_device:127.0.0.1",
-		"snmp_device_port:13156",
 	})
 }
 
@@ -95,6 +94,5 @@ func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
 	assert.Equal(t, tags, []string{
 		"snmp_version:unknown",
 		"snmp_device:127.0.0.1",
-		"snmp_device_port:13156",
 	})
 }

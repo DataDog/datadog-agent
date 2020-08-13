@@ -27,7 +27,6 @@ func GetTags(packet *SnmpPacket) []string {
 	return []string{
 		fmt.Sprintf("snmp_version:%s", formatVersion(packet)),
 		fmt.Sprintf("snmp_device:%s", packet.Addr.IP.String()),
-		fmt.Sprintf("snmp_device_port:%d", packet.Addr.Port),
 	}
 }
 
