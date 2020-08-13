@@ -102,6 +102,9 @@ WINDOWS_EXCLUDE_TAGS = set(["linux_bpf"])
 # List of tags to always remove when building on Windows 32-bits
 WINDOWS_32BIT_EXCLUDE_TAGS = set(["docker", "kubeapiserver", "kubelet", "orchestrator",])
 
+# List of tags to always remove when building on Darwin (macOS)
+DARWIN_EXCLUDE_TAGS = set(["docker"])
+
 # Build type: build tags map
 build_tags = {
     # Build setups
@@ -151,6 +154,9 @@ def filter_incompatible_tags(include, arch="x64"):
 
     if sys.platform == "win32" and arch == "x86":
         exclude = exclude.union(WINDOWS_32BIT_EXCLUDE_TAGS)
+
+    if sys.platform == "darwin":
+        exclude = exclude.union(DARWIN_EXCLUDE_TAGS)
 
     return get_build_tags(include, exclude)
 
