@@ -787,3 +787,23 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 
 	return network.OUTGOING
 }
+
+func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
+	fds := make(map[string]uint32, 0)
+	for _, p := range t.m.Probes {
+		if !p.Enabled {
+			continue
+		}
+		prog := p.Program()
+		if prog == nil {
+			fmt.Printf("unable to find program for %s\n", p.Section)
+			continue
+		}
+		id, err := prog.ID()
+		if err != nil {
+			return nil, err
+		}
+		fds[p.Section] = uint32(id)
+	}
+	return fds, nil
+}
