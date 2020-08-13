@@ -31,7 +31,7 @@ func SetContainerSources(names []string) {
 // if the users don't specify the preferred container sources
 func GetContainers() ([]*containers.Container, error) {
 	if runtime.GOOS == "darwin" {
-		nil, fmt.Errorf("containers collection not available for darwin")
+		return nil, fmt.Errorf("containers collection not available for darwin")
 	}
 
 	// Detect sources
