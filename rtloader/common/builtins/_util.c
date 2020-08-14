@@ -129,8 +129,13 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
     static char *keywords[] = { "command", "raise_on_empty", "env", NULL };
     // `cmd_args` is mandatory and should be a list, `cmd_raise_on_empty` is an optional
     // boolean. The string after the ':' is used as the function name in error messages.
-    if (!PyArg_ParseTupleAndKeywords(args, kw, "O|O$O:get_subprocess_output", keywords, &cmd_args, &cmd_raise_on_empty,
-                                     &cmd_env)) {
+#ifdef DATADOG_AGENT_THREE
+#    define ARGS_FORMAT "O|O$O:get_subprocess_output"
+#elif defined(DATADOG_AGENT_TWO)
+#    define ARGS_FORMAT "O|OO:get_subprocess_output"
+#endif
+    if (!PyArg_ParseTupleAndKeywords(args, kw, ARGS_FORMAT, keywords, &cmd_args, &cmd_raise_on_empty, &cmd_env)) {
+#undef ARGS_FORMAT
         goto cleanup;
     }
 
