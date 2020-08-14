@@ -89,7 +89,7 @@ func (h *SingleLineHandler) process(line []byte) {
 		rawLen++
 	}
 
-	content, status, timestamp, err := h.parser.Parse(line)
+	content, status, timestamp, _, err := h.parser.Parse(line)
 	if err != nil {
 		log.Debug(err)
 	}
@@ -210,7 +210,7 @@ func (h *MultiLineHandler) run() {
 // and that the length of the lines is properly tracked
 // so that the agent restarts tailing from the right place.
 func (h *MultiLineHandler) process(line []byte) {
-	content, status, timestamp, err := h.parser.Parse(line)
+	content, status, timestamp, _, err := h.parser.Parse(line)
 	if err != nil {
 		log.Debug(err)
 	}
