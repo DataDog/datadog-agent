@@ -796,7 +796,7 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 		}
 		prog := p.Program()
 		if prog == nil {
-			fmt.Printf("unable to find program for %s\n", p.Section)
+			log.Debugf("unable to find program for %s\n", p.Section)
 			continue
 		}
 		id, err := prog.ID()
