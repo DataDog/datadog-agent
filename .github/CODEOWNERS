@@ -127,7 +127,7 @@
 /pkg/compliance/                        @DataDog/container-integrations
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
-/pkg/snmp                               @DataDog/agent-integrations
+/pkg/snmp/                              @DataDog/agent-integrations
 
 /pkg-config/                            @DataDog/agent-platform
 
