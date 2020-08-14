@@ -499,7 +499,12 @@ func (p *Probe) SendStats(statsdClient *statsd.Client) error {
 func (p *Probe) GetStats() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
-	syscalls, err := p.syscallMonitor.GetStats()
+	var syscalls *SyscallStats
+	var err error
+
+	if p.syscallMonitor != nil {
+		syscalls, err = p.syscallMonitor.GetStats()
+	}
 
 	stats["events"] = map[string]interface{}{
 		"lost":     p.eventsStats.GetLost(),
