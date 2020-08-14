@@ -322,6 +322,8 @@ DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
     provide the go-routine dump. If you need both, just crash twice trying both options :)
 
     Currently only SEGFAULT is handled.
+
+    The returned error C-string must be freed by the caller.
 */
 DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, char **error);
 #endif
