@@ -172,7 +172,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
         subprocess_args[i] = subprocess_arg;
     }
 
-    if (cmd_env != NULL) {
+    if (cmd_env != NULL && cmd_env != Py_None) {
         if (!PyDict_Check(cmd_env)) {
             PyErr_SetString(PyExc_TypeError, "env is not a dict");
             goto cleanup;
