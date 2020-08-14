@@ -127,14 +127,14 @@ func TestSublayerDurations(t *testing.T) {
 			duration  float64
 		}{
 			{0, "_sublayers.duration.by_service.sublayer_service:web-server", 15.0},
-			{0, "_sublayers.duration.by_service.sublayer_service:pg", 12.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:pg", 13.0},
 			{0, "_sublayers.duration.by_service.sublayer_service:render", 15.0},
 			{0, "_sublayers.duration.by_service.sublayer_service:pg-read", 15.0},
-			{0, "_sublayers.duration.by_service.sublayer_service:redis", 27.0},
+			{0, "_sublayers.duration.by_service.sublayer_service:redis", 28.0},
 			{0, "_sublayers.duration.by_service.sublayer_service:rpc1", 30.0},
 			{0, "_sublayers.duration.by_service.sublayer_service:alert", 35.0},
-			{0, "_sublayers.duration.by_type.sublayer_type:cache", 27.0},
-			{0, "_sublayers.duration.by_type.sublayer_type:db", 27.0},
+			{0, "_sublayers.duration.by_type.sublayer_type:cache", 28.0},
+			{0, "_sublayers.duration.by_type.sublayer_type:db", 28.0},
 			{0, "_sublayers.duration.by_type.sublayer_type:rpc", 65.0},
 			{0, "_sublayers.duration.by_type.sublayer_type:web", 30.0},
 			{1, "_sublayers.duration.by_service.sublayer_service:pg", 20.0},
