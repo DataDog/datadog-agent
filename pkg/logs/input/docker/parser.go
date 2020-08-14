@@ -10,6 +10,7 @@ package docker
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -39,19 +40,19 @@ func NewParser(containerID string) *Parser {
 
 // Parse calls parse to extract the message body, status, timestamp
 // can put them in the Message
-func (p *Parser) Parse(msg []byte) ([]byte, string, string, error) {
+func (p *Parser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	return parse(msg, p.containerID)
 }
 
 // parse extracts the date and the status from the raw docker message
-// it returns 1. raw message 2. severity 3. timestamp, 4 error
+// it returns 1. raw message 2. severity 3. timestamp, 4. is partial, 5. error
 // see https://github.com/moby/moby/blob/master/client/container_logs.go#L36
-func parse(msg []byte, containerID string) ([]byte, string, string, error) {
+func parse(msg []byte, containerID string) ([]byte, string, string, bool, error) {
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return msg, message.StatusInfo, "", fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", ShortContainerID(containerID))
+		return msg, message.StatusInfo, "", false, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", ShortContainerID(containerID))
 	}
 
 	// Read the first byte to get the status
@@ -80,10 +81,10 @@ func parse(msg []byte, containerID string) ([]byte, string, string, error) {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 || isEmptyMessage(msg[idx+1:]) {
 		// Nothing after the timestamp: empty message
-		return nil, "", "", nil
+		return nil, "", "", false, nil
 	}
 
-	return msg[idx+1:], status, string(msg[:idx]), nil
+	return msg[idx+1:], status, string(msg[:idx]), false, nil
 }
 
 // getDockerSeverity returns the status of the message based on the value of the

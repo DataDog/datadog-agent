@@ -10,7 +10,7 @@ var NoopParser *noopParser
 
 // Parser parse messages
 type Parser interface {
-	// Returns : messages, status, timestamp, isPartial, error
+	// It returns 1. raw message, 2. severity, 3. timestamp, 4. partial, 5. error
 	Parse([]byte) ([]byte, string, string, bool, error)
 }
 
