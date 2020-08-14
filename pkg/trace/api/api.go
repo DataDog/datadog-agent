@@ -336,7 +336,7 @@ func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 	switch v {
 	case v01, v02, v03:
 		httpOK(w)
-	default:
+	case v04:
 		httpRateByService(w, r.dynConf)
 	}
 }
