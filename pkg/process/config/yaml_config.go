@@ -391,25 +391,25 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 func extractOrchestratorAdditionalEndpoints(URL *url.URL) ([]api.Endpoint, error) {
 	var orchestratorEndpoints []api.Endpoint
 	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
+		if err := extractEndpoints(URL, k, &orchestratorEndpoints); err != nil {
 			return nil, err
 		}
 	} else if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
+		if err := extractEndpoints(URL, k, &orchestratorEndpoints); err != nil {
 			return nil, err
 		}
 	}
 	return orchestratorEndpoints, nil
 }
 
-func extractEndpoints(URL *url.URL, k string, endpoints []api.Endpoint) error {
+func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
 	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
 		u, err := URL.Parse(endpointURL)
 		if err != nil {
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 		}
 		for _, k := range apiKeys {
-			endpoints = append(endpoints, api.Endpoint{
+			*endpoints = append(*endpoints, api.Endpoint{
 				APIKey:   k,
 				Endpoint: u,
 			})

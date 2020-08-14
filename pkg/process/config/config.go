@@ -419,6 +419,8 @@ func loadEnvVariables() {
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
+		// TODO: doublecheck
+		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
 		{"DD_BIND_HOST", "bind_host"},
@@ -468,7 +470,7 @@ func loadEnvVariables() {
 		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
 			log.Errorf(`Could not parse DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
 		} else {
-			config.Datadog.Set("process_config.orchestrator_additional_endpoints", endpoints)
+			config.Datadog.Set("orchestrator_explorer.orchestrator_additional_endpoints", endpoints)
 		}
 	}
 }
