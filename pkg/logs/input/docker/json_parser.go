@@ -38,7 +38,7 @@ type jsonParser struct{}
 // {"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}
 // returns:
 // "a message", "error", "2019-06-06T16:35:55.930852911Z", nil
-func (p *jsonParser) Parse(data []byte) ([]byte, string, string, error) {
+func (p *jsonParser) Parse(data []byte) ([]byte, string, string, bool, error) {
 	var log *logLine
 	err := json.Unmarshal(data, &log)
 	if err != nil {
@@ -57,8 +57,13 @@ func (p *jsonParser) Parse(data []byte) ([]byte, string, string, error) {
 
 	content := []byte(log.Log)
 	length := len(content)
-	if length > 0 && log.Log[length-1] == '\n' {
-		content = content[:length-1]
+	partial := false
+	if length > 0 {
+		if log.Log[length-1] == '\n' {
+			content = content[:length-1]
+		} else {
+			partial = true
+		}
 	}
-	return content, status, log.Time, nil
+	return content, status, log.Time, partial, nil
 }

@@ -10,7 +10,8 @@ var NoopParser *noopParser
 
 // Parser parse messages
 type Parser interface {
-	Parse([]byte) ([]byte, string, string, error)
+	// Returns : messages, status, timestamp, isPartial, error
+	Parse([]byte) ([]byte, string, string, bool, error)
 }
 
 type noopParser struct {
@@ -18,6 +19,6 @@ type noopParser struct {
 }
 
 // Parse does nothing for NoopParser
-func (p *noopParser) Parse(msg []byte) ([]byte, string, string, error) {
-	return msg, "", "", nil
+func (p *noopParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+	return msg, "", "", false, nil
 }
