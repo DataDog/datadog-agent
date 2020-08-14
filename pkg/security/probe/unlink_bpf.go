@@ -11,6 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
+var unlinkTables = []string{
+	"unlink_path_inode_discarders",
+}
+
 func unlinkOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 	field := discarder.Field
 

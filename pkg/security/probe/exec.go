@@ -11,12 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-// execTables holds the list of eBPF tables used by the process kprobes
-var execTables = []string{
-	"proc_cache",
-	"pid_cookie",
-}
-
 // execHookPoints holds the list of hookpoints to track processes execution
 var execHookPoints = []*HookPoint{
 	{

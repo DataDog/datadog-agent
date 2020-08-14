@@ -11,10 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-var unlinkTables = []string{
-	"unlink_path_inode_discarders",
-}
-
 // UnlinkHookPoints list of unlink's kProbes
 var UnlinkHookPoints = []*HookPoint{
 	{

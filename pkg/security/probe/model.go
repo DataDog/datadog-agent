@@ -53,9 +53,7 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 var ErrNotEnoughData = errors.New("not enough data")
 
 // Model describes the data model for the runtime security agent events
-type Model struct {
-	event *Event
-}
+type Model struct{}
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
@@ -479,24 +477,6 @@ type LinkEvent struct {
 	BaseEvent
 	Source FileEvent `field:"source"`
 	Target FileEvent `field:"target"`
-}
-
-func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"src_mount_id":%d,`, e.Source.MountID)
-	fmt.Fprintf(&buf, `"src_inode":%d,`, e.Source.Inode)
-	fmt.Fprintf(&buf, `"src_filename":"%s",`, e.Source.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"src_container_path":"%s",`, e.Source.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"src_overlay_numlower":%d,`, e.Source.OverlayNumLower)
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.Target.MountID)
-	fmt.Fprintf(&buf, `"new_inode":%d,`, e.Source.Inode)
-	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.Target.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"new_container_path":"%s",`, e.Target.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"new_overlay_numlower":%d`, e.Target.OverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
