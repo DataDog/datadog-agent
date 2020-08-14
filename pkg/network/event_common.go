@@ -137,6 +137,7 @@ type ConnectionStats struct {
 	DNSTimeouts            uint32
 	DNSSuccessLatencySum   uint64
 	DNSFailureLatencySum   uint64
+	DNSErrorCount          map[uint32]uint32
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd

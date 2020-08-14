@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/gopacket/layers"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/ebpf"
@@ -231,6 +233,7 @@ func TestDNSOverTCPSnoopingWithSuccessfulResponse(t *testing.T) {
 	assert.Equal(t, uint32(0), allStats[key].timeouts)
 	assert.True(t, allStats[key].successLatencySum >= uint64(1))
 	assert.Equal(t, uint64(0), allStats[key].failureLatencySum)
+	require.Equal(t, 0, len(allStats[key].errorCount))
 }
 
 func TestDNSOverTCPSnoopingWithFailedResponse(t *testing.T) {
@@ -248,7 +251,9 @@ func TestDNSOverTCPSnoopingWithFailedResponse(t *testing.T) {
 	assert.Equal(t, uint32(1), allStats[key].failedResponses)
 	assert.Equal(t, uint32(0), allStats[key].timeouts)
 	assert.Equal(t, uint64(0), allStats[key].successLatencySum)
+	require.Equal(t, 1, len(allStats[key].errorCount))
 	assert.True(t, allStats[key].failureLatencySum > uint64(0))
+	require.Equal(t, uint32(1), allStats[key].errorCount[uint8(layers.DNSResponseCodeNXDomain)])
 }
 
 func TestDNSOverUDPSnoopingWithTimedOutResponse(t *testing.T) {

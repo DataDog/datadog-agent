@@ -206,6 +206,10 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 			conn.DNSTimeouts = dnsStats.timeouts
 			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
 			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
+			conn.DNSErrorCount = make(map[uint32]uint32)
+			for errorCode, count := range dnsStats.errorCount {
+				conn.DNSErrorCount[uint32(errorCode)] = count
+			}
 		}
 		seen[key] = struct{}{}
 	}
@@ -277,6 +281,9 @@ func (ns *networkState) storeDNSStats(stats map[dnsKey]dnsStats) {
 				prev.timeouts += dns.timeouts
 				prev.successLatencySum += dns.successLatencySum
 				prev.failureLatencySum += dns.failureLatencySum
+				for errorCode, count := range dns.errorCount {
+					prev.errorCount[errorCode] += count
+				}
 				client.dnsStats[key] = prev
 			} else if len(client.dnsStats) >= ns.maxDNSStats {
 				ns.telemetry.dnsStatsDropped++

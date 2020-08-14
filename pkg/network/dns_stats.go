@@ -14,6 +14,7 @@ type dnsStats struct {
 	successLatencySum   uint64 // Stored in µs
 	failureLatencySum   uint64
 	timeouts            uint32
+	errorCount          map[uint8]uint32
 }
 
 type dnsKey struct {
@@ -46,6 +47,7 @@ type dnsPacketInfo struct {
 	transactionID uint16
 	key           dnsKey
 	pktType       DNSPacketType
+	errorCode     uint8 // relevant only when pktType == FailedResponse
 }
 
 type stateKey struct {
@@ -119,7 +121,10 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	latency := microSecs(ts) - start
 
-	stats := d.stats[info.key]
+	stats, ok := d.stats[info.key]
+	if !ok {
+		stats.errorCount = make(map[uint8]uint32)
+	}
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
@@ -131,6 +136,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		} else if info.pktType == FailedResponse {
 			stats.failedResponses++
 			stats.failureLatencySum += latency
+			stats.errorCount[info.errorCode]++
 		}
 	}
 
