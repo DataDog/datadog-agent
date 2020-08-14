@@ -128,10 +128,13 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args)
 SEC("kprobe/do_exit")
 int kprobe_do_exit(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = pid_tgid >> 32;
+    u32 tgid = pid_tgid >> 32;
+    u32 pid = pid_tgid;
 
     // Delete pid <-> cookie mapping
-    bpf_map_delete_elem(&pid_cookie, &pid);
+    if (tgid == pid) {
+        bpf_map_delete_elem(&pid_cookie, &tgid);
+    }
     // (do not delete cookie <-> proc_cache entry since it can be used by a parent process)
     return 0;
 }
