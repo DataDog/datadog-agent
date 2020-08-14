@@ -2,6 +2,7 @@ package config
 
 import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/stretchr/testify/suite"
 	"net/url"
 	"testing"
@@ -61,10 +62,11 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorProcessEndpoints() {
 	expected["key2"] = "process2.com"
 	expected["key3"] = "process2.com"
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
+	var actualEndpoints []api.Endpoint
 
 	suite.config.Set("api_key", "wassupkey")
 	suite.config.Set("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
-	actualEndpoints, err := extractOrchestratorAdditionalEndpoints(&url.URL{})
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
 		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
@@ -77,10 +79,11 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	expected["key2"] = "orchestrator2.com"
 	expected["key3"] = "orchestrator2.com"
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
+	var actualEndpoints []api.Endpoint
 
 	suite.config.Set("api_key", "wassupkey")
 	suite.config.Set("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
-	actualEndpoints, err := extractOrchestratorAdditionalEndpoints(&url.URL{})
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
 		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
@@ -93,11 +96,16 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	expected["key2"] = "orchestrator2.com"
 	expected["key3"] = "orchestrator2.com"
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
+	// verifying that we do not overwrite an existing endpoint.
+	expected["test"] = "test.com"
+
+	u, _ := url.Parse("https://test.com")
+	actualEndpoints := []api.Endpoint{{APIKey: "test", Endpoint: u}}
 
 	suite.config.Set("api_key", "wassupkey")
 	suite.config.Set("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
 	suite.config.Set("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
-	actualEndpoints, err := extractOrchestratorAdditionalEndpoints(&url.URL{})
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
 		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)

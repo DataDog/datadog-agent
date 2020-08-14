@@ -340,12 +340,9 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 		}
 	}
-
-	orchestratorEndpoints, err := extractOrchestratorAdditionalEndpoints(URL)
-	if err != nil {
+	if err := extractOrchestratorAdditionalEndpoints(URL, &a.OrchestratorEndpoints); err != nil {
 		return err
 	}
-	a.OrchestratorEndpoints = orchestratorEndpoints
 
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
@@ -388,18 +385,17 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	return nil
 }
 
-func extractOrchestratorAdditionalEndpoints(URL *url.URL) ([]api.Endpoint, error) {
-	var orchestratorEndpoints []api.Endpoint
+func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {
 	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		if err := extractEndpoints(URL, k, &orchestratorEndpoints); err != nil {
-			return nil, err
+		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
+			return err
 		}
 	} else if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		if err := extractEndpoints(URL, k, &orchestratorEndpoints); err != nil {
-			return nil, err
+		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
+			return err
 		}
 	}
-	return orchestratorEndpoints, nil
+	return nil
 }
 
 func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
