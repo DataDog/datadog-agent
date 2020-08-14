@@ -341,11 +341,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	if orchestratorEndpoints, err := extractOrchestratorAdditionalEndpoints(URL); err != nil {
+	orchestratorEndpoints, err := extractOrchestratorAdditionalEndpoints(URL)
+	if err != nil {
 		return err
-	} else {
-		a.OrchestratorEndpoints = orchestratorEndpoints
 	}
+	a.OrchestratorEndpoints = orchestratorEndpoints
 
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
@@ -420,9 +420,9 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
 
 // extractOrchestratorDDUrl contains backward compatible config parsing code.
 func extractOrchestratorDDUrl() (*url.URL, error) {
-	orchestratorUrl := key(orchestratorNS, "orchestrator_dd_url")
-	processUrl := key(ns, "orchestrator_dd_url")
-	URL, err := url.Parse(config.GetMainEndpointWithConfigBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorUrl, processUrl))
+	orchestratorURL := key(orchestratorNS, "orchestrator_dd_url")
+	processURL := key(ns, "orchestrator_dd_url")
+	URL, err := url.Parse(config.GetMainEndpointWithConfigBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
 	}
