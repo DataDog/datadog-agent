@@ -11,10 +11,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	seelog "github.com/cihub/seelog"
-
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/lxn/walk"
@@ -32,10 +35,23 @@ var (
 	ni        *walk.NotifyIcon
 	launchgui bool
 	eventname = windows.StringToUTF16Ptr("ddtray-event")
+
+	// DefaultConfPath points to the folder containing datadog.yaml
+	DefaultConfPath = "c:\\programdata\\datadog"
+	// DefaultLogFile points to the log file that will be used if not configured
+	DefaultLogFile = "c:\\programdata\\datadog\\logs\\systray.log"
 )
 
+// loggerName is the name of the systray logger
+const loggerName config.LoggerName = "SYSTRAY"
+
 func init() {
-	enableLoggingToFile()
+	//enableLoggingToFile()
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultConfPath = pd
+		DefaultLogFile = filepath.Join(pd, "logs", "systray.log")
+	}
 }
 
 func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
@@ -103,6 +119,9 @@ func onExit() {
 }
 
 func main() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	enableLoggingToFile()
 	flag.BoolVar(&launchgui, "launch-gui", false, "Launch browser configuration and exit")
 	flag.Parse()
 	log.Debugf("launch-gui is %v", launchgui)
@@ -112,28 +131,35 @@ func main() {
 		log.Debug("Preparing to launch configuration interface...")
 		onConfigure()
 	}
+	log.Debugf("Checking to see if already running")
 	// check to see if the process is already running.  If so, just exit
 	h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
 		false,
 		eventname)
 
+	log.Debugf("event handle is %v", h)
 	if h != windows.Handle(0) {
 		// was already there.  Process already running. We're done
 		windows.CloseHandle(h)
+		log.Infof("Tray process already running; exiting")
 		return
 	}
+	log.Debugf("Creating event handle")
 	// otherwise, create the handle so that nobody else will
 	h, _ = windows.CreateEvent(nil, 0, 0, eventname)
 	// should never fail; test just to make sure we don't close unopened handle
 	if h != windows.Handle(0) {
 		defer windows.CloseHandle(h)
 	}
+	log.Debugf("creating main window")
 	// We need either a walk.MainWindow or a walk.Dialog for their message loop.
 	// We will not make it visible in this example, though.
 	mw, err := walk.NewMainWindow()
 	if err != nil {
 		log.Errorf("Failed to create main window %v", err)
 		os.Exit(1)
+	} else {
+		log.Debugf("Created new main window")
 	}
 
 	icon, err := walk.NewIconFromResourceId(3)
@@ -158,6 +184,7 @@ func main() {
 
 	// When the left mouse button is pressed, bring up our balloon.
 	ni.MouseDown().Attach(func(x, y int, button walk.MouseButton) {
+		log.Debugf("leftButtonDownfunc")
 		if button != walk.LeftButton {
 			return
 		}
@@ -189,8 +216,10 @@ func main() {
 		log.Warnf("Failed to set window visibility %v", err)
 	}
 
+	log.Debugf("Entering message loop")
 	// Run the message loop.
 	mw.Run()
+	log.Infof("Left message loop")
 }
 
 // opens a browser window at the specified URL
@@ -199,23 +228,17 @@ func open(url string) error {
 }
 
 func enableLoggingToFile() {
-	seeConfig := `
-	<seelog minlevel="debug">
-	<outputs>
-		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\ddtray.log" maxsize="1000000" maxrolls="2" />
-	</outputs>
-	</seelog>`
-	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
-	log.ReplaceLogger(logger)
+	config.SetupLogger(
+		loggerName,
+		"DEBUG",
+		DefaultLogFile,
+		"", // no syslog
+		false, 
+		false,
+		false,
+	)
+
 }
 
 func enableLoggingToConsole() {
-	seeConfig := `
-	<seelog minlevel="debug">
-	<outputs>
-		<console />
-	</outputs>
-	</seelog>`
-	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
-	log.ReplaceLogger(logger)
 }
