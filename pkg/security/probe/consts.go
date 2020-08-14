@@ -374,7 +374,7 @@ func (f UnlinkFlags) String() string {
 	return bitmaskToString(int(f), unlinkFlagsStrings)
 }
 
-// ReturnValue represents a syscall return value
+// RetValError represents a syscall return error value
 type RetValError int
 
 func (f RetValError) String() string {

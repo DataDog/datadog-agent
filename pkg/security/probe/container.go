@@ -16,7 +16,7 @@ import (
 // ContainerResolver is used to resolve the container context of the events
 type ContainerResolver struct{}
 
-// SyncCache updates in the kernel container cache the current pid <-> container mapping extracted from the proc fs
+// GetContainerID returns the container id of the given pid
 func (cr *ContainerResolver) GetContainerID(pid uint32) (*utils.ContainerID, error) {
 	// Parse /proc/[pid]/moutinfo
 	containerID, err := utils.GetProcContainerID(pid, pid)

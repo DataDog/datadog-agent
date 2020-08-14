@@ -362,6 +362,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 	return nil
 }
 
+// Init initialises the probe
 func (p *Probe) Init() error {
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -400,6 +401,7 @@ func (p *Probe) ApplyApprovers(eventType eval.EventType, approvers rules.Approve
 	return err
 }
 
+// RegisterKProbe register the given kprobe
 func (p *Probe) RegisterKProbe(kprobe *KProbe) error {
 	ekb := ebpf.KProbe(*kprobe)
 
@@ -413,6 +415,7 @@ func (p *Probe) RegisterKProbe(kprobe *KProbe) error {
 	return err
 }
 
+// RegisterTracepoint registers the given tracepoint
 func (p *Probe) RegisterTracepoint(tracepoint string) error {
 	err := p.Module.RegisterTracepoint(tracepoint)
 	if err == nil {

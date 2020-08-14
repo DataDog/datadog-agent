@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+// RuleSetApplier defines a rule set applier. It applies rules using an Applier
 type RuleSetApplier struct {
 	config   *config.Config
 	reporter *Reporter
@@ -53,7 +54,7 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 	return nil
 }
 
-func (rsa *RuleSetApplier) RegisterKProbe(kprobe *KProbe, applier Applier) error {
+func (rsa *RuleSetApplier) registerKProbe(kprobe *KProbe, applier Applier) error {
 	if applier != nil {
 		return applier.RegisterKProbe(kprobe)
 	}
@@ -61,7 +62,7 @@ func (rsa *RuleSetApplier) RegisterKProbe(kprobe *KProbe, applier Applier) error
 	return nil
 }
 
-func (rsa *RuleSetApplier) RegisterTracepoint(tracepoint string, applier Applier) error {
+func (rsa *RuleSetApplier) registerTracepoint(tracepoint string, applier Applier) error {
 	if applier != nil {
 		return applier.RegisterTracepoint(tracepoint)
 	}
@@ -161,7 +162,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, e
 						kprobe.Name = hookPoint.Name
 					}
 
-					if err := rsa.RegisterKProbe(kprobe, applier); err != nil {
+					if err := rsa.registerKProbe(kprobe, applier); err != nil {
 						if !hookPoint.Optional {
 							return nil, err
 						}
@@ -169,7 +170,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, e
 				}
 
 				if len(hookPoint.Tracepoint) > 0 {
-					if err := rsa.RegisterTracepoint(hookPoint.Tracepoint, applier); err != nil {
+					if err := rsa.registerTracepoint(hookPoint.Tracepoint, applier); err != nil {
 						return nil, err
 					}
 				}
@@ -181,6 +182,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, e
 	return rsa.reporter.GetReport(), nil
 }
 
+// NewRuleSetApplier returns a new RuleSetApplier
 func NewRuleSetApplier(cfg *config.Config) *RuleSetApplier {
 	return &RuleSetApplier{
 		config:   cfg,

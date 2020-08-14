@@ -85,6 +85,7 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	return nil
 }
 
+// BaseEvent contains common fields for all the event
 type BaseEvent struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"-"`
@@ -120,10 +121,12 @@ func (e *BaseEvent) ResolveMonotonicTimestamp(resolvers *Resolvers) time.Time {
 	return e.Timestamp
 }
 
+// BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
 }
 
+// FileEvent is the common file event type
 type FileEvent struct {
 	MountID         uint32 `field:"-"`
 	Inode           uint64 `field:"inode"`
@@ -133,7 +136,7 @@ type FileEvent struct {
 	BasenameStr     string `field:"basename" handler:"ResolveBasename,string"`
 }
 
-// FileEvent resolves the inode to a full path
+// ResolveInode resolves the inode to a full path
 func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)

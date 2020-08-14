@@ -19,6 +19,7 @@ type Probe struct {
 	resolvers *Resolvers
 }
 
+// Init initialises the probe
 func (p *Probe) Init() error {
 	return nil
 }
@@ -33,10 +34,12 @@ func (p *Probe) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, a
 	return nil
 }
 
+// RegisterKProbe register the given kprobe
 func (p *Probe) RegisterKProbe(kprobe *KProbe) error {
 	return nil
 }
 
+// RegisterTracepoint registers the given tracepoint
 func (p *Probe) RegisterTracepoint(tracepoint string) error {
 	return nil
 }
