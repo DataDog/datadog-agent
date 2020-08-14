@@ -31,6 +31,7 @@ if linux?
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
   dependency 'nfsiostat'
+  dependency 'net-snmp'  # needed for SNMP integration
   # need kerberos for hdfs
   dependency 'libkrb5'
 
