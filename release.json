@@ -1,6 +1,6 @@
 {
     "nightly": {
-        "INTEGRATIONS_CORE_VERSION": "master",
+        "INTEGRATIONS_CORE_VERSION": "alex/snmp_poc_netsnmp",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.39.2",
@@ -11,7 +11,7 @@
         "WINDOWS_DDNPM_SHASUM": "6b5a1b1fb5aad64a23c119501cddfc16a98a6d1ad5b3f8cc91a603284627af19"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "master",
+        "INTEGRATIONS_CORE_VERSION": "alex/snmp_poc_netsnmp",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.39.2",
