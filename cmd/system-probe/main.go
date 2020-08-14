@@ -105,6 +105,8 @@ func runAgent(exit <-chan struct{}) {
 	}
 
 	loader := NewLoader()
+	defer loader.Close()
+
 	httpMux := http.NewServeMux()
 
 	err = loader.Register(cfg, httpMux, factories)
