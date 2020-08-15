@@ -224,7 +224,6 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
 
                 subprocess_env[i] = env;
             }
-            subprocess_env[i] = NULL;
         }
     }
 
