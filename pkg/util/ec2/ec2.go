@@ -32,7 +32,7 @@ var (
 	tokenURL           = "http://169.254.169.254/latest/api/token"
 	oldDefaultPrefixes = []string{"ip-", "domu"}
 	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
-	tokenLifetime      = 21600 * time.Second
+	tokenLifetime      = time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second
 	token              = ec2Token{}
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"
@@ -254,22 +254,25 @@ func getToken() (string, error) {
 	}
 
 	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", fmt.Sprintf("%d", int(tokenLifetime.Seconds())))
+	token.expirationDate = time.Now().Add(tokenLifetime)
 	res, err := client.Do(req)
 	if err != nil {
+		token.expirationDate = time.Now()
 		return "", err
 	}
 
 	if res.StatusCode != 200 {
+		token.expirationDate = time.Now()
 		return "", fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, tokenURL)
 	}
 
 	defer res.Body.Close()
 	all, err := ioutil.ReadAll(res.Body)
 	if err != nil {
+		token.expirationDate = time.Now()
 		return "", fmt.Errorf("unable to read response body, %s", err)
 	}
 	token.value = string(all)
-	token.expirationDate = time.Now().Add(tokenLifetime)
 	return token.value, nil
 }
 

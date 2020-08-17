@@ -379,7 +379,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 
 	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
 	assert.Equal(t, "1", requestWithToken.Header.Get("X-sequence"))
-	assert.Equal(t, "21600", requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+	assert.Equal(t, fmt.Sprint(config.Datadog.GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
 	assert.Equal(t, http.MethodPut, requestForToken.Method)
 	assert.Equal(t, "/", requestForToken.RequestURI)
 	assert.Equal(t, tok, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
