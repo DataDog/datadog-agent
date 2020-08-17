@@ -10,7 +10,6 @@ namespace
 Service::Service(std::wstring const& name)
 : _scManagerHandle(OpenSCManager(nullptr, nullptr, SC_MANAGER_CONNECT))
 , _serviceHandle(nullptr)
-, _name(name)
 {
     if (_scManagerHandle == nullptr)
     {

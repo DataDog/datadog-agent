@@ -11,6 +11,9 @@
 #include "Process.h"
 #include "Service.h"
 #include "Win32Exception.h"
+#include <fstream>
+#include <thread>
+#include <map>
 
 namespace
 {
@@ -51,12 +54,30 @@ void ExecuteInitScripts()
     }
 }
 
-void RunService(std::wstring const& serviceName)
+void StreamLogsToStdout(std::filesystem::path const& logFilePath)
+{
+    std::ifstream logFile(logFilePath);
+    std::streambuf* pbuf = logFile.rdbuf();
+    while (true)
+    {
+        while (pbuf->sgetc() != EOF)
+        {
+            std::cout.put(pbuf->sbumpc());
+        }
+        Sleep(1000);
+        // Clear the eof bit
+        logFile.clear();
+    }
+}
+
+void RunService(std::wstring const& serviceName, std::filesystem::path const& logsPath)
 {
     Service service(serviceName);
     std::wcout << L"[ENTRYPOINT][INFO] Starting service " << serviceName << std::endl;
     service.Start();
     std::wcout << L"[ENTRYPOINT][INFO] Success. Waiting for exit signal." << std::endl;
+    std::thread logThread(StreamLogsToStdout, logsPath);
+    logThread.detach();
     WaitForSingleObject(StopEvent, INFINITE);
     std::wcout << L"[ENTRYPOINT][INFO] Stopping service " << serviceName << std::endl;
     try
@@ -139,18 +160,18 @@ int _tmain(int argc, _TCHAR** argv)
             ExecuteInitScripts();
             std::wstring command = argv[1];
 
-            const std::array <std::wstring, 3> servicesName =
+            const std::map<std::wstring, std::filesystem::path> services =
             {
-                L"datadogagent",
-                L"datadog-process-agent",
-                L"datadog-trace-agent"
+                {L"datadogagent", "C:\\ProgramData\\Datadog\\logs\\agent.log"},
+                {L"datadog-process-agent", "C:\\ProgramData\\Datadog\\logs\\process-agent.log"},
+                {L"datadog-trace-agent", "C:\\ProgramData\\Datadog\\logs\\trace-agent.log"},
             };
 
-            for (const std::wstring& serviceName : servicesName)
+            for (auto service : services)
             {
-                if (command == serviceName)
+                if (command == service.first)
                 {
-                    RunService(serviceName);
+                    RunService(service.first, service.second);
                     goto Cleanup;
                 }
             }

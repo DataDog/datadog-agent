@@ -10,7 +10,6 @@ private:
 
     SC_HANDLE _scManagerHandle;
     SC_HANDLE _serviceHandle;
-    std::wstring _name;
     DWORD _processId;
 public:
     Service(std::wstring const& name);
