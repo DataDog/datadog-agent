@@ -30,8 +30,8 @@ func NewMockParser(header string) parser.Parser {
 }
 
 // Parse removes header from line and returns a message
-func (u *MockParser) Parse(msg []byte) ([]byte, string, string, error) {
-	return bytes.Replace(msg, u.header, []byte(""), 1), "", "", nil
+func (u *MockParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+	return bytes.Replace(msg, u.header, []byte(""), 1), "", "", false, nil
 }
 
 type MockFailingParser struct {
@@ -44,11 +44,11 @@ func NewMockFailingParser(header string) parser.Parser {
 
 // Parse removes header from line and returns a message if its header matches the Parser header
 // or returns an error
-func (u *MockFailingParser) Parse(msg []byte) ([]byte, string, string, error) {
+func (u *MockFailingParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	if bytes.HasPrefix(msg, u.header) {
-		return bytes.Replace(msg, u.header, []byte(""), 1), "", "", nil
+		return bytes.Replace(msg, u.header, []byte(""), 1), "", "", false, nil
 	}
-	return msg, "", "", fmt.Errorf("error")
+	return msg, "", "", false, fmt.Errorf("error")
 }
 
 func TestSingleLineHandler(t *testing.T) {
