@@ -10,6 +10,7 @@ name 'datadog-agent'
 
 dependency "python2" if with_python_runtime? "2"
 dependency "python3" if with_python_runtime? "3"
+dependency "datadog-mac-systray-swift-libs" if osx?
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -269,7 +270,7 @@ build do
     mkdir "#{app_temp_dir}/MacOS"
     systray_build_dir = "#{project_dir}/cmd/agent/gui/systray"
     # Target OSX 10.10 (it brings significant changes to Cocoa and Foundation APIs, and older versions of OSX are EOL'ed)
-    command 'swiftc -O -swift-version "3" -target "x86_64-apple-macosx10.10" -static-stdlib Sources/*.swift -o gui', cwd: systray_build_dir
+    command 'swiftc -O -swift-version "4" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'/opt/datadog-agent/embedded/lib\' Sources/*.swift -o gui', cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
   end

@@ -1,7 +1,7 @@
 import Cocoa
 
 class AgentGUI: NSObject {
-    let systemTrayItem = NSStatusBar.system().statusItem(withLength: NSVariableStatusItemLength)
+    let systemTrayItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let ddMenu = NSMenu(title: "Menu")
     var versionItem: NSMenuItem!
     var openGUIItem: NSMenuItem!

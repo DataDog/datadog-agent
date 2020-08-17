@@ -1,5 +1,5 @@
 import Cocoa
 
-NSApplication.shared()
+let app = NSApplication.shared
 let agentGUI = AgentGUI()
 agentGUI.run()
