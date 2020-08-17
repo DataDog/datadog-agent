@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -62,10 +64,22 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		return proxies[0]
 	default:
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			proxies[0].ServeHTTP(w, req)
+			bodyBytes, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				msg := "Failed to read request body"
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
+			outreq := req.Clone(req.Context())
+			outreq.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
+			// we use the original ResponseWriter with the first request and
+			// forward the response to the client
+			proxies[0].ServeHTTP(w, outreq)
 			for _, proxy := range proxies[1:] {
+				outreq := req.Clone(req.Context())
+				outreq.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
 				// for additional endpoints we ignore the response
-				proxy.ServeHTTP(&dummyResponseWriter{}, req)
+				proxy.ServeHTTP(&dummyResponseWriter{}, outreq)
 			}
 		})
 	}

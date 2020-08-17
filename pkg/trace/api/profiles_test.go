@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -146,7 +147,8 @@ func TestProfileProxyHandler(t *testing.T) {
 		srv1 := httptest.NewServer(http.HandlerFunc(handler))
 		srv2 := httptest.NewServer(http.HandlerFunc(handler))
 		defer mockConfig("apm_config.profiling_dd_url", fmt.Sprintf("%s,%s", srv1.URL, srv2.URL))()
-		req, err := http.NewRequest("POST", "/some/path", nil)
+
+		req, err := http.NewRequest("POST", "/some/path", bytes.NewBuffer([]byte("abc")))
 		if err != nil {
 			t.Fatal(err)
 		}
