@@ -51,7 +51,7 @@ void ExecuteInitScripts()
     }
 }
 
-void RunService(const std::wstring& serviceName)
+void RunService(std::wstring const& serviceName)
 {
     Service service(serviceName);
     std::wcout << L"[ENTRYPOINT][INFO] Starting service " << serviceName << std::endl;
@@ -69,10 +69,9 @@ void RunService(const std::wstring& serviceName)
         TerminateProcess(OpenProcess(PROCESS_ALL_ACCESS, FALSE, service.PID()), STATUS_TIMEOUT);
         throw;
     }
-    return;
 }
 
-void RunExecutable(std::wstring command)
+void RunExecutable(std::wstring const& command)
 {
     std::wcout << L"[ENTRYPOINT][INFO] Starting process " << command << std::endl;
     Process process = Process::Create(command);
@@ -152,7 +151,7 @@ int _tmain(int argc, _TCHAR** argv)
                 if (command == serviceName)
                 {
                     RunService(serviceName);
-                    break;
+                    goto Cleanup;
                 }
             }
 

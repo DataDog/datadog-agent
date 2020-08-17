@@ -1,15 +1,25 @@
 #include "Service.h"
 #include "Win32Exception.h"
 
-Service::Service(std::wstring const& name)
-: _scManagerHandler(OpenSCManager(nullptr, nullptr, SC_MANAGER_CONNECT))
-, _serviceHandle(nullptr)
+namespace
 {
-    if (_scManagerHandler == nullptr)
+    auto heapFree = [](LPENUM_SERVICE_STATUS p) { HeapFree(GetProcessHeap(), 0, p); };
+    typedef std::unique_ptr<ENUM_SERVICE_STATUS, decltype(heapFree)> ENUM_SERVICE_STATUS_PTR;
+}
+
+Service::Service(std::wstring const& name)
+: _scManagerHandle(OpenSCManager(nullptr, nullptr, SC_MANAGER_CONNECT))
+, _serviceHandle(nullptr)
+, _name(name)
+{
+    if (_scManagerHandle == nullptr)
     {
-        throw Win32Exception("Could not establish a connection to the service control manager");
+        throw Win32Exception("Could not open the service control manager");
     }
-    _serviceHandle = OpenService(_scManagerHandler, name.c_str(), SERVICE_START | SERVICE_STOP | SERVICE_QUERY_STATUS);
+    _serviceHandle = OpenService(
+        _scManagerHandle,
+        name.c_str(),
+        SERVICE_START | SERVICE_STOP | SERVICE_QUERY_STATUS | SERVICE_ENUMERATE_DEPENDENTS);
     if (_serviceHandle == nullptr)
     {
         throw Win32Exception("Could not open the service");
@@ -18,14 +28,18 @@ Service::Service(std::wstring const& name)
 
 Service::~Service()
 {
-    CloseServiceHandle(_scManagerHandler);
+    CloseServiceHandle(_scManagerHandle);
     CloseServiceHandle(_serviceHandle);
+}
+
+DWORD Service::PID()
+{
+    return _processId;
 }
 
 void Service::Start(std::chrono::milliseconds timeout)
 {
-    // If the function fails, the return value is zero
-    if (StartService(_serviceHandle, 0, nullptr) == 0)
+    if (!StartService(_serviceHandle, 0, nullptr))
     {
         const DWORD lastError = GetLastError();
         if (lastError != ERROR_SERVICE_ALREADY_RUNNING)
@@ -34,11 +48,10 @@ void Service::Start(std::chrono::milliseconds timeout)
         }
     }
 
-    while (timeout.count() > 0)
+    SERVICE_STATUS_PROCESS serviceStatus;
+    do
     {
         DWORD unused = 0;
-        SERVICE_STATUS_PROCESS serviceStatus;
-
         if (!QueryServiceStatusEx(_serviceHandle,
             SC_STATUS_PROCESS_INFO,
             reinterpret_cast<LPBYTE>(&serviceStatus),
@@ -47,31 +60,71 @@ void Service::Start(std::chrono::milliseconds timeout)
         {
             throw Win32Exception("Could not query the service status");
         }
-        _processId = serviceStatus.dwProcessId;
         
-        if (serviceStatus.dwCurrentState == SERVICE_RUNNING)
-        {
-            break;
-        }
-        if (serviceStatus.dwCurrentState == SERVICE_START_PENDING)
+        if (serviceStatus.dwCurrentState != SERVICE_RUNNING)
         {
             timeout -= std::chrono::seconds(1);
-            Sleep(static_cast<DWORD>(timeout.count()));
+            Sleep(1000);
+            if (timeout.count() <= 0)
+            {
+                throw std::exception("Timeout while starting the service");
+            }
         }
-        else
-        {
-            throw std::exception("Could not start the service");
-        }
-    }
+    } while (serviceStatus.dwCurrentState != SERVICE_RUNNING);
+    _processId = serviceStatus.dwProcessId;
 }
 
 void Service::Stop(std::chrono::milliseconds timeout)
 {
-    while (timeout.count() > 0)
+    DWORD sizeNeededDependentServices;
+    DWORD countDependentServices;
+
+    if (!EnumDependentServices(
+        _serviceHandle,
+        SERVICE_ACTIVE,
+        nullptr,
+        0,
+        &sizeNeededDependentServices,
+        &countDependentServices))
+    {
+        // If the Enum call fails, then there are dependent services to be stopped first
+        if (GetLastError() != ERROR_MORE_DATA)
+        {
+            // The last error must be ERROR_MORE_DATA
+            throw Win32Exception("Unexpected error while fetching dependent services");
+        }
+
+        ENUM_SERVICE_STATUS_PTR depSvcs(
+            static_cast<LPENUM_SERVICE_STATUS>(
+                HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeNeededDependentServices)), heapFree);
+
+        if (!EnumDependentServices(
+            _serviceHandle,
+            SERVICE_ACTIVE,
+            depSvcs.get(),
+            sizeNeededDependentServices,
+            &sizeNeededDependentServices,
+            &countDependentServices))
+        {
+            throw Win32Exception("Could not enumerate dependent services");
+        }
+        for (DWORD i = 0; i < countDependentServices; ++i)
+        {
+            // Note that by giving dependent services the same timeout
+            // we may exceed our timeout ourselves.
+            Service(depSvcs.get()[i].lpServiceName).Stop(timeout);
+        }
+    }
+
+    SERVICE_STATUS_PROCESS serviceStatus;
+    if (!ControlService(_serviceHandle, SERVICE_CONTROL_STOP, reinterpret_cast<LPSERVICE_STATUS>(&serviceStatus)))
+    {
+        throw Win32Exception("Could not stop the service");
+    }
+
+    while (serviceStatus.dwCurrentState != SERVICE_STOPPED)
     {
         DWORD unused = 0;
-        SERVICE_STATUS_PROCESS serviceStatus;
-
         if (!QueryServiceStatusEx(_serviceHandle,
             SC_STATUS_PROCESS_INFO,
             reinterpret_cast<LPBYTE>(&serviceStatus),
@@ -81,28 +134,23 @@ void Service::Stop(std::chrono::milliseconds timeout)
             throw Win32Exception("Could not query service status");
         }
 
-        if (serviceStatus.dwCurrentState == SERVICE_STOPPED)
+        if (serviceStatus.dwCurrentState != SERVICE_STOPPED)
         {
-            break;
-        }
-        if (serviceStatus.dwCurrentState == SERVICE_STOP_PENDING ||
-            serviceStatus.dwCurrentState == SERVICE_START_PENDING ||
-            serviceStatus.dwCurrentState == SERVICE_PAUSE_PENDING ||
-            serviceStatus.dwCurrentState == SERVICE_CONTINUE_PENDING)
-        {
-            timeout -= std::chrono::seconds(1);
-            Sleep(static_cast<DWORD>(timeout.count()));
-        }
-        else if (serviceStatus.dwCurrentState == SERVICE_RUNNING || serviceStatus.dwCurrentState == SERVICE_PAUSED)
-        {
-            if (!ControlService(_serviceHandle, SERVICE_CONTROL_STOP, reinterpret_cast<LPSERVICE_STATUS>(&serviceStatus)))
+            auto waitTime = std::chrono::milliseconds(serviceStatus.dwWaitHint) / 10;
+            if (waitTime < std::chrono::seconds(1))
             {
-                throw Win32Exception("Could not stop the service");
+                waitTime = std::chrono::seconds(1);
             }
-        }
-        else
-        {
-            throw std::exception("Could not start the service");
+            else if (waitTime > std::chrono::seconds(10))
+            {
+                waitTime = std::chrono::seconds(10);
+            }
+            Sleep(static_cast<DWORD>(waitTime.count()));
+            timeout -= waitTime;
+            if (timeout.count() <= 0)
+            {
+                throw std::exception("Timeout while stopping the service");
+            }
         }
     }
 }
