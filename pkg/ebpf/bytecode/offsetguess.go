@@ -1,12 +1,13 @@
 // +build linux_bpf
 
-package ebpf
+package bytecode
 
 import (
 	"encoding/binary"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"net"
 	"os"
@@ -17,15 +18,15 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 )
 
 /*
-#include "c/offset-guess.h"
+#include "../c/offset-guess.h"
 */
 import "C"
 
@@ -92,6 +93,23 @@ var tcpKprobeCalledString = map[C.__u64]string{
 	tcpInfoKProbeCalled:    "tcp_get_info kprobe executed",
 }
 
+var (
+	nativeEndian binary.ByteOrder
+)
+
+// In lack of binary.NativeEndian ...
+func init() {
+	var i int32 = 0x01020304
+	u := unsafe.Pointer(&i)
+	pb := (*byte)(u)
+	b := *pb
+	if b == 0x04 {
+		nativeEndian = binary.LittleEndian
+	} else {
+		nativeEndian = binary.BigEndian
+	}
+}
+
 const listenIP = "127.0.0.2"
 
 var zero uint64
@@ -106,6 +124,53 @@ type fieldValues struct {
 	rtt       uint32
 	rttVar    uint32
 	daddrIPv6 [4]uint32
+}
+
+// GuessOffsets used by Network Tracer
+func GuessOffsets(opts Options) ([]manager.ConstantEditor, error) {
+	elf, err := ReadOffsetBPFModule(opts.BPFDir, opts.Debug)
+	if err != nil {
+		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
+	}
+	defer elf.Close()
+
+	// Enable kernel probes used for offset guessing.
+	offsetMgr := NewOffsetManager()
+	offsetOptions := manager.Options{
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
+		},
+	}
+	enabledProbes := offsetGuessProbes(opts.EnableIPv6)
+	for _, p := range offsetMgr.Probes {
+		if _, enabled := enabledProbes[ProbeName(p.Section)]; !enabled {
+			offsetOptions.ExcludedProbes = append(offsetOptions.ExcludedProbes, p.Section)
+		}
+	}
+	for probeName := range enabledProbes {
+		offsetOptions.ActivatedProbes = append(offsetOptions.ActivatedProbes, string(probeName))
+	}
+	if err := offsetMgr.InitWithOptions(elf, offsetOptions); err != nil {
+		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
+	}
+
+	if err := offsetMgr.Start(); err != nil {
+		return nil, fmt.Errorf("could not start offset ebpf manager: %s", err)
+	}
+	defer func() {
+		err := offsetMgr.Stop(manager.CleanAll)
+		if err != nil {
+			log.Warnf("error stopping offset ebpf manager: %s", err)
+		}
+	}()
+	start := time.Now()
+	editors, err := guessOffsets(offsetMgr, opts)
+	if err != nil {
+		return nil, fmt.Errorf("error guessing offsets: %v", err)
+	}
+	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
+	return editors, nil
 }
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
@@ -176,14 +241,14 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 	return nil, errors.New("unstable TCP socket params")
 }
 
-func offsetGuessProbes(c *Config) map[bytecode.ProbeName]struct{} {
-	probes := map[bytecode.ProbeName]struct{}{
-		bytecode.TCPGetInfo: {},
+func offsetGuessProbes(enableIPv6 bool) map[ProbeName]struct{} {
+	probes := map[ProbeName]struct{}{
+		TCPGetInfo: {},
 	}
 
-	if c.CollectIPv6Conns {
-		probes[bytecode.TCPv6Connect] = struct{}{}
-		probes[bytecode.TCPv6ConnectReturn] = struct{}{}
+	if enableIPv6 {
+		probes[TCPv6Connect] = struct{}{}
+		probes[TCPv6ConnectReturn] = struct{}{}
 	}
 	return probes
 }
@@ -386,15 +451,15 @@ func setReadyState(mp *ebpf.Map, status *tracerStatus) error {
 // check that value against the expected value of the field, advancing the
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
-func guessOffsets(m *manager.Manager, cfg *Config) ([]manager.ConstantEditor, error) {
-	mp, _, err := m.GetMap(string(bytecode.TracerStatusMap))
+func guessOffsets(m *manager.Manager, opts Options) ([]manager.ConstantEditor, error) {
+	mp, _, err := m.GetMap(string(TracerStatusMap))
 	if err != nil {
-		return nil, fmt.Errorf("unable to find map %s: %s", string(bytecode.TracerStatusMap), err)
+		return nil, fmt.Errorf("unable to find map %s: %s", string(TracerStatusMap), err)
 	}
 
 	// When reading kernel structs at different offsets, don't go over the set threshold
 	// Defaults to 400, with a max of 3000. This is an arbitrary choice to avoid infinite loops.
-	threshold := cfg.OffsetGuessThreshold
+	threshold := opts.OffsetGuessThreshold
 
 	// pid & tid must not change during the guessing work: the communication
 	// between ebpf and userspace relies on it
@@ -416,7 +481,7 @@ func guessOffsets(m *manager.Manager, cfg *Config) ([]manager.ConstantEditor, er
 		proc:         C.proc_t{comm: cProcName},
 		ipv6_enabled: enableV6,
 	}
-	if !cfg.CollectIPv6Conns {
+	if !opts.EnableIPv6 {
 		status.ipv6_enabled = disableV6
 	}
 
@@ -453,7 +518,7 @@ func guessOffsets(m *manager.Manager, cfg *Config) ([]manager.ConstantEditor, er
 			return nil, err
 		}
 
-		if err := checkAndUpdateCurrentOffset(mp, status, expected, &maxRetries, threshold); err != nil {
+		if err := checkAndUpdateCurrentOffset(mp, status, expected, &maxRetries, opts.OffsetGuessThreshold); err != nil {
 			return nil, err
 		}
 

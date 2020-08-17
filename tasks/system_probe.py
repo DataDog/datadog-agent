@@ -348,11 +348,17 @@ def build_object_files(ctx, bundle_ebpf=False):
         "offset-guess",
     ]
     bindata_files = [
+        os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
         os.path.join(c_dir, "tcp-queue-length-kern.c"),
         os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
         os.path.join(c_dir, "oom-kill-kern.c"),
         os.path.join(bpf_dir, "oom-kill-kern-user.h"),
         os.path.join(c_dir, "bpf-common.h"),
+        # Network Tracer
+        os.path.join(c_dir, "syscalls.h"),
+        os.path.join(c_dir, "tcp_states.h"),
+        os.path.join(c_dir, "tracer-ebpf.h"),
+        os.path.join(c_dir, "tracer-ebpf.c"),
     ]
     for p in compiled_programs:
         # Build both the standard and debug version

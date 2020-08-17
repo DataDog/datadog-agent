@@ -37,6 +37,10 @@ replace (
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.26.0
 )
 
+require github.com/lebauce/go-re v0.0.0-20200812153205-5dd96f88c1a0
+
+replace github.com/lebauce/go-re v0.0.0-20200812153205-5dd96f88c1a0 => github.com/p-lambert/go-re v0.0.0-20200818160800-5353e43b34bc
+
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect

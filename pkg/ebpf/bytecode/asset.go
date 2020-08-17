@@ -8,4 +8,5 @@ import (
 type AssetReader interface {
 	io.Reader
 	io.ReaderAt
+	io.Closer
 }

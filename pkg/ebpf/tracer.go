@@ -25,6 +25,7 @@ import (
 var (
 	expvarEndpoints map[string]*expvar.Map
 	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns"}
+	zero            uint64
 )
 
 func init() {
@@ -92,15 +93,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
 	}
 
-	buf, err := bytecode.ReadBPFModule(config.BPFDir, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read bpf module: %s", err)
-	}
-	offsetBuf, err := bytecode.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
-	}
-
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := ebpf.CurrentKernelVersion()
 	if err != nil {
@@ -113,6 +105,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 	if pre410Kernel {
 		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
 	}
+
+	elf, offsets, err := bytecode.GetNetworkTracerELF(
+		bytecode.Options{
+			BPFDir:               config.BPFDir,
+			Debug:                config.BPFDebug,
+			EnableIPv6:           config.CollectIPv6Conns,
+			OffsetGuessThreshold: config.OffsetGuessThreshold,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving eBPF bytecode: %s", err)
+	}
+	defer elf.Close()
 
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
@@ -131,10 +136,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 			string(bytecode.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(bytecode.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
-	}
-	mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
-	if err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %s", err)
+		ConstantEditors: offsets,
 	}
 
 	closedChannelSize := defaultClosedChannelSize
@@ -170,7 +172,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	for probeName := range enabledProbes {
 		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(probeName))
 	}
-	err = m.InitWithOptions(buf, mgrOptions)
+	err = m.InitWithOptions(elf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
@@ -261,46 +263,6 @@ func overrideProbeSectionNames(m *manager.Manager) {
 			p.Section = string(override)
 		}
 	}
-}
-
-func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
-	// Enable kernel probes used for offset guessing.
-	offsetMgr := bytecode.NewOffsetManager()
-	offsetOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-	}
-	enabledProbes := offsetGuessProbes(config)
-	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[bytecode.ProbeName(p.Section)]; !enabled {
-			offsetOptions.ExcludedProbes = append(offsetOptions.ExcludedProbes, p.Section)
-		}
-	}
-	for probeName := range enabledProbes {
-		offsetOptions.ActivatedProbes = append(offsetOptions.ActivatedProbes, string(probeName))
-	}
-	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
-		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
-	}
-
-	if err := offsetMgr.Start(); err != nil {
-		return nil, fmt.Errorf("could not start offset ebpf manager: %s", err)
-	}
-	defer func() {
-		err := offsetMgr.Stop(manager.CleanAll)
-		if err != nil {
-			log.Warnf("error stopping offset ebpf manager: %s", err)
-		}
-	}()
-	start := time.Now()
-	editors, err := guessOffsets(offsetMgr, config)
-	if err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %v", err)
-	}
-	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
-	return editors, nil
 }
 
 func (t *Tracer) expvarStats() {
