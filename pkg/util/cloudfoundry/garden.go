@@ -27,6 +27,21 @@ const (
 	AppInstanceIndexTagKey = "app_instance_index"
 	// AppGUIDTagKey tag key for container tags
 	AppGUIDTagKey = "app_guid"
+	// AppIDTagKey tag key for container tags. We carry both app_guid and app_id; this is because
+	// we added app_guid initially here, but then we added space_id and org_id that have just "_id"
+	// to be consistent with https://github.com/DataDog/datadog-firehose-nozzle; therefore we now
+	// also include "app_id" to have a consistent set of tags that end with "_id".
+	AppIDTagKey = "app_id"
+	// NOTE: we use "org_*" instead of "organization_* to have the tags consistent with
+	// tags attached by https://github.com/DataDog/datadog-firehose-nozzle
+	// OrgGUIDTagKey tag key for container tags
+	OrgIDTagKey = "org_id"
+	// OrgNameTagKey tag key for container tags
+	OrgNameTagKey = "org_name"
+	// SpaceGUIDTagKey tag key for container tags
+	SpaceIDTagKey = "space_id"
+	// SpaceNameTagKey tag key for container tags
+	SpaceNameTagKey = "space_name"
 )
 
 var (
