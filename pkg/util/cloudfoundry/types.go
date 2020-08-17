@@ -230,13 +230,13 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 // GetTagsFromDLRP returns a set of tags extracted from DLRP - names and guids for app, space and org
 func (dlrp *DesiredLRP) GetTagsFromDLRP() []string {
 	tagsToValues := map[string]string{
-		AppNameTagKey:   dlrp.AppName,
-		AppIDTagKey:     dlrp.AppGUID,
-		AppGUIDTagKey:   dlrp.AppGUID,
-		OrgNameTagKey:   dlrp.OrganizationName,
-		OrgIDTagKey:     dlrp.OrganizationGUID,
-		SpaceNameKey:    dlrp.SpaceName,
-		SpaceIDTagKey:   dlrp.SpaceGUID,
+		AppNameTagKey: dlrp.AppName,
+		AppIDTagKey:   dlrp.AppGUID,
+		AppGUIDTagKey: dlrp.AppGUID,
+		OrgNameTagKey: dlrp.OrganizationName,
+		OrgIDTagKey:   dlrp.OrganizationGUID,
+		SpaceNameKey:  dlrp.SpaceName,
+		SpaceIDTagKey: dlrp.SpaceGUID,
 	}
 	tags := []string{}
 	for k, v := range tagsToValues {

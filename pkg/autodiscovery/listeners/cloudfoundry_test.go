@@ -325,7 +325,7 @@ func TestCloudFoundryListener(t *testing.T) {
 							"instances":    json.RawMessage(`[{"name": "My Nginx", "url": "http://%%host%%:%%port_p8080%%", "timeout": 1}]`),
 						},
 					},
-					EnvVcapServices: map[string][]byte{"my-postgres": []byte(`{"credentials":{"host":"a.b.c","Username":"me","Password":"secret","database_name":"mydb"}}`)},
+					EnvVcapServices:  map[string][]byte{"my-postgres": []byte(`{"credentials":{"host":"a.b.c","Username":"me","Password":"secret","database_name":"mydb"}}`)},
 					OrganizationGUID: "orgguid2",
 					OrganizationName: "orgname2",
 					SpaceGUID:        "spaceguid2",
