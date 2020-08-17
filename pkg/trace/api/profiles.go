@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,43 +22,69 @@ const (
 	profilingURLTemplate = "https://intake.profile.%s/v1/input"
 	// profilingURLDefault specifies the default intake API URL.
 	profilingURLDefault = "https://intake.profile.datadoghq.com/v1/input"
+
+	profilingMainEndpointConfigKey        = "apm_config.profiling_dd_url"
+	profilingAdditionalEndpointsConfigKey = "apm_config.profiling_additional_endpoints"
 )
 
-// profilingEndpoint returns the profiling intake API URL based on agent configuration.
-func profilingEndpoints() []string {
-	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
-		return strings.Split(v, ",")
+// mainProfilingEndpoint returns the main profiling intake API URL based on agent
+// configuration. When multiple endpoints are in use, the response from the main
+// endpoint is proxied back to the client, while for all aditional endpoints the
+// response is discarded.
+func mainProfilingEndpoint() string {
+	if v := config.Datadog.GetString(profilingMainEndpointConfigKey); v != "" {
+		return v
 	}
 	if site := config.Datadog.GetString("site"); site != "" {
-		return []string{fmt.Sprintf(profilingURLTemplate, site)}
+		return fmt.Sprintf(profilingURLTemplate, site)
 	}
-	return []string{profilingURLDefault}
+	return profilingURLDefault
 }
 
-// profileProxyHandler returns a new HTTP handler which will proxy requests to the profiling intake.
-// If the URL can not be computed because of a malformed 'site' config, the returned handler will always
+// additionalProfilingEndpoints returns a map of endpoint URLs to a slice of api
+// keys to be used for each endpoint. There is no de-duplication between api
+// keys or between these additional endpoints and the main endpoint.
+func additionalProfilingEndpoints() map[string][]string {
+	if config.Datadog.IsSet(profilingAdditionalEndpointsConfigKey) {
+		return config.Datadog.GetStringMapStringSlice(profilingAdditionalEndpointsConfigKey)
+	}
+	return make(map[string][]string)
+}
+
+// profileProxyHandler returns a new HTTP handler which will proxy requests to the profiling intakes.
+// If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
-	targets := profilingEndpoints()
-	proxies := []*httputil.ReverseProxy{}
-	for _, target := range targets {
-		u, err := url.Parse(target)
+	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
+	mainEndpoint := mainProfilingEndpoint()
+	u, err := url.Parse(mainEndpoint)
+	if err != nil {
+		log.Errorf("Error parsing main intake URL %s: %v", mainEndpoint, err)
+		return errorHandler(mainEndpoint)
+	}
+	mainProxy := newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)
+	if mainProxy == nil {
+		log.Errorf("Failed to create reverse proxy for main endpoint %s", mainEndpoint)
+		return errorHandler(mainEndpoint)
+	}
+	proxies := []*httputil.ReverseProxy{mainProxy}
+
+	additionalEndpoints := additionalProfilingEndpoints()
+	for endpoint, apiKeys := range additionalEndpoints {
+		u, err := url.Parse(endpoint)
 		if err != nil {
-			log.Errorf("Error parsing intake URL %s: %v", target, err)
+			log.Errorf("Error parsing additional intake URL %s: %v", endpoint, err)
 			continue
 		}
-		tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
-		proxy := newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)
-		if proxy != nil {
-			proxies = append(proxies, proxy)
+
+		for _, apiKey := range apiKeys {
+			proxies = append(proxies, newProfileProxy(r.conf.NewHTTPTransport(), u, apiKey, tags))
 		}
 	}
+
 	switch len(proxies) {
 	case 0:
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			msg := fmt.Sprintf("Profile forwarder is OFF because of invalid intake URL configuration: %v", targets)
-			http.Error(w, msg, http.StatusInternalServerError)
-		})
+		return errorHandler(mainEndpoint)
 	case 1:
 		return proxies[0]
 	default:
@@ -72,14 +97,14 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 			}
 			outreq := req.Clone(req.Context())
 			outreq.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
-			// we use the original ResponseWriter with the first request and
-			// forward the response to the client
+			// we use the original ResponseWriter with the main endpoint request
+			// and forward the response to the client
 			proxies[0].ServeHTTP(w, outreq)
 			for _, proxy := range proxies[1:] {
 				outreq := req.Clone(req.Context())
 				outreq.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
-				// for additional endpoints we ignore the response
-				proxy.ServeHTTP(&dummyResponseWriter{}, outreq)
+				// for all additional endpoints we ignore the response
+				proxy.ServeHTTP(&nopResponseWriter{}, outreq)
 			}
 		})
 	}
@@ -114,14 +139,21 @@ func newProfileProxy(transport http.RoundTripper, target *url.URL, apiKey, tags 
 	}
 }
 
-type dummyResponseWriter struct{}
+func errorHandler(mainEndpoint string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		msg := fmt.Sprintf("Profile forwarder is OFF because of invalid intake URL configuration: %v", mainEndpoint)
+		http.Error(w, msg, http.StatusInternalServerError)
+	})
+}
 
-func (d *dummyResponseWriter) Header() http.Header {
+type nopResponseWriter struct{}
+
+func (rw *nopResponseWriter) Header() http.Header {
 	return make(map[string][]string)
 }
 
-func (d *dummyResponseWriter) Write([]byte) (int, error) {
+func (rw *nopResponseWriter) Write([]byte) (int, error) {
 	return 0, nil
 }
 
-func (d *dummyResponseWriter) WriteHeader(statusCode int) {}
+func (rw *nopResponseWriter) WriteHeader(statusCode int) {}

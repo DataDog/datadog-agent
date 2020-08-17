@@ -13,9 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func mockConfig(k, v string) func() {
+func mockConfig(k string, v interface{}) func() {
 	oldConfig := config.Datadog
 	config.Mock().Set(k, v)
+	return func() { config.Datadog = oldConfig }
+}
+
+func mockConfigMap(m map[string]interface{}) func() {
+	oldConfig := config.Datadog
+	mockConfig := config.Mock()
+	for k, v := range m {
+		mockConfig.Set(k, v)
+	}
 	return func() { config.Datadog = oldConfig }
 }
 
@@ -59,37 +68,46 @@ func TestProfileProxy(t *testing.T) {
 	}
 }
 
-func TestProfilingEndpoints(t *testing.T) {
+func TestMainProfilingEndpoint(t *testing.T) {
 	t.Run("dd_url", func(t *testing.T) {
 		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
-		endpoints := profilingEndpoints()
-		if len(endpoints) != 1 || endpoints[0] != "https://intake.profile.datadoghq.fr/v1/input" {
-			t.Fatalf("invalid endpoints: %v", endpoints)
-		}
-	})
-
-	t.Run("multiple dd_url", func(t *testing.T) {
-		defer mockConfig("apm_config.profiling_dd_url",
-			"https://intake.profile.datadoghq.fr/v1/input,https://intake.profile.datadoghq.com/v1/input")()
-		endpoints := profilingEndpoints()
-		if len(endpoints) != 2 || endpoints[0] != "https://intake.profile.datadoghq.fr/v1/input" ||
-			endpoints[1] != "https://intake.profile.datadoghq.com/v1/input" {
-			t.Fatalf("invalid endpoints: %v", endpoints)
+		if v := mainProfilingEndpoint(); v != "https://intake.profile.datadoghq.fr/v1/input" {
+			t.Fatalf("invalid endpoint: %s", v)
 		}
 	})
 
 	t.Run("site", func(t *testing.T) {
 		defer mockConfig("site", "datadoghq.eu")()
-		endpoints := profilingEndpoints()
-		if len(endpoints) != 1 || endpoints[0] != "https://intake.profile.datadoghq.eu/v1/input" {
-			t.Fatalf("invalid endpoints: %v", endpoints)
+		if v := mainProfilingEndpoint(); v != "https://intake.profile.datadoghq.eu/v1/input" {
+			t.Fatalf("invalid endpoint: %s", v)
 		}
 	})
 
 	t.Run("default", func(t *testing.T) {
-		endpoints := profilingEndpoints()
-		if len(endpoints) != 1 || endpoints[0] != "https://intake.profile.datadoghq.com/v1/input" {
-			t.Fatalf("invalid endpoint: %v", endpoints)
+		if v := mainProfilingEndpoint(); v != "https://intake.profile.datadoghq.com/v1/input" {
+			t.Fatalf("invalid endpoint: %s", v)
+		}
+	})
+}
+
+func TestAdditionalProfilingEndpoints(t *testing.T) {
+	t.Run("additional endpoints empty", func(t *testing.T) {
+		additionalEndpoints := additionalProfilingEndpoints()
+		if len(additionalProfilingEndpoints()) != 0 {
+			t.Fatalf("additional endpoints should be empty but was %v", additionalEndpoints)
+		}
+	})
+
+	t.Run("additional endpoints with multiple api keys", func(t *testing.T) {
+		endpointConfig := make(map[string][]string)
+		endpointConfig["https://ddstaging.datadoghq.com"] = []string{"api_key_1", "api_key_2"}
+		endpointConfig["https://dd.datad0g.com"] = []string{"api_key_staging"}
+		defer mockConfig(profilingAdditionalEndpointsConfigKey, endpointConfig)()
+		additionalEndpoints := additionalProfilingEndpoints()
+		if len(additionalEndpoints) != 2 ||
+			len(additionalEndpoints["https://ddstaging.datadoghq.com"]) != 2 ||
+			len(additionalEndpoints["https://dd.datad0g.com"]) != 1 {
+			t.Fatalf("expecting additional endpoints to be fully populated but was %v", additionalEndpoints)
 		}
 	})
 }
@@ -139,14 +157,22 @@ func TestProfileProxyHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("multiple", func(t *testing.T) {
+	t.Run("multiple_targets", func(t *testing.T) {
 		called := make(map[string]bool)
 		handler := func(w http.ResponseWriter, req *http.Request) {
-			called[req.Host] = true
+			called[fmt.Sprintf("%s|%s", req.Host, req.Header.Get("DD-API-KEY"))] = true
 		}
 		srv1 := httptest.NewServer(http.HandlerFunc(handler))
 		srv2 := httptest.NewServer(http.HandlerFunc(handler))
-		defer mockConfig("apm_config.profiling_dd_url", fmt.Sprintf("%s,%s", srv1.URL, srv2.URL))()
+
+		additionalEndpoints := make(map[string][]string)
+		additionalEndpoints[srv2.URL] = []string{"dummy_api_key_1", "dummy_api_key_2"}
+		// this should be ignored
+		additionalEndpoints["foobar"] = []string{"invalid_url"}
+		defer mockConfigMap(map[string]interface{}{
+			profilingMainEndpointConfigKey:        srv1.URL,
+			profilingAdditionalEndpointsConfigKey: additionalEndpoints,
+		})()
 
 		req, err := http.NewRequest("POST", "/some/path", bytes.NewBuffer([]byte("abc")))
 		if err != nil {
@@ -156,8 +182,8 @@ func TestProfileProxyHandler(t *testing.T) {
 		conf.Hostname = "myhost"
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
-		if len(called) != 2 {
-			t.Fatalf("request not proxied to both targets %v", called)
+		if len(called) != 3 {
+			t.Fatalf("request not proxied to all targets, seen: %v", called)
 		}
 	})
 }
