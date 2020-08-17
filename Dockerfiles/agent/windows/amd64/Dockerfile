@@ -14,10 +14,10 @@ RUN . ./install.ps1
 
 EXPOSE 8125/udp 8126/tcp
 
-COPY entrypoint.exe C:/entrypoint.exe
+COPY ./windows/entrypoint/x64/Debug/entrypoint.exe C:/entrypoint.exe
 ADD entrypoint-ps1 ./entrypoint-ps1
 COPY datadog*.yaml C:/ProgramData/Datadog/
 COPY install_info C:/ProgramData/Datadog/
 
 ENTRYPOINT ["C:/entrypoint.exe"]
-CMD ["agent", "run"]
+CMD ["datadogagent"]
