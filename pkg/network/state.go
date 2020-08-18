@@ -208,9 +208,12 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
 			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
 			conn.DNSCountByRcode = make(map[uint32]uint32)
+			var total uint32
 			for rcode, count := range dnsStats.countByRcode {
 				conn.DNSCountByRcode[uint32(rcode)] = count
+				total += count
 			}
+			conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
 		}
 		seen[key] = struct{}{}
 	}
