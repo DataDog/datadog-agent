@@ -65,7 +65,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 	health := health.RegisterLiveness("compliance")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-cluster-registry.json", health)
 	auditor.Start()
 	stopper.Add(auditor)
 

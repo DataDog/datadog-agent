@@ -602,8 +602,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // ContainerEvent holds the container context of an event
 type ContainerEvent struct {
-	ID              string `field:"id" handler:"ResolveContainerID,string"`
-	OverlayNumlower uint32 `field:"overlay_numlower"`
+	ID string `field:"id" handler:"ResolveContainerID,string"`
 
 	IDRaw [64]byte `field:"-"`
 }
@@ -612,8 +611,7 @@ func (e *ContainerEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	if id := e.GetContainerID(); len(id) > 0 {
-		fmt.Fprintf(&buf, `"container_id":"%s",`, id)
-		fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumlower)
+		fmt.Fprintf(&buf, `"container_id":"%s"`, id)
 	}
 	buf.WriteRune('}')
 

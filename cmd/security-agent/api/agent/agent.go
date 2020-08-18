@@ -127,7 +127,13 @@ func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile)
+
+	var runtimeAgentStatus map[string]interface{}
+	if a.runtimeAgent != nil {
+		runtimeAgentStatus = a.runtimeAgent.GetStatus()
+	}
+
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

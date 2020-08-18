@@ -159,7 +159,10 @@ int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *sysc
 }
 
 int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache_t *syscall) {
-    struct proc_cache_t *proc = get_pid_cache(syscall->pid);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    struct proc_cache_t *proc = get_pid_cache(tgid);
     if (!proc) {
         return 0;
     }
@@ -167,7 +170,7 @@ int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache
     struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_approvers, &inode);
     if (filter) {
 #ifdef DEBUG
-        bpf_printk("kprobe/vfs_open pid %d with inode %d approved\n", syscall->pid, inode);
+        bpf_printk("kprobe/vfs_open pid %d with inode %d approved\n", tgid, inode);
 #endif
         return 1;
     }

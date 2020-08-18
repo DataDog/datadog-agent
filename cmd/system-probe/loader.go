@@ -4,6 +4,7 @@ package main
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -16,6 +17,7 @@ import (
 // * Module termination;
 // * Module telemetry consolidation;
 type Loader struct {
+	once    sync.Once
 	modules map[string]api.Module
 }
 
@@ -31,17 +33,25 @@ func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, facto
 			continue
 		}
 
+		// In case a module failed to be started, do not make the whole `system-probe` abort.
+		// Let `system-probe` run the other modules.
 		if err != nil {
-			return errors.Wrapf(err, "new module `%s` error", factory.Name)
+			log.Errorf("new module `%s` error: %w", factory.Name, err)
+			continue
 		}
 
 		if err = module.Register(httpMux); err != nil {
-			return errors.Wrapf(err, "error registering HTTP endpoints for module `%s` error", factory.Name)
+			log.Errorf("error registering HTTP endpoints for module `%s` error: %w", factory.Name, err)
+			continue
 		}
 
 		l.modules[factory.Name] = module
 
 		log.Infof("module: %s started", factory.Name)
+	}
+
+	if len(l.modules) == 0 {
+		return errors.New("no module could be loaded")
 	}
 
 	return nil
@@ -58,9 +68,11 @@ func (l *Loader) GetStats() map[string]interface{} {
 
 // Close each registered module
 func (l *Loader) Close() {
-	for _, module := range l.modules {
-		module.Close()
-	}
+	l.once.Do(func() {
+		for _, module := range l.modules {
+			module.Close()
+		}
+	})
 }
 
 // NewLoader returns a new Loader instance

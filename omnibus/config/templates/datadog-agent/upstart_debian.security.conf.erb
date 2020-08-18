@@ -13,8 +13,6 @@ normal exit 0
 console log
 env DD_LOG_TO_CONSOLE=false
 
-setuid dd-agent
-
 script
   exec <%= install_dir %>/embedded/bin/security-agent start -c <%= etc_dir %>/datadog.yaml -p <%= install_dir %>/run/security-agent.pid
 end script

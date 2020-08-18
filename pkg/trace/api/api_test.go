@@ -16,7 +16,6 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -724,6 +723,24 @@ func BenchmarkWatchdog(b *testing.B) {
 	}
 }
 
+func TestReplyOKV5(t *testing.T) {
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+
+	data, err := vmsgp.Marshal([2][]interface{}{{}, {}})
+	assert.NoError(t, err)
+	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
+	assert.NoError(t, err)
+	slurp, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	assert.Contains(t, string(slurp), `"rate_by_service"`)
+}
+
 func TestExpvar(t *testing.T) {
 	if testing.Short() {
 		return
@@ -821,63 +838,6 @@ func TestWatchdog(t *testing.T) {
 		r.watchdog(time.Now())
 		assert.NotEqual(t, 1.0, r.RateLimiter.TargetRate())
 	})
-}
-
-func TestOOMKill(t *testing.T) {
-	var kills uint64
-
-	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
-	killProcess = func(format string, a ...interface{}) {
-		if format != "OOM" {
-			t.Fatalf("wrong message: %s", fmt.Sprintf(format, a...))
-		}
-		atomic.AddUint64(&kills, 1)
-	}
-
-	conf := config.New()
-	conf.Endpoints[0].APIKey = "apikey_2"
-	conf.WatchdogInterval = time.Millisecond
-	conf.MaxMemory = 0.5 * 1000 * 1000 // 0.5M
-
-	r := newTestReceiverFromConfig(conf)
-	r.Start()
-	defer r.Stop()
-	go func() {
-		for range r.out {
-		}
-	}()
-
-	var traces pb.Traces
-	for i := 0; i < 20; i++ {
-		traces = append(traces, testutil.RandomTrace(10, 20))
-	}
-	data := msgpTraces(t, traces)
-
-	var wg sync.WaitGroup
-	for tries := 0; tries < 50; tries++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if _, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data)); err != nil {
-				t.Fatal(err)
-			}
-		}()
-	}
-	wg.Wait()
-	timeout := time.After(500 * time.Millisecond)
-loop:
-	for {
-		select {
-		case <-timeout:
-			break loop
-		default:
-			if atomic.LoadUint64(&kills) > 1 {
-				return
-			}
-			time.Sleep(conf.WatchdogInterval)
-		}
-	}
-	t.Fatal("didn't get OOM killed")
 }
 
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {
