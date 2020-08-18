@@ -16,16 +16,16 @@
             "honnef.co/go/tools/cmd/staticcheck"
         ],
         "golang.org/x/tools/go/ast/astutil": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go"
         },
         "golang.org/x/tools/go/internal": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go",
             "install": false
         },
         "golang.org/x/tools/go/gcexportdata": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go"
         },
         "golang.org/x/lint/golint": {
