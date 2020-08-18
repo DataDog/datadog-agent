@@ -3,6 +3,7 @@ name 'datadog-agent-mac-app'
 description "Generate mac app manifest and assets"
 
 dependency "datadog-agent"
+dependency "datadog-agent-mac-app-swift-libs"
 
 source path: "#{project.files_path}/#{name}"
 

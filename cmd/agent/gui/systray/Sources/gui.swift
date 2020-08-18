@@ -1,6 +1,6 @@
 import Cocoa
 
-class AgentGUI: NSObject {
+class AgentGUI: NSObject, NSUserInterfaceValidations {
     let systemTrayItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let ddMenu = NSMenu(title: "Menu")
     var versionItem: NSMenuItem!
@@ -71,7 +71,7 @@ class AgentGUI: NSObject {
         }
     }
 
-    override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         // Called by Cocoa for every menu item whenever there is an update on any menu item/the menu itself.
         // Count to actually check the agent status only once for all the menu items.
         self.countUpdate += 1
@@ -89,7 +89,11 @@ class AgentGUI: NSObject {
             }
         }
 
-        return menuItem.isEnabled
+        if let menuItem = item as? NSMenuItem {
+            return menuItem.isEnabled
+        }
+
+        return false
     }
 
     func run() {
