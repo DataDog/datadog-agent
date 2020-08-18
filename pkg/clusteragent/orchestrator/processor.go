@@ -77,6 +77,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 }
 
 // skipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
+// It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 func skipKubernetesResource(uid types.UID, resourceVersion string) bool {
 	value, hit := cache.KubeCache.Get(string(uid))
 	if !hit {
@@ -109,7 +110,6 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 	return chunks
 }
 
-// TODO: look into adding a replicaCache
 func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
