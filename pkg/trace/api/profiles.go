@@ -22,9 +22,6 @@ const (
 	profilingURLTemplate = "https://intake.profile.%s/v1/input"
 	// profilingURLDefault specifies the default intake API URL.
 	profilingURLDefault = "https://intake.profile.datadoghq.com/v1/input"
-
-	profilingMainEndpointConfigKey        = "apm_config.profiling_dd_url"
-	profilingAdditionalEndpointsConfigKey = "apm_config.profiling_additional_endpoints"
 )
 
 // mainProfilingEndpoint returns the main profiling intake API URL based on agent
@@ -32,7 +29,7 @@ const (
 // endpoint is proxied back to the client, while for all aditional endpoints the
 // response is discarded.
 func mainProfilingEndpoint() string {
-	if v := config.Datadog.GetString(profilingMainEndpointConfigKey); v != "" {
+	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		return v
 	}
 	if site := config.Datadog.GetString("site"); site != "" {
@@ -45,8 +42,8 @@ func mainProfilingEndpoint() string {
 // keys to be used for each endpoint. There is no de-duplication between api
 // keys or between these additional endpoints and the main endpoint.
 func additionalProfilingEndpoints() map[string][]string {
-	if config.Datadog.IsSet(profilingAdditionalEndpointsConfigKey) {
-		return config.Datadog.GetStringMapStringSlice(profilingAdditionalEndpointsConfigKey)
+	if config.Datadog.IsSet("apm_config.profiling_additional_endpoints") {
+		return config.Datadog.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
 	}
 	return make(map[string][]string)
 }
@@ -55,62 +52,41 @@ func additionalProfilingEndpoints() map[string][]string {
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
-	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
 	e := mainProfilingEndpoint()
 	u, err := url.Parse(e)
 	if err != nil {
 		log.Errorf("Error parsing main intake URL %s: %v", e, err)
 		return errorHandler(e)
 	}
-	proxies := []*httputil.ReverseProxy{newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)}
+	targets, keys := []*url.URL{u}, []string{r.conf.APIKey()}
 
-	for e, keys := range additionalProfilingEndpoints() {
+	for e, ks := range additionalProfilingEndpoints() {
 		u, err := url.Parse(e)
 		if err != nil {
 			log.Errorf("Error parsing additional intake URL %s: %v", e, err)
 			continue
 		}
-
-		for _, apiKey := range keys {
-			proxies = append(proxies, newProfileProxy(r.conf.NewHTTPTransport(), u, apiKey, tags))
+		for _, k := range ks {
+			targets = append(targets, u)
+			keys = append(keys, k)
 		}
 	}
+	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
+	return newProfileProxy(r.conf.NewHTTPTransport(), targets, keys, tags)
+}
 
-	switch len(proxies) {
-	case 0:
-		return errorHandler(e)
-	case 1:
-		return proxies[0]
-	default:
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			bodyBytes, err := ioutil.ReadAll(req.Body)
-			if err != nil {
-				msg := "Failed to read request body"
-				http.Error(w, msg, http.StatusInternalServerError)
-				return
-			}
-			outreq := req.Clone(req.Context())
-			outreq.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
-			// we use the original ResponseWriter with the main endpoint request
-			// and forward the response to the client
-			proxies[0].ServeHTTP(w, outreq)
-			for _, proxy := range proxies[1:] {
-				outreq := req.Clone(req.Context())
-				outreq.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
-				// for all additional endpoints we ignore the response
-				proxy.ServeHTTP(&nopResponseWriter{}, outreq)
-			}
-		})
-	}
+func errorHandler(endpoint string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		msg := fmt.Sprintf("Profile forwarder is OFF because of invalid intake URL configuration: %v", endpoint)
+		http.Error(w, msg, http.StatusInternalServerError)
+	})
 }
 
 // newProfileProxy creates a single-host reverse proxy with the given target, attaching
 // the specified apiKey.
-func newProfileProxy(transport http.RoundTripper, target *url.URL, apiKey, tags string) *httputil.ReverseProxy {
+func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
-		req.URL = target
-		req.Host = target.Host
-		req.Header.Set("DD-API-KEY", apiKey)
+		// URL, Host and key are set in the transport for each outbound request
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
@@ -123,31 +99,46 @@ func newProfileProxy(transport http.RoundTripper, target *url.URL, apiKey, tags 
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
+		// TODO: how do we want to count the metrics?
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
 	}
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
-		Transport: transport,
+		Transport: &multiTransport{transport, targets, keys},
 	}
 }
 
-func errorHandler(endpoint string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		msg := fmt.Sprintf("Profile forwarder is OFF because of invalid intake URL configuration: %v", endpoint)
-		http.Error(w, msg, http.StatusInternalServerError)
-	})
+type multiTransport struct {
+	rt      http.RoundTripper
+	targets []*url.URL
+	keys    []string
 }
 
-type nopResponseWriter struct{}
-
-func (rw *nopResponseWriter) Header() http.Header {
-	return make(map[string][]string)
+func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
+		r.Host = u.Host
+		r.URL = u
+		r.Header.Set("DD-API-KEY", apiKey)
+	}
+	if len(m.targets) == 1 {
+		setTarget(req, m.targets[0], m.keys[0])
+		return m.rt.RoundTrip(req)
+	}
+	slurp, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	var resp *http.Response
+	for i, u := range m.targets {
+		newreq := req.Clone(req.Context())
+		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+		setTarget(newreq, u, m.keys[i])
+		resp, err = m.rt.RoundTrip(newreq)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+	return resp, err // TODO: aggregate and merge response/error?
 }
-
-func (rw *nopResponseWriter) Write([]byte) (int, error) {
-	return 0, nil
-}
-
-func (rw *nopResponseWriter) WriteHeader(statusCode int) {}

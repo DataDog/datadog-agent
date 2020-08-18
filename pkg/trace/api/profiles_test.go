@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 func mockConfig(k string, v interface{}) func() {
@@ -58,7 +59,8 @@ func TestProfileProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	newProfileProxy(nil, u, "123", "key:val").ServeHTTP(rec, req)
+	c := &traceconfig.AgentConfig{}
+	newProfileProxy(c.NewHTTPTransport(), []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
 	slurp, err := ioutil.ReadAll(rec.Result().Body)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +104,7 @@ func TestAdditionalProfilingEndpoints(t *testing.T) {
 		endpointConfig := make(map[string][]string)
 		endpointConfig["https://ddstaging.datadoghq.com"] = []string{"api_key_1", "api_key_2"}
 		endpointConfig["https://dd.datad0g.com"] = []string{"api_key_staging"}
-		defer mockConfig(profilingAdditionalEndpointsConfigKey, endpointConfig)()
+		defer mockConfig("apm_config.profiling_additional_endpoints", endpointConfig)()
 		additionalEndpoints := additionalProfilingEndpoints()
 		if len(additionalEndpoints) != 2 ||
 			len(additionalEndpoints["https://ddstaging.datadoghq.com"]) != 2 ||
@@ -170,8 +172,8 @@ func TestProfileProxyHandler(t *testing.T) {
 		// this should be ignored
 		additionalEndpoints["foobar"] = []string{"invalid_url"}
 		defer mockConfigMap(map[string]interface{}{
-			profilingMainEndpointConfigKey:        srv1.URL,
-			profilingAdditionalEndpointsConfigKey: additionalEndpoints,
+			"apm_config.profiling_dd_url":               srv1.URL,
+			"apm_config.profiling_additional_endpoints": additionalEndpoints,
 		})()
 
 		req, err := http.NewRequest("POST", "/some/path", bytes.NewBuffer([]byte("abc")))
