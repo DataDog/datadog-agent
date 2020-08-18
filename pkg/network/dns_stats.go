@@ -8,13 +8,10 @@ import (
 )
 
 type dnsStats struct {
-	// More stats like latency, error, etc. will be added here later
-	successfulResponses uint32
-	failedResponses     uint32
-	successLatencySum   uint64 // Stored in µs
-	failureLatencySum   uint64
-	timeouts            uint32
-	errorCount          map[uint8]uint32
+	successLatencySum uint64 // Stored in µs
+	failureLatencySum uint64
+	timeouts          uint32
+	countByRcode      map[uint8]uint32
 }
 
 type dnsKey struct {
@@ -47,7 +44,7 @@ type dnsPacketInfo struct {
 	transactionID uint16
 	key           dnsKey
 	pktType       DNSPacketType
-	errorCode     uint8 // relevant only when pktType == FailedResponse
+	rCode         uint8 // responseCode
 }
 
 type stateKey struct {
@@ -123,20 +120,18 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	stats, ok := d.stats[info.key]
 	if !ok {
-		stats.errorCount = make(map[uint8]uint32)
+		stats.countByRcode = make(map[uint8]uint32)
 	}
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
 		stats.timeouts++
 	} else {
+		stats.countByRcode[info.rCode]++
 		if info.pktType == SuccessfulResponse {
-			stats.successfulResponses++
 			stats.successLatencySum += latency
 		} else if info.pktType == FailedResponse {
-			stats.failedResponses++
 			stats.failureLatencySum += latency
-			stats.errorCount[info.errorCode]++
 		}
 	}
 
@@ -146,7 +141,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]dnsStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	ret := d.stats
+	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(map[dnsKey]dnsStats)
 	return ret
 }

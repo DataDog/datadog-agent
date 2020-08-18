@@ -143,9 +143,9 @@ func (p *dnsParser) parseAnswerInto(
 		return nil
 	}
 
+	pktInfo.rCode = uint8(dns.ResponseCode)
 	if dns.ResponseCode != 0 {
 		pktInfo.pktType = FailedResponse
-		pktInfo.errorCode = uint8(dns.ResponseCode)
 		return nil
 	}
 

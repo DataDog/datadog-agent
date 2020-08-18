@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -121,8 +122,30 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	checkSnooping(t, destIP, reverseDNS)
 }
 
+func TestDNSOverTCPSnooping(t *testing.T) {
+	m, reverseDNS := initDNSTests(t, false)
+	defer m.Stop(manager.CleanAll)
+	defer reverseDNS.Close()
+
+	_, _, reps := sendDNSQueries(t, []string{"golang.org"}, validDNSServerIP, TCP)
+	rep := reps[0]
+	require.NotNil(t, rep)
+	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
+
+	for _, r := range rep.Answer {
+		aRecord, ok := r.(*mdns.A)
+		require.True(t, ok)
+		require.True(t, mdns.NumField(aRecord) >= 1)
+		destIP := mdns.Field(aRecord, 1)
+		checkSnooping(t, destIP, reverseDNS)
+	}
+}
+
 // Get the preferred outbound IP of this machine
 func getOutboundIP(t *testing.T, serverIP string) net.IP {
+	if serverIP == localhost {
+		return net.ParseIP(localhost)
+	}
 	conn, err := net.Dial("udp", serverIP+":80")
 	require.NoError(t, err)
 	defer conn.Close()
@@ -131,24 +154,24 @@ func getOutboundIP(t *testing.T, serverIP string) net.IP {
 }
 
 const (
+	localhost        = "127.0.0.1"
 	validDNSServerIP = "8.8.8.8"
 )
 
-func initDNSTests(t *testing.T) (*manager.Manager, *SocketFilterSnooper) {
+func initDNSTests(t *testing.T, localDNS bool) (*manager.Manager, *SocketFilterSnooper) {
 	buf, err := bytecode.ReadBPFModule("", false)
 	require.NoError(t, err)
-	return getSnooper(t, buf, true, false, 1*time.Second)
+	return getSnooper(t, buf, true, localDNS, 1*time.Second)
 }
 
-func sendDNSQuery(
+func sendDNSQueries(
 	t *testing.T,
-	domain string,
+	domains []string,
 	serverIP string,
 	protocol ConnectionType,
-) (string, int, *mdns.Msg) {
+) (string, int, []*mdns.Msg) {
 	// Create a DNS query message
 	msg := new(mdns.Msg)
-	msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
 	msg.RecursionDesired = true
 	queryIP := getOutboundIP(t, serverIP).String()
 
@@ -168,28 +191,46 @@ func sendDNSQuery(
 	}
 
 	dnsClient := mdns.Client{Net: strings.ToLower(protocol.String()), Dialer: localAddrDialer}
-
 	dnsHost := net.JoinHostPort(serverIP, "53")
-	rep, _, _ := dnsClient.Exchange(msg, dnsHost)
-	return queryIP, queryPort, rep
+	var reps []*mdns.Msg
+
+	if protocol == TCP {
+		conn, err := dnsClient.Dial(dnsHost)
+		require.NoError(t, err)
+		for _, domain := range domains {
+			msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
+			rep, _, _ := dnsClient.ExchangeWithConn(msg, conn)
+			reps = append(reps, rep)
+		}
+	} else { // UDP
+		for _, domain := range domains {
+			// msg.SetQuestion(mdns.Fqdn(domains[0]), mdns.TypeA)
+			msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
+			rep, _, _ := dnsClient.Exchange(msg, dnsHost)
+			reps = append(reps, rep)
+		}
+	}
+	return queryIP, queryPort, reps
 }
 
-func getStats(
+func getKey(
 	qIP string,
 	qPort int,
 	sIP string,
-	snooper *SocketFilterSnooper,
 	protocol ConnectionType,
-) (dnsKey, map[dnsKey]dnsStats) {
-	key := dnsKey{
+) dnsKey {
+	return dnsKey{
 		clientIP:   util.AddressFromString(qIP),
 		clientPort: uint16(qPort),
 		serverIP:   util.AddressFromString(sIP),
 		protocol:   protocol,
 	}
+}
 
-	var allStats = map[dnsKey]dnsStats{}
-
+func getStats(
+	snooper *SocketFilterSnooper,
+	expectedCount int,
+) map[dnsKey]dnsStats {
 	timeout := time.After(1 * time.Second)
 Loop:
 	// Wait until DNS stats becomes available
@@ -198,77 +239,113 @@ Loop:
 		case <-timeout:
 			break Loop
 		default:
-			allStats = snooper.GetDNSStats()
-			if len(allStats) >= 1 {
+			// Break if we have processed all the expected responses
+			if snooper.successes+snooper.errors >= int64(expectedCount) {
 				break Loop
 			}
 		}
 
 	}
-	return key, allStats
+	return snooper.GetDNSStats()
 }
 
-func TestDNSOverTCPSnoopingWithSuccessfulResponse(t *testing.T) {
-	m, reverseDNS := initDNSTests(t)
+func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
+	m, reverseDNS := initDNSTests(t, false)
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
+	domains := []string{
+		"golang.org",
+		"google.com",
+		"acm.org",
+	}
+	queryIP, queryPort, reps := sendDNSQueries(t, domains, validDNSServerIP, TCP)
 
-	queryIP, queryPort, rep := sendDNSQuery(t, "golang.org", validDNSServerIP, TCP)
-	require.NotNil(t, rep)
-
-	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
-
-	for _, r := range rep.Answer {
-		aRecord, ok := r.(*mdns.A)
-		require.True(t, ok)
-		require.True(t, mdns.NumField(aRecord) >= 1)
-		destIP := mdns.Field(aRecord, 1)
-		checkSnooping(t, destIP, reverseDNS)
+	// Check that all the queries succeeded
+	for _, rep := range reps {
+		require.NotNil(t, rep)
+		require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
 	}
 
-	key, allStats := getStats(queryIP, queryPort, validDNSServerIP, reverseDNS, TCP)
+	allStats := getStats(reverseDNS, len(domains))
+	key := getKey(queryIP, queryPort, validDNSServerIP, TCP)
+
+	// Since all the queries were done using one TCP connection, there should be just one key in the stats map
 	require.Equal(t, 1, len(allStats))
-	assert.Equal(t, uint32(1), allStats[key].successfulResponses)
-	assert.Equal(t, uint32(0), allStats[key].failedResponses)
-	assert.Equal(t, uint32(0), allStats[key].timeouts)
+
+	// Exactly one rcode (0, success) is expected
+	require.Equal(t, 1, len(allStats[key].countByRcode))
+
+	assert.Equal(t, uint32(len(domains)), allStats[key].countByRcode[uint8(layers.DNSResponseCodeNoErr)])
 	assert.True(t, allStats[key].successLatencySum >= uint64(1))
+	assert.Equal(t, uint32(0), allStats[key].timeouts)
 	assert.Equal(t, uint64(0), allStats[key].failureLatencySum)
-	require.Equal(t, 0, len(allStats[key].errorCount))
 }
 
-func TestDNSOverTCPSnoopingWithFailedResponse(t *testing.T) {
-	m, reverseDNS := initDNSTests(t)
+type handler struct{}
+
+func (this *handler) ServeDNS(w mdns.ResponseWriter, r *mdns.Msg) {
+	msg := mdns.Msg{}
+	msg.SetReply(r)
+	msg.SetRcode(r, mdns.RcodeServerFailure)
+	w.WriteMsg(&msg)
+}
+
+func TestDNSFailedResponseCount(t *testing.T) {
+	m, reverseDNS := initDNSTests(t, true)
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
-	queryIP, queryPort, rep := sendDNSQuery(t, "agafsdfsdasdfsd", validDNSServerIP, TCP)
-	require.NotNil(t, rep)
-	require.NotEqual(t, rep.Rcode, mdns.RcodeSuccess)
+	domains := []string{
+		"nonexistenent.com.net",
+		"aabdgdfsgsdafsdafsad",
+	}
+	queryIP, queryPort, reps := sendDNSQueries(t, domains, validDNSServerIP, TCP)
+	for _, rep := range reps {
+		require.NotNil(t, rep)
+		require.NotEqual(t, rep.Rcode, mdns.RcodeSuccess) // All the queries should have failed
+	}
+	key1 := getKey(queryIP, queryPort, validDNSServerIP, TCP)
 
-	key, allStats := getStats(queryIP, queryPort, validDNSServerIP, reverseDNS, TCP)
-	require.Equal(t, 1, len(allStats))
-	assert.Equal(t, uint32(0), allStats[key].successfulResponses)
-	assert.Equal(t, uint32(1), allStats[key].failedResponses)
-	assert.Equal(t, uint32(0), allStats[key].timeouts)
-	assert.Equal(t, uint64(0), allStats[key].successLatencySum)
-	require.Equal(t, 1, len(allStats[key].errorCount))
-	assert.True(t, allStats[key].failureLatencySum > uint64(0))
-	require.Equal(t, uint32(1), allStats[key].errorCount[uint8(layers.DNSResponseCodeNXDomain)])
+	// Set up a local DNS server to return SERVFAIL
+	localServerAddr := &net.UDPAddr{IP: net.ParseIP(localhost), Port: 53}
+	localServer := &mdns.Server{Addr: localServerAddr.String(), Net: "udp"}
+	localServer.Handler = &handler{}
+	waitLock := sync.Mutex{}
+	waitLock.Lock()
+	localServer.NotifyStartedFunc = waitLock.Unlock
+	defer localServer.Shutdown()
+
+	go func() {
+		if err := localServer.ListenAndServe(); err != nil {
+			t.Fatalf("Failed to set listener %s\n", err.Error())
+		}
+	}()
+	waitLock.Lock()
+	queryIP, queryPort, reps = sendDNSQueries(t, domains, localhost, UDP)
+	key2 := getKey(queryIP, queryPort, localhost, UDP)
+	allStats := getStats(reverseDNS, len(domains)*2+1)
+
+	// Queries were done using one TCP and one UDP connection
+	require.Equal(t, 2, len(allStats))
+	require.Equal(t, 1, len(allStats[key1].countByRcode))
+	assert.Equal(t, uint32(len(domains)), allStats[key1].countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
+	require.Equal(t, 1, len(allStats[key2].countByRcode))
+	assert.Equal(t, uint32(len(domains)), allStats[key2].countByRcode[uint8(layers.DNSResponseCodeServFail)])
 }
 
-func TestDNSOverUDPSnoopingWithTimedOutResponse(t *testing.T) {
-	m, reverseDNS := initDNSTests(t)
+func TestDNSOverUDPTimeoutCount(t *testing.T) {
+	m, reverseDNS := initDNSTests(t, false)
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
 	invalidServerIP := "8.8.8.90"
-	queryIP, queryPort, rep := sendDNSQuery(t, "agafsdfsdasdfsd", invalidServerIP, UDP)
-	require.Nil(t, rep)
+	queryIP, queryPort, reps := sendDNSQueries(t, []string{"agafsdfsdasdfsd"}, invalidServerIP, UDP)
+	require.Nil(t, reps[0])
 
-	key, allStats := getStats(queryIP, queryPort, invalidServerIP, reverseDNS, UDP)
+	allStats := getStats(reverseDNS, 1)
+	key := getKey(queryIP, queryPort, invalidServerIP, UDP)
 	require.Equal(t, 1, len(allStats))
-	assert.Equal(t, uint32(0), allStats[key].successfulResponses)
-	assert.Equal(t, uint32(0), allStats[key].failedResponses)
+	assert.Equal(t, 0, len(allStats[key].countByRcode))
 	assert.Equal(t, uint32(1), allStats[key].timeouts)
 	assert.Equal(t, uint64(0), allStats[key].successLatencySum)
 	assert.Equal(t, uint64(0), allStats[key].failureLatencySum)

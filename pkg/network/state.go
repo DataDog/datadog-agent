@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/gopacket/layers"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -201,14 +203,13 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 		}
 
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
-			conn.DNSSuccessfulResponses = dnsStats.successfulResponses
-			conn.DNSFailedResponses = dnsStats.failedResponses
 			conn.DNSTimeouts = dnsStats.timeouts
+			conn.DNSSuccessfulResponses = dnsStats.countByRcode[uint8(layers.DNSResponseCodeNoErr)]
 			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
 			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
-			conn.DNSErrorCount = make(map[uint32]uint32)
-			for errorCode, count := range dnsStats.errorCount {
-				conn.DNSErrorCount[uint32(errorCode)] = count
+			conn.DNSCountByRcode = make(map[uint32]uint32)
+			for rcode, count := range dnsStats.countByRcode {
+				conn.DNSCountByRcode[uint32(rcode)] = count
 			}
 		}
 		seen[key] = struct{}{}
@@ -274,15 +275,13 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 func (ns *networkState) storeDNSStats(stats map[dnsKey]dnsStats) {
 	for key, dns := range stats {
 		for _, client := range ns.clients {
-			// If we've seen DNS stats for this key already, lets combine the two
+			// If we've seen DNS stats for this key already, let's combine the two
 			if prev, ok := client.dnsStats[key]; ok {
-				prev.successfulResponses += dns.successfulResponses
-				prev.failedResponses += dns.failedResponses
 				prev.timeouts += dns.timeouts
 				prev.successLatencySum += dns.successLatencySum
 				prev.failureLatencySum += dns.failureLatencySum
-				for errorCode, count := range dns.errorCount {
-					prev.errorCount[errorCode] += count
+				for rcode, count := range dns.countByRcode {
+					prev.countByRcode[rcode] += count
 				}
 				client.dnsStats[key] = prev
 			} else if len(client.dnsStats) >= ns.maxDNSStats {
