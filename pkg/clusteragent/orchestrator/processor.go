@@ -86,7 +86,7 @@ func skipKubernetesResource(uid types.UID, resourceVersion string) bool {
 		cache.KubeCache.Set(string(uid), resourceVersion, 0)
 		return false
 	} else {
-		return false
+		return true
 	}
 }
 

@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"k8s.io/apimachinery/pkg/types"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -130,4 +131,21 @@ func TestChunkReplicasets(t *testing.T) {
 	}
 	actual := chunkReplicaSets(rs, 3, 2)
 	assert.ElementsMatch(t, expected, actual)
+}
+
+func TestKubeCacheHits(t *testing.T) {
+	uid := "123-456-789"
+	resourceVersion := "123"
+	newResourceVersion := "321"
+	// we do not have the resource, therefore we do not skip this resource.
+	skip := skipKubernetesResource(types.UID(uid), resourceVersion)
+	assert.False(t, skip)
+
+	// we have the resource, therefore we skip this resource.
+	skip = skipKubernetesResource(types.UID(uid), resourceVersion)
+	assert.True(t, skip)
+
+	// we have the resource but the version has changed. therefore we do not skip this resource.
+	skip = skipKubernetesResource(types.UID(uid), newResourceVersion)
+	assert.False(t, skip)
 }
