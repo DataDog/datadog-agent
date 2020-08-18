@@ -56,35 +56,29 @@ func additionalProfilingEndpoints() map[string][]string {
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
-	mainEndpoint := mainProfilingEndpoint()
-	u, err := url.Parse(mainEndpoint)
+	e := mainProfilingEndpoint()
+	u, err := url.Parse(e)
 	if err != nil {
-		log.Errorf("Error parsing main intake URL %s: %v", mainEndpoint, err)
-		return errorHandler(mainEndpoint)
+		log.Errorf("Error parsing main intake URL %s: %v", e, err)
+		return errorHandler(e)
 	}
-	mainProxy := newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)
-	if mainProxy == nil {
-		log.Errorf("Failed to create reverse proxy for main endpoint %s", mainEndpoint)
-		return errorHandler(mainEndpoint)
-	}
-	proxies := []*httputil.ReverseProxy{mainProxy}
+	proxies := []*httputil.ReverseProxy{newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)}
 
-	additionalEndpoints := additionalProfilingEndpoints()
-	for endpoint, apiKeys := range additionalEndpoints {
-		u, err := url.Parse(endpoint)
+	for e, keys := range additionalProfilingEndpoints() {
+		u, err := url.Parse(e)
 		if err != nil {
-			log.Errorf("Error parsing additional intake URL %s: %v", endpoint, err)
+			log.Errorf("Error parsing additional intake URL %s: %v", e, err)
 			continue
 		}
 
-		for _, apiKey := range apiKeys {
+		for _, apiKey := range keys {
 			proxies = append(proxies, newProfileProxy(r.conf.NewHTTPTransport(), u, apiKey, tags))
 		}
 	}
 
 	switch len(proxies) {
 	case 0:
-		return errorHandler(mainEndpoint)
+		return errorHandler(e)
 	case 1:
 		return proxies[0]
 	default:
@@ -139,9 +133,9 @@ func newProfileProxy(transport http.RoundTripper, target *url.URL, apiKey, tags 
 	}
 }
 
-func errorHandler(mainEndpoint string) http.Handler {
+func errorHandler(endpoint string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		msg := fmt.Sprintf("Profile forwarder is OFF because of invalid intake URL configuration: %v", mainEndpoint)
+		msg := fmt.Sprintf("Profile forwarder is OFF because of invalid intake URL configuration: %v", endpoint)
 		http.Error(w, msg, http.StatusInternalServerError)
 	})
 }
