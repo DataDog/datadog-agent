@@ -58,7 +58,7 @@
             "type": "go"
         },
         "honnef.co/go/tools/cmd/staticcheck" : {
-            "version": "2019.2.3",
+            "version": "2020.1.5",
             "type": "go"
         },
         "github.com/frapposelli/wwhrd": {
