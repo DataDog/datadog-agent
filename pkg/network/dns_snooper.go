@@ -150,6 +150,8 @@ func (s *SocketFilterSnooper) Close() {
 // the reverse DNS cache. The underlying packet data can't be referenced after this method
 // call since the underlying memory content gets invalidated by `afpacket`.
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
+// The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
+// and much more reliable than calling time.Now() at the user layer.
 func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
