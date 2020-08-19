@@ -1,5 +1,8 @@
-// entrypoint.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog
+// (https://www.datadoghq.com/).
+// Copyright 2019-2020 Datadog, Inc.
 
 #include <Windows.h>
 #include <tchar.h>
@@ -17,12 +20,14 @@
 namespace
 {
     HANDLE StopEvent = INVALID_HANDLE_VALUE;
+
     const std::map<std::wstring, std::filesystem::path> services =
     {
         {L"datadogagent", "C:\\ProgramData\\Datadog\\logs\\agent.log"},
         {L"datadog-process-agent", "C:\\ProgramData\\Datadog\\logs\\process-agent.log"},
         {L"datadog-trace-agent", "C:\\ProgramData\\Datadog\\logs\\trace-agent.log"},
     };
+
     std::string FormatErrorCode(DWORD errorCode)
     {
         std::stringstream sstream;
@@ -151,6 +156,8 @@ void Cleanup()
     CloseHandle(StopEvent);
     StopEvent = nullptr;
 }
+
+// Returns: 0 on success, -1 on error.
 int _tmain(int argc, _TCHAR** argv)
 {
     DWORD exitCode = -1;
