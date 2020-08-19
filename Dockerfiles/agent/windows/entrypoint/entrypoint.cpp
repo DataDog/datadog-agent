@@ -23,6 +23,12 @@ namespace
         {L"datadog-process-agent", "C:\\ProgramData\\Datadog\\logs\\process-agent.log"},
         {L"datadog-trace-agent", "C:\\ProgramData\\Datadog\\logs\\trace-agent.log"},
     };
+    std::string FormatErrorCode(DWORD errorCode)
+    {
+        std::stringstream sstream;
+        sstream << "[" << errorCode << " (0x" << std::hex << errorCode << ")]";
+        return sstream.str();
+    }
 }
 
 BOOL WINAPI CtrlHandle(DWORD dwCtrlType)
@@ -161,13 +167,14 @@ int _tmain(int argc, _TCHAR** argv)
     {
         hr = HRESULT_FROM_WIN32(GetLastError());
         goto Cleanup;
+        std::cout << "[ENTRYPOINT][ERROR] Failed to create event with error: " << FormatErrorCode(GetLastError()) << std::endl;
     }
 
     if (!SetConsoleCtrlHandler(CtrlHandle, TRUE))
     {
         hr = HRESULT_FROM_WIN32(GetLastError());
-        std::cout << "[ENTRYPOINT][ERROR] Failed to set control handle with error [0x" << std::hex << hr << "]" << std::endl;
         goto Cleanup;
+        std::cout << "[ENTRYPOINT][ERROR] Failed to set control handle with error: " << FormatErrorCode(GetLastError()) << std::endl;
     }
 
     if (SUCCEEDED(hr) && StopEvent != INVALID_HANDLE_VALUE)
@@ -206,6 +213,7 @@ Cleanup:
     {
         CloseHandle(StopEvent);
         StopEvent = INVALID_HANDLE_VALUE;
+        std::cout << "[ENTRYPOINT][ERROR] " << ex.what() << ". Error: " << FormatErrorCode(ex.GetErrorCode()) << std::endl;
     }
     return hr;
 }
