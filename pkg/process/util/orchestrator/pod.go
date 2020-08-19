@@ -9,7 +9,10 @@ package orchestrator
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"hash/fnv"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/kubelet/pod"
 	"strconv"
 	"strings"
 	"time"
@@ -24,8 +27,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/kubelet/pod"
 )
 
 const (
@@ -43,17 +44,6 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// extract pod info
 		podModel := extractPodMessage(podList[p])
 
-		// insert tagger tags
-		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
-		if err != nil {
-			log.Debugf("Could not retrieve tags for pod: %s", err)
-			continue
-		}
-
-		// additionnal tags
-		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
-		podModel.Tags = tags
-
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
 		if pod.IsStaticPod(podList[p]) {
@@ -62,6 +52,23 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			podList[p].UID = types.UID(newUID)
 			podModel.Metadata.Uid = newUID
 		}
+
+		pd := podList[p]
+		if skip := apiserver.SkipKubernetesResource(pd.UID, pd.ResourceVersion); skip {
+			log.Debugf("cache hit. Pod: did not change: %s", pd.UID)
+			continue
+		}
+
+		// insert tagger tags
+		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
+		if err != nil {
+			log.Debugf("Could not retrieve tags for pod: %s", err)
+			continue
+		}
+
+		// additional tags
+		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
+		podModel.Tags = tags
 
 		// scrub & generate YAML
 		if withScrubbing {
