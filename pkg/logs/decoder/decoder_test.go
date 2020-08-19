@@ -157,7 +157,7 @@ func TestDecoderWithDockerHeader(t *testing.T) {
 	input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
 	d.InputChan <- NewInput(input)
 
-	var output *Output
+	var output *Message
 	output = <-d.OutputChan
 	assert.Equal(t, "hello", string(output.Content))
 

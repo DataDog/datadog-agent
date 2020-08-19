@@ -28,8 +28,22 @@ func NewInput(content []byte) *Input {
 	}
 }
 
-// Output represents a structured line.
-type Output struct {
+// DecodedInput represents a decoded line and the raw length
+type DecodedInput struct {
+	content    []byte
+	rawDataLen int
+}
+
+// NewDecodedInput returns a new decoded input.
+func NewDecodedInput(content []byte, rawDataLen int) *DecodedInput {
+	return &DecodedInput{
+		content:    content,
+		rawDataLen: rawDataLen,
+	}
+}
+
+// Message represents a structured line.
+type Message struct {
 	Content    []byte
 	Status     string
 	RawDataLen int
@@ -37,8 +51,8 @@ type Output struct {
 }
 
 // NewOutput returns a new output.
-func NewOutput(content []byte, status string, rawDataLen int, timestamp string) *Output {
-	return &Output{
+func NewOutput(content []byte, status string, rawDataLen int, timestamp string) *Message {
+	return &Message{
 		Content:    content,
 		Status:     status,
 		RawDataLen: rawDataLen,
@@ -49,11 +63,13 @@ func NewOutput(content []byte, status string, rawDataLen int, timestamp string) 
 // Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
 type Decoder struct {
 	InputChan       chan *Input
-	OutputChan      chan *Output
+	OutputChan      chan *Message
 	matcher         EndLineMatcher
 	lineBuffer      *bytes.Buffer
 	lineHandler     LineHandler
+	lineParser      LineParser
 	contentLenLimit int
+	rawDataLen      int
 }
 
 // InitializeDecoder returns a properly initialized Decoder
@@ -64,9 +80,11 @@ func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder 
 // NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.
 func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser, matcher EndLineMatcher) *Decoder {
 	inputChan := make(chan *Input)
-	outputChan := make(chan *Output)
+	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
 	var lineHandler LineHandler
+	var lineParser LineParser
+
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
 			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, parser, lineLimit)
@@ -76,17 +94,20 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		lineHandler = NewSingleLineHandler(outputChan, parser, lineLimit)
 	}
 
-	return New(inputChan, outputChan, lineHandler, lineLimit, matcher)
+	lineParser = NewSingleLineParser(parser, lineHandler)
+
+	return New(inputChan, outputChan, lineHandler, lineParser, lineLimit, matcher)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler, contentLenLimit int, matcher EndLineMatcher) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *Message, lineHandler LineHandler, lineParser LineParser, contentLenLimit int, matcher EndLineMatcher) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
 		InputChan:       InputChan,
 		OutputChan:      OutputChan,
 		lineBuffer:      &lineBuffer,
 		lineHandler:     lineHandler,
+		lineParser:      lineParser,
 		contentLenLimit: contentLenLimit,
 		matcher:         matcher,
 	}
@@ -95,6 +116,7 @@ func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler
 // Start starts the Decoder
 func (d *Decoder) Start() {
 	d.lineHandler.Start()
+	d.lineParser.Start()
 	go d.run()
 }
 
@@ -109,6 +131,7 @@ func (d *Decoder) run() {
 		d.decodeIncomingData(data.content)
 	}
 	// finish to stop decoder
+	d.lineParser.Stop()
 	d.lineHandler.Stop()
 }
 
@@ -122,17 +145,21 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 		if j == maxj {
 			// send line because it is too long
 			d.lineBuffer.Write(inBuf[i:j])
+			d.rawDataLen += (j - i)
 			d.sendLine()
 			i = j
 			maxj = i + d.contentLenLimit
 		} else if d.matcher.Match(d.lineBuffer.Bytes(), inBuf, i, j) {
 			d.lineBuffer.Write(inBuf[i:j])
+			d.rawDataLen += (j - i)
+			d.rawDataLen++ // account for the matching byte
 			d.sendLine()
 			i = j + 1 // skip the matching byte.
 			maxj = i + d.contentLenLimit
 		}
 	}
 	d.lineBuffer.Write(inBuf[i:j])
+	d.rawDataLen += (j - i)
 }
 
 // sendLine copies content from lineBuffer which is passed to lineHandler
@@ -140,5 +167,6 @@ func (d *Decoder) sendLine() {
 	content := make([]byte, d.lineBuffer.Len())
 	copy(content, d.lineBuffer.Bytes())
 	d.lineBuffer.Reset()
-	d.lineHandler.Handle(content)
+	d.lineParser.Handle(NewDecodedInput(content, d.rawDataLen))
+	d.rawDataLen = 0
 }
