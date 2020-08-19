@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-
 func TestKubeCacheHits(t *testing.T) {
 	uid := "123-456-789"
 	resourceVersion := "123"
