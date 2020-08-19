@@ -6,7 +6,6 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
-#include <array>
 #include <sstream>
 #include "Process.h"
 #include "Service.h"
