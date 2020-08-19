@@ -78,13 +78,6 @@ func (h *SingleLineHandler) process(message *Message) {
 	h.shouldTruncate = false
 
 	message.Content = bytes.TrimSpace(message.Content)
-	if len(message.Content) == 0 {
-		// Important Note: when doing that the offset stored in registry
-		// is likely to be shifted from 1 byte as we are parsing an empty
-		// that still is one byte long.
-		// don't send empty lines
-		return
-	}
 
 	if isTruncated {
 		// the previous line has been truncated because it was too long,
