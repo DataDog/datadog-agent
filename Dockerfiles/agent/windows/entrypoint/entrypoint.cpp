@@ -188,23 +188,18 @@ int _tmain(int argc, _TCHAR** argv)
         return -1;
     }
 
-    if (SUCCEEDED(hr) && StopEvent != INVALID_HANDLE_VALUE)
+    try
     {
-        try
+        ExecuteInitScripts();
+        const std::wstring command = argv[1];
+
+        auto svcIt = services.find(command);
+        if (svcIt != services.end())
         {
-            ExecuteInitScripts();
-            std::wstring command = argv[1];
-
-
-            for (auto service : services)
-            {
-                if (command == service.first)
-                {
-                    RunService(service.first, service.second);
-                    goto Cleanup;
-                }
-            }
-
+            RunService(svcIt->first, svcIt->second);
+        }
+        else
+        {
             std::wstringstream commandLine;
             commandLine << command;
             for (int i = 2; i < argc; ++i)
@@ -215,9 +210,19 @@ int _tmain(int argc, _TCHAR** argv)
         }
         exitCode = 0;
     }
+    catch (Win32Exception& ex)
     {
         std::cout << "[ENTRYPOINT][ERROR] " << ex.what() << ". Error: " << FormatErrorCode(ex.GetErrorCode()) << std::endl;
     }
+    catch (std::exception& ex)
+    {
+        std::cout << "[ENTRYPOINT][ERROR] " << ex.what() << std::endl;
+    }
+    catch (...)
+    {
+        std::cout << "[ENTRYPOINT][ERROR] Unexpected exception caught" << std::endl;
+    }
+
     Cleanup();
     return exitCode;
 }
