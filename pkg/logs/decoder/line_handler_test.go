@@ -52,11 +52,11 @@ func (u *MockFailingParser) Parse(msg []byte) ([]byte, string, string, bool, err
 }
 
 func TestSingleLineHandler(t *testing.T) {
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	h := NewSingleLineHandler(outputChan, parser.NoopParser, 100)
 	h.Start()
 
-	var output *Output
+	var output *Message
 	var line string
 
 	// valid line should be sent
@@ -93,11 +93,11 @@ func TestSingleLineHandler(t *testing.T) {
 }
 
 func TestTrimSingleLine(t *testing.T) {
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	h := NewSingleLineHandler(outputChan, parser.NoopParser, 100)
 	h.Start()
 
-	var output *Output
+	var output *Message
 	var line string
 
 	// All leading and trailing whitespace characters should be trimmed
@@ -112,11 +112,11 @@ func TestTrimSingleLine(t *testing.T) {
 
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser, 20)
 	h.Start()
 
-	var output *Output
+	var output *Message
 
 	// two lines long message should be sent
 	h.Handle([]byte("1.first"))
@@ -187,11 +187,11 @@ func TestMultiLineHandler(t *testing.T) {
 
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser, 100)
 	h.Start()
 
-	var output *Output
+	var output *Message
 
 	// All leading and trailing whitespace characters should be trimmed
 	h.Handle([]byte(whitespace + "foo" + whitespace + "bar" + whitespace))
@@ -211,7 +211,7 @@ func TestTrimMultiLine(t *testing.T) {
 
 func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
 	const header = "HEADER"
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	h := NewSingleLineHandler(outputChan, NewMockParser(header), 100)
 	h.Start()
 
@@ -219,7 +219,7 @@ func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
 	h.Handle([]byte(line))
 	h.Handle([]byte(line + "one message"))
 
-	var output *Output
+	var output *Message
 
 	output = <-outputChan
 	assert.Equal(t, "one message", string(output.Content))
@@ -227,7 +227,7 @@ func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
 
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 	const header = "HEADER"
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header), 100)
 	h.Start()
@@ -237,7 +237,7 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 	h.Handle([]byte(header + "1.third line"))
 	h.Handle([]byte("fourth line"))
 
-	var output *Output
+	var output *Message
 
 	output = <-outputChan
 	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
@@ -245,13 +245,13 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 
 func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	const header = "HEADER"
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	h := NewSingleLineHandler(outputChan, NewMockFailingParser(header), 100)
 	h.Start()
 
 	h.Handle([]byte("one message"))
 
-	var output *Output
+	var output *Message
 
 	output = <-outputChan
 	assert.Equal(t, "one message", string(output.Content))
@@ -259,7 +259,7 @@ func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 
 func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	const header = "HEADER"
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockFailingParser(header), 100)
 	h.Start()
@@ -267,7 +267,7 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	h.Handle([]byte("1.third line"))
 	h.Handle([]byte("fourth line"))
 
-	var output *Output
+	var output *Message
 
 	output = <-outputChan
 	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
