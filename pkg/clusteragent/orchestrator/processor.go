@@ -177,7 +177,6 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 	for s := 0; s < len(serviceList); s++ {
 		svc := serviceList[s]
 		if skip := apiserver.SkipKubernetesResource(svc.UID, svc.ResourceVersion); skip {
-			log.Debugf("cache hit. service: did not change: %s", svc.UID)
 			continue
 		}
 
