@@ -201,7 +201,7 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubelet_auth_token_path", "")
 
-	ku := newKubeUtil()
+	ku := NewKubeUtil()
 	err = ku.init()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), ku)
@@ -492,7 +492,7 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
-	ku := newKubeUtil()
+	ku := NewKubeUtil()
 	err = ku.init()
 
 	expectedErr := fmt.Errorf("could not read token from %s: open %s: no such file or directory", fakePath, fakePath)
@@ -522,7 +522,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
-	ku := newKubeUtil()
+	ku := NewKubeUtil()
 	err = ku.init()
 	require.Nil(suite.T(), err)
 	<-k.Requests // Throwing away first GET
@@ -568,7 +568,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	mockConfig.Set("kubelet_client_ca", k.testingCertificate)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
-	ku := newKubeUtil()
+	ku := NewKubeUtil()
 	err = ku.init()
 	require.Nil(suite.T(), err)
 	<-k.Requests // Throwing away first GET
@@ -612,7 +612,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
-	ku := newKubeUtil()
+	ku := NewKubeUtil()
 	err = ku.init()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletAPIEndpoint)
@@ -648,7 +648,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
-	ku := newKubeUtil()
+	ku := NewKubeUtil()
 	err = ku.init()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletAPIEndpoint)
@@ -847,8 +847,8 @@ func TestKubeletTestSuite(t *testing.T) {
 	suite.Run(t, new(KubeletTestSuite))
 }
 
-func TestSearchPodForContainerID(t *testing.T) {
-	k := newKubeUtil()
+func TestGetStatusForContainerID(t *testing.T) {
+	k := NewKubeUtil()
 
 	containerFoo := ContainerStatus{
 		Name:  "fooName",
@@ -888,6 +888,38 @@ func TestSearchPodForContainerID(t *testing.T) {
 
 	_, err := k.GetStatusForContainerID(pod, serviceBaz.GetEntityID())
 	assert.EqualError(t, err, "Container docker://bazID not found")
+}
+
+func TestGetSpecForContainerName(t *testing.T) {
+	k := NewKubeUtil()
+
+	specA := ContainerSpec{
+		Name:  "fooNameA",
+		Image: "fooImage",
+	}
+
+	specB := ContainerSpec{
+		Name:  "fooNameB",
+		Image: "fooPrefix:fooImage",
+	}
+
+	pod := &Pod{
+		Spec: Spec{
+			Containers: []ContainerSpec{specA, specB},
+		},
+	}
+
+	containerSpec, err := k.GetSpecForContainerName(pod, specA.Name)
+	assert.Equal(t, specA, containerSpec)
+	assert.Nil(t, err)
+
+	containerSpec, err = k.GetSpecForContainerName(pod, specB.Name)
+	assert.Equal(t, specB, containerSpec)
+	assert.Nil(t, err)
+
+	containerSpec, err = k.GetSpecForContainerName(pod, "noMatch")
+	assert.Equal(t, ContainerSpec{}, containerSpec)
+	assert.NotNil(t, err)
 }
 
 func (suite *KubeletTestSuite) TestPodListWithNullPod() {
