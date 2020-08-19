@@ -9,8 +9,6 @@ import (
 	"bytes"
 	"regexp"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // truncatedFlag is the flag that is added at the beginning
@@ -36,16 +34,14 @@ type SingleLineHandler struct {
 	inputChan      chan *Message
 	outputChan     chan *Message
 	shouldTruncate bool
-	parser         parser.Parser
 	lineLimit      int
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler.
-func NewSingleLineHandler(outputChan chan *Message, parser parser.Parser, lineLimit int) *SingleLineHandler {
+func NewSingleLineHandler(outputChan chan *Message, lineLimit int) *SingleLineHandler {
 	return &SingleLineHandler{
 		inputChan:  make(chan *Message),
 		outputChan: outputChan,
-		parser:     parser,
 		lineLimit:  lineLimit,
 	}
 }
@@ -118,7 +114,6 @@ const defaultFlushTimeout = 1000 * time.Millisecond
 type MultiLineHandler struct {
 	inputChan      chan *Message
 	outputChan     chan *Message
-	parser         parser.Parser
 	newContentRe   *regexp.Regexp
 	buffer         *bytes.Buffer
 	flushTimeout   time.Duration
@@ -130,11 +125,10 @@ type MultiLineHandler struct {
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
-func NewMultiLineHandler(outputChan chan *Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, parser parser.Parser, lineLimit int) *MultiLineHandler {
+func NewMultiLineHandler(outputChan chan *Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int) *MultiLineHandler {
 	return &MultiLineHandler{
 		inputChan:    make(chan *Message),
 		outputChan:   outputChan,
-		parser:       parser,
 		newContentRe: newContentRe,
 		buffer:       bytes.NewBuffer(nil),
 		flushTimeout: flushTimeout,
@@ -255,6 +249,6 @@ func (h *MultiLineHandler) sendBuffer() {
 	copy(content, data)
 
 	if len(content) > 0 {
-		h.outputChan <- NewOutput(content, h.status, h.linesLen, h.timestamp)
+		h.outputChan <- NewMessage(content, h.status, h.linesLen, h.timestamp)
 	}
 }

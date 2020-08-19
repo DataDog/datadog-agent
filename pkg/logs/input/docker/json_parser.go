@@ -58,12 +58,16 @@ func (p *jsonParser) Parse(data []byte) ([]byte, string, string, bool, error) {
 	content := []byte(log.Log)
 	length := len(content)
 	partial := false
-	if length > 1 {
-		if log.Log[length-2:length-1] == `\n` {
-			content = content[:length-2]
+	if length > 0 {
+		if log.Log[length-1] == '\n' {
+			content = content[:length-1]
 		} else {
 			partial = true
 		}
 	}
 	return content, status, log.Time, partial, nil
+}
+
+func (p *jsonParser) SupportsPartialLine() bool {
+	return true
 }

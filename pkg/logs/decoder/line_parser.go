@@ -41,12 +41,14 @@ func (p *SingleLineParser) Handle(input *DecodedInput) {
 
 // Start starts the parser.
 func (p *SingleLineParser) Start() {
+	p.lineHandler.Start()
 	go p.run()
 }
 
 // Stop stops the parser.
 func (p *SingleLineParser) Stop() {
 	close(p.inputChan)
+	p.lineHandler.Stop()
 }
 
 // run consumes new lines and processes them.
@@ -62,5 +64,5 @@ func (p *SingleLineParser) process(input *DecodedInput) {
 	if err != nil {
 		log.Debug(err)
 	}
-	p.lineHandler.Handle(NewOutput(content, status, input.rawDataLen, timestamp))
+	p.lineHandler.Handle(NewMessage(content, status, input.rawDataLen, timestamp))
 }
