@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
+	"github.com/elastic/go-libaudit"
 )
 
 const (
@@ -56,6 +57,15 @@ func (r *RemoteSysProbeUtil) GetCheck(check string) ([]interface{}, error) {
 		for i, v := range stats {
 			s[i] = v
 		}
+		return s, nil
+	} else if check == "linux_audit" {
+		var status libaudit.AuditStatus
+		err = json.Unmarshal(body, &status)
+		if err != nil {
+			return nil, err
+		}
+		s := make([]interface{}, 1)
+		s[0] = status
 		return s, nil
 	}
 

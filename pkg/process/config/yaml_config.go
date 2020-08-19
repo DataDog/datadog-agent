@@ -166,6 +166,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
 	}
 
+	if config.Datadog.GetBool(key(spNS, "enable_linux_audit")) {
+		a.EnabledChecks = append(a.EnabledChecks, "Linux Audit")
+	}
+
 	if config.Datadog.IsSet(key(spNS, "enable_tracepoints")) {
 		a.EnableTracepoints = config.Datadog.GetBool(key(spNS, "enable_tracepoints"))
 	}

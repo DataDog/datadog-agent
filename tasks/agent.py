@@ -46,6 +46,7 @@ AGENT_CORECHECKS = [
     "jetson",
     "jmx",
     "kubernetes_apiserver",
+    "linux_audit",
     "load",
     "memory",
     "ntp",

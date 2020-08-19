@@ -9,3 +9,8 @@ if grep -Eq '^ *enable_oom_kill *: *true' /etc/datadog-agent/system-probe.yaml; 
     mv /etc/datadog-agent/conf.d/oom_kill.d/conf.yaml.example \
        /etc/datadog-agent/conf.d/oom_kill.d/conf.yaml.default
 fi
+
+if grep -Eq '^ *enable_linux_audit *: *true' /etc/datadog-agent/system-probe.yaml; then
+    mv /etc/datadog-agent/conf.d/linux_audit.d/conf.yaml.example \
+       /etc/datadog-agent/conf.d/linux_audit.d/conf.yaml.default
+fi
