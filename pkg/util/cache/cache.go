@@ -19,9 +19,6 @@ const (
 	// keys for any value regarding the Agent
 	AgentCachePrefix = "agent"
 
-	// KubernetesResourceCachePrefix is the cache prefix for kubernetes resources.
-	KubernetesResourceCachePrefix = "k8"
-
 	// encapsulate the cache module for easy refactoring
 
 	// NoExpiration maps to go-cache corresponding value
