@@ -13,13 +13,12 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
@@ -28,7 +27,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
-		if skip := skipKubernetesResource(depl.UID, depl.ResourceVersion); skip {
+		if skip := apiserver.SkipKubernetesResource(depl.UID, depl.ResourceVersion); skip {
 			log.Debugf("cache hit. Deployment: did not change: %s", depl.UID)
 			continue
 		}
@@ -76,21 +75,6 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 	return messages, nil
 }
 
-// skipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
-// It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
-func skipKubernetesResource(uid types.UID, resourceVersion string) bool {
-	value, hit := cache.KubeCache.Get(string(uid))
-	if !hit {
-		cache.KubeCache.Set(string(uid), resourceVersion, 0)
-		return false
-	} else if value != resourceVersion {
-		cache.KubeCache.Set(string(uid), resourceVersion, 0)
-		return false
-	} else {
-		return true
-	}
-}
-
 // chunkDeployments formats and chunks the deployments into a slice of chunks using a specific number of chunks.
 func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) [][]*model.Deployment {
 	chunks := make([][]*model.Deployment, 0, chunkCount)
@@ -116,7 +100,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 
 	for rs := 0; rs < len(rsList); rs++ {
 		rs := rsList[rs]
-		if skip := skipKubernetesResource(rs.UID, rs.ResourceVersion); skip {
+		if skip := apiserver.SkipKubernetesResource(rs.UID, rs.ResourceVersion); skip {
 			log.Debugf("cache hit. repicaSet: did not change: %s", rs.UID)
 			continue
 		}
@@ -192,7 +176,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 
 	for s := 0; s < len(serviceList); s++ {
 		svc := serviceList[s]
-		if skip := skipKubernetesResource(svc.UID, svc.ResourceVersion); skip {
+		if skip := apiserver.SkipKubernetesResource(svc.UID, svc.ResourceVersion); skip {
 			log.Debugf("cache hit. service: did not change: %s", svc.UID)
 			continue
 		}

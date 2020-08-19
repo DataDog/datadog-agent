@@ -12,6 +12,7 @@ import (
 
 	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/patrickmn/go-cache"
 )
@@ -92,4 +93,21 @@ func (m *metaBundleStore) delete(nodeName string) {
 	defer m.mu.Unlock()
 
 	m.cache.Delete(cacheKey)
+}
+
+// SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
+// It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
+// 0 == defaultDuration
+func SkipKubernetesResource(uid types.UID, resourceVersion string) bool {
+	cacheKey := agentcache.BuildAgentKey("kubernetes", "resource", string(uid))
+	value, hit := agentcache.Cache.Get(cacheKey)
+	if !hit {
+		agentcache.Cache.Set(cacheKey, resourceVersion, 0)
+		return false
+	} else if value != resourceVersion {
+		agentcache.Cache.Set(cacheKey, resourceVersion, 0)
+		return false
+	} else {
+		return true
+	}
 }

@@ -19,6 +19,9 @@ const (
 	// keys for any value regarding the Agent
 	AgentCachePrefix = "agent"
 
+	// KubernetesResourceCachePrefix is the cache prefix for kubernetes resources.
+	KubernetesResourceCachePrefix = "k8"
+
 	// encapsulate the cache module for easy refactoring
 
 	// NoExpiration maps to go-cache corresponding value
@@ -27,10 +30,6 @@ const (
 
 // Cache provides an in-memory key:value store similar to memcached
 var Cache = cache.New(defaultExpire, defaultPurge)
-
-// KubeCache provides an in-memory key:value store similar to memcached for kubernetes resources
-// Key is the UID and value is the resourceVersion
-var KubeCache = cache.New(defaultExpire, defaultPurge)
 
 // BuildAgentKey creates a cache key by joining the constant AgentCachePrefix
 // and path elements passed as arguments. It is to be used by core agent
