@@ -146,14 +146,19 @@ void RunExecutable(std::wstring const& command)
     std::wcout << L"[ENTRYPOINT][INFO] Command '" << command << L"' exited with code [0x" << std::hex << exitCode << L"]" << std::endl;
 }
 
+void Cleanup()
+{
+    CloseHandle(StopEvent);
+    StopEvent = nullptr;
+}
 int _tmain(int argc, _TCHAR** argv)
 {
-    HRESULT hr = S_OK;
+    DWORD exitCode = -1;
 
     if (argc <= 1)
     {
         std::cout << "Usage: entrypoint.exe <service> | <executable> <args>" << std::endl;
-        goto Cleanup;
+        return -1;
     }
 
     StopEvent = CreateEvent(
@@ -165,16 +170,15 @@ int _tmain(int argc, _TCHAR** argv)
 
     if (StopEvent == nullptr)
     {
-        hr = HRESULT_FROM_WIN32(GetLastError());
-        goto Cleanup;
         std::cout << "[ENTRYPOINT][ERROR] Failed to create event with error: " << FormatErrorCode(GetLastError()) << std::endl;
+        return -1;
     }
 
     if (!SetConsoleCtrlHandler(CtrlHandle, TRUE))
     {
-        hr = HRESULT_FROM_WIN32(GetLastError());
-        goto Cleanup;
         std::cout << "[ENTRYPOINT][ERROR] Failed to set control handle with error: " << FormatErrorCode(GetLastError()) << std::endl;
+        Cleanup();
+        return -1;
     }
 
     if (SUCCEEDED(hr) && StopEvent != INVALID_HANDLE_VALUE)
@@ -202,18 +206,11 @@ int _tmain(int argc, _TCHAR** argv)
             }
             RunExecutable(commandLine.str());
         }
-        catch (std::exception & ex)
-        {
-            std::cout << "[ENTRYPOINT][ERROR] " << ex.what() << std::endl;
-        }
+        exitCode = 0;
     }
-
-Cleanup:
-    if (StopEvent != INVALID_HANDLE_VALUE && StopEvent != nullptr)
     {
-        CloseHandle(StopEvent);
-        StopEvent = INVALID_HANDLE_VALUE;
         std::cout << "[ENTRYPOINT][ERROR] " << ex.what() << ". Error: " << FormatErrorCode(ex.GetErrorCode()) << std::endl;
     }
-    return hr;
+    Cleanup();
+    return exitCode;
 }
