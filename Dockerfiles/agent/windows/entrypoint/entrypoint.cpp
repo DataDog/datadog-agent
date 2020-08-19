@@ -18,6 +18,12 @@
 namespace
 {
     HANDLE StopEvent = INVALID_HANDLE_VALUE;
+    const std::map<std::wstring, std::filesystem::path> services =
+    {
+        {L"datadogagent", "C:\\ProgramData\\Datadog\\logs\\agent.log"},
+        {L"datadog-process-agent", "C:\\ProgramData\\Datadog\\logs\\process-agent.log"},
+        {L"datadog-trace-agent", "C:\\ProgramData\\Datadog\\logs\\trace-agent.log"},
+    };
 }
 
 BOOL WINAPI CtrlHandle(DWORD dwCtrlType)
@@ -172,12 +178,6 @@ int _tmain(int argc, _TCHAR** argv)
             ExecuteInitScripts();
             std::wstring command = argv[1];
 
-            const std::map<std::wstring, std::filesystem::path> services =
-            {
-                {L"datadogagent", "C:\\ProgramData\\Datadog\\logs\\agent.log"},
-                {L"datadog-process-agent", "C:\\ProgramData\\Datadog\\logs\\process-agent.log"},
-                {L"datadog-trace-agent", "C:\\ProgramData\\Datadog\\logs\\trace-agent.log"},
-            };
 
             for (auto service : services)
             {
