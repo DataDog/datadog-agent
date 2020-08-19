@@ -217,3 +217,31 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 
 	h.Stop()
 }
+
+func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
+	outputChan := make(chan *Message, 10)
+	h := NewSingleLineHandler(outputChan, 100)
+	h.Start()
+
+	h.Handle(getDummyMessage("one message"))
+
+	var output *Message
+
+	output = <-outputChan
+	assert.Equal(t, "one message", string(output.Content))
+}
+
+func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
+	outputChan := make(chan *Message, 10)
+	re := regexp.MustCompile("[0-9]+\\.")
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, 100)
+	h.Start()
+
+	h.Handle(getDummyMessage("1.third line"))
+	h.Handle(getDummyMessage("fourth line"))
+
+	var output *Message
+
+	output = <-outputChan
+	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
+}
