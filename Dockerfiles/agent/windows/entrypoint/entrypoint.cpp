@@ -56,17 +56,29 @@ void ExecuteInitScripts()
 
 void StreamLogsToStdout(std::filesystem::path const& logFilePath)
 {
-    std::ifstream logFile(logFilePath);
-    std::streambuf* pbuf = logFile.rdbuf();
+    std::ifstream::pos_type lastPosition;
     while (true)
     {
-        while (pbuf->sgetc() != EOF)
+        std::ifstream logFile(logFilePath);
+        if (logFile)
         {
-            std::cout.put(pbuf->sbumpc());
+            logFile.seekg(0, std::ifstream::end);
+            auto fpos = logFile.tellg();
+            if (lastPosition > fpos)
+            {
+                // New file
+                lastPosition = 0;
+            }
+            logFile.seekg(lastPosition);
+            std::streambuf* pbuf = logFile.rdbuf();
+            while (pbuf->sgetc() != EOF)
+            {
+                std::cout.put(pbuf->sbumpc());
+            }
+            lastPosition = fpos;
+            logFile.close();
         }
         Sleep(1000);
-        // Clear the eof bit
-        logFile.clear();
     }
 }
 
