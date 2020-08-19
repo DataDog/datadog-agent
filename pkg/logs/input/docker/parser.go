@@ -44,6 +44,10 @@ func (p *Parser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	return parse(msg, p.containerID)
 }
 
+func (p *Parser) SupportsPartialLine() bool {
+	return true
+}
+
 // parse extracts the date and the status from the raw docker message
 // it returns 1. raw message 2. severity 3. timestamp, 4. is partial, 5. error
 // see https://github.com/moby/moby/blob/master/client/container_logs.go#L36

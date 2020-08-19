@@ -42,6 +42,10 @@ func (p *parser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	return content, status, timestamp, isPartial(flag), err
 }
 
+func (p *parser) SupportsPartialLine() bool {
+	return true
+}
+
 func parse(msg []byte) ([]byte, string, string, string, error) {
 	var status = message.StatusInfo
 	var flag string

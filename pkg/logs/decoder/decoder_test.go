@@ -6,95 +6,96 @@
 package decoder
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type MockLineHandler struct {
-	lineChan chan []byte
+type MockLineParser struct {
+	inputChan chan *DecodedInput
 }
 
-func NewMockLineHandler() *MockLineHandler {
-	return &MockLineHandler{
-		lineChan: make(chan []byte, 10),
+func NewMockLineParser() *MockLineParser {
+	return &MockLineParser{
+		inputChan: make(chan *DecodedInput, 10),
 	}
 }
 
-func (h *MockLineHandler) Handle(content []byte) {
-	h.lineChan <- content
+func (p *MockLineParser) Handle(input *DecodedInput) {
+	p.inputChan <- input
 }
 
-func (h *MockLineHandler) Start() {
+func (p *MockLineParser) Start() {
 
 }
 
-func (h *MockLineHandler) Stop() {
-	close(h.lineChan)
+func (p *MockLineParser) Stop() {
+	close(p.inputChan)
 }
 
 const contentLenLimit = 100
 
 func TestDecodeIncomingData(t *testing.T) {
-	h := NewMockLineHandler()
-	d := New(nil, nil, h, contentLenLimit, &newLineMatcher{})
+	p := NewMockLineParser()
+	d := New(nil, nil, p, contentLenLimit, &newLineMatcher{})
 
-	var line []byte
+	var line *DecodedInput
 
 	// one line in one raw should be sent
 	d.decodeIncomingData([]byte("helloworld\n"))
-	line = <-h.lineChan
-	assert.Equal(t, "helloworld", string(line))
+	line = <-p.inputChan
+	assert.Equal(t, "helloworld", string(line.content))
 	assert.Equal(t, "", d.lineBuffer.String())
 
 	// multiple lines in one raw should be sent
 	d.decodeIncomingData([]byte("helloworld\nhowayou\ngoodandyou"))
-	line = <-h.lineChan
-	assert.Equal(t, "helloworld", string(line))
-	line = <-h.lineChan
-	assert.Equal(t, "howayou", string(line))
+	line = <-p.inputChan
+	assert.Equal(t, "helloworld", string(line.content))
+	line = <-p.inputChan
+	assert.Equal(t, "howayou", string(line.content))
 	assert.Equal(t, "goodandyou", d.lineBuffer.String())
 	d.lineBuffer.Reset()
 
 	// multiple lines in multiple rows should be sent
 	d.decodeIncomingData([]byte("helloworld\nthisisa"))
-	line = <-h.lineChan
-	assert.Equal(t, "helloworld", string(line))
+	line = <-p.inputChan
+	assert.Equal(t, "helloworld", string(line.content))
 	assert.Equal(t, "thisisa", d.lineBuffer.String())
 	d.decodeIncomingData([]byte("longinput\nindeed"))
-	line = <-h.lineChan
-	assert.Equal(t, "thisisalonginput", string(line))
+	line = <-p.inputChan
+	assert.Equal(t, "thisisalonginput", string(line.content))
 	assert.Equal(t, "indeed", d.lineBuffer.String())
 	d.lineBuffer.Reset()
 
 	// one line in multiple rows should be sent
 	d.decodeIncomingData([]byte("hello world"))
 	d.decodeIncomingData([]byte("!\n"))
-	line = <-h.lineChan
-	assert.Equal(t, "hello world!", string(line))
+	line = <-p.inputChan
+	assert.Equal(t, "hello world!", string(line.content))
 
 	// too long line in one raw should be sent by chuncks
 	d.decodeIncomingData([]byte(strings.Repeat("a", contentLenLimit+10) + "\n"))
-	line = <-h.lineChan
-	assert.Equal(t, contentLenLimit, len(line))
-	line = <-h.lineChan
-	assert.Equal(t, strings.Repeat("a", 10), string(line))
+	line = <-p.inputChan
+	assert.Equal(t, contentLenLimit, len(line.content))
+	line = <-p.inputChan
+	assert.Equal(t, strings.Repeat("a", 10), string(line.content))
 
 	// too long line in multiple rows should be sent by chuncks
 	d.decodeIncomingData([]byte(strings.Repeat("a", contentLenLimit-5)))
 	d.decodeIncomingData([]byte(strings.Repeat("a", 15) + "\n"))
-	line = <-h.lineChan
-	assert.Equal(t, contentLenLimit, len(line))
-	line = <-h.lineChan
-	assert.Equal(t, strings.Repeat("a", 10), string(line))
+	line = <-p.inputChan
+	assert.Equal(t, contentLenLimit, len(line.content))
+	line = <-p.inputChan
+	assert.Equal(t, strings.Repeat("a", 10), string(line.content))
 
 	// empty lines should be sent
 	d.decodeIncomingData([]byte("\n"))
-	line = <-h.lineChan
-	assert.Equal(t, "", string(line))
+	line = <-p.inputChan
+	assert.Equal(t, "", string(line.content))
 	assert.Equal(t, "", d.lineBuffer.String())
 
 	// empty message should not change anything
@@ -103,31 +104,31 @@ func TestDecodeIncomingData(t *testing.T) {
 }
 
 func TestDecoderLifeCycle(t *testing.T) {
-	h := NewMockLineHandler()
-	d := New(nil, nil, h, contentLenLimit, &newLineMatcher{})
+	p := NewMockLineParser()
+	d := New(nil, nil, p, contentLenLimit, &newLineMatcher{})
 
-	// lineHandler should not receive any lines
+	// LineParser should not receive any lines
 	d.Start()
 	select {
-	case <-h.lineChan:
-		assert.Fail(t, "LineHandler should not handle anything")
+	case <-p.inputChan:
+		assert.Fail(t, "LineParser should not handle anything")
 	default:
 		break
 	}
 
-	// lineHandler should not receive any lines
-	h.Stop()
+	// LineParser should not receive any lines
+	p.Stop()
 	select {
-	case <-h.lineChan:
+	case <-p.inputChan:
 		break
 	default:
-		assert.Fail(t, "LineHandler should be stopped")
+		assert.Fail(t, "LineParser should be stopped")
 	}
 }
 
 func TestDecoderInputNotDockerHeader(t *testing.T) {
 	inputChan := make(chan *Input)
-	h := NewMockLineHandler()
+	h := NewMockLineParser()
 	d := New(inputChan, nil, h, 100, &newLineMatcher{})
 	d.Start()
 
@@ -136,14 +137,14 @@ func TestDecoderInputNotDockerHeader(t *testing.T) {
 	input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
 	inputChan <- NewInput(input)
 
-	var output []byte
-	output = <-h.lineChan
+	var output *DecodedInput
+	output = <-h.inputChan
 	expected1 := append([]byte("hello"), []byte{1, 0, 0, 0, 0}...)
-	assert.Equal(t, expected1, output)
+	assert.Equal(t, expected1, output.content)
 
-	output = <-h.lineChan
+	output = <-h.inputChan
 	expected2 := append([]byte{0, 0}, []byte("2018-06-14T18:27:03.246999277Z app logs")...)
-	assert.Equal(t, expected2, output)
+	assert.Equal(t, expected2, output.content)
 	d.Stop()
 }
 

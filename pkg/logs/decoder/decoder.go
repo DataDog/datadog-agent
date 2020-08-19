@@ -50,8 +50,8 @@ type Message struct {
 	Timestamp  string
 }
 
-// NewOutput returns a new output.
-func NewOutput(content []byte, status string, rawDataLen int, timestamp string) *Message {
+// NewMessage returns a new output.
+func NewMessage(content []byte, status string, rawDataLen int, timestamp string) *Message {
 	return &Message{
 		Content:    content,
 		Status:     status,
@@ -60,13 +60,14 @@ func NewOutput(content []byte, status string, rawDataLen int, timestamp string) 
 	}
 }
 
-// Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
+// Decoder splits raw data into lines and passes them to a lineParser that passes them to
+// a lineHandler that emits outputs
+// Input->[decoder]->[parser]->[handler]->Output
 type Decoder struct {
 	InputChan       chan *Input
 	OutputChan      chan *Message
 	matcher         EndLineMatcher
 	lineBuffer      *bytes.Buffer
-	lineHandler     LineHandler
 	lineParser      LineParser
 	contentLenLimit int
 	rawDataLen      int
@@ -87,26 +88,29 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, parser, lineLimit)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, lineLimit)
 		}
 	}
 	if lineHandler == nil {
-		lineHandler = NewSingleLineHandler(outputChan, parser, lineLimit)
+		lineHandler = NewSingleLineHandler(outputChan, lineLimit)
 	}
 
-	lineParser = NewSingleLineParser(parser, lineHandler)
+	if parser.SupportsPartialLine() {
+		lineParser = NewSingleLineParser(parser, lineHandler)
+	} else {
+		lineParser = NewSingleLineParser(parser, lineHandler)
+	}
 
-	return New(inputChan, outputChan, lineHandler, lineParser, lineLimit, matcher)
+	return New(inputChan, outputChan, lineParser, lineLimit, matcher)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Message, lineHandler LineHandler, lineParser LineParser, contentLenLimit int, matcher EndLineMatcher) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *Message, lineParser LineParser, contentLenLimit int, matcher EndLineMatcher) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
 		InputChan:       InputChan,
 		OutputChan:      OutputChan,
 		lineBuffer:      &lineBuffer,
-		lineHandler:     lineHandler,
 		lineParser:      lineParser,
 		contentLenLimit: contentLenLimit,
 		matcher:         matcher,
@@ -115,7 +119,6 @@ func New(InputChan chan *Input, OutputChan chan *Message, lineHandler LineHandle
 
 // Start starts the Decoder
 func (d *Decoder) Start() {
-	d.lineHandler.Start()
 	d.lineParser.Start()
 	go d.run()
 }
@@ -132,7 +135,6 @@ func (d *Decoder) run() {
 	}
 	// finish to stop decoder
 	d.lineParser.Stop()
-	d.lineHandler.Stop()
 }
 
 // decodeIncomingData splits raw data based on '\n', creates and processes new lines

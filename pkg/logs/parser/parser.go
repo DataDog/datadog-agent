@@ -12,6 +12,7 @@ var NoopParser *noopParser
 type Parser interface {
 	// It returns 1. raw message, 2. severity, 3. timestamp, 4. partial, 5. error
 	Parse([]byte) ([]byte, string, string, bool, error)
+	SupportsPartialLine() bool
 }
 
 type noopParser struct {
@@ -21,4 +22,8 @@ type noopParser struct {
 // Parse does nothing for NoopParser
 func (p *noopParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	return msg, "", "", false, nil
+}
+
+func (p *noopParser) SupportsPartialLine() bool {
+	return false
 }
