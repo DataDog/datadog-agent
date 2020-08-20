@@ -99,7 +99,6 @@ func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []str
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
-		// TODO: how do we want to count the metrics?
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
 	}
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
@@ -131,14 +130,23 @@ func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	var resp *http.Response
+	var rerr error
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
 		setTarget(newreq, u, m.keys[i])
-		resp, err = m.rt.RoundTrip(newreq)
+		if i == 0 {
+			// given the way we construct the list of targets the main endpoint
+			// will be the first one called, we return its response and error
+			resp, rerr = m.rt.RoundTrip(newreq)
+			err = rerr
+		} else {
+			// we discard responses for all subsequent requests and log all errors
+			_, err = m.rt.RoundTrip(newreq)
+		}
 		if err != nil {
 			log.Error(err)
 		}
 	}
-	return resp, err // TODO: aggregate and merge response/error?
+	return resp, rerr
 }
