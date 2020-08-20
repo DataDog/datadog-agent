@@ -27,7 +27,7 @@ var (
 	tlmChecksEntered = telemetry.NewGauge("scheduler", "checks_entered",
 		[]string{"check_name"}, "How many checks are currently tracked by the scheduler")
 	tlmQueuesCount = telemetry.NewCounter("scheduler", "queues_count",
-		[]string{"check_name"}, "How many queues were opened")
+		nil, "How many queues were opened")
 )
 
 func init() {
@@ -92,7 +92,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
 		s.startQueue(s.jobQueues[check.Interval()])
 		if check.IsTelemetryEnabled() {
-			tlmQueuesCount.Inc(check.String())
+			tlmQueuesCount.Inc()
 		}
 		schedulerQueuesCount.Add(1)
 	}
