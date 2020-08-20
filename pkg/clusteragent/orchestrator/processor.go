@@ -71,7 +71,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 	}
 
 	log.Debugf("Collected & enriched %d deployments in %s", len(deployMsgs), time.Now().Sub(start))
-	log.Debugf("Send %d from total of %d deployments", len(deployMsgs), len(deploymentList))
+	log.Tracef("Send %d from total of %d deployments", len(deployMsgs), len(deploymentList))
 	return messages, nil
 }
 
@@ -146,7 +146,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 	}
 
 	log.Debugf("Collected & enriched %d replica sets in %s", len(rsMsgs), time.Now().Sub(start))
-	log.Debugf("Send %d from total of %d replica sets", len(rsMsgs), len(rsList))
+	log.Tracef("Send %d from total of %d replica sets", len(rsMsgs), len(rsList))
 	return messages, nil
 }
 
@@ -213,7 +213,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 	}
 
 	log.Debugf("Collected & enriched %d services in %s", len(serviceMsgs), time.Now().Sub(start))
-	log.Debugf("Send %d from total of %d services", len(serviceMsgs), len(serviceList))
+	log.Tracef("Send %d from total of %d services", len(serviceMsgs), len(serviceList))
 	return messages, nil
 }
 
