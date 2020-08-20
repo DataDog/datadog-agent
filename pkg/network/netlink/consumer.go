@@ -138,19 +138,21 @@ func (c *Consumer) Events() <-chan Event {
 	return output
 }
 
+// isPeerNS determines whether the given network namespace is a peer
+// of the given netlink socket
 func isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 	encoder := netlink.NewAttributeEncoder()
 	encoder.Uint32(unix.NETNSA_FD, uint32(ns))
 	data, err := encoder.Encode()
 	if err != nil {
-		log.Tracef("isPeerNS: err encoding attributes netlink attributes: %s", err)
+		log.Errorf("isPeerNS: err encoding attributes netlink attributes: %s", err)
 		return false
 	}
 
 	msg := netlink.Message{
 		Header: netlink.Header{
-			Flags: netlink.Request | netlink.Acknowledge,
-			Type: unix.RTM_GETNSID,
+			Flags:    netlink.Request | netlink.Acknowledge,
+			Type:     unix.RTM_GETNSID,
 			Sequence: netlinkSeqNumber,
 		},
 		Data: []byte{unix.AF_UNSPEC, 0, 0, 0},
@@ -159,13 +161,13 @@ func isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 	msg.Data = append(msg.Data, data...)
 
 	if msg, err = conn.Send(msg); err != nil {
-		log.Tracef("isPeerNS: err sending netlink request: %s", err)
+		log.Errorf("isPeerNS: err sending netlink request: %s", err)
 		return false
 	}
 
 	msgs, err := conn.Receive()
 	if err != nil {
-		log.Tracef("error receiving netlink reply: %s", err)
+		log.Errorf("isPeerNS: error receiving netlink reply: %s", err)
 		return false
 	}
 
@@ -198,14 +200,19 @@ func isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 // present in the Conntrack table. The channel is closed once all entries are read.
 // This method is meant to be used once during the process initialization of system-probe.
 func (c *Consumer) DumpTable(family uint8) <-chan Event {
+	output := make(chan Event, outputBuffer)
 	nss, err := util.GetNetNamespaces(c.procRoot)
 	if err != nil {
-		log.Errorf("could not get network namespaces: %s", err)
+		log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
+		close(output)
+		return output
 	}
 
 	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
 	if err != nil {
-		log.Errorf("could not get root namespace: %s", err)
+		log.Errorf("error dumping conntrack table, could not get root namespace: %s", err)
+		close(output)
+		return output
 	}
 
 	defer func() {
@@ -216,7 +223,9 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 
 	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
 	if err != nil {
-		log.Errorf("could not open netlink socket: %s", err)
+		log.Errorf("error dumping conntrack table, could not open netlink socket: %s", err)
+		close(output)
+		return output
 	}
 
 	defer func() {
@@ -225,7 +234,6 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 		}
 	}()
 
-	output := make(chan Event, outputBuffer)
 	var wg sync.WaitGroup
 	for _, ns := range nss {
 
