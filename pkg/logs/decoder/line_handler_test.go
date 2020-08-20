@@ -17,46 +17,6 @@ import (
 // All valid whitespace characters
 const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 
-// To be relocated in line parser test
-// MockParser mocks the logic of a Parser
-//type MockParser struct {
-//	header []byte
-//}
-
-//func NewMockParser(header string) parser.Parser {
-//	return &MockParser{header: []byte(header)}
-//}
-
-// Parse removes header from line and returns a message
-//func (u *MockParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
-//	return bytes.Replace(msg, u.header, []byte(""), 1), "", "", false, nil
-//}
-//
-//func (u *MockParser) SupportsPartialLine() bool {
-//	return false
-//}
-//
-//type MockFailingParser struct {
-//	header []byte
-//}
-
-//func NewMockFailingParser(header string) parser.Parser {
-//	return &MockFailingParser{header: []byte(header)}
-//}
-
-// Parse removes header from line and returns a message if its header matches the Parser header
-// or returns an error
-//func (u *MockFailingParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
-//	if bytes.HasPrefix(msg, u.header) {
-//		return bytes.Replace(msg, u.header, []byte(""), 1), "", "", false, nil
-//	}
-//	return msg, "", "", false, fmt.Errorf("error")
-//}
-
-//func (u *MockFailingParser) SupportsPartialLine() bool {
-//	return false
-//}
-
 func getDummyMessage(content string) *Message {
 	return NewMessage([]byte(content), "info", len(content), "2018-06-14T18:27:03.246999277Z")
 }
@@ -224,7 +184,6 @@ func TestTrimMultiLine(t *testing.T) {
 }
 
 func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
-	// const header = "HEADER"
 	outputChan := make(chan *Message, 10)
 	h := NewSingleLineHandler(outputChan, 100)
 	h.Start()
@@ -236,10 +195,11 @@ func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "one message", string(output.Content))
+
+	h.Stop()
 }
 
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
-	// const header = "HEADER"
 	outputChan := make(chan *Message, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, 100)
@@ -254,36 +214,6 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
-}
 
-// Mostly useless in line handler context to be relocated in lineparser tests
-func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
-	// const header = "HEADER"
-	outputChan := make(chan *Message, 10)
-	h := NewSingleLineHandler(outputChan, 100)
-	h.Start()
-
-	h.Handle(getDummyMessage("one message"))
-
-	var output *Message
-
-	output = <-outputChan
-	assert.Equal(t, "one message", string(output.Content))
-}
-
-// Mostly useless in line handler context to be relocated in lineparser tests
-func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
-	//const header = "HEADER"
-	outputChan := make(chan *Message, 10)
-	re := regexp.MustCompile("[0-9]+\\.")
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, 100)
-	h.Start()
-
-	h.Handle(getDummyMessage("1.third line"))
-	h.Handle(getDummyMessage("fourth line"))
-
-	var output *Message
-
-	output = <-outputChan
-	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
+	h.Stop()
 }
