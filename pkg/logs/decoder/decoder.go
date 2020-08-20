@@ -96,9 +96,11 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	}
 
 	if parser.SupportsPartialLine() {
-		lineParser = NewSingleLineParser(parser, lineHandler)
+		// lineParser = NewSingleLineParser(parser, lineHandler)
+		lineParser = NewMultiLineParser(defaultFlushTimeout, parser, lineHandler, lineLimit)
 	} else {
-		lineParser = NewSingleLineParser(parser, lineHandler)
+		// lineParser = NewSingleLineParser(parser, lineHandler)
+		lineParser = NewMultiLineParser(defaultFlushTimeout, parser, lineHandler, lineLimit)
 	}
 
 	return New(inputChan, outputChan, lineParser, lineLimit, matcher)

@@ -248,7 +248,7 @@ func (h *MultiLineHandler) sendBuffer() {
 	content := make([]byte, len(data))
 	copy(content, data)
 
-	if len(content) > 0 {
+	if len(content) > 0 || h.linesLen > 0 {
 		h.outputChan <- NewMessage(content, h.status, h.linesLen, h.timestamp)
 	}
 }
