@@ -104,7 +104,15 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string) bool {
 	if !hit {
 		agentcache.Cache.Set(cacheKey, resourceVersion, 0)
 		return false
-	} else if value != resourceVersion {
+	if !hit {
+    agentcache.Cache.Set(cacheKey, resourceVersion, 0)
+    return false
+	}
+	if value != resourceVersion {
+    agentcache.Cache.Set(cacheKey, resourceVersion, 0)
+    return false
+  }
+  return true
 		agentcache.Cache.Set(cacheKey, resourceVersion, 0)
 		return false
 	} else {

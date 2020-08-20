@@ -99,7 +99,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 
 	for rs := 0; rs < len(rsList); rs++ {
 		rs := rsList[rs]
-		if skip := apiserver.SkipKubernetesResource(rs.UID, rs.ResourceVersion); skip {
+		if apiserver.SkipKubernetesResource(rs.UID, rs.ResourceVersion) {
 			continue
 		}
 
@@ -144,7 +144,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		})
 	}
 
-	log.Debugf("Collected & enriched %d replica sets in %s from total of %d replica sets", len(rsMsgs), time.Now().Sub(start), len(rsList))
+	log.Debugf("Collected & enriched %d out of %d replica sets in %s ", len(rsMsgs), len(rsList), time.Now().Sub(start))
 	return messages, nil
 }
 
