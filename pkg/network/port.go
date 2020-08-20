@@ -93,7 +93,7 @@ func (pm *PortMapping) ReadInitialUDPState() error {
 	if ports, err := readProcNetWithStatus(udpPath, tcpClose); err != nil {
 		log.Errorf("failed to read UDP state: %s", err)
 	} else {
-		log.Info("read UDP ports: %v", ports)
+		log.Infof("read UDP ports: %v", ports)
 		for _, port := range ports {
 			pm.ports[port] = struct{}{}
 		}
@@ -103,7 +103,7 @@ func (pm *PortMapping) ReadInitialUDPState() error {
 		if ports, err := readProcNetWithStatus(path.Join(pm.procRoot, "net/udp6"), 7); err != nil {
 			log.Errorf("error reading UDPv6 state: %s", err)
 		} else {
-			log.Info("read UDPv6 state: %v", ports)
+			log.Infof("read UDPv6 state: %v", ports)
 			for _, port := range ports {
 				pm.ports[port] = struct{}{}
 			}
