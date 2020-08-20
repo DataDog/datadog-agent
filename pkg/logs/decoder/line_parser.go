@@ -51,7 +51,6 @@ func (p *SingleLineParser) Start() {
 // Stop stops the parser.
 func (p *SingleLineParser) Stop() {
 	close(p.inputChan)
-	p.lineHandler.Stop()
 }
 
 // run consumes new lines and processes them.
@@ -59,6 +58,7 @@ func (p *SingleLineParser) run() {
 	for input := range p.inputChan {
 		p.process(input)
 	}
+	p.lineHandler.Stop()
 }
 
 func (p *SingleLineParser) process(input *DecodedInput) {
@@ -103,7 +103,6 @@ func (p *MultiLineParser) Handle(input *DecodedInput) {
 // Stop stops the handler.
 func (p *MultiLineParser) Stop() {
 	close(p.inputChan)
-	p.lineHandler.Stop()
 }
 
 // Start starts the handler.
@@ -121,6 +120,7 @@ func (p *MultiLineParser) run() {
 		// make sure the content stored in the buffer gets sent,
 		// this can happen when the stop is called in between two timer ticks.
 		p.sendLine()
+		p.lineHandler.Stop()
 	}()
 	for {
 		select {
