@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"fmt"
 	"net"
 	"testing"
 
@@ -100,156 +99,177 @@ func TestLocalResolver(t *testing.T) {
 }
 
 func TestResolveLoopbackConnections(t *testing.T) {
-	unresolvedRaddr := map[string]*model.Addr{
-		"127.0.0.1:1234": {
-			Ip:   "127.0.0.1",
-			Port: 1234,
-		},
-		"127.0.0.1:1235": {
-			Ip:   "127.0.0.1",
-			Port: 1235,
-		},
-		"127.0.0.1:1240": {
-			Ip:   "127.0.0.1",
-			Port: 1240,
-		},
-		"10.1.1.1:1234": {
-			Ip:   "10.1.1.1",
-			Port: 1234,
-		},
-		"10.1.1.1:1235": {
-			Ip:   "10.1.1.1",
-			Port: 1235,
-		},
-	}
 
-	unresolvedLaddr := map[string]*model.Addr{
-		"127.0.0.1:1240": {
-			Ip:   "127.0.0.1",
-			Port: 1240,
-		},
-		"127.0.0.1:1250": {
-			Ip:   "127.0.0.1",
-			Port: 1250,
-		},
-	}
-
-	tests := []*model.Connection{
+	tests := []struct {
+		name            string
+		conn            *model.Connection
+		expectedLaddrID string
+		expectedRaddrID string
+	}{
 		{
-			Pid: 1,
-			Laddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1234,
+			name: "raddr resolution with nat",
+			conn: &model.Connection{
+				Pid: 1,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1234,
+				},
+				Raddr: &model.Addr{
+					Ip:   "10.1.1.2",
+					Port: 1234,
+				},
+				IpTranslation: &model.IPTranslation{
+					ReplDstIP:   "10.1.1.1",
+					ReplDstPort: 1234,
+					ReplSrcIP:   "10.1.1.2",
+					ReplSrcPort: 1234,
+				},
+				NetNS: 1,
 			},
-			Raddr: &model.Addr{
-				Ip:   "10.1.1.2",
-				Port: 1234,
-			},
-			IpTranslation: &model.IPTranslation{
-				ReplDstIP:   "10.1.1.1",
-				ReplDstPort: 1234,
-				ReplSrcIP:   "10.1.1.2",
-				ReplSrcPort: 1234,
-			},
-			NetNS: 1,
-		},
-		{
-			Pid:   2,
-			NetNS: 2,
-			Laddr: &model.Addr{
-				Ip:   "10.1.1.2",
-				Port: 1234,
-			},
-			Raddr: &model.Addr{
-				Ip:   "10.1.1.1",
-				Port: 1234,
-			},
-			IpTranslation: &model.IPTranslation{
-				ReplDstIP:   "10.1.1.2",
-				ReplDstPort: 1234,
-				ReplSrcIP:   "127.0.0.1",
-				ReplSrcPort: 1234,
-			},
+			expectedLaddrID: "foo1",
+			expectedRaddrID: "foo2",
 		},
 		{
-			Pid:   3,
-			NetNS: 3,
-			Laddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1235,
+			name: "raddr resolution with nat to localhost",
+			conn: &model.Connection{
+				Pid:   2,
+				NetNS: 2,
+				Laddr: &model.Addr{
+					Ip:   "10.1.1.2",
+					Port: 1234,
+				},
+				Raddr: &model.Addr{
+					Ip:   "10.1.1.1",
+					Port: 1234,
+				},
+				IpTranslation: &model.IPTranslation{
+					ReplDstIP:   "10.1.1.2",
+					ReplDstPort: 1234,
+					ReplSrcIP:   "127.0.0.1",
+					ReplSrcPort: 1234,
+				},
 			},
-			Raddr: unresolvedRaddr["127.0.0.1:1234"],
+			expectedLaddrID: "foo2",
+			expectedRaddrID: "foo1",
 		},
 		{
-			Pid:   5,
-			NetNS: 3,
-			Laddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1240,
+			name: "raddr failed localhost resolution",
+			conn: &model.Connection{
+				Pid:   3,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1234,
+				},
 			},
-			Raddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1235,
-			},
+			expectedLaddrID: "foo3",
+			expectedRaddrID: "",
 		},
 		{
-			Pid:   5,
-			NetNS: 4,
-			Laddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1240,
+			name: "raddr resolution within same netns (3)",
+			conn: &model.Connection{
+				Pid:   5,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
 			},
-			Raddr: unresolvedRaddr["127.0.0.1:1235"],
+			expectedLaddrID: "foo5",
+			expectedRaddrID: "foo3",
 		},
 		{
-			Pid:   10,
-			NetNS: 10,
-			Laddr: unresolvedLaddr["127.0.0.1:1240"],
-			Raddr: unresolvedRaddr["10.1.1.1:1235"],
+			name: "raddr failed resolution, known address in different netns",
+			conn: &model.Connection{
+				Pid:   5,
+				NetNS: 4,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+			},
+			expectedLaddrID: "foo5",
+			expectedRaddrID: "",
 		},
 		{
-			Pid:   11,
-			NetNS: 10,
-			Laddr: unresolvedLaddr["127.0.0.1:1250"],
-			Raddr: unresolvedRaddr["127.0.0.1:1240"],
+			name: "failed laddr and raddr resolution",
+			conn: &model.Connection{
+				Pid:   10,
+				NetNS: 10,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1234,
+				},
+				Raddr: &model.Addr{
+					Ip:   "10.1.1.1",
+					Port: 1235,
+				},
+			},
+			expectedLaddrID: "",
+			expectedRaddrID: "",
 		},
 		{
-			Pid:   20,
-			NetNS: 20,
-			Laddr: &model.Addr{
-				Ip:          "1.2.3.4",
-				Port:        1234,
-				ContainerId: "baz",
+			name: "failed resolution: unknown pid for laddr, raddr address in different netns from known address",
+			conn: &model.Connection{
+				Pid:   11,
+				NetNS: 10,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
 			},
-			Raddr: &model.Addr{
-				Ip:          "1.2.3.4",
-				Port:        1234,
-				ContainerId: "bar",
-			},
+			expectedLaddrID: "",
+			expectedRaddrID: "",
 		},
 		{
-			Pid:   6,
-			NetNS: 7,
-			Laddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1260,
+			name: "localhost resolution within same netns 1/2",
+			conn: &model.Connection{
+				Pid:   6,
+				NetNS: 7,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1260,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
 			},
-			Raddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1250,
-			},
+			expectedLaddrID: "foo6",
+			expectedRaddrID: "foo7",
 		},
 		{
-			Pid:   7,
-			NetNS: 7,
-			Laddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1250,
+			name: "localhost resolution within same netns 2/2",
+			conn: &model.Connection{
+				Pid:   7,
+				NetNS: 7,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1260,
+				},
 			},
-			Raddr: &model.Addr{
-				Ip:   "127.0.0.1",
-				Port: 1260,
-			},
+			expectedLaddrID: "foo7",
+			expectedRaddrID: "foo6",
 		},
 	}
 
@@ -291,40 +311,16 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		},
 	)
 
-	resolvedByRaddr := map[string]string{
-		"10.1.1.2:1234":  "foo2",
-		"10.1.1.1:1234":  "foo1",
-		"127.0.0.1:1235": "foo3",
-		"1.2.3.4:1234":   "bar",
-		"127.0.0.1:1250": "foo7",
-		"127.0.0.1:1260": "foo6",
+	conns := &model.Connections{}
+	for _, te := range tests {
+		conns.Conns = append(conns.Conns, te.conn)
 	}
-
-	resolver.Resolve(&model.Connections{Conns: tests})
+	resolver.Resolve(conns)
 
 	for _, te := range tests {
-		found := false
-		for _, u := range unresolvedLaddr {
-			if te.Laddr == u {
-				assert.True(t, te.Laddr.ContainerId == "", "laddr container should not be resolved for conn but is: %v", te)
-				found = true
-				break
-			}
-		}
-
-		assert.True(t, found || te.Laddr.ContainerId != "", "laddr container should be resolved for conn but is not: %v", te)
-		assert.True(t, found || te.Laddr.ContainerId == resolver.ctrForPid[te.Pid])
-
-		found = false
-		for _, u := range unresolvedRaddr {
-			if te.Raddr == u {
-				assert.True(t, te.Raddr.ContainerId == "", "raddr container should not be resolved for conn but is:%v", te)
-				found = true
-				break
-			}
-		}
-
-		assert.True(t, found || te.Raddr.ContainerId != "", "raddr container should be resolved for conn but is not: %v", te)
-		assert.True(t, found || te.Raddr.ContainerId == resolvedByRaddr[fmt.Sprintf("%s:%d", te.Raddr.Ip, te.Raddr.Port)], "raddr container should be resolved for conn but is not: %v", te)
+		t.Run(te.name, func(_t *testing.T) {
+			assert.Equal(_t, te.expectedLaddrID, te.conn.Laddr.ContainerId, "laddr container id does not match expected value")
+			assert.Equal(_t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
+		})
 	}
 }

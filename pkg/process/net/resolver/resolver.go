@@ -54,6 +54,20 @@ func (l *LocalResolver) LoadAddrs(containers []*containers.Container) {
 }
 
 // Resolve binds container IDs to the Raddr of connections
+//
+// An attempt is made to resolve as many local containers as possible.
+//
+// First, we go over all connections resolving the laddr container
+// using the pid to container map that we have. At the same time,
+// the translated laddr is put into a lookup table (addr -> container id),
+// qualifying the key in that table with the network namespace id
+// if the address is loopback.
+//
+// Second, we go over the connections again, this time resolving
+// the raddr container id using the lookup table we built previously.
+// Note that the translated raddr is *not* used for the lookup.  For
+// loopback addresses, lookup is qualified by the network namespace
+// they are in.
 func (l *LocalResolver) Resolve(c *model.Connections) {
 	l.mux.RLock()
 	defer l.mux.RUnlock()
@@ -101,7 +115,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 
 	log.Tracef("ctrsByLaddr = %v", ctrsByLaddr)
 
-	// go over connections again using hashes computed earlier to resolver raddr
+	// go over connections again using hash computed earlier to resolver raddr
 	for _, conn := range c.Conns {
 		if conn.Raddr.ContainerId != "" {
 			log.Tracef("skipping already resolved raddr %v", conn.Raddr)
