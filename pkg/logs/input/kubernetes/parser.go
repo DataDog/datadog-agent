@@ -65,10 +65,7 @@ func parse(msg []byte) ([]byte, string, string, string, error) {
 }
 
 func isPartial(flag string) bool {
-	if flag == "P" {
-		return true
-	}
-	return false
+	return flag == "P"
 }
 
 // getStatus returns the status of the message based on
