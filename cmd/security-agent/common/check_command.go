@@ -63,10 +63,21 @@ func runCheck(cmd *cobra.Command, confPath *string, args []string) error {
 		return err
 	}
 
+	// We need to set before calling `SetupConfig`
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		config.Datadog.SetConfigName("datadog-cluster")
+	} else {
+		config.Datadog.SetConfigName("datadog")
+	}
+
+	err = common.SetupConfig(*confPath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global security agent configuration: %v", err)
+	}
+
 	options := []checks.BuilderOption{}
 
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		config.Datadog.SetConfigName("datadog-cluster")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -76,7 +87,6 @@ func runCheck(cmd *cobra.Command, confPath *string, args []string) error {
 		}
 		options = append(options, checks.MayFail(checks.WithKubernetesClient(apiCl.DynamicCl)))
 	} else {
-		config.Datadog.SetConfigName("datadog")
 		options = append(options, []checks.BuilderOption{
 			checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 			checks.MayFail(checks.WithDocker()),
@@ -91,11 +101,6 @@ func runCheck(cmd *cobra.Command, confPath *string, args []string) error {
 				options = append(options, checks.WithNodeLabels(nodeLabels))
 			}
 		}
-	}
-
-	err = common.SetupConfig(*confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global security agent configuration: %v", err)
 	}
 
 	var ruleID string

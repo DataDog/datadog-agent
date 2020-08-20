@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"net/http"
@@ -161,6 +162,11 @@ func start(cmd *cobra.Command, args []string) error {
 	// Check if we have at least one component to start based on config
 	if !coreconfig.Datadog.GetBool("compliance_config.enabled") && !coreconfig.Datadog.GetBool("runtime_security_config.enabled") {
 		log.Infof("All security-agent components are deactivated, exiting")
+
+		// A sleep is necessary so that sysV doesn't think the agent has failed
+		// to startup because of an error. Only applies on Debian 7 and SUSE 11.
+		time.Sleep(5 * time.Second)
+
 		return nil
 	}
 

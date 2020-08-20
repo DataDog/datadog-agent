@@ -416,6 +416,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
 	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
@@ -691,6 +692,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.offset_guess_threshold")
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
+	config.SetKnown("system_probe_config.enable_tracepoints")
 	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
 
 	// Network
@@ -752,6 +754,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
+	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -760,6 +763,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

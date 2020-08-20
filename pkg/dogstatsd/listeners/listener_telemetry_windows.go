@@ -14,10 +14,10 @@ import (
 )
 
 type listenerTelemetry struct {
-	expvars             *expvar.Map
 	packetReadingErrors expvar.Int
 	packets             expvar.Int
 	bytes               expvar.Int
+	expvars             *expvar.Map
 	tlmPackets          telemetry.Counter
 	tlmPacketsBytes     telemetry.Counter
 }

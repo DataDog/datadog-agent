@@ -412,7 +412,7 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable, char **error)
         *error = strdupe(err_msg.str().c_str());
     }
 
-    return err;
+    return err == 0 ? 1 : 0;
 }
 #endif
 

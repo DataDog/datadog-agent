@@ -10,6 +10,7 @@ package cloudfoundry
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -29,10 +30,20 @@ const (
 	ApplicationNameKey = "application_name"
 	// ApplicationIDKey is the name of the key containing the app GUID in the env var VCAP_APPLICATION
 	ApplicationIDKey = "application_id"
+	// SpaceNameKey is the name of the key containing the space name in the env var VCAP_APPLICATION
+	SpaceNameKey = "space_name"
+	// SpaceIDKey is the name of the key containing the space GUID in the env var VCAP_APPLICATION
+	SpaceIDKey = "space_id"
+	// OrganizationNameKey is the name of the key containing the organization name in the env var VCAP_APPLICATION
+	OrganizationNameKey = "organization_name"
+	// OrganizationIDKey is the name of the key containing the organization GUID in the env var VCAP_APPLICATION
+	OrganizationIDKey = "organization_id"
 )
 
 var (
-	envVcapApplicationKeys = []string{ApplicationNameKey, ApplicationIDKey}
+	envVcapApplicationKeys = []string{
+		ApplicationNameKey, ApplicationIDKey, OrganizationNameKey, OrganizationIDKey, SpaceNameKey, SpaceIDKey,
+	}
 )
 
 // ADConfig represents the structure of ADConfig in AD_DATADOGHQ_COM environment variable
@@ -102,7 +113,11 @@ type DesiredLRP struct {
 	EnvAD              ADConfig
 	EnvVcapServices    map[string][]byte
 	EnvVcapApplication map[string]string
+	OrganizationGUID   string
+	OrganizationName   string
 	ProcessGUID        string
+	SpaceGUID          string
+	SpaceName          string
 }
 
 // ActualLRPFromBBSModel creates a new ActualLRP from BBS's ActualLRP model
@@ -182,23 +197,55 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 			break
 		}
 	}
-	appGUID, ok := envVA[ApplicationIDKey]
-	if !ok || appGUID == "" {
-		log.Errorf("Couldn't extract app GUID from LRP %s", bbsLRP.ProcessGuid)
+	extractVA := map[string]string{
+		ApplicationIDKey:    "",
+		ApplicationNameKey:  "",
+		OrganizationIDKey:   "",
+		OrganizationNameKey: "",
+		SpaceIDKey:          "",
+		SpaceNameKey:        "",
 	}
-	appName, ok := envVA[ApplicationNameKey]
-	if !ok || appName == "" {
-		log.Errorf("Couldn't extract app name from LRP %s", bbsLRP.ProcessGuid)
+	for key := range extractVA {
+		ok := false
+		extractVA[key], ok = envVA[key]
+		if !ok || extractVA[key] == "" {
+			log.Errorf("Couldn't extract %s from LRP %s", key, bbsLRP.ProcessGuid)
+		}
 	}
 	d := DesiredLRP{
-		AppGUID:            appGUID,
-		AppName:            appName,
+		AppGUID:            extractVA[ApplicationIDKey],
+		AppName:            extractVA[ApplicationNameKey],
 		EnvAD:              envAD,
 		EnvVcapServices:    envVS,
 		EnvVcapApplication: envVA,
+		OrganizationGUID:   extractVA[OrganizationIDKey],
+		OrganizationName:   extractVA[OrganizationNameKey],
 		ProcessGUID:        bbsLRP.ProcessGuid,
+		SpaceGUID:          extractVA[SpaceIDKey],
+		SpaceName:          extractVA[SpaceNameKey],
 	}
 	return d
+}
+
+// GetTagsFromDLRP returns a set of tags extracted from DLRP - names and guids for app, space and org
+func (dlrp *DesiredLRP) GetTagsFromDLRP() []string {
+	tagsToValues := map[string]string{
+		AppNameTagKey: dlrp.AppName,
+		AppIDTagKey:   dlrp.AppGUID,
+		AppGUIDTagKey: dlrp.AppGUID,
+		OrgNameTagKey: dlrp.OrganizationName,
+		OrgIDTagKey:   dlrp.OrganizationGUID,
+		SpaceNameKey:  dlrp.SpaceName,
+		SpaceIDTagKey: dlrp.SpaceGUID,
+	}
+	tags := []string{}
+	for k, v := range tagsToValues {
+		if v != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+		}
+	}
+	sort.Strings(tags)
+	return tags
 }
 
 func getVcapServicesMap(vcap, processGUID string) (map[string][]byte, error) {

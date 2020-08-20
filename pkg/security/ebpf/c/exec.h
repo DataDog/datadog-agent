@@ -60,18 +60,16 @@ SYSCALL_KPROBE(execveat) {
     return trace__sys_execveat();
 }
 
-struct proc_cache_t * __attribute__((always_inline)) get_pid_cache(u64 pid) {
-    u32 pid_key = pid >> 32;
-    u32 *cookie = (u32 *) bpf_map_lookup_elem(&pid_cookie, &pid_key);
+struct proc_cache_t * __attribute__((always_inline)) get_pid_cache(u32 tgid) {
+    struct proc_cache_t *entry = NULL;
+
+    u32 *cookie = (u32 *) bpf_map_lookup_elem(&pid_cookie, &tgid);
     if (cookie) {
         // Select the old cache entry
         u32 cookie_key = *cookie;
-        struct proc_cache_t *entry = bpf_map_lookup_elem(&proc_cache, &cookie_key);
-        if (entry) {
-            return entry;
-        }
+        entry = bpf_map_lookup_elem(&proc_cache, &cookie_key);
     }
-    return 0;
+    return entry;
 }
 
 int __attribute__((always_inline)) vfs_handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
@@ -88,8 +86,10 @@ int __attribute__((always_inline)) vfs_handle_exec_event(struct pt_regs *ctx, st
     };
 
     // select parent cache entry
-    u64 pid = bpf_get_current_pid_tgid();
-    struct proc_cache_t *parent_entry = get_pid_cache(pid);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    struct proc_cache_t *parent_entry = get_pid_cache(tgid);
     if (parent_entry) {
         // inherit container ID
         copy_container_id(entry.container_id, parent_entry->container_id);
@@ -100,7 +100,6 @@ int __attribute__((always_inline)) vfs_handle_exec_event(struct pt_regs *ctx, st
     bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
 
     // insert pid <-> cookie mapping
-    u32 tgid = pid >> 32;
     bpf_map_update_elem(&pid_cookie, &tgid, &cookie, BPF_ANY);
 
     pop_syscall();
@@ -128,10 +127,14 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args)
 
 SEC("kprobe/do_exit")
 int kprobe_do_exit(struct pt_regs *ctx) {
-    u64 pid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+    u32 pid = pid_tgid;
 
     // Delete pid <-> cookie mapping
-    bpf_map_delete_elem(&pid_cookie, &pid);
+    if (tgid == pid) {
+        bpf_map_delete_elem(&pid_cookie, &tgid);
+    }
     // (do not delete cookie <-> proc_cache entry since it can be used by a parent process)
     return 0;
 }

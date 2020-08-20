@@ -85,7 +85,7 @@ func nodeConditionTransformer(s aggregator.Sender, name string, metric ksmstore.
 		serviceCheckName = ksmMetricPrefix + "node.memory_pressure"
 		eventStatus = statusForCondition(statusLabel, false)
 	default:
-		log.Debugf("Invalid 'condition' label '%s', ignoring service check for metric '%s'", condition, name)
+		log.Tracef("Invalid 'condition' label '%s', ignoring service check for metric '%s'", condition, name)
 		return
 	}
 
@@ -117,7 +117,7 @@ func statusForCondition(status string, positiveEvent bool) metrics.ServiceCheckS
 	case "unknown":
 		return metrics.ServiceCheckUnknown
 	default:
-		log.Debugf("Unknown 'status' label: '%s'", status)
+		log.Tracef("Unknown 'status' label: '%s'", status)
 		return metrics.ServiceCheckUnknown
 	}
 }

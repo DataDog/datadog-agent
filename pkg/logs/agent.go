@@ -49,7 +49,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
-	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), health)
+	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, health)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender

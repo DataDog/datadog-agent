@@ -114,7 +114,7 @@ var freezeCmd = &cobra.Command{
 	Use:   "freeze",
 	Short: "Print the list of installed packages in the agent's python environment",
 	Long:  ``,
-	RunE:  freeze,
+	RunE:  list,
 }
 
 var showCmd = &cobra.Command{
@@ -828,13 +828,14 @@ func remove(cmd *cobra.Command, args []string) error {
 	return pip(pipArgs, os.Stdout, os.Stderr)
 }
 
-func freeze(cmd *cobra.Command, args []string) error {
+func list(cmd *cobra.Command, args []string) error {
 	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
 	pipArgs := []string{
-		"freeze",
+		"list",
+		"--format=freeze",
 	}
 
 	pipStdo := bytes.NewBuffer(nil)

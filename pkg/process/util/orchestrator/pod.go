@@ -57,7 +57,10 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
 		if pod.IsStaticPod(podList[p]) {
-			podList[p].UID = types.UID(generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName))
+			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName)
+			// modify it in the original pod for the YAML and in our model
+			podList[p].UID = types.UID(newUID)
+			podModel.Metadata.Uid = newUID
 		}
 
 		// scrub & generate YAML

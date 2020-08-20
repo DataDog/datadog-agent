@@ -49,7 +49,7 @@ def build(
     windows=False,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
-    bundle_ebpf=True,
+    bundle_ebpf=False,
 ):
     """
     Build the system_probe
@@ -183,13 +183,15 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=T
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
 
-    cmd = 'go test -mod={go_mod} -v -tags "{bpf_tag}" {pkg}'
+    cmd = 'go test -mod={go_mod} -v -tags {bpf_tag} {pkg}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
     bpf_tag = BPF_TAG
+    # temporary measure until we have a good default for BPFDir for testing
+    bpf_tag += ",ebpf_bindata"
     if only_check_bpf_bytes:
-        bpf_tag += ",ebpf_bindata"
+        # bpf_tag += ",ebpf_bindata"
         cmd += " -run=TestEbpfBytesCorrect"
     else:
         if getpass.getuser() != "root":
@@ -236,16 +238,12 @@ def cfmt(ctx):
     Format C code using clang-format
     """
 
-    fmtCmd = "clang-format -i -style='{{BasedOnStyle: WebKit, BreakBeforeBraces: Attach}}' {file}"
-    # This only works with gnu sed
-    sedCmd = r"sed -i 's/__attribute__((always_inline)) /__attribute__((always_inline))\
-/g' {file}"
+    fmtCmd = "clang-format -i -style=file {file}"
 
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
 
     for file in files:
         ctx.run(fmtCmd.format(file=file))
-        ctx.run(sedCmd.format(file=file))
 
 
 @task
@@ -306,6 +304,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         '-Wunused',
         '-Wall',
         '-Werror',
+        "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
         '-O2',
         '-emit-llvm',
     ]
@@ -339,63 +338,75 @@ def build_object_files(ctx, bundle_ebpf=False):
         for s in subdirs:
             flags.extend(["-isystem", os.path.join(d, s)])
 
-    cmd = "clang {flags} -c {c_file} -o - | llc -march=bpf -filetype=obj -o '{file}'"
+    cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
+    llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
     commands = []
 
-    # Build both the standard and debug version
-    tracer_c_file = os.path.join(c_dir, "tracer-ebpf.c")
-    obj_file = os.path.join(c_dir, "tracer-ebpf.o")
-    commands.append(cmd.format(flags=" ".join(flags), c_file=tracer_c_file, file=obj_file))
+    compiled_programs = [
+        "tracer-ebpf",
+        "offset-guess",
+    ]
+    bindata_files = [
+        os.path.join(c_dir, "tcp-queue-length-kern.c"),
+        os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
+        os.path.join(c_dir, "oom-kill-kern.c"),
+        os.path.join(bpf_dir, "oom-kill-kern-user.h"),
+        os.path.join(c_dir, "bpf-common.h"),
+    ]
+    for p in compiled_programs:
+        # Build both the standard and debug version
+        src_file = os.path.join(c_dir, "{}.c".format(p))
+        bc_file = os.path.join(c_dir, "{}.bc".format(p))
+        obj_file = os.path.join(c_dir, "{}.o".format(p))
+        commands.append(cmd.format(flags=" ".join(flags), bc_file=bc_file, c_file=src_file))
+        commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=bc_file, obj_file=obj_file))
 
-    debug_obj_file = os.path.join(c_dir, "tracer-ebpf-debug.o")
-    commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), c_file=tracer_c_file, file=debug_obj_file))
+        debug_bc_file = os.path.join(c_dir, "{}-debug.bc".format(p))
+        debug_obj_file = os.path.join(c_dir, "{}-debug.o".format(p))
+        commands.append(cmd.format(flags=" ".join(flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
+        commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
+
+        bindata_files.extend([obj_file, debug_obj_file])
 
     # Build security runtime programs
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_c_file = os.path.join(security_agent_c_dir, "probe.c")
-
+    security_bc_file = os.path.join(security_agent_c_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(security_agent_c_dir, "runtime-security.o")
+
     commands.append(
         cmd.format(
-            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, file=security_agent_obj_file
+            flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]), c_file=security_c_file, bc_file=security_bc_file
         )
     )
+    commands.append(llc_cmd.format(flags=" ".join(flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
 
+    security_agent_syscall_wrapper_bc_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.bc")
     security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "runtime-security-syscall-wrapper.o")
     commands.append(
         cmd.format(
             flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
             c_file=security_c_file,
-            file=security_agent_syscall_wrapper_obj_file,
+            bc_file=security_agent_syscall_wrapper_bc_file,
         )
     )
+    commands.append(
+        llc_cmd.format(
+            flags=" ".join(flags),
+            bc_file=security_agent_syscall_wrapper_bc_file,
+            obj_file=security_agent_syscall_wrapper_obj_file,
+        )
+    )
+    bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
 
     if bundle_ebpf:
         assets_cmd = (
             os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' "
-            + "'{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' "
-            + "'{bpf_common_h_file}' "
-            + "'{security_agent_obj_file}' '{security_agent_syscall_wrapper_obj_file}'"
+            + "/bin/go-bindata -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
-        commands.append(
-            assets_cmd.format(
-                c_dir=c_dir,
-                go_file=go_file,
-                obj_file=obj_file,
-                debug_obj_file=debug_obj_file,
-                tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
-                tcp_queue_length_kern_user_h_file=os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
-                oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
-                oom_kill_kern_user_h_file=os.path.join(bpf_dir, "oom-kill-kern-user.h"),
-                bpf_common_h_file=os.path.join(c_dir, "bpf-common.h"),
-                security_agent_obj_file=security_agent_obj_file,
-                security_agent_syscall_wrapper_obj_file=security_agent_syscall_wrapper_obj_file,
-            )
-        )
-
+        commands.append(assets_cmd.format(c_dir=c_dir, go_file=go_file, bindata_files="' '".join(bindata_files)))
         commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
 
     for cmd in commands:

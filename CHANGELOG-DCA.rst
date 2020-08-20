@@ -2,6 +2,32 @@
 Release Notes
 =============
 
+.. _Release Notes_1.8.0:
+
+1.8.0
+=====
+
+.. _Release Notes_1.8.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-08-07
+
+New Features
+------------
+
+- Add compliance check command to the DCA CLI (#5930)
+- Add `clusterchecks rebalance` command (#5839)
+- Add collection of additional Kubernetes resource types (deployments, replicaSets and services) for Live Containers (#6082, #5999)
+
+
+Enhancement Notes
+-----------------
+
+- Support "ignore AD tags" parameter for cluster/endpoint checks (#6115)
+- Use APIserver connection retrier (#6106)
+
 .. _Release Notes_1.7.0:
 
 1.7.0
@@ -21,7 +47,7 @@ New Features
 ------------
 
 - Add support of DatadogMetric CRD to allow autoscaling based on arbitrary queries (#5384)
-- Add Admission Controller to inject Entity ID, standard tags and agent host (useful in serverless environments) 
+- Add Admission Controller to inject Entity ID, standard tags and agent host (useful in serverless environments)
 
 Enhancement Notes
 -----------------
