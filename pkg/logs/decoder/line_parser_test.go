@@ -15,11 +15,11 @@ import (
 )
 
 type MockHandler struct {
-	message *Message
+	ouputChan chan *Message
 }
 
 func (h *MockHandler) Handle(input *Message) {
-	h.message = input
+	h.ouputChan <- input
 }
 
 func (h *MockHandler) Start() {
@@ -53,7 +53,8 @@ func (u *MockFailingParser) SupportsPartialLine() bool {
 
 func TestSingleLineParser(t *testing.T) {
 	const header = "HEADER"
-	h := &MockHandler{}
+	var message *Message
+	h := &MockHandler{make(chan *Message)}
 	p := NewMockFailingParser(header)
 
 	lineParser := NewSingleLineParser(p, h)
@@ -62,27 +63,31 @@ func TestSingleLineParser(t *testing.T) {
 	line := header
 
 	lineParser.Handle(&DecodedInput{[]byte(line), 7})
-	assert.Equal(t, "", string(h.message.Content))
-	assert.Equal(t, 7, h.message.RawDataLen)
+	message = <-h.ouputChan
+	assert.Equal(t, "", string(message.Content))
+	assert.Equal(t, 7, message.RawDataLen)
 
 	lineParser.Handle(&DecodedInput{[]byte(line + "one message"), 18})
+	message = <-h.ouputChan
 
-	assert.Equal(t, "one message", string(h.message.Content))
-	assert.Equal(t, 18, h.message.RawDataLen)
+	assert.Equal(t, "one message", string(message.Content))
+	assert.Equal(t, 18, message.RawDataLen)
 
 	lineParser.Stop()
 }
 
 func TestSingleLineParserSendsRawInvalidMessages(t *testing.T) {
 	const header = "HEADER"
-	h := &MockHandler{}
+
+	h := &MockHandler{make(chan *Message)}
 	p := NewMockFailingParser(header)
 
 	lineParser := NewSingleLineParser(p, h)
 	lineParser.Start()
 
 	lineParser.Handle(&DecodedInput{[]byte("one message"), 12})
-	assert.Equal(t, "one message", string(h.message.Content))
+	message := <-h.ouputChan
+	assert.Equal(t, "one message", string(message.Content))
 
 	lineParser.Stop()
 }
