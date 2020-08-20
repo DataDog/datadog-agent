@@ -19,6 +19,7 @@ import (
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
@@ -385,9 +386,13 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
 }
 
 // initTags avoids keeping a nil Tags field in the check instance
+// and sets the kube_cluster_name tag for all metrics
 func (k *KSMCheck) initTags() {
 	if k.instance.Tags == nil {
 		k.instance.Tags = []string{}
+	}
+	if clusterName := clustername.GetClusterName(); clusterName != "" {
+		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+clusterName)
 	}
 }
 

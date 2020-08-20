@@ -91,6 +91,7 @@
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-core
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
+/pkg/autodiscovery/listeners/snmp*.go   @DataDog/agent-integrations
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
@@ -115,6 +116,7 @@
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/logs-intake @DataDog/agent-core
+/pkg/logs/input/traps/                  @DataDog/agent-integrations @DataDog/agent-core
 /pkg/metadata/ecs/                      @DataDog/networks
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
@@ -126,6 +128,7 @@
 /pkg/compliance/                        @DataDog/container-integrations
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
+/pkg/snmp/                              @DataDog/agent-integrations
 
 /pkg-config/                            @DataDog/agent-platform
 
