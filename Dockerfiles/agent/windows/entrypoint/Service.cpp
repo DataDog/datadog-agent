@@ -124,6 +124,13 @@ void Service::Stop(std::chrono::milliseconds timeout)
     SERVICE_STATUS_PROCESS serviceStatus;
     if (!ControlService(_serviceHandle, SERVICE_CONTROL_STOP, reinterpret_cast<LPSERVICE_STATUS>(&serviceStatus)))
     {
+        if (GetLastError() == ERROR_SERVICE_CANNOT_ACCEPT_CTRL &&
+            (serviceStatus.dwCurrentState == SERVICE_STOPPED ||
+             serviceStatus.dwCurrentState == SERVICE_STOP_PENDING))
+        {
+            // Service is already shut(ting) down
+            return;
+        }
         throw Win32Exception("Could not stop the service");
     }
 
