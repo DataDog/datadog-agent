@@ -562,7 +562,6 @@ build_windows_container_entrypoint:
     when: on_success
   stage: binary_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["fail_on_non_triggered_tag"]
   variables:
     ARCH: "x64"
   script:
