@@ -17,12 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -135,6 +137,8 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
 
+	stats["logsStats"] = logs.GetStatus()
+
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
 		stats["endpointsInfos"] = endpointsInfos
@@ -180,6 +184,27 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 		log.Infof("Error formatting the status %q", err)
 		return nil, err
 	}
+	return []byte(st), nil
+}
+
+// GetAndFormatSecurityAgentStatus gets and formats the security agent status
+func GetAndFormatSecurityAgentStatus(runtimeStatus map[string]interface{}) ([]byte, error) {
+	s, err := GetStatus()
+	if err != nil {
+		return nil, err
+	}
+	s["runtimeSecurityStatus"] = runtimeStatus
+
+	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := FormatSecurityAgentStatus(statusJSON)
+	if err != nil {
+		return nil, err
+	}
+
 	return []byte(st), nil
 }
 
@@ -232,7 +257,7 @@ func getCommonStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
-	stats["flavor"] = config.AgentFlavor
+	stats["flavor"] = flavor.GetFlavor()
 	hostnameData, err := util.GetHostnameData()
 
 	if err != nil {
@@ -361,6 +386,8 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	} else {
 		stats["agent_metadata"] = map[string]string{}
 	}
+
+	stats["snmpTrapsStats"] = traps.GetStatus()
 
 	return stats, err
 }

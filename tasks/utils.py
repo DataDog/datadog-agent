@@ -3,12 +3,11 @@ Miscellaneous functions, no tasks here
 """
 from __future__ import print_function
 
+import json
 import os
 import re
 import sys
-import json
 from subprocess import check_output
-
 
 # constants
 ORG_PATH = "github.com/DataDog"
@@ -73,7 +72,6 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     arch="x64",
-    agent_flavor="agent",
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -105,8 +103,6 @@ def get_build_flags(
         ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
 
     ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python(python_runtimes))
-
-    ldflags += "-X {}/pkg/config.AgentFlavor={} ".format(REPO_PATH, agent_flavor)
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -147,13 +143,14 @@ def get_payload_version():
                 continue
             pkgname = whitespace_split[0]
             if pkgname == "github.com/DataDog/agent-payload":
-                comment_split = line.split("//")
-                if len(comment_split) < 2:
+                # Example of line: github.com/DataDog/agent-payload v4.40.0+incompatible
+                version_split = re.split(r'[ +]', line)
+                if len(version_split) < 2:
                     raise Exception(
                         "Versioning of agent-payload in go.mod has changed, the version logic needs to be updated"
                     )
-                version = comment_split[1].strip()
-                if not re.search(r"^\d+(\.\d+){2}$", version):
+                version = version_split[1].strip()
+                if not re.search(r"^v\d+(\.\d+){2}$", version):
                     raise Exception("Version of agent-payload in go.mod is invalid: '{}'".format(version))
                 return version
 

@@ -61,6 +61,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	a.SysProbeBPFDebug = config.Datadog.GetBool(key(spNS, "bpf_debug"))
+	if config.Datadog.IsSet(key(spNS, "bpf_dir")) {
+		a.SystemProbeBPFDir = config.Datadog.GetString(key(spNS, "bpf_dir"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "excluded_linux_versions")) {
 		a.ExcludedBPFLinuxVersions = config.Datadog.GetStringSlice(key(spNS, "excluded_linux_versions"))
 	}
@@ -80,8 +84,18 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ConntrackRateLimit = config.Datadog.GetInt(key(spNS, "conntrack_rate_limit"))
 	}
 
+	// When reading kernel structs at different offsets, don't go over the threshold
+	// This defaults to 400 and has a max of 3000. These are arbitrary choices to avoid infinite loops.
+	if th := config.Datadog.GetInt(key(spNS, "offset_guess_threshold")); th > 0 {
+		if th < maxOffsetThreshold {
+			a.OffsetGuessThreshold = uint64(th)
+		} else {
+			log.Warn("offset_guess_threshold exceeds maximum of 3000. Setting it to the default of 400")
+		}
+	}
+
 	if logFile := config.Datadog.GetString(key(spNS, "log_file")); logFile != "" {
-		a.LogFile = logFile
+		a.SystemProbeLogFile = logFile
 	}
 
 	// The maximum number of connections per message. Note: Only change if the defaults are causing issues.
@@ -138,6 +152,16 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
 		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
 	}
+
+	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
+		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
+	}
+
+	if config.Datadog.IsSet(key(spNS, "enable_tracepoints")) {
+		a.EnableTracepoints = config.Datadog.GetBool(key(spNS, "enable_tracepoints"))
+	}
+
+	a.Windows.EnableMonotonicCount = config.Datadog.GetBool(key(spNS, "windows", "enable_monotonic_count"))
 
 	return nil
 }
@@ -333,8 +357,13 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
 	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
-	if sources := config.Datadog.GetStringSlice(key(ns, "container_source")); len(sources) > 0 {
-		util.SetContainerSources(sources)
+	containerSourceKey := key(ns, "container_source")
+	if config.Datadog.Get(containerSourceKey) != nil {
+		// container_source can be nil since we're not forcing default values in the main config file
+		// make sure we don't pass nil value to GetStringSlice to avoid spammy warnings
+		if sources := config.Datadog.GetStringSlice(containerSourceKey); len(sources) > 0 {
+			util.SetContainerSources(sources)
+		}
 	}
 
 	// Pull additional parameters from the global config file.
@@ -361,6 +390,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			a.KubeClusterName = clusterName
 		}
 	}
+	a.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
 
 	return nil
 }

@@ -1,5 +1,6 @@
-import datadog
 import time
+
+import datadog
 
 client = datadog.dogstatsd.base.DogStatsd(socket_path="/tmp/scratch/dsd.socket")
 

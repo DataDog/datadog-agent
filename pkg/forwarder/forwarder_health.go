@@ -131,7 +131,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 func (fh *forwarderHealth) computeDomainsURL() {
 	for domain, apiKeys := range fh.keysPerDomains {
 		apiDomain := ""
-		re := regexp.MustCompile("datadoghq.[a-z]*")
+		re := regexp.MustCompile(`((us|eu)\d\.)?datadoghq.[a-z]+$`)
 		if re.MatchString(domain) {
 			apiDomain = "https://api." + re.FindString(domain)
 		} else {

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add 'datadog-cluster-agent check' command.

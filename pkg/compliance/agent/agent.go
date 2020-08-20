@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,7 +34,7 @@ type Agent struct {
 }
 
 // New creates a new instance of Agent
-func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) (*Agent, error) {
+func New(reporter event.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) (*Agent, error) {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -50,7 +51,7 @@ func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, op
 }
 
 // RunChecks runs checks right away without scheduling
-func RunChecks(reporter compliance.Reporter, configDir string, options ...checks.BuilderOption) error {
+func RunChecks(reporter event.Reporter, configDir string, options ...checks.BuilderOption) error {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -58,6 +59,8 @@ func RunChecks(reporter compliance.Reporter, configDir string, options ...checks
 	if err != nil {
 		return err
 	}
+
+	defer builder.Close()
 
 	agent := &Agent{
 		builder:   builder,
@@ -68,7 +71,7 @@ func RunChecks(reporter compliance.Reporter, configDir string, options ...checks
 }
 
 // RunChecksFromFile runs checks from the specified file with no scheduling
-func RunChecksFromFile(reporter compliance.Reporter, file string, options ...checks.BuilderOption) error {
+func RunChecksFromFile(reporter event.Reporter, file string, options ...checks.BuilderOption) error {
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -76,6 +79,8 @@ func RunChecksFromFile(reporter compliance.Reporter, file string, options ...che
 	if err != nil {
 		return err
 	}
+
+	defer builder.Close()
 
 	agent := &Agent{
 		builder: builder,
@@ -94,18 +99,22 @@ func (a *Agent) Run() error {
 }
 
 func runCheck(check check.Check) error {
-	log.Infof("%s: Running check %s [%s]", check.ID(), check.String(), check.Version())
-	return check.Run()
+	log.Infof("%s: Running check: %s [version=%s]", check.ID(), check.String(), check.Version())
+	err := check.Run()
+	if err != nil {
+		log.Errorf("%s: Check failed: %v", check.ID(), err)
+	}
+	return nil
 }
 
 // RunChecks runs checks with no scheduling
 func (a *Agent) RunChecks() error {
 	return a.buildChecks(runCheck)
-
 }
 
 // RunChecksFromFile runs checks from the specified file with no scheduling
 func (a *Agent) RunChecksFromFile(file string) error {
+	log.Infof("Loading compliance rules from %s", file)
 	return a.builder.ChecksFromFile(file, runCheck)
 }
 

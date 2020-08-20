@@ -225,11 +225,14 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	c.conn = netlink.NewConn(c.socket, c.socket.pid)
 
-	if err := setSocketBufferSize(netlinkBufferSize, c.conn); err != nil {
+	// We use this as opposed to netlink.Conn.SetReadBuffer because you can only
+	// set a value higher than /proc/sys/net/core/rmem_default (which is around 200kb for most systems)
+	// if you use SO_RCVBUFFORCE with CAP_NET_ADMIN (https://linux.die.net/man/7/socket).
+	if err := c.socket.SetSockoptInt(syscall.SOL_SOCKET, syscall.SO_RCVBUFFORCE, netlinkBufferSize); err != nil {
 		log.Errorf("error setting rcv buffer size for netlink socket: %s", err)
 	}
 
-	if size, err := getSocketBufferSize(c.conn); err == nil {
+	if size, err := c.socket.GetSockoptInt(syscall.SOL_SOCKET, syscall.SO_RCVBUF); err == nil {
 		log.Debugf("rcv buffer size for netlink socket is %d bytes", size)
 	}
 

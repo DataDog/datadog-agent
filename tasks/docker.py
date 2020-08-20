@@ -1,15 +1,16 @@
 """
 Docker related tasks
 """
-from __future__ import print_function, absolute_import
-import tempfile
-import shutil
-import sys
+from __future__ import absolute_import, print_function
+
 import os
 import re
+import shutil
+import sys
+import tempfile
 import time
-import yaml
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -45,7 +46,7 @@ def test(ctx):
 
 
 @task
-def integration_tests(ctx, skip_image_build=False, skip_build=False):
+def integration_tests(ctx, skip_image_build=False, skip_build=False, python_command="python3"):
     """
     Run docker integration tests
     """
@@ -58,7 +59,7 @@ def integration_tests(ctx, skip_image_build=False, skip_build=False):
 
     print("Starting docker integration tests")
     env = {"DOCKER_IMAGE": DOGSTATSD_TAG}
-    ctx.run("python ./test/integration/docker/dsd_listening.py", env=env)
+    ctx.run("{} ./test/integration/docker/dsd_listening.py".format(python_command), env=env)
 
 
 @task
@@ -113,7 +114,7 @@ COPY test.bin /test.bin
 
     print(test_container.logs(stdout=True, stderr=False, stream=False))
 
-    sys.stderr.write(test_container.logs(stdout=False, stderr=True, stream=False))
+    sys.stderr.write(test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding))
 
     if not skip_cleanup:
         shutil.rmtree(temp_folder)

@@ -2,17 +2,19 @@
 Golang related tasks go here
 """
 from __future__ import print_function
+
+import csv
 import datetime
 import os
 import shutil
 import sys
-import csv
 
 from invoke import task
 from invoke.exceptions import Exit
-from .build_tags import get_default_build_tags
-from .utils import get_build_flags, get_gopath, load_release_versions
+
 from .bootstrap import get_deps, process_deps
+from .build_tags import get_default_build_tags
+from .utils import get_build_flags, get_gopath
 
 # We use `basestring` in the code for compat with python2 unicode strings.
 # This makes the same code work in python3 as well.
@@ -131,10 +133,11 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
 
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
-    tags = build_tags or get_default_build_tags(arch=arch)
+    tags = build_tags or get_default_build_tags(build="test", arch=arch)
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
+    env["CGO_ENABLED"] = "1"
 
     ctx.run("go vet -tags \"{}\" ".format(" ".join(tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here
@@ -163,7 +166,7 @@ def cyclo(ctx, targets, limit=15):
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
@@ -175,14 +178,15 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags()
-
+    tags = build_tags or get_default_build_tags(build="test", arch=arch)
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
         print("running golangci on {}".format(target))
         ctx.run(
-            "golangci-lint run -c .golangci.yml --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)),
+            "golangci-lint run --timeout 10m0s -c .golangci.yml --build-tags '{}' {}".format(
+                " ".join(tags), "{}/...".format(target)
+            ),
             env=env,
         )
 
@@ -208,6 +212,28 @@ def ineffassign(ctx, targets):
     # ineffassign exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("ineffassign found no issues")
+
+
+@task
+def staticcheck(ctx, targets):
+    """
+    Run staticcheck on targets.
+
+    Example invokation:
+        inv statickcheck --targets=./pkg/collector/check,./pkg/aggregator
+    """
+    if isinstance(targets, basestring):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        targets = targets.split(',')
+
+    # staticcheck checks recursively only if path is in "path/..." format
+    go_targets = [sub + "/..." for sub in targets]
+
+    ctx.run("staticcheck -checks=SA1027 " + " ".join(go_targets))
+    # staticcheck exits with status 1 when it finds an issue, if we're here
+    # everything went smooth
+    print("staticcheck found no issues")
 
 
 @task
@@ -239,36 +265,36 @@ def misspell(ctx, targets):
 
 @task
 def deps(
-    ctx,
-    no_checks=False,
-    core_dir=None,
-    verbose=False,
-    android=False,
-    dep_vendor_only=False,
-    no_dep_ensure=False,
-    integrations_version="nightly",
+    ctx, verbose=False, android=False, no_bootstrap=False, no_dep_ensure=False,
 ):
     """
     Setup Go dependencies
     """
-    deps = get_deps('deps')
-    order = deps.get("order", deps.keys())
-    for dependency in order:
-        tool = deps.get(dependency)
-        if not tool:
-            print("Malformed bootstrap JSON, dependency {} not found".format(dependency))
-            raise Exit(code=1)
-        print("processing checkout tool {}".format(dependency))
-        process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
+    if not no_bootstrap:
+        deps = get_deps('deps')
+        order = deps.get("order", deps.keys())
+        for dependency in order:
+            tool = deps.get(dependency)
+            if not tool:
+                print("Malformed bootstrap JSON, dependency {} not found".format(dependency))
+                raise Exit(code=1)
+            print("processing checkout tool {}".format(dependency))
+            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
 
-    order = deps.get("order", deps.keys())
-    for dependency in order:
-        tool = deps.get(dependency)
-        if tool.get('install', True):
-            print("processing get tool {}".format(dependency))
-            process_deps(
-                ctx, dependency, tool.get('version'), tool.get('type'), 'install', cmd=tool.get('cmd'), verbose=verbose
-            )
+        order = deps.get("order", deps.keys())
+        for dependency in order:
+            tool = deps.get(dependency)
+            if tool.get('install', True):
+                print("processing get tool {}".format(dependency))
+                process_deps(
+                    ctx,
+                    dependency,
+                    tool.get('version'),
+                    tool.get('type'),
+                    'install',
+                    cmd=tool.get('cmd'),
+                    verbose=verbose,
+                )
 
     if android:
         ndkhome = os.environ.get('ANDROID_NDK_HOME')
@@ -315,30 +341,8 @@ def deps(
             print("Removing vendored golang.org/x/mobile")
             shutil.rmtree('vendor/golang.org/x/mobile')
 
-    checks_start = datetime.datetime.now()
-    if not no_checks:
-        verbosity = 'v' if verbose else 'q'
-        core_dir = core_dir or os.getenv('DD_CORE_DIR')
-
-        if core_dir:
-            checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
-            ctx.run('pip install -{} -e "{}[deps]"'.format(verbosity, checks_base))
-        else:
-            core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
-            checks_base = os.path.join(core_dir, 'datadog_checks_base')
-            if not os.path.isdir(core_dir):
-                env = load_release_versions(ctx, integrations_version)
-                ctx.run(
-                    'git clone -{} --branch {} --depth 1 https://github.com/DataDog/integrations-core {}'.format(
-                        verbosity, env["INTEGRATIONS_CORE_VERSION"], core_dir
-                    )
-                )
-            ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
-    checks_done = datetime.datetime.now()
-
     if not no_dep_ensure:
         print("go mod vendor, elapsed: {}".format(dep_done - start))
-    print("checks install elapsed: {}".format(checks_done - checks_start))
 
 
 @task

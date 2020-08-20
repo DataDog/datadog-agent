@@ -127,7 +127,7 @@ func New() *AgentConfig {
 		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
 		BucketInterval:   time.Duration(10) * time.Second,
-		ExtraAggregators: []string{"http.status_code", "version"},
+		ExtraAggregators: []string{"http.status_code", "version", "_dd.hostname"},
 
 		ExtraSampleRate: 1.0,
 		MaxTPS:          10,
@@ -135,7 +135,6 @@ func New() *AgentConfig {
 
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,
-		ConnectionLimit: 2000,
 		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
 		StatsWriter:             new(WriterConfig),
@@ -208,9 +207,18 @@ func (c *AgentConfig) acquireHostname() error {
 	return err
 }
 
-// HTTPClient returns a new http.Client to be used for outgoing connections to the
+// NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
-func (c *AgentConfig) HTTPClient() *http.Client {
+func (c *AgentConfig) NewHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: c.NewHTTPTransport(),
+	}
+}
+
+// NewHTTPTransport returns a new http.Transport to be used for outgoing connections to
+// the Datadog API.
+func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
 		// below field values are from http.DefaultTransport (go1.12)
@@ -228,10 +236,7 @@ func (c *AgentConfig) HTTPClient() *http.Client {
 	if p := coreconfig.GetProxies(); p != nil {
 		transport.Proxy = httputils.GetProxyTransportFunc(p)
 	}
-	return &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: transport,
-	}
+	return transport
 }
 
 // Load returns a new configuration based on the given path. The path must not necessarily exist
@@ -261,7 +266,7 @@ func prepareConfig(path string) (*AgentConfig, error) {
 	// we'll resolve secrets later, after loading environment variable values too,
 	// in order to make sure that any potential secret references present in environment
 	// variables get counted.
-	if err := config.LoadWithoutSecret(); err != nil {
+	if _, err := config.LoadWithoutSecret(); err != nil {
 		return cfg, err
 	}
 	cfg.ConfigPath = path

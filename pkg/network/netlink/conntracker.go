@@ -108,6 +108,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int) (Con
 	}
 
 	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
+	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET6))
 	ctr.run()
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
@@ -249,6 +250,8 @@ func (ctr *realConntracker) register(c ct.Con) int {
 		generation := getNthGeneration(generationLength, now, 3)
 		ctr.state[key] = formatIPTranslation(transTuple, generation)
 	}
+
+	log.Tracef("src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d", c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort)
 
 	ctr.Lock()
 	defer ctr.Unlock()

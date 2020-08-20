@@ -56,6 +56,7 @@ var (
 	useSysPython        bool
 	versionOnly         bool
 	localWheel          bool
+	thirdParty          bool
 	rootDir             string
 	pythonMajorVersion  string
 	pythonMinorVersion  string
@@ -80,6 +81,9 @@ func init() {
 	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 	installCmd.Flags().BoolVarP(
 		&localWheel, "local-wheel", "w", false, fmt.Sprintf("install an agent check from a locally available wheel file. %s", disclaimer),
+	)
+	installCmd.Flags().BoolVarP(
+		&thirdParty, "third-party", "t", false, "install a community or vendor-contributed integration",
 	)
 }
 
@@ -110,7 +114,7 @@ var freezeCmd = &cobra.Command{
 	Use:   "freeze",
 	Short: "Print the list of installed packages in the agent's python environment",
 	Long:  ``,
-	RunE:  freeze,
+	RunE:  list,
 }
 
 var showCmd = &cobra.Command{
@@ -408,8 +412,13 @@ func install(cmd *cobra.Command, args []string) error {
 		)
 	}
 
+	rootLayoutType := "core"
+	if thirdParty {
+		rootLayoutType = "extras"
+	}
+
 	// Download the wheel
-	wheelPath, err := downloadWheel(integration, semverToPEP440(versionToInstall))
+	wheelPath, err := downloadWheel(integration, semverToPEP440(versionToInstall), rootLayoutType)
 	if err != nil {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 	}
@@ -445,7 +454,7 @@ func install(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func downloadWheel(integration, version string) (string, error) {
+func downloadWheel(integration, version, rootLayoutType string) (string, error) {
 	pyPath, err := getCommandPython()
 	if err != nil {
 		return "", err
@@ -455,6 +464,7 @@ func downloadWheel(integration, version string) (string, error) {
 		"-m", downloaderModule,
 		integration,
 		"--version", version,
+		"--type", rootLayoutType,
 	}
 	if verbose > 0 {
 		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
@@ -691,7 +701,10 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 		return nil, false, nil
 	}
 
-	version, err := semver.NewVersion(outputStr)
+	replacer := strings.NewReplacer("alpha", "-alpha", "beta", "-beta", "rc", "-rc")
+	normalizedVersion := replacer.Replace(outputStr)
+
+	version, err := semver.NewVersion(normalizedVersion)
 	if err != nil {
 		return nil, true, fmt.Errorf("error parsing version %s: %s", version, err)
 	}
@@ -815,13 +828,14 @@ func remove(cmd *cobra.Command, args []string) error {
 	return pip(pipArgs, os.Stdout, os.Stderr)
 }
 
-func freeze(cmd *cobra.Command, args []string) error {
+func list(cmd *cobra.Command, args []string) error {
 	if err := loadPythonInfo(); err != nil {
 		return err
 	}
 
 	pipArgs := []string{
-		"freeze",
+		"list",
+		"--format=freeze",
 	}
 
 	pipStdo := bytes.NewBuffer(nil)

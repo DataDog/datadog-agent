@@ -14,15 +14,22 @@ import (
 
 // SetupConfig fires up the configuration system
 func SetupConfig(confFilePath string) error {
-	return setupConfig(confFilePath, "", false)
+	_, err := SetupConfigWithWarnings(confFilePath, "")
+	return err
+}
+
+// SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
+func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
+	return setupConfig(confFilePath, configName, false)
 }
 
 // SetupConfigWithoutSecrets fires up the configuration system without secrets support
 func SetupConfigWithoutSecrets(confFilePath string, configName string) error {
-	return setupConfig(confFilePath, configName, true)
+	_, err := setupConfig(confFilePath, configName, true)
+	return err
 }
 
-func setupConfig(confFilePath string, configName string, withoutSecrets bool) error {
+func setupConfig(confFilePath string, configName string, withoutSecrets bool) (*config.Warnings, error) {
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)
 	}
@@ -39,13 +46,15 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool) er
 	config.Datadog.AddConfigPath(DefaultConfPath)
 	// load the configuration
 	var err error
+	var warnings *config.Warnings
+
 	if withoutSecrets {
-		err = config.LoadWithoutSecret()
+		warnings, err = config.LoadWithoutSecret()
 	} else {
-		err = config.Load()
+		warnings, err = config.Load()
 	}
 	if err != nil {
-		return fmt.Errorf("unable to load Datadog config file: %s", err)
+		return warnings, fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
-	return nil
+	return warnings, nil
 }

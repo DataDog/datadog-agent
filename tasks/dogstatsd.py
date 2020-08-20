@@ -1,33 +1,33 @@
 """
 Dogstatsd tasks
 """
-from __future__ import print_function, absolute_import
+from __future__ import absolute_import, print_function
 
 import os
-import sys
 import shutil
+import sys
 from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
-from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version
-from .utils import REPO_PATH
-
+from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .go import deps
+from .utils import (
+    REPO_PATH,
+    bin_name,
+    get_build_flags,
+    get_root,
+    get_version,
+    get_version_numeric_only,
+    load_release_versions,
+)
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 20 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
-DEFAULT_BUILD_TAGS = [
-    "zlib",
-    "docker",
-    "kubelet",
-    "secrets",
-]
 
 
 @task
@@ -45,10 +45,14 @@ def build(
     """
     Build Dogstatsd
     """
-    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
+    build_include = (
+        get_default_build_tags(build="dogstatsd", arch=arch)
+        if build_include is None
+        else filter_incompatible_tags(build_include.split(","), arch=arch)
+    )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version, agent_flavor="dogstatsd")
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
     bin_path = DOGSTATSD_BIN_PATH
 
     # generate windows resources
@@ -71,12 +75,6 @@ def build(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
-
-    if not sys.platform.startswith('linux'):
-        for ex in LINUX_ONLY_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
-    build_tags = get_build_tags(build_include, build_exclude)
 
     if static:
         bin_path = STATIC_BIN_PATH
@@ -150,7 +148,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx, skip_build=False, go_mod="vendor"):
+def system_tests(ctx, skip_build=False, go_mod="vendor", arch="x64"):
     """
     Run the system testsuite.
     """
@@ -164,7 +162,7 @@ def system_tests(ctx, skip_build=False, go_mod="vendor"):
     cmd = "go test -mod={go_mod} -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
         "go_mod": go_mod,
-        "build_tags": " ".join(get_default_build_tags()),
+        "build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
@@ -239,7 +237,7 @@ def omnibus_build(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor", arch="x64"):
     """
     Run integration tests for dogstatsd
     """
@@ -248,7 +246,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags()),
+        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }

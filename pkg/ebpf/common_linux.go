@@ -34,15 +34,6 @@ func isUbuntu(platform string) bool {
 	return strings.Contains(strings.ToLower(platform), "ubuntu")
 }
 
-func isCentOS(platform string) bool {
-	return strings.Contains(strings.ToLower(platform), "centos")
-}
-
-func isRHEL(platform string) bool {
-	p := strings.ToLower(platform)
-	return strings.Contains(p, "redhat") || strings.Contains(p, "red hat") || strings.Contains(p, "rhel")
-}
-
 // isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
 func isPre410Kernel(currentKernelCode uint32) bool {
 	return currentKernelCode < stringToKernelCode("4.1.0")

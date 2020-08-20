@@ -96,9 +96,7 @@ ENV DOCKER_DD_AGENT=true \
 # make sure we have recent dependencies
 RUN apt-get update \
   # CVE-fixing time!
-  && apt-get install -y util-linux ncurses-bin ncurses-base libncursesw5:amd64 \
-  # https://security-tracker.debian.org/tracker/CVE-2018-15686
-  && apt-get install -y libudev1 libsystemd0 \
+  && apt full-upgrade -y \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
@@ -160,6 +158,8 @@ RUN if [ ! -z "$PYTHON_VERSION" ]; then \
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
+
+RUN find /etc -type d,f -perm -o+w -print0 | xargs -0 chmod g-w,o-w
 
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp

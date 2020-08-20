@@ -2,15 +2,16 @@
 Release helper tasks
 """
 from __future__ import print_function
+
+import hashlib
+import json
 import os
 import re
 import sys
-import json
-import hashlib
 from collections import OrderedDict
 from datetime import date
 
-from invoke import task, Failure
+from invoke import Failure, task
 from invoke.exceptions import Exit
 
 

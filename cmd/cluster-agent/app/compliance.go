@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -64,7 +65,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 	health := health.RegisterLiveness("compliance")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-cluster-registry.json", health)
 	auditor.Start()
 	stopper.Add(auditor)
 
@@ -79,7 +80,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 		Source:  "compliance-agent",
 	})
 
-	reporter := compliance.NewReporter(logSource, pipelineProvider.NextPipelineChan())
+	reporter := event.NewReporter(logSource, pipelineProvider.NextPipelineChan())
 
 	runner := runner.NewRunner()
 	stopper.Add(runner)
@@ -101,7 +102,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 		checks.WithInterval(checkInterval),
 		checks.WithHostname(hostname),
 		checks.WithMatchRule(func(rule *compliance.Rule) bool {
-			return rule.Scope.KubernetesCluster
+			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),
 		checks.WithKubernetesClient(apiCl.DynamicCl),
 	)

@@ -7,11 +7,13 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -58,18 +60,9 @@ var (
 	proxies *Proxy
 )
 
-//Values for AgentFlavor below
-const (
-	DefaultAgentFlavor = "agent"
-	IotAgentFlavor     = "iot_agent"
-	ClusterAgentFlavor = "cluster_agent"
-	DogstatsdFlavor    = "dogstatsd"
-)
-
 // Variables to initialize at build time
 var (
 	DefaultPython string
-	AgentFlavor   = DefaultAgentFlavor
 
 	// ForceDefaultPython has its value set to true at compile time if we should ignore
 	// the Python version set in the configuration and use `DefaultPython` instead.
@@ -127,16 +120,21 @@ type MetricMapping struct {
 	Tags      map[string]string `mapstructure:"tags"`
 }
 
+// Warnings represent the warnings in the config
+type Warnings struct {
+	TraceMallocEnabledWithPy2 bool
+}
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	initConfig(Datadog)
+	InitConfig(Datadog)
 }
 
-// initConfig initializes the config defaults on a config
-func initConfig(config Config) {
+// InitConfig initializes the config defaults on a config
+func InitConfig(config Config) {
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site")   //nolint:errcheck
@@ -179,7 +177,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
-	config.BindEnvAndSetDefault("iot_host", AgentFlavor == IotAgentFlavor)
+
+	// overridden in IoT Agent main
+	config.BindEnvAndSetDefault("iot_host", false)
+	// overridden in Heroku buildpack
+	config.BindEnvAndSetDefault("heroku_dyno", false)
 
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
@@ -311,7 +313,8 @@ func initConfig(config Config) {
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125)            // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_windows_pipe_name", "") // experimental and not officially supported for now.
 
 	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
 	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
@@ -409,6 +412,12 @@ func initConfig(config Config) {
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
+	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
@@ -432,12 +441,13 @@ func initConfig(config Config) {
 
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
+	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300) // value in milliseconds
+	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
-	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
@@ -474,6 +484,10 @@ func initConfig(config Config) {
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
+
+	// Profiling
+	config.BindEnvAndSetDefault("profiling.enabled", false)
+	config.BindEnv("profiling.profile_dd_url", "") //nolint:errcheck
 
 	// Trace agent
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
@@ -604,6 +618,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
+	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -623,6 +638,9 @@ func initConfig(config Config) {
 
 	// Ochestrator explorer
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
+	// enabling/disabling the environment variables & command scrubbing from the container specs
+	// this option will potentially impact the CPU usage of the agent
+	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
@@ -651,6 +669,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.log_file")
 	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
+	config.SetKnown("system_probe_config.bpf_dir")
 	config.SetKnown("system_probe_config.disable_tcp")
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
@@ -670,6 +689,11 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.closed_channel_size")
 	config.SetKnown("system_probe_config.dns_timeout_in_s")
 	config.SetKnown("system_probe_config.collect_dns_stats")
+	config.SetKnown("system_probe_config.offset_guess_threshold")
+	config.SetKnown("system_probe_config.enable_tcp_queue_length")
+	config.SetKnown("system_probe_config.enable_oom_kill")
+	config.SetKnown("system_probe_config.enable_tracepoints")
+	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -683,6 +707,7 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.max_memory")
 	config.SetKnown("apm_config.log_file")
 	config.SetKnown("apm_config.apm_dd_url")
+	config.SetKnown("apm_config.profiling_dd_url")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
 	config.SetKnown("apm_config.receiver_socket")
@@ -721,11 +746,24 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
+	// Datadog security agent (common)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
+	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
+
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
-	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
+	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
+
+	// Datadog security agent (runtime)
+	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
+	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", "/etc/datadog-agent/runtime-security.d")
+	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
+	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -734,12 +772,7 @@ func initConfig(config Config) {
 }
 
 var (
-	ddURLs = map[string]interface{}{
-		"app.datadoghq.com": nil,
-		"app.datadoghq.eu":  nil,
-		"app.datad0g.com":   nil,
-		"app.datad0g.eu":    nil,
-	}
+	ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
 )
 
 // GetProxies returns the proxy settings from the configuration
@@ -819,12 +852,12 @@ func loadProxyFromEnv(config Config) {
 }
 
 // Load reads configs files and initializes the config module
-func Load() error {
+func Load() (*Warnings, error) {
 	return load(Datadog, "datadog.yaml", true)
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret() error {
+func LoadWithoutSecret() (*Warnings, error) {
 	return load(Datadog, "datadog.yaml", false)
 }
 
@@ -851,10 +884,16 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
-func load(config Config, origin string, loadSecret bool) error {
+func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
+	warnings := Warnings{}
+
 	if err := config.ReadInConfig(); err != nil {
-		log.Warnf("Error loading config: %v", err)
-		return err
+		if errors.Is(err, os.ErrPermission) {
+			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+		} else {
+			log.Warnf("Error loading config: %v", err)
+		}
+		return &warnings, err
 	}
 
 	for _, key := range findUnknownKeys(config) {
@@ -863,7 +902,7 @@ func load(config Config, origin string, loadSecret bool) error {
 
 	if loadSecret {
 		if err := ResolveSecrets(config, origin); err != nil {
-			return err
+			return &warnings, err
 		}
 	}
 
@@ -885,9 +924,9 @@ func load(config Config, origin string, loadSecret bool) error {
 	SanitizeAPIKeyConfig(config, "api_key")
 	applyOverrides(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
-	setTracemallocEnabled(config)
+	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
-	return nil
+	return &warnings, nil
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -963,8 +1002,8 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 		return "", err
 	}
 
-	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
-	if _, found := ddURLs[u.Host]; !found {
+	// we don't update unknown URLs (ie: proxy or custom DD domain)
+	if !ddURLRegexp.MatchString(u.Host) {
 		return DDURL, nil
 	}
 
@@ -1156,16 +1195,19 @@ func applyOverrides(config Config) {
 
 // setTracemallocEnabled is a helper to get the effective tracemalloc
 // configuration.
-func setTracemallocEnabled(config Config) {
+func setTracemallocEnabled(config Config) bool {
 	pyVersion := config.GetString("python_version")
 	wTracemalloc := config.GetBool("tracemalloc_debug")
+	traceMallocEnabledWithPy2 := false
 	if pyVersion == "2" && wTracemalloc {
 		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
 		wTracemalloc = false
+		traceMallocEnabledWithPy2 = true
 	}
 
 	// update config with the actual effective tracemalloc
 	config.Set("tracemalloc_debug", wTracemalloc)
+	return traceMallocEnabledWithPy2
 }
 
 // setNumWorkers is a helper to set the effective number of workers for
@@ -1201,4 +1243,22 @@ func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) 
 		}
 	}
 	return mappings, nil
+}
+
+// IsCLCRunner returns whether the Agent is in cluster check runner mode
+func IsCLCRunner() bool {
+	if !Datadog.GetBool("clc_runner_enabled") {
+		return false
+	}
+	var cp []ConfigurationProviders
+	if err := Datadog.UnmarshalKey("config_providers", &cp); err == nil {
+		for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+			cp = append(cp, ConfigurationProviders{Name: name})
+		}
+		if len(cp) == 1 && cp[0].Name == "clusterchecks" {
+			// A cluster check runner is an Agent configured to run clusterchecks only
+			return true
+		}
+	}
+	return false
 }

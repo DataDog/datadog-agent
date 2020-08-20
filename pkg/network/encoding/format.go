@@ -17,6 +17,8 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 		LastBytesSent:          conn.LastSentBytes,
 		LastBytesReceived:      conn.LastRecvBytes,
 		LastRetransmits:        conn.LastRetransmits,
+		LastTcpEstablished:     conn.LastTCPEstablished,
+		LastTcpClosed:          conn.LastTCPClosed,
 		Rtt:                    conn.RTT,
 		RttVar:                 conn.RTTVar,
 		Direction:              formatDirection(conn.Direction),
@@ -59,6 +61,8 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 		MonotonicDnsPacketsProcessed:       tel.MonotonicDNSPacketsProcessed,
 		MonotonicConnsClosed:               tel.MonotonicConnsClosed,
 		ConnsBpfMapSize:                    tel.ConnsBpfMapSize,
+		MonotonicUdpSendsProcessed:         tel.MonotonicUDPSendsProcessed,
+		MonotonicUdpSendsMissed:            tel.MonotonicUDPSendsMissed,
 	}
 }
 
