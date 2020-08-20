@@ -117,7 +117,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 
 		// k8s objects only have json "omitempty" annotations
 		// and marshalling is more performant than YAML
-		jsonRS, err := jsoniter.Marshal(rs)
+		jsonRS, err := jsoniter.Marshal(r)
 		if err != nil {
 			log.Debugf("Could not marshal replica set to JSON: %s", err)
 			continue
