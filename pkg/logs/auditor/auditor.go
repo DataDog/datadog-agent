@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+// DefaultRegistryFilename is the default registry filename
+const DefaultRegistryFilename = "registry.json"
+
 const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 const defaultTTL = 23 * time.Hour
@@ -61,10 +64,10 @@ type Auditor struct {
 }
 
 // New returns an initialized Auditor
-func New(runPath string, health *health.Handle) *Auditor {
+func New(runPath string, filename string, health *health.Handle) *Auditor {
 	return &Auditor{
 		health:       health,
-		registryPath: filepath.Join(runPath, "registry.json"),
+		registryPath: filepath.Join(runPath, filename),
 		entryTTL:     defaultTTL,
 	}
 }

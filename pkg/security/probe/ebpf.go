@@ -1665,7 +1665,7 @@ func bindataPkgSecurityEbpfCProbeo() (*asset, error) {
 		name:        "pkg/security/ebpf/c/probe.o",
 		size:        486600,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -3266,7 +3266,7 @@ func bindataPkgSecurityEbpfCProbesyscallwrappero() (*asset, error) {
 		name:        "pkg/security/ebpf/c/probe-syscall-wrapper.o",
 		size:        487856,
 		md5checksum: "",
-		mode:        os.FileMode(436),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 

@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/google/gopacket/afpacket"
-	bpflib "github.com/iovisor/gobpf/elf"
 )
 
 const (
@@ -44,12 +44,17 @@ type SocketFilterSnooper struct {
 	polls          int64
 	decodingErrors int64
 	truncatedPkts  int64
+
+	// DNS telemetry, values calculated *till* the last tick in pollStats
+	queries   int64
+	successes int64
+	errors    int64
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(
 	rootPath string,
-	filter *bpflib.SocketFilter,
+	filter *manager.Probe,
 	collectDNSStats bool,
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
@@ -123,7 +128,10 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["packets_dropped"] = atomic.LoadInt64(&s.dropped)
 	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
 	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
-
+	stats["queries"] = atomic.LoadInt64(&s.queries)
+	stats["successes"] = atomic.LoadInt64(&s.successes)
+	stats["errors"] = atomic.LoadInt64(&s.errors)
+	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
 	return stats
 }
 
@@ -165,6 +173,11 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 
 	if pktInfo.pktType == SuccessfulResponse {
 		s.cache.Add(t, time.Now())
+		atomic.AddInt64(&s.successes, 1)
+	} else if pktInfo.pktType == FailedResponse {
+		atomic.AddInt64(&s.errors, 1)
+	} else {
+		atomic.AddInt64(&s.queries, 1)
 	}
 }
 
@@ -245,11 +258,11 @@ func (s *SocketFilterSnooper) getCachedTranslation() *translation {
 // packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type packetSource struct {
 	*afpacket.TPacket
-	socketFilter *bpflib.SocketFilter
+	socketFilter *manager.Probe
 	socketFD     int
 }
 
-func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
+func newPacketSource(filter *manager.Probe) (*packetSource, error) {
 	rawSocket, err := afpacket.NewTPacket(
 		afpacket.OptPollTimeout(1*time.Second),
 		// This setup will require ~4Mb that is mmap'd into the process virtual space
@@ -266,7 +279,8 @@ func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
 	socketFD := int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
 
 	// Attaches DNS socket filter to the RAW_SOCKET
-	if err := bpflib.AttachSocketFilter(filter, socketFD); err != nil {
+	filter.SocketFD = socketFD
+	if err := filter.Attach(); err != nil {
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
 
@@ -278,7 +292,7 @@ func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
 }
 
 func (p *packetSource) Close() {
-	if err := bpflib.DetachSocketFilter(p.socketFilter, p.socketFD); err != nil {
+	if err := p.socketFilter.Detach(); err != nil {
 		log.Errorf("error detaching socket filter: %s", err)
 	}
 

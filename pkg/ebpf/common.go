@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf"
 	"github.com/pkg/errors"
 )
 
@@ -38,7 +39,7 @@ var (
 // IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
 // along with some context on why it's not supported
 func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
-	currentKernelCode, err := CurrentKernelVersion()
+	currentKernelCode, err := ebpf.CurrentKernelVersion()
 	if err == ErrNotImplemented {
 		log.Infof("Could not detect OS, will assume supported.")
 	} else if err != nil {

@@ -70,7 +70,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
 
     # Make the system-probe binary and eBPF programs owned by root
     chown root:root ${INSTALL_DIR}/embedded/bin/system-probe
-    chown -R root:root ${INSTALL_DIR}/embedded/usr/share/system-probe
+    chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/ebpf
 
     # Enable and restart the agent service here on Debian platforms
     # On RHEL, this is done in the posttrans script
