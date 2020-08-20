@@ -108,8 +108,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		})
 	}
 
-	log.Debugf("Collected & enriched %d pods in %s", len(podMsgs), time.Now().Sub(start))
-	log.Tracef("Send %d from total of %d pods", len(podMsgs), len(podList))
+	log.Debugf("Collected & enriched %d pods in %s from total of %d pods", len(podMsgs), time.Now().Sub(start), len(podList))
 	return messages, nil
 }
 
