@@ -99,7 +99,9 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  if linux? or (windows? and not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
+      move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
   copy 'bin/agent', "#{install_dir}/bin/"
 

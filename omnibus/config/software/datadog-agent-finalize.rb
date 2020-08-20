@@ -22,7 +22,7 @@ build do
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
-            if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+            if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
             end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
@@ -166,7 +166,7 @@ build do
                 link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
 
                 delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.7", "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.8", "#{install_dir}/embedded/bin/2to3"
             end
 
             # removing the man pages from the embedded folder to reduce package size by ~4MB
