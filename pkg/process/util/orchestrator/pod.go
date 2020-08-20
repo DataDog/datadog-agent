@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -54,7 +53,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		}
 
 		pd := podList[p]
-		if apiserver.SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
+		if SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
 			continue
 		}
 

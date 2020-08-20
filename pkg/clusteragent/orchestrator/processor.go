@@ -13,7 +13,6 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
@@ -27,7 +26,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
-		if apiserver.SkipKubernetesResource(depl.UID, depl.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion) {
 			continue
 		}
 
@@ -99,7 +98,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 
 	for rs := 0; rs < len(rsList); rs++ {
 		r := rsList[rs]
-		if apiserver.SkipKubernetesResource(r.UID, r.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(r.UID, r.ResourceVersion) {
 			continue
 		}
 
@@ -174,7 +173,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 
 	for s := 0; s < len(serviceList); s++ {
 		svc := serviceList[s]
-		if apiserver.SkipKubernetesResource(svc.UID, svc.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion) {
 			continue
 		}
 
