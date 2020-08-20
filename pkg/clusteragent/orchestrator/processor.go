@@ -27,7 +27,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
-		if skip := apiserver.SkipKubernetesResource(depl.UID, depl.ResourceVersion); skip {
+		if apiserver.SkipKubernetesResource(depl.UID, depl.ResourceVersion) {
 			continue
 		}
 
@@ -70,7 +70,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		})
 	}
 
-	log.Debugf("Collected & enriched %d deployments in %s from total of %d deployments", len(deployMsgs), time.Now().Sub(start), len(deploymentList))
+	log.Debugf("Collected & enriched %d out of %d deployments in %s", len(deployMsgs), len(deploymentList), time.Now().Sub(start))
 	return messages, nil
 }
 
@@ -98,21 +98,21 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
 
 	for rs := 0; rs < len(rsList); rs++ {
-		rs := rsList[rs]
-		if apiserver.SkipKubernetesResource(rs.UID, rs.ResourceVersion) {
+		r := rsList[rs]
+		if apiserver.SkipKubernetesResource(r.UID, r.ResourceVersion) {
 			continue
 		}
 
 		// extract replica set info
-		rsModel := extractReplicaSet(rs)
+		rsModel := extractReplicaSet(r)
 
 		// scrub & generate YAML
 		if withScrubbing {
-			for c := 0; c < len(rs.Spec.Template.Spec.InitContainers); c++ {
-				orchestrator.ScrubContainer(&rs.Spec.Template.Spec.InitContainers[c], cfg)
+			for c := 0; c < len(r.Spec.Template.Spec.InitContainers); c++ {
+				orchestrator.ScrubContainer(&r.Spec.Template.Spec.InitContainers[c], cfg)
 			}
-			for c := 0; c < len(rs.Spec.Template.Spec.Containers); c++ {
-				orchestrator.ScrubContainer(&rs.Spec.Template.Spec.Containers[c], cfg)
+			for c := 0; c < len(r.Spec.Template.Spec.Containers); c++ {
+				orchestrator.ScrubContainer(&r.Spec.Template.Spec.Containers[c], cfg)
 			}
 		}
 
@@ -144,7 +144,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d replica sets in %s ", len(rsMsgs), len(rsList), time.Now().Sub(start))
+	log.Debugf("Collected & enriched %d out of %d replica sets in %s", len(rsMsgs), len(rsList), time.Now().Sub(start))
 	return messages, nil
 }
 
@@ -174,7 +174,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 
 	for s := 0; s < len(serviceList); s++ {
 		svc := serviceList[s]
-		if skip := apiserver.SkipKubernetesResource(svc.UID, svc.ResourceVersion); skip {
+		if apiserver.SkipKubernetesResource(svc.UID, svc.ResourceVersion) {
 			continue
 		}
 
@@ -210,7 +210,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		})
 	}
 
-	log.Debugf("Collected & enriched %d services in %s from total of %d services", len(serviceMsgs), time.Now().Sub(start), len(serviceList))
+	log.Debugf("Collected & enriched %d out of %d services in %s", len(serviceMsgs), len(serviceList), time.Now().Sub(start))
 	return messages, nil
 }
 

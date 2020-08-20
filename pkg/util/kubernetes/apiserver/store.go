@@ -101,21 +101,14 @@ func (m *metaBundleStore) delete(nodeName string) {
 func SkipKubernetesResource(uid types.UID, resourceVersion string) bool {
 	cacheKey := agentcache.BuildAgentKey("kubernetes", "resource", string(uid))
 	value, hit := agentcache.Cache.Get(cacheKey)
+
 	if !hit {
 		agentcache.Cache.Set(cacheKey, resourceVersion, 0)
 		return false
-	if !hit {
-    agentcache.Cache.Set(cacheKey, resourceVersion, 0)
-    return false
 	}
 	if value != resourceVersion {
-    agentcache.Cache.Set(cacheKey, resourceVersion, 0)
-    return false
-  }
-  return true
 		agentcache.Cache.Set(cacheKey, resourceVersion, 0)
 		return false
-	} else {
-		return true
 	}
+	return true
 }

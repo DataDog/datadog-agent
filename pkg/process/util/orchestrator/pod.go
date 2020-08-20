@@ -54,7 +54,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		}
 
 		pd := podList[p]
-		if skip := apiserver.SkipKubernetesResource(pd.UID, pd.ResourceVersion); skip {
+		if apiserver.SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
 			continue
 		}
 
@@ -108,7 +108,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		})
 	}
 
-	log.Debugf("Collected & enriched %d pods in %s from total of %d pods", len(podMsgs), time.Now().Sub(start), len(podList))
+	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
 }
 
