@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultExpire = 5 * time.Minute
+	defaultExpire = 3 * time.Minute
 	defaultPurge  = 30 * time.Second
 )
 
