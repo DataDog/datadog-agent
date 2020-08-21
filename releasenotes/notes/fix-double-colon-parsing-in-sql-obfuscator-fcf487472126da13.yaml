@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: fix parsing the double-colon operator in the SQL obfuscator.
+    APM: Allow double-colon operator in SQL obfuscator.
