@@ -87,8 +87,8 @@ func parse(msg []byte, containerID string) ([]byte, string, string, bool, error)
 		// Nothing after the timestamp: empty message
 		return nil, "", "", false, nil
 	}
-
-	return msg[idx+1:], status, string(msg[:idx]), false, nil
+	// If the message is not empty check wether it's a partial line or not
+	return msg[idx+1:], status, string(msg[:idx]), isPartialLine(msg), nil
 }
 
 // getDockerSeverity returns the status of the message based on the value of the
@@ -161,4 +161,16 @@ func isEmptyMessage(content []byte) bool {
 		}
 	}
 	return bytes.Equal(content, escapedCRLF)
+}
+
+// isPartialLine tests the last two bytes for an EOL escape sequence
+func isPartialLine(content []byte) bool {
+	l := len(content)
+	if l > 2 && content[l-2] == '\\' {
+		switch content[l-1] {
+		case 'n', 'r':
+			return false
+		}
+	}
+	return true
 }
