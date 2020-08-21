@@ -235,7 +235,7 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 
 	for _, ns := range nss {
 
-		if !rootNS.Equal(ns) && conn != nil && !c.isPeerNS(conn, ns) {
+		if !rootNS.Equal(ns) && !c.isPeerNS(conn, ns) {
 			_ = ns.Close()
 			continue
 		}
