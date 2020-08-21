@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -24,52 +25,55 @@ const (
 	profilingURLDefault = "https://intake.profile.datadoghq.com/v1/input"
 )
 
-// mainProfilingEndpoint returns the main profiling intake API URL based on agent
-// configuration. When multiple endpoints are in use, the response from the main
-// endpoint is proxied back to the client, while for all aditional endpoints the
-// response is discarded.
-func mainProfilingEndpoint() string {
+// profilingEndpoints returns the profiling intake urls and their corresponding
+// api keys based on agent configuration. The main endpoint is always returned as
+// the first element in the slice. When multiple endpoints are in use, the
+// response from the main endpoint is proxied back to the client, while for
+// all aditional endpoints the response is discarded. There is no de-duplication
+// done between endpoint hosts or api keys.
+func profilingEndpoints(apiKey string) []*traceconfig.Endpoint {
+	endpoints := []*traceconfig.Endpoint{}
+	var main string
 	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
-		return v
+		main = v
+	} else if site := config.Datadog.GetString("site"); site != "" {
+		main = fmt.Sprintf(profilingURLTemplate, site)
+	} else {
+		main = profilingURLDefault
 	}
-	if site := config.Datadog.GetString("site"); site != "" {
-		return fmt.Sprintf(profilingURLTemplate, site)
-	}
-	return profilingURLDefault
-}
+	endpoints = append(endpoints, &traceconfig.Endpoint{Host: main, APIKey: apiKey, NoProxy: false})
 
-// additionalProfilingEndpoints returns a map of endpoint URLs to a slice of api
-// keys to be used for each endpoint. There is no de-duplication between api
-// keys or between these additional endpoints and the main endpoint.
-func additionalProfilingEndpoints() map[string][]string {
 	if config.Datadog.IsSet("apm_config.profiling_additional_endpoints") {
-		return config.Datadog.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
+		extra := config.Datadog.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
+		for endpoint, keys := range extra {
+			for _, key := range keys {
+				endpoints = append(endpoints, &traceconfig.Endpoint{Host: endpoint, APIKey: key, NoProxy: false})
+			}
+		}
 	}
-	return make(map[string][]string)
+
+	return endpoints
 }
 
 // profileProxyHandler returns a new HTTP handler which will proxy requests to the profiling intakes.
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
-	e := mainProfilingEndpoint()
-	u, err := url.Parse(e)
-	if err != nil {
-		log.Errorf("Error parsing main intake URL %s: %v", e, err)
-		return errorHandler(e)
-	}
-	targets, keys := []*url.URL{u}, []string{r.conf.APIKey()}
-
-	for e, ks := range additionalProfilingEndpoints() {
-		u, err := url.Parse(e)
+	endpoints := profilingEndpoints(r.conf.APIKey())
+	targets := []*url.URL{}
+	keys := []string{}
+	for i, endpoint := range endpoints {
+		target, err := url.Parse(endpoint.Host)
 		if err != nil {
-			log.Errorf("Error parsing additional intake URL %s: %v", e, err)
+			log.Errorf("Error parsing profiling intake URL %s: %v", endpoint.Host, err)
+			if i == 0 {
+				// when the main intake is incorrect we don't use additional
+				return errorHandler(endpoint.Host)
+			}
 			continue
 		}
-		for _, k := range ks {
-			targets = append(targets, u)
-			keys = append(keys, k)
-		}
+		targets = append(targets, target)
+		keys = append(keys, endpoint.APIKey)
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
 	return newProfileProxy(r.conf.NewHTTPTransport(), targets, keys, tags)

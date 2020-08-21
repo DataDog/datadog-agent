@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -70,46 +71,58 @@ func TestProfileProxy(t *testing.T) {
 	}
 }
 
-func TestMainProfilingEndpoint(t *testing.T) {
-	t.Run("dd_url", func(t *testing.T) {
-		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
-		if v := mainProfilingEndpoint(); v != "https://intake.profile.datadoghq.fr/v1/input" {
-			t.Fatalf("invalid endpoint: %s", v)
-		}
-	})
-
-	t.Run("site", func(t *testing.T) {
-		defer mockConfig("site", "datadoghq.eu")()
-		if v := mainProfilingEndpoint(); v != "https://intake.profile.datadoghq.eu/v1/input" {
-			t.Fatalf("invalid endpoint: %s", v)
-		}
-	})
-
-	t.Run("default", func(t *testing.T) {
-		if v := mainProfilingEndpoint(); v != "https://intake.profile.datadoghq.com/v1/input" {
-			t.Fatalf("invalid endpoint: %s", v)
-		}
-	})
+func debug(endpoints []*traceconfig.Endpoint) []string {
+	ss := []string{}
+	for _, e := range endpoints {
+		ss = append(ss, e.Host+"|"+e.APIKey)
+	}
+	return ss
 }
 
-func TestAdditionalProfilingEndpoints(t *testing.T) {
-	t.Run("additional endpoints empty", func(t *testing.T) {
-		additionalEndpoints := additionalProfilingEndpoints()
-		if len(additionalProfilingEndpoints()) != 0 {
-			t.Fatalf("additional endpoints should be empty but was %v", additionalEndpoints)
+func TestProfilingEndpoints(t *testing.T) {
+	t.Run("dd_url_single_endpoint", func(t *testing.T) {
+		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
+		endpoints := profilingEndpoints("test_api_key")
+		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
+			endpoints[0].Host != "https://intake.profile.datadoghq.fr/v1/input" {
+			t.Fatalf("invalid endpoints: %v", debug(endpoints))
 		}
 	})
-
-	t.Run("additional endpoints with multiple api keys", func(t *testing.T) {
-		endpointConfig := make(map[string][]string)
-		endpointConfig["https://ddstaging.datadoghq.com"] = []string{"api_key_1", "api_key_2"}
-		endpointConfig["https://dd.datad0g.com"] = []string{"api_key_staging"}
-		defer mockConfig("apm_config.profiling_additional_endpoints", endpointConfig)()
-		additionalEndpoints := additionalProfilingEndpoints()
-		if len(additionalEndpoints) != 2 ||
-			len(additionalEndpoints["https://ddstaging.datadoghq.com"]) != 2 ||
-			len(additionalEndpoints["https://dd.datad0g.com"]) != 1 {
-			t.Fatalf("expecting additional endpoints to be fully populated but was %v", additionalEndpoints)
+	t.Run("site_single_endpoint", func(t *testing.T) {
+		defer mockConfig("site", "datadoghq.eu")()
+		endpoints := profilingEndpoints("test_api_key")
+		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
+			endpoints[0].Host != "https://intake.profile.datadoghq.eu/v1/input" {
+			t.Fatalf("invalid endpoints: %v", debug(endpoints))
+		}
+	})
+	t.Run("default_single_endpoint", func(t *testing.T) {
+		endpoints := profilingEndpoints("test_api_key")
+		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
+			endpoints[0].Host != "https://intake.profile.datadoghq.com/v1/input" {
+			t.Fatalf("invalid endpoints: %v", debug(endpoints))
+		}
+	})
+	t.Run("dd_url_with_additional_endpoints", func(t *testing.T) {
+		defer mockConfigMap(map[string]interface{}{
+			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/v1/input",
+			"apm_config.profiling_additional_endpoints": map[string][]string{
+				"https://ddstaging.datadoghq.com": []string{"api_key_1", "api_key_2"},
+				"https://dd.datad0g.com":          []string{"api_key_3"},
+			},
+		})()
+		endpoints := profilingEndpoints("api_key_0")
+		if len(endpoints) != 4 ||
+			endpoints[0].Host != "https://intake.profile.datadoghq.jp/v1/input" ||
+			endpoints[1].Host != endpoints[2].Host ||
+			endpoints[1].Host != "https://ddstaging.datadoghq.com" ||
+			endpoints[3].Host != "https://dd.datad0g.com" {
+			t.Fatalf("invalid endpoints: %v", debug(endpoints))
+		}
+		for i, e := range endpoints {
+			if e.APIKey != "api_key_"+strconv.Itoa(i) {
+				t.Fatalf("invalid api key %s, endpoints: %v", e.APIKey, debug(endpoints))
+			}
 		}
 	})
 }
