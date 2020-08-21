@@ -43,7 +43,6 @@ const (
 )
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
-var netlinkSeqNumber uint32 = 1
 
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack via a Netlink socket
 // and streaming new connection events.
@@ -77,6 +76,8 @@ type Consumer struct {
 	samplingPct int64
 	readErrors  int64
 	msgErrors   int64
+
+	netlinkSeqNumber uint32
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -103,11 +104,12 @@ func (e *Event) Done() {
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
 func NewConsumer(procRoot string, targetRateLimit int) (*Consumer, error) {
 	c := &Consumer{
-		procRoot:        procRoot,
-		pool:            newBufferPool(),
-		workQueue:       make(chan func()),
-		targetRateLimit: targetRateLimit,
-		breaker:         NewCircuitBreaker(int64(targetRateLimit)),
+		procRoot:         procRoot,
+		pool:             newBufferPool(),
+		workQueue:        make(chan func()),
+		targetRateLimit:  targetRateLimit,
+		breaker:          NewCircuitBreaker(int64(targetRateLimit)),
+		netlinkSeqNumber: 1,
 	}
 	c.initWorker(procRoot)
 
@@ -140,7 +142,7 @@ func (c *Consumer) Events() <-chan Event {
 
 // isPeerNS determines whether the given network namespace is a peer
 // of the given netlink socket
-func isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
+func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 	encoder := netlink.NewAttributeEncoder()
 	encoder.Uint32(unix.NETNSA_FD, uint32(ns))
 	data, err := encoder.Encode()
@@ -153,7 +155,7 @@ func isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 		Header: netlink.Header{
 			Flags:    netlink.Request | netlink.Acknowledge,
 			Type:     unix.RTM_GETNSID,
-			Sequence: netlinkSeqNumber,
+			Sequence: c.netlinkSeqNumber,
 		},
 		Data: []byte{unix.AF_UNSPEC, 0, 0, 0},
 	}
@@ -177,7 +179,7 @@ func isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 		return false
 	}
 
-	netlinkSeqNumber++
+	c.netlinkSeqNumber++
 
 	decoder, err := netlink.NewAttributeDecoder(msgs[0].Data)
 	if err != nil {
@@ -201,17 +203,17 @@ func isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 // This method is meant to be used once during the process initialization of system-probe.
 func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	output := make(chan Event, outputBuffer)
+	defer close(output)
+
 	nss, err := util.GetNetNamespaces(c.procRoot)
 	if err != nil {
 		log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
-		close(output)
 		return output
 	}
 
 	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
 	if err != nil {
 		log.Errorf("error dumping conntrack table, could not get root namespace: %s", err)
-		close(output)
 		return output
 	}
 
@@ -224,35 +226,22 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
 	if err != nil {
 		log.Errorf("error dumping conntrack table, could not open netlink socket: %s", err)
-		close(output)
 		return output
 	}
 
 	defer func() {
-		if conn != nil {
-			_ = conn.Close()
-		}
+		_ = conn.Close()
 	}()
 
-	var wg sync.WaitGroup
 	for _, ns := range nss {
 
-		if !rootNS.Equal(ns) && conn != nil && !isPeerNS(conn, ns) {
+		if !rootNS.Equal(ns) && conn != nil && !c.isPeerNS(conn, ns) {
+			_ = ns.Close()
 			continue
 		}
 
-		wg.Add(1)
-		go func(_ns netns.NsHandle) {
-			c.dumpTable(family, output, _ns)
-			wg.Done()
-		}(ns)
-
+		c.dumpTable(family, output, ns)
 	}
-
-	go func() {
-		wg.Wait()
-		close(output)
-	}()
 
 	return output
 }

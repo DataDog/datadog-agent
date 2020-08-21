@@ -23,6 +23,8 @@ func WithRootNS(procRoot string, fn func()) error {
 	return WithNS(procRoot, rootNS, fn)
 }
 
+// WithNS executes the given function in the given network namespace, and then
+// switches back to the previous namespace.
 func WithNS(procRoot string, ns netns.NsHandle, fn func()) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -45,6 +47,8 @@ func WithNS(procRoot string, ns netns.NsHandle, fn func()) error {
 	return netns.Set(prevNS)
 }
 
+// GetNetNamespaces returns a list of network namespaces on the machine. The caller
+// is responsible for calling Close() on ech of the returned NsHandle's.
 func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 	files, err := ioutil.ReadDir(procRoot)
 	if err != nil {
