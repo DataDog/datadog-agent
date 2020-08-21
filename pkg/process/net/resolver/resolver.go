@@ -39,6 +39,9 @@ func (l *LocalResolver) LoadAddrs(containers []*containers.Container) {
 	l.ctrForPid = make(map[int32]string)
 	for _, ctr := range containers {
 		for _, networkAddr := range ctr.AddressList {
+			if networkAddr.IP.IsLoopback() {
+				continue
+			}
 			addr := model.ContainerAddr{
 				Ip:       networkAddr.IP.String(),
 				Port:     int32(networkAddr.Port),
