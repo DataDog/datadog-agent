@@ -17,7 +17,7 @@ const (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_total_flow_stats", "driver_flow_handle_stats", "total_flows"}
+	expvarTypes     = []string{"driver_total_flow_stats", "driver_flow_handle_stats", "total_flows", "open_flows", "closed_flows", "more_data_errors"}
 )
 
 func init() {
@@ -139,6 +139,9 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	return map[string]interface{}{
 		"total_flows":              driverStats["total_flows"],
+		"open_flows":               driverStats["open_flows"],
+		"closed_flows":             driverStats["closed_flows"],
+		"more_data_error":          driverStats["more_data_errors"],
 		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
 		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil
