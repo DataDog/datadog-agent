@@ -174,7 +174,7 @@ func batchConnections(
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
 
-		ctrIDForPID := make(map[int32]string, len(batchConns))
+		ctrIDForPID := make(map[int32]string)
 		batchDNS := make(map[string]*model.DNSEntry)
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {

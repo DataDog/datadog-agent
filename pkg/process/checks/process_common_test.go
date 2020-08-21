@@ -57,7 +57,7 @@ func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*process.
 	return procs, ctrs
 }
 
-func ctrsToHash(ctrs []*containers.Container) map[int32]string {
+func containersByPid(ctrs []*containers.Container) map[int32]string {
 	ctrsByPid := make(map[int32]string)
 	for _, c := range ctrs {
 		for _, p := range c.Pids {
@@ -189,7 +189,7 @@ func TestProcessChunking(t *testing.T) {
 		for _, c := range tc.last {
 			last[c.Pid] = c
 		}
-		procs := fmtProcesses(cfg, cur, last, ctrsToHash(containers), syst2, syst1, lastRun)
+		procs := fmtProcesses(cfg, cur, last, containersByPid(containers), syst2, syst1, lastRun)
 		// only deal with non-container processes
 		chunked := chunkProcesses(procs[emptyCtrID], cfg.MaxPerMessage)
 		assert.Len(t, chunked, tc.expectedChunks, "len %d", i)
