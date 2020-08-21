@@ -45,9 +45,6 @@ const (
 	ListArg
 	Comment
 	Variable
-	BindParameterAt
-	BindParameterColon
-	DoubleAt
 	Savepoint
 	PreparedStatement
 	EscapeSequence
@@ -55,8 +52,6 @@ const (
 	LE
 	GE
 	NE
-	Contains
-	ContainedBy
 	As
 	From
 	Update
@@ -160,25 +155,11 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return ColonCast, []byte("::")
 			}
 			if tkn.lastChar != '=' {
-				return tkn.scanBindVar(':', BindParameterColon)
+				return tkn.scanBindVar()
 			}
 			fallthrough
 		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '~', '[', ']', '?':
 			return TokenKind(ch), runeBytes(ch)
-		case '@':
-			switch tkn.lastChar {
-			case '@':
-				// "@@" is valid in many dialects, but means different things. It should
-				// be treated as a separate token as it can be an operator (PostgreSQL), a
-				// system variable prefix (MySQL), or standalone variable (Oracle)
-				tkn.next()
-				return DoubleAt, []byte("@@")
-			case '>':
-				tkn.next()
-				return Contains, []byte("@>")
-			default:
-				return tkn.scanBindVar('@', BindParameterAt)
-			}
 		case '.':
 			if isDigit(tkn.lastChar) {
 				return tkn.scanNumber(true)
@@ -218,20 +199,15 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				default:
 					return LE, []byte("<=")
 				}
-			case '@':
-				tkn.next()
-				return ContainedBy, []byte("<@")
 			default:
 				return TokenKind(ch), runeBytes(ch)
 			}
 		case '>':
-			switch tkn.lastChar {
-			case '=':
+			if tkn.lastChar == '=' {
 				tkn.next()
 				return GE, []byte(">=")
-			default:
-				return TokenKind(ch), runeBytes(ch)
 			}
+			return TokenKind(ch), runeBytes(ch)
 		case '!':
 			if tkn.lastChar == '=' {
 				tkn.next()
@@ -277,7 +253,7 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	buffer.WriteRune(tkn.lastChar)
 	tkn.next()
 
-	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '*' {
+	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' || tkn.lastChar == '*' {
 		buffer.WriteRune(tkn.lastChar)
 		tkn.next()
 	}
@@ -378,20 +354,19 @@ func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (TokenKind, []byte) {
 	return EscapeSequence, buffer.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanBindVar(prefix rune, token TokenKind) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-	buffer.WriteRune(prefix)
-	if prefix == ':' && tkn.lastChar == ':' {
+func (tkn *SQLTokenizer) scanBindVar() (TokenKind, []byte) {
+	buffer := bytes.NewBufferString(":")
+	token := ValueArg
+	if tkn.lastChar == ':' {
 		token = ListArg
 		buffer.WriteRune(tkn.lastChar)
 		tkn.next()
 	}
-	// '?' is not syntactically valid, but is important for idempotence on already-obfuscated queries
-	if !isLetter(tkn.lastChar) && tkn.lastChar != '?' {
+	if !isLetter(tkn.lastChar) {
 		tkn.setErr(`bind variables should start with letters, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
 		return LexError, buffer.Bytes()
 	}
-	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' || tkn.lastChar == '?' {
+	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' {
 		buffer.WriteRune(tkn.lastChar)
 		tkn.next()
 	}
@@ -566,7 +541,7 @@ func skipNonLiteralIdentifier(ch rune) bool {
 }
 
 func isLeadingLetter(ch rune) bool {
-	return unicode.IsLetter(ch) || ch == '_'
+	return unicode.IsLetter(ch) || ch == '_' || ch == '@'
 }
 
 func isLetter(ch rune) bool {
