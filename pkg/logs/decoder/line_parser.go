@@ -163,7 +163,7 @@ func (p *MultiLineParser) process(input *DecodedInput) {
 	p.status = status
 	p.buffer.Write(content)
 
-	if !partial || p.buffer.Len() > p.lineLimit {
+	if !partial || p.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
 		p.sendLine()
 	}
