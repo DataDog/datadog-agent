@@ -1,3 +1,4 @@
+// +build linux
 // +build !android
 
 package netlink
@@ -240,18 +241,20 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 			continue
 		}
 
-		c.dumpTable(family, output, ns)
+		if err := c.dumpTable(family, output, ns); err != nil {
+			log.Errorf("error dumping conntrack table for namespace %d: %s", ns, err)
+		}
 	}
 
 	return output
 }
 
-func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) {
+func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
 	defer func() {
 		_ = ns.Close()
 	}()
 
-	util.WithNS(c.procRoot, ns, func() {
+	return util.WithNS(c.procRoot, ns, func() {
 
 		log.Tracef("dumping table for ns %s", ns)
 
