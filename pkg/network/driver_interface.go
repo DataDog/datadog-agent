@@ -194,7 +194,7 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 		"total_flows": map[string]int64{
 			"total": totalFlows,
 		},
-		"open_clows": map[string]int64{
+		"open_flows": map[string]int64{
 			"open": openFlows,
 		},
 		"closed_flows": map[string]int64{

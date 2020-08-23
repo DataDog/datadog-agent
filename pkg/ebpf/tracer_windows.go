@@ -141,7 +141,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"total_flows":              driverStats["total_flows"],
 		"open_flows":               driverStats["open_flows"],
 		"closed_flows":             driverStats["closed_flows"],
-		"more_data_error":          driverStats["more_data_errors"],
+		"more_data_errors":          driverStats["more_data_errors"],
 		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
 		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil
