@@ -201,7 +201,7 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 			"closed": closedFlows,
 		},
 		"more_data_errors": map[string]int64{
-			"more_data": moreDataErrors,
+			"more_data_errors": moreDataErrors,
 		},
 	}, nil
 }
