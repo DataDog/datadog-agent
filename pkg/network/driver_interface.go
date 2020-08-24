@@ -189,7 +189,7 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 	totalFlows := atomic.LoadInt64(&di.totalFlows)
 	openFlows := atomic.LoadInt64(&di.openFlows)
 	closedFlows := atomic.LoadInt64(&di.closedFlows)
-	moreDataErrors := atomic.LoadInt64(&di.moreDataErrors)
+	moreDataErrors := atomic.SwapInt64(&di.moreDataErrors, 0)
 
 	return map[string]interface{}{
 		"driver_total_flow_stats":  totalDriverStats,
