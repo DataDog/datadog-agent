@@ -372,6 +372,7 @@ core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/registry/custom_metrics",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/registry/external_metrics",Apache-2.0
+core,"github.com/lebauce/go-re",Apache-2.0
 core,"github.com/lestrrat-go/strftime",MIT
 core,"github.com/lxn/walk",FreeBSD
 core,"github.com/lxn/win",FreeBSD
