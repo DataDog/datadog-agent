@@ -44,7 +44,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config.EnableMonotonicCount)
+	di, err := network.NewDriverInterface(config.EnableMonotonicCount, config.DriverBufferSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
@@ -141,7 +141,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"total_flows":              driverStats["total_flows"],
 		"open_flows":               driverStats["open_flows"],
 		"closed_flows":             driverStats["closed_flows"],
-		"more_data_errors":          driverStats["more_data_errors"],
+		"more_data_errors":         driverStats["more_data_errors"],
 		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
 		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil
