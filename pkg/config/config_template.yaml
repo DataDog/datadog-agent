@@ -732,10 +732,10 @@ api_key:
   #     <OBFUSCATION_CONFIGURATION>
 
   ## @param replace_tags - list of objects - optional
-  ## Defines a set of rules to replace or remove certain services, resources, tags containing
+  ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
   ## Each rules has to contain:
-  ##  * name - string - The tag name to replace, for services or resources use "service.name" or "resource.name".
+  ##  * name - string - The tag name to replace, for resources use "resource.name".
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##

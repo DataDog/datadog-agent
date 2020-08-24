@@ -32,7 +32,6 @@ var (
 		"container":                        "kube_container_name",
 		"container_id":                     "container_id",
 		"image":                            "image_name",
-		"node":                             "host",
 		"label_tags_datadoghq_com_env":     "env",
 		"label_tags_datadoghq_com_service": "service",
 		"label_tags_datadoghq_com_version": "version",
