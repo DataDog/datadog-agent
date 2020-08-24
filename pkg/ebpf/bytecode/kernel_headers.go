@@ -5,11 +5,9 @@ package bytecode
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
-	"strings"
+	"runtime"
 )
 
 var baseDirGlobs = []string{
@@ -35,7 +33,7 @@ func getKernelIncludePaths() []string {
 	}
 
 	// Now explicitly include the the set of subdirectories for each base entry
-	arch := getSystemArch()
+	arch := getKernelArch()
 	subDirs := getHeaderSubDirs(arch)
 	var includePaths []string
 	for _, base := range baseDirs {
@@ -66,35 +64,25 @@ func getHeaderSubDirs(arch string) []string {
 	}
 }
 
-type archMapping struct {
-	rule *regexp.Regexp
-	repl string
-}
-
-// mappings used by the kernel: https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
-var archMappings = []archMapping{
-	{regexp.MustCompile("i.86"), "x86"},
-	{regexp.MustCompile("x86_64"), "x86"},
-	{regexp.MustCompile("sun4u"), "sparc64"},
-	{regexp.MustCompile("arm.*"), "arm"},
-	{regexp.MustCompile("sa110"), "arm"},
-	{regexp.MustCompile("s390x"), "s390"},
-	{regexp.MustCompile("parisc64"), "parisc"},
-	{regexp.MustCompile("ppc.*"), "powerpc"},
-	{regexp.MustCompile("mips.*"), "mips"},
-	{regexp.MustCompile("sh[234].*"), "sh"},
-	{regexp.MustCompile("waarch64.*"), "arm64"},
-	{regexp.MustCompile("riscv.*"), "riscv"},
-}
-
-func getSystemArch() string {
-	cmd := exec.Command("uname", "-m")
-	out, _ := cmd.CombinedOutput()
-
-	arch := strings.TrimSuffix(string(out), "\n")
-	for _, mapping := range archMappings {
-		arch = mapping.rule.ReplaceAllString(arch, mapping.repl)
+func getKernelArch() string {
+	switch runtime.GOARCH {
+	case "386", "amd64":
+		return "x86"
+	case "arm", "armbe":
+		return "arm"
+	case "arm64", "arm64be":
+		return "arm64"
+	case "mips", "mipsle", "mips64", "mips64le":
+		return "mips"
+	case "ppc", "ppc64", "ppc64le":
+		return "powerpc"
+	case "riscv", "riscv64":
+		return "riscv"
+	case "s390", "s390x":
+		return "s390"
+	case "sparc", "sparc64":
+		return "sparc64"
+	default:
+		return ""
 	}
-
-	return arch
 }
