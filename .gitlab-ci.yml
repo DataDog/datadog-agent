@@ -267,30 +267,6 @@ linux_armhf_go_deps:
   mkdir vendor && tar xzf vendor.tar.gz -C vendor
   rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
 
-# run tests for windows-64
-.run_old_tests_windows_base:
-  stage: source_test
-  needs: []
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  script:
-    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e NEW_BUILDER="$NEW_BUILDER" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\unittests.bat
-  variables:
-    NEW_BUILDER: "false"
-
-run_old_tests_windows-x64:
-  extends: .run_old_tests_windows_base
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x64"
-
-run_old_tests_windows-x86:
-  rules:
-    - <<: *if_not_deploy
-  extends: .run_old_tests_windows_base
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x86"
-
 .run_tests_windows_base:
   stage: source_test
   needs: []
