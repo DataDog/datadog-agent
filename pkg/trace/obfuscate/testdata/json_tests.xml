@@ -477,7 +477,7 @@
   "sort": [ { "_id": { "order": "?" } }
   ]
 }
-			
+
 ]]></Out>
 		</Test>
 		<Test>
@@ -624,7 +624,7 @@
 		  "id",
 		  "c"
 		],
-		"attached_condition": "( sbtest.sbtest1.id between ? and ? )"
+		"attached_condition": "( sbtest . sbtest1 . id between ? and ? )"
 	  }
 	}
   }
