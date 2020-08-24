@@ -6,43 +6,33 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
+	"strings"
+
+	"golang.org/x/sys/unix"
 )
 
-var baseDirGlobs = []string{
-	"/usr/src/kernels/*",
-	"/usr/src/linux-*",
-}
-
-func getKernelIncludePaths() []string {
-	// First determine all base directories containing headers
-	var matches []string
-	for _, glob := range baseDirGlobs {
-		matches, _ = filepath.Glob(glob)
-		if len(matches) > 0 {
-			break
-		}
+func getKernelIncludePaths() ([]string, error) {
+	version, err := kernelVersion()
+	if err != nil {
+		return nil, fmt.Errorf("unable to determine kernel version: %s", err)
 	}
 
-	var baseDirs []string
-	for _, m := range matches {
-		if isDirectory(m) {
-			baseDirs = append(baseDirs, m)
-		}
+	arch := kernelArch()
+	if arch == "" {
+		return nil, fmt.Errorf("unable to detect system architecture")
 	}
 
-	// Now explicitly include the the set of subdirectories for each base entry
-	arch := getKernelArch()
-	subDirs := getHeaderSubDirs(arch)
 	var includePaths []string
-	for _, base := range baseDirs {
-		for _, sub := range subDirs {
-			includePaths = append(includePaths, path.Join(base, sub))
+	for _, base := range baseDirs(version) {
+		for _, sub := range subDirs(arch) {
+			if dir := path.Join(base, sub); isDirectory(dir) {
+				includePaths = append(includePaths, dir)
+			}
 		}
 	}
 
-	return includePaths
+	return includePaths, nil
 }
 
 func isDirectory(path string) bool {
@@ -53,7 +43,14 @@ func isDirectory(path string) bool {
 	return fileInfo.IsDir()
 }
 
-func getHeaderSubDirs(arch string) []string {
+func baseDirs(kversion string) []string {
+	return []string{
+		fmt.Sprintf("/usr/src/kernels/%s", kversion),
+		fmt.Sprintf("/usr/src/linux-headers-%s", kversion),
+	}
+}
+
+func subDirs(arch string) []string {
 	return []string{
 		"include",
 		"include/uapi",
@@ -64,7 +61,7 @@ func getHeaderSubDirs(arch string) []string {
 	}
 }
 
-func getKernelArch() string {
+func kernelArch() string {
 	switch runtime.GOARCH {
 	case "386", "amd64":
 		return "x86"
@@ -85,4 +82,14 @@ func getKernelArch() string {
 	default:
 		return ""
 	}
+}
+
+func kernelVersion() (string, error) {
+	var uname unix.Utsname
+	err := unix.Uname(&uname)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.Trim(string(uname.Release[:]), "\x00"), nil
 }

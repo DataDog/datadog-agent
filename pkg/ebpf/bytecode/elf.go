@@ -43,16 +43,21 @@ func GetNetworkTracerELF(opts Options) (AssetReader, []manager.ConstantEditor, e
 	compiler := gore.NewEBPFCompiler(true)
 	defer compiler.Close()
 
+	cflags, err := getCFLAGS(opts)
+	if err != nil {
+		log.Errorf("error generating compilation flags: %s. falling back to pre-compiled bytecode.")
+		return getPrecompiledELF(opts)
+	}
+
 	var (
 		in  = path.Join(opts.BPFDir, "tracer-ebpf.c")
 		out = path.Join(os.TempDir(), "tracer-ebpf.o")
 	)
 
-	cflags := getCFLAGS(opts)
 	log.Debugf("compiling eBPF code with the following flags: %q", cflags)
-	err := compiler.CompileToObjectFile(in, out, cflags)
+	err = compiler.CompileToObjectFile(in, out, cflags)
 	if err != nil {
-		log.Errorf("failed to compile eBPF bytecode: %s. falling back to pre-compiled bytecode.", err.Error())
+		log.Errorf("failed to compile eBPF bytecode: %s. falling back to pre-compiled bytecode.", err)
 		return getPrecompiledELF(opts)
 	}
 
@@ -75,7 +80,7 @@ func getPrecompiledELF(opts Options) (AssetReader, []manager.ConstantEditor, err
 	return elf, constants, nil
 }
 
-func getCFLAGS(opts Options) []string {
+func getCFLAGS(opts Options) ([]string, error) {
 	// Retrieve default flags
 	flags := make([]string, len(defaultCompilationFlags))
 	copy(flags, defaultCompilationFlags)
@@ -87,9 +92,14 @@ func getCFLAGS(opts Options) []string {
 	)
 
 	// Configure include path for kernel headers
-	for _, path := range getKernelIncludePaths() {
+	includePaths, err := getKernelIncludePaths()
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving kernel headers: %s", err)
+	}
+
+	for _, path := range includePaths {
 		flags = append(flags, fmt.Sprintf("-isystem%s", path))
 	}
 
-	return flags
+	return flags, nil
 }
