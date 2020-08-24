@@ -360,7 +360,7 @@ func TestParsingError(t *testing.T) {
 	defer reverseDNS.Close()
 
 	// Pass a byte array of size 1 which should result in parsing error
-	reverseDNS.processPacket(make([]byte, 1))
+	reverseDNS.processPacket(make([]byte, 1), time.Now())
 	stats := reverseDNS.GetStats()
 	assert.True(t, stats["ips"] == 0)
 	assert.True(t, stats["decoding_errors"] == 1)

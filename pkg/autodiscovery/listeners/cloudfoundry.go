@@ -138,10 +138,7 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 			containerIPs:   map[string]string{},
 			containerPorts: []ContainerPort{},
 			creationTime:   crTime,
-			tags: []string{
-				fmt.Sprintf("%s:%s", cloudfoundry.AppNameTagKey, dLRP.AppName),
-				fmt.Sprintf("%s:%s", cloudfoundry.AppGUIDTagKey, dLRP.AppGUID),
-			},
+			tags:           dLRP.GetTagsFromDLRP(),
 		}
 	} else {
 		if aLRP.State != cloudfoundry.ActualLrpStateRunning {

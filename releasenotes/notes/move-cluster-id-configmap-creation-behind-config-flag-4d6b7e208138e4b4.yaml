@@ -6,7 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
-    The SUSE SysVInit service now correctly starts the Agent as the
-    dd-agent user instead of root.
+    Move the cluster-id ConfigMap creation, and Orchestrator
+    Explorer controller instantiation behind the orchestrator_explorer
+    config flag to avoid it failing and generating error logs.
