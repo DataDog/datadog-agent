@@ -33,21 +33,19 @@ const (
 // done between endpoint hosts or api keys.
 func profilingEndpoints(apiKey string) []*traceconfig.Endpoint {
 	endpoints := []*traceconfig.Endpoint{}
-	var main string
+	var main string = profilingURLDefault
 	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		main = v
 	} else if site := config.Datadog.GetString("site"); site != "" {
 		main = fmt.Sprintf(profilingURLTemplate, site)
-	} else {
-		main = profilingURLDefault
 	}
-	endpoints = append(endpoints, &traceconfig.Endpoint{Host: main, APIKey: apiKey, NoProxy: false})
+	endpoints = append(endpoints, &traceconfig.Endpoint{Host: main, APIKey: apiKey})
 
-	if config.Datadog.IsSet("apm_config.profiling_additional_endpoints") {
-		extra := config.Datadog.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
+	if opt := "apm_config.profiling_additional_endpoints"; config.Datadog.IsSet(opt) {
+		extra := config.Datadog.GetStringMapStringSlice(opt)
 		for endpoint, keys := range extra {
 			for _, key := range keys {
-				endpoints = append(endpoints, &traceconfig.Endpoint{Host: endpoint, APIKey: key, NoProxy: false})
+				endpoints = append(endpoints, &traceconfig.Endpoint{Host: endpoint, APIKey: key})
 			}
 		}
 	}
@@ -60,8 +58,10 @@ func profilingEndpoints(apiKey string) []*traceconfig.Endpoint {
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	endpoints := profilingEndpoints(r.conf.APIKey())
-	targets := []*url.URL{}
-	keys := []string{}
+	var (
+		targets []*url.URL
+		keys    []string
+	)
 	for i, endpoint := range endpoints {
 		target, err := url.Parse(endpoint.Host)
 		if err != nil {

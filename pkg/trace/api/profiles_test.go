@@ -80,7 +80,7 @@ func debug(endpoints []*traceconfig.Endpoint) []string {
 }
 
 func TestProfilingEndpoints(t *testing.T) {
-	t.Run("dd_url_single_endpoint", func(t *testing.T) {
+	t.Run("single", func(t *testing.T) {
 		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
 		endpoints := profilingEndpoints("test_api_key")
 		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
@@ -88,7 +88,7 @@ func TestProfilingEndpoints(t *testing.T) {
 			t.Fatalf("invalid endpoints: %v", debug(endpoints))
 		}
 	})
-	t.Run("site_single_endpoint", func(t *testing.T) {
+	t.Run("site", func(t *testing.T) {
 		defer mockConfig("site", "datadoghq.eu")()
 		endpoints := profilingEndpoints("test_api_key")
 		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
@@ -96,14 +96,15 @@ func TestProfilingEndpoints(t *testing.T) {
 			t.Fatalf("invalid endpoints: %v", debug(endpoints))
 		}
 	})
-	t.Run("default_single_endpoint", func(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
 		endpoints := profilingEndpoints("test_api_key")
 		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
 			endpoints[0].Host != "https://intake.profile.datadoghq.com/v1/input" {
 			t.Fatalf("invalid endpoints: %v", debug(endpoints))
 		}
 	})
-	t.Run("dd_url_with_additional_endpoints", func(t *testing.T) {
+
+	t.Run("multiple", func(t *testing.T) {
 		defer mockConfigMap(map[string]interface{}{
 			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/v1/input",
 			"apm_config.profiling_additional_endpoints": map[string][]string{
