@@ -17,7 +17,7 @@ from .utils import load_release_versions, get_version
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
-POLICIES_REPO = "https://github.com/xornivore/policies-test.git"
+POLICIES_REPO = "https://github.com/DataDog/security-agent-policies.git"
 
 
 @task
@@ -47,7 +47,7 @@ def build(
     policies_version = "master"
 
     git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-    release_version = ctx.run("git describe --contains {}".format(git_ref), hide=True).stdout.strip()
+    release_version = ctx.run("git describe --always --contains {}".format(git_ref), hide=True).stdout.strip()
     if release_version.startswith("dca-"):
         print("Loading release versions for {}".format(release_version))
         env = load_release_versions(ctx, release_version)

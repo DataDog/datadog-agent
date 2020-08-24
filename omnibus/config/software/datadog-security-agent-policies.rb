@@ -12,8 +12,7 @@ dependency 'datadog-agent'
 
 relative_path 'security-agent-policies'
 
-source git: 'https://github.com/xornivore/policies-test.git'
-# source git: 'https://github.com/DataDog/security-agent-policies.git'
+source git: 'https://github.com/DataDog/security-agent-policies.git'
 
 policies_version = ENV['SECURITY_AGENT_POLICIES_VERSION']
 if policies_version.nil? || policies_version.empty?
