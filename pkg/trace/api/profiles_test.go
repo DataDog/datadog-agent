@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -71,7 +72,7 @@ func TestProfileProxy(t *testing.T) {
 	}
 }
 
-func debug(endpoints []*traceconfig.Endpoint) []string {
+func printEndpoints(endpoints []*traceconfig.Endpoint) []string {
 	ss := []string{}
 	for _, e := range endpoints {
 		ss = append(ss, e.Host+"|"+e.APIKey)
@@ -83,48 +84,43 @@ func TestProfilingEndpoints(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
 		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
 		endpoints := profilingEndpoints("test_api_key")
-		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
-			endpoints[0].Host != "https://intake.profile.datadoghq.fr/v1/input" {
-			t.Fatalf("invalid endpoints: %v", debug(endpoints))
-		}
+		assert.Equal(t, endpoints, []*traceconfig.Endpoint{
+			{Host: "https://intake.profile.datadoghq.fr/v1/input", APIKey: "test_api_key"},
+		})
 	})
 	t.Run("site", func(t *testing.T) {
 		defer mockConfig("site", "datadoghq.eu")()
 		endpoints := profilingEndpoints("test_api_key")
-		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
-			endpoints[0].Host != "https://intake.profile.datadoghq.eu/v1/input" {
-			t.Fatalf("invalid endpoints: %v", debug(endpoints))
-		}
+		assert.Equal(t, endpoints, []*traceconfig.Endpoint{
+			{Host: "https://intake.profile.datadoghq.eu/v1/input", APIKey: "test_api_key"},
+		})
 	})
 	t.Run("default", func(t *testing.T) {
 		endpoints := profilingEndpoints("test_api_key")
-		if len(endpoints) != 1 || endpoints[0].APIKey != "test_api_key" ||
-			endpoints[0].Host != "https://intake.profile.datadoghq.com/v1/input" {
-			t.Fatalf("invalid endpoints: %v", debug(endpoints))
-		}
+		assert.Equal(t, endpoints, []*traceconfig.Endpoint{
+			{Host: "https://intake.profile.datadoghq.com/v1/input", APIKey: "test_api_key"},
+		})
 	})
 
 	t.Run("multiple", func(t *testing.T) {
 		defer mockConfigMap(map[string]interface{}{
 			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/v1/input",
 			"apm_config.profiling_additional_endpoints": map[string][]string{
-				"https://ddstaging.datadoghq.com": []string{"api_key_1", "api_key_2"},
-				"https://dd.datad0g.com":          []string{"api_key_3"},
+				"https://ddstaging.datadoghq.com": {"api_key_1", "api_key_2"},
+				"https://dd.datad0g.com":          {"api_key_3"},
 			},
 		})()
 		endpoints := profilingEndpoints("api_key_0")
-		if len(endpoints) != 4 ||
-			endpoints[0].Host != "https://intake.profile.datadoghq.jp/v1/input" ||
-			endpoints[1].Host != endpoints[2].Host ||
-			endpoints[1].Host != "https://ddstaging.datadoghq.com" ||
-			endpoints[3].Host != "https://dd.datad0g.com" {
-			t.Fatalf("invalid endpoints: %v", debug(endpoints))
+		expected := []*traceconfig.Endpoint{
+			{Host: "https://intake.profile.datadoghq.jp/v1/input", APIKey: "api_key_0"},
+			{Host: "https://ddstaging.datadoghq.com", APIKey: "api_key_1"},
+			{Host: "https://ddstaging.datadoghq.com", APIKey: "api_key_2"},
+			{Host: "https://dd.datad0g.com", APIKey: "api_key_3"},
 		}
-		for i, e := range endpoints {
-			if e.APIKey != "api_key_"+strconv.Itoa(i) {
-				t.Fatalf("invalid api key %s, endpoints: %v", e.APIKey, debug(endpoints))
-			}
-		}
+		// Because we're using a map to mock the config we can't assert on the
+		// order of the endpoints. We check the main endpoints separately.
+		assert.Equal(t, endpoints[0], expected[0], "The main endpoint should be the first in the slice")
+		assert.ElementsMatch(t, endpoints, expected, "All endpoints from the config should be returned")
 	})
 }
 
@@ -176,18 +172,17 @@ func TestProfileProxyHandler(t *testing.T) {
 	t.Run("multiple_targets", func(t *testing.T) {
 		called := make(map[string]bool)
 		handler := func(w http.ResponseWriter, req *http.Request) {
-			called[fmt.Sprintf("%s|%s", req.Host, req.Header.Get("DD-API-KEY"))] = true
+			called[fmt.Sprintf("http://%s|%s", req.Host, req.Header.Get("DD-API-KEY"))] = true
 		}
 		srv1 := httptest.NewServer(http.HandlerFunc(handler))
 		srv2 := httptest.NewServer(http.HandlerFunc(handler))
-
-		additionalEndpoints := make(map[string][]string)
-		additionalEndpoints[srv2.URL] = []string{"dummy_api_key_1", "dummy_api_key_2"}
-		// this should be ignored
-		additionalEndpoints["foobar"] = []string{"invalid_url"}
 		defer mockConfigMap(map[string]interface{}{
-			"apm_config.profiling_dd_url":               srv1.URL,
-			"apm_config.profiling_additional_endpoints": additionalEndpoints,
+			"apm_config.profiling_dd_url": srv1.URL,
+			"apm_config.profiling_additional_endpoints": map[string][]string{
+				srv2.URL: {"dummy_api_key_1", "dummy_api_key_2"},
+				// this should be ignored
+				"foobar": {"invalid_url"},
+			},
 		})()
 
 		req, err := http.NewRequest("POST", "/some/path", bytes.NewBuffer([]byte("abc")))
@@ -198,8 +193,12 @@ func TestProfileProxyHandler(t *testing.T) {
 		conf.Hostname = "myhost"
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
-		if len(called) != 3 {
-			t.Fatalf("request not proxied to all targets, seen: %v", called)
+
+		expected := map[string]bool{
+			srv1.URL + "|test":            true,
+			srv2.URL + "|dummy_api_key_1": true,
+			srv2.URL + "|dummy_api_key_2": true,
 		}
+		assert.Equal(t, expected, called, "The request should be proxied to all valid targets")
 	})
 }

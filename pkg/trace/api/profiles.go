@@ -27,13 +27,10 @@ const (
 
 // profilingEndpoints returns the profiling intake urls and their corresponding
 // api keys based on agent configuration. The main endpoint is always returned as
-// the first element in the slice. When multiple endpoints are in use, the
-// response from the main endpoint is proxied back to the client, while for
-// all aditional endpoints the response is discarded. There is no de-duplication
-// done between endpoint hosts or api keys.
+// the first element in the slice.
 func profilingEndpoints(apiKey string) []*traceconfig.Endpoint {
-	endpoints := []*traceconfig.Endpoint{}
-	var main string = profilingURLDefault
+	var endpoints []*traceconfig.Endpoint
+	main := profilingURLDefault
 	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		main = v
 	} else if site := config.Datadog.GetString("site"); site != "" {
@@ -49,7 +46,6 @@ func profilingEndpoints(apiKey string) []*traceconfig.Endpoint {
 			}
 		}
 	}
-
 	return endpoints
 }
 
@@ -113,6 +109,12 @@ func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []str
 	}
 }
 
+// multiTransport sends HTTP requests to multiple targets using an
+// underlying http.RoundTripper. API keys are set separately for each target.
+// When multiple endpoints are in use the response from the main endpoint
+// is proxied back to the client, while for all aditional endpoints the
+// response is discarded. There is no de-duplication done between endpoint
+// hosts or api keys.
 type multiTransport struct {
 	rt      http.RoundTripper
 	targets []*url.URL
@@ -133,8 +135,10 @@ func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	var resp *http.Response
-	var rerr error
+	var (
+		resp *http.Response
+		rerr error
+	)
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
