@@ -109,6 +109,10 @@ def build(
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
+    # update environment so CGO can compile/link to clang+LLVM
+    cgo_env_vars = cgo_env(env)
+    env.update(cgo_env_vars)
+
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
 
@@ -203,7 +207,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=T
             )
             raise Exit(code=1)
 
-    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=bpf_tag, pkg=pkg))
+    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=bpf_tag, pkg=pkg), env=cgo_env())
 
 
 @task
@@ -348,7 +352,6 @@ def build_object_files(ctx, bundle_ebpf=False):
         "offset-guess",
     ]
     bindata_files = [
-        os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
         os.path.join(c_dir, "tcp-queue-length-kern.c"),
         os.path.join(bpf_dir, "tcp-queue-length-kern-user.h"),
         os.path.join(c_dir, "oom-kill-kern.c"),
@@ -447,6 +450,19 @@ def should_use_sudo(ctx):
             return True
 
     return False
+
+
+def cgo_env(original=None):
+    """
+    cgo_env returns the environment variables necessary to compile/link to CLANG+LLVM
+    """
+    original = original or {}
+    cppflags = check_output("llvm-config-9 --cppflags", shell=True).strip()
+    ldflags = check_output("llvm-config-9 --ldflags", shell=True).strip()
+    return {
+        "CGO_CPPFLAGS": original.get("CGO_CPPFLAGS", "") + " " + cppflags,
+        "CGO_LDFLAGS": original.get("CGO_LDFLAGS", "") + " " + ldflags,
+    }
 
 
 @contextlib.contextmanager
