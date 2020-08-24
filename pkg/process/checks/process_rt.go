@@ -3,9 +3,9 @@ package checks
 import (
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/StackVista/stackstate-agent/pkg/process/config"

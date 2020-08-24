@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/gopsutil/cpu"
+	"github.com/DataDog/gopsutil/process"
 	agentutil "github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/cpu"
-	"github.com/DataDog/gopsutil/process"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/StackVista/stackstate-agent/pkg/process/config"

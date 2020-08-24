@@ -48,6 +48,7 @@ def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
             # download tools
             path = os.path.join(get_gopath(ctx), 'src', target)
             if not os.path.exists(path):
+                print("go get{} -d -u {}".format(verbosity, target))
                 ctx.run("go get{} -d -u {}".format(verbosity, target), env={'GO111MODULE': 'off'})
 
             with ctx.cd(path):
@@ -55,6 +56,7 @@ def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
                 ctx.run("git fetch")
                 ctx.run("git checkout {}".format(version))
         elif step == "install":
+            print("go install{} {}".format(verbosity, target))
             ctx.run("go install{} {}".format(verbosity, target), env={'GO111MODULE': 'off'})
     elif kind == "python":
         # no checkout needed for python deps

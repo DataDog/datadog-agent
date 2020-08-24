@@ -56,7 +56,7 @@ func NewContainerCorrelator(componentChannel chan<- *topology.Component, relatio
 }
 
 // GetName returns the name of the Collector
-func (_ *ContainerCorrelator) GetName() string {
+func (*ContainerCorrelator) GetName() string {
 	return "Container Correlator"
 }
 
@@ -116,14 +116,14 @@ func (cc *ContainerCorrelator) containerToStackStateComponent(nodeIdentifier str
 	// create identifier list to merge with StackState components
 
 	var identifiers []string
-	strippedContainerId := extractLastFragment(container.ContainerID)
+	strippedContainerID := extractLastFragment(container.ContainerID)
 	// in the case where the container could not be started due to some error
-	if len(strippedContainerId) > 0 {
+	if len(strippedContainerID) > 0 {
 		identifier := ""
 		if len(nodeIdentifier) > 0 {
-			identifier = fmt.Sprintf("%s:%s", nodeIdentifier, strippedContainerId)
+			identifier = fmt.Sprintf("%s:%s", nodeIdentifier, strippedContainerID)
 		} else {
-			identifier = strippedContainerId
+			identifier = strippedContainerID
 		}
 		identifiers = []string{
 			fmt.Sprintf("urn:container:/%s", identifier),
@@ -140,7 +140,7 @@ func (cc *ContainerCorrelator) containerToStackStateComponent(nodeIdentifier str
 		"name": container.Name,
 		"docker": map[string]interface{}{
 			"image":       container.Image,
-			"containerId": strippedContainerId,
+			"containerId": strippedContainerID,
 		},
 		"pod":          pod.Name,
 		"podIP":        pod.PodIP,

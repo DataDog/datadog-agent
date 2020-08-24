@@ -19,10 +19,10 @@ import (
 )
 
 func TestInstanceIdExtractor(t *testing.T) {
-	nodeSpecProviderId := "aws:///us-east-1b/i-024b28584ed2e6321"
+	nodeSpecProviderID := "aws:///us-east-1b/i-024b28584ed2e6321"
 
-	instanceId := extractInstanceIdFromProviderId(coreV1.NodeSpec{ProviderID: nodeSpecProviderId})
-	assert.Equal(t, "i-024b28584ed2e6321", instanceId)
+	instanceID := extractInstanceIDFromProviderID(coreV1.NodeSpec{ProviderID: nodeSpecProviderID})
+	assert.Equal(t, "i-024b28584ed2e6321", instanceID)
 }
 
 func TestNodeCollector(t *testing.T) {

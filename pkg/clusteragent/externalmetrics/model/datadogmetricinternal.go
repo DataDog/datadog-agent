@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

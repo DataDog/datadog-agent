@@ -26,7 +26,7 @@ func NewIngressCollector(componentChannel chan<- *topology.Component, relationCh
 }
 
 // GetName returns the name of the Collector
-func (ic *IngressCollector) GetName() string {
+func (*IngressCollector) GetName() string {
 	return "Ingress Collector"
 }
 

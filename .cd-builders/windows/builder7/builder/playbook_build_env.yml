@@ -1,0 +1,386 @@
+- hosts: all
+
+  vars_files:
+    - builder_vars.yml
+
+  tasks:
+
+    - name: Disable defender realtime scan to speedup process
+      win_command: powershell.exe -
+      args:
+        stdin: Set-MpPreference -DisableRealtimeMonitoring $true
+
+# Workaround for "Unhandled exception while executing module: The specified module 'ServerManager' was not loaded because no valid module file was found in any module directory.
+    - name: Install RSAT
+      win_chocolatey:
+        name: rsat
+        state: present
+
+    - name: Activate choco global confirmation mode
+      win_command: powershell.exe -
+      args:
+        stdin: choco feature enable -n allowGlobalConfirmation
+
+# Minoconda3 - agent7 part
+    - name: Install Miniconda
+      win_chocolatey:
+        name: miniconda3
+        state: present
+
+# validate by  Get-WindowsFeature
+    - name: Activate .NET35 feature (way 1 win_optional_feature NetFx3)
+      win_optional_feature:
+        name: NetFx3
+        state: present
+      register: netfx3result
+      become: yes
+      become_method: runas
+      become_user: System
+      ignore_errors: true # https://www.timothysalmon.com/2018/09/windows-server-2016-one-or-several.html
+
+    - name: Install DotNet 3.5 (way 2 win_feature NET-Framework-Core)
+      win_feature:
+        name: NET-Framework-Core
+        state: present
+      when: netfx3result is failed
+      register: netframeworkcoreresult
+
+# or way 3  choco install dotnet3.5 , although usually not
+
+    - name: Install .NET Core SDK 3.1
+      win_chocolatey:
+        name: dotnetcore-sdk
+        state: present
+
+    - name: Install nuget commandline
+      win_chocolatey:
+        name: nuget.commandline
+        state: present
+
+    - name: Install conemu
+      win_chocolatey:
+        name: conemu
+        state: present
+
+    - name: Install sysinternals
+      win_chocolatey:
+        name: sysinternals
+        state: present
+        timeout: 600
+      ignore_errors: true
+      register: sysinternals_try1
+
+    - name: Install sysinternals
+      win_chocolatey:
+        name: sysinternals
+        state: present
+        timeout: 600
+      register: sysinternals_try2
+      when: sysinternals_try1 is failed
+
+    - name: Install go
+      win_chocolatey:
+        name: golang
+        state: present
+# https://ci.appveyor.com/project/Datadog/datadog-agent/branch/master
+        version: '1.14.1'
+
+    - name: Install go dep
+      win_chocolatey:
+        name: dep
+        state: present
+      register: result
+      until: result.rc == 0
+      retries: 3
+
+    - name: Install system python2
+      win_chocolatey:
+        name: python2
+        state: present
+        version: '2.7.14'
+        timeout: 600
+        package_params: "/InstallDir:c:\\python27-x64"
+
+    - name: Install vcpython27(1/2)
+      win_command: choco install vcpython27 -y
+      # win_chocolatey:
+      #   name: vcpython27
+      #   state: present
+      #   timeout: 300
+      ignore_errors: true
+      register: vcpython27_try1
+
+    - name: Install vcpython27(2/2)
+      win_chocolatey:
+        name: vcpython27
+        state: present
+        timeout: 1200
+      when: vcpython27_try1 is failed
+
+    - name: Install python virtualwrapper
+      win_shell: pip install virtualenvwrapper-win
+      args:
+        executable: cmd
+
+    - name: Support for Makefiles
+      win_chocolatey:
+        name: make
+        state: present
+
+    - name: 7zip
+      win_chocolatey:
+        name: 7zip
+        state: present
+
+    - name: Install awscli
+      win_chocolatey:
+        name: awscli
+        state: present
+
+# choco install visualstudio2017community --package-parameters "...."
+    - name: Backward compatibility - Install Visual studio 2017 community
+      win_chocolatey:
+        name: visualstudio2017community
+        state: present
+        package_params: "--norestart --wait --quiet --locale en-US --add Microsoft.VisualStudio.Workload.MSBuildTools --add Microsoft.VisualStudio.Workload.NativeDesktop  --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.CLI.Support --add Microsoft.VisualStudio.Workload.UniversalBuildTools --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81"
+
+# choco install visualstudio2019community --package-parameters "...."
+    - name: Install Visual studio 2019 community
+      win_chocolatey:
+        name: visualstudio2019community
+        state: present
+        package_params: "--norestart --wait --quiet --locale en-US"
+        #package_params: "--norestart --wait --quiet --locale en-US --add Microsoft.VisualStudio.Workload.MSBuildTools --add Microsoft.VisualStudio.Workload.NativeDesktop  --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.CLI.Support --add Microsoft.VisualStudio.Workload.UniversalBuildTools --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81"
+      register: result
+      until: result.rc == 0
+      retries: 3
+
+# HANGS TODO: replace with exe install from  https://github.com/wixtoolset/wix3/releases/tag/wix3111rtm  ?
+    - name: Install Wix tool set (1/2)
+      win_chocolatey:
+        name: wixtoolset
+        state: present
+        timeout: 600
+      ignore_errors: true
+      register: wixtry1
+      until: wixtry1.rc == 0
+      retries: 3
+
+    - name: Install Wix tool set (2/2)
+      win_chocolatey:
+        name: wixtoolset
+        state: present
+        timeout: 1200
+      when: wixtry1 is failed
+      register: wixtry2
+      until: wixtry2.rc == 0
+      retries: 3
+
+    - name: Template wix installer InstallWixExtension2019
+      win_copy:
+#        src: files/InstallWixSet.ps1
+        src: files/InstallWixExtension.ps1
+        dest: C:\
+
+    - name: Template wix installer InstallWixExtension2017
+      win_copy:
+#        src: files/InstallWixSet.ps1
+        src: files/InstallWixExtension2017.ps1
+        dest: C:\
+
+    # - name: Execute wix installer
+    #   win_command: powershell.exe -File C:\InstallWixSet.ps1
+
+# Install Visual studio extension for wix
+# https://marketplace.visualstudio.com/items?itemName=WixToolset.WixToolsetVisualStudio2019Extension
+# Check files/InstallWixSet.ps1ss
+
+    - name: Execute wix extension (2019)
+      win_command: powershell.exe -File C:\InstallWixExtension.ps1
+
+    - name: Execute wix extension (2017)
+      win_command: powershell.exe -File C:\InstallWixExtension2017.ps1
+
+# Install additional workflows
+
+    - name: Desktop development with C++
+      win_chocolatey:
+        name: visualstudio2019-workload-manageddesktop
+        state: present
+
+    - name: .NET desktop development
+      win_chocolatey:
+        name: visualstudio2019-workload-nativedesktop
+        state: present
+
+    - name: .NET Core cross-platform development
+      win_chocolatey:
+        name: visualstudio2019-workload-netcoretools
+        state: present
+
+    - name: ASP.NET and web development
+      win_chocolatey:
+        name: visualstudio2019-workload-netweb
+        state: present
+
+    - name: visualstudio2019-workload-nativecrossplat
+      win_chocolatey:
+        name: visualstudio2019-workload-nativecrossplat
+        state: present
+
+    - name: visualstudio2019-workload-nativecrossplat
+      win_chocolatey:
+        name: visualstudio2019-workload-vctools
+        state: present
+
+
+    - name: .NET Framework 4.7 targeting pack
+      win_chocolatey:
+        name: netfx-4.7-devpack
+        state: present
+
+    - name: Install hg
+      win_chocolatey:
+        name: hg
+        state: present
+        version: 4.6.1
+
+    - name: Install pkgconfiglite
+      win_chocolatey:
+        name: pkgconfiglite
+        state: present
+        version: 0.28
+
+    - name: Install wget
+      win_chocolatey:
+        name: wget
+        state: present
+
+    - name: Install git
+      win_chocolatey:
+        name: git
+        state: present
+
+#     Not able to execute normally
+#    - name: Tune git config
+#      win_shell: git config --global http.sslcainfo "C:\Program Files\Git\mingw64\ssl\certs\ca-bundle.crt"
+#      args:
+#        executable: cmd
+
+    - name: Tune git config
+      win_command: "git config --global user.email \"gitlab@windowsrunner.local\""
+
+    - name: Tune git config
+      win_command: "git config --global user.name \"Windows Gitlab Runner Instance\""
+
+    - name: Tune git config for system
+      win_psexec:
+        command: "git config --global user.email \"gitlab@windowsrunner.local\""
+        system: yes
+
+    - name: Tune git config for system
+      win_psexec:
+        command: "git config --global user.name \"Windows Gitlab Runner Instance\""
+        system: yes
+
+    - name: Create gopath directory
+      win_file:
+        path: "C:\\gopath"
+        state: directory
+
+    - name: ENV | GOPATH
+      win_environment:
+        state: present
+        name: GOPATH
+        value: "c:\\gopath"
+        level: machine
+
+# [VS] GOROOT is no longer needed
+#    - name: ENV | GOROOT
+#      win_environment:
+#        state: present
+#        name: GOROOT
+#        value: "c:\\tools\\go"
+#        level: machine
+
+# [VS] GOBIN has changed
+    - name: ENV | GOBIN
+      win_environment:
+        state: present
+        name: GOBIN
+        value: "c:\\gopath\\bin"
+        level: machine
+
+    # - name: ENV | VCINSTALLDIR
+    #   win_environment:
+    #     state: present
+    #     name: VCINSTALLDIR
+    #     value: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community"
+    #     level: machine
+
+
+# Possible duplication but guaranteed presence
+    - name: ENV | PATH
+      win_path:
+        elements:
+        - 'C:\\tools\\ruby24\\bin'
+        - 'C:\\python27-x64'
+        - 'C:\\python27-x64\\Scripts'
+        - 'C:\\Program Files\\Git\\usr\\bin'
+        - 'C:\\tools\\go\\bin'
+        - 'C:\\Program Files\\Amazon\\AWSCLI'
+        - 'C:\\Program Files\\Mercurial;C:\\Program Files (x86)\\WiX Toolset v3.11\\bin'
+
+        # msbuild get accessible via call %VCINSTALLDIR%\Common7\Tools\VsDevCmd.bat
+
+    # - name: ENV | DIRTY PATH
+    #   win_environment:
+    #     state: present
+    #     name: PATH
+    #     value: "C:\\tools\\ruby24\\bin;C:\\python27-x64;C:\\python27-x64\\Scripts;c:\\deps\\bin;%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SYSTEMROOT%\\System32\\WindowsPowerShell\\v1.0;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\Git\\usr\\bin;C:\\Program Files\\PowerShell\\6;C:\\Program Files\\OpenSSH-Win64;C:\\tools\\go\\bin;C:\\Program Files\\Amazon\\AWSCLI;C:\\Program Files\\Mercurial;C:\\Program Files (x86)\\WiX Toolset v3.11\\bin"
+    #     level: machine
+
+
+#    choco install ruby --version 2.4.3.1
+    - name: Install ruby 2.4.3.1
+      win_chocolatey:
+        name: ruby
+        state: present
+        version: 2.4.3.1
+
+    - name: Install msys2 (1/2)
+      win_chocolatey:
+        name: msys2
+        state: present
+        timeout: 90
+        package_params: "/NoUpdate"
+      register: msys_try1
+      ignore_errors: true
+
+    - name: Install msys2 (2/2)
+      win_chocolatey:
+        name: msys2
+        state: present
+        package_params: "/NoUpdate"
+      when: msys_try1 is failed
+
+
+# Reenterable, "Latest version already installed. Done."
+    - name: Fix spotted bundler issue
+      win_shell: gem update --system 3.0.2
+      args:
+        executable: cmd
+
+    - name: Install invoke into python namespace
+      win_shell: pip install invoke
+      args:
+        executable: cmd
+
+#  entry point for any linux paths here is C:\tools\msys64\
+    - name: ridk install 1 2 3 woodo magic - does not break if msys from choco installed (download base around 0.6G)
+      win_shell: "ridk install 1 2 3"
+
+    # - name: Enable defender realtime scan back
+    #   win_command: powershell.exe -
+    #   args:
+    #     stdin: Set-MpPreference -DisableRealtimeMonitoring $false

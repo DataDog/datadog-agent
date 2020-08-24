@@ -21,10 +21,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
 const (

@@ -19,12 +19,12 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 )
 
 // NewAutoscalersController returns a new AutoscalersController

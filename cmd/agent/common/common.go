@@ -20,7 +20,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/forwarder"
 	"github.com/StackVista/stackstate-agent/pkg/metadata"
 	"github.com/StackVista/stackstate-agent/pkg/util/executable"
-        "github.com/StackVista/stackstate-agent/pkg/version"
+	"github.com/StackVista/stackstate-agent/pkg/version"
 )
 
 var (

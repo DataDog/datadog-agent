@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-        "github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/api/response"

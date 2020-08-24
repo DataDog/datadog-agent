@@ -37,9 +37,8 @@ type MetricsConfig struct {
 // MetricsCheck grabs metrics from the API server.
 type MetricsCheck struct {
 	CommonCheck
-	instance           *MetricsConfig
-	configMapAvailable bool
-	oshiftAPILevel     apiserver.OpenShiftAPILevel
+	instance       *MetricsConfig
+	oshiftAPILevel apiserver.OpenShiftAPILevel
 }
 
 func (c *MetricsConfig) parse(data []byte) error {
@@ -49,9 +48,24 @@ func (c *MetricsConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+// NewKubernetesAPIMetricsCheck creates a instance of the kubernetes MetricsCheck given the base and instance
+func NewKubernetesAPIMetricsCheck(base core.CheckBase, instance *MetricsConfig) *MetricsCheck {
+	return &MetricsCheck{
+		CommonCheck: CommonCheck{
+			CheckBase: base,
+		},
+		instance: instance,
+	}
+}
+
+// KubernetesAPIMetricsFactory is exported for integration testing.
+func KubernetesAPIMetricsFactory() check.Check {
+	return NewKubernetesAPIMetricsCheck(core.NewCheckBase(kubernetesAPIMetricsCheckName), &MetricsConfig{})
+}
+
 // Configure parses the check configuration and init the check.
-func (k *MetricsCheck) Configure(config, initConfig integration.Data) error {
-	err := k.CommonConfigure(config)
+func (k *MetricsCheck) Configure(config, initConfig integration.Data, source string) error {
+	err := k.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}
@@ -70,7 +84,7 @@ func (k *MetricsCheck) Configure(config, initConfig integration.Data) error {
 // Run executes the check.
 func (k *MetricsCheck) Run() error {
 	// initialize kube api check
-	err := k.InitKubeApiCheck()
+	err := k.InitKubeAPICheck()
 	if err == apiserver.ErrNotLeader {
 		log.Debug("Agent is not leader, will not run the check")
 		return nil
@@ -108,16 +122,6 @@ func (k *MetricsCheck) Run() error {
 	return nil
 }
 
-// KubernetesASFactory is exported for integration testing.
-func KubernetesApiMetricsFactory() check.Check {
-	return &MetricsCheck{
-		CommonCheck: CommonCheck{
-			CheckBase: core.NewCheckBase(kubernetesAPIMetricsCheckName),
-		},
-		instance: &MetricsConfig{},
-	}
-}
-
 func (k *MetricsCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
 	for _, component := range componentsStatus.Items {
 
@@ -131,6 +135,7 @@ func (k *MetricsCheck) parseComponentStatus(sender aggregator.Sender, components
 		tagComp := []string{fmt.Sprintf("component:%s", component.Name)}
 		for _, condition := range component.Conditions {
 			statusCheck := metrics.ServiceCheckUnknown
+			message := ""
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
 			if condition.Type != "Healthy" {
@@ -141,16 +146,17 @@ func (k *MetricsCheck) parseComponentStatus(sender aggregator.Sender, components
 			switch condition.Status {
 			case "True":
 				statusCheck = metrics.ServiceCheckOK
-
+				message = condition.Message
 			case "False":
 				statusCheck = metrics.ServiceCheckCritical
+				message = condition.Error
 			}
-			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, k.KubeAPIServerHostname, tagComp, "")
+			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, k.KubeAPIServerHostname, tagComp, message)
 		}
 	}
 	return nil
 }
 
 func init() {
-	core.RegisterCheck(kubernetesAPIMetricsCheckName, KubernetesApiMetricsFactory)
+	core.RegisterCheck(kubernetesAPIMetricsCheckName, KubernetesAPIMetricsFactory)
 }

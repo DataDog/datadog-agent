@@ -23,7 +23,7 @@ func NewPersistentVolumeCollector(componentChannel chan<- *topology.Component, c
 }
 
 // GetName returns the name of the Collector
-func (_ *PersistentVolumeCollector) GetName() string {
+func (*PersistentVolumeCollector) GetName() string {
 	return "Persistent Volume Collector"
 }
 

@@ -17,7 +17,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/listeners"
-        "github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers/names" 
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers/names"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/scheduler"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"

@@ -66,6 +66,17 @@ variables:
   rm -rf /go/src/github.com/StackVista/stackstate-agent || true
   ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
 
+.configure_windows_ps1_environment: &configure_windows_ps1_environment |
+  dir env:
+  Import-Module C:\tools\miniconda3\shell\condabin\conda-hook.ps1
+  conda activate ddpy3
+  $current_dir=Get-Location
+  cmd /c if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
+  New-Item -ItemType SymbolicLink -Path "c:\\gopath\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir
+
+.configure_windows_cmd_environment: &configure_windows_cmd_environment |
+  c:\tools\miniconda3\condabin\activate
+  conda activate ddpy3
 ######################### /pipeline bricks
 
 
@@ -169,25 +180,26 @@ deps_rpm:
 deps_win:
   stage: prepare
   before_script:
-    - set WIN_CI_PROJECT_DIR=%CD%
-    - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
+    - *configure_windows_ps1_environment
   cache:
     key: "deps-win-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
-      - venv
   script:
-    - call .gitlab-scripts/windows_build_env.cmd
-    - call .gitlab-scripts/windows_deps.cmd
+    - inv deps
     - inv version -u > version.txt
+    - cd $Env:GOPATH/pkg ; tar --force-local -czf $CI_PROJECT_DIR/go-pkg.tar.gz .
+    - cd $Env:GOPATH/bin ; tar --force-local -czf $CI_PROJECT_DIR/go-bin.tar.gz .
+    - cd $Env:CI_PROJECT_DIR/vendor ; tar --force-local -czf $CI_PROJECT_DIR/vendor.tar.gz .
   artifacts:
     paths:
-      - "vendor"
-      - "venv"
-      - "version.txt"
+      - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/go-pkg.tar.gz
+      - $CI_PROJECT_DIR/go-bin.tar.gz
+      - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
   tags:
-    - sts_windows
+    - windows_agent7_ps1 #sts_windows
 
 unit_tests:
   stage: build_and_test
@@ -204,7 +216,7 @@ unit_tests:
     #TODO: check why formatting rules differ from previous step
     - gofmt -l -w -s ./pkg ./cmd
 # TODO: --python-runtimes "$PYTHON_RUNTIMES"
-    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubelet --major-version 2
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2
   tags:
     - sts-aws
 
@@ -225,18 +237,19 @@ filename_linting:
   script:
     - inv -e lint-filenames
 
-docker_integration_tests:
-  stage: build_and_test
-  needs:
-    - deps_deb
-  variables:
-      DOCKER_DRIVER: overlay
-  services:
-    - docker:dind
-  script:
-    - inv -e docker.integration-tests
-  tags:
-    - sts-aws
+# TODO:  Not observed in v7 in a direct form ?
+#docker_integration_tests:
+#  stage: build_and_test
+#  needs:
+#    - deps_deb
+#  variables:
+#      DOCKER_DRIVER: overlay
+#  services:
+#    - docker:dind
+#  script:
+#    - inv -e docker.integration-tests
+#  tags:
+#    - sts-aws
 
 build_binaries:
   stage: build_and_test
@@ -267,6 +280,7 @@ build_cluster_agent:
   script:
     - inv -e cluster-agent.build
     - inv -e version
+    - ls -la $CI_PROJECT_DIR/bin/
   artifacts:
     paths:
       - $CI_PROJECT_DIR/bin/stackstate-cluster-agent
@@ -440,7 +454,9 @@ test_deb_renaming:
     - build_deb
   before_script: []
   script:
-    ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/*.deb
+  # test v2 family
+    ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_2*.deb
+
 
 test_rpm_renaming:
   stage: pre_release
@@ -449,7 +465,8 @@ test_rpm_renaming:
     - build_rpm
   before_script: []
   script:
-    ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/*.rpm
+    # test v2 family
+    ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-2*.rpm
 
 pre_release_deb:
   stage: pre_release
@@ -457,8 +474,12 @@ pre_release_deb:
     - deps_deb
     - build_deb
   script:
-    - source .gitlab-scripts/setup_env.sh
+# //TODO: move to image
     - apt-get install -y apt-utils libtool debsigs
+    - ls -la /usr/local/rvm/gems/ruby-2.4.2/bin/
+    - source /usr/local/rvm/scripts/rvm && gem install deb-s3
+# //
+    - source /usr/local/rvm/scripts/rvm
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
     - cd $CI_PROJECT_DIR && inv release.generate-install -t
@@ -485,7 +506,7 @@ pre_release_win:
 
 pre_release_rpm:
   stage: pre_release
-#  image: docker.io/stackstate/stackstate-agent-runner-gitlab:rpm.latest
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - build_rpm
   before_script: []
@@ -500,6 +521,8 @@ pre_release_image:
     - build_deb
   variables:
     DOCKER_DRIVER: overlay
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   services:
     - docker:dind
   before_script: []
@@ -516,6 +539,8 @@ pre_release_trace_agent_image:
     - build_deb
   variables:
     DOCKER_DRIVER: overlay
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   services:
     - docker:dind
   before_script: []
@@ -532,6 +557,8 @@ pre_release_cluster_agent_image:
     - build_cluster_agent
   variables:
     DOCKER_DRIVER: overlay
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   services:
     - docker:dind
   before_script: []
@@ -697,6 +724,8 @@ release_image:
     - build_deb
   variables:
     DOCKER_DRIVER: overlay
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   services:
     - docker:dind
   before_script: []
@@ -718,6 +747,8 @@ release_trace_agent_image:
     - build_deb
   variables:
     DOCKER_DRIVER: overlay
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   services:
     - docker:dind
   before_script: []
@@ -739,6 +770,8 @@ release_cluster_agent_image:
     - build_cluster_agent
   variables:
     DOCKER_DRIVER: overlay
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   services:
     - docker:dind
   before_script: []

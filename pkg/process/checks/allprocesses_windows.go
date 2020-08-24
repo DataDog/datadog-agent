@@ -8,11 +8,11 @@ import (
 	"time"
 	"unsafe"
 
+	cpu "github.com/DataDog/gopsutil/cpu"
+	process "github.com/DataDog/gopsutil/process"
 	"github.com/StackVista/stackstate-agent/pkg/process/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/winutil"
-	cpu "github.com/DataDog/gopsutil/cpu"
-	process "github.com/DataDog/gopsutil/process"
 
 	"github.com/shirou/w32"
 

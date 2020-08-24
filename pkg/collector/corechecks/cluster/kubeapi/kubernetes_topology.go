@@ -30,8 +30,8 @@ type TopologyCheck struct {
 }
 
 // Configure parses the check configuration and init the check.
-func (t *TopologyCheck) Configure(config, initConfig integration.Data) error {
-	err := t.ConfigureKubeApiCheck(config)
+func (t *TopologyCheck) Configure(config, initConfig integration.Data, source string) error {
+	err := t.ConfigureKubeAPICheck(config, source)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (t *TopologyCheck) SetSubmitter(submitter TopologySubmitter) {
 // Run executes the check.
 func (t *TopologyCheck) Run() error {
 	// initialize kube api check
-	err := t.InitKubeApiCheck()
+	err := t.InitKubeAPICheck()
 	if err != nil {
 		return err
 	}
@@ -315,8 +315,8 @@ func runCorrelator(correlator collectors.ClusterTopologyCorrelator, errorChannel
 	wg.Done()
 }
 
-// KubernetesASFactory is exported for integration testing.
-func KubernetesApiTopologyFactory() check.Check {
+// KubernetesAPITopologyFactory is exported for integration testing.
+func KubernetesAPITopologyFactory() check.Check {
 	return &TopologyCheck{
 		CommonCheck: CommonCheck{
 			CheckBase: core.NewCheckBase(kubernetesAPITopologyCheckName),
@@ -326,5 +326,5 @@ func KubernetesApiTopologyFactory() check.Check {
 }
 
 func init() {
-	core.RegisterCheck(kubernetesAPITopologyCheckName, KubernetesApiTopologyFactory)
+	core.RegisterCheck(kubernetesAPITopologyCheckName, KubernetesAPITopologyFactory)
 }

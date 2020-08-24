@@ -293,7 +293,8 @@ func toUTF8(s string) string {
 	}
 }
 
-const maxTagLength = 200
+// [sts] increased maxTagLength
+const maxTagLength = 500
 
 // normalizeTag applies some normalization to ensure the tags match the backend requirements.
 func normalizeTag(v string) string {

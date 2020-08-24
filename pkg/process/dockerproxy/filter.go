@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // Filter keeps track of every docker-proxy instance and filters network traffic going through them

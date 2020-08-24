@@ -188,6 +188,9 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 	// Temporarily in main datadog.yaml, will move to DCA
 	// Booleans are always imported as zero value is false
 	converter.Set("collect_kubernetes_events", instance.CollectEvents)
+	// [sts] kubernetes converters for metrics + topology
+	converter.Set("collect_kubernetes_metrics", instance.CollectMetrics)
+	converter.Set("collect_kubernetes_topology", instance.CollectTopology)
 	converter.Set("leader_election", instance.LeaderCandidate)
 
 	if instance.LeaderLeaseDuration > 0 {

@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
+	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/testutil"
-	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 
 	"github.com/cenkalti/backoff"
 	"github.com/cihub/seelog"
@@ -37,9 +37,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	k8s_fake "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/StackVista/stackstate-agent/pkg/errors"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned/fake"
+	"github.com/StackVista/stackstate-agent/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
 )

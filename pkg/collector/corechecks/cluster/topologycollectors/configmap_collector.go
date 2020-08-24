@@ -23,7 +23,7 @@ func NewConfigMapCollector(componentChannel chan<- *topology.Component, clusterT
 }
 
 // GetName returns the name of the Collector
-func (_ *ConfigMapCollector) GetName() string {
+func (*ConfigMapCollector) GetName() string {
 	return "ConfigMap Collector"
 }
 

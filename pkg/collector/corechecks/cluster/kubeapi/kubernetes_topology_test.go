@@ -26,7 +26,7 @@ func TestRunClusterCollectors(t *testing.T) {
 	componentID = 1
 	relationID = 1
 
-	kubernetesTopologyCheck := KubernetesApiTopologyFactory().(*TopologyCheck)
+	kubernetesTopologyCheck := KubernetesAPITopologyFactory().(*TopologyCheck)
 	instance := topology.Instance{Type: "kubernetes", URL: "test-cluster-name"}
 	// set up the batcher for this instance
 	kubernetesTopologyCheck.instance.CollectTimeout = 5
@@ -116,7 +116,7 @@ func NewTestCollector(componentChannel chan<- *topology.Component, relationChann
 }
 
 // GetName returns the name of the TestCollector
-func (_ *TestCollector) GetName() string {
+func (*TestCollector) GetName() string {
 	return "Test Collector"
 }
 
@@ -150,7 +150,7 @@ func NewErrorTestCollector(componentChannel chan<- *topology.Component, relation
 }
 
 // GetName returns the name of the ErrorTestCollector
-func (_ *ErrorTestCollector) GetName() string {
+func (*ErrorTestCollector) GetName() string {
 	return "Error Test Collector"
 }
 

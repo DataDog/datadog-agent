@@ -23,7 +23,7 @@ func NewStatefulSetCollector(componentChannel chan<- *topology.Component, cluste
 }
 
 // GetName returns the name of the Collector
-func (_ *StatefulSetCollector) GetName() string {
+func (*StatefulSetCollector) GetName() string {
 	return "StatefulSet Collector"
 }
 

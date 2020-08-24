@@ -23,7 +23,7 @@ func NewDeploymentCollector(componentChannel chan<- *topology.Component, cluster
 }
 
 // GetName returns the name of the Collector
-func (_ *DeploymentCollector) GetName() string {
+func (*DeploymentCollector) GetName() string {
 	return "Deployment Collector"
 }
 

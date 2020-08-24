@@ -5,6 +5,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/serializer"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"sync"
 )
 
@@ -107,7 +108,9 @@ func (batcher *AsynchronousBatcher) sendTopology(topologyMap map[check.ID]topolo
 			"topologies":       topologies,
 		}
 
-		batcher.serializer.SendJSONToV1Intake(payload)
+		if err := batcher.serializer.SendJSONToV1Intake(payload); err != nil {
+			_ = log.Errorf("error in SendJSONToV1Intake: %s", err)
+		}
 	}
 }
 

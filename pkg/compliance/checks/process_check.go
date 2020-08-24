@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/gopsutil/process"
 	"github.com/StackVista/stackstate-agent/pkg/compliance"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 const (

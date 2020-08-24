@@ -549,7 +549,7 @@ func TestNormalizeTag(t *testing.T) {
 		{in: "AlsO:œ#@ö))œk", out: "also:œ_ö_œk"},
 		{in: "test\x99\x8faaa", out: "test_aaa"},
 		{in: "test\x99\x8f", out: "test"},
-		{in: strings.Repeat("a", 888), out: strings.Repeat("a", 200)},
+		{in: strings.Repeat("a", 888), out: strings.Repeat("a", 500)},
 		{
 			in: func() string {
 				b := bytes.NewBufferString("a")

@@ -25,7 +25,7 @@ func NewJobCollector(componentChannel chan<- *topology.Component, relationChanne
 }
 
 // GetName returns the name of the Collector
-func (_ *JobCollector) GetName() string {
+func (*JobCollector) GetName() string {
 	return "Job Collector"
 }
 

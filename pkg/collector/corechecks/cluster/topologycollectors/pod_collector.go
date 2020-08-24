@@ -36,7 +36,7 @@ func NewPodCollector(componentChannel chan<- *topology.Component, relationChanne
 }
 
 // GetName returns the name of the Collector
-func (_ *PodCollector) GetName() string {
+func (*PodCollector) GetName() string {
 	return "Pod Collector"
 }
 

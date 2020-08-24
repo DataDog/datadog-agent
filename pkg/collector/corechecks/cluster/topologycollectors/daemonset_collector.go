@@ -23,7 +23,7 @@ func NewDaemonSetCollector(componentChannel chan<- *topology.Component, clusterT
 }
 
 // GetName returns the name of the Collector
-func (_ *DaemonSetCollector) GetName() string {
+func (*DaemonSetCollector) GetName() string {
 	return "DaemonSet Collector"
 }
 

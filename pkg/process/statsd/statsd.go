@@ -3,8 +3,8 @@ package statsd
 import (
 	"fmt"
 
-	"github.com/StackVista/stackstate-agent/pkg/process/config"
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/StackVista/stackstate-agent/pkg/process/config"
 )
 
 // Client is a global Statsd client. When a client is configured via Configure,

@@ -20,16 +20,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"github.com/StackVista/stackstate-agent/cmd/agent/api/agent"
 	"github.com/StackVista/stackstate-agent/cmd/agent/api/check"
-        pb "github.com/StackVista/stackstate-agent/cmd/agent/api/pb"
+	pb "github.com/StackVista/stackstate-agent/cmd/agent/api/pb"
 	"github.com/StackVista/stackstate-agent/pkg/api/util"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	hostutil "github.com/StackVista/stackstate-agent/pkg/util"
 	gorilla "github.com/gorilla/mux"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var (

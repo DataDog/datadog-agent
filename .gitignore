@@ -149,3 +149,5 @@ pkg/network/netlink/testdata/message_dump*
 
 #sts
 version.txt
+
+.cd-builders/windows/builder7/runner/roles/

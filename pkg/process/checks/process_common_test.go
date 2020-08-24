@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/gopsutil/cpu"
+	"github.com/DataDog/gopsutil/process"
 	"github.com/StackVista/stackstate-agent/pkg/process/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/gopsutil/cpu"
-	"github.com/DataDog/gopsutil/process"
 )
 
 //nolint:unused

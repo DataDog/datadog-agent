@@ -149,7 +149,7 @@ type Serializer struct {
 	enableEvents                  bool
 	enableSeries                  bool
 	enableServiceChecks           bool
-	enableCheckRuns               bool	
+	enableCheckRuns               bool
 	enableSketches                bool
 	enableJSONToV1Intake          bool
 	enableJSONStream              bool

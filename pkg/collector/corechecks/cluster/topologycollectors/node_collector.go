@@ -37,7 +37,7 @@ func NewNodeCollector(componentChannel chan<- *topology.Component, relationChann
 }
 
 // GetName returns the name of the Collector
-func (_ *NodeCollector) GetName() string {
+func (*NodeCollector) GetName() string {
 	return "Node Collector"
 }
 
@@ -60,7 +60,7 @@ func (nc *NodeCollector) CollectorFunction() error {
 
 		// send the node identifier to be correlated
 		if node.Spec.ProviderID != "" {
-			nodeIdentifier := extractInstanceIdFromProviderId(node.Spec)
+			nodeIdentifier := extractInstanceIDFromProviderID(node.Spec)
 			if nodeIdentifier != "" {
 				nc.NodeIdentifierCorrChan <- &NodeIdentifierCorrelation{node.Name, nodeIdentifier}
 			}
@@ -96,10 +96,10 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 		}
 	}
 	// this allow merging with host reported by main agent
-	var instanceId string
+	var instanceID string
 	if len(node.Spec.ProviderID) > 0 {
-		instanceId = extractInstanceIdFromProviderId(node.Spec)
-		identifiers = append(identifiers, fmt.Sprintf("urn:host:/%s", instanceId))
+		instanceID = extractInstanceIDFromProviderID(node.Spec)
+		identifiers = append(identifiers, fmt.Sprintf("urn:host:/%s", instanceID))
 	}
 
 	log.Tracef("Created identifiers for %s: %v", node.Name, identifiers)
@@ -128,7 +128,7 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 
 	component.Data.PutNonEmpty("generateName", node.GenerateName)
 	component.Data.PutNonEmpty("kind", node.Kind)
-	component.Data.PutNonEmpty("instanceId", instanceId)
+	component.Data.PutNonEmpty("instanceId", instanceID)
 
 	log.Tracef("Created StackState node component %s: %v", nodeExternalID, component.JSONString())
 
@@ -149,19 +149,12 @@ func (nc *NodeCollector) nodeToClusterStackStateRelation(node v1.Node) *topology
 	return relation
 }
 
-func emptyIfNil(m map[string]string) map[string]string {
-	if m == nil {
-		m = make(map[string]string, 0)
-	}
-	return m
-}
-
 func extractLastFragment(value string) string {
 	lastSlash := strings.LastIndex(value, "/")
 	return value[lastSlash+1:]
 }
 
-func extractInstanceIdFromProviderId(spec v1.NodeSpec) string {
+func extractInstanceIDFromProviderID(spec v1.NodeSpec) string {
 	//parse node id from cloud provider (for AWS is the ec2 instance id)
 	return extractLastFragment(spec.ProviderID)
 }

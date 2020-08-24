@@ -16,7 +16,7 @@ type ReplicaSetCollector struct {
 }
 
 // GetName returns the name of the Collector
-func (rsc *ReplicaSetCollector) GetName() string {
+func (*ReplicaSetCollector) GetName() string {
 	return "ReplicaSet Collector"
 }
 

@@ -113,12 +113,12 @@ func TestTaskMetrics(t *testing.T) {
 		values          v1.Metrics
 		error           string
 		taskMetricError error
-		expected        *cgroups.Metrics
+		expected        *v1.Metrics
 	}{
 		{
 			"fully functional",
 			"io.containerd.cgroups.v1.Metrics",
-			cgroups.Metrics{Memory: &cgroups.MemoryStat{Cache: 100}},
+			v1.Metrics{Memory: &v1.MemoryStat{Cache: 100}},
 			"",
 			nil,
 			&v1.Metrics{
@@ -142,26 +142,23 @@ func TestTaskMetrics(t *testing.T) {
 		{
 			"task does not exist",
 			"io.containerd.cgroups.v1.Metric",
-			cgroups.Metrics{},
+			v1.Metrics{},
 			"",
 			fmt.Errorf("no running task found"),
-			&cgroups.Metrics{},
+			&v1.Metrics{},
 		},
 		{
 			"task does not exist",
 			"io.containerd.cgroups.v1.Metric",
-			cgroups.Metrics{},
+			v1.Metrics{},
 			"",
 			fmt.Errorf("no metrics received"),
-			&cgroups.Metrics{},
+			&v1.Metrics{},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
-			ctn := makeCtn(test.values, test.typeUrl, test.taskMetricError)
-
-			cton := containerd.Container(ctn)
+			cton := makeCtn(test.values, test.typeURL, test.taskMetricError)
 
 			m, e := mockUtil.TaskMetrics(cton)
 			if e != nil {
@@ -176,22 +173,20 @@ func TestTaskMetrics(t *testing.T) {
 			if err != nil {
 				require.Equal(t, err.Error(), test.error)
 				return
-			} else {
-				require.Equal(t, test.expected, metricAny.(*cgroups.Metrics))
 			}
 			require.Equal(t, test.expected, metricAny.(*v1.Metrics))
 		})
 	}
 }
 
-func makeCtn(value cgroups.Metrics, typeUrl string, taskMetricsError error) containerd.Container {
+func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {
 	taskStruct := &mockTaskStruct{
 		mockMectric: func(ctx context.Context) (*types.Metric, error) {
-			typeUrl := typeUrl
+			typeURL := typeURL
 			jsonValue, _ := json.Marshal(value)
 			metric := &types.Metric{
 				Data: &prototypes.Any{
-					TypeUrl: typeUrl,
+					TypeUrl: typeURL,
 					Value:   jsonValue,
 				},
 			}

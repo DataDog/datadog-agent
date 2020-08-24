@@ -7,15 +7,13 @@ package agent
 
 import (
 	"context"
-	"runtime"
-	"sync/atomic"
-	"time"
+	"github.com/StackVista/stackstate-agent/pkg/features"
 	"github.com/StackVista/stackstate-agent/pkg/trace/api"
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/event"
-	"github.com/StackVista/stackstate-agent/pkg/features"
 	"github.com/StackVista/stackstate-agent/pkg/trace/filters"
 	"github.com/StackVista/stackstate-agent/pkg/trace/info"
+	"github.com/StackVista/stackstate-agent/pkg/trace/interpreter"
 	"github.com/StackVista/stackstate-agent/pkg/trace/metrics/timing"
 	"github.com/StackVista/stackstate-agent/pkg/trace/obfuscate"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
@@ -24,6 +22,9 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/trace/traceutil"
 	"github.com/StackVista/stackstate-agent/pkg/trace/writer"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"runtime"
+	"sync/atomic"
+	"time"
 )
 
 // tagContainersTags specifies the name of the tag which holds key/value
@@ -32,17 +33,18 @@ const tagContainersTags = "_dd.tags.container"
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
-	Receiver           *api.HTTPReceiver
-	Concentrator       *stats.Concentrator
-	Blacklister        *filters.Blacklister
-	Replacer           *filters.Replacer
-	ScoreSampler       *Sampler
-	ErrorsScoreSampler *Sampler
-	ExceptionSampler   *sampler.ExceptionSampler
-	PrioritySampler    *Sampler
-	EventProcessor     *event.Processor
-	TraceWriter        *writer.TraceWriter
-	StatsWriter        *writer.StatsWriter
+	Receiver              *api.HTTPReceiver
+	Concentrator          *stats.Concentrator
+	Blacklister           *filters.Blacklister
+	Replacer              *filters.Replacer
+	ScoreSampler          *Sampler
+	ErrorsScoreSampler    *Sampler
+	ExceptionSampler      *sampler.ExceptionSampler
+	PrioritySampler       *Sampler
+	EventProcessor        *event.Processor
+	TraceWriter           *writer.TraceWriter
+	StatsWriter           *writer.StatsWriter
+	SpanInterpreterEngine *interpreter.SpanInterpreterEngine
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -70,22 +72,23 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	statsChan := make(chan []stats.Bucket)
 
 	return &Agent{
-		Receiver:           api.NewHTTPReceiver(conf, dynConf, in),
-		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
-		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
-		Replacer:           filters.NewReplacer(conf.ReplaceTags),
-		ScoreSampler:       NewScoreSampler(conf),
-		ExceptionSampler:   sampler.NewExceptionSampler(),
-		ErrorsScoreSampler: NewErrorsSampler(conf),
-		PrioritySampler:    NewPrioritySampler(conf, dynConf),
-		EventProcessor:     newEventProcessor(conf),
-		TraceWriter:        writer.NewTraceWriter(conf, out),
-		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
-		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
-		In:                 in,
-		Out:                out,
-		conf:               conf,
-		ctx:                ctx,
+		Receiver:              api.NewHTTPReceiver(conf, dynConf, in),
+		Concentrator:          stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
+		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
+		Replacer:              filters.NewReplacer(conf.ReplaceTags),
+		ScoreSampler:          NewScoreSampler(conf),
+		ExceptionSampler:      sampler.NewExceptionSampler(),
+		ErrorsScoreSampler:    NewErrorsSampler(conf),
+		PrioritySampler:       NewPrioritySampler(conf, dynConf),
+		EventProcessor:        newEventProcessor(conf),
+		TraceWriter:           writer.NewTraceWriter(conf, out),
+		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
+		obfuscator:            obfuscate.NewObfuscator(conf.Obfuscation),
+		SpanInterpreterEngine: interpreter.NewSpanInterpreterEngine(conf),
+		In:                    in,
+		Out:                   out,
+		conf:                  conf,
+		ctx:                   ctx,
 	}
 }
 
@@ -192,6 +195,7 @@ func (a *Agent) Process(t *api.Trace) {
 	for _, span := range t.Spans {
 		a.obfuscator.Obfuscate(span)
 		Truncate(span)
+		a.SpanInterpreterEngine.Interpret(span)
 	}
 	a.Replacer.Replace(t.Spans)
 

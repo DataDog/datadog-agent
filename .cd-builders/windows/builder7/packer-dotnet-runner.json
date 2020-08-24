@@ -1,0 +1,103 @@
+{
+  "variables": {
+    "aws_access_key": "{{env `AWS_ACCESS_KEY_ID`}}",
+    "aws_secret_key": "{{env `AWS_SECRET_ACCESS_KEY`}}"
+  },
+  "builders": [
+    {
+      "access_key": "{{ user `aws_access_key` }}",
+      "secret_key": "{{ user `aws_secret_key` }}",
+      "type": "amazon-ebs",
+      "region": "eu-west-1",
+      "instance_type": "t3.large",
+      "source_ami_filter": {
+        "filters": {
+          "virtualization-type": "hvm",
+          "name": "*Windows_Server-2016-English*Containers*",
+          "root-device-type": "ebs"
+        },
+        "most_recent": true,
+        "owners": "amazon"
+      },
+      "ami_name": "lupulus-agentbuilder7-{{timestamp}}",
+      "ami_block_device_mappings": [
+        {
+          "device_name": "/dev/sda1",
+          "volume_type": "gp2",
+          "volume_size": 120,
+          "delete_on_termination": true
+        }
+      ],
+      "launch_block_device_mappings": [
+        {
+          "device_name": "/dev/sda1",
+          "volume_type": "gp2",
+          "volume_size": 120,
+          "delete_on_termination": true
+        }
+      ],
+      "user_data_file": "windows-userdata.txt",
+      "communicator": "winrm",
+      "winrm_username": "Administrator",
+      "winrm_password": "Passw0rd!",
+      "winrm_insecure": true,
+      "winrm_port": "5986",
+      "winrm_use_ssl": true,
+      "tags": {
+        "OS_Version": "Windows 2016 agent7 builder runner",
+        "Team": "Lupulus",
+        "Product": "stackstate-agent-2",
+        "Base_AMI_Name": "{{ .SourceAMIName }}",
+        "Extra": "{{ .SourceAMITags.TagName }}"
+      }
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "ansible",
+      "playbook_file": "./runner/playbook_agent.yml",
+      "user": "Administrator",
+      "use_proxy": false,
+      "extra_arguments": [
+        "-vvv",
+        "--extra-vars",
+        "ansible_python_interpreter=auto_silent ansible_shell_type=powershell ansible_shell_executable=None ansible_winrm_server_cert_validation=ignore"
+      ]
+    },
+    {
+      "type": "ansible",
+      "playbook_file": "./builder/playbook_build_env.yml",
+      "user": "Administrator",
+      "use_proxy": false,
+      "extra_arguments": [
+        "-vvv",
+        "--extra-vars",
+        "ansible_python_interpreter=auto_silent ansible_shell_type=powershell ansible_shell_executable=None ansible_winrm_server_cert_validation=ignore"
+      ]
+    },
+    {
+      "type": "windows-restart",
+      "restart_check_command": "powershell -command \"&amp; {Write-Output 'Machine restarted.'}\""
+    },
+    {
+      "type": "powershell",
+      "inline": [
+        "Write-Host 'Starting Defrag C before packing...'",
+        "Get-ChildItem -Path 'C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Log\\' *.log | foreach { Remove-Item -Path $_.FullName }",
+        "Optimize-Volume C -Verbose"
+      ]
+    },
+    {
+      "type": "powershell",
+      "inline": [
+        "C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Scripts\\InitializeInstance.ps1 -Schedule",
+        "C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Scripts\\SysprepInstance.ps1 -NoShutdown"
+      ]
+    }
+  ],
+  "post-processors": [
+    {
+      "type": "manifest"
+    }
+  ]
+}

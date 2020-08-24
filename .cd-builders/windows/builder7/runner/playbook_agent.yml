@@ -1,0 +1,19 @@
+---
+- hosts: all
+  gather_facts: False
+
+  pre_tasks:
+
+    - name: gather facts
+      setup:
+
+
+  roles:
+     - {
+        role: "sa_gitlab_runner_win",
+        option_gitlab_register_runner: false
+       }
+
+  tasks:
+
+    - debug: msg="Tasks section"
