@@ -12,14 +12,18 @@ from invoke.exceptions import Exit
 from .build_tags import get_build_tags, get_default_build_tags
 from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from .go import deps
+from .utils import load_release_versions, get_version
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
+POLICIES_REPO = "https://github.com/xornivore/policies-test.git"
 
 
 @task
-def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False, development=True, skip_assets=False):
+def build(
+    ctx, rebuild=False, build_include=None, build_exclude=None, race=False, development=True, skip_assets=False,
+):
     """
     Build Cluster Agent
 
@@ -39,6 +43,24 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
         development,
         skip_assets,
     )
+
+    policies_version = "master"
+
+    git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    release_version = ctx.run("git describe --contains {}".format(git_ref), hide=True).stdout.strip()
+    if release_version.startswith("dca-"):
+        print("Loading release versions for {}".format(release_version))
+        env = load_release_versions(ctx, release_version)
+        if "SECURITY_AGENT_POLICIES_VERSION" in env:
+            policies_version = env["SECURITY_AGENT_POLICIES_VERSION"]
+            print("Security Agent polices for {}: {}".format(release_version, policies_version))
+
+    build_context = "Dockerfiles/cluster-agent"
+    policies_path = "{}/security-agent-policies".format(build_context)
+    ctx.run("rm -rf {}".format(policies_path))
+    ctx.run("git clone {} {}".format(POLICIES_REPO, policies_path))
+    if policies_version != "master":
+        ctx.run("cd {} && git checkout {}".format(policies_path, policies_version))
 
 
 @task

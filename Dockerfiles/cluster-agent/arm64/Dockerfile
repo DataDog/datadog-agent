@@ -9,6 +9,7 @@ WORKDIR /output
 COPY datadog-cluster-agent.arm64 opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
+COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/compliance.d
 COPY entrypoint.sh .
 COPY readsecret.sh .
 
