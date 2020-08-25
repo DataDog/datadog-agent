@@ -64,6 +64,7 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 		ConnsBpfMapSize:                    tel.ConnsBpfMapSize,
 		MonotonicUdpSendsProcessed:         tel.MonotonicUDPSendsProcessed,
 		MonotonicUdpSendsMissed:            tel.MonotonicUDPSendsMissed,
+		ConntrackSamplingPercent:           tel.ConntrackSamplingPercent,
 	}
 }
 

@@ -458,6 +458,9 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 	if rtd, ok := conntrackStats["registers_dropped"]; ok {
 		tm.MonotonicConntrackRegistersDropped = rtd
 	}
+	if sp, ok := conntrackStats["sampling_pct"]; ok {
+		tm.ConntrackSamplingPercent = sp
+	}
 
 	dnsStats := t.reverseDNS.GetStats()
 	if pp, ok := dnsStats["packets_processed"]; ok {
