@@ -4,22 +4,23 @@
 // (https://www.datadoghq.com/).
 // Copyright 2019-2020 Datadog, Inc.
 
-#include <Windows.h>
-#include <tchar.h>
-#include <string>
-#include <iostream>
 #include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <map>
 #include <sstream>
+#include <string>
+#include <tchar.h>
+#include <thread>
+#include <Windows.h>
 #include "Process.h"
 #include "Service.h"
 #include "Win32Exception.h"
-#include <fstream>
-#include <thread>
-#include <map>
 
 namespace
 {
-    HANDLE StopEvent = INVALID_HANDLE_VALUE;
+    // Synchronizes the reception of the CTRL signal
+    HANDLE CtrlSignalReceivedEvent = INVALID_HANDLE_VALUE;
 
     const std::map<std::wstring, std::filesystem::path> services =
     {
@@ -46,7 +47,7 @@ BOOL WINAPI CtrlHandle(DWORD dwCtrlType)
     case CTRL_LOGOFF_EVENT:
     case CTRL_SHUTDOWN_EVENT:
         std::cout << "[ENTRYPOINT][INFO] CTRL signal received, shutting down..." << std::endl;
-        SetEvent(StopEvent);
+        SetEvent(CtrlSignalReceivedEvent);
         break;
 
     default:
@@ -70,33 +71,46 @@ void ExecuteInitScripts()
     }
 }
 
+std::ifstream::pos_type StreamLogFromLastPosition(std::filesystem::path const& logFilePath, std::ifstream::pos_type lastPosition)
+{
+    char buffer[1024];
+    // _SH_DENYNO: Share read and write access, so as not to conflict
+    // with the agent's logging.
+    // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fsopen-wfsopen?view=vs-2017
+    std::ifstream logFile(logFilePath, std::ios_base::in, _SH_DENYNO);
+    if (logFile)
+    {
+        logFile.seekg(0, std::ifstream::end);
+        auto fpos = logFile.tellg();
+        if (lastPosition > fpos)
+        {
+            // New file
+            lastPosition = 0;
+        }
+        logFile.seekg(lastPosition);
+
+        const size_t totalToRead = fpos - lastPosition;
+        size_t read = 0;
+        while (read < totalToRead)
+        {
+            const size_t toRead = min(sizeof(buffer) / sizeof(char), totalToRead - read);
+            logFile.read(buffer, toRead);
+            std::cout.write(buffer, toRead);
+            read += toRead;
+        }
+
+        lastPosition = fpos;
+        logFile.close();
+    }
+    return lastPosition;
+}
+
 void StreamLogsToStdout(std::filesystem::path const& logFilePath)
 {
     std::ifstream::pos_type lastPosition;
     while (true)
     {
-        // _SH_DENYNO: Share read and write access, so as not to conflict
-        // with the agent's logging.
-        // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fsopen-wfsopen?view=vs-2017
-        std::ifstream logFile(logFilePath, std::ios_base::in, _SH_DENYNO);
-        if (logFile)
-        {
-            logFile.seekg(0, std::ifstream::end);
-            auto fpos = logFile.tellg();
-            if (lastPosition > fpos)
-            {
-                // New file
-                lastPosition = 0;
-            }
-            logFile.seekg(lastPosition);
-            std::streambuf* pbuf = logFile.rdbuf();
-            while (pbuf->sgetc() != EOF)
-            {
-                std::cout.put(pbuf->sbumpc());
-            }
-            lastPosition = fpos;
-            logFile.close();
-        }
+        lastPosition = StreamLogFromLastPosition(logFilePath, lastPosition);
         Sleep(1000);
     }
 }
@@ -109,7 +123,7 @@ void RunService(std::wstring const& serviceName, std::filesystem::path const& lo
     std::wcout << L"[ENTRYPOINT][INFO] Success. Waiting for exit signal." << std::endl;
     std::thread logThread(StreamLogsToStdout, logsPath);
     logThread.detach();
-    WaitForSingleObject(StopEvent, INFINITE);
+    WaitForSingleObject(CtrlSignalReceivedEvent, INFINITE);
     std::wcout << L"[ENTRYPOINT][INFO] Stopping service " << serviceName << std::endl;
     try
     {
@@ -131,8 +145,8 @@ void RunExecutable(std::wstring const& command)
     HANDLE events[2] =
     {
         // Process handle needs to be last so that WaitForMultipleObjects
-        // would return our StopEvent first in case they are signaled at the same time
-        StopEvent,
+        // would return our CtrlSignalReceivedEvent first in case they are signaled at the same time
+        CtrlSignalReceivedEvent,
         process.GetProcessHandle()
     };
     const DWORD waitResult = WaitForMultipleObjects(2, events, FALSE, INFINITE);
@@ -149,15 +163,15 @@ void RunExecutable(std::wstring const& command)
     else
     {
         exitCode = process.GetExitCode();
-        SetEvent(StopEvent);
+        SetEvent(CtrlSignalReceivedEvent);
     }
     std::wcout << L"[ENTRYPOINT][INFO] Command '" << command << L"' exited with code [0x" << std::hex << exitCode << L"]" << std::endl;
 }
 
 void Cleanup()
 {
-    CloseHandle(StopEvent);
-    StopEvent = nullptr;
+    CloseHandle(CtrlSignalReceivedEvent);
+    CtrlSignalReceivedEvent = nullptr;
 }
 
 // Returns: 0 on success, -1 on error.
@@ -171,14 +185,14 @@ int _tmain(int argc, _TCHAR** argv)
         return -1;
     }
 
-    StopEvent = CreateEvent(
+    CtrlSignalReceivedEvent = CreateEvent(
         nullptr,            // default security attributes
         TRUE,               // manual-reset event
         FALSE,              // initial state is non-signaled
         nullptr             // object name
     );
 
-    if (StopEvent == nullptr)
+    if (CtrlSignalReceivedEvent == nullptr)
     {
         std::cout << "[ENTRYPOINT][ERROR] Failed to create event with error: " << FormatErrorCode(GetLastError()) << std::endl;
         return -1;
