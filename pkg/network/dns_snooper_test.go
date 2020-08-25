@@ -321,14 +321,18 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		}
 	}()
 	waitLock.Lock()
-	queryIP, queryPort, reps = sendDNSQueries(t, domains, localhost, UDP)
-	key2 := getKey(queryIP, queryPort, localhost, UDP)
+	queryIP, queryPort, _ = sendDNSQueries(t, domains, localhost, UDP)
 	allStats := getStats(reverseDNS, len(domains)*2+1)
 
-	// Queries were done using one TCP and one UDP connection
+	// Two queries were sent - one over TCP and another over UDP
 	require.Equal(t, 2, len(allStats))
+
+	// First check the one sent over TCP. Expected error type: NXDomain
 	require.Equal(t, 1, len(allStats[key1].countByRcode))
 	assert.Equal(t, uint32(len(domains)), allStats[key1].countByRcode[uint8(layers.DNSResponseCodeNXDomain)])
+
+	// Next check the one sent over UDP. Expected error type: ServFail
+	key2 := getKey(queryIP, queryPort, localhost, UDP)
 	require.Equal(t, 1, len(allStats[key2].countByRcode))
 	assert.Equal(t, uint32(len(domains)), allStats[key2].countByRcode[uint8(layers.DNSResponseCodeServFail)])
 }
