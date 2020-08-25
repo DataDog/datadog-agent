@@ -195,6 +195,26 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 	return ""
 }
 
-func extractCluster() {
+func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, clusterName string, clusterID string, serverApiVersion string) *model.Cluster {
+	kubeletVersions := extractKubeletVersions(nodeList)
+	cluster := model.Cluster{
+		Name:              clusterName,
+		Uid:               clusterID,
+		NamespaceCount:    int32(len(nsList)),
+		NodeCount:         int32(len(nodeList)),
+		KubeletVersions:   kubeletVersions,
+		ApiServerVersions: serverApiVersion,
+	}
+	return &cluster
+}
 
+func extractKubeletVersions(nodeList []*corev1.Node) map[string]int64 {
+	kVersions := make(map[string]int64)
+	for _, node := range nodeList {
+		if i, ok :=; ok {
+			kVersions[node.Status.NodeInfo.KubeletVersion] = i + 1
+		} else {
+			kVersions[node.Status.NodeInfo.KubeletVersion] = 1
+		}
+	}
 }

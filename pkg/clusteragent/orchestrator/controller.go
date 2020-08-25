@@ -101,12 +101,12 @@ func StartController(ctx ControllerContext) error {
 }
 
 func newController(ctx ControllerContext) (*Controller, error) {
-	podInformer := ctx.UnassignedPodInformerFactory.Core().V1().Pods()
 	clusterID, err := clustername.GetClusterID()
 	if err != nil {
 		return nil, err
 	}
 
+	podInformer := ctx.UnassignedPodInformerFactory.Core().V1().Pods()
 	deployInformer := ctx.InformerFactory.Apps().V1().Deployments()
 	rsInformer := ctx.InformerFactory.Apps().V1().ReplicaSets()
 	serviceInformer := ctx.InformerFactory.Core().V1().Services()
@@ -154,7 +154,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 }
 
 func (o *Controller) getInformersSync() []cache.InformerSynced {
-	return []cache.InformerSynced{o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync, o.nodeListerSync}
+	return []cache.InformerSynced{o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync, o.nodeListerSync, o.nsListerSync}
 }
 
 // Run starts the orchestrator controller
@@ -206,6 +206,7 @@ func (o *Controller) processDeploys() {
 	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
 }
 
+// TODO: in the future we should make this configurable and run less often as the other resources as this is less volatile
 func (o *Controller) processClusterInformation() {
 	if !o.isLeaderFunc() {
 		return
@@ -220,9 +221,11 @@ func (o *Controller) processClusterInformation() {
 		log.Errorf("Unable nodes nameSpaces: %v", err)
 		return
 	}
+	// TODO: get API Version
+
 	msg, err := processCluster(nsList, nodesList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process deployments list: %v", err)
+		log.Errorf("Unable to process cluster information: %v", err)
 		return
 	}
 	o.sendMessages(msg, forwarder.PayloadTypeCluster)

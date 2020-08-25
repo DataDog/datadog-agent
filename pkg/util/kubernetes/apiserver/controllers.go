@@ -44,10 +44,6 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		},
 		startAutoscalersController,
 	},
-	servicesController: {
-		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
-		registerServicesInformer,
-	},
 	endpointsController: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		registerEndpointsInformer,
@@ -152,11 +148,6 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 	go autoscalersController.RunHPA(ctx.StopCh)
 
 	autoscalersController.RunControllerLoop(ctx.StopCh)
-}
-
-// registerServicesInformer registers the services informer.
-func registerServicesInformer(ctx ControllerContext, c chan error) {
-	ctx.informers[ServicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
 }
 
 // registerEndpointsInformer registers the endpoints informer.

@@ -222,10 +222,11 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 
 // processNameSpaces process a nodes and namespaces list which forms the cluster resource.
 func processCluster(nsList []*corev1.Namespace, nodeList []*corev1.Node, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
 	// process capacity
-	// get len of each
+	cluster := extractCluster(nodeList, nsList, clusterName, clusterID)
+	log.Debugf("Collected & enriched cluster in %s", time.Now().Sub(start))
 
-	return nil, nil
 }
 
 // chunkServices chunks the given list of services, honoring the given chunk count and size.
