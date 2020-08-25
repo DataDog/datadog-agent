@@ -22,7 +22,15 @@ POLICIES_REPO = "https://github.com/DataDog/security-agent-policies.git"
 
 @task
 def build(
-    ctx, rebuild=False, build_include=None, build_exclude=None, race=False, development=True, skip_assets=False,
+    ctx,
+    rebuild=False,
+    build_include=None,
+    build_exclude=None,
+    race=False,
+    development=True,
+    skip_assets=False,
+    policies_version=None,
+    release_version="nightly-a7",
 ):
     """
     Build Cluster Agent
@@ -44,11 +52,7 @@ def build(
         skip_assets,
     )
 
-    policies_version = "master"
-
-    git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-    release_version = ctx.run("git describe --always --contains {}".format(git_ref), hide=True).stdout.strip()
-    if release_version.startswith("dca-"):
+    if policies_version is None:
         print("Loading release versions for {}".format(release_version))
         env = load_release_versions(ctx, release_version)
         if "SECURITY_AGENT_POLICIES_VERSION" in env:
