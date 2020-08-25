@@ -58,6 +58,7 @@ const (
 	Insert
 	Into
 	Join
+	ColonCast
 
 	// FilteredGroupable specifies that the given token has been discarded by one of the
 	// token filters and that it is groupable together with consecutive FilteredGroupable
@@ -149,6 +150,10 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		case EOFChar:
 			return EOFChar, nil
 		case ':':
+			if tkn.lastChar == ':' {
+				tkn.next()
+				return ColonCast, []byte("::")
+			}
 			if tkn.lastChar != '=' {
 				return tkn.scanBindVar()
 			}
