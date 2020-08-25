@@ -5,6 +5,8 @@ import re
 
 from invoke.exceptions import Exit
 
+from .githubapp import GithubApp
+
 errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 __all__ = ["Github"]
@@ -103,6 +105,8 @@ class Github(object):
 
         url = self.BASE_URL + path
 
+        print(url)
+
         headers = dict(headers or [])
         headers["Authorization"] = "token {}".format(self.api_token)
         headers["Accept"] = "application/vnd.github.v3+json"
@@ -147,11 +151,4 @@ class Github(object):
         return r.text
 
     def _api_token(self):
-        if "GITHUB_TOKEN" not in os.environ:
-            print(
-                "Please create a personal access token at "
-                "https://github.com/settings/tokens and "
-                "export it is as GITHUB_TOKEN from your .bashrc or equivalent."
-            )
-            raise Exit(code=1)
-        return os.environ["GITHUB_TOKEN"]
+        return GithubApp().get_token()

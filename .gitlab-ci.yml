@@ -1288,8 +1288,10 @@ windows_dsd_msi_x64-a7:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - export GITHUB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_token --with-decryption --query "Parameter.Value" --out text)
-    - inv -e github.trigger-macos-build --git-ref "$RELEASE_VERSION" --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --buildimages-version "$DATADOG_AGENT_MACBUILDIMAGES" --destination "$OMNIBUS_PACKAGE_DIR"
+    - export GITHUB_KEY_B64=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_key_b64 --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_APP_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_app_id --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_INSTALLATION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_installation_id --with-decryption --query "Parameter.Value" --out text)
+    - inv -e github.trigger-macos-build --git-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --buildimages-version "$DATADOG_AGENT_MACBUILDIMAGES" --destination "$OMNIBUS_PACKAGE_DIR"
   artifacts:
     expire_in: 2 weeks
     paths:

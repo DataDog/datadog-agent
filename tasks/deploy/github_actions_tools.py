@@ -17,6 +17,9 @@ def trigger_macos_workflow(
     """
     inputs = {}
 
+    if ref is not None:
+        inputs["git_ref"] = ref
+
     if release_version is not None:
         inputs["release_version"] = release_version
 
@@ -30,7 +33,7 @@ def trigger_macos_workflow(
         inputs["buildimages_version"] = buildimages_version
 
     print(
-        "Creating workflow on datadog-agent-macos-build on branch/tag {} with args:\n{}".format(
+        "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(
             ref, "\n".join(["  - {}: {}".format(k, inputs[k]) for k in inputs])
         )
     )
