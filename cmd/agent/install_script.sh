@@ -282,7 +282,7 @@ elif [ "$OS" = "SUSE" ]; then
   $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
-  $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
+  $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
 
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
   $sudo_cmd zypper --non-interactive install "$agent_flavor"
