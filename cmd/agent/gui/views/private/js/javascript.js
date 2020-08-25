@@ -774,8 +774,8 @@ function restartAgent() {
       } else loadStatus("general");
     }, 5000);
   }, function(e) {
-    $(".loading_spinner").remove();
     console.log(e)
+    $(".loading_spinner").remove();
     $("#general_status").css("display", "block");
     $('#general_status').html("<span class='center'>An error occurred.</span>");
     $("#restart_button").css("pointer-events", "auto");
