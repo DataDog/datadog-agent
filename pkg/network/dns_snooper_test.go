@@ -204,7 +204,6 @@ func sendDNSQueries(
 		}
 	} else { // UDP
 		for _, domain := range domains {
-			// msg.SetQuestion(mdns.Fqdn(domains[0]), mdns.TypeA)
 			msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
 			rep, _, _ := dnsClient.Exchange(msg, dnsHost)
 			reps = append(reps, rep)
