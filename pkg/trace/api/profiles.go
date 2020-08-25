@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	stdlog "log"
 	"net/http"
@@ -82,11 +83,16 @@ func errorHandler(endpoint string) http.Handler {
 	})
 }
 
-// newProfileProxy creates a single-host reverse proxy with the given target, attaching
-// the specified apiKey.
+// newProfileProxy creates an http.ReverseProxy which can forward requests to
+// one or more endpoints.
+//
+// The endpoint URLs are passed in through the targets slice. Each endpoint
+// must have a corresponding API key in the same position in the keys slice.
+//
+// The tags will be added as a header to all proxied requests.
+// For more details please see multiTransport.
 func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
-		// URL, Host and key are set in the transport for each outbound request
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
@@ -100,6 +106,7 @@ func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []str
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
+		// URL, Host and key are set in the transport for each outbound request
 	}
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
@@ -136,8 +143,8 @@ func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	var (
-		resp *http.Response
-		rerr error
+		rresp *http.Response
+		rerr  error
 	)
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
@@ -146,15 +153,17 @@ func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error
-			resp, rerr = m.rt.RoundTrip(newreq)
-			err = rerr
-		} else {
-			// we discard responses for all subsequent requests and log all errors
-			_, err = m.rt.RoundTrip(newreq)
+			rresp, rerr = m.rt.RoundTrip(newreq)
+			continue
 		}
-		if err != nil {
+
+		if resp, err := m.rt.RoundTrip(newreq); err == nil {
+			// we discard responses for all subsequent requests
+			io.Copy(ioutil.Discard, resp.Body)
+			resp.Body.Close()
+		} else {
 			log.Error(err)
 		}
 	}
-	return resp, rerr
+	return rresp, rerr
 }
