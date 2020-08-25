@@ -79,15 +79,15 @@ func TestDecoderWithHeaderMultiline(t *testing.T) {
 	d.Start()
 	defer d.Stop()
 
-	line = append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852911Z 1234 hello\n")...)
+	line = append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852911Z 1234 hello\\n\n")...)
 	lineLen = len(line)
 	d.InputChan <- decoder.NewInput(line)
 
-	line = append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852912Z world\n")...)
+	line = append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852912Z world\\n\n")...)
 	lineLen += len(line)
 	d.InputChan <- decoder.NewInput(line)
 
-	line = append([]byte{2, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852913Z 1234 bye\n")...)
+	line = append([]byte{2, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852913Z 1234 bye\\n\n")...)
 	d.InputChan <- decoder.NewInput(line)
 
 	output = <-d.OutputChan

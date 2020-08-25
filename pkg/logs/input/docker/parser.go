@@ -23,9 +23,6 @@ const dockerHeaderLength = 8
 // https://github.com/moby/moby/blob/master/daemon/logger/copier.go#L19-L22
 const dockerBufferSize = 16 * 1024
 
-// Escaped CRLF, used for determine empty messages
-var escapedCRLF = []byte{'\\', 'r', '\\', 'n'}
-
 // Parser contains the related docker container id.
 type Parser struct {
 	containerID string
@@ -83,12 +80,12 @@ func parse(msg []byte, containerID string) ([]byte, string, string, bool, error)
 
 	// timestamp goes till first space
 	idx := bytes.Index(msg, []byte{' '})
-	if idx == -1 || isEmptyMessage(msg[idx+1:]) {
+	partial, end := isPartialLine(msg)
+	if idx == -1 || idx == end {
 		// Nothing after the timestamp: empty message
 		return nil, "", "", false, nil
 	}
-	// If the message is not empty check wether it's a partial line or not
-	return msg[idx+1:], status, string(msg[:idx]), isPartialLine(msg), nil
+	return msg[idx+1 : end], status, string(msg[:idx]), partial, nil
 }
 
 // getDockerSeverity returns the status of the message based on the value of the
@@ -151,26 +148,23 @@ func min(a, b int) int {
 	return b
 }
 
-// isEmptyMessage tests if the entire message is in the form of escaped new line
-// i.e. \\n  or \\r or \\r\\n
-func isEmptyMessage(content []byte) bool {
-	if len(content) == 2 && content[0] == '\\' {
-		switch content[1] {
-		case 'n', 'r':
-			return true
-		}
-	}
-	return bytes.Equal(content, escapedCRLF)
-}
-
-// isPartialLine tests the last two bytes for an EOL escape sequence
-func isPartialLine(content []byte) bool {
+// isPartialLine tests the last two bytes for an escaped EOL sequence
+// either \\r, \\n or \\r\\n, returns if and EOL sequence has been found
+// and the offset where the EOL sequence starts
+func isPartialLine(content []byte) (bool, int) {
 	l := len(content)
+	partial := true
 	if l > 2 && content[l-2] == '\\' {
-		switch content[l-1] {
-		case 'n', 'r':
-			return false
+		if content[l-1] == 'n' {
+			partial = false
+			l -= 2
+			if l > 4 && content[l-2] == '\\' && content[l-1] == 'r' {
+				l -= 2
+			}
+		} else if content[l-1] == 'r' {
+			partial = false
+			l -= 2
 		}
 	}
-	return true
+	return partial, l
 }

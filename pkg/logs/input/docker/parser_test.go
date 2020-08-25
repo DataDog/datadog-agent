@@ -8,6 +8,8 @@ package docker
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -25,7 +27,7 @@ func TestGetDockerSeverity(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
-	validMessage := dockerHeader + " " + "anything"
+	validMessage := dockerHeader + " " + "anything\\n"
 	parser := NewParser("container_1")
 	content, status, timestamp, partial, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
@@ -52,7 +54,7 @@ func TestDockerStandaloneParserShouldHandleNewlineOnlyMessage(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
-	msg, status, timestamp, partial, err := container1Parser.Parse([]byte("2018-06-14T18:27:03.246999277Z foo"))
+	msg, status, timestamp, partial, err := container1Parser.Parse([]byte("2018-06-14T18:27:03.246999277Z foo\\n"))
 	assert.Nil(t, err)
 	assert.False(t, partial)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", timestamp)
@@ -87,17 +89,18 @@ func TestDockerStandaloneParserShouldRemovePartialHeaders(t *testing.T) {
 
 	// 16kb log
 	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + dockerHeader)
+	fmt.Fprintln(os.Stderr, string(msgToClean))
 	expectedMsg = []byte(buildMessage('a', dockerBufferSize))
 	content, status, timestamp, partial, err := container1Parser.Parse(msgToClean)
 	assert.Nil(t, err)
-	assert.False(t, partial)
+	assert.True(t, partial)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", timestamp)
 	assert.Equal(t, message.StatusInfo, status)
 	assert.Equal(t, expectedMsg, content)
 	assert.Equal(t, dockerBufferSize, len(content))
 
 	// over 16kb
-	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50))
+	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50) + `\n`)
 	expectedMsg = []byte(buildMessage('a', dockerBufferSize) + buildMessage('b', 50))
 	content, status, timestamp, partial, err = container1Parser.Parse(msgToClean)
 	assert.Nil(t, err)
@@ -108,7 +111,7 @@ func TestDockerStandaloneParserShouldRemovePartialHeaders(t *testing.T) {
 	assert.Equal(t, dockerBufferSize+50, len(content))
 
 	// three times over 16kb
-	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50))
+	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50) + `\n`)
 	expectedMsg = []byte(buildMessage('a', 3*dockerBufferSize) + buildMessage('b', 50))
 	content, status, timestamp, partial, err = container1Parser.Parse(msgToClean)
 	assert.Nil(t, err)
