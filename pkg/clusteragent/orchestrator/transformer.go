@@ -194,3 +194,7 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 	}
 	return ""
 }
+
+func extractCluster() {
+
+}

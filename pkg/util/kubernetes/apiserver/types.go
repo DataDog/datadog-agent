@@ -40,4 +40,6 @@ const (
 	ServicesInformer InformerName = "services"
 	// NodesInformer holds the name of the informer
 	NodesInformer InformerName = "nodes"
+	// NamespacesInformer holds the name of the informer
+	NamespacesInformer InformerName = "namespaces"
 )
