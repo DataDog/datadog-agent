@@ -3,15 +3,11 @@
 package ebpf
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net"
-	"regexp"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
@@ -19,7 +15,7 @@ import (
 
 /*
 #include <string.h>
-#include "c/tcp-queue-length-kern-user.h"
+#include "tcp-queue-length-kern-user.h"
 */
 import "C"
 
@@ -28,29 +24,10 @@ type TCPQueueLengthTracer struct {
 	queueMap *bpflib.Table
 }
 
-func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
-	source_raw, err := bytecode.Asset("pkg/ebpf/c/tcp-queue-length-kern.c")
+func NewTCPQueueLengthTracer(cfg *Config) (*TCPQueueLengthTracer, error) {
+	source, err := processHeaders(cfg.BPFDir, "pkg/ebpf/c/tcp-queue-length-kern.c")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn’t find asset “tcp-queue-length-kern.c”: %v", err)
-	}
-
-	// Process the `#include` of embedded headers.
-	// Note that embedded headers including other embedded headers is not managed because
-	// this would also require to properly handle inclusion guards.
-	includeRegexp := regexp.MustCompile(`^\s*#\s*include\s+"(.*)"$`)
-	var source bytes.Buffer
-	scanner := bufio.NewScanner(bytes.NewBuffer(source_raw))
-	for scanner.Scan() {
-		match := includeRegexp.FindSubmatch(scanner.Bytes())
-		if len(match) == 2 {
-			header, err := bytecode.Asset(string(match[1]))
-			if err == nil {
-				source.Write(header)
-				continue
-			}
-		}
-		source.Write(scanner.Bytes())
-		source.WriteByte('\n')
+		return nil, fmt.Errorf("Couldn’t process headers for asset “pkg/ebpf/c/tcp-queue-length-kern.c”: %v", err)
 	}
 
 	m := bpflib.NewModule(source.String(), []string{})

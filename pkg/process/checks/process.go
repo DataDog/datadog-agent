@@ -28,7 +28,7 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	sync.Mutex
+	sync.RWMutex
 
 	sysInfo         *model.SystemInfo
 	lastCPUTime     cpu.TimesStat
@@ -84,17 +84,18 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(ctrList)
 
+	ctrByProc := ctrIDForPID(ctrList)
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
 		p.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
-		p.lastCtrIDForPID = ctrIDForPID(ctrList)
+		p.lastCtrIDForPID = ctrByProc
 		p.lastRun = time.Now()
 		return nil, nil
 	}
 
-	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrList, cpuTimes[0], p.lastCPUTime, p.lastRun)
+	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun)
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
 	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.sysInfo, groupID, p.networkID)
@@ -105,7 +106,7 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	p.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
-	p.lastCtrIDForPID = ctrIDForPID(ctrList)
+	p.lastCtrIDForPID = ctrByProc
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
@@ -205,12 +206,10 @@ func ctrIDForPID(ctrList []*containers.Container) map[int32]string {
 func fmtProcesses(
 	cfg *config.AgentConfig,
 	procs, lastProcs map[int32]*process.FilledProcess,
-	ctrList []*containers.Container,
+	ctrByProc map[int32]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 ) map[string][]*model.Process {
-	ctrIDForPID := ctrIDForPID(ctrList)
-
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
@@ -223,6 +222,7 @@ func fmtProcesses(
 
 		proc := &model.Process{
 			Pid:                    fp.Pid,
+			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
 			User:                   formatUser(fp),
 			Memory:                 formatMemory(fp),
@@ -233,7 +233,7 @@ func fmtProcesses(
 			IoStat:                 formatIO(fp, lastProcs[fp.Pid].IOStat, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
-			ContainerId:            ctrIDForPID[fp.Pid],
+			ContainerId:            ctrByProc[fp.Pid],
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
@@ -335,23 +335,9 @@ func skipProcess(
 	return false
 }
 
-// filterCtrIDsByPIDs uses lastCtrIDForPID and filter down only the pid -> cid that we need
-func (p *ProcessCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
-	p.Lock()
-	defer p.Unlock()
-
-	ctrByPid := make(map[int32]string)
-	for _, pid := range pids {
-		if cid, ok := p.lastCtrIDForPID[pid]; ok {
-			ctrByPid[pid] = cid
-		}
-	}
-	return ctrByPid
-}
-
 func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
-	p.Lock()
-	defer p.Unlock()
+	p.RLock()
+	defer p.RUnlock()
 
 	createTimeForPID := make(map[int32]int64)
 	for _, pid := range pids {

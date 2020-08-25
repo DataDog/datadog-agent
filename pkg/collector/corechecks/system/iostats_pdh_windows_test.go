@@ -72,19 +72,19 @@ func TestIoCheckWindows(t *testing.T) {
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/1024, "", []string{"device:C:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:HarddiskVolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.w_s", 2.222, "", []string{"device:C:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:HarddiskVolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.rkb_s", 3.222/1024, "", []string{"device:C:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:HarddiskVolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.r_s", 4.222, "", []string{"device:C:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:HarddiskVolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.avg_q_sz", 5.222, "", []string{"device:C:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 	ioCheck.Run()
@@ -112,19 +112,19 @@ lowercase_device_tag: true
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/1024, "", []string{"device:c:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:harddiskvolume1", "device_name:harddiskvolume1"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.w_s", 2.222, "", []string{"device:c:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:harddiskvolume1", "device_name:harddiskvolume1"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.rkb_s", 3.222/1024, "", []string{"device:c:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:harddiskvolume1", "device_name:harddiskvolume1"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.r_s", 4.222, "", []string{"device:c:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:harddiskvolume1", "device_name:harddiskvolume1"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.avg_q_sz", 5.222, "", []string{"device:c:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:harddiskvolume1", "device_name:harddiskvolume1"}).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 	ioCheck.Run()
@@ -154,35 +154,35 @@ func TestIoCheckInstanceAdded(t *testing.T) {
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/1024, "", []string{"device:C:"}).Return().Times(2)
-	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:HarddiskVolume1"}).Return().Times(2)
+	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(2)
 
 	mock.On("Gauge", "system.io.w_s", 2.222, "", []string{"device:C:"}).Return().Times(2)
-	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:HarddiskVolume1"}).Return().Times(2)
+	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(2)
 
 	mock.On("Gauge", "system.io.rkb_s", 3.222/1024, "", []string{"device:C:"}).Return().Times(2)
-	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:HarddiskVolume1"}).Return().Times(2)
+	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(2)
 
 	mock.On("Gauge", "system.io.r_s", 4.222, "", []string{"device:C:"}).Return().Times(2)
-	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:HarddiskVolume1"}).Return().Times(2)
+	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(2)
 
 	mock.On("Gauge", "system.io.avg_q_sz", 5.222, "", []string{"device:C:"}).Return().Times(2)
-	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1"}).Return().Times(2)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(2)
 
 	// and the checks for the added instance
 	mock.On("Gauge", "system.io.wkb_s", 1.444/1024, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.wkb_s", 1.555/1024, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.wkb_s", 1.555/1024, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.w_s", 2.444, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.w_s", 2.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.w_s", 2.555, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.rkb_s", 3.444/1024, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.rkb_s", 3.555/1024, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.rkb_s", 3.555/1024, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.r_s", 4.444, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.r_s", 4.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.r_s", 4.555, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.avg_q_sz", 5.444, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.avg_q_sz", 5.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.555, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 	mock.On("Commit").Return().Times(2)
 	ioCheck.Run()
 	ioCheck.Run()
@@ -213,35 +213,35 @@ func TestIoCheckInstanceRemoved(t *testing.T) {
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/1024, "", []string{"device:C:"}).Return().Times(3)
-	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:HarddiskVolume1"}).Return().Times(3)
+	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(3)
 
 	mock.On("Gauge", "system.io.w_s", 2.222, "", []string{"device:C:"}).Return().Times(3)
-	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:HarddiskVolume1"}).Return().Times(3)
+	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(3)
 
 	mock.On("Gauge", "system.io.rkb_s", 3.222/1024, "", []string{"device:C:"}).Return().Times(3)
-	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:HarddiskVolume1"}).Return().Times(3)
+	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(3)
 
 	mock.On("Gauge", "system.io.r_s", 4.222, "", []string{"device:C:"}).Return().Times(3)
-	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:HarddiskVolume1"}).Return().Times(3)
+	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(3)
 
 	mock.On("Gauge", "system.io.avg_q_sz", 5.222, "", []string{"device:C:"}).Return().Times(3)
-	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1"}).Return().Times(3)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(3)
 
 	// and the checks for the added instance
 	mock.On("Gauge", "system.io.wkb_s", 1.444/1024, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.wkb_s", 1.555/1024, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.wkb_s", 1.555/1024, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.w_s", 2.444, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.w_s", 2.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.w_s", 2.555, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.rkb_s", 3.444/1024, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.rkb_s", 3.555/1024, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.rkb_s", 3.555/1024, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.r_s", 4.444, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.r_s", 4.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.r_s", 4.555, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 
 	mock.On("Gauge", "system.io.avg_q_sz", 5.444, "", []string{"device:Y:"}).Return().Times(1)
-	mock.On("Gauge", "system.io.avg_q_sz", 5.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.555, "", []string{"device:HarddiskVolume2", "device_name:HarddiskVolume2"}).Return().Times(1)
 	mock.On("Commit").Return().Times(3)
 	ioCheck.Run()
 	pdhtest.RemoveCounterInstance("LogicalDisk", "Y:")

@@ -128,6 +128,12 @@ func (c *catalog) getStatus() Status {
 	c.RLock()
 	defer c.RUnlock()
 
+	// If no component registered, do not check anything, not even the checker itself
+	// as the `run()` function exits in such a case.
+	if len(c.components) == 0 {
+		return status
+	}
+
 	// Test the checker itself
 	if time.Now().After(c.latestRun.Add(2 * pingFrequency)) {
 		status.Unhealthy = append(status.Unhealthy, "healthcheck")

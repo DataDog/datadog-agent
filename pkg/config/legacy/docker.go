@@ -65,10 +65,8 @@ type legacyDockerInstance struct {
 // ImportDockerConf read the configuration from docker_daemon check (agent5)
 // and create the configuration for the new docker check (agent 6) and move
 // needed option to datadog.yaml
-func ImportDockerConf(src, dst string, overwrite bool) error {
+func ImportDockerConf(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) error {
 	fmt.Printf("%s\n", warningNewCheck)
-
-	configConverter := config.NewConfigConverter()
 
 	// read docker_daemon.yaml
 	c, err := providers.GetIntegrationConfigFromFile("docker_daemon", src)
@@ -83,8 +81,8 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		}
 
 		if initConf.DockerRoot != "" {
-			configConverter.Set("container_cgroup_root", filepath.Join(initConf.DockerRoot, "sys", "fs", "cgroup"))
-			configConverter.Set("container_proc_root", filepath.Join(initConf.DockerRoot, "proc"))
+			converter.Set("container_cgroup_root", filepath.Join(initConf.DockerRoot, "sys", "fs", "cgroup"))
+			converter.Set("container_proc_root", filepath.Join(initConf.DockerRoot, "proc"))
 		}
 	}
 
@@ -121,6 +119,11 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 			return fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
+	// Create necessary destination dir
+	err = os.MkdirAll(filepath.Dir(dst), 0750)
+	if err != nil {
+		return err
+	}
 
 	if err := ioutil.WriteFile(dst, data, 0640); err != nil {
 		return fmt.Errorf("Could not write new docker configuration to %s: %s", dst, err)
@@ -135,11 +138,11 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 
 	// filter include/exclude list
 	if acExclude := handleFilterList(instance.Exclude, "exclude"); len(acExclude) != 0 {
-		configConverter.Set("ac_exclude", acExclude)
+		converter.Set("ac_exclude", acExclude)
 	}
 
 	if acInclude := handleFilterList(instance.Include, "include"); len(acInclude) != 0 {
-		configConverter.Set("ac_include", acInclude)
+		converter.Set("ac_include", acInclude)
 	}
 
 	// move 'collect_labels_as_tags' to 'docker_labels_as_tags'
@@ -148,7 +151,7 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		for _, label := range instance.LabelAsTags {
 			dockerLabelAsTags[label] = label
 		}
-		configConverter.Set("docker_labels_as_tags", dockerLabelAsTags)
+		converter.Set("docker_labels_as_tags", dockerLabelAsTags)
 	}
 
 	fmt.Printf("Successfully imported the contents of %s into datadog.yaml (see 'Autodiscovery' section in datadog.yaml.example)\n\n", src)

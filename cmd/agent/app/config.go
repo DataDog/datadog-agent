@@ -10,7 +10,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"net/http"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -116,30 +118,18 @@ func listRuntimeConfigurableValue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	c := util.GetClient(false)
-	ipcAddress, err := config.GetIPCAddress()
+	settings, err := getRuntimeSettingsList(c)
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("https://%v:%v"+listRuntimeURLPath, ipcAddress, config.Datadog.GetInt("cmd_port"))
-	r, err := util.DoGet(c, url)
-	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			return fmt.Errorf(e)
-		}
-		return err
-	}
-	var settings = make(map[string]string)
-	err = json.Unmarshal(r, &settings)
-	if err != nil {
-		return err
-	}
+
 	fmt.Println("=== Settings that can be changed at runtime ===")
-	for setting, desc := range settings {
-		fmt.Printf("%s:\t\t\t%s\n", setting, desc)
+	for setting, details := range settings {
+		if !details.Hidden {
+			fmt.Printf("%-30s %s\n", setting, details.Description)
+		}
 	}
 	return nil
 }
@@ -152,7 +142,13 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	c := util.GetClient(false)
+	settings, err := getRuntimeSettingsList(c)
+	if err != nil {
+		return err
+	}
+
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return err
@@ -168,6 +164,10 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf(e)
 		}
 		return err
+	}
+
+	if setting, ok := settings[args[0]]; ok && setting.Hidden {
+		fmt.Printf("IMPORTANT: you have modified a hidden option, this may incur in billing or other unexpected side-effects.\n")
 	}
 	fmt.Printf("Configuration setting %s is now set to: %s\n", args[0], args[1])
 	return nil
@@ -204,8 +204,33 @@ func getConfigValue(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if value, found := setting["value"]; found {
-		fmt.Printf("%s is set to: %s\n", args[0], value)
+		fmt.Printf("%s is set to: %v\n", args[0], value)
 		return nil
 	}
 	return fmt.Errorf("unable to get value for this setting: %v", args[0])
+}
+
+func getRuntimeSettingsList(c *http.Client) (map[string]settings.RuntimeSettingResponse, error) {
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+	url := fmt.Sprintf("https://%v:%v"+listRuntimeURLPath, ipcAddress, config.Datadog.GetInt("cmd_port"))
+	r, err := util.DoGet(c, url)
+	if err != nil {
+		var errMap = make(map[string]string)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
+		// If the error has been marshalled into a json object, check it and return it properly
+		if e, found := errMap["error"]; found {
+			return nil, fmt.Errorf(e)
+		}
+		return nil, err
+	}
+	var settings = make(map[string]settings.RuntimeSettingResponse)
+	err = json.Unmarshal(r, &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	return settings, nil
 }

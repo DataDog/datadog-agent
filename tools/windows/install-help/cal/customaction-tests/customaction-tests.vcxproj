@@ -67,7 +67,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>gtest_maind.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gtest_maind.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
@@ -86,7 +86,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>gtest_maind.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gtest_maind.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
@@ -106,7 +106,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>gtest_main.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gtest_main.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
@@ -126,7 +126,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(SolutionDir)packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\lib\native\v140\windesktop\msvcstl\static\rt-static\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>gtest_main.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gtest_main.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>

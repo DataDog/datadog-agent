@@ -125,7 +125,7 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 		case retry.PermaFail:
 			return nil, fmt.Errorf("Permanent failure while waiting for Kubernetes APIServer")
 		default:
-			sleepFor := time.Now().UTC().Sub(globalAPIClient.initRetry.NextRetry().UTC()) + time.Second
+			sleepFor := globalAPIClient.initRetry.NextRetry().UTC().Sub(time.Now().UTC()) + time.Second
 			log.Debugf("Waiting for APIServer, next retry: %v", sleepFor)
 			select {
 			case <-ctx.Done():

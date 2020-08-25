@@ -18,13 +18,12 @@ import (
 
 func setupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	InitConfig(conf)
 	return conf
 }
 
 func setupConfFromYAML(yamlConfig string) Config {
-	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	conf := setupConf()
 	conf.SetConfigType("yaml")
 	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	if e != nil {
@@ -404,6 +403,7 @@ additional_endpoints:
 }
 
 func TestAddAgentVersionToDomain(t *testing.T) {
+	// US
 	newURL, err := AddAgentVersionToDomain("https://app.datadoghq.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.com", newURL)
@@ -412,6 +412,7 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.com", newURL)
 
+	// EU
 	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.eu", newURL)
@@ -420,6 +421,52 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.eu", newURL)
 
+	// Additional site
+	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("app")+".us2.datadoghq.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("flare")+".us2.datadoghq.com", newURL)
+
+	// Custom DD URL: leave unchanged
+	newURL, err = AddAgentVersionToDomain("https://custom.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://custom.datadoghq.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://custom.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://custom.datadoghq.com", newURL)
+
+	// Custom DD URL with 'agent' subdomain: leave unchanged
+	newURL, err = AddAgentVersionToDomain("https://custom.agent.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://custom.agent.datadoghq.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://custom.agent.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://custom.agent.datadoghq.com", newURL)
+
+	// Custom DD URL: unclear if anyone is actually using such a URL, but for now leave unchanged
+	newURL, err = AddAgentVersionToDomain("https://app.custom.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.custom.datadoghq.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.custom.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.custom.datadoghq.com", newURL)
+
+	// Custom top-level domain: unclear if anyone is actually using this, but for now leave unchanged
+	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.internal", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.datadoghq.internal", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.internal", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.datadoghq.internal", newURL)
+
+	// DD URL set to proxy, leave unchanged
 	newURL, err = AddAgentVersionToDomain("https://app.myproxy.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://app.myproxy.com", newURL)
@@ -683,7 +730,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := setupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	err := load(conf, "datadog_secrets.yaml", true)
+	_, err := load(conf, "datadog_secrets.yaml", true)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{

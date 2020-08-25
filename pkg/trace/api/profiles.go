@@ -2,12 +2,15 @@ package api
 
 import (
 	"fmt"
+	stdlog "log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,12 +47,12 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		})
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
-	return newProfileProxy(u, r.conf.APIKey(), tags)
+	return newProfileProxy(r.conf.NewHTTPTransport(), u, r.conf.APIKey(), tags)
 }
 
 // newProfileProxy creates a single-host reverse proxy with the given target, attaching
 // the specified apiKey.
-func newProfileProxy(target *url.URL, apiKey, tags string) *httputil.ReverseProxy {
+func newProfileProxy(transport http.RoundTripper, target *url.URL, apiKey, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		req.URL = target
 		req.Host = target.Host
@@ -69,5 +72,10 @@ func newProfileProxy(target *url.URL, apiKey, tags string) *httputil.ReverseProx
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
 	}
-	return &httputil.ReverseProxy{Director: director}
+	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	return &httputil.ReverseProxy{
+		Director:  director,
+		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
+		Transport: transport,
+	}
 }

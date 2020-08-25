@@ -7,6 +7,38 @@ require 'find'
 
 os_cache = nil
 
+# We retrieve the value defined in kitchen.yml because there is no simple way
+# to set env variables on the target machine or via parameters in Kitchen/Busser
+# See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
+def get_agent_flavor
+  if os == :windows
+    dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+  else
+    dna_json_path = "/tmp/kitchen/dna.json"
+  end
+  JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('agent_flavor')
+end
+
+def get_service_name(flavor)
+  # Return the service name of the given flavor depending on the OS
+  if os == :windows
+    case flavor
+    when "datadog-agent", "datadog-iot-agent"
+      "datadogagent"
+    when "datadog-dogstatsd"
+      # Placeholder, not used yet
+      "dogstatsd"
+    end
+  else
+    case flavor
+    when "datadog-agent", "datadog-iot-agent"
+      "datadog-agent"
+    when "datadog-dogstatsd"
+      "datadog-dogstatsd"
+    end
+  end
+end
+
 def os
   # OS Detection from https://stackoverflow.com/questions/11784109/detecting-operating-systems-in-ruby
   os_cache ||= (
@@ -35,11 +67,11 @@ def agent_command
   end
 end
 
-def wait_until_stopped(timeout = 60)
-  # Check if the agent has stopped every second
+def wait_until_service_stopped(service, timeout = 60)
+  # Check if the service has stopped every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    break if !is_running?
+    break if !is_service_running?(service)
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
@@ -57,11 +89,11 @@ def wait_until_stopped(timeout = 60)
   sleep 2
 end
 
-def wait_until_started(timeout = 30)
-  # Check if the agent has started every second
+def wait_until_service_started(service, timeout = 30)
+  # Check if the service has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    break if is_running?
+    break if is_service_running?(service)
     sleep 1
   end
   # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
@@ -79,68 +111,71 @@ def wait_until_started(timeout = 30)
   sleep 5
 end
 
-def stop
+def stop(flavor)
+  service = get_service_name(flavor)
   if os == :windows
     # forces the trace agent (and other dependent services) to stop
-    result = system 'net stop /y datadogagent 2>&1'
+    result = system "net stop /y #{service} 2>&1"
     sleep 5
   else
     if has_systemctl
-      result = system 'sudo systemctl stop datadog-agent.service'
+      result = system "sudo systemctl stop #{service}.service"
     elsif has_upstart
-      result = system 'sudo initctl stop datadog-agent'
+      result = system "sudo initctl stop #{service}"
     else
-      result = system "sudo /sbin/service datadog-agent stop"
+      result = system "sudo /sbin/service #{service} stop"
     end
   end
-  wait_until_stopped
+  wait_until_service_stopped(service)
   result
 end
 
-def start
+def start(flavor)
+  service = get_service_name(flavor)
   if os == :windows
-    result = system 'net start datadogagent 2>&1'
+    result = system "net start #{service} 2>&1"
     sleep 5
   else
     if has_systemctl
-      result = system 'sudo systemctl start datadog-agent.service'
+      result = system "sudo systemctl start #{service}.service"
     elsif has_upstart
-      result = system 'sudo initctl start datadog-agent'
+      result = system "sudo initctl start #{service}"
     else
-      result = system "sudo /sbin/service datadog-agent start"
+      result = system "sudo /sbin/service #{service} start"
     end
   end
-  wait_until_started
+  wait_until_service_started(service)
   result
 end
 
-def restart
+def restart(flavor)
+  service = get_service_name(flavor)
   if os == :windows
     # forces the trace agent (and other dependent services) to stop
-    if is_running?
-      result = system 'net stop /y datadogagent 2>&1'
+    if is_service_running?(service)
+      result = system "net stop /y #{service} 2>&1"
       sleep 5
-      wait_until_stopped
+      wait_until_service_stopped(service)
     end
-    result = system 'net start datadogagent 2>&1'
+    result = system "net start #{service} 2>&1"
     sleep 5
-    wait_until_started
+    wait_until_service_started(service)
   else
     if has_systemctl
-      result = system 'sudo systemctl restart datadog-agent.service'
+      result = system "sudo systemctl restart #{service}.service"
       # Worst case: the Agent has already stopped and restarted when we check if the process has been stopped
       # and we lose 5 seconds.
-      wait_until_stopped 5
-      wait_until_started 5
+      wait_until_service_stopped(service, 5)
+      wait_until_service_started(service, 5)
     elsif has_upstart
       # initctl can't restart
-      result = system '(sudo initctl restart datadog-agent || sudo initctl start datadog-agent)'
-      wait_until_stopped 5
-      wait_until_started 5
+      result = system "(sudo initctl restart #{service} || sudo initctl start #{service})"
+      wait_until_service_stopped(service, 5)
+      wait_until_service_started(service, 5)
     else
-      result = system "sudo /sbin/service datadog-agent restart"
-      wait_until_stopped 5
-      wait_until_started 5
+      result = system "sudo /sbin/service #{service} restart"
+      wait_until_service_stopped(service, 5)
+      wait_until_service_started(service, 5)
     end
   end
   result
@@ -186,44 +221,41 @@ def json_info
   JSON.parse(info_output)
 end
 
-def status
+def flavor_service_status(flavor)
+  service = get_service_name(flavor)
   if os == :windows
-    status_out = `sc interrogate datadogagent 2>&1`
+    status_out = `sc interrogate #{service} 2>&1`
     puts status_out
     status_out.include?('RUNNING')
   else
     if has_systemctl
-      system('sudo systemctl status --no-pager datadog-agent.service')
+      system "sudo systemctl status --no-pager #{service}.service"
     elsif has_upstart
-      system('sudo initctl status datadog-agent')
+      system "sudo initctl status #{service}"
     else
-      system("sudo /sbin/service datadog-agent status")
+      system "sudo /sbin/service #{service} status"
     end
   end
 end
 
-def is_service_running?(svcname)
+def is_service_running?(service)
   if os == :windows
-    `sc interrogate #{svcname} 2>&1`.include?('RUNNING')
+    `sc interrogate #{service} 2>&1`.include?('RUNNING')
   else
     if has_systemctl
-        system("sudo systemctl status --no-pager #{svcname}.service")
+      system "sudo systemctl status --no-pager #{service}.service"
     elsif has_upstart
-      status = `sudo initctl status #{svcname}`
+      status = `sudo initctl status #{service}`
       status.include?('start/running')
     else
-      status = `sudo /sbin/service #{svcname} status`
+      status = `sudo /sbin/service #{service} status`
       status.include?('running')
     end
   end
 end
 
-def is_running?
-  if os == :windows
-    return is_service_running?("datadogagent")
-  else
-    return is_service_running?("datadog-agent")
-  end
+def is_flavor_running?(flavor)
+  is_service_running?(get_service_name(flavor))
 end
 
 def is_process_running?(pname)
@@ -241,6 +273,13 @@ end
 def agent_processes_running?
   %w(datadog-agent agent.exe).each do |p|
     return true if is_process_running?(p)
+  end
+  false
+end
+
+def dogstatsd_processes_running?
+  %w(dogstatsd dogstatsd.exe).each do |p|
+      return true if is_process_running?(p)
   end
   false
 end
@@ -329,7 +368,7 @@ shared_examples_for 'Agent uninstall' do
 end
 
 shared_examples_for "an installed Agent" do
-  wait_until_started
+  wait_until_service_started get_service_name("datadog-agent")
 
   it 'has an example config file' do
     if os != :windows
@@ -372,7 +411,7 @@ shared_examples_for "an installed Agent" do
       puts "checking file #{msi_path}"
       expect(File).to exist(msi_path)
       output = `powershell -command "get-authenticodesignature #{msi_path}"`
-      signature_hash = "3B79DBE9410471E4FFBDFDAD646A83A1CD47D5AA"
+      signature_hash = "21FE8679BDFB16B879A87DF228003758B62ABF5E"
       expect(output).to include(signature_hash)
       expect(output).to include("Valid")
       expect(output).not_to include("NotSigned")
@@ -388,7 +427,7 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'is running' do
-    expect(status).to be_truthy
+    expect(flavor_service_status "datadog-agent").to be_truthy
   end
 
   it 'has a config file' do
@@ -463,7 +502,7 @@ shared_examples_for "a running Agent with APM manually disabled" do
     confYaml["apm_config"]["enabled"] = false
     File.write(conf_path, confYaml.to_yaml)
 
-    output = restart
+    output = restart "datadog-agent"
     if os != :windows
       expect(output).to be_truthy
       system 'command -v systemctl 2>&1 > /dev/null || sleep 5 || true'
@@ -481,11 +520,11 @@ end
 
 shared_examples_for 'an Agent that stops' do
   it 'stops' do
-    output = stop
+    output = stop "datadog-agent"
     if os != :windows
       expect(output).to be_truthy
     end
-    expect(is_running?).to be_falsey
+    expect(is_flavor_running? "datadog-agent").to be_falsey
   end
 
   it 'has connection refuse in the info command' do
@@ -501,35 +540,35 @@ shared_examples_for 'an Agent that stops' do
   end
 
   it 'starts after being stopped' do
-    output = start
+    output = start "datadog-agent"
     if os != :windows
       expect(output).to be_truthy
     end
-    expect(status).to be_truthy
+    expect(flavor_service_status "datadog-agent").to be_truthy
   end
 end
 
 shared_examples_for 'an Agent that restarts' do
   it 'restarts when the agent is running' do
-    if !is_running?
-      start
+    if !is_flavor_running? "datadog-agent"
+      start "datadog-agent"
     end
-    output = restart
+    output = restart "datadog-agent"
     if os != :windows
       expect(output).to be_truthy
     end
-    expect(is_running?).to be_truthy
+    expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 
   it 'restarts when the agent is not running' do
-    if is_running?
-      stop
+    if is_flavor_running? "datadog-agent"
+      stop "datadog-agent"
     end
-    output = restart
+    output = restart "datadog-agent"
     if os != :windows
       expect(output).to be_truthy
     end
-    expect(status).to be_truthy
+    expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 end
 
@@ -546,7 +585,7 @@ shared_examples_for 'an Agent with python3 enabled' do
     confYaml["python_version"] = 3
     File.write(conf_path, confYaml.to_yaml)
 
-    output = restart
+    output = restart "datadog-agent"
     expect(output).to be_truthy
   end
 
@@ -572,7 +611,7 @@ shared_examples_for 'an Agent with python3 enabled' do
     confYaml["python_version"] = 2
     File.write(conf_path, confYaml.to_yaml)
 
-    output = restart
+    output = restart "datadog-agent"
     expect(output).to be_truthy
   end
 

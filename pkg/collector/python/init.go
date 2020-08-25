@@ -292,6 +292,12 @@ func Initialize(paths ...string) error {
 		C.initMemoryTracker()
 	}
 
+	// Any platform-specific initialization
+	// should be done before rtloader initialization
+	if initializePlatform() != nil {
+		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
+	}
+
 	detectPythonLocation(pythonVersion)
 
 	var pyErr *C.char = nil
@@ -320,11 +326,6 @@ func Initialize(paths ...string) error {
 	for _, p := range paths {
 		// bounded but never released allocations with CString
 		C.add_python_path(rtloader, TrackedCString(p))
-	}
-
-	// Any platform-specific initialization
-	if initializePlatform() != nil {
-		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
 	}
 
 	// Setup custom builtin before RtLoader initialization
