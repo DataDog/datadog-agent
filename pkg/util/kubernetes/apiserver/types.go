@@ -17,7 +17,6 @@ type controllerName string
 const (
 	metadataController    controllerName = "metadata"
 	autoscalersController controllerName = "autoscalers"
-	servicesController    controllerName = "services"
 	endpointsController   controllerName = "endpoints"
 )
 

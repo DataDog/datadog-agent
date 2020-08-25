@@ -59,6 +59,7 @@ type Controller struct {
 	nodeListerSync          cache.InformerSynced
 	nsLister                corelisters.NamespaceLister
 	nsListerSync            cache.InformerSynced
+	client                  kubernetes.Interface
 	groupID                 int32
 	hostName                string
 	clusterName             string
@@ -144,6 +145,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		clusterName:             ctx.ClusterName,
 		clusterID:               clusterID,
 		processConfig:           cfg,
+		client:                  ctx.Client,
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		isLeaderFunc:            ctx.IsLeaderFunc,
 		isScrubbingEnabled:      config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled"),
@@ -218,12 +220,16 @@ func (o *Controller) processClusterInformation() {
 	}
 	nodesList, err := o.nodeLister.List(labels.Everything())
 	if err != nil {
-		log.Errorf("Unable nodes nameSpaces: %v", err)
+		log.Errorf("Unable list nodes: %v", err)
 		return
 	}
-	// TODO: get API Version
+	serverVersion, err := o.client.Discovery().ServerVersion()
+	if err != nil {
+		log.Errorf("Unable retrieve server version: %v", err)
+		return
+	}
 
-	msg, err := processCluster(nsList, nodesList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	msg, err := processCluster(nsList, nodesList, atomic.AddInt32(&o.groupID, 1), o.clusterName, o.clusterID, serverVersion)
 	if err != nil {
 		log.Errorf("Unable to process cluster information: %v", err)
 		return

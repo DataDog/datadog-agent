@@ -10,6 +10,7 @@ package orchestrator
 import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
+	"k8s.io/apimachinery/pkg/version"
 
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -195,26 +196,48 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 	return ""
 }
 
-func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, clusterName string, clusterID string, serverApiVersion string) *model.Cluster {
-	kubeletVersions := extractKubeletVersions(nodeList)
+func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, clusterName string, clusterID string, serverApiVersion *version.Info) *model.Cluster {
+	kubeletVersions := extractClusterInformation(nodeList)
 	cluster := model.Cluster{
 		Name:              clusterName,
 		Uid:               clusterID,
 		NamespaceCount:    int32(len(nsList)),
 		NodeCount:         int32(len(nodeList)),
 		KubeletVersions:   kubeletVersions,
-		ApiServerVersions: serverApiVersion,
+		ApiServerVersions: serverApiVersion.String(),
+		Allocatable:       map[string]int64{},
+		Capacity:          map[string]int64{},
 	}
 	return &cluster
 }
 
-func extractKubeletVersions(nodeList []*corev1.Node) map[string]int64 {
-	kVersions := make(map[string]int64)
+// TODO: think about caching and invalidation strategies
+// TODO: doublecheck for overflow as we add possible high numbers
+func extractClusterInformation(nodeList []*corev1.Node) map[string]int32 {
+	kVersions := make(map[string]int32)
+	clusterCapacity := make(map[string]int64)
+	clusterAllocatable := make(map[string]int64)
+	allocatablePods := int64(0)
+	allocatableCpu := int64(0)
+	allocatableMem := int64(0)
+	capacityMem := int64(0)
+	capacityPods := int64(0)
+	capacityCpu := int64(0)
 	for _, node := range nodeList {
-		if i, ok :=; ok {
-			kVersions[node.Status.NodeInfo.KubeletVersion] = i + 1
+		kubeletVersion := node.Status.NodeInfo.KubeletVersion
+		cCpu := node.Status.Capacity.Cpu()
+		cMem := node.Status.Capacity.Memory()
+		cPods := node.Status.Capacity.Pods()
+		aCpu := node.Status.Allocatable.Cpu()
+		aMem := node.Status.Allocatable.Memory()
+		aPods := node.Status.Allocatable.Pods()
+		allocatablePods += aPods.MilliValue()
+		if i, ok := kVersions[kubeletVersion]; ok {
+			kVersions[kubeletVersion] = i + 1
 		} else {
-			kVersions[node.Status.NodeInfo.KubeletVersion] = 1
+			kVersions[kubeletVersion] = 1
 		}
 	}
+	return kVersions
 }
+

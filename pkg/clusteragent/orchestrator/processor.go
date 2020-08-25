@@ -18,6 +18,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/version"
 )
 
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
@@ -220,31 +221,18 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 	return chunks
 }
 
-// processNameSpaces process a nodes and namespaces list which forms the cluster resource.
-func processCluster(nsList []*corev1.Namespace, nodeList []*corev1.Node, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+// processCluster process a nodes and namespaces list which forms the cluster resource.
+func processCluster(nsList []*corev1.Namespace, nodeList []*corev1.Node, groupID int32, clusterName string, clusterID string, serverVersion *version.Info) ([]model.MessageBody, error) {
 	start := time.Now()
-	// process capacity
-	cluster := extractCluster(nodeList, nsList, clusterName, clusterID)
-	log.Debugf("Collected & enriched cluster in %s", time.Now().Sub(start))
-
-}
-
-// chunkServices chunks the given list of services, honoring the given chunk count and size.
-// The last chunk may be smaller than the others.
-func chunkClusterList(services []*model.Service, chunkCount, chunkSize int) [][]*model.Service {
-	chunks := make([][]*model.Service, 0, chunkCount)
-
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(services)
-		}
-		chunks = append(chunks, services[chunkStart:chunkEnd])
+	cluster := extractCluster(nodeList, nsList, clusterName, clusterID, serverVersion)
+	collectorCluster := model.CollectorCluster{
+		ClusterName: clusterName,
+		ClusterId:   clusterID,
+		GroupId:     groupID,
+		Cluster:     cluster,
 	}
 
-	return chunks
+	msg := []model.MessageBody{&collectorCluster}
+	log.Debugf("Collected & enriched cluster in %s", time.Now().Sub(start))
+	return msg, nil
 }
