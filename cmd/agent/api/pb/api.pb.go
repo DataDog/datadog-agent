@@ -25,6 +25,40 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
+type FlareLogLevel int32
+
+const (
+	FlareLogLevel_TRACE FlareLogLevel = 0
+	FlareLogLevel_DEBUG FlareLogLevel = 1
+	FlareLogLevel_INFO  FlareLogLevel = 2
+	FlareLogLevel_WARN  FlareLogLevel = 3
+	FlareLogLevel_ERROR FlareLogLevel = 4
+)
+
+var FlareLogLevel_name = map[int32]string{
+	0: "TRACE",
+	1: "DEBUG",
+	2: "INFO",
+	3: "WARN",
+	4: "ERROR",
+}
+
+var FlareLogLevel_value = map[string]int32{
+	"TRACE": 0,
+	"DEBUG": 1,
+	"INFO":  2,
+	"WARN":  3,
+	"ERROR": 4,
+}
+
+func (x FlareLogLevel) String() string {
+	return proto.EnumName(FlareLogLevel_name, int32(x))
+}
+
+func (FlareLogLevel) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{0}
+}
+
 type HostnameRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -176,34 +210,376 @@ func (m *TagReply) GetTags() []string {
 	return nil
 }
 
+type FlareHeartbeatRequest struct {
+	TracerIdentifier     string   `protobuf:"bytes,1,opt,name=tracer_identifier,json=tracerIdentifier,proto3" json:"tracer_identifier,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *FlareHeartbeatRequest) Reset()         { *m = FlareHeartbeatRequest{} }
+func (m *FlareHeartbeatRequest) String() string { return proto.CompactTextString(m) }
+func (*FlareHeartbeatRequest) ProtoMessage()    {}
+func (*FlareHeartbeatRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{4}
+}
+
+func (m *FlareHeartbeatRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlareHeartbeatRequest.Unmarshal(m, b)
+}
+func (m *FlareHeartbeatRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlareHeartbeatRequest.Marshal(b, m, deterministic)
+}
+func (m *FlareHeartbeatRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlareHeartbeatRequest.Merge(m, src)
+}
+func (m *FlareHeartbeatRequest) XXX_Size() int {
+	return xxx_messageInfo_FlareHeartbeatRequest.Size(m)
+}
+func (m *FlareHeartbeatRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlareHeartbeatRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlareHeartbeatRequest proto.InternalMessageInfo
+
+func (m *FlareHeartbeatRequest) GetTracerIdentifier() string {
+	if m != nil {
+		return m.TracerIdentifier
+	}
+	return ""
+}
+
+type FlareHeartbeatResponse struct {
+	Trigger              *FlareHeartbeatResponse_Trigger `protobuf:"bytes,1,opt,name=trigger,proto3" json:"trigger,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                        `json:"-"`
+	XXX_unrecognized     []byte                          `json:"-"`
+	XXX_sizecache        int32                           `json:"-"`
+}
+
+func (m *FlareHeartbeatResponse) Reset()         { *m = FlareHeartbeatResponse{} }
+func (m *FlareHeartbeatResponse) String() string { return proto.CompactTextString(m) }
+func (*FlareHeartbeatResponse) ProtoMessage()    {}
+func (*FlareHeartbeatResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{5}
+}
+
+func (m *FlareHeartbeatResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlareHeartbeatResponse.Unmarshal(m, b)
+}
+func (m *FlareHeartbeatResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlareHeartbeatResponse.Marshal(b, m, deterministic)
+}
+func (m *FlareHeartbeatResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlareHeartbeatResponse.Merge(m, src)
+}
+func (m *FlareHeartbeatResponse) XXX_Size() int {
+	return xxx_messageInfo_FlareHeartbeatResponse.Size(m)
+}
+func (m *FlareHeartbeatResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlareHeartbeatResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlareHeartbeatResponse proto.InternalMessageInfo
+
+func (m *FlareHeartbeatResponse) GetTrigger() *FlareHeartbeatResponse_Trigger {
+	if m != nil {
+		return m.Trigger
+	}
+	return nil
+}
+
+type FlareHeartbeatResponse_Trigger struct {
+	FlareIdentifier int64 `protobuf:"varint,1,opt,name=flare_identifier,json=flareIdentifier,proto3" json:"flare_identifier,omitempty"`
+	// should supply with the log
+	// request to be able to
+	// correlate the log lines with
+	// a specific flare request.
+	LogLevel FlareLogLevel `protobuf:"varint,2,opt,name=log_level,json=logLevel,proto3,enum=pb.FlareLogLevel" json:"log_level,omitempty"`
+	// should switch to.
+	DurationSeconds      int32    `protobuf:"varint,3,opt,name=duration_seconds,json=durationSeconds,proto3" json:"duration_seconds,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *FlareHeartbeatResponse_Trigger) Reset()         { *m = FlareHeartbeatResponse_Trigger{} }
+func (m *FlareHeartbeatResponse_Trigger) String() string { return proto.CompactTextString(m) }
+func (*FlareHeartbeatResponse_Trigger) ProtoMessage()    {}
+func (*FlareHeartbeatResponse_Trigger) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{5, 0}
+}
+
+func (m *FlareHeartbeatResponse_Trigger) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlareHeartbeatResponse_Trigger.Unmarshal(m, b)
+}
+func (m *FlareHeartbeatResponse_Trigger) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlareHeartbeatResponse_Trigger.Marshal(b, m, deterministic)
+}
+func (m *FlareHeartbeatResponse_Trigger) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlareHeartbeatResponse_Trigger.Merge(m, src)
+}
+func (m *FlareHeartbeatResponse_Trigger) XXX_Size() int {
+	return xxx_messageInfo_FlareHeartbeatResponse_Trigger.Size(m)
+}
+func (m *FlareHeartbeatResponse_Trigger) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlareHeartbeatResponse_Trigger.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlareHeartbeatResponse_Trigger proto.InternalMessageInfo
+
+func (m *FlareHeartbeatResponse_Trigger) GetFlareIdentifier() int64 {
+	if m != nil {
+		return m.FlareIdentifier
+	}
+	return 0
+}
+
+func (m *FlareHeartbeatResponse_Trigger) GetLogLevel() FlareLogLevel {
+	if m != nil {
+		return m.LogLevel
+	}
+	return FlareLogLevel_TRACE
+}
+
+func (m *FlareHeartbeatResponse_Trigger) GetDurationSeconds() int32 {
+	if m != nil {
+		return m.DurationSeconds
+	}
+	return 0
+}
+
+type FlareLogRequest struct {
+	FlareIdentifier    int64                      `protobuf:"varint,1,opt,name=flare_identifier,json=flareIdentifier,proto3" json:"flare_identifier,omitempty"`
+	Finished           bool                       `protobuf:"varint,2,opt,name=finished,proto3" json:"finished,omitempty"`
+	InitializationLogs []*FlareLogRequest_LogLine `protobuf:"bytes,3,rep,name=initialization_logs,json=initializationLogs,proto3" json:"initialization_logs,omitempty"`
+	// if any that the
+	// tracer has kept
+	// around.
+	ExceptionLogs []*FlareLogRequest_LogLine `protobuf:"bytes,4,rep,name=exception_logs,json=exceptionLogs,proto3" json:"exception_logs,omitempty"`
+	// any that the tracer
+	// has kept around.
+	DumpLogs             []*FlareLogRequest_LogLine `protobuf:"bytes,5,rep,name=dump_logs,json=dumpLogs,proto3" json:"dump_logs,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
+}
+
+func (m *FlareLogRequest) Reset()         { *m = FlareLogRequest{} }
+func (m *FlareLogRequest) String() string { return proto.CompactTextString(m) }
+func (*FlareLogRequest) ProtoMessage()    {}
+func (*FlareLogRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{6}
+}
+
+func (m *FlareLogRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlareLogRequest.Unmarshal(m, b)
+}
+func (m *FlareLogRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlareLogRequest.Marshal(b, m, deterministic)
+}
+func (m *FlareLogRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlareLogRequest.Merge(m, src)
+}
+func (m *FlareLogRequest) XXX_Size() int {
+	return xxx_messageInfo_FlareLogRequest.Size(m)
+}
+func (m *FlareLogRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlareLogRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlareLogRequest proto.InternalMessageInfo
+
+func (m *FlareLogRequest) GetFlareIdentifier() int64 {
+	if m != nil {
+		return m.FlareIdentifier
+	}
+	return 0
+}
+
+func (m *FlareLogRequest) GetFinished() bool {
+	if m != nil {
+		return m.Finished
+	}
+	return false
+}
+
+func (m *FlareLogRequest) GetInitializationLogs() []*FlareLogRequest_LogLine {
+	if m != nil {
+		return m.InitializationLogs
+	}
+	return nil
+}
+
+func (m *FlareLogRequest) GetExceptionLogs() []*FlareLogRequest_LogLine {
+	if m != nil {
+		return m.ExceptionLogs
+	}
+	return nil
+}
+
+func (m *FlareLogRequest) GetDumpLogs() []*FlareLogRequest_LogLine {
+	if m != nil {
+		return m.DumpLogs
+	}
+	return nil
+}
+
+type FlareLogRequest_LogLine struct {
+	LogLevel             FlareLogLevel `protobuf:"varint,1,opt,name=log_level,json=logLevel,proto3,enum=pb.FlareLogLevel" json:"log_level,omitempty"`
+	Message              string        `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
+}
+
+func (m *FlareLogRequest_LogLine) Reset()         { *m = FlareLogRequest_LogLine{} }
+func (m *FlareLogRequest_LogLine) String() string { return proto.CompactTextString(m) }
+func (*FlareLogRequest_LogLine) ProtoMessage()    {}
+func (*FlareLogRequest_LogLine) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{6, 0}
+}
+
+func (m *FlareLogRequest_LogLine) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlareLogRequest_LogLine.Unmarshal(m, b)
+}
+func (m *FlareLogRequest_LogLine) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlareLogRequest_LogLine.Marshal(b, m, deterministic)
+}
+func (m *FlareLogRequest_LogLine) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlareLogRequest_LogLine.Merge(m, src)
+}
+func (m *FlareLogRequest_LogLine) XXX_Size() int {
+	return xxx_messageInfo_FlareLogRequest_LogLine.Size(m)
+}
+func (m *FlareLogRequest_LogLine) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlareLogRequest_LogLine.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlareLogRequest_LogLine proto.InternalMessageInfo
+
+func (m *FlareLogRequest_LogLine) GetLogLevel() FlareLogLevel {
+	if m != nil {
+		return m.LogLevel
+	}
+	return FlareLogLevel_TRACE
+}
+
+func (m *FlareLogRequest_LogLine) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
+type FlareLogResponse struct {
+	Continue bool `protobuf:"varint,1,opt,name=continue,proto3" json:"continue,omitempty"`
+	// send logs?
+	StopReason           string   `protobuf:"bytes,2,opt,name=stop_reason,json=stopReason,proto3" json:"stop_reason,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *FlareLogResponse) Reset()         { *m = FlareLogResponse{} }
+func (m *FlareLogResponse) String() string { return proto.CompactTextString(m) }
+func (*FlareLogResponse) ProtoMessage()    {}
+func (*FlareLogResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{7}
+}
+
+func (m *FlareLogResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FlareLogResponse.Unmarshal(m, b)
+}
+func (m *FlareLogResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FlareLogResponse.Marshal(b, m, deterministic)
+}
+func (m *FlareLogResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlareLogResponse.Merge(m, src)
+}
+func (m *FlareLogResponse) XXX_Size() int {
+	return xxx_messageInfo_FlareLogResponse.Size(m)
+}
+func (m *FlareLogResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlareLogResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlareLogResponse proto.InternalMessageInfo
+
+func (m *FlareLogResponse) GetContinue() bool {
+	if m != nil {
+		return m.Continue
+	}
+	return false
+}
+
+func (m *FlareLogResponse) GetStopReason() string {
+	if m != nil {
+		return m.StopReason
+	}
+	return ""
+}
+
 func init() {
+	proto.RegisterEnum("pb.FlareLogLevel", FlareLogLevel_name, FlareLogLevel_value)
 	proto.RegisterType((*HostnameRequest)(nil), "pb.HostnameRequest")
 	proto.RegisterType((*HostnameReply)(nil), "pb.HostnameReply")
 	proto.RegisterType((*TagRequest)(nil), "pb.TagRequest")
 	proto.RegisterType((*TagReply)(nil), "pb.TagReply")
+	proto.RegisterType((*FlareHeartbeatRequest)(nil), "pb.FlareHeartbeatRequest")
+	proto.RegisterType((*FlareHeartbeatResponse)(nil), "pb.FlareHeartbeatResponse")
+	proto.RegisterType((*FlareHeartbeatResponse_Trigger)(nil), "pb.FlareHeartbeatResponse.Trigger")
+	proto.RegisterType((*FlareLogRequest)(nil), "pb.FlareLogRequest")
+	proto.RegisterType((*FlareLogRequest_LogLine)(nil), "pb.FlareLogRequest.LogLine")
+	proto.RegisterType((*FlareLogResponse)(nil), "pb.FlareLogResponse")
 }
 
 func init() { proto.RegisterFile("api.proto", fileDescriptor_00212fb1f9d3bf1c) }
 
 var fileDescriptor_00212fb1f9d3bf1c = []byte{
-	// 262 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x5c, 0x90, 0x41, 0x4a, 0xc3, 0x40,
-	0x14, 0x86, 0x49, 0xd5, 0xda, 0xbc, 0x5a, 0x4b, 0x9f, 0x28, 0x21, 0x88, 0x94, 0xc1, 0x45, 0x51,
-	0x48, 0xb0, 0xee, 0xdc, 0x75, 0x55, 0x17, 0x2e, 0x24, 0xd6, 0x03, 0x4c, 0xca, 0x63, 0x0c, 0xc4,
-	0x99, 0x31, 0x79, 0x15, 0xb2, 0xf5, 0x0a, 0x1e, 0xcd, 0x2b, 0x78, 0x10, 0x99, 0x31, 0x36, 0xd8,
-	0xdd, 0xfc, 0x3f, 0xff, 0x7c, 0xf3, 0x31, 0x10, 0x4a, 0x5b, 0x24, 0xb6, 0x32, 0x6c, 0xb0, 0x67,
-	0xf3, 0xf8, 0x5c, 0x19, 0xa3, 0x4a, 0x4a, 0xa5, 0x2d, 0x52, 0xa9, 0xb5, 0x61, 0xc9, 0x85, 0xd1,
-	0xf5, 0xef, 0x42, 0x4c, 0x60, 0x7c, 0x6f, 0x6a, 0xd6, 0xf2, 0x95, 0x32, 0x7a, 0xdb, 0x50, 0xcd,
-	0xe2, 0x1a, 0x46, 0x5d, 0x65, 0xcb, 0x06, 0x63, 0x18, 0xbc, 0xb4, 0x45, 0x14, 0x4c, 0x83, 0x59,
-	0x98, 0x6d, 0xb3, 0xb8, 0x04, 0x58, 0x49, 0xd5, 0x5e, 0xc5, 0x33, 0xe8, 0x93, 0xe6, 0x82, 0x9b,
-	0x76, 0xd7, 0x26, 0x71, 0x01, 0x03, 0xbf, 0x72, 0x34, 0x84, 0x7d, 0x96, 0xaa, 0x8e, 0x82, 0xe9,
-	0xde, 0x2c, 0xcc, 0xfc, 0x79, 0xfe, 0x0c, 0x07, 0x0b, 0x45, 0x9a, 0xf1, 0x01, 0x86, 0x4b, 0xe2,
-	0xbf, 0xe7, 0xf1, 0x24, 0xb1, 0x79, 0xb2, 0xe3, 0x17, 0x4f, 0xfe, 0x97, 0xb6, 0x6c, 0xc4, 0xe9,
-	0xc7, 0xd7, 0xf7, 0x67, 0x6f, 0x8c, 0xa3, 0xf4, 0xfd, 0x26, 0x55, 0x95, 0x5d, 0xa7, 0x4e, 0x70,
-	0xfe, 0x08, 0x43, 0x8f, 0x7d, 0xa2, 0xf5, 0xa6, 0x22, 0x5c, 0xc0, 0xe1, 0x92, 0x78, 0x25, 0x55,
-	0x8d, 0xc7, 0x8e, 0xd1, 0x89, 0xc7, 0x47, 0xdb, 0xec, 0x70, 0x91, 0xc7, 0xa1, 0xe8, 0x70, 0xce,
-	0xf2, 0x2e, 0xb8, 0xca, 0xfb, 0xfe, 0xd7, 0x6e, 0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0x95, 0x07,
-	0x12, 0xc5, 0x64, 0x01, 0x00, 0x00,
+	// 679 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x94, 0xcd, 0x6e, 0x1a, 0x3b,
+	0x14, 0xc7, 0xef, 0xf0, 0x11, 0x86, 0x43, 0x80, 0xc1, 0xf9, 0x10, 0x77, 0x6e, 0x74, 0x8b, 0x46,
+	0x5d, 0xd0, 0x44, 0x02, 0x95, 0x6e, 0xaa, 0xaa, 0x1b, 0xd2, 0x90, 0x0f, 0x09, 0x25, 0x91, 0xa1,
+	0xea, 0x12, 0x19, 0x70, 0x1c, 0x4b, 0x83, 0x3d, 0x1d, 0x1b, 0xd4, 0x74, 0xd9, 0x17, 0xe8, 0xa2,
+	0x52, 0x5f, 0xac, 0xaf, 0xd0, 0x45, 0x5f, 0xa1, 0xbb, 0xca, 0x33, 0xc3, 0x4c, 0x89, 0x52, 0x45,
+	0xdd, 0xf9, 0xfc, 0xe7, 0xfc, 0x7f, 0x3e, 0x3e, 0x9e, 0x63, 0x28, 0x93, 0x80, 0x77, 0x82, 0x50,
+	0x6a, 0x89, 0x72, 0xc1, 0xd4, 0x3d, 0x60, 0x52, 0x32, 0x9f, 0x76, 0x49, 0xc0, 0xbb, 0x44, 0x08,
+	0xa9, 0x89, 0xe6, 0x52, 0xa8, 0x38, 0xc3, 0x6b, 0x40, 0xfd, 0x5c, 0x2a, 0x2d, 0xc8, 0x82, 0x62,
+	0xfa, 0x7e, 0x49, 0x95, 0xf6, 0x8e, 0xa0, 0x9a, 0x49, 0x81, 0x7f, 0x87, 0x5c, 0xb0, 0x6f, 0x13,
+	0xa1, 0x69, 0xb5, 0xac, 0x76, 0x19, 0xa7, 0xb1, 0xf7, 0x14, 0x60, 0x4c, 0x58, 0x62, 0x45, 0xfb,
+	0xb0, 0x45, 0x85, 0xe6, 0xfa, 0x2e, 0xc9, 0x4b, 0x22, 0xef, 0x7f, 0xb0, 0xa3, 0x2c, 0x43, 0x43,
+	0x50, 0xd0, 0x84, 0xa9, 0xa6, 0xd5, 0xca, 0xb7, 0xcb, 0x38, 0x5a, 0x7b, 0x27, 0xb0, 0x77, 0xea,
+	0x93, 0x90, 0x9e, 0x53, 0x12, 0xea, 0x29, 0x25, 0x7a, 0x0d, 0x3c, 0x82, 0x86, 0x0e, 0xc9, 0x8c,
+	0x86, 0x13, 0x3e, 0x37, 0xac, 0x1b, 0x4e, 0xc3, 0x84, 0xed, 0xc4, 0x1f, 0x2e, 0x52, 0xdd, 0xfb,
+	0x61, 0xc1, 0xfe, 0x7d, 0x8c, 0x0a, 0xa4, 0x50, 0x14, 0xbd, 0x86, 0x92, 0x0e, 0x39, 0x63, 0x89,
+	0xbb, 0xd2, 0xf3, 0x3a, 0xc1, 0xb4, 0xf3, 0x70, 0x72, 0x67, 0x1c, 0x67, 0xe2, 0xb5, 0xc5, 0xfd,
+	0x6c, 0x41, 0x29, 0x11, 0xd1, 0x33, 0x70, 0x6e, 0x8c, 0xed, 0x7e, 0x41, 0x79, 0x5c, 0x8f, 0xf4,
+	0xac, 0x1e, 0xd4, 0x81, 0xb2, 0x2f, 0xd9, 0xc4, 0xa7, 0x2b, 0xea, 0x37, 0x73, 0x2d, 0xab, 0x5d,
+	0xeb, 0x35, 0xd2, 0x6d, 0x87, 0x92, 0x0d, 0xcd, 0x07, 0x6c, 0xfb, 0xc9, 0xca, 0xa0, 0xe7, 0xcb,
+	0x30, 0xba, 0x9e, 0x89, 0xa2, 0x33, 0x29, 0xe6, 0xaa, 0x99, 0x6f, 0x59, 0xed, 0x22, 0xae, 0xaf,
+	0xf5, 0x51, 0x2c, 0x7b, 0x3f, 0x73, 0x50, 0x5f, 0x63, 0xd6, 0xbd, 0xfa, 0x8b, 0xca, 0x5c, 0xb0,
+	0x6f, 0xb8, 0xe0, 0xea, 0x96, 0xce, 0xa3, 0xc2, 0x6c, 0x9c, 0xc6, 0x68, 0x08, 0x3b, 0x5c, 0x70,
+	0xcd, 0x89, 0xcf, 0x3f, 0xc6, 0xb5, 0xf8, 0x92, 0x99, 0x42, 0xf2, 0xed, 0x4a, 0xef, 0xbf, 0xdf,
+	0xeb, 0x4f, 0x36, 0xee, 0x98, 0xa3, 0x70, 0x41, 0x31, 0xda, 0xf4, 0x0d, 0x25, 0x53, 0xe8, 0x18,
+	0x6a, 0xf4, 0xc3, 0x8c, 0x06, 0x19, 0xa8, 0xf0, 0x38, 0xa8, 0x9a, 0x5a, 0x22, 0xc6, 0x4b, 0x28,
+	0xcf, 0x97, 0x8b, 0x20, 0xb6, 0x17, 0x1f, 0xb7, 0xdb, 0x26, 0xdb, 0x38, 0xdd, 0x11, 0x94, 0x12,
+	0x71, 0xf3, 0x32, 0xac, 0xc7, 0x2f, 0xa3, 0x09, 0xa5, 0x05, 0x55, 0x8a, 0x30, 0x1a, 0x75, 0xa8,
+	0x8c, 0xd7, 0xa1, 0x77, 0x05, 0x4e, 0xb6, 0x73, 0xf2, 0x7f, 0xb9, 0x60, 0xcf, 0xa4, 0xd0, 0x5c,
+	0x2c, 0xe3, 0x11, 0xb1, 0x71, 0x1a, 0xa3, 0x27, 0x50, 0x51, 0x5a, 0x06, 0x93, 0x90, 0x12, 0x25,
+	0x45, 0x42, 0x03, 0x23, 0xe1, 0x48, 0x39, 0x3c, 0x81, 0xea, 0x46, 0x15, 0xa8, 0x0c, 0xc5, 0x31,
+	0xee, 0xbf, 0x19, 0x38, 0xff, 0x98, 0xe5, 0xc9, 0xe0, 0xf8, 0xed, 0x99, 0x63, 0x21, 0x1b, 0x0a,
+	0x17, 0x97, 0xa7, 0x57, 0x4e, 0xce, 0xac, 0xde, 0xf5, 0xf1, 0xa5, 0x93, 0x37, 0x9f, 0x07, 0x18,
+	0x5f, 0x61, 0xa7, 0xd0, 0xfb, 0x9a, 0x83, 0x62, 0x9f, 0x51, 0xa1, 0xd1, 0x10, 0x2a, 0x67, 0x54,
+	0xaf, 0x67, 0x18, 0xed, 0x98, 0x63, 0xde, 0x1b, 0x72, 0xb7, 0xb1, 0x29, 0x06, 0xfe, 0x9d, 0xb7,
+	0xf7, 0xe9, 0xdb, 0xf7, 0x2f, 0xb9, 0x3a, 0xaa, 0x76, 0x57, 0xcf, 0xbb, 0x2c, 0x0c, 0x66, 0x5d,
+	0x33, 0xe5, 0x68, 0x01, 0xce, 0x88, 0x86, 0x2b, 0x3e, 0xcb, 0x26, 0x05, 0xfd, 0xfb, 0xd0, 0xf4,
+	0xc4, 0x60, 0xf7, 0xcf, 0x83, 0xe5, 0x79, 0xd1, 0x0e, 0x07, 0xc8, 0x4d, 0x77, 0x50, 0x31, 0x79,
+	0x72, 0x9b, 0xa2, 0xaf, 0xb3, 0x66, 0x0c, 0x56, 0xe6, 0x34, 0x3b, 0x0f, 0x5c, 0xb5, 0xbb, 0xbb,
+	0x29, 0x26, 0xfc, 0xdd, 0x88, 0x5f, 0x43, 0xdb, 0x29, 0xdf, 0x97, 0xac, 0x77, 0x0d, 0x95, 0xa8,
+	0x2f, 0x23, 0x3a, 0x5b, 0x86, 0x14, 0xf5, 0xa1, 0x74, 0x46, 0xf5, 0x98, 0x30, 0x85, 0x6a, 0x86,
+	0x92, 0x3d, 0x5f, 0xee, 0x76, 0x1a, 0x9b, 0x7e, 0x34, 0x23, 0x1a, 0xf2, 0xb2, 0x7e, 0x98, 0xb7,
+	0xea, 0x95, 0x75, 0x38, 0xdd, 0x8a, 0xde, 0xce, 0x17, 0xbf, 0x02, 0x00, 0x00, 0xff, 0xff, 0x9f,
+	0x57, 0x0b, 0xbd, 0x6a, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -220,6 +596,10 @@ const _ = grpc.SupportPackageIsVersion4
 type AgentClient interface {
 	// get the hostname
 	GetHostname(ctx context.Context, in *HostnameRequest, opts ...grpc.CallOption) (*HostnameReply, error)
+	// get tracer heartbeat
+	ServiceHeartbeat(ctx context.Context, in *FlareHeartbeatRequest, opts ...grpc.CallOption) (*FlareHeartbeatResponse, error)
+	// log events
+	FlareLogEvent(ctx context.Context, in *FlareLogRequest, opts ...grpc.CallOption) (*FlareLogResponse, error)
 }
 
 type agentClient struct {
@@ -239,10 +619,32 @@ func (c *agentClient) GetHostname(ctx context.Context, in *HostnameRequest, opts
 	return out, nil
 }
 
+func (c *agentClient) ServiceHeartbeat(ctx context.Context, in *FlareHeartbeatRequest, opts ...grpc.CallOption) (*FlareHeartbeatResponse, error) {
+	out := new(FlareHeartbeatResponse)
+	err := c.cc.Invoke(ctx, "/pb.Agent/ServiceHeartbeat", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentClient) FlareLogEvent(ctx context.Context, in *FlareLogRequest, opts ...grpc.CallOption) (*FlareLogResponse, error) {
+	out := new(FlareLogResponse)
+	err := c.cc.Invoke(ctx, "/pb.Agent/FlareLogEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServer is the server API for Agent service.
 type AgentServer interface {
 	// get the hostname
 	GetHostname(context.Context, *HostnameRequest) (*HostnameReply, error)
+	// get tracer heartbeat
+	ServiceHeartbeat(context.Context, *FlareHeartbeatRequest) (*FlareHeartbeatResponse, error)
+	// log events
+	FlareLogEvent(context.Context, *FlareLogRequest) (*FlareLogResponse, error)
 }
 
 // UnimplementedAgentServer can be embedded to have forward compatible implementations.
@@ -251,6 +653,12 @@ type UnimplementedAgentServer struct {
 
 func (*UnimplementedAgentServer) GetHostname(ctx context.Context, req *HostnameRequest) (*HostnameReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHostname not implemented")
+}
+func (*UnimplementedAgentServer) ServiceHeartbeat(ctx context.Context, req *FlareHeartbeatRequest) (*FlareHeartbeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ServiceHeartbeat not implemented")
+}
+func (*UnimplementedAgentServer) FlareLogEvent(ctx context.Context, req *FlareLogRequest) (*FlareLogResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FlareLogEvent not implemented")
 }
 
 func RegisterAgentServer(s *grpc.Server, srv AgentServer) {
@@ -275,6 +683,42 @@ func _Agent_GetHostname_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Agent_ServiceHeartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlareHeartbeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServer).ServiceHeartbeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.Agent/ServiceHeartbeat",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServer).ServiceHeartbeat(ctx, req.(*FlareHeartbeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Agent_FlareLogEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlareLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServer).FlareLogEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.Agent/FlareLogEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServer).FlareLogEvent(ctx, req.(*FlareLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Agent_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "pb.Agent",
 	HandlerType: (*AgentServer)(nil),
@@ -282,6 +726,14 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetHostname",
 			Handler:    _Agent_GetHostname_Handler,
+		},
+		{
+			MethodName: "ServiceHeartbeat",
+			Handler:    _Agent_ServiceHeartbeat_Handler,
+		},
+		{
+			MethodName: "FlareLogEvent",
+			Handler:    _Agent_FlareLogEvent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
