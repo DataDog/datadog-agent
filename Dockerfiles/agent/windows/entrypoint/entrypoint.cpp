@@ -75,7 +75,10 @@ void StreamLogsToStdout(std::filesystem::path const& logFilePath)
     std::ifstream::pos_type lastPosition;
     while (true)
     {
-        std::ifstream logFile(logFilePath);
+        // _SH_DENYNO: Share read and write access, so as not to conflict
+        // with the agent's logging.
+        // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fsopen-wfsopen?view=vs-2017
+        std::ifstream logFile(logFilePath, std::ios_base::in, _SH_DENYNO);
         if (logFile)
         {
             logFile.seekg(0, std::ifstream::end);
