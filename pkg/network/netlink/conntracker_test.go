@@ -25,60 +25,69 @@ func TestIsNat(t *testing.T) {
 
 	t.Run("not nat", func(t *testing.T) {
 
-		c := ct.Con{
-			Origin: &ct.IPTuple{
-				Src: &src,
-				Dst: &dst,
-				Proto: &ct.ProtoTuple{
-					SrcPort: &srcPort,
-					DstPort: &dstPort,
+		c := Con{
+			ct.Con{
+				Origin: &ct.IPTuple{
+					Src: &src,
+					Dst: &dst,
+					Proto: &ct.ProtoTuple{
+						SrcPort: &srcPort,
+						DstPort: &dstPort,
+					},
+				},
+				Reply: &ct.IPTuple{
+					Src: &dst,
+					Dst: &src,
+					Proto: &ct.ProtoTuple{
+						SrcPort: &dstPort,
+						DstPort: &srcPort,
+					},
 				},
 			},
-			Reply: &ct.IPTuple{
-				Src: &dst,
-				Dst: &src,
-				Proto: &ct.ProtoTuple{
-					SrcPort: &dstPort,
-					DstPort: &srcPort,
-				},
-			},
+			0,
 		}
 		assert.False(t, isNAT(c))
 	})
 
 	t.Run("nil proto field", func(t *testing.T) {
-		c := ct.Con{
-			Origin: &ct.IPTuple{
-				Src: &src,
-				Dst: &dst,
+		c := Con{
+			ct.Con{
+				Origin: &ct.IPTuple{
+					Src: &src,
+					Dst: &dst,
+				},
+				Reply: &ct.IPTuple{
+					Src: &dst,
+					Dst: &src,
+				},
 			},
-			Reply: &ct.IPTuple{
-				Src: &dst,
-				Dst: &src,
-			},
+			0,
 		}
 		assert.False(t, isNAT(c))
 	})
 
 	t.Run("nat", func(t *testing.T) {
 
-		c := ct.Con{
-			Origin: &ct.IPTuple{
-				Src: &src,
-				Dst: &dst,
-				Proto: &ct.ProtoTuple{
-					SrcPort: &srcPort,
-					DstPort: &dstPort,
+		c := Con{
+			ct.Con{
+				Origin: &ct.IPTuple{
+					Src: &src,
+					Dst: &dst,
+					Proto: &ct.ProtoTuple{
+						SrcPort: &srcPort,
+						DstPort: &dstPort,
+					},
+				},
+				Reply: &ct.IPTuple{
+					Src: &tdst,
+					Dst: &src,
+					Proto: &ct.ProtoTuple{
+						SrcPort: &dstPort,
+						DstPort: &srcPort,
+					},
 				},
 			},
-			Reply: &ct.IPTuple{
-				Src: &tdst,
-				Dst: &src,
-				Proto: &ct.ProtoTuple{
-					SrcPort: &dstPort,
-					DstPort: &srcPort,
-				},
-			},
+			0,
 		}
 		assert.True(t, isNAT(c))
 	})
@@ -236,32 +245,35 @@ func newConntracker() *realConntracker {
 	}
 }
 
-func makeUntranslatedConn(src, dst net.IP, proto uint8, srcPort, dstPort uint16) ct.Con {
+func makeUntranslatedConn(src, dst net.IP, proto uint8, srcPort, dstPort uint16) Con {
 	return makeTranslatedConn(src, dst, dst, proto, srcPort, dstPort, dstPort)
 }
 
 // makes a translation where from -> to is shows as transFrom -> from
-func makeTranslatedConn(from, transFrom, to net.IP, proto uint8, fromPort, transFromPort, toPort uint16) ct.Con {
+func makeTranslatedConn(from, transFrom, to net.IP, proto uint8, fromPort, transFromPort, toPort uint16) Con {
 
-	return ct.Con{
-		Origin: &ct.IPTuple{
-			Src: &from,
-			Dst: &to,
-			Proto: &ct.ProtoTuple{
-				Number:  &proto,
-				SrcPort: &fromPort,
-				DstPort: &toPort,
+	return Con{
+		ct.Con{
+			Origin: &ct.IPTuple{
+				Src: &from,
+				Dst: &to,
+				Proto: &ct.ProtoTuple{
+					Number:  &proto,
+					SrcPort: &fromPort,
+					DstPort: &toPort,
+				},
+			},
+			Reply: &ct.IPTuple{
+				Src: &transFrom,
+				Dst: &from,
+				Proto: &ct.ProtoTuple{
+					Number:  &proto,
+					SrcPort: &transFromPort,
+					DstPort: &fromPort,
+				},
 			},
 		},
-		Reply: &ct.IPTuple{
-			Src: &transFrom,
-			Dst: &from,
-			Proto: &ct.ProtoTuple{
-				Number:  &proto,
-				SrcPort: &transFromPort,
-				DstPort: &fromPort,
-			},
-		},
+		0,
 	}
 }
 
