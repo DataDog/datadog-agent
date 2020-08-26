@@ -196,7 +196,7 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
 func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []ConnectionStats, error) {
-	readbuffer := make([]uint8, 1024)
+	readbuffer := make([]uint8, di.driverBufferSize)
 	connStatsActive := make([]ConnectionStats, 0)
 	connStatsClosed := make([]ConnectionStats, 0)
 
