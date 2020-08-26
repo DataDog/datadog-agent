@@ -148,13 +148,6 @@ func TestProcessChunking(t *testing.T) {
 			blacklist:      []string{},
 			expectedTotal:  3,
 			expectedChunks: 3,
-		},		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2]},
-			last:           []*process.FilledProcess{p[0], p[1], p[2]},
-			maxSize:        0,
-			blacklist:      []string{},
-			expectedTotal:  3,
-			expectedChunks: 3,
 		},
 		{
 			cur:            []*process.FilledProcess{p[0], p[1], p[2]},
