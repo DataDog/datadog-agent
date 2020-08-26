@@ -12,11 +12,12 @@ typedef unsigned short      uint16_t;
 typedef __int64 LONG64;
 #endif
 
+
 // this type doesn't seem to be defined anyway
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x05
+#define DD_NPMDRIVER_VERSION       0x06
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -48,6 +49,22 @@ typedef unsigned char       uint8_t;
                                               0x805, \
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_GET_FLOW_COUNT  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x806, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_ENABLE_FLOWREAD_HINT  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x807, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_ENABLE_FLOW_CONTEXT_CACHE  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x808, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
 #pragma pack(1)
 
 /*!
@@ -79,6 +96,10 @@ typedef struct _flow_handle_stats {
     volatile LONG64         num_flow_search_misses; // number of times we missed a flow even after searching the list
 
     volatile LONG64         num_flow_collisions;
+
+    volatile LONG64         num_flow_contexts_allocated;
+    volatile LONG64         num_flow_contexts_from_cache;
+    volatile LONG64         num_flow_contexts_in_free_cache;
 } FLOW_STATS;
 
 typedef struct _transport_handle_stats {

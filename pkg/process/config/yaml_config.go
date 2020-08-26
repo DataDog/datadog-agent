@@ -162,6 +162,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	a.Windows.EnableMonotonicCount = config.Datadog.GetBool(key(spNS, "windows", "enable_monotonic_count"))
+	a.Windows.EnableFlowReadHint = config.Datadog.GetBool(key(spNS, "windows", "enable_flow_read_hint"))
+	a.Windows.EnableFlowContextCache = config.Datadog.GetBool(key(spNS, "windows", "enable_flow_context_cache"))
 
 	if driverBufferSize := config.Datadog.GetInt(key(spNS, "windows", "driver_buffer_size")); driverBufferSize > 0 {
 		a.Windows.DriverBufferSize = driverBufferSize

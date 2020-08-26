@@ -82,6 +82,8 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 
 	tracerConfig.EnableMonotonicCount = cfg.Windows.EnableMonotonicCount
 	tracerConfig.DriverBufferSize = cfg.Windows.DriverBufferSize
+	tracerConfig.EnableFlowReadHint = cfg.Windows.EnableFlowReadHint
+	tracerConfig.EnableFlowContextCache = cfg.Windows.EnableFlowContextCache
 
 	return tracerConfig
 }

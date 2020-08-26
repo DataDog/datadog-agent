@@ -69,14 +69,18 @@ type DriverInterface struct {
 
 	path                  string
 	enableMonotonicCounts bool
+	enableFlowReadHint	  bool
+	enableFlowContextCache bool
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCounts bool, driverBufferSize int) (*DriverInterface, error) {
+func NewDriverInterface(driverBufferSize int, enableMonotonicCounts, enableFlowReadHint, enableFlowContextCache bool) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:                  deviceName,
-		enableMonotonicCounts: enableMonotonicCounts,
 		driverBufferSize:      driverBufferSize,
+		enableMonotonicCounts: enableMonotonicCounts,
+		enableFlowReadHint: enableFlowReadHint,
+		enableFlowContextCache: enableFlowContextCache,
 	}
 
 	err := dc.setupFlowHandle()
@@ -118,6 +122,10 @@ func (di *DriverInterface) setupFlowHandle() error {
 	}
 	di.driverFlowHandle = dh
 
+	err = di.setupConfigOptions()
+	if err != nil {
+		return err
+	}
 	filters, err := createFlowHandleFilters()
 	if err != nil {
 		return err
@@ -132,6 +140,43 @@ func (di *DriverInterface) setupFlowHandle() error {
 	return nil
 }
 
+// setupConfigOptions passes config options to the driver via the correct ioctl interface
+func (di *DriverInterface) setupConfigOptions() error {
+	var boolval int64 = 0
+
+	if di.enableFlowReadHint {
+		boolval = 1
+	}
+	err := windows.DeviceIoControl(di.driverFlowHandle.handle,
+		C.DDNPMDRIVER_IOCTL_ENABLE_FLOWREAD_HINT,
+		(*byte)(unsafe.Pointer(&boolval)),
+		uint32(unsafe.Sizeof(boolval)),
+		nil, 
+		0,
+		nil,
+		nil	)
+	if(err != nil){
+		return fmt.Errorf("Failed to set flowread hint config %v", err);
+	}
+	if di.enableFlowContextCache {
+		boolval = 1 
+	} else {
+		boolval = 0
+	}
+
+	err = windows.DeviceIoControl(di.driverFlowHandle.handle,
+		C.DDNPMDRIVER_IOCTL_ENABLE_FLOW_CONTEXT_CACHE,
+		(*byte)(unsafe.Pointer(&boolval)),
+		uint32(unsafe.Sizeof(boolval)),
+		nil, 
+		0,
+		nil,
+		nil	)
+	if(err != nil){
+		return fmt.Errorf("Failed to set flow context cache config %v", err);
+	}
+	return nil
+}
 // setupStatsHandle generates a windows Driver Handle, and creates a DriverHandle struct
 func (di *DriverInterface) setupStatsHandle() error {
 	h, err := di.generateDriverHandle()
@@ -306,6 +351,9 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 			"num_flow_searches":           int64(stats.total.flow_stats.num_flow_searches),
 			"num_flow_search_misses":      int64(stats.total.flow_stats.num_flow_search_misses),
 			"num_flow_collisions":         int64(stats.total.flow_stats.num_flow_collisions),
+			"num_flow_contexts_allocated": int64(stats.total.flow_stats.num_flow_contexts_allocated),
+			"num_flow_contexts_from_cache": int64(stats.total.flow_stats.num_flow_contexts_from_cache),
+			"num_flow_contexts_in_free_cache": int64(stats.total.flow_stats.num_flow_contexts_in_free_cache),
 			"packets_processed_transport": int64(stats.total.transport_stats.packets_processed),
 			"read_packets_skipped":        int64(stats.total.transport_stats.read_packets_skipped),
 			"packets_reported":            int64(stats.total.transport_stats.packets_reported),
@@ -327,6 +375,10 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 			"num_flow_searches":      int64(stats.handle.flow_stats.num_flow_searches),
 			"num_flow_search_misses": int64(stats.handle.flow_stats.num_flow_search_misses),
 			"num_flow_collisions":    int64(stats.handle.flow_stats.num_flow_collisions),
+			"num_flow_contexts_allocated": int64(stats.handle.flow_stats.num_flow_contexts_allocated),
+			"num_flow_contexts_from_cache": int64(stats.handle.flow_stats.num_flow_contexts_from_cache),
+			"num_flow_contexts_in_free_cache": int64(stats.handle.flow_stats.num_flow_contexts_in_free_cache),
+
 		}, nil
 	// A DataHandle handle returns transfer stats specific to this handle
 	case DataHandle:
