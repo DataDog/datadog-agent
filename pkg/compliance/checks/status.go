@@ -15,9 +15,9 @@ import (
 
 // status maintains status updates for all configured checks
 type status struct {
+	sync.RWMutex
 	ruleIDs []string
 	checks  map[string]*compliance.CheckStatus
-	mu      sync.RWMutex
 }
 
 func newStatus() *status {
@@ -27,28 +27,32 @@ func newStatus() *status {
 }
 
 func (s *status) addCheck(checkStatus *compliance.CheckStatus) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.ruleIDs = append(s.ruleIDs, checkStatus.RuleID)
 	s.checks[checkStatus.RuleID] = checkStatus
 }
 
 func (s *status) updateCheck(ruleID string, event *event.Event) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	stats, ok := s.checks[ruleID]
 	if !ok {
 		log.Errorf("Check with ruleID=%s is not registered in check state", ruleID)
 		return
 	}
+	if stats == nil {
+		log.Errorf("Check with ruleID=%s has nil stats", ruleID)
+		return
+	}
 	stats.LastEvent = event
 }
 
 func (s *status) getChecksStatus() compliance.CheckStatusList {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	var checks []*compliance.CheckStatus
 	for _, ruleID := range s.ruleIDs {
