@@ -73,7 +73,7 @@ func NewDriverInterface(enableMonotonicCounts bool, driverBufferSize int) (*Driv
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
-		driverBufferSize: driverBufferSize,
+		driverBufferSize:      driverBufferSize,
 	}
 
 	err := dc.setupFlowHandle()
