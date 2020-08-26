@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
@@ -43,6 +42,7 @@ const (
 // Builder defines an interface to build checks from rules
 type Builder interface {
 	ChecksFromFile(file string, onCheck compliance.CheckVisitor) error
+	GetCheckStatus() compliance.CheckStatusList
 	Close() error
 }
 
@@ -186,6 +186,7 @@ func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, err
 		reporter:      reporter,
 		checkInterval: 20 * time.Minute,
 		etcGroupPath:  "/etc/group",
+		status:        newStatus(),
 	}
 
 	for _, o := range options {
@@ -219,6 +220,8 @@ type builder struct {
 	dockerClient env.DockerClient
 	auditClient  env.AuditClient
 	kubeClient   env.KubeClient
+
+	status *status
 }
 
 func (b *builder) Close() error {
@@ -278,13 +281,22 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
 			}
 			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
-			continue
 		}
 
-		log.Debugf("%s/%s: init check %s", suite.Meta.Name, suite.Meta.Version, check.ID())
-		err = onCheck(check)
-		if err != nil {
-			log.Errorf("%s/%s: onCheck failed %s", suite.Meta.Name, suite.Meta.Version, check.ID())
+		if b.status != nil {
+			b.status.addCheck(&compliance.CheckStatus{
+				RuleID:      r.ID,
+				Description: r.Description,
+				Name:        compliance.CheckName(r.ID, r.Description),
+				Framework:   suite.Meta.Framework,
+				Source:      suite.Meta.Source,
+				Version:     suite.Meta.Version,
+				InitError:   err,
+			})
+		}
+		ok := onCheck(&r, check, err)
+		if !ok {
+			log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
 			return err
 		}
 	}
@@ -296,7 +308,14 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 	return nil
 }
 
-func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
+func (b *builder) GetCheckStatus() compliance.CheckStatusList {
+	if b.status != nil {
+		return b.status.getChecksStatus()
+	}
+	return compliance.CheckStatusList{}
+}
+
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.Check, error) {
 	ruleScope, err := getRuleScope(meta, rule)
 	if err != nil {
 		return nil, err
@@ -312,7 +331,7 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 		return nil, ErrRuleDoesNotApply
 	}
 
-	return b.newCheck(meta, ruleScope, rule), nil
+	return b.newCheck(meta, ruleScope, rule)
 }
 
 func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.RuleScope, error) {
@@ -418,11 +437,16 @@ func (b *builder) nodeLabelKeys() []string {
 	return keys
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule) *complianceCheck {
+func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule) (compliance.Check, error) {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
 
 	if err != nil {
-		log.Warnf("%s: check failed to initialize: %v", rule.ID, err)
+		return nil, err
+	}
+
+	var notify eventNotify
+	if b.status != nil {
+		notify = b.status.updateCheck
 	}
 
 	// We capture err as configuration error but do not prevent check creation
@@ -433,16 +457,15 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 		description: rule.Description,
 		interval:    b.checkInterval,
 
-		framework: meta.Framework,
-		suiteName: meta.Name,
-		version:   meta.Version,
+		suiteMeta: meta,
 
 		// For now we are using rule scope (e.g. docker, kubernetesNode) as resource type
 		resourceType: string(ruleScope),
 		resourceID:   b.hostname,
-		configError:  err,
 		checkable:    checkable,
-	}
+
+		eventNotify: notify,
+	}, nil
 }
 
 func (b *builder) Reporter() event.Reporter {
@@ -484,7 +507,6 @@ func (b *builder) RelativeToHostRoot(path string) string {
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
-
 	instance := &eval.Instance{
 		Functions: eval.FunctionMap{
 			builderFuncShell:       b.withValueCache(builderFuncShell, evalCommandShell),

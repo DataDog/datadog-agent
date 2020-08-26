@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -17,6 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// eventNotify is a callback invoked when a compliance check reported an event
+type eventNotify func(ruleID string, event *event.Event)
+
 // complianceCheck implements a compliance check
 type complianceCheck struct {
 	env.Env
@@ -25,22 +27,21 @@ type complianceCheck struct {
 	description string
 	interval    time.Duration
 
-	framework    string
-	suiteName    string
-	version      string
+	suiteMeta *compliance.SuiteMeta
+
 	resourceType string
 	resourceID   string
 
-	configError error
-
 	checkable checkable
+
+	eventNotify eventNotify
 }
 
 func (c *complianceCheck) Stop() {
 }
 
 func (c *complianceCheck) String() string {
-	return fmt.Sprintf("%s: %s", c.ruleID, c.description)
+	return compliance.CheckName(c.ruleID, c.description)
 }
 
 func (c *complianceCheck) Configure(config, initConfig integration.Data, source string) error {
@@ -64,11 +65,11 @@ func (c *complianceCheck) GetMetricStats() (map[string]int64, error) {
 }
 
 func (c *complianceCheck) Version() string {
-	return c.version
+	return c.suiteMeta.Version
 }
 
 func (c *complianceCheck) ConfigSource() string {
-	return fmt.Sprintf("%s: %s", c.framework, c.suiteName)
+	return c.suiteMeta.Source
 }
 
 func (c *complianceCheck) IsTelemetryEnabled() bool {
@@ -76,10 +77,6 @@ func (c *complianceCheck) IsTelemetryEnabled() bool {
 }
 
 func (c *complianceCheck) Run() error {
-	if c.configError != nil {
-		return c.configError
-	}
-
 	report, err := c.checkable.check(c)
 	if err != nil {
 		log.Warnf("%s: check run failed: %v", c.ruleID, err)
@@ -97,6 +94,9 @@ func (c *complianceCheck) Run() error {
 	log.Debugf("%s: reporting [%s]", c.ruleID, e.Result)
 
 	c.Reporter().Report(e)
+	if c.eventNotify != nil {
+		c.eventNotify(c.ruleID, e)
+	}
 
 	return err
 }
