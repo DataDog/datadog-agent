@@ -34,6 +34,7 @@ dogstatsd.yaml
 cloudfoundry.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
+Dockerfiles/cluster-agent/security-agent-policies
 
 # jetbrains IDE directory
 /.idea/
