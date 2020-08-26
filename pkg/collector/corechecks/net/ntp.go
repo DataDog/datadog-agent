@@ -19,13 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const ntpCheckName = "ntp"
-const defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+const (
+	ntpCheckName = "ntp"
+	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+)
 
 var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
@@ -34,6 +37,18 @@ var (
 
 	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
 		nil, "Ntp offset")
+
+	awsNTPHosts = []string{"169.254.169.123"}
+	gcpNTPHosts = []string{"metadata.google"}
+	azureNTPHosts = []string{"time.windows.com"}
+	alibabaNTPHosts = []string{
+		"ntp.cloud.aliyuncs.com", "ntp1.cloud.aliyuncs.com", "ntp2.cloud.aliyuncs.com", "ntp3.cloud.aliyuncs.com",
+		"ntp4.cloud.aliyuncs.com", "ntp5.cloud.aliyuncs.com", "ntp6.cloud.aliyuncs.com", "ntp7.cloud.aliyuncs.com",
+		"ntp8.cloud.aliyuncs.com", "ntp9.cloud.aliyuncs.com", "ntp10.cloud.aliyuncs.com", "ntp11.cloud.aliyuncs.com",
+		"ntp12.cloud.aliyuncs.com",
+	}
+	tencentNTPHosts = []string{"ntpupdate.tencentyun.com"}
+	googleNTPHosts = []string{"time1.google.com", "time2.google.com", "time3.google.com", "time4.google.com"}
 )
 
 // NTPCheck only has sender and config
@@ -73,7 +88,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultPort := 123
 	defaultOffsetThreshold := 60
 
-	defaultHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
+	defaultHosts := getCloudProviderNTPHosts()
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
 		return err
@@ -124,6 +139,23 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	c.initConf = initConf
 
 	return nil
+}
+
+func getCloudProviderNTPHosts() []string {
+	if config.IsCloudProviderEnabled("AWS") {
+		return awsNTPHosts
+	} else if config.IsCloudProviderEnabled("GCP") {
+		return gcpNTPHosts
+	} else if config.IsCloudProviderEnabled("Azure") {
+		return azureNTPHosts
+	} else if config.IsCloudProviderEnabled("Alibaba") {
+		return alibabaNTPHosts
+	} else if config.IsCloudProviderEnabled("Tencent") {
+		return tencentNTPHosts
+	} else {
+		log.Info("No cloud provider detected, defaulting to Google NTP.")
+		return googleNTPHosts
+	}
 }
 
 // Configure configure the data from the yaml
