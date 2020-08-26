@@ -562,6 +562,8 @@ build_windows_container_entrypoint:
     when: on_success
   stage: binary_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs:
+    - run_tests_windows-x64
   variables:
     ARCH: "x64"
   script:
