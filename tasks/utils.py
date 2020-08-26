@@ -149,7 +149,7 @@ def get_payload_version():
                     raise Exception(
                         "Versioning of agent-payload in go.mod has changed, the version logic needs to be updated"
                     )
-                version = version_split[1].strip()
+                version = version_split[1].split("-")[0].strip()
                 if not re.search(r"^v\d+(\.\d+){2}$", version):
                     raise Exception("Version of agent-payload in go.mod is invalid: '{}'".format(version))
                 return version
