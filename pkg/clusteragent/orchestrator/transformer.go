@@ -197,7 +197,7 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 }
 
 func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, clusterName string, clusterID string, serverApiVersion *version.Info) *model.Cluster {
-	kubeletVersions := extractClusterInformation(nodeList)
+	kubeletVersions, allocatables, capacities := extractClusterInformation(nodeList)
 	cluster := model.Cluster{
 		Name:              clusterName,
 		Uid:               clusterID,
@@ -205,15 +205,15 @@ func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, cluster
 		NodeCount:         int32(len(nodeList)),
 		KubeletVersions:   kubeletVersions,
 		ApiServerVersions: serverApiVersion.String(),
-		Allocatable:       map[string]int64{},
-		Capacity:          map[string]int64{},
+		Allocatable:       allocatables,
+		Capacity:          capacities,
 	}
 	return &cluster
 }
 
 // TODO: think about caching and invalidation strategies
-// TODO: doublecheck for overflow as we add possible high numbers
-func extractClusterInformation(nodeList []*corev1.Node) map[string]int32 {
+// max 5000 nodes, usually below and they are usually not that volatile. We may want to use the resourceVersion
+func extractClusterInformation(nodeList []*corev1.Node) (map[string]int32, map[string]int64, map[string]int64) {
 	kVersions := make(map[string]int32)
 	clusterCapacity := make(map[string]int64)
 	clusterAllocatable := make(map[string]int64)
@@ -225,19 +225,24 @@ func extractClusterInformation(nodeList []*corev1.Node) map[string]int32 {
 	capacityCpu := int64(0)
 	for _, node := range nodeList {
 		kubeletVersion := node.Status.NodeInfo.KubeletVersion
-		cCpu := node.Status.Capacity.Cpu()
-		cMem := node.Status.Capacity.Memory()
-		cPods := node.Status.Capacity.Pods()
-		aCpu := node.Status.Allocatable.Cpu()
-		aMem := node.Status.Allocatable.Memory()
-		aPods := node.Status.Allocatable.Pods()
-		allocatablePods += aPods.MilliValue()
+		allocatablePods += node.Status.Allocatable.Pods().MilliValue()
+		allocatableCpu += node.Status.Allocatable.Cpu().MilliValue()
+		allocatableMem += node.Status.Allocatable.Memory().MilliValue()
+
+		capacityCpu += node.Status.Capacity.Cpu().MilliValue()
+		capacityMem += node.Status.Capacity.Memory().MilliValue()
+		capacityPods += node.Status.Capacity.Pods().MilliValue()
 		if i, ok := kVersions[kubeletVersion]; ok {
 			kVersions[kubeletVersion] = i + 1
 		} else {
 			kVersions[kubeletVersion] = 1
 		}
 	}
-	return kVersions
+	clusterCapacity[string(corev1.ResourceCPU)] = capacityCpu
+	clusterCapacity[string(corev1.ResourceMemory)] = capacityMem
+	clusterCapacity[string(corev1.ResourcePods)] = capacityPods
+	clusterAllocatable[string(corev1.ResourcePods)] = allocatablePods
+	clusterAllocatable[string(corev1.ResourceMemory)] = allocatableMem
+	clusterAllocatable[string(corev1.ResourceCPU)] = allocatableCpu
+	return kVersions, clusterAllocatable, clusterCapacity
 }
-
