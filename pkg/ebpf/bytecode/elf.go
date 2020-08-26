@@ -40,30 +40,33 @@ type Options struct {
 // (eg. system headers not available), we fall back to the pre-compiled ELF file
 // that relies on offset guessing.
 func GetNetworkTracerELF(opts Options) (AssetReader, []manager.ConstantEditor, error) {
+	asset, err := compileEBPFByteCode(opts)
+	if err != nil {
+		log.Errorf("error compiling eBPF bytecode: %s. falling back to pre-compiled ELF file")
+		return getPrecompiledELF(opts)
+	}
+
+	return asset, nil, nil
+}
+
+func compileEBPFByteCode(opts Options) (AssetReader, error) {
 	compiler := gore.NewEBPFCompiler(true)
 	defer compiler.Close()
 
 	cflags, err := getCFLAGS(opts)
 	if err != nil {
-		log.Errorf("error generating compilation flags: %s. falling back to pre-compiled bytecode.")
-		return getPrecompiledELF(opts)
+		return nil, fmt.Errorf("error generating compilation flags: %s")
 	}
 
-	var (
-		in  = path.Join(opts.BPFDir, "tracer-ebpf.c")
-		out = path.Join(os.TempDir(), "tracer-ebpf.o")
-	)
-
-	log.Debugf("compiling eBPF code with the following flags: %q", cflags)
-	err = compiler.CompileToObjectFile(in, out, cflags)
+	src := path.Join(opts.BPFDir, "tracer-ebpf.c")
+	out := path.Join(os.TempDir(), "tracer-ebpf.o")
+	log.Debugf("compiling eBPF code. flags=%q src=%s out=%s", cflags, src, out)
+	err = compiler.CompileToObjectFile(src, out, cflags)
 	if err != nil {
-		log.Errorf("failed to compile eBPF bytecode: %s. falling back to pre-compiled bytecode.", err)
-		return getPrecompiledELF(opts)
+		return nil, fmt.Errorf("failed to compile eBPF bytecode: %s", err)
 	}
 
-	log.Debugf("eBPF bytecode available in %s", out)
-	f, err := os.Open(out)
-	return f, nil, err
+	return os.Open(out)
 }
 
 func getPrecompiledELF(opts Options) (AssetReader, []manager.ConstantEditor, error) {
