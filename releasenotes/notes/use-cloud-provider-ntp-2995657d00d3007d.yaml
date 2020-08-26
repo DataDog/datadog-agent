@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    Now uses the cloud provider's NTP server by default for NTP checks, and Google's public servers
+    if no cloud provider is detected.
