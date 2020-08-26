@@ -220,6 +220,16 @@ api_key:
 #
 # ec2_metadata_timeout: 300
 
+## @param ec2_prefer_imdsv2 - boolean - optional - default: false
+## If this flag is true then the agent will request EC2 metadata using IMDS v2,
+## which offers additional security for accessing metadata. However, in some
+## situations (such as a containerized agent on a plain EC2 instance) it may
+## require additional configuration on the AWS side. See the AWS guidelines
+## for further details:
+## https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html#instance-metadata-transition-to-version-2
+#
+# ec2_prefer_imdsv2: false
+
 ## @param collect_gce_tags - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
 #
@@ -732,10 +742,10 @@ api_key:
   #     <OBFUSCATION_CONFIGURATION>
 
   ## @param replace_tags - list of objects - optional
-  ## Defines a set of rules to replace or remove certain services, resources, tags containing
+  ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
   ## Each rules has to contain:
-  ##  * name - string - The tag name to replace, for services or resources use "service.name" or "resource.name".
+  ##  * name - string - The tag name to replace, for resources use "resource.name".
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##

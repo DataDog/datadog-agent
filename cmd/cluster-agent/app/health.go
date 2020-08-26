@@ -3,10 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package traps
+// +build kubeapiserver
 
-const (
-	defaultPort        = uint16(162) // Standard UDP port for traps.
-	defaultStopTimeout = 5
-	packetsChanSize    = 100
+package app
+
+import (
+	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 )
+
+func init() {
+	ClusterAgentCmd.AddCommand(commands.Health(loggerName, confPath, flagNoColor))
+}

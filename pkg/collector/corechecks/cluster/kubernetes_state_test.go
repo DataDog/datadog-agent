@@ -104,7 +104,7 @@ func TestProcessMetrics(t *testing.T) {
 				{
 					name:     "kubernetes_state.container.running",
 					val:      1,
-					tags:     []string{"kube_container_name:kube-state-metrics", "kube_namespace:default", "pod_name:kube-state-metrics-b7fbc487d-4phhj", "host:minikube"},
+					tags:     []string{"kube_container_name:kube-state-metrics", "kube_namespace:default", "pod_name:kube-state-metrics-b7fbc487d-4phhj", "node:minikube"},
 					hostname: "minikube",
 				},
 			},

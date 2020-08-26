@@ -8,8 +8,6 @@ package traps
 import (
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/soniah/gosnmp"
 )
@@ -22,10 +20,10 @@ func IsEnabled() bool {
 // Config contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type Config struct {
-	Port             uint16        `mapstructure:"port" yaml:"port"`
-	CommunityStrings []string      `mapstructure:"community_strings" yaml:"community_strings"`
-	BindHost         string        `mapstructure:"bind_host" yaml:"bind_host"`
-	StopTimeout      time.Duration `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	Port             uint16   `mapstructure:"port" yaml:"port"`
+	CommunityStrings []string `mapstructure:"community_strings" yaml:"community_strings"`
+	BindHost         string   `mapstructure:"bind_host" yaml:"bind_host"`
+	StopTimeout      int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.

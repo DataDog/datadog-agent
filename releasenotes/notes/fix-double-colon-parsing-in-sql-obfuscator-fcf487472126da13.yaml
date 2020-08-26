@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    The SUSE SysVInit service now correctly starts the Agent as the
-    dd-agent user instead of root.
+    APM: Allow double-colon operator in SQL obfuscator.

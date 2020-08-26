@@ -530,8 +530,8 @@ func TestConcentratorAdd(t *testing.T) {
 				"http.request|_sublayers.span_count|env:none,resource:resource1,service:A1,:":                            2,
 			},
 		},
-		// distinct top-level and measured spans
-		// only the top-level span gets sublayer metrics (span name == "query")
+		// distinct top-level span and measured span
+		// the top-level span and measured span get sublayer metrics
 		"distinct": {
 			pb.Trace{
 				testSpan(1, 0, 50, 5, "A1", "resource1", 0),
