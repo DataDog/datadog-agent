@@ -59,6 +59,8 @@ type DriverInterface struct {
 	// declare totalFlows first so it remains on a 64 bit boundary since it is used by atomic functions
 	totalFlows int64
 
+	driverBufferSize int
+
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
 
@@ -67,10 +69,11 @@ type DriverInterface struct {
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool, driverBufferSize int) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
+		driverBufferSize: driverBufferSize,
 	}
 
 	err := dc.setupFlowHandle()
