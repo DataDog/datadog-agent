@@ -521,7 +521,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	key, stats := &ConnTuple{}, &ConnStatsWithTimestamp{}
 	seen := make(map[ConnTuple]struct{})
 	var expired []*ConnTuple
-	entries := mp.Iterate()
+	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		if stats.isExpired(latestTime, t.timeoutForConn(key)) {
 			expired = append(expired, key.copy())
@@ -754,12 +754,12 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // the map will be one of port_bindings  or udp_port_bindings, and the mapping will be one of tracer#portMapping
 // tracer#udpPortMapping respectively.
 func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping) ([]uint16, error) {
-	var key uint16
+	var key, emptyKey uint16
 	var state uint8
 
 	closedPortBindings := make([]uint16, 0)
 
-	entries := mp.Iterate()
+	entries := mp.IterateFrom(unsafe.Pointer(&emptyKey))
 	for entries.Next(unsafe.Pointer(&key), unsafe.Pointer(&state)) {
 		port := key
 

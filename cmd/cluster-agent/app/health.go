@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// +build kubeapiserver
+
 package app
 
 import (
@@ -10,5 +12,5 @@ import (
 )
 
 func init() {
-	AgentCmd.AddCommand(commands.Health(loggerName, confFilePath, flagNoColor))
+	ClusterAgentCmd.AddCommand(commands.Health(loggerName, confPath, flagNoColor))
 }

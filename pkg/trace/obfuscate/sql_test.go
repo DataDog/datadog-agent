@@ -538,6 +538,10 @@ ORDER BY [b].[Name]`,
 			`SELECT * FROM foo LEFT JOIN bar ON 'embedded \'quote\' in string' = foo.b WHERE foo.name = 'String'`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
+		{
+			`SELECT a :: VARCHAR(255) FROM foo WHERE foo.name = 'String'`,
+			`SELECT a :: VARCHAR ( ? ) FROM foo WHERE foo.name = ?`,
+		},
 	}
 
 	for _, c := range cases {
@@ -657,6 +661,11 @@ in the middle'`,
 			`'String with backslash \ in the middle missing closing quote`,
 			"String with backslash  in the middle missing closing quote",
 			LexError,
+		},
+		{
+			`::`,
+			`::`,
+			ColonCast,
 		},
 		// The following case will treat the final quote as unescaped
 		{
