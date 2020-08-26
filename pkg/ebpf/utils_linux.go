@@ -5,10 +5,11 @@ package ebpf
 import (
 	"bufio"
 	"fmt"
-	"github.com/pkg/errors"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/ebpf"
 
