@@ -69,7 +69,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorProcessEndpoints() {
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
-		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
 	}
 }
 
@@ -86,7 +86,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
-		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
 	}
 }
 
@@ -108,7 +108,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
-		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
 	}
 }
 

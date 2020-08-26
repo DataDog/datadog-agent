@@ -645,10 +645,10 @@ func InitConfig(config Config) {
 
 	// Orchestrator Explorer - process agent
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "") //nolint:errcheck
-	// DEPRECATED in favour of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
+	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "") //nolint:errcheck
+	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
 	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
-	// DEPRECATED in favour of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
 	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
 
 	// Process agent
