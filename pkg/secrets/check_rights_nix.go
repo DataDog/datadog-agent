@@ -13,15 +13,23 @@ import (
 	"syscall"
 )
 
-func checkRights(path string) error {
+func checkRights(path string, options checkRightOptions) error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
 		return fmt.Errorf("invalid executable '%s': can't stat it: %s", path, err)
 	}
 
 	// checking that group and others don't have any rights
-	if stat.Mode&(syscall.S_IRWXG|syscall.S_IRWXO) != 0 {
-		return fmt.Errorf("invalid executable '%s', 'groups' or 'others' have rights on it", path)
+	var unwantedPermissions uint = syscall.S_IRWXO
+	if options.AllowGroupExec {
+		// group should have exec perm
+		unwantedPermissions |= syscall.S_IWGRP
+	} else {
+		// group don't have any rights
+		unwantedPermissions |= syscall.S_IRWXG
+	}
+	if uint(stat.Mode)&(unwantedPermissions) != 0 {
+		return fmt.Errorf("invalid executable '%s', current file permissions are %#o but want %#o, have rights on it", path, stat.Mode, unwantedPermissions)
 	}
 
 	// checking that the owner have exec rights

@@ -20,7 +20,7 @@ func setCorrectRight(path string) {
 }
 
 func TestWrongPath(t *testing.T) {
-	require.NotNil(t, checkRights("does not exists"))
+	require.NotNil(t, checkRights("does not exists", checkRightOptions{}))
 }
 
 func TestGroupOtherRights(t *testing.T) {
@@ -28,25 +28,37 @@ func TestGroupOtherRights(t *testing.T) {
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 
+	var defaultOptions checkRightOptions
+
 	// file exists
-	require.NotNil(t, checkRights("/does not exists"))
+	require.NotNil(t, checkRights("/does not exists", defaultOptions))
 
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0700))
-	require.Nil(t, checkRights(tmpfile.Name()))
+	require.Nil(t, checkRights(tmpfile.Name(), defaultOptions))
 
 	// we should at least be able to execute it
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0100))
-	require.Nil(t, checkRights(tmpfile.Name()))
+	require.Nil(t, checkRights(tmpfile.Name(), defaultOptions))
 
-	// owner have exec right
+	// owner have write permission
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0600))
-	require.NotNil(t, checkRights(tmpfile.Name()))
+	require.NotNil(t, checkRights(tmpfile.Name(), defaultOptions))
 
 	// group should have no right
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0710))
-	require.NotNil(t, checkRights(tmpfile.Name()))
+	require.NotNil(t, checkRights(tmpfile.Name(), defaultOptions))
 
 	// other should have no right
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0701))
-	require.NotNil(t, checkRights(tmpfile.Name()))
+	require.NotNil(t, checkRights(tmpfile.Name(), defaultOptions))
+
+	groupOptions := checkRightOptions{AllowGroupExec: true}
+
+	// group should have only read and exec rights
+	require.Nil(t, os.Chmod(tmpfile.Name(), 0750))
+	require.Nil(t, checkRights(tmpfile.Name(), groupOptions))
+
+	// group should not have write right
+	require.Nil(t, os.Chmod(tmpfile.Name(), 0770))
+	require.NotNil(t, checkRights(tmpfile.Name(), groupOptions))
 }
