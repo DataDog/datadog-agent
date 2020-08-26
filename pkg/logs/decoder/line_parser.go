@@ -151,7 +151,6 @@ func (p *MultiLineParser) run() {
 
 // process buffers and aggregates partial lines
 func (p *MultiLineParser) process(input *DecodedInput) {
-	// Just parse an pass to the next step
 	content, status, timestamp, partial, err := p.parser.Parse(input.content)
 	if err != nil {
 		log.Debug(err)
