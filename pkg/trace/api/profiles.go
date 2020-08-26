@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -29,56 +28,53 @@ const (
 // profilingEndpoints returns the profiling intake urls and their corresponding
 // api keys based on agent configuration. The main endpoint is always returned as
 // the first element in the slice.
-func profilingEndpoints(apiKey string) []*traceconfig.Endpoint {
-	var endpoints []*traceconfig.Endpoint
+func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err error) {
 	main := profilingURLDefault
 	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		main = v
 	} else if site := config.Datadog.GetString("site"); site != "" {
 		main = fmt.Sprintf(profilingURLTemplate, site)
 	}
-	endpoints = append(endpoints, &traceconfig.Endpoint{Host: main, APIKey: apiKey})
+	u, err := url.Parse(main)
+	if err != nil {
+		// if the main intake URL is invalid we don't use additional endpoints
+		return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s", main)
+	}
+	urls = append(urls, u)
+	apiKeys = append(apiKeys, apiKey)
 
 	if opt := "apm_config.profiling_additional_endpoints"; config.Datadog.IsSet(opt) {
 		extra := config.Datadog.GetStringMapStringSlice(opt)
 		for endpoint, keys := range extra {
+			u, err := url.Parse(endpoint)
+			if err != nil {
+				log.Errorf("Error parsing additional profiling intake URL %s: %v", endpoint, err)
+				continue
+			}
 			for _, key := range keys {
-				endpoints = append(endpoints, &traceconfig.Endpoint{Host: endpoint, APIKey: key})
+				urls = append(urls, u)
+				apiKeys = append(apiKeys, key)
 			}
 		}
 	}
-	return endpoints
+	return urls, apiKeys, nil
 }
 
 // profileProxyHandler returns a new HTTP handler which will proxy requests to the profiling intakes.
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
-	endpoints := profilingEndpoints(r.conf.APIKey())
-	var (
-		targets []*url.URL
-		keys    []string
-	)
-	for i, endpoint := range endpoints {
-		target, err := url.Parse(endpoint.Host)
-		if err != nil {
-			log.Errorf("Error parsing profiling intake URL %s: %v", endpoint.Host, err)
-			if i == 0 {
-				// when the main intake is incorrect we don't use additional
-				return errorHandler(endpoint.Host)
-			}
-			continue
-		}
-		targets = append(targets, target)
-		keys = append(keys, endpoint.APIKey)
+	targets, keys, err := profilingEndpoints(r.conf.APIKey())
+	if err != nil {
+		return errorHandler(err)
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
 	return newProfileProxy(r.conf.NewHTTPTransport(), targets, keys, tags)
 }
 
-func errorHandler(endpoint string) http.Handler {
+func errorHandler(err error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		msg := fmt.Sprintf("Profile forwarder is OFF because of invalid intake URL configuration: %v", endpoint)
+		msg := fmt.Sprintf("Profile forwarder is OFF: %v", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 	})
 }

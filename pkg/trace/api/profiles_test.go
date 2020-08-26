@@ -31,6 +31,18 @@ func mockConfigMap(m map[string]interface{}) func() {
 	return func() { config.Datadog = oldConfig }
 }
 
+func makeURLs(t *testing.T, ss ...string) []*url.URL {
+	var urls []*url.URL
+	for _, s := range ss {
+		u, err := url.Parse(s)
+		if err != nil {
+			t.Fatalf("Cannot parse url: %s", s)
+		}
+		urls = append(urls, u)
+	}
+	return urls
+}
+
 func TestProfileProxy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		slurp, err := ioutil.ReadAll(req.Body)
@@ -83,23 +95,24 @@ func printEndpoints(endpoints []*traceconfig.Endpoint) []string {
 func TestProfilingEndpoints(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
 		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/v1/input")()
-		endpoints := profilingEndpoints("test_api_key")
-		assert.Equal(t, endpoints, []*traceconfig.Endpoint{
-			{Host: "https://intake.profile.datadoghq.fr/v1/input", APIKey: "test_api_key"},
-		})
+		urls, keys, err := profilingEndpoints("test_api_key")
+		assert.NoError(t, err)
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/v1/input"))
+		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 	t.Run("site", func(t *testing.T) {
 		defer mockConfig("site", "datadoghq.eu")()
-		endpoints := profilingEndpoints("test_api_key")
-		assert.Equal(t, endpoints, []*traceconfig.Endpoint{
-			{Host: "https://intake.profile.datadoghq.eu/v1/input", APIKey: "test_api_key"},
-		})
+		urls, keys, err := profilingEndpoints("test_api_key")
+		assert.NoError(t, err)
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.eu/v1/input"))
+		assert.Equal(t, keys, []string{"test_api_key"})
 	})
+
 	t.Run("default", func(t *testing.T) {
-		endpoints := profilingEndpoints("test_api_key")
-		assert.Equal(t, endpoints, []*traceconfig.Endpoint{
-			{Host: "https://intake.profile.datadoghq.com/v1/input", APIKey: "test_api_key"},
-		})
+		urls, keys, err := profilingEndpoints("test_api_key")
+		assert.NoError(t, err)
+		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/v1/input"))
+		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("multiple", func(t *testing.T) {
@@ -110,17 +123,32 @@ func TestProfilingEndpoints(t *testing.T) {
 				"https://dd.datad0g.com":          {"api_key_3"},
 			},
 		})()
-		endpoints := profilingEndpoints("api_key_0")
-		expected := []*traceconfig.Endpoint{
-			{Host: "https://intake.profile.datadoghq.jp/v1/input", APIKey: "api_key_0"},
-			{Host: "https://ddstaging.datadoghq.com", APIKey: "api_key_1"},
-			{Host: "https://ddstaging.datadoghq.com", APIKey: "api_key_2"},
-			{Host: "https://dd.datad0g.com", APIKey: "api_key_3"},
-		}
+		urls, keys, err := profilingEndpoints("api_key_0")
+		assert.NoError(t, err)
+		expectedURLs := makeURLs(t,
+			"https://intake.profile.datadoghq.jp/v1/input",
+			"https://ddstaging.datadoghq.com",
+			"https://ddstaging.datadoghq.com",
+			"https://dd.datad0g.com",
+		)
+		expectedKeys := []string{"api_key_0", "api_key_1", "api_key_2", "api_key_3"}
+
 		// Because we're using a map to mock the config we can't assert on the
 		// order of the endpoints. We check the main endpoints separately.
-		assert.Equal(t, endpoints[0], expected[0], "The main endpoint should be the first in the slice")
-		assert.ElementsMatch(t, endpoints, expected, "All endpoints from the config should be returned")
+		assert.Equal(t, urls[0], expectedURLs[0], "The main endpoint should be the first in the slice")
+		assert.Equal(t, keys[0], expectedKeys[0], "The main api key should be the first in the slice")
+
+		assert.ElementsMatch(t, urls, expectedURLs, "All urls from the config should be returned")
+		assert.ElementsMatch(t, keys, keys, "All keys from the config should be returned")
+
+		// check that we have the correct pairing between urls and api keys
+		for i := range keys {
+			for j := range expectedKeys {
+				if keys[i] == expectedKeys[j] {
+					assert.Equal(t, urls[i], expectedURLs[j])
+				}
+			}
+		}
 	})
 }
 
@@ -164,7 +192,7 @@ func TestProfileProxyHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(slurp), "invalid intake URL") {
+		if !strings.Contains(string(slurp), "error parsing main profiling intake URL") {
 			t.Fatalf("invalid message: %q", slurp)
 		}
 	})
