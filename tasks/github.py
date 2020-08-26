@@ -2,46 +2,33 @@ from __future__ import print_function
 
 from invoke import task
 
-from .deploy.github_actions_tools import (
-    download_artifacts,
-    follow_workflow_run,
-    get_macos_workflow_run_id_for_ref,
-    trigger_macos_workflow,
-)
+from .deploy.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
+from .utils import load_release_versions
 
 
 @task
 def trigger_macos_build(
     ctx,
-    git_ref="master",
+    datadog_agent_ref="master",
+    buildimages_ref="master",
     release_version="nightly-a7",
     major_version="7",
     python_runtimes="3",
-    buildimages_version="master",
     destination=".",
 ):
-    run_id = trigger_macos_workflow(git_ref, release_version, major_version, python_runtimes, buildimages_version)
+
+    env = load_release_versions(ctx, release_version)
+    github_action_ref = env["MACOS_BUILD_VERSION"]
+
+    run_id = trigger_macos_workflow(
+        github_action_ref=github_action_ref,
+        datadog_agent_ref=datadog_agent_ref,
+        buildimages_ref=buildimages_ref,
+        release_version=release_version,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+    )
 
     follow_workflow_run(run_id)
-
-    download_artifacts(run_id, destination)
-
-
-@task
-def follow_macos_build(ctx, run_id=None, git_ref=None):
-    if run_id is not None:
-        pass
-    elif git_ref is not None:
-        run_id = get_macos_workflow_run_id_for_ref(git_ref)
-
-    follow_workflow_run(run_id)
-
-
-@task
-def download_macos_artifacts(ctx, run_id=None, git_ref=None, destination="."):
-    if run_id is not None:
-        pass
-    elif git_ref is not None:
-        run_id = get_macos_workflow_run_id_for_ref(git_ref)
 
     download_artifacts(run_id, destination)
