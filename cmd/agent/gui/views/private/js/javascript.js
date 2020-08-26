@@ -774,6 +774,8 @@ function restartAgent() {
       } else loadStatus("general");
     }, 10000);
   }, function(e) {
+    console.log(e.toString())
+    console.log(e)
     console.log(e.message)
     console.log(e.name)
     console.log(e.description)
