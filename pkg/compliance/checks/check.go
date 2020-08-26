@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// EventNotify is a callback inboked when a check is reporting an event
+// eventNotify is a callback invoked when a compliance check reported an event
 type eventNotify func(ruleID string, event *event.Event)
 
 // complianceCheck implements a compliance check
