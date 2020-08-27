@@ -16,14 +16,16 @@ service Agent {
     // get tracer heartbeat
     rpc ServiceHeartbeat (FlareHeartbeatRequest) returns (FlareHeartbeatResponse) {
         option (google.api.http) = {
-            get: "/v1/grpc/service_heartbeat"
+            post: "/v1/grpc/service_heartbeat"
+            body: "*"
         };
     }
 
     // log events
     rpc FlareLogEvent (FlareLogRequest) returns (FlareLogResponse) {
         option (google.api.http) = {
-            get: "/v1/grpc/log"
+            post: "/v1/grpc/log"
+            body: "*"
         };
     }
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type server struct {
@@ -45,6 +46,9 @@ func (s *server) ServiceHeartbeat(ctx context.Context, in *pb.FlareHeartbeatRequ
 }
 
 func (s *server) FlareLogEvent(ctx context.Context, in *pb.FlareLogRequest) (*pb.FlareLogResponse, error) {
+
+	log.Info("Received log event request...")
+	log.Infof("Params: %v", in)
 	response := &pb.FlareLogResponse{
 		Continue: true,
 	}
