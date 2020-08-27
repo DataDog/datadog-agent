@@ -267,7 +267,7 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(tkn.lastChar)
-	if !isLetter(tkn.lastChar) {
+	if !isLetter(tkn.lastChar) && !isDigit(tkn.lastChar) {
 		tkn.setErr(`unexpected character "%c" (%d) in literal identifier`, tkn.lastChar, tkn.lastChar)
 		return LexError, buffer.Bytes()
 	}
