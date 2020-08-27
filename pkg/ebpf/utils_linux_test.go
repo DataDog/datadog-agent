@@ -54,3 +54,20 @@ func TestExcludedKernelVersion(t *testing.T) {
 	assert.True(t, ok)
 	assert.Empty(t, msg)
 }
+
+func TestVerifyKernelFuncs(t *testing.T) {
+	missing, err := verifyKernelFuncs("./testdata/kallsyms.supported")
+	assert.Empty(t, missing)
+	assert.Empty(t, err)
+
+	missing, err = verifyKernelFuncs("./testdata/kallsyms.unsupported")
+	assert.NotEmpty(t, missing)
+	assert.Empty(t, err)
+
+	missing, err = verifyKernelFuncs("./testdata/kallsyms.empty")
+	assert.NotEmpty(t, missing)
+	assert.Empty(t, err)
+
+	_, err = verifyKernelFuncs("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t")
+	assert.NotEmpty(t, err)
+}
