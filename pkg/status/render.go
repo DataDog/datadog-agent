@@ -106,11 +106,13 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	runnerStats := stats["runnerStats"]
+	complianceChecks := stats["complianceChecks"]
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
-	renderComplianceChecksStats(b, runnerStats)
+
 	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
+	renderComplianceChecksStats(b, runnerStats, complianceChecks)
 
 	return b.String(), nil
 }
@@ -156,9 +158,10 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	return b.String(), nil
 }
 
-func renderComplianceChecksStats(w io.Writer, runnerStats /*, checkSchedulerStats*/ interface{} /*, onlyCheck string*/) {
+func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks interface{}) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
+	checkStats["ComplianceChecks"] = complianceChecks
 	renderStatusTemplate(w, "/compliance.tmpl", checkStats)
 }
 
