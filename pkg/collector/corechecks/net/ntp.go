@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	ntpCheckName = "ntp"
-	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+	ntpCheckName                 = "ntp"
+	defaultMinCollectionInterval = 900
 )
 
 var (
@@ -38,9 +38,9 @@ var (
 	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
 		nil, "Ntp offset")
 
-	awsNTPHosts = []string{"169.254.169.123"}
-	gcpNTPHosts = []string{"metadata.google"}
-	azureNTPHosts = []string{"time.windows.com"}
+	awsNTPHosts     = []string{"169.254.169.123"}
+	gcpNTPHosts     = []string{"metadata.google"}
+	azureNTPHosts   = []string{"time.windows.com"}
 	alibabaNTPHosts = []string{
 		"ntp.cloud.aliyuncs.com", "ntp1.cloud.aliyuncs.com", "ntp2.cloud.aliyuncs.com", "ntp3.cloud.aliyuncs.com",
 		"ntp4.cloud.aliyuncs.com", "ntp5.cloud.aliyuncs.com", "ntp6.cloud.aliyuncs.com", "ntp7.cloud.aliyuncs.com",
@@ -48,7 +48,7 @@ var (
 		"ntp12.cloud.aliyuncs.com",
 	}
 	tencentNTPHosts = []string{"ntpupdate.tencentyun.com"}
-	googleNTPHosts = []string{"time1.google.com", "time2.google.com", "time3.google.com", "time4.google.com"}
+	googleNTPHosts  = []string{"time1.google.com", "time2.google.com", "time3.google.com", "time4.google.com"}
 )
 
 // NTPCheck only has sender and config
