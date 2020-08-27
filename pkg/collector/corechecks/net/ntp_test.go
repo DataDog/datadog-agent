@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -333,18 +332,6 @@ hosts:
 	ntpCheck.Configure(testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
-}
-
-func TestDefaultHostConfig(t *testing.T) {
-	testedConfig := []byte(``)
-
-	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(testedConfig, []byte(""), "test")
-	print(config.IsCloudProviderEnabled(("AWS")))
-	cloudProviderFromConfig := config.Datadog.GetStringSlice("cloud_provider_metadata")
-	print(cloudProviderFromConfig)
-
-	assert.Equal(t, googleNTPHosts, ntpCheck.cfg.instance.Hosts)
 }
 
 func TestNTPPortConfig(t *testing.T) {
