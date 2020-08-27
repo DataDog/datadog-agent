@@ -62,6 +62,8 @@ type DriverInterface struct {
 	openFlows      int64
 	moreDataErrors int64
 
+	driverBufferSize int
+
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
 
@@ -70,10 +72,11 @@ type DriverInterface struct {
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool, driverBufferSize int) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
+		driverBufferSize:      driverBufferSize,
 	}
 
 	err := dc.setupFlowHandle()
@@ -208,7 +211,7 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
 func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []ConnectionStats, error) {
-	readbuffer := make([]uint8, 1024)
+	readbuffer := make([]uint8, di.driverBufferSize)
 	connStatsActive := make([]ConnectionStats, 0)
 	connStatsClosed := make([]ConnectionStats, 0)
 
