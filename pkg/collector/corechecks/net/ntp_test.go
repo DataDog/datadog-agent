@@ -401,32 +401,3 @@ func TestNTPUseLocalDefinedServers(t *testing.T) {
 	assert.False(t, defaultConfig.instance.UseLocalDefinedServers)
 	assert.NotEqual(t, configUseLocalServer.instance.Hosts, defaultConfig.instance.Hosts)
 }
-
-func TestNTPGetCloudProviders(t *testing.T) {
-	var hosts []string
-
-	// AWS
-	config.Datadog.Set("cloud_provider_metadata", "AWS")
-	hosts = getCloudProviderNTPHosts()
-	assert.Equal(t, awsNTPHosts, hosts)
-
-	// GCP
-	config.Datadog.Set("cloud_provider_metadata", "GCP")
-	hosts = getCloudProviderNTPHosts()
-	assert.Equal(t, gcpNTPHosts, hosts)
-
-	// Azure
-	config.Datadog.Set("cloud_provider_metadata", "Azure")
-	hosts = getCloudProviderNTPHosts()
-	assert.Equal(t, azureNTPHosts, hosts)
-
-	// Alibaba
-	config.Datadog.Set("cloud_provider_metadata", "Alibaba")
-	hosts = getCloudProviderNTPHosts()
-	assert.Equal(t, alibabaNTPHosts, hosts)
-
-	// Tencent
-	config.Datadog.Set("cloud_provider_metadata", "Tencent")
-	hosts = getCloudProviderNTPHosts()
-	assert.Equal(t, tencentNTPHosts, hosts)
-}

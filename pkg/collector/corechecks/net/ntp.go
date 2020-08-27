@@ -19,15 +19,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
+	"github.com/DataDog/datadog-agent/pkg/util/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 )
 
 const (
 	ntpCheckName                 = "ntp"
-	defaultMinCollectionInterval = 900
+	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 )
 
 var (
@@ -142,22 +147,21 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 }
 
 func getCloudProviderNTPHosts() []string {
-	if config.IsCloudProviderEnabled("AWS") {
+	if ec2.IsRunningOn() || ecs.IsRunningOn() {
 		return awsNTPHosts
-	} else if config.IsCloudProviderEnabled("GCP") {
+	} else if gce.IsRunningOn() {
 		return gcpNTPHosts
-	} else if config.IsCloudProviderEnabled("Azure") {
+	} else if azure.IsRunningOn() {
 		return azureNTPHosts
-	} else if config.IsCloudProviderEnabled("Alibaba") {
+	} else if alibaba.IsRunningOn() {
 		return alibabaNTPHosts
-	} else if config.IsCloudProviderEnabled("Tencent") {
+	} else if tencent.IsRunningOn() {
 		return tencentNTPHosts
 	} else {
 		log.Info("No cloud provider detected, defaulting to Google NTP.")
 		return googleNTPHosts
 	}
 }
-
 // Configure configure the data from the yaml
 func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	cfg := new(ntpConfig)
