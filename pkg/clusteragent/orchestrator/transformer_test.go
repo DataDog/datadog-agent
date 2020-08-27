@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -561,5 +562,82 @@ func TestExtractService(t *testing.T) {
 	}
 	for _, test := range tests {
 		assert.Equal(t, &test.expected, extractService(&test.input))
+	}
+}
+
+func TestExtractNodeInformation(t *testing.T) {
+	parseTwoHundredGi := resource.MustParse("200Gi")
+	parseTwentyGi := resource.MustParse("20Gi")
+	twoHundredGiBytes := parseTwoHundredGi.MilliValue()
+	twentyGiBytes := parseTwentyGi.MilliValue()
+	tests := map[string]struct {
+		input    []*corev1.Node
+		expected struct {
+			versions     map[string]int32
+			capacities   map[string]int64
+			allocatables map[string]int64
+		}
+	}{
+		"node with capacity and allocatables": {
+			input: []*corev1.Node{
+				{
+					Status: corev1.NodeStatus{
+						Capacity: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceMemory: resource.MustParse("100Gi"),
+							corev1.ResourcePods:   resource.MustParse("100"),
+							corev1.ResourceCPU:    resource.MustParse("100"),
+						},
+						Allocatable: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceMemory: resource.MustParse("10Gi"),
+							corev1.ResourcePods:   resource.MustParse("10"),
+							corev1.ResourceCPU:    resource.MustParse("10"),
+						},
+						NodeInfo: corev1.NodeSystemInfo{
+							KubeletVersion: "1.18.1",
+						},
+					},
+				}, {
+					Status: corev1.NodeStatus{
+						Capacity: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceMemory: resource.MustParse("100Gi"),
+							corev1.ResourcePods:   resource.MustParse("100"),
+							corev1.ResourceCPU:    resource.MustParse("100"),
+						},
+						Allocatable: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceMemory: resource.MustParse("10Gi"),
+							corev1.ResourcePods:   resource.MustParse("10"),
+							corev1.ResourceCPU:    resource.MustParse("10"),
+						},
+						NodeInfo: corev1.NodeSystemInfo{
+							KubeletVersion: "1.17.1",
+						},
+					},
+				},
+			},
+			expected: struct {
+				versions     map[string]int32
+				capacities   map[string]int64
+				allocatables map[string]int64
+			}{versions: map[string]int32{
+				"1.17.1": 1,
+				"1.18.1": 1,
+			}, capacities: map[string]int64{
+				string(corev1.ResourceCPU):    200 * 1000,
+				string(corev1.ResourcePods):   200,
+				string(corev1.ResourceMemory): twoHundredGiBytes,
+			}, allocatables: map[string]int64{
+				string(corev1.ResourceCPU):    20 * 1000,
+				string(corev1.ResourcePods):   20,
+				string(corev1.ResourceMemory): twentyGiBytes,
+			}},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			kVersions, clusterAllocatable, clusterCapacity := extractNodeInformation(tc.input)
+			assert.EqualValues(t, tc.expected.allocatables, clusterAllocatable)
+			assert.EqualValues(t, tc.expected.versions, kVersions)
+			assert.EqualValues(t, tc.expected.capacities, clusterCapacity)
+		})
 	}
 }

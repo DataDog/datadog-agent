@@ -197,7 +197,7 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 }
 
 func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, clusterName string, clusterID string, serverApiVersion *version.Info) *model.Cluster {
-	kubeletVersions, allocatables, capacities := extractClusterInformation(nodeList)
+	kubeletVersions, allocatables, capacities := extractNodeInformation(nodeList)
 	cluster := model.Cluster{
 		Name:              clusterName,
 		Uid:               clusterID,
@@ -212,8 +212,8 @@ func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, cluster
 }
 
 // TODO: think about caching and invalidation strategies
-// max 5000 nodes, usually below and they are usually not that volatile. We may want to use the resourceVersion
-func extractClusterInformation(nodeList []*corev1.Node) (map[string]int32, map[string]int64, map[string]int64) {
+// max 5000 nodes, usually below and they are usually not that volatile. We may want to use the resourceVersion for caching.
+func extractNodeInformation(nodeList []*corev1.Node) (map[string]int32, map[string]int64, map[string]int64) {
 	kVersions := make(map[string]int32)
 	clusterCapacity := make(map[string]int64)
 	clusterAllocatable := make(map[string]int64)
@@ -225,13 +225,14 @@ func extractClusterInformation(nodeList []*corev1.Node) (map[string]int32, map[s
 	capacityCpu := int64(0)
 	for _, node := range nodeList {
 		kubeletVersion := node.Status.NodeInfo.KubeletVersion
-		allocatablePods += node.Status.Allocatable.Pods().MilliValue()
+		// pods are given as normal values 1 pod, 2 pods. Hence, Value().
+		allocatablePods += node.Status.Allocatable.Pods().Value()
 		allocatableCpu += node.Status.Allocatable.Cpu().MilliValue()
 		allocatableMem += node.Status.Allocatable.Memory().MilliValue()
 
 		capacityCpu += node.Status.Capacity.Cpu().MilliValue()
 		capacityMem += node.Status.Capacity.Memory().MilliValue()
-		capacityPods += node.Status.Capacity.Pods().MilliValue()
+		capacityPods += node.Status.Capacity.Pods().Value()
 		if i, ok := kVersions[kubeletVersion]; ok {
 			kVersions[kubeletVersion] = i + 1
 		} else {
