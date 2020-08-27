@@ -48,7 +48,7 @@ type WindowsConfig struct {
 	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
 
-	// DriverBufferSize determines the size of the buffer we pass to the driver when reading flows
+	// DriverBufferSize (bytes) determines the size of the buffer we pass to the driver when reading flows
 	DriverBufferSize int
 }
 
