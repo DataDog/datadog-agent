@@ -148,14 +148,19 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 
 func getCloudProviderNTPHosts() []string {
 	if ec2.IsRunningOn() || ecs.IsRunningOn() {
+		log.Info("AWS cloud provider detected, using their NTP server.")
 		return awsNTPHosts
 	} else if gce.IsRunningOn() {
+		log.Info("GCP cloud provider detected, using their NTP server.")
 		return gcpNTPHosts
 	} else if azure.IsRunningOn() {
+		log.Info("Azure cloud provider detected, using their NTP server.")
 		return azureNTPHosts
 	} else if alibaba.IsRunningOn() {
+		log.Info("Alibaba cloud provider detected, using their NTP server.")
 		return alibabaNTPHosts
 	} else if tencent.IsRunningOn() {
+		log.Info("Tencent cloud provider detected, using their NTP server.")
 		return tencentNTPHosts
 	} else {
 		log.Info("No cloud provider detected, defaulting to Google NTP.")
