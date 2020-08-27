@@ -288,7 +288,7 @@ api_key:
 #   - "sensitive_key_2"
 
 ## @param no_proxy_nonexact_match - boolean - optional - default: false
-## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config 
+## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config
 ## for more information on accepted matching criteria.
 #
 # no_proxy_nonexact_match: false
@@ -645,6 +645,21 @@ api_key:
   ## on the proxy side.
   #
   # logs_no_ssl: false
+
+  ## @param expected_tags - list of strings - optional
+  ## Defines a list of tags that are eventually expected to be available in the backend.
+  ## These tags will be submitted with log events for  a configurable `expected_tags_duration` minutes
+  ## after which the tags are expected to be available in our backend services.
+  #
+  # expected_tags:
+  #   - foo:bar
+  #   - baz:qux
+
+  ## @param expected_tags_duration - int - optional - default: 15
+  ## Defines the time in minutes we expect for the expected tags to be available on the backend,
+  ## after this duration the tags defined above in `expected_tags` will no longer be submitted.
+  #
+  # expected_tags_duration: 15
 
   ## @param processing_rules - list of custom objects - optional
   ## Global processing rules that are applied to all logs. The available rules are

@@ -564,6 +564,12 @@ func InitConfig(config Config) {
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:errcheck
 	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
+
+	// Tags that will be submitted with logs for a specified duration of time.
+	// These tags are expected to eventually be available, so after a grace period they will no longer be submitted.
+	config.BindEnvAndSetDefault("logs_config.expected_tags", []string{})
+	// Duration in minutes during which the expected_tags will be submitted.
+	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", 15) // in minutes
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:

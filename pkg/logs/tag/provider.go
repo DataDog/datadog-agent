@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -20,22 +21,36 @@ type Provider interface {
 	GetTags() []string
 }
 
-// NoopProvider does nothing
-var NoopProvider Provider = &noopProvider{}
+var (
+	// NoopProvider does nothing
+	NoopProvider Provider = &noopProvider{}
+)
 
 // provider provides a list of up-to-date tags for a given entity by calling the tagger.
 type provider struct {
 	entityID             string
 	taggerWarmupDuration time.Duration
+	expectedTagsDuration time.Duration
+	submitExpectedTags   bool
+	expectedTags         []string
 	sync.Once
+	sync.Mutex
 }
 
 // NewProvider returns a new Provider.
 func NewProvider(entityID string) Provider {
-	return &provider{
+	p := &provider{
 		entityID:             entityID,
 		taggerWarmupDuration: config.TaggerWarmupDuration(),
 	}
+
+	if config.IsExpectedTagsSet() {
+		p.submitExpectedTags = true
+		p.expectedTagsDuration = time.Duration(coreConfig.Datadog.GetInt("logs_config.expected_tags_duration")) * time.Minute
+		p.expectedTags = config.GetExpectedTags()
+	}
+
+	return p
 }
 
 // GetTags returns the list of up-to-date tags.
@@ -45,11 +60,27 @@ func (p *provider) GetTags() []string {
 		// Make sure the tagger collects all the service tags
 		// TODO: remove this once AD and Tagger use the same PodWatcher instance
 		<-time.After(p.taggerWarmupDuration)
+
+		// start timer if necessary
+		go func() {
+			t := time.NewTimer(p.expectedTagsDuration)
+			<-t.C
+
+			p.Lock()
+			defer p.Unlock()
+			p.submitExpectedTags = false
+		}()
 	})
+
 	tags, err := tagger.Tag(p.entityID, collectors.HighCardinality)
 	if err != nil {
 		log.Warnf("Cannot tag container %s: %v", p.entityID, err)
 		return []string{}
 	}
+
+	if p.submitExpectedTags {
+		tags = append(tags, p.expectedTags...)
+	}
+
 	return tags
 }
