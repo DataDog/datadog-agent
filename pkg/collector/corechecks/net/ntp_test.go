@@ -401,7 +401,7 @@ func TestNTPUseLocalDefinedServers(t *testing.T) {
 }
 
 func TestNTPGetCloudProviders(t *testing.T) {
-	var hosts = []string{}
+	var hosts []string
 
 	// AWS
 	config.Datadog.Set("cloud_provider_metadata", "AWS")
