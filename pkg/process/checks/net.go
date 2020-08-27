@@ -136,6 +136,7 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
 		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
 		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
+		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
 	}
 	c.saveTelemetry(tel)
 	return cct
