@@ -710,6 +710,7 @@ func InitConfig(config Config) {
 	config.SetKnown("apm_config.log_file")
 	config.SetKnown("apm_config.apm_dd_url")
 	config.SetKnown("apm_config.profiling_dd_url")
+	config.SetKnown("apm_config.profiling_additional_endpoints.*")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
 	config.SetKnown("apm_config.receiver_socket")
