@@ -44,8 +44,8 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config.EnableMonotonicCount,
-										  config.DriverBufferSize,
+	di, err := network.NewDriverInterface(config.DriverBufferSize,
+										  config.EnableMonotonicCount,
 										  config.EnableFlowReadHint,
 										  config.EnableFlowContextCache)
 	if err != nil {

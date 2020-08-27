@@ -100,6 +100,9 @@ typedef struct _flow_handle_stats {
     volatile LONG64         num_flow_contexts_allocated;
     volatile LONG64         num_flow_contexts_from_cache;
     volatile LONG64         num_flow_contexts_in_free_cache;
+
+    volatile LONG64         num_flow_read_context_hints_used;
+    volatile LONG64         num_flow_read_list_searches;
 } FLOW_STATS;
 
 typedef struct _transport_handle_stats {

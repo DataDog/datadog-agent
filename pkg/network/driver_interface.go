@@ -378,6 +378,8 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 			"num_flow_contexts_allocated": int64(stats.handle.flow_stats.num_flow_contexts_allocated),
 			"num_flow_contexts_from_cache": int64(stats.handle.flow_stats.num_flow_contexts_from_cache),
 			"num_flow_contexts_in_free_cache": int64(stats.handle.flow_stats.num_flow_contexts_in_free_cache),
+			"num_flow_read_context_hints_used": int64(stats.handle.flow_stats.num_flow_read_context_hints_used),
+			"num_flow_read_list_searches": int64(stats.handle.flow_stats.num_flow_read_list_searches),
 
 		}, nil
 	// A DataHandle handle returns transfer stats specific to this handle
