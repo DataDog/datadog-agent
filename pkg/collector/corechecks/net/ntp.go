@@ -158,10 +158,11 @@ func getCloudProviderNTPHosts() []string {
 	} else if tencent.IsRunningOn() {
 		return tencentNTPHosts
 	} else {
-		log.Info("No cloud provider detected, defaulting to Google's NTP servers.")
+		log.Info("No cloud provider detected, defaulting to Google NTP.")
 		return googleNTPHosts
 	}
 }
+
 // Configure configure the data from the yaml
 func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	cfg := new(ntpConfig)
