@@ -336,13 +336,15 @@ hosts:
 }
 
 func TestDefaultHostConfig(t *testing.T) {
-	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(testedConfig, []byte(""), "test")
+	print(config.IsCloudProviderEnabled(("AWS")))
+	cloudProviderFromConfig := config.Datadog.GetStringSlice("cloud_provider_metadata")
+	print(cloudProviderFromConfig)
 
-	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
+	assert.Equal(t, googleNTPHosts, ntpCheck.cfg.instance.Hosts)
 }
 
 func TestNTPPortConfig(t *testing.T) {
@@ -427,9 +429,4 @@ func TestNTPGetCloudProviders(t *testing.T) {
 	config.Datadog.Set("cloud_provider_metadata", "Tencent")
 	hosts = getCloudProviderNTPHosts()
 	assert.Equal(t, tencentNTPHosts, hosts)
-
-	// Default Google
-	config.Datadog.Set("cloud_provider_metadata", "")
-	hosts = getCloudProviderNTPHosts()
-	assert.Equal(t, googleNTPHosts, hosts)
 }
