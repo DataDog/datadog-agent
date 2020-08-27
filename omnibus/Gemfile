@@ -1,6 +1,8 @@
 source 'https://rubygems.org'
 
 # Install omnibus
+# Sadly, DataDog does not provide tag for release we are using, so we are forced to use commit SHA1.
+# Check OMNIBUS_RUBY_VERSION in stackstate-deps.json (in root of this git repository).
 gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: (ENV['OMNIBUS_RUBY_VERSION'] || 'datadog-5.5.0')
 
 # Use Chef's software definitions. It is recommended that you write your own
