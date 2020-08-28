@@ -10,6 +10,7 @@ package orchestrator
 import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
+	"k8s.io/apimachinery/pkg/version"
 
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -193,4 +194,52 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 		}
 	}
 	return ""
+}
+
+func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, clusterName string, clusterID string, serverApiVersion *version.Info) *model.Cluster {
+	allocatables, capacities, kubeletVersions := extractNodeInformation(nodeList)
+	cluster := model.Cluster{
+		Name:              clusterName,
+		Uid:               clusterID,
+		NamespaceCount:    int32(len(nsList)),
+		NodeCount:         int32(len(nodeList)),
+		KubeletVersions:   kubeletVersions,
+		ApiServerVersions: serverApiVersion.String(),
+		Allocatable:       allocatables,
+		Capacity:          capacities,
+	}
+	return &cluster
+}
+
+// TODO: think about caching and invalidation strategies
+// max 5000 nodes, usually below and they are usually not that volatile. We may want to use the resourceVersion for caching.
+func extractNodeInformation(nodeList []*corev1.Node) (clusterCapacity map[string]int64, clusterAllocatable map[string]int64, kubeletVersions map[string]int32) {
+	kubeletVersions = make(map[string]int32)
+	clusterCapacity = make(map[string]int64)
+	clusterAllocatable = make(map[string]int64)
+	allocatablePods := int64(0)
+	allocatableCpu := int64(0)
+	allocatableMem := int64(0)
+	capacityMem := int64(0)
+	capacityPods := int64(0)
+	capacityCpu := int64(0)
+	for _, node := range nodeList {
+		kubeletVersion := node.Status.NodeInfo.KubeletVersion
+		// pods are given as normal values 1 pod, 2 pods. Hence, Value().
+		allocatablePods += node.Status.Allocatable.Pods().Value()
+		allocatableCpu += node.Status.Allocatable.Cpu().MilliValue()
+		allocatableMem += node.Status.Allocatable.Memory().MilliValue()
+
+		capacityCpu += node.Status.Capacity.Cpu().MilliValue()
+		capacityMem += node.Status.Capacity.Memory().MilliValue()
+		capacityPods += node.Status.Capacity.Pods().Value()
+		kubeletVersions[kubeletVersion] += 1
+	}
+	clusterCapacity[string(corev1.ResourceCPU)] = capacityCpu
+	clusterCapacity[string(corev1.ResourceMemory)] = capacityMem
+	clusterCapacity[string(corev1.ResourcePods)] = capacityPods
+	clusterAllocatable[string(corev1.ResourcePods)] = allocatablePods
+	clusterAllocatable[string(corev1.ResourceMemory)] = allocatableMem
+	clusterAllocatable[string(corev1.ResourceCPU)] = allocatableCpu
+	return
 }

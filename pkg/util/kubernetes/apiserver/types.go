@@ -17,7 +17,6 @@ type controllerName string
 const (
 	metadataController    controllerName = "metadata"
 	autoscalersController controllerName = "autoscalers"
-	servicesController    controllerName = "services"
 	endpointsController   controllerName = "endpoints"
 )
 
@@ -38,4 +37,8 @@ const (
 	ReplicaSetsInformer InformerName = "replicaSets"
 	// ServicesInformer holds the name of the informer
 	ServicesInformer InformerName = "services"
+	// NodesInformer holds the name of the informer
+	NodesInformer InformerName = "nodes"
+	// NamespacesInformer holds the name of the informer
+	NamespacesInformer InformerName = "namespaces"
 )

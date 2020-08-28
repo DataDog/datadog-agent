@@ -18,6 +18,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/version"
 )
 
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
@@ -231,4 +232,20 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 	}
 
 	return chunks
+}
+
+// processCluster process a nodes and namespaces list which forms the cluster resource.
+func processCluster(nsList []*corev1.Namespace, nodeList []*corev1.Node, groupID int32, clusterName string, clusterID string, serverVersion *version.Info) ([]model.MessageBody, error) {
+	start := time.Now()
+	cluster := extractCluster(nodeList, nsList, clusterName, clusterID, serverVersion)
+	collectorCluster := model.CollectorCluster{
+		ClusterName: clusterName,
+		ClusterId:   clusterID,
+		GroupId:     groupID,
+		Cluster:     cluster,
+	}
+
+	msg := []model.MessageBody{&collectorCluster}
+	log.Debugf("Collected & enriched cluster in %s", time.Now().Sub(start))
+	return msg, nil
 }

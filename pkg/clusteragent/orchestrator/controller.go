@@ -55,6 +55,11 @@ type Controller struct {
 	rsListerSync            cache.InformerSynced
 	serviceLister           corelisters.ServiceLister
 	serviceListerSync       cache.InformerSynced
+	nodeLister              corelisters.NodeLister
+	nodeListerSync          cache.InformerSynced
+	nsLister                corelisters.NamespaceLister
+	nsListerSync            cache.InformerSynced
+	client                  kubernetes.Interface
 	groupID                 int32
 	hostName                string
 	clusterName             string
