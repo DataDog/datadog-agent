@@ -1,22 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build kubelet
 
 package collectors
 
 import (
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/gobwas/glob"
 )
 
 const (
@@ -34,53 +30,24 @@ type KubeletCollector struct {
 	expireFreq        time.Duration
 	labelsAsTags      map[string]string
 	annotationsAsTags map[string]string
-	globMap           map[string]glob.Glob
 }
 
 // Detect tries to connect to the kubelet
 func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	watcher, err := kubelet.NewPodWatcher(5*time.Minute, true)
+	watcher, err := kubelet.NewPodWatcher(5 * time.Minute)
 	if err != nil {
 		return NoCollection, err
 	}
-	c.init(
-		watcher,
-		out,
-		config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags"),
-		config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags"),
-	)
-
-	return PullCollection, nil
-}
-
-func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagInfo, labelsAsTags, annotationsAsTags map[string]string) {
 	c.watcher = watcher
 	c.infoOut = out
 	c.lastExpire = time.Now()
 	c.expireFreq = kubeletExpireFreq
 
-	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
-	c.globMap = map[string]glob.Glob{}
-	for label, value := range labelsAsTags {
-		delete(labelsAsTags, label)
-		pattern := strings.ToLower(label)
-		labelsAsTags[pattern] = value
-		if strings.Index(pattern, "*") != -1 {
-			g, err := glob.Compile(pattern)
-			if err != nil {
-				log.Errorf("Failed to compile glob for [%s]: %v", pattern, err)
-				continue
-			}
-			c.globMap[pattern] = g
-		}
-	}
-	c.labelsAsTags = labelsAsTags
+	// viper lower-cases map keys, so extractor must lowercase before matching
+	c.labelsAsTags = config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
+	c.annotationsAsTags = config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
 
-	for annotation, value := range annotationsAsTags {
-		delete(annotationsAsTags, annotation)
-		annotationsAsTags[strings.ToLower(annotation)] = value
-	}
-	c.annotationsAsTags = annotationsAsTags
+	return PullCollection, nil
 }
 
 // Pull triggers a podlist refresh and sends new info. It also triggers
@@ -119,41 +86,35 @@ func (c *KubeletCollector) Pull() error {
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist
 // TODO: optimize if called too often on production
-func (c *KubeletCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *KubeletCollector) Fetch(entity string) ([]string, []string, error) {
 	pod, err := c.watcher.GetPodForEntityID(entity)
 	if err != nil {
-		return []string{}, []string{}, []string{}, err
+		return []string{}, []string{}, err
 	}
 
 	pods := []*kubelet.Pod{pod}
 	updates, err := c.parsePods(pods)
 	if err != nil {
-		return []string{}, []string{}, []string{}, err
+		return []string{}, []string{}, err
 	}
 	c.infoOut <- updates
 
 	for _, info := range updates {
 		if info.Entity == entity {
-			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
+			return info.LowCardTags, info.HighCardTags, nil
 		}
 	}
 	// entity not found in updates
-	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
+	return []string{}, []string{}, errors.NewNotFound(entity)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects
 func (c *KubeletCollector) parseExpires(idList []string) ([]*TagInfo, error) {
 	var output []*TagInfo
 	for _, id := range idList {
-		entityID, err := kubelet.KubeIDToTaggerEntityID(id)
-		if err != nil {
-			log.Warnf("error extracting tagger entity id from %q: %s", id, err)
-			continue
-		}
-
 		info := &TagInfo{
 			Source:       kubeletCollectorName,
-			Entity:       entityID,
+			Entity:       id,
 			DeleteEntity: true,
 		}
 		output = append(output, info)
@@ -166,5 +127,5 @@ func kubeletFactory() Collector {
 }
 
 func init() {
-	registerCollector(kubeletCollectorName, kubeletFactory, NodeOrchestrator)
+	registerCollector(kubeletCollectorName, kubeletFactory, HighPriority)
 }
