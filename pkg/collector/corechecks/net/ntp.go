@@ -163,7 +163,7 @@ func getCloudProviderNTPHosts() []string {
 		log.Info("Tencent cloud provider detected, using their NTP server.")
 		return tencentNTPHosts
 	} else {
-		log.Info("No cloud provider detected, defaulting to Google NTP.")
+		log.Info("No cloud provider detected, defaulting to Google's NTP server.")
 		return googleNTPHosts
 	}
 }
