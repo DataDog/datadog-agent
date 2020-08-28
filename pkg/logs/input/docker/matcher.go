@@ -17,13 +17,7 @@ func InitializeDecoder(source *config.LogSource, containerID string) *decoder.De
 }
 
 const (
-	headerLength       = 8
 	headerPrefixLength = 4
-)
-
-var (
-	headerStdoutPrefix = []byte{1, 0, 0, 0}
-	headerStderrPrefix = []byte{2, 0, 0, 0}
 )
 
 type headerMatcher struct {
@@ -73,9 +67,8 @@ func (s *headerMatcher) getByte(exists []byte, bs []byte, i int) byte {
 	if i < l {
 		if i < len(exists) {
 			return exists[i]
-		} else {
-			return bs[i-len(exists)]
 		}
+		return bs[i-len(exists)]
 	}
 	return 0xFF
 }
