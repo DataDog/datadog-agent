@@ -196,5 +196,45 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 }
 
 func extractNodes(n *corev1.Node) *model.Node {
-	return nil
+	message := &model.Node{
+		Metadata: orchestrator.ExtractMetadata(&n.ObjectMeta),
+		Spec: &model.NodeSpec{
+			PodCIDR:       n.Spec.PodCIDR,
+			PodCIDRs:      n.Spec.PodCIDRs,
+			ProviderID:    n.Spec.ProviderID,
+			Unschedulable: n.Spec.Unschedulable,
+		},
+		Status: &model.NodeStatus{},
+	}
+
+	if n.Spec.ConfigSource != nil && n.Spec.ConfigSource.ConfigMap != nil {
+		message.Spec.ConfigSource = &model.ConfigMapNodeConfigSource{
+			Namespace:        n.Spec.ConfigSource.ConfigMap.Namespace,
+			Name:             n.Spec.ConfigSource.ConfigMap.Name,
+			Uid:              string(n.Spec.ConfigSource.ConfigMap.UID),
+			ResourceVersion:  n.Spec.ConfigSource.ConfigMap.ResourceVersion,
+			KubeletConfigKey: n.Spec.ConfigSource.ConfigMap.KubeletConfigKey,
+		}
+	}
+	if n.Spec.Taints != nil && len(n.Spec.Taints) != 0 {
+		message.Spec.Taints = extractTaints(n.Spec.Taints)
+	}
+
+
+
+	return message
+}
+
+func extractTaints(taints []corev1.Taint) []*model.Taint {
+	modelTaints := make([]*model.Taint, 0, len(taints))
+
+	for _, taint := range taints {
+		modelTaints = append(modelTaints, &model.Taint{
+			Key:       taint.Key,
+			Value:     taint.Value,
+			Effect:    taint.Value,
+			TimeAdded: taint.TimeAdded.Unix(),
+		})
+	}
+	return modelTaints
 }
