@@ -125,6 +125,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		t.state.StoreClosedConnection(connStat)
 	}
 
+	// Check if we need to resize the buffer
+	t.driverInterface.CheckBufferResize(len(connStatsActive) + len(connStatsClosed))
+
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), connStatsActive, t.reverseDNS.GetDNSStats())
