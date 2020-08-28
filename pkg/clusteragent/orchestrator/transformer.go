@@ -197,7 +197,7 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 }
 
 func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, clusterName string, clusterID string, serverApiVersion *version.Info) *model.Cluster {
-	kubeletVersions, allocatables, capacities := extractNodeInformation(nodeList)
+	allocatables, capacities, kubeletVersions := extractNodeInformation(nodeList)
 	cluster := model.Cluster{
 		Name:              clusterName,
 		Uid:               clusterID,
@@ -213,10 +213,10 @@ func extractCluster(nodeList []*corev1.Node, nsList []*corev1.Namespace, cluster
 
 // TODO: think about caching and invalidation strategies
 // max 5000 nodes, usually below and they are usually not that volatile. We may want to use the resourceVersion for caching.
-func extractNodeInformation(nodeList []*corev1.Node) (map[string]int32, map[string]int64, map[string]int64) {
-	kVersions := make(map[string]int32)
-	clusterCapacity := make(map[string]int64)
-	clusterAllocatable := make(map[string]int64)
+func extractNodeInformation(nodeList []*corev1.Node) (clusterCapacity map[string]int64, clusterAllocatable map[string]int64, kubeletVersions map[string]int32) {
+	kubeletVersions = make(map[string]int32)
+	clusterCapacity = make(map[string]int64)
+	clusterAllocatable = make(map[string]int64)
 	allocatablePods := int64(0)
 	allocatableCpu := int64(0)
 	allocatableMem := int64(0)
@@ -233,11 +233,7 @@ func extractNodeInformation(nodeList []*corev1.Node) (map[string]int32, map[stri
 		capacityCpu += node.Status.Capacity.Cpu().MilliValue()
 		capacityMem += node.Status.Capacity.Memory().MilliValue()
 		capacityPods += node.Status.Capacity.Pods().Value()
-		if i, ok := kVersions[kubeletVersion]; ok {
-			kVersions[kubeletVersion] = i + 1
-		} else {
-			kVersions[kubeletVersion] = 1
-		}
+		kubeletVersions[kubeletVersion] += 1
 	}
 	clusterCapacity[string(corev1.ResourceCPU)] = capacityCpu
 	clusterCapacity[string(corev1.ResourceMemory)] = capacityMem
@@ -245,5 +241,5 @@ func extractNodeInformation(nodeList []*corev1.Node) (map[string]int32, map[stri
 	clusterAllocatable[string(corev1.ResourcePods)] = allocatablePods
 	clusterAllocatable[string(corev1.ResourceMemory)] = allocatableMem
 	clusterAllocatable[string(corev1.ResourceCPU)] = allocatableCpu
-	return kVersions, clusterAllocatable, clusterCapacity
+	return
 }

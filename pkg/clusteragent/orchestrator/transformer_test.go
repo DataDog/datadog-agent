@@ -634,7 +634,7 @@ func TestExtractNodeInformation(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			kVersions, clusterAllocatable, clusterCapacity := extractNodeInformation(tc.input)
+			clusterAllocatable, clusterCapacity, kVersions := extractNodeInformation(tc.input)
 			assert.EqualValues(t, tc.expected.allocatables, clusterAllocatable)
 			assert.EqualValues(t, tc.expected.versions, kVersions)
 			assert.EqualValues(t, tc.expected.capacities, clusterCapacity)
