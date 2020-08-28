@@ -45,7 +45,7 @@ func (p *Parser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 }
 
 func (p *Parser) SupportsPartialLine() bool {
-	return true
+	return false
 }
 
 // parse extracts the date and the status from the raw docker message
