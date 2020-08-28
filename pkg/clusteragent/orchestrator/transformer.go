@@ -194,3 +194,7 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 	}
 	return ""
 }
+
+func extractNodes(n *corev1.Node) *model.Node {
+	return nil
+}

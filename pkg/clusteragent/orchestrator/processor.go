@@ -232,3 +232,70 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 
 	return chunks
 }
+
+// processNodesList process a nodes list into process messages.
+func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	nodeMsgs := make([]*model.Node, 0, len(nodesList))
+
+	for s := 0; s < len(nodesList); s++ {
+		node := nodesList[s]
+		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion) {
+			continue
+		}
+
+		nodeModel := extractNodes(node)
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonSvc, err := jsoniter.Marshal(node)
+		if err != nil {
+			log.Debugf("Could not marshal service to JSON: %s", err)
+			continue
+		}
+		nodeModel.Yaml = jsonSvc
+
+		nodeMsgs = append(nodeMsgs, nodeModel)
+	}
+
+	groupSize := len(nodeMsgs) / cfg.MaxPerMessage
+	if len(nodeMsgs)%cfg.MaxPerMessage > 0 {
+		groupSize++
+	}
+
+	chunks := chunkNodes(nodeMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorNode{
+			ClusterName: clusterName,
+			ClusterId:   clusterID,
+			GroupId:     groupID,
+			GroupSize:   int32(groupSize),
+			Nodes:       chunks[i],
+		})
+	}
+
+	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Now().Sub(start))
+	return messages, nil
+}
+
+// chunkNodes chunks the given list of nodes, honoring the given chunk count and size.
+// The last chunk may be smaller than the others.
+func chunkNodes(nodes []*model.Node, chunkCount, chunkSize int) [][]*model.Node {
+	chunks := make([][]*model.Node, 0, chunkCount)
+
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(nodes)
+		}
+		chunks = append(chunks, nodes[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
