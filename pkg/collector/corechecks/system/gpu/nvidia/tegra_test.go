@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	nanoSample = "RAM 613/3964MB (lfb 634x4MB) SWAP 0/1982MB (cached 0MB) CPU [2%@102,1%@102,0%@102,0%@102] EMC_FREQ 0% GR3D_FREQ 0% PLL@39C CPU@40.5C PMIC@100C GPU@41C AO@46C thermal@41C POM_5V_IN 943/943 POM_5V_GPU 0/0 POM_5V_CPU 123/123"
+	nanoSample = "RAM 613/3964MB (lfb 634x4MB) SWAP 0/1982MB (cached 0MB) CPU [2%@102,1%@102,0%@102,0%@102] EMC_FREQ 0% GR3D_FREQ 0% PLL@39C CPU@40.5C PMIC@100C GPU@41C AO@46C thermal@41C POM_5V_IN 900/943 POM_5V_GPU 0/0 POM_5V_CPU 123/123"
 	tx1Sample = "RAM 1179/3983MB (lfb 120x4MB) IRAM 0/252kB(lfb 252kB) CPU [1%@102,4%@102,0%@102,0%@102] EMC_FREQ 7%@408 GR3D_FREQ 0%@76 APE 25 AO@42.5C CPU@37.5C GPU@39C PLL@37C Tdiode@42.75C PMIC@100C Tboard@42C thermal@38.5C VDD_IN 2532/2698 VDD_CPU 76/178 VDD_GPU 19/19"
 	tx2Sample = "RAM 1345/7829MB (lfb 1290x4MB) SWAP 0/512MB (cached 0MB) CPU [2%@345,off,off,off,off,off] EMC_FREQ 13%@40 GR3D_FREQ 0%@114 APE 150 BCPU@35C MCPU@35C GPU@41C PLL@35C AO@35.5C Tboard@35C Tdiode@36C PMIC@100C thermal@35.5C VDD_IN 2003/2658 VDD_CPU 320/518 VDD_GPU 400/735 VDD_SOC 400/415 VDD_WIFI 0/0 VDD_DDR 240/348"
 	agXSample = "RAM 1903/15692MB (lfb 3251x4MB) CPU [1%@1190,1%@1190,2%@1190,0%@1190,0%@1190,0%@1190,0%@1190,0%@1190] EMC_FREQ 0% GR3D_FREQ 0% AO@32.5C GPU@32C Tboard@32C Tdiode@34.75C AUX@31.5C CPU@33.5C thermal@32.9C PMIC@100C GPU 0/0 CPU 216/216 SOC 864/864 CV 0/0 VDDRQ 144/144 SYS5V 1889/1889"
@@ -29,13 +29,42 @@ func TestTegraCheckLinux(t *testing.T) {
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	mock.On("Gauge", "system.gpu.mem.used", 1, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.used", 613, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.total", 3964, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.n_lfb", 634, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.lfb", 4, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.swap.used", 0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.swap.total", 1982, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.swap.cached", 0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.emc.usage", 0, "", []string(nil)).Return().Times(1)
+	// Freq is not sent if not found
+	//mock.On("Gauge", "system.gpu.emc.freq", 0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.usage", 0, "", []string(nil)).Return().Times(1)
+	// Freq is not sent if not found
+	//mock.On("Gauge", "system.gpu.freq", 39, "", []string(nil)).Return().Times(1)
+
+	// Duplicated with temperature check ?
+	mock.On("Gauge", "system.gpu.temp", 39, "", []string{"PLL"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.temp", 40.5, "", []string{"CPU"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.temp", 100, "", []string{"PMIC"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.temp", 41, "", []string{"GPU"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.temp", 46, "", []string{"AO"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.temp", 41, "", []string{"thermal"}).Return().Times(1)
+
+	// Duplicated with voltage check ?
+	mock.On("Gauge", "system.gpu.vdd.current", 900, "", []string{"POM_5V_IN"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.vdd.average", 943, "", []string{"POM_5V_IN"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.vdd.current", 0, "", []string{"POM_5V_GPU"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.vdd.average", 0, "", []string{"POM_5V_GPU"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.vdd.current", 123, "", []string{"POM_5V_CPU"}).Return().Times(1)
+	mock.On("Gauge", "system.gpu.vdd.average", 123, "", []string{"POM_5V_CPU"}).Return().Times(1)
+
 	mock.On("Commit").Return().Times(1)
 
 	err := tegraCheck.processTegraStatsOutput(nanoSample)
 	assert.Equal(t, err, nil)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 1)
+	mock.AssertNumberOfCalls(t, "Gauge", 21)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
