@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -66,6 +67,10 @@ func (c *TegraCheck) Interval() time.Duration {
 	return 0
 }
 
+func sendRamMetrics(sender aggregator.Sender, field string) {
+
+}
+
 // Run executes the check
 func (c *TegraCheck) Run() error {
 	atomic.StoreUint32(&c.running, 1)
@@ -75,12 +80,18 @@ func (c *TegraCheck) Run() error {
 	return err
 }
 
-func (c *TegraCheck) processTegraStatsOutput(output string) error {
+func (c *TegraCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
 
+	fields := strings.Fields(tegraStatsOuptut)
+	for _, field := range fields {
+		if strings.ToLower(field) == "ram" {
+			
+		}
+	}
 	sender.Gauge("system.gpu.mem.used", 128, "", nil)
 	sender.Gauge("system.gpu.mem.total", 1024, "", nil)
 
