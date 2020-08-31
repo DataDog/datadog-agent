@@ -1197,10 +1197,10 @@ api_key:
 #
 # jmx_reconnection_thread_pool_size: 3
 
-## @param jmx_reconnection_timeout - integer - optional - default: 10
+## @param jmx_reconnection_timeout - integer - optional - default: 60
 ## Determines the maximum waiting period in seconds before timing up on instance reconnection.
 #
-# jmx_reconnection_timeout: 10
+# jmx_reconnection_timeout: 60
 
 {{ end -}}
 {{- if .Logging }}
