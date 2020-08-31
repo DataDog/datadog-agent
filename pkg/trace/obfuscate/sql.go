@@ -306,9 +306,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 }
 
 func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
-	tags := []string{"type:sql"}
 	if span.Resource == "" {
-		tags = append(tags, "outcome:empty-resource")
 		return
 	}
 	oq, err := o.ObfuscateSQLString(span.Resource)
@@ -322,18 +320,15 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta[sqlQueryTag] = span.Resource
 		}
 		span.Resource = nonParsableResource
-		tags = append(tags, "outcome:error")
 		return
 	}
 
-	tags = append(tags, "outcome:success")
 	span.Resource = oq.Query
 
 	if len(oq.TablesCSV) > 0 {
 		traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
 	}
 	if span.Meta != nil && span.Meta[sqlQueryTag] != "" {
-		// "sql.query" tag already set by user, do not change it.
 		return
 	}
 	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
