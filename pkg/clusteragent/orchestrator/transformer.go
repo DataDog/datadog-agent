@@ -196,7 +196,7 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 }
 
 func extractNodes(n *corev1.Node) *model.Node {
-	message := &model.Node{
+	msg := &model.Node{
 		Metadata: orchestrator.ExtractMetadata(&n.ObjectMeta),
 		Spec: &model.NodeSpec{
 			PodCIDR:       n.Spec.PodCIDR,
@@ -204,11 +204,14 @@ func extractNodes(n *corev1.Node) *model.Node {
 			ProviderID:    n.Spec.ProviderID,
 			Unschedulable: n.Spec.Unschedulable,
 		},
-		Status: &model.NodeStatus{},
+		Status: &model.NodeStatus{
+			Allocatable: map[string]int64{},
+			Capacity:    map[string]int64{},
+			NodeInfo:    &model.NodeSystemInfo{}},
 	}
 
 	if n.Spec.ConfigSource != nil && n.Spec.ConfigSource.ConfigMap != nil {
-		message.Spec.ConfigSource = &model.ConfigMapNodeConfigSource{
+		msg.Spec.ConfigSource = &model.ConfigMapNodeConfigSource{
 			Namespace:        n.Spec.ConfigSource.ConfigMap.Namespace,
 			Name:             n.Spec.ConfigSource.ConfigMap.Name,
 			Uid:              string(n.Spec.ConfigSource.ConfigMap.UID),
@@ -217,12 +220,78 @@ func extractNodes(n *corev1.Node) *model.Node {
 		}
 	}
 	if n.Spec.Taints != nil && len(n.Spec.Taints) != 0 {
-		message.Spec.Taints = extractTaints(n.Spec.Taints)
+		msg.Spec.Taints = extractTaints(n.Spec.Taints)
 	}
 
+	// status
+	extractNodeInfo(n, msg)
+	extractCapacitiesAndAllocatables(n, msg)
+	for _, address := range n.Status.Addresses {
+		msg.Status.Addresses = append(msg.Status.Addresses, &model.NodeAddress{
+			Type:    string(address.Type),
+			Address: address.Address,
+		})
+	}
 
+	for _, condition := range n.Status.Conditions {
+		msg.Status.Conditions = append(msg.Status.Conditions, &model.NodeCondition{
+			Type:               string(condition.Type),
+			Status:             string(condition.Status),
+			LastHeartbeatTime:  condition.LastHeartbeatTime.Unix(),
+			LastTransitionTime: condition.LastTransitionTime.Unix(),
+			Reason:             condition.Reason,
+			Message:            condition.Message,
+		})
+	}
 
-	return message
+	for _, image := range n.Status.Images {
+		msg.Status.Images = append(msg.Status.Images, &model.ContainerImage{
+			Names:     image.Names,
+			SizeBytes: image.SizeBytes,
+		})
+	}
+
+	for _, volume := range n.Status.VolumesAttached {
+		msg.Status.VolumesAttached = append(msg.Status.VolumesAttached, &model.AttachedVolume{
+			Name:       string(volume.Name),
+			DevicePath: volume.DevicePath,
+		})
+	}
+
+	for _, v := range n.Status.VolumesInUse {
+		msg.Status.VolumesInUse = append(msg.Status.VolumesInUse, string(v))
+	}
+
+	msg.Status.DaemonEndpoints.KubeletEndpoint = n.Status.DaemonEndpoints.KubeletEndpoint.Port
+
+	return msg
+}
+
+func extractNodeInfo(n *corev1.Node, message *model.Node) {
+	message.Status.NodeInfo.KubeletVersion = n.Status.NodeInfo.KubeletVersion
+	message.Status.NodeInfo.MachineID = n.Status.NodeInfo.MachineID
+	message.Status.NodeInfo.KernelVersion = n.Status.NodeInfo.KernelVersion
+	message.Status.NodeInfo.ContainerRuntimeVersion = n.Status.NodeInfo.ContainerRuntimeVersion
+	message.Status.NodeInfo.OperatingSystem = n.Status.NodeInfo.OperatingSystem
+	message.Status.NodeInfo.Architecture = n.Status.NodeInfo.Architecture
+}
+
+func extractCapacitiesAndAllocatables(n *corev1.Node, mn *model.Node) {
+	// Milli Value ceil(q * 1000), which fits to be the lowest value. CPU -> Millicore and Memory -> byte
+	supportedResourcesMilli := []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
+	supportedResources := []corev1.ResourceName{corev1.ResourcePods}
+	for _, resource := range supportedResourcesMilli {
+		capacity := n.Status.Capacity[resource]
+		allocatable := n.Status.Allocatable[resource]
+		mn.Status.Capacity[resource.String()] = capacity.MilliValue()
+		mn.Status.Allocatable[resource.String()] = allocatable.MilliValue()
+	}
+	for _, resource := range supportedResources {
+		capacity := n.Status.Capacity[resource]
+		allocatable := n.Status.Allocatable[resource]
+		mn.Status.Capacity[resource.String()] = capacity.Value()
+		mn.Status.Allocatable[resource.String()] = allocatable.MilliValue()
+	}
 }
 
 func extractTaints(taints []corev1.Taint) []*model.Taint {
