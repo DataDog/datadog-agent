@@ -5,7 +5,7 @@
 
 // +build linux
 
-//go:generate stringer -type=Syscall
+//go:generate stringer -type Syscall -output syscalls_string_linux.go
 
 package probe
 

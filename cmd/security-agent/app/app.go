@@ -94,7 +94,9 @@ func init() {
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
 
-	SecurityAgentCmd.AddCommand(runtimeCmd)
+	if runtimeCmd != nil {
+		SecurityAgentCmd.AddCommand(runtimeCmd)
+	}
 
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	SecurityAgentCmd.AddCommand(startCmd)
