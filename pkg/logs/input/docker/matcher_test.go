@@ -106,14 +106,6 @@ func TestDecoderNoNewLineBeforeDockerHeader(t *testing.T) {
 		d.InputChan <- decoder.NewInput(input)
 
 		var output *decoder.Output
-
-		// expected output content is discarded from SingleLineHandler (line #96)
-		// due to docker.parser line#80 condition not-match
-
-		//output =<- d.OutputChan
-		//expected := append([]byte("hello"), []byte{1, 0, 0, 0, 0}...)
-		//assert.Equal(t, expected, output.Content)
-
 		output = <-d.OutputChan
 		assert.Equal(t, "app logs", string(output.Content))
 	}
