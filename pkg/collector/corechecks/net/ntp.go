@@ -44,7 +44,7 @@ var (
 		nil, "Ntp offset")
 
 	awsNTPHosts     = []string{"169.254.169.123"}
-	gcpNTPHosts     = []string{"metadata.google"}
+	gcpNTPHosts     = []string{"metadata.google.internal"}
 	azureNTPHosts   = []string{"time.windows.com"}
 	alibabaNTPHosts = []string{
 		"ntp.cloud.aliyuncs.com", "ntp1.cloud.aliyuncs.com", "ntp2.cloud.aliyuncs.com", "ntp3.cloud.aliyuncs.com",
