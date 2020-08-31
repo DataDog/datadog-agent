@@ -51,10 +51,11 @@ func (s *headerMatcher) matchHeader(exists []byte, bs []byte) bool {
 			// less than 4 + i bytes
 			continue
 		}
-		if s.getByte(exists, bs, idx) == 1 || s.getByte(exists, bs, idx) == 2 {
-			if s.getByte(exists, bs, idx+1) == 0 &&
-				s.getByte(exists, bs, idx+2) == 0 &&
-				s.getByte(exists, bs, idx+3) == 0 {
+		// We test for {1, 0, 0, 0} (stdout log) and {2, 0, 0, 0} (stderr)
+		if s.checkByte(exists, bs, idx, 1) || s.checkByte(exists, bs, idx, 2) {
+			if s.checkByte(exists, bs, idx+1, 0) &&
+				s.checkByte(exists, bs, idx+2, 0) &&
+				s.checkByte(exists, bs, idx+3, 0) {
 				return true
 			}
 		}
@@ -62,13 +63,13 @@ func (s *headerMatcher) matchHeader(exists []byte, bs []byte) bool {
 	return false
 }
 
-func (s *headerMatcher) getByte(exists []byte, bs []byte, i int) byte {
+func (s *headerMatcher) checkByte(exists []byte, bs []byte, i int, val byte) bool {
 	l := len(exists) + len(bs)
 	if i < l {
 		if i < len(exists) {
-			return exists[i]
+			return exists[i] == val
 		}
-		return bs[i-len(exists)]
+		return bs[i-len(exists)] == val
 	}
-	return 0xFF
+	return false
 }
