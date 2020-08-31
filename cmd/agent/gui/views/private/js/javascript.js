@@ -772,7 +772,7 @@ function restartAgent() {
         $("#general_status").css("display", "block");
         $('#general_status').html("<span class='center'>Error restarting agent: " + data + "</span>");
       } else loadStatus("general");
-    }, 2000);
+    }, 10000);
   }, function() {
     $(".loading_spinner").remove();
     $("#general_status").css("display", "block");

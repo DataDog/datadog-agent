@@ -83,8 +83,10 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/DATA-DOG/go-sqlmock v1.4.1/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
-github.com/DataDog/agent-payload v4.40.0+incompatible h1:W73Y0LT6vH41zCHNxpjsidHrU/WKxmMPOIGBlzcX+4M=
-github.com/DataDog/agent-payload v4.40.0+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v4.42.0+incompatible h1:mLPrI/Mp/rqEphv1Gxy0bXV04U+NQUttBcPDZlPfA/s=
+github.com/DataDog/agent-payload v4.42.0+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v4.43.0+incompatible h1:SH3YqDkd2guUFGybpH2nAZNA7WlDRa/MeVhNdjA+c2A=
+github.com/DataDog/agent-payload v4.43.0+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
@@ -102,6 +104,12 @@ github.com/DataDog/ebpf v0.0.0-20200728214655-d148b742bc92 h1:F+vgt0/dSR6v3jvw2b
 github.com/DataDog/ebpf v0.0.0-20200728214655-d148b742bc92/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
 github.com/DataDog/ebpf v0.0.0-20200810204017-170f39a7810a h1:oFmjBcE1Oq3YyWfs8K2HszM+G/hAmRwZEqy6IwcEP6o=
 github.com/DataDog/ebpf v0.0.0-20200810204017-170f39a7810a/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200813173322-0c621fa94637 h1:JsOzZpmDuaPP7tBqeNoPGbb+yYz4BtPa/gZci3TxZIs=
+github.com/DataDog/ebpf v0.0.0-20200813173322-0c621fa94637/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200825172706-b86dd82d5a08 h1:C75xwpqf39k2J69yawGNK9uAs/67i7dbHJvHZYI8iDY=
+github.com/DataDog/ebpf v0.0.0-20200825172706-b86dd82d5a08/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200825200022-7a8f7d072a50 h1:SDv8tEPuNd5sSIDksVwvwcgXP3ElGaQSuCB7Mtfluf8=
+github.com/DataDog/ebpf v0.0.0-20200825200022-7a8f7d072a50/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
 github.com/DataDog/gobpf v0.0.0-20200131184214-6763fd92fd3f h1:vPk11ERhqpKweLLyXanBlUwKFdkpqDTEDWanr/fLZok=
 github.com/DataDog/gobpf v0.0.0-20200131184214-6763fd92fd3f/go.mod h1:rNvi5cSHdpxN6495MOYAWN3yukac8lORoluL+9Osrsw=
 github.com/DataDog/gobpf v0.0.0-20200728095841-88e65b29b186 h1:M/TmXm0VnfBmg9zkqdz+JQpaPgdgohQ81UE+tClyGiQ=
@@ -913,8 +921,9 @@ github.com/miekg/dns v1.1.3/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nr
 github.com/miekg/dns v1.1.4/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
 github.com/miekg/dns v1.1.15/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
 github.com/miekg/dns v1.1.22/go.mod h1:bPDLeHnStXmXAq1m/Ch/hvfNHr14JKNPMBo3VZKjuso=
-github.com/miekg/dns v1.1.27 h1:aEH/kqUzUxGJ/UHcEKdJY+ugH6WEzsEBBSPa8zuy1aM=
 github.com/miekg/dns v1.1.27/go.mod h1:KNUDUusw/aVsxyTYZM1oqvCicbwhgbNgztCETuNZ7xM=
+github.com/miekg/dns v1.1.31 h1:sJFOl9BgwbYAWOGEwr61FU28pqsBNdpRBnhGXtO06Oo=
+github.com/miekg/dns v1.1.31/go.mod h1:KNUDUusw/aVsxyTYZM1oqvCicbwhgbNgztCETuNZ7xM=
 github.com/mikefarah/yaml/v2 v2.4.0/go.mod h1:ahVqZF4n1W4NqwvVnZzC4es67xsW9uR/RRf2RRxieJU=
 github.com/mikefarah/yq/v2 v2.4.1/go.mod h1:i8SYf1XdgUvY2OFwSqGAtWOOgimD2McJ6iutoxRm4k0=
 github.com/mikefarah/yq/v3 v3.0.0-20200418141808-3ccd32a47e54/go.mod h1:A6ElbOcozhGwjUdRx9kn1HtKJteuLrx76cnZYjSTJFw=
@@ -1552,6 +1561,10 @@ golang.org/x/sys v0.0.0-20200728102440-3e129f6d46b1 h1:sIky/MyNRSHTrdxfsiUSS4WIA
 golang.org/x/sys v0.0.0-20200728102440-3e129f6d46b1/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200810151505-1b9f1253b3ed h1:WBkVNH1zd9jg/dK4HCM4lNANnmd12EHC9z+LmcCG4ns=
 golang.org/x/sys v0.0.0-20200810151505-1b9f1253b3ed/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20200812155832-6a926be9bd1d h1:QQrM/CCYEzTs91GZylDCQjGHudbPTxF/1fvXdVh5lMo=
+golang.org/x/sys v0.0.0-20200812155832-6a926be9bd1d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20200824131525-c12d262b63d8 h1:AvbQYmiaaaza3cW3QXRyPo5kYgpFIzOAfeAAN7m3qQ4=
+golang.org/x/sys v0.0.0-20200824131525-c12d262b63d8/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.0.0-20160726164857-2910a502d2bf/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180805044716-cb6730876b98/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=

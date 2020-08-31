@@ -3,9 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package compliance
+// +build kubeapiserver
 
-import "github.com/DataDog/datadog-agent/pkg/collector/check"
+package app
 
-// CheckVisitor defines a visitor func for compliance checks
-type CheckVisitor func(check.Check) error
+import (
+	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
+)
+
+func init() {
+	ClusterAgentCmd.AddCommand(commands.Health(loggerName, confPath, flagNoColor))
+}

@@ -29,6 +29,7 @@ func TestParseSuite(t *testing.T) {
 					Name:      "CIS Docker Generic",
 					Framework: "cis-docker",
 					Version:   "1.2.0",
+					Source:    "./testdata/cis-docker.yaml",
 				},
 				Rules: []Rule{
 					{

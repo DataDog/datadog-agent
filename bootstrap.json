@@ -13,19 +13,20 @@
             "github.com/frapposelli/wwhrd",
             "github.com/goware/modvendor",
             "github.com/shuLhan/go-bindata/cmd/go-bindata",
-            "honnef.co/go/tools/cmd/staticcheck"
+            "honnef.co/go/tools/cmd/staticcheck",
+            "github.com/golang/perf/cmd/benchstat"
         ],
         "golang.org/x/tools/go/ast/astutil": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go"
         },
         "golang.org/x/tools/go/internal": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go",
             "install": false
         },
         "golang.org/x/tools/go/gcexportdata": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go"
         },
         "golang.org/x/lint/golint": {
@@ -58,7 +59,7 @@
             "type": "go"
         },
         "honnef.co/go/tools/cmd/staticcheck" : {
-            "version": "2019.2.3",
+            "version": "2020.1.5",
             "type": "go"
         },
         "github.com/frapposelli/wwhrd": {
@@ -67,6 +68,10 @@
         },
         "github.com/goware/modvendor": {
             "version": "892bf4ecb805b052575eb45070a60f9db471df8e",
+            "type": "go"
+        },
+        "github.com/golang/perf/cmd/benchstat": {
+            "version": "9c9101da83161dff5e53fc89bf35ed49ea286db8",
             "type": "go"
         }
     }
