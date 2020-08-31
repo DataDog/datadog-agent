@@ -47,6 +47,9 @@ type WindowsConfig struct {
 
 	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
+
+	// DriverBufferSize (bytes) determines the size of the buffer we pass to the driver when reading flows
+	DriverBufferSize int
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -241,6 +244,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			ArgsRefreshInterval:  15, // with default 20s check interval we refresh every 5m
 			AddNewArgs:           true,
 			EnableMonotonicCount: false,
+			DriverBufferSize:     1024,
 		},
 	}
 

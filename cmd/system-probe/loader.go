@@ -36,12 +36,12 @@ func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, facto
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
 		// Let `system-probe` run the other modules.
 		if err != nil {
-			log.Errorf("new module `%s` error: %w", factory.Name, err)
+			log.Errorf("new module `%s` error: %s", factory.Name, err)
 			continue
 		}
 
 		if err = module.Register(httpMux); err != nil {
-			log.Errorf("error registering HTTP endpoints for module `%s` error: %w", factory.Name, err)
+			log.Errorf("error registering HTTP endpoints for module `%s` error: %s", factory.Name, err)
 			continue
 		}
 
