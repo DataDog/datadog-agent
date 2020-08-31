@@ -53,7 +53,7 @@ var (
 		"ntp12.cloud.aliyuncs.com",
 	}
 	tencentNTPHosts = []string{"ntpupdate.tencentyun.com"}
-	googleNTPHosts  = []string{"time1.google.com", "time2.google.com", "time3.google.com", "time4.google.com"}
+	googleNTPHosts  = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 )
 
 // NTPCheck only has sender and config
@@ -163,7 +163,7 @@ func getCloudProviderNTPHosts() []string {
 		log.Info("Tencent cloud provider detected, using their NTP server.")
 		return tencentNTPHosts
 	} else {
-		log.Info("No cloud provider detected, defaulting to Google's NTP server.")
+		log.Info("No cloud provider detected, defaulting to Datadog's NTP server.")
 		return googleNTPHosts
 	}
 }
