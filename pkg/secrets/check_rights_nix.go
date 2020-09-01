@@ -29,7 +29,7 @@ func checkRights(path string, options checkRightOptions) error {
 		unwantedPermissions |= syscall.S_IRWXG
 	}
 	if uint(stat.Mode)&(unwantedPermissions) != 0 {
-		return fmt.Errorf("invalid executable '%s', current file permissions are %#o but want %#o, have rights on it", path, stat.Mode, unwantedPermissions)
+		return fmt.Errorf("invalid executable '%s' permissions, current file permissions are %#o but %#o are unwanted", path, stat.Mode, unwantedPermissions)
 	}
 
 	// checking that the owner have exec rights
