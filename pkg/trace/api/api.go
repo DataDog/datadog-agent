@@ -341,15 +341,23 @@ func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 	}
 }
 
+// rateLimited reports whether n number of traces should be rejected by the API.
+func (r *HTTPReceiver) rateLimited(n int64) bool {
+	if n == 0 {
+		return false
+	}
+	if r.conf.MaxMemory == 0 && r.conf.MaxCPU == 0 {
+		// rate limiting is off
+		return false
+	}
+	return !r.RateLimiter.Permits(n)
+}
+
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	ts := r.tagStats(v, req)
-	traceCount, err := traceCount(req)
-	if err != nil {
-		log.Warnf("Error getting trace count: %q. Functionality may be limited.", err)
-	}
-
-	if !r.RateLimiter.Permits(traceCount) {
+	tracen, err := traceCount(req)
+	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.rateLimiterResponse)
@@ -362,9 +370,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		if err == ErrLimitedReaderLimitReached {
-			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, traceCount)
+			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
 		} else {
-			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+			atomic.AddInt64(&ts.TracesDropped.DecodingError, tracen)
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
