@@ -4,7 +4,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-2.4.2"
+    chart: "datadog-2.4.5"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -55,6 +55,15 @@ rules:
     resources:
       - configmaps
     resourceNames:
+      - datadogtoken # Kubernetes event collection state
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
       - datadog-leader-election # Leader election token
       - datadog-custom-metrics
       - extension-apiserver-authentication
@@ -95,7 +104,7 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-2.4.2"
+    chart: "datadog-2.4.5"
     release: "datadog"
     heritage: "Helm"
   name: datadog-cluster-agent:system:auth-delegator

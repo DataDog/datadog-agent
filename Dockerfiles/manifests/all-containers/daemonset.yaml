@@ -45,6 +45,8 @@ spec:
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
               value: "8125"
+            - name: DD_COLLECT_KUBERNETES_EVENTS
+              value: "true"
             - name: DD_APM_ENABLED
               value: "false"
             - name: DD_LOGS_ENABLED
@@ -64,6 +66,7 @@ spec:
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
@@ -73,17 +76,22 @@ spec:
               subPath: system-probe.yaml
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: cgroups
               mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
               readOnly: true
             - name: pointerdir
               mountPath: /opt/datadog-agent/run
+              mountPropagation: None
             - name: logpodpath
               mountPath: /var/log/pods
+              mountPropagation: None
               readOnly: true
             - name: logdockercontainerpath
               mountPath: /var/lib/docker/containers
+              mountPropagation: None
               readOnly: true
           livenessProbe:
             failureThreshold: 6
@@ -140,6 +148,7 @@ spec:
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
           livenessProbe:
             initialDelaySeconds: 15
@@ -175,14 +184,17 @@ spec:
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: cgroups
               mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
               readOnly: true
             - name: passwd
               mountPath: /etc/passwd
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
@@ -204,18 +216,22 @@ spec:
           volumeMounts:
             - name: debugfs
               mountPath: /sys/kernel/debug
+              mountPropagation: None
             - name: sysprobe-config
               mountPath: /etc/datadog-agent
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: modules
               mountPath: /lib/modules
+              mountPropagation: None
               readOnly: true
             - name: src
               mountPath: /usr/src
+              mountPropagation: None
               readOnly: true
       initContainers:
         - name: init-volume
@@ -239,9 +255,11 @@ spec:
               mountPath: /etc/datadog-agent
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: sysprobe-config
               mountPath: /etc/datadog-agent/system-probe.yaml
@@ -272,6 +290,7 @@ spec:
               mountPath: /etc/config
             - name: seccomp-root
               mountPath: /host/var/lib/kubelet/seccomp
+              mountPropagation: None
           resources: {}
       volumes:
         - name: installinfo
