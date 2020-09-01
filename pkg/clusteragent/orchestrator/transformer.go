@@ -220,10 +220,23 @@ func extractNode(n *corev1.Node) *model.Node {
 	extractCapacitiesAndAllocatables(n, msg)
 
 	// extract status addresses
-	if n.Status.Addresses != nil {
+	if n.Status.Addresses != nil && len(n.Status.Addresses) > 0 {
 		msg.Status.NodeAddresses = map[string]string{}
 		for _, address := range n.Status.Addresses {
 			msg.Status.NodeAddresses[string(address.Type)] = address.Address
+		}
+	}
+
+	// extract conditions
+	if n.Status.Conditions != nil && len(n.Status.Conditions) > 0 {
+		for _, condition := range n.Status.Conditions {
+			msg.Status.Conditions = append(msg.Status.Conditions, &model.NodeCondition{
+				Type:               string(condition.Type),
+				Status:             string(condition.Status),
+				LastTransitionTime: condition.LastTransitionTime.Unix(),
+				Reason:             condition.Reason,
+				Message:            condition.Message,
+			})
 		}
 	}
 

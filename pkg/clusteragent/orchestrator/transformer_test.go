@@ -688,6 +688,31 @@ func TestExtractNode(t *testing.T) {
 					KubeProxyVersion:        "11",
 					OperatingSystem:         "linux",
 					Architecture:            "amd64",
+					Conditions: []*model.NodeCondition{{
+						Type:               string(corev1.NodeReady),
+						Status:             string(corev1.ConditionTrue),
+						LastTransitionTime: timestamp.Unix(),
+						Reason:             "node to ready",
+						Message:            "ready",
+					}, {
+						Type:               string(corev1.NodePIDPressure),
+						Status:             string(corev1.ConditionTrue),
+						LastTransitionTime: timestamp.Unix(),
+						Reason:             "node to pid",
+						Message:            "pid",
+					}, {
+						Type:               string(corev1.NodeNetworkUnavailable),
+						Status:             string(corev1.ConditionFalse),
+						LastTransitionTime: timestamp.Unix(),
+						Reason:             "node to unavailable",
+						Message:            "unavailable",
+					}, {
+						Type:               string(corev1.NodeDiskPressure),
+						Status:             string(corev1.ConditionUnknown),
+						LastTransitionTime: timestamp.Unix(),
+						Reason:             "node to pressure",
+						Message:            "pressure",
+					}},
 				},
 				PodCIDR:       "1234-5678-90",
 				Unschedulable: true,
@@ -733,7 +758,12 @@ func TestExtractNode(t *testing.T) {
 				Status: &model.NodeStatus{
 					Allocatable: map[string]int64{},
 					Capacity:    map[string]int64{},
-					Status:      "NotReady"},
+					Status:      "NotReady",
+					Conditions: []*model.NodeCondition{{
+						Type:   string(corev1.NodeReady),
+						Status: string(corev1.ConditionFalse),
+					}},
+				},
 			},
 		},
 	}
