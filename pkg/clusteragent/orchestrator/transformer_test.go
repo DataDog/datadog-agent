@@ -723,8 +723,7 @@ func TestExtractNode(t *testing.T) {
 							Status: corev1.ConditionFalse,
 						}},
 				},
-				Spec: corev1.NodeSpec{
-				},
+				Spec: corev1.NodeSpec{},
 			},
 			expected: model.Node{
 				Metadata: &model.Metadata{
