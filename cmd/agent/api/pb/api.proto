@@ -24,7 +24,7 @@ service Agent {
     // log events
     rpc FlareLogEvent (FlareLogRequest) returns (FlareLogResponse) {
         option (google.api.http) = {
-            post: "/v1/grpc/log"
+            post: "/v1/grpc/log/{flare_identifier}/{tracer_identifier}"
             body: "*"
         };
     }
@@ -97,21 +97,24 @@ message FlareHeartbeatResponse {
                              // tracer side.
 }
 
+
 message FlareLogRequest {
+    int64 flare_identifier = 1;
+    int64 tracer_identifier = 2;
     message LogLine {
+        // relevant?
         FlareLogLevel log_level = 1;
         string message = 2;
     }
-    int64 flare_identifier = 1;
-    bool finished = 2;                        // Is this the last one?
-    repeated LogLine initialization_logs = 3; // Initialization logs
+    bool finished = 3;                        // Is this the last one?
+    repeated LogLine initialization_logs = 4; // Initialization logs
                                               // if any that the
                                               // tracer has kept
                                               // around.
-    repeated LogLine exception_logs = 4;      // Error/Warn logs if
+    repeated LogLine exception_logs = 5;      // Error/Warn logs if
                                               // any that the tracer
                                               // has kept around.
-    repeated LogLine dump_logs = 5;           // Dump logs that were
+    repeated LogLine dump_logs = 6;           // Dump logs that were
                                               // triggered by this
                                               // flare.
 

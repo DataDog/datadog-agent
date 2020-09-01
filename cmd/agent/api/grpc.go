@@ -50,7 +50,7 @@ func (s *server) FlareLogEvent(ctx context.Context, in *pb.FlareLogRequest) (*pb
 	log.Info("Received log event request...")
 	log.Infof("Params: %v", in)
 	response := &pb.FlareLogResponse{
-		Continue: true,
+		// Continue: true,
 	}
 	return response, nil
 }
