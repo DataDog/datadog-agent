@@ -43,6 +43,12 @@
 #define _SUBPROCESS_OUTPUT_ERROR_NAME "SubprocessOutputEmptyError"
 #define _SUBPROCESS_OUTPUT_ERROR_NS_NAME _UTIL_MODULE_NAME _DOT _SUBPROCESS_OUTPUT_ERROR_NAME
 
+#ifdef DATADOG_AGENT_THREE
+#    define PY_ARG_PARSE_TUPLE_KEYWORD_ONLY "$"
+#elif defined(DATADOG_AGENT_TWO)
+#    define PY_ARG_PARSE_TUPLE_KEYWORD_ONLY ""
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
