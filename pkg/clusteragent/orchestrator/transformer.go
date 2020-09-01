@@ -8,12 +8,15 @@
 package orchestrator
 
 import (
+	"strings"
+
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
 
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func extractDeployment(d *v1.Deployment) *model.Deployment {
@@ -195,53 +198,42 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 	return ""
 }
 
-func extractNodes(n *corev1.Node) *model.Node {
+func extractNode(n *corev1.Node) *model.Node {
 	msg := &model.Node{
-		Metadata: orchestrator.ExtractMetadata(&n.ObjectMeta),
-		Spec: &model.NodeSpec{
-			PodCIDR:       n.Spec.PodCIDR,
-			PodCIDRs:      n.Spec.PodCIDRs,
-			ProviderID:    n.Spec.ProviderID,
-			Unschedulable: n.Spec.Unschedulable,
-		},
+		Metadata:      orchestrator.ExtractMetadata(&n.ObjectMeta),
+		PodCIDR:       n.Spec.PodCIDR,
+		PodCIDRs:      n.Spec.PodCIDRs,
+		ProviderID:    n.Spec.ProviderID,
+		Unschedulable: n.Spec.Unschedulable,
 		Status: &model.NodeStatus{
 			Allocatable: map[string]int64{},
 			Capacity:    map[string]int64{},
-			NodeInfo:    &model.NodeSystemInfo{}},
+		},
 	}
 
-	if n.Spec.ConfigSource != nil && n.Spec.ConfigSource.ConfigMap != nil {
-		msg.Spec.ConfigSource = &model.ConfigMapNodeConfigSource{
-			Namespace:        n.Spec.ConfigSource.ConfigMap.Namespace,
-			Name:             n.Spec.ConfigSource.ConfigMap.Name,
-			Uid:              string(n.Spec.ConfigSource.ConfigMap.UID),
-			ResourceVersion:  n.Spec.ConfigSource.ConfigMap.ResourceVersion,
-			KubeletConfigKey: n.Spec.ConfigSource.ConfigMap.KubeletConfigKey,
-		}
-	}
 	if n.Spec.Taints != nil && len(n.Spec.Taints) != 0 {
-		msg.Spec.Taints = extractTaints(n.Spec.Taints)
+		msg.Taints = extractTaints(n.Spec.Taints)
 	}
 
 	// status
 	extractNodeInfo(n, msg)
 	extractCapacitiesAndAllocatables(n, msg)
-	for _, address := range n.Status.Addresses {
-		msg.Status.Addresses = append(msg.Status.Addresses, &model.NodeAddress{
-			Type:    string(address.Type),
-			Address: address.Address,
-		})
+
+	// extract status addresses
+	if n.Status.Addresses != nil {
+		msg.Status.NodeAddresses = map[string]string{}
+		for _, address := range n.Status.Addresses {
+			msg.Status.NodeAddresses[string(address.Type)] = address.Address
+		}
 	}
 
-	for _, condition := range n.Status.Conditions {
-		msg.Status.Conditions = append(msg.Status.Conditions, &model.NodeCondition{
-			Type:               string(condition.Type),
-			Status:             string(condition.Status),
-			LastHeartbeatTime:  condition.LastHeartbeatTime.Unix(),
-			LastTransitionTime: condition.LastTransitionTime.Unix(),
-			Reason:             condition.Reason,
-			Message:            condition.Message,
-		})
+	// extract status message
+	msg.Status.Status = computeNodeStatus(n)
+
+	// extract role
+	roles := findNodeRoles(n)
+	if len(roles) > 0 {
+		msg.Roles = roles
 	}
 
 	for _, image := range n.Status.Images {
@@ -251,46 +243,47 @@ func extractNodes(n *corev1.Node) *model.Node {
 		})
 	}
 
-	for _, volume := range n.Status.VolumesAttached {
-		msg.Status.VolumesAttached = append(msg.Status.VolumesAttached, &model.AttachedVolume{
-			Name:       string(volume.Name),
-			DevicePath: volume.DevicePath,
-		})
-	}
-
-	for _, v := range n.Status.VolumesInUse {
-		msg.Status.VolumesInUse = append(msg.Status.VolumesInUse, string(v))
-	}
-
-	msg.Status.DaemonEndpoints.KubeletEndpoint = n.Status.DaemonEndpoints.KubeletEndpoint.Port
+	msg.Status.DaemonEndpoints = n.Status.DaemonEndpoints.KubeletEndpoint.Port
 
 	return msg
 }
 
 func extractNodeInfo(n *corev1.Node, message *model.Node) {
-	message.Status.NodeInfo.KubeletVersion = n.Status.NodeInfo.KubeletVersion
-	message.Status.NodeInfo.MachineID = n.Status.NodeInfo.MachineID
-	message.Status.NodeInfo.KernelVersion = n.Status.NodeInfo.KernelVersion
-	message.Status.NodeInfo.ContainerRuntimeVersion = n.Status.NodeInfo.ContainerRuntimeVersion
-	message.Status.NodeInfo.OperatingSystem = n.Status.NodeInfo.OperatingSystem
-	message.Status.NodeInfo.Architecture = n.Status.NodeInfo.Architecture
+	message.Status.KubeletVersion = n.Status.NodeInfo.KubeletVersion
+	message.Status.ContainerRuntimeVersion = n.Status.NodeInfo.ContainerRuntimeVersion
+	message.Status.OperatingSystem = n.Status.NodeInfo.OperatingSystem
+	message.Status.Architecture = n.Status.NodeInfo.Architecture
+	message.Status.OsImage = n.Status.NodeInfo.OSImage
+	message.Status.KubeProxyVersion = n.Status.NodeInfo.KubeProxyVersion
+	message.Status.KernelVersion = n.Status.NodeInfo.KernelVersion
 }
 
 func extractCapacitiesAndAllocatables(n *corev1.Node, mn *model.Node) {
 	// Milli Value ceil(q * 1000), which fits to be the lowest value. CPU -> Millicore and Memory -> byte
 	supportedResourcesMilli := []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
 	supportedResources := []corev1.ResourceName{corev1.ResourcePods}
-	for _, resource := range supportedResourcesMilli {
-		capacity := n.Status.Capacity[resource]
-		allocatable := n.Status.Allocatable[resource]
-		mn.Status.Capacity[resource.String()] = capacity.MilliValue()
-		mn.Status.Allocatable[resource.String()] = allocatable.MilliValue()
-	}
+	setSupportedResources(n, mn, supportedResources, false)
+	setSupportedResources(n, mn, supportedResourcesMilli, true)
+}
+
+func setSupportedResources(n *corev1.Node, mn *model.Node, supportedResources []corev1.ResourceName, isMilli bool) {
 	for _, resource := range supportedResources {
 		capacity := n.Status.Capacity[resource]
 		allocatable := n.Status.Allocatable[resource]
-		mn.Status.Capacity[resource.String()] = capacity.Value()
-		mn.Status.Allocatable[resource.String()] = allocatable.MilliValue()
+		if !capacity.IsZero() {
+			if isMilli {
+				mn.Status.Capacity[resource.String()] = capacity.MilliValue()
+			} else {
+				mn.Status.Capacity[resource.String()] = capacity.Value()
+			}
+		}
+		if !allocatable.IsZero() {
+			if isMilli {
+				mn.Status.Allocatable[resource.String()] = allocatable.MilliValue()
+			} else {
+				mn.Status.Allocatable[resource.String()] = allocatable.Value()
+			}
+		}
 	}
 }
 
@@ -301,9 +294,62 @@ func extractTaints(taints []corev1.Taint) []*model.Taint {
 		modelTaints = append(modelTaints, &model.Taint{
 			Key:       taint.Key,
 			Value:     taint.Value,
-			Effect:    taint.Value,
+			Effect:    string(taint.Effect),
 			TimeAdded: taint.TimeAdded.Unix(),
 		})
 	}
 	return modelTaints
+}
+
+// computeNodeStatus is mostly copied from kubernetes to match what users see in kubectl
+// in case of issues, check for changes upstream: https://github.com/kubernetes/kubernetes/blob/1e12d92a5179dbfeb455c79dbf9120c8536e5f9c/pkg/printers/internalversion/printers.go#L1410
+func computeNodeStatus(n *corev1.Node) string {
+	conditionMap := make(map[corev1.NodeConditionType]*corev1.NodeCondition)
+	NodeAllConditions := []corev1.NodeConditionType{corev1.NodeReady}
+	for i := range n.Status.Conditions {
+		cond := n.Status.Conditions[i]
+		conditionMap[cond.Type] = &cond
+	}
+	var status []string
+	for _, validCondition := range NodeAllConditions {
+		if condition, ok := conditionMap[validCondition]; ok {
+			if condition.Status == corev1.ConditionTrue {
+				status = append(status, string(condition.Type))
+			} else {
+				status = append(status, "Not"+string(condition.Type))
+			}
+		}
+	}
+	if len(status) == 0 {
+		status = append(status, "Unknown")
+	}
+	if n.Spec.Unschedulable {
+		status = append(status, "SchedulingDisabled")
+	}
+	return strings.Join(status, ",")
+
+}
+
+// findNodeRoles returns the roles of a given node.
+// The roles are determined by looking for:
+// * a node-role.kubernetes.io/<role>="" label
+// * a kubernetes.io/role="<role>" label
+// is mostly copied from kubernetes, for issues check upstream: https://github.com/kubernetes/kubernetes/blob/1e12d92a5179dbfeb455c79dbf9120c8536e5f9c/pkg/printers/internalversion/printers.go#L1487
+func findNodeRoles(node *corev1.Node) []string {
+	labelNodeRolePrefix := "node-role.kubernetes.io/"
+	nodeLabelRole := "kubernetes.io/role"
+
+	roles := sets.NewString()
+	for k, v := range node.Labels {
+		switch {
+		case strings.HasPrefix(k, labelNodeRolePrefix):
+			if role := strings.TrimPrefix(k, labelNodeRolePrefix); len(role) > 0 {
+				roles.Insert(role)
+			}
+
+		case k == nodeLabelRole && v != "":
+			roles.Insert(v)
+		}
+	}
+	return roles.List()
 }
