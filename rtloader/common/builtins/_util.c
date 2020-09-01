@@ -202,7 +202,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
                     goto cleanup;
                 }
 
-                char *env = (char *)_malloc(strlen(env_key) + 1 + strlen(env_value) + 1);
+                char *env = (char *)_malloc((strlen(env_key) + 1 + strlen(env_value) + 1) * sizeof(*env));
                 if (env == NULL) {
                     PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
                     _free(env_key);
