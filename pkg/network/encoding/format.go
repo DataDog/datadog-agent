@@ -30,6 +30,7 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 		DnsTimeouts:            conn.DNSTimeouts,
 		DnsSuccessLatencySum:   conn.DNSSuccessLatencySum,
 		DnsFailureLatencySum:   conn.DNSFailureLatencySum,
+		DnsCountByRcode:        conn.DNSCountByRcode,
 	}
 }
 
@@ -63,6 +64,7 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 		ConnsBpfMapSize:                    tel.ConnsBpfMapSize,
 		MonotonicUdpSendsProcessed:         tel.MonotonicUDPSendsProcessed,
 		MonotonicUdpSendsMissed:            tel.MonotonicUDPSendsMissed,
+		ConntrackSamplingPercent:           tel.ConntrackSamplingPercent,
 	}
 }
 

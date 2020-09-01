@@ -163,6 +163,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	a.Windows.EnableMonotonicCount = config.Datadog.GetBool(key(spNS, "windows", "enable_monotonic_count"))
 
+	if driverBufferSize := config.Datadog.GetInt(key(spNS, "windows", "driver_buffer_size")); driverBufferSize > 0 {
+		a.Windows.DriverBufferSize = driverBufferSize
+	}
+
 	return nil
 }
 

@@ -29,6 +29,8 @@ std::wstring datadogyaml;                       // IDS_DATADOGYAML
 std::wstring confdsuffix;                       // IDS_CONFSDSUFFIX
 std::wstring logsdirsuffix;                     // IDS_LOGSDIRSUFFIX
 std::wstring datadogdir;
+std::wstring datadogrundir;
+std::wstring versionhistoryfilename;
 
 std::wstring strRollbackKeyName;                // IDS_REGKEY_ROLLBACK_KEY_NAME
 std::wstring strUninstallKeyName;               // IDS_REGKEY_UNINSTALL_KEY_NAME
@@ -259,6 +261,9 @@ void getOsStrings()
     datadogyamlfile = programdataroot + datadogyaml;
     confddir = programdataroot + confdsuffix;
     logdir = programdataroot + logsdirsuffix;
+    datadogrundir = programdataroot + L"run\\";
+    versionhistoryfilename = datadogrundir + L"version-history.json";
+
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
     process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;

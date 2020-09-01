@@ -7,6 +7,7 @@ package config
 
 import (
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -293,5 +294,34 @@ func TestLoadEnv(t *testing.T) {
 		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key1", Host: "url1"})
 		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key2", Host: "url1"})
 		assert.Contains(cfg.Endpoints, &Endpoint{APIKey: "key3", Host: "url2"})
+	})
+
+	env = "DD_APM_PROFILING_DD_URL"
+	t.Run(env, func(t *testing.T) {
+		assert := assert.New(t)
+		err := os.Setenv(env, "my-site.com")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal("my-site.com", config.Datadog.GetString("apm_config.profiling_dd_url"))
+	})
+
+	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		assert := assert.New(t)
+		err := os.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := map[string][]string{
+			"url1": {"key1", "key2"},
+			"url2": {"key3"},
+		}
+		actual := config.Datadog.GetStringMapStringSlice(("apm_config.profiling_additional_endpoints"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
 	})
 }

@@ -3,7 +3,6 @@ package checks
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -26,12 +25,9 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		makeConnection(4),
 	}
 
-	Process.lastCtrIDForPID = map[int32]string{}
 	for _, proc := range p {
-		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
+		proc.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", proc.Pid)}
 	}
-	// update lastRun to indicate that Process check is enabled and ran
-	Process.lastRun = time.Now()
 
 	cfg := config.NewDefaultAgentConfig(false)
 
@@ -115,11 +111,9 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		"1.1.2.3": {Names: []string{"datacat.edu"}},
 	}
 
-	Process.lastCtrIDForPID = map[int32]string{}
 	for _, proc := range p {
-		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
+		proc.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", proc.Pid)}
 	}
-	Process.lastRun = time.Now() // Update lastRun to indicate that Process check is enabled and ran
 
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1

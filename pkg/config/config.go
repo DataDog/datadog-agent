@@ -416,6 +416,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
 	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
@@ -440,7 +441,9 @@ func InitConfig(config Config) {
 
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
-	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300) // value in milliseconds
+	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300)          // value in milliseconds
+	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
+	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// ECS
@@ -693,6 +696,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_oom_kill")
 	config.SetKnown("system_probe_config.enable_tracepoints")
 	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
+	config.SetKnown("system_probe_config.windows.driver_buffer_size")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -707,6 +711,7 @@ func InitConfig(config Config) {
 	config.SetKnown("apm_config.log_file")
 	config.SetKnown("apm_config.apm_dd_url")
 	config.SetKnown("apm_config.profiling_dd_url")
+	config.SetKnown("apm_config.profiling_additional_endpoints.*")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
 	config.SetKnown("apm_config.receiver_socket")

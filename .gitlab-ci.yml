@@ -88,14 +88,14 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v2653795-e59e3fd
-  DATADOG_AGENT_BUILDERS: v2782547-a0df417
-  DATADOG_AGENT_WINBUILDIMAGES: v2837773-5dbab85
-  DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
-  DATADOG_AGENT_ARMBUILDIMAGES: v2653795-e59e3fd
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2653795-e59e3fd
+  DATADOG_AGENT_BUILDIMAGES: v2894686-d80c3ce
+  DATADOG_AGENT_BUILDERS: v2894668-736db00
+  DATADOG_AGENT_WINBUILDIMAGES: v2894686-d80c3ce
+  DATADOG_AGENT_WINBUILDERS: v2894668-736db00
+  DATADOG_AGENT_ARMBUILDIMAGES: v2894686-d80c3ce
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2894686-d80c3ce
   BCC_VERSION: v0.12.0
-  SYSTEM_PROBE_GO_VERSION: 1.13.11
+  SYSTEM_PROBE_GO_VERSION: 1.14.7
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
 
 #
@@ -205,7 +205,7 @@ variables:
     - make install
     - cd /opt/libbcc
     - chmod go-rwx lib/libbcc*
-    - rm -rf share/bcc/examples share/bcc/introspection share/bcc/man share/bcc/tools
+    - rm -rf share/bcc/examples share/bcc/introspection share/bcc/man share/bcc/tools lib/python2* lib/python3*
     - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
     - tar cvaf /tmp/libbcc.tar.xz .
     - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
@@ -266,30 +266,6 @@ linux_armhf_go_deps:
   mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
   mkdir vendor && tar xzf vendor.tar.gz -C vendor
   rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
-
-# run tests for windows-64
-.run_old_tests_windows_base:
-  stage: source_test
-  needs: []
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  script:
-    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e NEW_BUILDER="$NEW_BUILDER" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\unittests.bat
-  variables:
-    NEW_BUILDER: "false"
-
-run_old_tests_windows-x64:
-  extends: .run_old_tests_windows_base
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x64"
-
-run_old_tests_windows-x86:
-  rules:
-    - <<: *if_not_deploy
-  extends: .run_old_tests_windows_base
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x86"
 
 .run_tests_windows_base:
   stage: source_test
@@ -551,9 +527,34 @@ build_iot_agent-deb_arm64:
   stage: binary_build
   needs: ["run_go_tidy_check"]
   script:
-    - inv -e cluster-agent.build
+    # Assuming that by default, the RELEASE_VERSION_7 entry will get used (ie. nightly-a7)
+    - if [[ "$CI_COMMIT_TAG" =~ ^dca- ]]; then export RELEASE_VERSION="$CI_COMMIT_TAG"; else export RELEASE_VERSION="$RELEASE_VERSION_7"; fi
+    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION"
     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
+    - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/security-agent-policies $S3_ARTIFACTS_URI/security-agent-policies --recursive
+
+# For the Windows Docker image
+build_windows_container_entrypoint:
+  rules:
+  - <<: *if_version_7
+    when: on_success
+  stage: binary_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs:
+    - run_tests_windows-x64
+  variables:
+    ARCH: "x64"
+  script:
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e CI_JOB_ID=${CI_JOB_ID} -e WINDOWS_BUILDER=true -e AWS_NETWORKING=true -e TARGET_ARCH="$ARCH" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat
+    - get-childitem build-out\${CI_JOB_ID}
+    - copy build-out\${CI_JOB_ID}\*.exe ./entrypoint.exe
+    - remove-item -recurse -force build-out\${CI_JOB_ID}
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - entrypoint.exe
 
 # build cluster-agent bin
 cluster_agent-build_amd64:
@@ -2701,17 +2702,20 @@ docker_build_agent7_windows1809:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - windows_msi_x64-a7
+    - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 --build-arg WITH_JMX=false
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1809 --build-arg WITH_JMX=false
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
+    - get-childitem ${BUILD_CONTEXT}
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
@@ -2727,17 +2731,20 @@ docker_build_agent7_windows1809_jmx:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - windows_msi_x64-a7
+    - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 --build-arg WITH_JMX=true
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1809 --build-arg WITH_JMX=true
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
+    - get-childitem ${BUILD_CONTEXT}
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
@@ -2754,17 +2761,20 @@ docker_build_agent7_windows1909:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - windows_msi_x64-a7
+    - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1909 --build-arg WITH_JMX=false
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1909 --build-arg WITH_JMX=false
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
+    - get-childitem ${BUILD_CONTEXT}
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
@@ -2780,17 +2790,20 @@ docker_build_agent7_windows1909_jmx:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - windows_msi_x64-a7
+    - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1909 --build-arg WITH_JMX=true
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1909 --build-arg WITH_JMX=true
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
+    - get-childitem ${BUILD_CONTEXT}
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}

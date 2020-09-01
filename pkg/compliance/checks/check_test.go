@@ -33,11 +33,6 @@ func TestCheckRun(t *testing.T) {
 		expectErr   error
 	}{
 		{
-			name:      "config error",
-			configErr: errors.New("configuration failed"),
-			expectErr: errors.New("configuration failed"),
-		},
-		{
 			name: "successful check",
 			checkReport: &compliance.Report{
 				Passed: true,
@@ -106,10 +101,7 @@ func TestCheckRun(t *testing.T) {
 				ruleID:       ruleID,
 				resourceType: resourceType,
 				resourceID:   resourceID,
-
-				configError: test.configErr,
-
-				checkable: checkable,
+				checkable:    checkable,
 			}
 
 			if test.configErr == nil {

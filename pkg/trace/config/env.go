@@ -48,6 +48,7 @@ func loadEnv() {
 		{"DD_APM_MAX_MEMORY", "apm_config.max_memory"},
 		{"DD_APM_MAX_CPU_PERCENT", "apm_config.max_cpu_percent"},
 		{"DD_APM_RECEIVER_SOCKET", "apm_config.receiver_socket"},
+		{"DD_APM_PROFILING_DD_URL", "apm_config.profiling_dd_url"},
 	} {
 		if v := os.Getenv(override.env); v != "" {
 			config.Datadog.Set(override.key, v)
@@ -87,6 +88,15 @@ func loadEnv() {
 			log.Errorf(`Could not parse DD_APM_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://trace.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
 		} else {
 			config.Datadog.Set("apm_config.additional_endpoints", ap)
+		}
+	}
+
+	if v := os.Getenv("DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"); v != "" {
+		ap := make(map[string][]string)
+		if err := json.Unmarshal([]byte(v), &ap); err != nil {
+			log.Errorf(`Could not parse DD_APM_PROFILING_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://intake.profile.datadoghq.com/v1/input": ["apikey1", ...], ...}'.`, err)
+		} else {
+			config.Datadog.Set("apm_config.profiling_additional_endpoints", ap)
 		}
 	}
 }

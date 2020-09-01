@@ -99,7 +99,9 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  if linux? or (windows? and not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
+      move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
   copy 'bin/agent', "#{install_dir}/bin/"
 
@@ -269,7 +271,8 @@ build do
     mkdir "#{app_temp_dir}/MacOS"
     systray_build_dir = "#{project_dir}/cmd/agent/gui/systray"
     # Target OSX 10.10 (it brings significant changes to Cocoa and Foundation APIs, and older versions of OSX are EOL'ed)
-    command 'swiftc -O -swift-version "3" -target "x86_64-apple-macosx10.10" -static-stdlib Sources/*.swift -o gui', cwd: systray_build_dir
+    # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
+    command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
   end
