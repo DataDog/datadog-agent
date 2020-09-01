@@ -107,6 +107,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	deployInformer := ctx.InformerFactory.Apps().V1().Deployments()
 	rsInformer := ctx.InformerFactory.Apps().V1().ReplicaSets()
 	serviceInformer := ctx.InformerFactory.Core().V1().Services()
+	nodesInformer := ctx.InformerFactory.Core().V1().Nodes()
 
 	cfg := processcfg.NewDefaultAgentConfig(true)
 	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
@@ -130,6 +131,8 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		rsListerSync:            rsInformer.Informer().HasSynced,
 		serviceLister:           serviceInformer.Lister(),
 		serviceListerSync:       serviceInformer.Informer().HasSynced,
+		nodesLister:             nodesInformer.Lister(),
+		nodesListerSync:         nodesInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
@@ -261,13 +264,13 @@ func (o *Controller) processNodes() {
 
 	nodesList, err := o.nodesLister.List(labels.Everything())
 	if err != nil {
-		log.Errorf("Unable to list services: %s", err)
+		log.Errorf("Unable to list nodes: %s", err)
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
 	messages, err := processNodesList(nodesList, groupID, o.processConfig, o.clusterName, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process service list: %s", err)
+		log.Errorf("Unable to process nodes list: %s", err)
 		return
 	}
 
