@@ -22,6 +22,8 @@ var (
 
 	// CloudProviderName contains the inventory name of for CVM
 	CloudProviderName = "Tencent"
+
+	NTPHosts = []string{"ntpupdate.tencentyun.com"}
 )
 
 // IsRunningOn returns true if the agent is running on Tencent Cloud

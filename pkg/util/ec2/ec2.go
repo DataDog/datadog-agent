@@ -37,6 +37,9 @@ var (
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"
 
+	// NTPHost is the url to the local NTP server of the cloud instance
+	NTPHosts = []string{"169.254.169.123"}
+
 	// cache keys
 	instanceIDCacheKey = cache.BuildAgentKey("ec2", "GetInstanceID")
 	hostnameCacheKey   = cache.BuildAgentKey("ec2", "GetHostname")

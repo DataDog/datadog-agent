@@ -43,16 +43,6 @@ var (
 	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
 		nil, "Ntp offset")
 
-	awsNTPHosts     = []string{"169.254.169.123"}
-	gcpNTPHosts     = []string{"metadata.google.internal"}
-	azureNTPHosts   = []string{"time.windows.com"}
-	alibabaNTPHosts = []string{
-		"ntp.cloud.aliyuncs.com", "ntp1.cloud.aliyuncs.com", "ntp2.cloud.aliyuncs.com", "ntp3.cloud.aliyuncs.com",
-		"ntp4.cloud.aliyuncs.com", "ntp5.cloud.aliyuncs.com", "ntp6.cloud.aliyuncs.com", "ntp7.cloud.aliyuncs.com",
-		"ntp8.cloud.aliyuncs.com", "ntp9.cloud.aliyuncs.com", "ntp10.cloud.aliyuncs.com", "ntp11.cloud.aliyuncs.com",
-		"ntp12.cloud.aliyuncs.com",
-	}
-	tencentNTPHosts = []string{"ntpupdate.tencentyun.com"}
 	datadogNTPHosts = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 )
 
@@ -148,22 +138,22 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 
 func getCloudProviderNTPHosts() []string {
 	if ec2.IsRunningOn() || ecs.IsRunningOn() {
-		log.Info("AWS cloud provider detected, using their NTP server.")
-		return awsNTPHosts
+		log.Debug("AWS cloud provider detected, using their NTP servers: %v", ec2.NTPHosts)
+		return ec2.NTPHosts
 	} else if gce.IsRunningOn() {
-		log.Info("GCP cloud provider detected, using their NTP server.")
-		return gcpNTPHosts
+		log.Debug("GCE cloud provider detected, using their NTP servers: %v", gce.NTPHosts)
+		return gce.NTPHosts
 	} else if azure.IsRunningOn() {
-		log.Info("Azure cloud provider detected, using their NTP server.")
-		return azureNTPHosts
+		log.Debug("Azure cloud provider detected, using their NTP servers: %v", azure.NTPHosts)
+		return azure.NTPHosts
 	} else if alibaba.IsRunningOn() {
-		log.Info("Alibaba cloud provider detected, using their NTP server.")
-		return alibabaNTPHosts
+		log.Debug("Alibaba cloud provider detected, using their NTP servers: %v", alibaba.NTPHosts)
+		return alibaba.NTPHosts
 	} else if tencent.IsRunningOn() {
-		log.Info("Tencent cloud provider detected, using their NTP server.")
-		return tencentNTPHosts
+		log.Debug("Tencent cloud provider detected, using their NTP servers: %v", tencent.NTPHosts)
+		return tencent.NTPHosts
 	} else {
-		log.Info("No cloud provider detected, defaulting to Datadog's NTP server.")
+		log.Debug("No cloud provider detected, using Datadog's NTP servers: %v", datadogNTPHosts)
 		return datadogNTPHosts
 	}
 }

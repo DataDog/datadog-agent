@@ -22,6 +22,9 @@ var (
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "GCP"
+
+	// NTPHost is the url to the local NTP server of the cloud instance
+	NTPHosts = []string{"metadata.google.internal"}
 )
 
 // IsRunningOn returns true if the agent is running on GCE
