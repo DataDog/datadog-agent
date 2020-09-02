@@ -81,7 +81,7 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_setxattr",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_setxattr",
 		}},
 		EventTypes: []eval.EventType{"setxattr"},
@@ -103,7 +103,7 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_removexattr",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_removexattr",
 		}},
 		EventTypes: []eval.EventType{"removexattr"},

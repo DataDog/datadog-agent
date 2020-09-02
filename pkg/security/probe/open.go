@@ -67,7 +67,7 @@ var openHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_truncate",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_truncate",
 		}},
 		EventTypes: []eval.EventType{"open"},
