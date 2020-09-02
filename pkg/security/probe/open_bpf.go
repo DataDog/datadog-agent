@@ -70,16 +70,30 @@ func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder
 
 	switch field {
 	case "open.flags":
-		return discardFlags(probe, "open_flags_discarders", discarder.Value.(int))
+		value, err := event.GetFieldValue(field)
+		if err != nil {
+			return err
+		}
+
+		return discardFlags(probe, "open_flags_discarders", value.(int))
 
 	case "open.filename":
-		fsEvent := event.Open
-		table := "open_path_inode_discarders"
-		value := discarder.Value.(string)
+		value, err := event.GetFieldValue(field)
+		if err != nil {
+			return err
+		}
+		filename := value.(string)
 
-		if value == "" {
+		if filename == "" {
 			return nil
 		}
+
+		if probe.IsInvalidDiscarder(field, filename) {
+			return nil
+		}
+
+		fsEvent := event.Open
+		table := "open_path_inode_discarders"
 
 		isDiscarded, err := discardParentInode(probe, rs, "open", "open.filename", value, fsEvent.MountID, fsEvent.Inode, table)
 		if !isDiscarded {

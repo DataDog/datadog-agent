@@ -62,6 +62,21 @@ type Evaluator interface {
 	Eval(ctx *Context) interface{}
 }
 
+// EvaluatorStringer implements the stringer in order to show the result of an evaluation. Should probably used only for logging
+type EvaluatorStringer struct {
+	Ctx       *Context
+	Evaluator Evaluator
+}
+
+func (e *EvaluatorStringer) String() string {
+	return fmt.Sprintf("%v", e.Evaluator.Eval(e.Ctx))
+}
+
+// NewEvaluatorStringer returns a new evaluator stringer
+func NewEvaluatorStringer(ctx *Context, evaluator Evaluator) *EvaluatorStringer {
+	return &EvaluatorStringer{Ctx: ctx, Evaluator: evaluator}
+}
+
 // BoolEvaluator returns a bool as result of the evaluation
 type BoolEvaluator struct {
 	EvalFnc func(ctx *Context) bool

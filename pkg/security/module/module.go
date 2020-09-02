@@ -221,7 +221,7 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		return nil, err
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
 	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err
 	}

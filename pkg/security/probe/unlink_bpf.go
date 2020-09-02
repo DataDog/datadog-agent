@@ -20,15 +20,24 @@ func unlinkOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discard
 
 	switch field {
 	case "unlink.filename":
-		fsEvent := event.Unlink
-		table := "unlink_path_inode_discarders"
-		value := discarder.Value.(string)
+		value, err := event.GetFieldValue(field)
+		if err != nil {
+			return err
+		}
+		filename := value.(string)
 
-		if value == "" {
+		if filename == "" {
 			return nil
 		}
 
-		_, err := discardParentInode(probe, rs, "unlink", "unlink.filename", value, fsEvent.MountID, fsEvent.Inode, table)
+		if probe.IsInvalidDiscarder(field, filename) {
+			return nil
+		}
+
+		fsEvent := event.Unlink
+		table := "unlink_path_inode_discarders"
+
+		_, err = discardParentInode(probe, rs, "unlink", "unlink.filename", value, fsEvent.MountID, fsEvent.Inode, table)
 		return err
 	}
 	return &ErrDiscarderNotSupported{Field: field}
