@@ -70,7 +70,7 @@ typedef struct {
     __u16 dport_fl4;
 
     __u8 ipv6_enabled;
-    __u8 padding;
+    __u8 fl4_offsets;
 } tracer_status_t;
 
 #endif //__OFFSET_GUESS_H

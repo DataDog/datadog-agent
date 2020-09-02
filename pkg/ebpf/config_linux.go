@@ -40,14 +40,15 @@ func (c *Config) EnabledProbes(pre410Kernel bool) (map[bytecode.ProbeName]struct
 	if c.CollectUDPConns {
 		enabled[bytecode.UDPRecvMsgReturn] = struct{}{}
 		enabled[bytecode.UDPDestroySock] = struct{}{}
+		enabled[bytecode.IPMakeSkb] = struct{}{}
+		enabled[bytecode.IP6MakeSkb] = struct{}{}
 
 		if pre410Kernel {
-			enabled[bytecode.UDPSendMsgPre410] = struct{}{}
 			enabled[bytecode.UDPRecvMsgPre410] = struct{}{}
 		} else {
 			enabled[bytecode.UDPRecvMsg] = struct{}{}
-			// enabled[bytecode.UDPSendMsg] = struct{}{}
 			enabled[bytecode.IPMakeSkb] = struct{}{}
+			enabled[bytecode.IP6MakeSkb] = struct{}{}
 		}
 
 		tp, err := c.chooseSyscallProbe(bytecode.TraceSysBindEnter, bytecode.SysBindX64, bytecode.SysBind)
