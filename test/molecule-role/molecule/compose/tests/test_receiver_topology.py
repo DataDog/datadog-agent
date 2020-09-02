@@ -312,4 +312,4 @@ def test_java_traces(host):
         #                 calls                          calls
         # traefik:authors  -->  traefik -> traefik:books  -->  traefik
 
-    util.wait_until(assert_topology, 30, 3)
+    util.wait_until(assert_topology, 240, 3)
