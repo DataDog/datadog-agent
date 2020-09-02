@@ -166,6 +166,18 @@ func (f *groupingFilter) Reset() {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
+	if oq, ok := o.cache.Get(in); ok {
+		return oq, nil
+	}
+	oq, err := o.obfuscateSQLString(in)
+	if err != nil {
+		return oq, err
+	}
+	o.cache.Add(in, oq)
+	return oq, nil
+}
+
+func (o *Obfuscator) obfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
 	tok := NewSQLTokenizer(in, lesc)
 	out, err := attemptObfuscation(tok)
