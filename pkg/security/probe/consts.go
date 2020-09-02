@@ -45,6 +45,10 @@ const (
 	FileMountEventType
 	// FileUmountEventType - Umount event
 	FileUmountEventType
+	// FileSetXAttrEventType - Setxattr event
+	FileSetXAttrEventType
+	// FileRemoveXAttrEventType - Removexattr event
+	FileRemoveXAttrEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
 	maxEventType
 )
@@ -73,6 +77,10 @@ func (t EventType) String() string {
 		return "mount"
 	case FileUmountEventType:
 		return "umount"
+	case FileSetXAttrEventType:
+		return "setxattr"
+	case FileRemoveXAttrEventType:
+		return "removexattr"
 	}
 	return "unknown"
 }

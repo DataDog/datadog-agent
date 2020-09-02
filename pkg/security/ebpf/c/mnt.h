@@ -43,6 +43,16 @@ int kprobe__mnt_want_write(struct pt_regs *ctx) {
             return 0;
         syscall->unlink.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
+    case EVENT_SETXATTR:
+        if (syscall->setxattr.path_key.mount_id > 0)
+            return 0;
+        syscall->setxattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        break;
+    case EVENT_REMOVEXATTR:
+        if (syscall->setxattr.path_key.mount_id > 0)
+            return 0;
+        syscall->setxattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        break;
     }
     return 0;
 }

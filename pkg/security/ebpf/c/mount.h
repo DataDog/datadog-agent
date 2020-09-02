@@ -6,9 +6,10 @@
 #define FSTYPE_LEN 16
 
 struct mount_event_t {
-    struct event_t event;
+    struct kevent_t event;
     struct process_context_t process;
     struct container_context_t container;
+    struct syscall_t syscall;
     int new_mount_id;
     int new_group_id;
     dev_t new_device;
@@ -82,9 +83,11 @@ SYSCALL_KRETPROBE(mount) {
     };
 
     struct mount_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_MOUNT,
-        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall = {
+            .retval = PT_REGS_RC(ctx),
+            .timestamp = bpf_ktime_get_ns(),
+        },
         .new_mount_id = get_mount_mount_id(syscall->mount.src_mnt),
         .new_group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .new_device = get_mount_dev(syscall->mount.src_mnt),

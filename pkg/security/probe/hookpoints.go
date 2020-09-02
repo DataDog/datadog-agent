@@ -65,11 +65,55 @@ var allHookPoints = []*HookPoint{
 		EventTypes: []eval.EventType{"chown"},
 	},
 	{
+		Name:       "sys_setxattr",
+		KProbes:    syscallKprobe("setxattr"),
+		EventTypes: []eval.EventType{"setxattr"},
+	},
+	{
+		Name:       "sys_fsetxattr",
+		KProbes:    syscallKprobe("fsetxattr"),
+		EventTypes: []eval.EventType{"setxattr"},
+	},
+	{
+		Name:       "sys_lsetxattr",
+		KProbes:    syscallKprobe("lsetxattr"),
+		EventTypes: []eval.EventType{"setxattr"},
+	},
+	{
+		Name: "vfs_setxattr",
+		KProbes: []*KProbe{{
+			EntryFunc: "kprobe/vfs_setxattr",
+		}},
+		EventTypes: []eval.EventType{"setxattr"},
+	},
+	{
+		Name:       "sys_removexattr",
+		KProbes:    syscallKprobe("removexattr"),
+		EventTypes: []eval.EventType{"removexattr"},
+	},
+	{
+		Name:       "sys_fremovexattr",
+		KProbes:    syscallKprobe("fremovexattr"),
+		EventTypes: []eval.EventType{"removexattr"},
+	},
+	{
+		Name:       "sys_lremovexattr",
+		KProbes:    syscallKprobe("lremovexattr"),
+		EventTypes: []eval.EventType{"removexattr"},
+	},
+	{
+		Name: "vfs_removexattr",
+		KProbes: []*KProbe{{
+			EntryFunc: "kprobe/vfs_removexattr",
+		}},
+		EventTypes: []eval.EventType{"removexattr"},
+	},
+	{
 		Name: "mnt_want_write",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write",
 		}},
-		EventTypes: []eval.EventType{"utimes", "chmod", "chown", "rmdir", "unlink", "rename"},
+		EventTypes: []eval.EventType{"utimes", "chmod", "chown", "rmdir", "unlink", "rename", "setxattr", "removexattr"},
 	},
 	{
 		Name: "mnt_want_write_file",
