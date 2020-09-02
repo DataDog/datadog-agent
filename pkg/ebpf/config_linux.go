@@ -46,7 +46,8 @@ func (c *Config) EnabledProbes(pre410Kernel bool) (map[bytecode.ProbeName]struct
 			enabled[bytecode.UDPRecvMsgPre410] = struct{}{}
 		} else {
 			enabled[bytecode.UDPRecvMsg] = struct{}{}
-			enabled[bytecode.UDPSendMsg] = struct{}{}
+			// enabled[bytecode.UDPSendMsg] = struct{}{}
+			enabled[bytecode.IPMakeSkb] = struct{}{}
 		}
 
 		tp, err := c.chooseSyscallProbe(bytecode.TraceSysBindEnter, bytecode.SysBindX64, bytecode.SysBind)

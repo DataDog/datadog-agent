@@ -268,6 +268,30 @@ static __always_inline bool is_ipv6_enabled() {
     return val == TRACER_IPV6_ENABLED;
 }
 
+static __always_inline __u64 offset_saddr_fl4() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_saddr_fl4", val);
+    return val;
+}
+
+static __always_inline __u64 offset_daddr_fl4() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_daddr_fl4", val);
+     return val;
+}
+
+static __always_inline __u64 offset_sport_fl4() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_sport_fl4", val);
+    return val;
+}
+
+static __always_inline __u64 offset_dport_fl4() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_dport_fl4", val);
+     return val;
+}
+
 static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
     u16 family = 0;
     bpf_probe_read(&family, sizeof(u16), ((char*)sk) + offset_family());
@@ -636,14 +660,41 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
 
 SEC("kprobe/udp_sendmsg")
 int kprobe__udp_sendmsg(struct pt_regs* ctx) {
+    log_info("In udp sendmsg\n");
+    return 0;
+}
+
+SEC("kprobe/ip_make_skb")
+int kprobe__ip_make_skb(struct pt_regs* ctx) {
+    // log_info("In ip make skb\n");
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        increment_telemetry_count(udp_send_missed);
-        return 0;
+        struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
+        bpf_probe_read(&t.saddr_l, sizeof(u32), ((char*)fl4) + offset_saddr_fl4());
+        bpf_probe_read(&t.daddr_l, sizeof(u32), ((char*)fl4) + offset_daddr_fl4());
+
+        if (!t.saddr_l || !t.daddr_l) {
+            log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl4) + offset_sport_fl4());
+        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl4) + offset_dport_fl4());
+
+         if (t.sport == 0 || t.dport == 0) {
+             log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
+             increment_telemetry_count(udp_send_missed);
+             return 0;
+         }
+
+        t.sport = ntohs(t.sport);
+        t.dport = ntohs(t.dport);
+        // increment_telemetry_count(udp_send_missed);
+        // return 0;
     }
 
     log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);

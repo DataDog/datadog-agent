@@ -63,6 +63,10 @@ const (
 	guessNetns             = 5
 	guessRTT               = 6
 	guessDaddrIPv6         = 7
+	guessSaddrFl4          = 8
+	guessDaddrFl4          = 9
+	guessSportFl4          = 10
+	guessDportFl4          = 11
 )
 
 // These constants should be in sync with the equivalent definitions in the ebpf program.
@@ -80,6 +84,10 @@ var whatString = map[C.__u64]string{
 	guessNetns:     "network namespace",
 	guessRTT:       "Round Trip Time",
 	guessDaddrIPv6: "destination address IPv6",
+	guessSaddrFl4:  "source address flowi4",
+	guessDaddrFl4:  "destination address flowi4",
+	guessSportFl4:  "source port flowi4",
+	guessDportFl4:  "destination port flowi4",
 }
 
 const (
@@ -106,6 +114,10 @@ type fieldValues struct {
 	rtt       uint32
 	rttVar    uint32
 	daddrIPv6 [4]uint32
+	saddrFl4  uint32
+	daddrFl4  uint32
+	sportFl4  uint16
+	dportFl4  uint16
 }
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
@@ -179,6 +191,7 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 func offsetGuessProbes(c *Config) map[bytecode.ProbeName]struct{} {
 	probes := map[bytecode.ProbeName]struct{}{
 		bytecode.TCPGetInfo: {},
+		bytecode.IPMakeSkb:  {},
 	}
 
 	if c.CollectIPv6Conns {
@@ -294,12 +307,46 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		status.offset_sport++
 	case guessDport:
 		if status.dport == C.__u16(htons(expected.dport)) {
-			status.what = guessNetns
+			status.what = guessSaddrFl4
 			logSuccessfulGuess(guessDport, status.offset_dport)
-			logStartGuess(guessNetns)
+			logStartGuess(guessSaddrFl4)
 			break
 		}
 		status.offset_dport++
+	case guessSaddrFl4:
+		if status.saddr_fl4 == C.__u32(expected.saddrFl4) {
+			status.what = guessDaddrFl4
+			logSuccessfulGuess(guessSaddrFl4, status.offset_saddr_fl4)
+			logStartGuess(guessDaddrFl4)
+			break
+		}
+		status.offset_saddr_fl4++
+		status.saddr_fl4 = C.__u32(expected.saddrFl4)
+	case guessDaddrFl4:
+		if status.daddr_fl4 == C.__u32(expected.daddrFl4) {
+			status.what = guessSportFl4
+			logSuccessfulGuess(guessDaddrFl4, status.offset_daddr_fl4)
+			logStartGuess(guessSportFl4)
+			break
+		}
+		status.offset_daddr_fl4++
+		status.daddr_fl4 = C.__u32(expected.daddrFl4)
+	case guessSportFl4:
+		if status.sport_fl4 == C.__u16(htons(expected.sportFl4)) {
+			status.what = guessDportFl4
+			logSuccessfulGuess(guessSportFl4, status.offset_sport)
+			logStartGuess(guessDportFl4)
+			break
+		}
+		status.offset_sport_fl4++
+	case guessDportFl4:
+		if status.dport_fl4 == C.__u16(htons(expected.dportFl4)) {
+			status.what = guessNetns
+			logSuccessfulGuess(guessDportFl4, status.offset_sport)
+			logStartGuess(guessNetns)
+			break
+		}
+		status.offset_dport_fl4++
 	case guessNetns:
 		if status.netns == C.__u32(expected.netns) {
 			status.what = guessRTT
@@ -484,6 +531,10 @@ func getConstantEditors(status *tracerStatus) []manager.ConstantEditor {
 		{Name: "offset_rtt_var", Value: uint64(status.offset_rtt_var)},
 		{Name: "offset_daddr_ipv6", Value: uint64(status.offset_daddr_ipv6)},
 		{Name: "ipv6_enabled", Value: uint64(status.ipv6_enabled)},
+		{Name: "offset_saddr_fl4", Value: uint64(status.offset_saddr_fl4)},
+		{Name: "offset_daddr_fl4", Value: uint64(status.offset_daddr_fl4)},
+		{Name: "offset_sport_fl4", Value: uint64(status.offset_sport_fl4)},
+		{Name: "offset_dport_fl4", Value: uint64(status.offset_dport_fl4)},
 	}
 }
 
@@ -530,6 +581,37 @@ func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) e
 		}
 
 		return nil
+	} else if status.what == guessSaddrFl4 || status.what == guessDaddrFl4 || status.what == guessSportFl4 || status.what == guessDportFl4 {
+		conn, _ := net.Dial("udp", "8.8.8.8:53")
+		fmt.Fprintf(conn, "test")
+
+		saddr, sport, err := net.SplitHostPort(conn.LocalAddr().String())
+		if err != nil {
+			return err
+		}
+
+		sip := net.ParseIP(saddr).To4()
+		sportn, err := strconv.Atoi(sport)
+		if err != nil {
+			return err
+		}
+
+		daddr, dport, err := net.SplitHostPort(conn.RemoteAddr().String())
+		if err != nil {
+			return err
+		}
+
+		dip := net.ParseIP(daddr).To4()
+		dportn, err := strconv.Atoi(dport)
+		if err != nil {
+			return err
+		}
+
+		conn.Close()
+		expected.saddrFl4 = binary.LittleEndian.Uint32(sip)
+		expected.sportFl4 = uint16(sportn)
+		expected.daddrFl4 = binary.LittleEndian.Uint32(dip)
+		expected.dportFl4 = uint16(dportn)
 	}
 
 	// This triggers the KProbe handler attached to `tcp_get_info`

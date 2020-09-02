@@ -44,7 +44,7 @@ static __always_inline bool check_family(struct sock* sk, tracer_status_t* statu
     return family == expected_family;
 }
 
-static __always_inline int guess_offsets(tracer_status_t* status, struct sock* skp) {
+static __always_inline int guess_offsets(tracer_status_t* status, struct sock* skp, struct flowi4 *fl4) {
     u64 zero = 0;
 
     if (status->state != TRACER_STATE_CHECKING) {
@@ -87,6 +87,18 @@ static __always_inline int guess_offsets(tracer_status_t* status, struct sock* s
     case GUESS_DPORT:
         bpf_probe_read(&new_status.dport, sizeof(new_status.dport), ((char*)skp) + status->offset_dport);
         break;
+    case GUESS_SADDR_FL4:
+        bpf_probe_read(&new_status.saddr_fl4, sizeof(new_status.saddr_fl4), ((char*)fl4) + status->offset_saddr_fl4);
+        break;
+    case GUESS_DADDR_FL4:
+        bpf_probe_read(&new_status.daddr_fl4, sizeof(new_status.daddr_fl4), ((char*)fl4) + status->offset_daddr_fl4);
+        break;
+    case GUESS_SPORT_FL4:
+        bpf_probe_read(&new_status.sport_fl4, sizeof(new_status.sport_fl4), ((char*)fl4) + status->offset_sport_fl4);
+        break;
+    case GUESS_DPORT_FL4:
+        bpf_probe_read(&new_status.dport_fl4, sizeof(new_status.dport_fl4), ((char*)fl4) + status->offset_dport_fl4);
+        break;
     case GUESS_NETNS:
         bpf_probe_read(&possible_skc_net, sizeof(possible_net_t*), ((char*)skp) + status->offset_netns);
         // if we get a kernel fault, it means possible_skc_net
@@ -119,6 +131,21 @@ static __always_inline int guess_offsets(tracer_status_t* status, struct sock* s
     return 0;
 }
 
+SEC("kprobe/ip_make_skb")
+int kprobe__ip_make_skb(struct pt_regs* ctx) {
+    log_info("In ip_make_skb\n");
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+
+    if (status == NULL) {
+        return 0;
+    }
+
+    struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
+    guess_offsets(status, NULL, fl4);
+    return 0;
+}
+
 /* Used exclusively for offset guessing */
 SEC("kprobe/tcp_get_info")
 int kprobe__tcp_get_info(struct pt_regs* ctx) {
@@ -130,7 +157,7 @@ int kprobe__tcp_get_info(struct pt_regs* ctx) {
     }
 
     status->tcp_info_kprobe_status = 1;
-    guess_offsets(status, sk);
+    guess_offsets(status, sk, NULL);
 
     return 0;
 }
@@ -170,7 +197,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs* __attribute__((unused)) ctx) {
     }
 
     // We should figure out offsets if they're not already figured out
-    guess_offsets(status, skp);
+    guess_offsets(status, skp, NULL);
 
     return 0;
 }

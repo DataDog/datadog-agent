@@ -3,6 +3,11 @@
 
 #include <uapi/linux/bpf.h>
 
+#define log_info(fmt, ...)                                        \
+    ({                                                             \
+        char ____fmt[] = fmt;                                      \
+        bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
+    })
 /* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  */
 #if DEBUG == 1

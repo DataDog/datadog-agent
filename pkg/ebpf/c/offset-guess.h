@@ -19,6 +19,10 @@ static const __u8 GUESS_DPORT = 4;
 static const __u8 GUESS_NETNS = 5;
 static const __u8 GUESS_RTT = 6;
 static const __u8 GUESS_DADDR_IPV6 = 7;
+static const __u8 GUESS_SADDR_FL4 = 8;
+static const __u8 GUESS_DADDR_FL4 = 9;
+static const __u8 GUESS_SPORT_FL4 = 10;
+static const __u8 GUESS_DPORT_FL4 = 11;
 
 static const __u8 TRACER_STATE_UNINITIALIZED = 0;
 static const __u8 TRACER_STATE_CHECKING = 1;
@@ -44,6 +48,10 @@ typedef struct {
     __u64 offset_rtt;
     __u64 offset_rtt_var;
     __u64 offset_daddr_ipv6;
+    __u64 offset_saddr_fl4;
+    __u64 offset_daddr_fl4;
+    __u64 offset_sport_fl4;
+    __u64 offset_dport_fl4;
 
     __u64 err;
 
@@ -56,6 +64,10 @@ typedef struct {
     __u16 sport;
     __u16 dport;
     __u16 family;
+    __u32 saddr_fl4;
+    __u32 daddr_fl4;
+    __u16 sport_fl4;
+    __u16 dport_fl4;
 
     __u8 ipv6_enabled;
     __u8 padding;
