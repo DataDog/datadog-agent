@@ -417,8 +417,8 @@ github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5Kwzbycv
 github.com/fatih/color v1.9.0 h1:8xPHl4/q1VyqGIPif1F+1V3Y3lSmrq01EabUW3CoW5s=
 github.com/fatih/color v1.9.0/go.mod h1:eQcE1qtQxscV5RaZvpXrrb8Drkc3/DdQ+uUYCNjL+zU=
 github.com/fatih/structtag v1.1.0/go.mod h1:mBJUNpUnHmRKrKlQQlmCrh5PuhftFbNv8Ys4/aAZl94=
-github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db h1:JDPZPlnUCx1BqBLacSsNfOxDaruKr9M/3Nvvr8uQyss=
-github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db/go.mod h1:BbkPu5Wcfr8K3OVVnb/ghX2XAu7vK+RLtvMhCm5ORBE=
+github.com/florianl/go-conntrack v0.2.0 h1:JEB4w895ZX35tvNH5JjNM9pxa+Qn73paiA37VeCZGfc=
+github.com/florianl/go-conntrack v0.2.0/go.mod h1:HRSlXmrl5M//9hiHmkwyLDwlaoba2sVDcBpHFRiVo1Q=
 github.com/florianl/go-tc v0.1.0 h1:oOChnhxvsYaZLvxrILdKe1uf4lq1zDGrnG52iP5FEMk=
 github.com/florianl/go-tc v0.1.0/go.mod h1:n77vbeG0iBmb6p3oGSfS+tKZ27vV4tF+kQLevzOTzQU=
 github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568/go.mod h1:xEzjJPgXI435gkrCt3MPfRiAkVrwSbHsst4LCFVfpJc=

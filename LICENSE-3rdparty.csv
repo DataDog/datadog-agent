@@ -254,6 +254,7 @@ core,"github.com/emicklei/go-restful/log",MIT
 core,"github.com/evanphx/json-patch",NewBSD
 core,"github.com/fatih/color",MIT
 core,"github.com/florianl/go-conntrack",MIT
+core,"github.com/florianl/go-conntrack/internal/unix",MIT
 core,"github.com/florianl/go-tc",MIT
 core,"github.com/frapposelli/wwhrd",MIT
 core,"github.com/freddierice/go-losetup",MIT
