@@ -676,7 +676,6 @@ func TestExtractNode(t *testing.T) {
 					},
 					NodeAddresses:   map[string]string{"endpoint": "1234567890"},
 					Status:          "Ready,SchedulingDisabled",
-					DaemonEndpoints: 11,
 					Images: []*model.ContainerImage{{
 						Names:     []string{"image1", "image2"},
 						SizeBytes: 10,

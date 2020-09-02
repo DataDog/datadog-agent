@@ -256,8 +256,6 @@ func extractNode(n *corev1.Node) *model.Node {
 		})
 	}
 
-	msg.Status.DaemonEndpoints = n.Status.DaemonEndpoints.KubeletEndpoint.Port
-
 	return msg
 }
 
