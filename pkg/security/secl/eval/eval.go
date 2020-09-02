@@ -43,15 +43,13 @@ type FieldValue struct {
 
 // Opts are the options to be passed to the evaluator
 type Opts struct {
-	Debug     bool
 	Constants map[string]interface{}
 	Macros    map[MacroID]*Macro
 }
 
-// NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
+// NewOptsWithParams initializes a new Opts instance with Constants parameters
+func NewOptsWithParams(constants map[string]interface{}) *Opts {
 	return &Opts{
-		Debug:     debug,
 		Constants: constants,
 		Macros:    make(map[MacroID]*Macro),
 	}

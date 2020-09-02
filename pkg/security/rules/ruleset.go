@@ -58,10 +58,9 @@ type Opts struct {
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
+func NewOptsWithParams(constants map[string]interface{}) *Opts {
 	return &Opts{
 		Opts: eval.Opts{
-			Debug:     debug,
 			Constants: constants,
 			Macros:    make(map[eval.MacroID]*eval.Macro),
 		},
