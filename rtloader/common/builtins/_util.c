@@ -92,6 +92,7 @@ static void raiseEmptyOutputError()
     \param self A PyObject* pointer to the _util module.
     \param args A PyObject* pointer to the args tuple with the desired subprocess commands, and
     optionally a boolean raise_on_empty flag.
+    \param kw A PyObject* pointer to the kw dict with optionally an env dict.
     \return a PyObject * pointer to a python tuple with the stdout, stderr output and the
     command exit code.
 
