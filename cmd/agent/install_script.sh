@@ -221,8 +221,7 @@ elif [ "$OS" = "Debian" ]; then
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
     $sudo_cmd sh -c "echo 'deb https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
-    retries=0
-    while [ "$retries" -le 4 ]; do
+    for retries in {0..4}; do
       $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" A2923DFF56EDA6E76E55E492D3A80E30382E94DE && break
       if [ "$retries" -eq 4 ]; then
         ERROR_MESSAGE="ERROR
@@ -233,13 +232,12 @@ or a temporary service interruption.
 "
         false
       fi
-      printf "\033[31m\napt-key failed to retrieve Datadog's public key, retrying in 5 seconds...\n\033[0m\n"
+      printf "\033[33m\napt-key failed to retrieve Datadog's public key, retrying in 5 seconds...\n\033[0m\n"
       sleep 5
       if [ "$retries" -eq 1 ]; then
-        printf "\033[31mSwitching to backup keyserver\n\033[0m\n"
+        printf "\033[34mSwitching to backup keyserver\n\033[0m\n"
         keyserver="${backup_keyserver}"
       fi
-      retries=$((retries+1))
     done
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
