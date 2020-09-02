@@ -11,7 +11,7 @@ struct rmdir_event_t {
     struct file_t file;
 };
 
-SYSCALL_KPROBE(rmdir) {
+SYSCALL_KPROBE0(rmdir) {
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
     };
