@@ -17,6 +17,7 @@ PSID GetSidForUser(LPCWSTR host, LPCWSTR user) {
 	DWORD err = GetLastError();
 	if (ERROR_INSUFFICIENT_BUFFER != err) {
 		// we don't know what happened
+		WcaLog(LOGMSG_STANDARD, "First call to LookupAccountName failed with %d", err);
 		return NULL;
 	}
 	newsid = (SID *) new BYTE[cbSid];

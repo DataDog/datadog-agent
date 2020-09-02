@@ -73,6 +73,8 @@ spec:
               value: "INFO"
             - name: DD_LEADER_ELECTION
               value: "true"
+            - name: DD_COLLECT_KUBERNETES_EVENTS
+              value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
               value: datadog-cluster-agent
             - name: DD_CLUSTER_AGENT_AUTH_TOKEN

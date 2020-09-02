@@ -31,6 +31,15 @@ rules:
     verbs:
       - get
       - list
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - datadogtoken # Kubernetes event collection state
+    verbs:
+      - get
+      - update
   - nonResourceURLs:
       - "/version"
       - "/healthz"
