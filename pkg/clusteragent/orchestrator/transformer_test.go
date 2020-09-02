@@ -674,8 +674,8 @@ func TestExtractNode(t *testing.T) {
 						"cpu":    5000,
 						"memory": 5368709120000,
 					},
-					NodeAddresses:   map[string]string{"endpoint": "1234567890"},
-					Status:          "Ready,SchedulingDisabled",
+					NodeAddresses: map[string]string{"endpoint": "1234567890"},
+					Status:        "Ready,SchedulingDisabled",
 					Images: []*model.ContainerImage{{
 						Names:     []string{"image1", "image2"},
 						SizeBytes: 10,
