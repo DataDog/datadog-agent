@@ -403,8 +403,8 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     if bundle_ebpf:
         assets_cmd = (
-            os.environ["GOPATH"]
-            + "/bin/go-bindata -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
+            "go run github.com/shuLhan/go-bindata/cmd/go-bindata"
+            + " -pkg bytecode -tags ebpf_bindata -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{bindata_files}'"
         )
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
         commands.append(assets_cmd.format(c_dir=c_dir, go_file=go_file, bindata_files="' '".join(bindata_files)))
