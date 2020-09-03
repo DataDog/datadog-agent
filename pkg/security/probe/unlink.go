@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
@@ -15,7 +16,7 @@ import (
 var UnlinkHookPoints = []*HookPoint{
 	{
 		Name: "vfs_unlink",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_unlink",
 		}},
 		EventTypes: []eval.EventType{"unlink"},

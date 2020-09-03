@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
@@ -44,7 +45,7 @@ var openHookPoints = []*HookPoint{
 	},
 	{
 		Name: "vfs_open",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_open",
 		}},
 		EventTypes: []eval.EventType{"open"},

@@ -11,6 +11,7 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -26,12 +27,12 @@ type Applier interface {
 	Init() error
 	ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error
 	ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error
-	RegisterKProbe(kprobe *KProbe) error
+	RegisterKProbe(kprobe *ebpf.KProbe) error
 	RegisterTracepoint(tracepoint string) error
 }
 
 func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag, applier Applier) error {
-	if err := rsa.reporter.ApplyFilterPolicy(eventType, tableName, mode, flags); err != nil {
+	if err := rsa.reporter.SetFilterPolicy(eventType, tableName, mode, flags); err != nil {
 		return err
 	}
 
@@ -43,7 +44,7 @@ func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, tableName
 }
 
 func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers rules.Approvers, applier Applier) error {
-	if err := rsa.reporter.ApplyApprovers(eventType, approvers); err != nil {
+	if err := rsa.reporter.SetApprovers(eventType, approvers); err != nil {
 		return err
 	}
 
@@ -54,7 +55,7 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 	return nil
 }
 
-func (rsa *RuleSetApplier) registerKProbe(kprobe *KProbe, applier Applier) error {
+func (rsa *RuleSetApplier) registerKProbe(kprobe *ebpf.KProbe, applier Applier) error {
 	if applier != nil {
 		return applier.RegisterKProbe(kprobe)
 	}

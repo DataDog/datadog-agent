@@ -9,6 +9,7 @@ package probe
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
@@ -35,7 +36,7 @@ func (p *Probe) ApplyApprovers(eventType eval.EventType, hookPoint *HookPoint, a
 }
 
 // RegisterKProbe register the given kprobe
-func (p *Probe) RegisterKProbe(kprobe *KProbe) error {
+func (p *Probe) RegisterKProbe(kprobe *ebpf.KProbe) error {
 	return nil
 }
 

@@ -11,6 +11,8 @@ package probe
 
 import (
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 )
 
 // Syscall represents a syscall identifier
@@ -328,8 +330,8 @@ func (s Syscall) MarshalText() ([]byte, error) {
 	return []byte(strings.ToLower(strings.TrimPrefix(s.String(), "Sys"))), nil
 }
 
-func syscallKprobe(name string) []*KProbe {
-	return []*KProbe{{
+func syscallKprobe(name string) []*ebpf.KProbe {
+	return []*ebpf.KProbe{{
 		EntryFunc: "kprobe/" + getSyscallFnName(name),
 		ExitFunc:  "kretprobe/" + getSyscallFnName(name),
 	}}

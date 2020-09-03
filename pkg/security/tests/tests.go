@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	srules "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -274,7 +273,7 @@ func waitProcScan(test *testProbe) {
 	cancel()
 }
 
-func newTestProbe(macros []*srules.MacroDefinition, rules []*srules.RuleDefinition, opts testOpts) (*testProbe, error) {
+func newTestProbe(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
 	st, err := newSimpleTest(macros, rules)
 	if err != nil {
 		return nil, err
@@ -296,7 +295,7 @@ func newTestProbe(macros []*srules.MacroDefinition, rules []*srules.RuleDefiniti
 		return nil, err
 	}
 
-	ruleSet := probe.NewRuleSet(srules.NewOptsWithParams(false, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(false, sprobe.SECLConstants, sprobe.InvalidDiscarders))
 
 	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err

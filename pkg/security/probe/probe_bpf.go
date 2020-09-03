@@ -402,10 +402,8 @@ func (p *Probe) ApplyApprovers(eventType eval.EventType, approvers rules.Approve
 }
 
 // RegisterKProbe register the given kprobe
-func (p *Probe) RegisterKProbe(kprobe *KProbe) error {
-	ekb := ebpf.KProbe(*kprobe)
-
-	err := p.Module.RegisterKprobe(&ekb)
+func (p *Probe) RegisterKProbe(kprobe *ebpf.KProbe) error {
+	err := p.Module.RegisterKprobe(kprobe)
 	if err == nil {
 		log.Infof("kProbe `%s` registered", kprobe.Name)
 	} else {

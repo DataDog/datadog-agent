@@ -49,7 +49,7 @@ var (
 
 func init() {
 	runtimeCmd.AddCommand(checkPoliciesCmd)
-	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", "/etc/datadog-agent/runtime-security.d", "Path to policies directory")
+	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 }
 
 func checkPolicies(cmd *cobra.Command, args []string) error {

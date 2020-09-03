@@ -43,16 +43,16 @@ func (r *Reporter) getPolicyReport(eventType eval.EventType) *PolicyReport {
 	return r.report.Policies[eventType]
 }
 
-// ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (r *Reporter) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
+// SetFilterPolicy is called when a passing policy for an event type is applied
+func (r *Reporter) SetFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
 	policyReport := r.getPolicyReport(eventType)
 	policyReport.Mode = mode
 	policyReport.Flags = flags
 	return nil
 }
 
-// ApplyApprovers is called when approvers are applied for an event type
-func (r *Reporter) ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+// SetApprovers is called when approvers are applied for an event type
+func (r *Reporter) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	policyReport := r.getPolicyReport(eventType)
 	policyReport.Approvers = approvers
 	return nil

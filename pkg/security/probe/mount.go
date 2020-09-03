@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -30,14 +31,14 @@ var (
 var mountHookPoints = []*HookPoint{
 	{
 		Name: "attach_recursive_mnt",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/attach_recursive_mnt",
 		}},
 		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "propagate_mnt",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/propagate_mnt",
 		}},
 		EventTypes: []eval.EventType{"*"},
@@ -49,14 +50,14 @@ var mountHookPoints = []*HookPoint{
 	},
 	{
 		Name: "security_sb_umount",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/security_sb_umount",
 		}},
 		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "sys_umount",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
 		}},
 		EventTypes: []eval.EventType{"*"},

@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
@@ -15,14 +16,14 @@ import (
 var execHookPoints = []*HookPoint{
 	{
 		Name: "sys_execve",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/" + getSyscallFnName("execve"),
 		}},
 		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "sys_execveat",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/" + getSyscallFnName("execveat"),
 		}},
 		EventTypes: []eval.EventType{"*"},
@@ -35,14 +36,14 @@ var execHookPoints = []*HookPoint{
 	},
 	{
 		Name: "do_exit",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/do_exit",
 		}},
 		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "cgroup_procs_write",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/cgroup_procs_write",
 		}},
 		EventTypes: []eval.EventType{"*"},
@@ -50,7 +51,7 @@ var execHookPoints = []*HookPoint{
 	},
 	{
 		Name: "cgroup1_procs_write",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/cgroup1_procs_write",
 		}},
 		EventTypes: []eval.EventType{"*"},
@@ -58,7 +59,7 @@ var execHookPoints = []*HookPoint{
 	},
 	{
 		Name: "cgroup_tasks_write",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/cgroup_tasks_write",
 		}},
 		EventTypes: []eval.EventType{"*"},
@@ -66,7 +67,7 @@ var execHookPoints = []*HookPoint{
 	},
 	{
 		Name: "cgroup1_tasks_write",
-		KProbes: []*KProbe{{
+		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kprobe/cgroup1_tasks_write",
 		}},
 		EventTypes: []eval.EventType{"*"},
