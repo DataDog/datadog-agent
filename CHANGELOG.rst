@@ -36,8 +36,8 @@ New Features
 - Add support for receiving and processing SNMP traps, and forwarding them as logs to Datadog.
 
 - APM: A new trace ingestion endpoint was introduced at /v0.5/traces which supports a more compact payload format, greatly
-  improving resource usage. The spec for the new wire format can be viewed at https://github.com/DataDog/datadog-agent/blob/7.22.0/pkg/trace/api/version.go#L21-L69.
-  Tracers supporting this change, will automatically use the new endpoint.
+  improving resource usage. The spec for the new wire format can be viewed `here <https://github.com/DataDog/datadog-agent/blob/7.22.0/pkg/trace/api/version.go#L21-L69>`_.
+  Tracers supporting this change will automatically use the new endpoint.
 
 .. _Release Notes_7.22.0_Enhancement Notes:
 
