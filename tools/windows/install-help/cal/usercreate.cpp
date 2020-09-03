@@ -1,5 +1,5 @@
 #include "stdafx.h"
-
+#include "lmerr_str.h"
 #pragma comment(lib, "shlwapi.lib")
 
 
@@ -225,7 +225,6 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
     
     USER_INFO_1 ui;
     memset(&ui, 0, sizeof(USER_INFO_1));
-    WcaLog(LOGMSG_STANDARD, "entered createuser");
     ui.usri1_name = (LPWSTR)name.c_str();
     ui.usri1_password = (LPWSTR)passbuf;
     ui.usri1_priv = USER_PRIV_USER;
@@ -233,15 +232,29 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
     ui.usri1_flags = UF_DONT_EXPIRE_PASSWD;
     DWORD ret = 0;
     
-
     WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
     ret = NetUserAdd(NULL, // LOCAL_MACHINE
         1, // indicates we're using a USER_INFO_1
         (LPBYTE)&ui,
         NULL);
-    WcaLog(LOGMSG_STANDARD, "NetUserAdd. %d", ret);
+    if (ret == NERR_Success)
+    {
+        WcaLog(LOGMSG_STANDARD, "Successfully added user.");
+    }
+    else if (ret == NERR_UserExists)
+    {
+        WcaLog(LOGMSG_STANDARD, "Warning: the user already exists.");
+        ret = 0;
+    }
+    else
+    {
+        const auto lmErrIt = lmerrors.find(ret - NERR_BASE);
+        if (lmErrIt != lmerrors.end())
+        {
+            WcaLog(LOGMSG_STANDARD, "NetUserAdd: %d = %S", ret, lmErrIt->second.c_str());
+        }
+    }
     return ret;
-
 }
 
 int doSetUserPassword(const std::wstring& name,  const wchar_t* passbuf)
@@ -276,14 +289,14 @@ bool isDomainController()
         WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_WORKSTATION");
     }
     if (SV_TYPE_SERVER & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_SERVER\n");
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_SERVER");
     }
     if (SV_TYPE_DOMAIN_CTRL & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_CTRL\n");
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_CTRL");
         ret = true;
     }
     if (SV_TYPE_DOMAIN_BAKCTRL & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_BAKCTRL\n");
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_BAKCTRL");
         ret = true;
     }
     if (si) {
@@ -304,6 +317,7 @@ int doesUserExist(const CustomActionData& data, bool isDC)
     const wchar_t * userToTry = data.Username().c_str();
     const wchar_t * hostToTry = NULL;
 
+    WcaLog(LOGMSG_STANDARD, "First lookup account name %S", data.Username().c_str());
     BOOL bRet = LookupAccountName(NULL, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
     if (bRet) {
         err = GetLastError();
@@ -313,9 +327,9 @@ int doesUserExist(const CustomActionData& data, bool isDC)
         return -1;
     }
     err = GetLastError();
-    WcaLog(LOGMSG_STANDARD, "First lookup acount name %d", err);
     if (ERROR_NONE_MAPPED == err) {
         // this user doesn't exist.  We're done
+        WcaLog(LOGMSG_STANDARD, "Account %S not found, continuing.", data.Username().c_str());
         return 0;
     }
     if (ERROR_INSUFFICIENT_BUFFER != err) {

@@ -122,7 +122,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     hr = -1;
     sid = GetSidForUser(NULL, data.Username().c_str());
     if (!sid) {
-        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %S", data.Username().c_str());
+        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %S (%d)", data.Username().c_str(), GetLastError());
         goto LExit;
     }
     if ((hLsa = GetPolicyHandle()) == NULL) {
