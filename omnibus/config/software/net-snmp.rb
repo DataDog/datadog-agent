@@ -15,13 +15,15 @@ build do
 
   configure_args = [
     "--disable-readline",
+    "--prefix=#{install_dir}/embedded",
   ]
 
   configure_command = configure_args.unshift("./configure").join(" ")
 
   command configure_command, env: env, in_msys_bash: true
   make env: env
+  make "install", env: env
 
-  command ["ls", "-la", "src/snmplib/.libs"]
-  copy "src/snmplib/.libs/libnetsnmp.so.35.0.0", "#{install_dir}/embedded/lib/libnetsnmp.so"
+#   command ["ls", "-la", "src/snmplib/.libs"]
+#   copy "src/snmplib/.libs/libnetsnmp.so.35.0.0", "#{install_dir}/embedded/lib/libnetsnmp.so"
 end
