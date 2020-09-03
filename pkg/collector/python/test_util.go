@@ -17,12 +17,13 @@ import "C"
 
 func testGetSubprocessOutputEmptyArgs(t *testing.T) {
 	var argv **C.char
+	var env **C.char
 	var cStdout *C.char
 	var cStderr *C.char
 	var cRetCode C.int
 	var exception *C.char
 
-	GetSubprocessOutput(argv, &cStdout, &cStderr, &cRetCode, &exception)
+	GetSubprocessOutput(argv, env, &cStdout, &cStderr, &cRetCode, &exception)
 	assert.Nil(t, cStdout)
 	assert.Nil(t, cStderr)
 	assert.Equal(t, C.int(0), cRetCode)
@@ -31,12 +32,13 @@ func testGetSubprocessOutputEmptyArgs(t *testing.T) {
 
 func testGetSubprocessOutput(t *testing.T) {
 	var argv []*C.char = []*C.char{C.CString("echo"), C.CString("hello world"), nil}
+	var env **C.char
 	var cStdout *C.char
 	var cStderr *C.char
 	var cRetCode C.int
 	var exception *C.char
 
-	GetSubprocessOutput(&argv[0], &cStdout, &cStderr, &cRetCode, &exception)
+	GetSubprocessOutput(&argv[0], env, &cStdout, &cStderr, &cRetCode, &exception)
 	assert.Equal(t, "hello world\n", C.GoString(cStdout))
 	assert.Equal(t, "", C.GoString(cStderr))
 	assert.Equal(t, C.int(0), cRetCode)
@@ -47,12 +49,13 @@ func testGetSubprocessOutputUnknownBin(t *testing.T) {
 	// go will not start the command since 'unknown_command' bin does not
 	// exists. This will result in 0 error code and empty output
 	var argv []*C.char = []*C.char{C.CString("unknown_command"), nil}
+	var env **C.char
 	var cStdout *C.char
 	var cStderr *C.char
 	var cRetCode C.int
 	var exception *C.char
 
-	GetSubprocessOutput(&argv[0], &cStdout, &cStderr, &cRetCode, &exception)
+	GetSubprocessOutput(&argv[0], env, &cStdout, &cStderr, &cRetCode, &exception)
 	assert.Equal(t, "", C.GoString(cStdout))
 	assert.Equal(t, "", C.GoString(cStderr))
 	assert.Equal(t, C.int(0), cRetCode)
@@ -61,12 +64,13 @@ func testGetSubprocessOutputUnknownBin(t *testing.T) {
 
 func testGetSubprocessOutputError(t *testing.T) {
 	var argv []*C.char = []*C.char{C.CString("ls"), C.CString("does not exists"), nil}
+	var env **C.char
 	var cStdout *C.char
 	var cStderr *C.char
 	var cRetCode C.int
 	var exception *C.char
 
-	GetSubprocessOutput(&argv[0], &cStdout, &cStderr, &cRetCode, &exception)
+	GetSubprocessOutput(&argv[0], env, &cStdout, &cStderr, &cRetCode, &exception)
 	assert.Equal(t, "", C.GoString(cStdout))
 	assert.NotEqual(t, "", C.GoString(cStderr))
 	assert.NotEqual(t, C.int(0), cRetCode)
