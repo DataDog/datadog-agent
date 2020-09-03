@@ -14,7 +14,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -307,12 +306,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 }
 
 func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
-	tags := []string{"type:sql"}
-	defer func() {
-		metrics.Count("datadog.trace_agent.obfuscations", 1, tags, 1)
-	}()
 	if span.Resource == "" {
-		tags = append(tags, "outcome:empty-resource")
 		return
 	}
 	oq, err := o.ObfuscateSQLString(span.Resource)
@@ -326,11 +320,9 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta[sqlQueryTag] = span.Resource
 		}
 		span.Resource = nonParsableResource
-		tags = append(tags, "outcome:error")
 		return
 	}
 
-	tags = append(tags, "outcome:success")
 	span.Resource = oq.Query
 
 	if len(oq.TablesCSV) > 0 {

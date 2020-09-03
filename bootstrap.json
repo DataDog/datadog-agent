@@ -2,6 +2,7 @@
     "deps": {
         "order": [
             "golang.org/x/lint/golint",
+            "gotest.tools/gotestsum",
             "github.com/fzipp/gocyclo",
             "github.com/gordonklaus/ineffassign",
             "github.com/client9/misspell/cmd/misspell",
@@ -17,20 +18,24 @@
             "github.com/golang/perf/cmd/benchstat"
         ],
         "golang.org/x/tools/go/ast/astutil": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go"
         },
         "golang.org/x/tools/go/internal": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go",
             "install": false
         },
         "golang.org/x/tools/go/gcexportdata": {
-            "version": "release-branch.go1.13",
+            "version": "release-branch.go1.14",
             "type": "go"
         },
         "golang.org/x/lint/golint": {
             "version": "master",
+            "type": "go"
+        },
+        "gotest.tools/gotestsum": {
+            "version": "v0.5.3",
             "type": "go"
         },
         "github.com/fzipp/gocyclo": {
@@ -59,7 +64,7 @@
             "type": "go"
         },
         "honnef.co/go/tools/cmd/staticcheck" : {
-            "version": "2019.2.3",
+            "version": "2020.1.5",
             "type": "go"
         },
         "github.com/frapposelli/wwhrd": {

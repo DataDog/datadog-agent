@@ -88,14 +88,14 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v2653795-e59e3fd
-  DATADOG_AGENT_BUILDERS: v2782547-a0df417
-  DATADOG_AGENT_WINBUILDIMAGES: v2837773-5dbab85
-  DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
-  DATADOG_AGENT_ARMBUILDIMAGES: v2653795-e59e3fd
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2653795-e59e3fd
+  DATADOG_AGENT_BUILDIMAGES: v2894686-d80c3ce
+  DATADOG_AGENT_BUILDERS: v2894668-736db00
+  DATADOG_AGENT_WINBUILDIMAGES: v2894686-d80c3ce
+  DATADOG_AGENT_WINBUILDERS: v2894668-736db00
+  DATADOG_AGENT_ARMBUILDIMAGES: v2894686-d80c3ce
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2894686-d80c3ce
   BCC_VERSION: v0.12.0
-  SYSTEM_PROBE_GO_VERSION: 1.13.11
+  SYSTEM_PROBE_GO_VERSION: 1.14.7
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
 
 #
@@ -135,12 +135,13 @@ variables:
 # - web (when the build is triggered by a specific build request through the
 #        web interface.  This way, if a kitchen run is desired on a specific branch,
 #        it can be triggered by requesting a specific build)
+# - api (when the build is triggered by an API call)
 #
 .if_test_kitchen_deploy: &if_test_kitchen_deploy
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web"
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
 
 .if_not_test_kitchen_deploy: &if_not_test_kitchen_deploy
-  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web"
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web" && $CI_PIPELINE_SOURCE != "api"
 
 # true only on deploys and when RELEASE_VERSION_X is NOT "nightly". In this setting
 # we are building either a new tagged version of the agent (an RC for example).
@@ -266,30 +267,6 @@ linux_armhf_go_deps:
   mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
   mkdir vendor && tar xzf vendor.tar.gz -C vendor
   rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
-
-# run tests for windows-64
-.run_old_tests_windows_base:
-  stage: source_test
-  needs: []
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  script:
-    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e NEW_BUILDER="$NEW_BUILDER" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\unittests.bat
-  variables:
-    NEW_BUILDER: "false"
-
-run_old_tests_windows-x64:
-  extends: .run_old_tests_windows_base
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x64"
-
-run_old_tests_windows-x86:
-  rules:
-    - <<: *if_not_deploy
-  extends: .run_old_tests_windows_base
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x86"
 
 .run_tests_windows_base:
   stage: source_test
