@@ -317,6 +317,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta = make(map[string]string, 1)
 		}
 		if _, ok := span.Meta[sqlQueryTag]; !ok {
+			// "sql.query" tag already set by user, do not change it.
 			span.Meta[sqlQueryTag] = span.Resource
 		}
 		span.Resource = nonParsableResource
