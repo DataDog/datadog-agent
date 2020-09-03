@@ -7,13 +7,15 @@ package common
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
+	lsched "github.com/DataDog/datadog-agent/pkg/logs/scheduler"
+	lstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,8 +38,8 @@ func SetupAutoConfig(confdPath string) {
 	metaScheduler.Register("check", collector.InitCheckScheduler(Coll))
 
 	// registering the logs scheduler
-	if logs.IsAgentRunning() {
-		metaScheduler.Register("logs", logs.GetScheduler())
+	if lstatus.Get().IsRunning {
+		metaScheduler.Register("logs", lsched.GetScheduler())
 	}
 
 	// create the Autoconfig instance
@@ -106,4 +108,20 @@ func SetupAutoConfig(confdPath string) {
 //   2. run all the Checks for each configuration found
 func StartAutoConfig() {
 	AC.LoadAndRun()
+}
+
+// BlockUntilAutoConfigRunnedOnce blocks until the AutoConfig has been runned once.
+// It also returns after the given timeout.
+func BlockUntilAutoConfigRunnedOnce(timeout time.Duration) {
+	now := time.Now()
+	for {
+		time.Sleep(100 * time.Millisecond) // don't hog the CPU
+		if AC.HasRunnedOnce() {
+			return
+		}
+		if time.Since(now) > timeout {
+			log.Warn("BlockUntilAutoConfigRunnedOnce timeout after", timeout)
+			return
+		}
+	}
 }

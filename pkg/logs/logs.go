@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,26 +29,11 @@ const (
 	invalidEndpoints       = "invalid_endpoints"
 )
 
-// Transport is the transport used by logs-agent, i.e TCP or HTTP
-type Transport string
-
-const (
-	// TransportHTTP indicates logs-agent is using HTTP transport
-	TransportHTTP Transport = "HTTP"
-	// TransportTCP indicates logs-agent is using TCP transport
-	TransportTCP Transport = "TCP"
-)
-
 var (
 	// isRunning indicates whether logs-agent is running or not
 	isRunning int32
 	// logs-agent
 	agent *Agent
-	// scheduler is plugged to autodiscovery to collect integration configs
-	// and schedule log collection for different kind of inputs
-	adScheduler *scheduler.Scheduler
-	// CurrentTransport is the current transport used by logs-agent, i.e TCP or HTTP
-	CurrentTransport Transport
 )
 
 // Start starts logs-agent
@@ -60,7 +47,7 @@ func Start() error {
 	services := service.NewServices()
 
 	// setup the config scheduler
-	adScheduler = scheduler.NewScheduler(sources, services)
+	scheduler.CreateScheduler(sources, services)
 
 	// setup the server config
 	httpConnectivity := config.HTTPConnectivityFailure
@@ -73,9 +60,9 @@ func Start() error {
 		status.AddGlobalError(invalidEndpoints, message)
 		return errors.New(message)
 	}
-	CurrentTransport = TransportTCP
+	status.CurrentTransport = status.TransportTCP
 	if endpoints.UseHTTP {
-		CurrentTransport = TransportHTTP
+		status.CurrentTransport = status.TransportHTTP
 	}
 
 	// setup the status
@@ -96,10 +83,15 @@ func Start() error {
 	atomic.StoreInt32(&isRunning, 1)
 	log.Info("logs-agent started")
 
-	// add the default sources
-	for _, source := range config.DefaultSources() {
-		sources.AddSource(source)
-	}
+	// add the default sources after the AutoConfig has been runned once because
+	// we don't want the container_collect_all to reap all containers ownership
+	go func() {
+		common.BlockUntilAutoConfigRunnedOnce(time.Second * 30)
+		log.Debug("Adding DefaultSources to the Logs Agent")
+		for _, source := range config.DefaultSources() {
+			sources.AddSource(source)
+		}
+	}()
 
 	return nil
 }
@@ -113,9 +105,8 @@ func Stop() {
 			agent.Stop()
 			agent = nil
 		}
-		if adScheduler != nil {
-			adScheduler.Stop()
-			adScheduler = nil
+		if scheduler.GetScheduler() != nil {
+			scheduler.GetScheduler().Stop()
 		}
 		status.Clear()
 		atomic.StoreInt32(&isRunning, 0)
@@ -131,9 +122,4 @@ func IsAgentRunning() bool {
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
 	return status.Get()
-}
-
-// GetScheduler returns the logs-config scheduler if set.
-func GetScheduler() *scheduler.Scheduler {
-	return adScheduler
 }
