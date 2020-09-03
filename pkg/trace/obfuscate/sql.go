@@ -317,7 +317,6 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 			span.Meta = make(map[string]string, 1)
 		}
 		if _, ok := span.Meta[sqlQueryTag]; !ok {
-			// "sql.query" tag already set by user, do not change it.
 			span.Meta[sqlQueryTag] = span.Resource
 		}
 		span.Resource = nonParsableResource
@@ -330,6 +329,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 		traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
 	}
 	if span.Meta != nil && span.Meta[sqlQueryTag] != "" {
+		// "sql.query" tag already set by user, do not change it.
 		return
 	}
 	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
