@@ -761,6 +761,38 @@ func (e *ContainerEvent) GetContainerID() string {
 	return e.ID
 }
 
+// ExecEvent represents a exec event
+type ExecEvent struct {
+	BaseEvent
+	FileEvent
+	ContainerEvent
+	Pid uint32 `field:"pid"`
+}
+
+func (e *ExecEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 2 {
+		return 0, ErrNotEnoughData
+	}
+	e.Pid = byteOrder.Uint32(data[0:4])
+
+	read, err := e.FileEvent.UnmarshalBinary(data[4:])
+	if err != nil {
+		return 4 + read, nil
+	}
+
+	read, err = e.ContainerEvent.UnmarshalBinary(data[4:])
+	return 4 + read, err
+}
+
 // ProcessEvent holds the process context of an event
 type ProcessEvent struct {
 	FileEvent
@@ -857,10 +889,7 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 	p.GID = ebpf.ByteOrder.Uint32(data[100:104])
 
 	read, err := p.FileEvent.UnmarshalBinary(data[104:])
-	if err != nil {
-		return 104 + read, err
-	}
-	return 104 + read, nil
+	return 104 + read, err
 }
 
 // Event represents an event sent from the kernel
@@ -884,6 +913,7 @@ type Event struct {
 	RemoveXAttr SetXAttrEvent  `yaml:"removexattr" field:"removexattr" event:"removexattr"`
 	Mount       MountEvent     `yaml:"mount" field:"-"`
 	Umount      UmountEvent    `yaml:"umount" field:"-"`
+	Exec        ExecEvent      `yaml:"exec" field:"-"`
 
 	resolvers *Resolvers `field:"-"`
 }

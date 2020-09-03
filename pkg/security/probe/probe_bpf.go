@@ -385,6 +385,14 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case ExecEventType:
+		if _, err := event.Exec.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		fmt.Printf("TTTTTTTTTTTTTTTTTTTTTT : %v\n", event.Exec)
+
 	default:
 		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
 		return

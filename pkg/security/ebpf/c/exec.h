@@ -5,6 +5,12 @@
 #include "syscalls.h"
 #include "container.h"
 
+struct exec_event_t {
+    struct event_t event;
+    u32 pid;
+    struct proc_cache_t cache_entry;
+};
+
 struct _tracepoint_sched_process_fork
 {
     unsigned short common_type;
@@ -80,33 +86,50 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     syscall->open.dentry = get_file_dentry(file);
     syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
 
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    struct exec_event_t event = {
+        .event.type = EVENT_EXEC,
+        .event.timestamp = bpf_ktime_get_ns(),
+        .pid = tgid,
+        .cache_entry.executable = {
+            .inode = get_path_ino(path),
+            .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
+            .mount_id = get_path_mount_id(path),
+        },
+        .cache_entry.container_id = {},
+    };
+    struct proc_cache_t *entry = &event.cache_entry;
+
     // new cache entry
-    struct proc_cache_t entry = {
+    /*struct proc_cache_t entry = {
         .executable = {
             .inode = syscall->open.path_key.ino,
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
         },
         .container_id = {},
-    };
+    };*/
 
     // select parent cache entry
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-
     struct proc_cache_t *parent_entry = get_pid_cache(tgid);
     if (parent_entry) {
         // inherit container ID
-        copy_container_id(entry.container_id, parent_entry->container_id);
+        copy_container_id(entry->container_id, parent_entry->container_id);
     }
 
     // insert new proc cache entry
     u32 cookie = bpf_get_prandom_u32();
-    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
+    bpf_map_update_elem(&proc_cache, &cookie, entry, BPF_ANY);
 
     // insert pid <-> cookie mapping
     bpf_map_update_elem(&pid_cookie, &tgid, &cookie, BPF_ANY);
 
+    // send the entry to maintain userspace cache
+    send_exec_events(ctx, event);
+
+    // pop syscall as not called from an open not need handle it in the ret
     pop_syscall(SYSCALL_EXEC);
 
     return 0;

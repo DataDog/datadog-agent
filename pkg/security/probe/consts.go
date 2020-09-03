@@ -54,6 +54,8 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType - Removexattr event
 	FileRemoveXAttrEventType
+	// ExecEventType - Exec event
+	ExecEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
 	maxEventType
 )
