@@ -85,15 +85,15 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	return nil
 }
 
-// BaseEvent contains common fields for all the event
-type BaseEvent struct {
+// SyscallEvent contains common fields for all the event
+type SyscallEvent struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"-"`
 	Retval       int64     `field:"retval"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *BaseEvent) UnmarshalBinary(data []byte) (int, error) {
+func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
@@ -102,7 +102,7 @@ func (e *BaseEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
-func (e *BaseEvent) marshalJSON(eventType EventType, resolvers *Resolvers) ([]byte, error) {
+func (e *SyscallEvent) marshalJSON(eventType EventType, resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"type":"%s",`, eventType.String())
@@ -114,7 +114,7 @@ func (e *BaseEvent) marshalJSON(eventType EventType, resolvers *Resolvers) ([]by
 }
 
 // ResolveMonotonicTimestamp resolves the monolitic kernel timestamp to an absolute time
-func (e *BaseEvent) ResolveMonotonicTimestamp(resolvers *Resolvers) time.Time {
+func (e *SyscallEvent) ResolveMonotonicTimestamp(resolvers *Resolvers) time.Time {
 	if (e.Timestamp.Equal(time.Time{})) {
 		e.Timestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(e.TimestampRaw)
 	}
@@ -220,7 +220,7 @@ func unmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 
 // ChmodEvent represents a chmod event
 type ChmodEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Mode uint32 `field:"mode"`
 }
@@ -241,7 +241,7 @@ func (e *ChmodEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -257,7 +257,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // ChownEvent represents a chown event
 type ChownEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	UID int32 `field:"uid"`
 	GID int32 `field:"gid"`
@@ -280,7 +280,7 @@ func (e *ChownEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -358,7 +358,7 @@ func (e *SetXAttrEvent) GetNamespace(resolvers *Resolvers) string {
 
 // OpenEvent represents an open event
 type OpenEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Flags uint32 `field:"flags"`
 	Mode  uint32 `field:"mode"`
@@ -381,7 +381,7 @@ func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -398,7 +398,7 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // MkdirEvent represents a mkdir event
 type MkdirEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Mode int32 `field:"mode"`
 }
@@ -419,7 +419,7 @@ func (e *MkdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -435,7 +435,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // RmdirEvent represents a rmdir event
 type RmdirEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 }
 
@@ -445,12 +445,12 @@ func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	return unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 }
 
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Flags uint32 `field:"flags"`
 }
@@ -471,7 +471,7 @@ func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -487,14 +487,14 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // RenameEvent represents a rename event
 type RenameEvent struct {
-	BaseEvent
+	SyscallEvent
 	Old FileEvent `field:"old"`
 	New FileEvent `field:"new"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.BaseEvent, &e.Old, &e.New)
+	return unmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
 }
 
 func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -520,7 +520,7 @@ func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Atime time.Time
 	Mtime time.Time
@@ -543,7 +543,7 @@ func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -566,14 +566,14 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // LinkEvent represents a link event
 type LinkEvent struct {
-	BaseEvent
+	SyscallEvent
 	Source FileEvent `field:"source"`
 	Target FileEvent `field:"target"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	return unmarshalBinary(data, &e.BaseEvent, &e.Source, &e.Target)
+	return unmarshalBinary(data, &e.SyscallEvent, &e.Source, &e.Target)
 }
 
 func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -763,7 +763,7 @@ func (e *ContainerEvent) GetContainerID() string {
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	ContainerEvent
 	Pid uint32 `field:"pid"`
@@ -955,7 +955,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 
 	eventType := EventType(e.Type)
 
-	eventMarshalJSON := func(e *BaseEvent) func(*Resolvers) ([]byte, error) {
+	eventMarshalJSON := func(e *SyscallEvent) func(*Resolvers) ([]byte, error) {
 		return func(resolvers *Resolvers) ([]byte, error) {
 			return e.marshalJSON(eventType, resolvers)
 		}
@@ -966,7 +966,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Chmod.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Chmod.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",
@@ -976,7 +976,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Chown.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Chown.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",
@@ -986,7 +986,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Open.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Open.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",
@@ -996,7 +996,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Mkdir.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Mkdir.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",
@@ -1006,7 +1006,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Rmdir.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Rmdir.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",
@@ -1016,7 +1016,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Unlink.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Unlink.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",
@@ -1026,7 +1026,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Rename.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Rename.SyscallEvent),
 			},
 			eventMarshaler{
 				marshalFnc: e.Rename.marshalJSON,
@@ -1035,7 +1035,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Utimes.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Utimes.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",
@@ -1045,7 +1045,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Link.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Link.SyscallEvent),
 			},
 			eventMarshaler{
 				marshalFnc: e.Link.marshalJSON,
