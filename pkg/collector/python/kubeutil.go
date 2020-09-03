@@ -8,6 +8,7 @@
 package python
 
 import (
+	"errors"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -37,7 +38,8 @@ func getConnections() map[string]string {
 	if err != nil {
 		// Connection to the kubelet fail, return the error
 		log.Errorf("connection to kubelet failed: %v", err)
-		if e, ok := err.(*retry.Error); ok {
+		var e *retry.Error
+		if errors.As(err, &e) {
 			return map[string]string{"err": e.Unwrap().Error()}
 		}
 		return map[string]string{"err": err.Error()}
