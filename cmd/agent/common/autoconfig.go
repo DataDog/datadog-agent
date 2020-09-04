@@ -120,7 +120,7 @@ func BlockUntilAutoConfigRanOnce(timeout time.Duration) {
 			return
 		}
 		if time.Since(now) > timeout {
-			log.Warn("BlockUntilAutoConfigRanOnce timeout after", timeout)
+			log.Error("BlockUntilAutoConfigRanOnce timeout after", timeout)
 			return
 		}
 	}
