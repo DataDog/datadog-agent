@@ -72,3 +72,8 @@ typedef enum _uninstall_type {
 } UNINSTALL_TYPE;
 
 UINT doUninstallAs(UNINSTALL_TYPE t);
+
+inline std::string GetLastErrorStr()
+{
+    return std::system_category().message(GetLastError());
+}
