@@ -330,24 +330,46 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 			break
 		}
 		status.offset_saddr_fl4++
+		if uint64(status.offset_saddr_fl4) == threshold {
+			// Let's skip all other flowi4 fields
+			logAndAdvance(status, notApplicable, guessNetns)
+			status.fl4_offsets = disabled
+			break
+		}
 	case guessDaddrFl4:
 		if status.daddr_fl4 == C.__u32(expected.daddrFl4) {
 			logAndAdvance(status, status.offset_daddr_fl4, guessSportFl4)
 			break
 		}
 		status.offset_daddr_fl4++
+		if uint64(status.offset_daddr_fl4) == threshold {
+			logAndAdvance(status, notApplicable, guessNetns)
+			status.fl4_offsets = disabled
+			break
+		}
 	case guessSportFl4:
 		if status.sport_fl4 == C.__u16(htons(expected.sportFl4)) {
 			logAndAdvance(status, status.offset_sport_fl4, guessDportFl4)
 			break
 		}
 		status.offset_sport_fl4++
+		if uint64(status.offset_sport_fl4) == threshold {
+			logAndAdvance(status, notApplicable, guessNetns)
+			status.fl4_offsets = disabled
+			break
+		}
 	case guessDportFl4:
 		if status.dport_fl4 == C.__u16(htons(expected.dportFl4)) {
 			logAndAdvance(status, status.offset_dport_fl4, guessNetns)
+			status.fl4_offsets = enabled
 			break
 		}
 		status.offset_dport_fl4++
+		if uint64(status.offset_dport_fl4) == threshold {
+			logAndAdvance(status, notApplicable, guessNetns)
+			status.fl4_offsets = disabled
+			break
+		}
 	case guessNetns:
 		if status.netns == C.__u32(expected.netns) {
 			logAndAdvance(status, status.offset_netns, guessRTT)
@@ -373,14 +395,6 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		status.offset_rtt++
 		status.offset_rtt_var = status.offset_rtt + 4
 
-		// For now we'll tolerate the case where we can't find the offsets for RTT metrics
-		if status.offset_rtt > thresholdInetSock {
-			log.Warn("could not guess offsets for TCP RTT fields. moving on.")
-			status.offset_rtt = 0
-			status.offset_rtt_var = 0
-			logAndAdvance(status, notApplicable, guessDaddrIPv6)
-			break
-		}
 	case guessDaddrIPv6:
 		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
 			logAndAdvance(status, status.offset_rtt, notApplicable)
@@ -511,9 +525,7 @@ func guessOffsets(m *manager.Manager, cfg *Config) ([]manager.ConstantEditor, er
 		if uint64(status.offset_saddr) >= threshold || uint64(status.offset_daddr) >= threshold ||
 			status.offset_sport >= thresholdInetSock || uint64(status.offset_dport) >= threshold ||
 			uint64(status.offset_netns) >= threshold || uint64(status.offset_family) >= threshold ||
-			uint64(status.offset_saddr_fl4) >= threshold || uint64(status.offset_daddr_fl4) >= threshold ||
-			uint64(status.offset_sport_fl4) >= threshold || uint64(status.offset_dport_fl4) >= threshold ||
-			uint64(status.offset_daddr_ipv6) >= threshold {
+			uint64(status.offset_daddr_ipv6) >= threshold || status.offset_rtt >= thresholdInetSock {
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
@@ -538,6 +550,7 @@ func getConstantEditors(status *tracerStatus) []manager.ConstantEditor {
 		{Name: "offset_daddr_fl4", Value: uint64(status.offset_daddr_fl4)},
 		{Name: "offset_sport_fl4", Value: uint64(status.offset_sport_fl4)},
 		{Name: "offset_dport_fl4", Value: uint64(status.offset_dport_fl4)},
+		{Name: "fl4_offsets", Value: uint64(status.fl4_offsets)},
 	}
 }
 
@@ -694,6 +707,8 @@ func logAndAdvance(status *tracerStatus, offset C.__u64, next C.__u64) {
 	guess := status.what
 	if offset != notApplicable {
 		log.Debugf("Successfully guessed %v with offset of %d bytes", whatString[guess], offset)
+	} else {
+		log.Debugf("Could not guess offset for %v", whatString[guess])
 	}
 	if next != notApplicable {
 		log.Debugf("Started offset guessing for %v", whatString[next])

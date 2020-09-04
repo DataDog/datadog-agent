@@ -298,30 +298,6 @@ static __always_inline __u64 offset_dport_fl4() {
      return val;
 }
 
-static __always_inline __u64 offset_saddr_fl4() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_saddr_fl4", val);
-    return val;
-}
-
-static __always_inline __u64 offset_daddr_fl4() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_daddr_fl4", val);
-     return val;
-}
-
-static __always_inline __u64 offset_sport_fl4() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_sport_fl4", val);
-    return val;
-}
-
-static __always_inline __u64 offset_dport_fl4() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_dport_fl4", val);
-     return val;
-}
-
 static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
     u16 family = 0;
     bpf_probe_read(&family, sizeof(u16), ((char*)sk) + offset_family());
