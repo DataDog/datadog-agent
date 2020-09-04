@@ -2961,6 +2961,8 @@ twistlock_scan-7:
       docker trust key load `$PWD\docker.key
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       Remove-Item `$PWD\docker.key
+      ridk enable # This is only needed because invoke docker.publish-manifest calls "cat" which doesn't exist on Windows
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | out-file ci-scripts/docker-publish.ps1
 
 dev_branch_docker_hub-a6:
