@@ -594,6 +594,10 @@ func TestExtractNode(t *testing.T) {
 						Value:     "val1",
 						Effect:    "effect1",
 						TimeAdded: &timestamp,
+					}, {
+						Key:    "taint2NoTimeStamp",
+						Value:  "val1",
+						Effect: "effect1",
 					}},
 				},
 				Status: corev1.NodeStatus{
@@ -720,6 +724,10 @@ func TestExtractNode(t *testing.T) {
 					Value:     "val1",
 					Effect:    "effect1",
 					TimeAdded: timestamp.Unix(),
+				}, {
+					Key:    "taint2NoTimeStamp",
+					Value:  "val1",
+					Effect: "effect1",
 				}},
 				Roles: []string{"data"},
 			},
@@ -734,6 +742,29 @@ func TestExtractNode(t *testing.T) {
 					Status:      "Unknown",
 				},
 			}},
+		"partial node with no memory": {
+			input: corev1.Node{
+				Status: corev1.NodeStatus{
+					Capacity: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourcePods: resource.MustParse("100"),
+						corev1.ResourceCPU:  resource.MustParse("10"),
+					},
+					Allocatable: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourcePods: resource.MustParse("50"),
+						corev1.ResourceCPU:  resource.MustParse("5"),
+					}},
+			}, expected: model.Node{
+				Metadata: &model.Metadata{},
+				Status: &model.NodeStatus{
+					Capacity: map[string]int64{
+						"pods":   100,
+						"cpu":    10000,
+					},
+					Allocatable: map[string]int64{
+						"pods":   50,
+						"cpu":    5000,
+					},
+				}}},
 		"node with only a condition": {
 			input: corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{

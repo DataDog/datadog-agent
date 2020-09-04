@@ -279,16 +279,17 @@ func extractCapacitiesAndAllocatables(n *corev1.Node, mn *model.Node) {
 
 func setSupportedResources(n *corev1.Node, mn *model.Node, supportedResources []corev1.ResourceName, isMilli bool) {
 	for _, resource := range supportedResources {
-		capacity := n.Status.Capacity[resource]
-		allocatable := n.Status.Allocatable[resource]
-		if !capacity.IsZero() {
+		capacity, hasCapacity := n.Status.Capacity[resource]
+		if hasCapacity && !capacity.IsZero() {
 			if isMilli {
 				mn.Status.Capacity[resource.String()] = capacity.MilliValue()
 			} else {
 				mn.Status.Capacity[resource.String()] = capacity.Value()
 			}
 		}
-		if !allocatable.IsZero() {
+		allocatable, hasAllocatable := n.Status.Allocatable[resource]
+
+		if hasAllocatable && !allocatable.IsZero() {
 			if isMilli {
 				mn.Status.Allocatable[resource.String()] = allocatable.MilliValue()
 			} else {
@@ -302,12 +303,15 @@ func extractTaints(taints []corev1.Taint) []*model.Taint {
 	modelTaints := make([]*model.Taint, 0, len(taints))
 
 	for _, taint := range taints {
-		modelTaints = append(modelTaints, &model.Taint{
-			Key:       taint.Key,
-			Value:     taint.Value,
-			Effect:    string(taint.Effect),
-			TimeAdded: taint.TimeAdded.Unix(),
-		})
+		modelTaint := &model.Taint{
+			Key:    taint.Key,
+			Value:  taint.Value,
+			Effect: string(taint.Effect),
+		}
+		if taint.TimeAdded != nil {
+			modelTaint.TimeAdded = taint.TimeAdded.Unix()
+		}
+		modelTaints = append(modelTaints)
 	}
 	return modelTaints
 }
