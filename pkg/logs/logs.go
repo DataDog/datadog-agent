@@ -87,7 +87,7 @@ func Start() error {
 	// add the default sources after the AutoConfig has been executed once because
 	// we don't want the container_collect_all to reap all containers ownership
 	go func() {
-		common.BlockUntilAutoConfigRanOnce(time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
+		common.BlockUntilAutoConfigRanOnce(time.Millisecond * coreConfig.Datadog.GetDuration("ac_load_timeout"))
 		log.Debug("Adding DefaultSources to the Logs Agent")
 		for _, source := range config.DefaultSources() {
 			sources.AddSource(source)
