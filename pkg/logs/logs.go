@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -86,7 +87,7 @@ func Start() error {
 	// add the default sources after the AutoConfig has been executed once because
 	// we don't want the container_collect_all to reap all containers ownership
 	go func() {
-		common.BlockUntilAutoConfigRanOnce(time.Second * 30)
+		common.BlockUntilAutoConfigRanOnce(time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
 		log.Debug("Adding DefaultSources to the Logs Agent")
 		for _, source := range config.DefaultSources() {
 			sources.AddSource(source)

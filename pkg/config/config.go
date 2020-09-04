@@ -353,6 +353,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
+	// ac_load_timeout is used to delay the introduction of sources other than
+	// the ones automatically loaded by the AC, into the logs agent.
+	// It is mainly here to delay the introduction of the container_collect_all
+	// in the logs agent, to avoid it to tail all the available containers.
+	config.BindEnvAndSetDefault("ac_load_timeout", 30000) // in milliseconds
 	config.BindEnvAndSetDefault("container_include", []string{})
 	config.BindEnvAndSetDefault("container_exclude", []string{})
 	config.BindEnvAndSetDefault("container_include_metrics", []string{})
