@@ -22,9 +22,6 @@ var (
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "GCP"
-
-	// NTPHost is the url to the local NTP server of the cloud instance
-	NTPHosts = []string{"metadata.google.internal"}
 )
 
 // IsRunningOn returns true if the agent is running on GCE
@@ -121,6 +118,15 @@ func GetNetworkID() (string, error) {
 		return "", fmt.Errorf("more than one network interface detected, cannot get network ID")
 	}
 
+}
+
+// GetNTPHosts returns the NTP hosts for GCE if it is detected as the cloud provider, otherwise an empty array.
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"metadata.google.internal"}
+	}
+
+	return []string{}
 }
 
 func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {

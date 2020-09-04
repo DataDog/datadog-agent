@@ -22,9 +22,6 @@ var (
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "Azure"
-
-	// NTPHost is the url to the local NTP server of the cloud instance
-	NTPHosts = []string{"time.windows.com"}
 )
 
 // IsRunningOn returns true if the agent is running on Azure
@@ -65,6 +62,15 @@ func GetClusterName() (string, error) {
 	}
 
 	return splitAll[len(splitAll)-2], nil
+}
+
+// GetNTPHosts returns the NTP hosts for Azure if it is detected as the cloud provider, otherwise an empty array.
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"time.windows.com"}
+	}
+
+	return []string{}
 }
 
 func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {

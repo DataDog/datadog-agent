@@ -21,14 +21,6 @@ var (
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "Alibaba"
-
-	// NTPHost is the url to the local NTP server of the cloud instance
-	NTPHosts = []string{
-		"ntp.cloud.aliyuncs.com", "ntp1.cloud.aliyuncs.com", "ntp2.cloud.aliyuncs.com", "ntp3.cloud.aliyuncs.com",
-		"ntp4.cloud.aliyuncs.com", "ntp5.cloud.aliyuncs.com", "ntp6.cloud.aliyuncs.com", "ntp7.cloud.aliyuncs.com",
-		"ntp8.cloud.aliyuncs.com", "ntp9.cloud.aliyuncs.com", "ntp10.cloud.aliyuncs.com", "ntp11.cloud.aliyuncs.com",
-		"ntp12.cloud.aliyuncs.com",
-	}
 )
 
 // IsRunningOn returns true if the agent is running on Alibaba
@@ -50,6 +42,20 @@ func GetHostAlias() (string, error) {
 		return "", fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
 	}
 	return res, err
+}
+
+// GetNTPHosts returns the NTP hosts for Alibaba if it is detected as the cloud provider, otherwise an empty array.
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{
+			"ntp.cloud.aliyuncs.com", "ntp1.cloud.aliyuncs.com", "ntp2.cloud.aliyuncs.com", "ntp3.cloud.aliyuncs.com",
+			"ntp4.cloud.aliyuncs.com", "ntp5.cloud.aliyuncs.com", "ntp6.cloud.aliyuncs.com", "ntp7.cloud.aliyuncs.com",
+			"ntp8.cloud.aliyuncs.com", "ntp9.cloud.aliyuncs.com", "ntp10.cloud.aliyuncs.com", "ntp11.cloud.aliyuncs.com",
+			"ntp12.cloud.aliyuncs.com",
+		}
+	}
+
+	return []string{}
 }
 
 func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {

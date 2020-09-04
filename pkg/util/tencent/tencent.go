@@ -22,8 +22,6 @@ var (
 
 	// CloudProviderName contains the inventory name of for CVM
 	CloudProviderName = "Tencent"
-
-	NTPHosts = []string{"ntpupdate.tencentyun.com"}
 )
 
 // IsRunningOn returns true if the agent is running on Tencent Cloud
@@ -58,6 +56,15 @@ func GetInstanceID() (string, error) {
 func HostnameProvider() (string, error) {
 	log.Debug("GetHostname trying Tencent metadata...")
 	return GetInstanceID()
+}
+
+// GetNTPHosts returns the NTP hosts for Tencent if it is detected as the cloud provider, otherwise an empty array.
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"ntpupdate.tencentyun.com"}
+	}
+
+	return []string{}
 }
 
 func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {

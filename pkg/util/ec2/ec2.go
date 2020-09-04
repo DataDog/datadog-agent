@@ -37,9 +37,6 @@ var (
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"
 
-	// NTPHost is the url to the local NTP server of the cloud instance
-	NTPHosts = []string{"169.254.169.123"}
-
 	// cache keys
 	instanceIDCacheKey = cache.BuildAgentKey("ec2", "GetInstanceID")
 	hostnameCacheKey   = cache.BuildAgentKey("ec2", "GetHostname")
@@ -141,6 +138,15 @@ func GetNetworkID() (string, error) {
 	default:
 		return "", fmt.Errorf("EC2: GetNetworkID too many mac addresses returned")
 	}
+}
+
+// GetNTPHosts returns the NTP hosts for EC2 if it is detected as the cloud provider, otherwise an empty array.
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"169.254.169.123"}
+	}
+
+	return []string{}
 }
 
 func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {

@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 )
@@ -137,21 +136,21 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 }
 
 func getCloudProviderNTPHosts() []string {
-	if ec2.IsRunningOn() || ecs.IsRunningOn() {
-		log.Debug("AWS cloud provider detected, using their NTP servers: %v", ec2.NTPHosts)
-		return ec2.NTPHosts
-	} else if gce.IsRunningOn() {
-		log.Debug("GCE cloud provider detected, using their NTP servers: %v", gce.NTPHosts)
-		return gce.NTPHosts
-	} else if azure.IsRunningOn() {
-		log.Debug("Azure cloud provider detected, using their NTP servers: %v", azure.NTPHosts)
-		return azure.NTPHosts
-	} else if alibaba.IsRunningOn() {
-		log.Debug("Alibaba cloud provider detected, using their NTP servers: %v", alibaba.NTPHosts)
-		return alibaba.NTPHosts
-	} else if tencent.IsRunningOn() {
-		log.Debug("Tencent cloud provider detected, using their NTP servers: %v", tencent.NTPHosts)
-		return tencent.NTPHosts
+	if ec2Hosts := ec2.GetNTPHosts(); len(ec2Hosts) != 0 {
+		log.Debug("AWS EC2 cloud provider detected, using their NTP servers: %v", ec2Hosts)
+		return ec2Hosts
+	} else if ecsHosts := ecs.GetNTPHosts(); len(ecsHosts) != 0 {
+		log.Debug("AWS EC2 cloud provider detected, using their NTP servers: %v", ec2Hosts)
+		return ecsHosts
+	} else if azureHosts := azure.GetNTPHosts(); len(azureHosts) != 0 {
+		log.Debug("Azure cloud provider detected, using their NTP servers: %v", azureHosts)
+		return azureHosts
+	} else if alibabaHosts := alibaba.GetNTPHosts(); len(alibabaHosts) != 0 {
+		log.Debug("Alibaba cloud provider detected, using their NTP servers: %v", alibabaHosts)
+		return alibabaHosts
+	} else if tencentHosts := tencent.GetNTPHosts(); len(tencentHosts) != 0 {
+		log.Debug("Tencent cloud provider detected, using their NTP servers: %v", tencentHosts)
+		return tencentHosts
 	} else {
 		log.Debug("No cloud provider detected, using Datadog's NTP servers: %v", datadogNTPHosts)
 		return datadogNTPHosts
