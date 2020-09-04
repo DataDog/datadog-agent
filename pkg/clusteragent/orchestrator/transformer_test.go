@@ -757,12 +757,12 @@ func TestExtractNode(t *testing.T) {
 				Metadata: &model.Metadata{},
 				Status: &model.NodeStatus{
 					Capacity: map[string]int64{
-						"pods":   100,
-						"cpu":    10000,
+						"pods": 100,
+						"cpu":  10000,
 					},
 					Allocatable: map[string]int64{
-						"pods":   50,
-						"cpu":    5000,
+						"pods": 50,
+						"cpu":  5000,
 					},
 				}}},
 		"node with only a condition": {
