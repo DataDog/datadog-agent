@@ -1,4 +1,4 @@
-// +build linux_bpf
+// +build linux
 
 // Code generated - DO NOT EDIT.
 

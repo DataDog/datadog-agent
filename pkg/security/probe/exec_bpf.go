@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package ebpf
+// +build linux_bpf
 
-// KProbe describes a Linux Kprobe
-type KProbe struct {
-	Name      string
-	EntryFunc string
-	ExitFunc  string
+package probe
+
+// execTables holds the list of eBPF tables used by the process kprobes
+var execTables = []string{
+	"proc_cache",
+	"pid_cookie",
 }

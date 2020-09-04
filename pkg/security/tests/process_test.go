@@ -14,7 +14,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestProcess(t *testing.T) {
@@ -28,12 +28,12 @@ func TestProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ruleDef := &policy.RuleDefinition{
+	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: fmt.Sprintf(`process.user == "%s" && process.name == "%s" && open.filename == "/etc/hosts"`, currentUser.Name, path.Base(executable)),
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{ruleDef}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
 	}

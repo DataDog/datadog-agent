@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package utils
 
@@ -21,9 +21,10 @@ import (
 // containerIDPattern is the pattern of a container ID
 var containerIDPattern = regexp.MustCompile(fmt.Sprintf(`([[:xdigit:]]{%v})`, sha256.Size*2))
 
+// ContainerID is the type holding the container ID
 type ContainerID string
 
-// Write writes the container ID in the provided buffer
+// Bytes returns the container ID as a byte array
 func (c ContainerID) Bytes() [ContainerIDLen]byte {
 	buff := [ContainerIDLen]byte{}
 	if len(c) == ContainerIDLen {

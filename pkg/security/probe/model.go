@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux_bpf -output model_accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux -output model_accessors.go
 
 package probe
 
@@ -22,12 +22,16 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
-var dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+var (
+	byteOrder              = ebpf.ByteOrder
+	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+)
 
 // InvalidDiscarders exposes list of values that are not discarders
 var InvalidDiscarders = map[eval.Field][]interface{}{
@@ -49,9 +53,7 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 var ErrNotEnoughData = errors.New("not enough data")
 
 // Model describes the data model for the runtime security agent events
-type Model struct {
-	event *Event
-}
+type Model struct{}
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
@@ -81,6 +83,7 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	return nil
 }
 
+// BaseEvent contains common fields for all the event
 type BaseEvent struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"-"`
@@ -116,10 +119,12 @@ func (e *BaseEvent) ResolveMonotonicTimestamp(resolvers *Resolvers) time.Time {
 	return e.Timestamp
 }
 
+// BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
 }
 
+// FileEvent is the common file event type
 type FileEvent struct {
 	MountID         uint32 `field:"-"`
 	Inode           uint64 `field:"inode"`
@@ -129,7 +134,7 @@ type FileEvent struct {
 	BasenameStr     string `field:"basename" handler:"ResolveBasename,string"`
 }
 
-// FileEvent resolves the inode to a full path
+// ResolveInode resolves the inode to a full path
 func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
@@ -472,24 +477,6 @@ type LinkEvent struct {
 	BaseEvent
 	Source FileEvent `field:"source"`
 	Target FileEvent `field:"target"`
-}
-
-func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"src_mount_id":%d,`, e.Source.MountID)
-	fmt.Fprintf(&buf, `"src_inode":%d,`, e.Source.Inode)
-	fmt.Fprintf(&buf, `"src_filename":"%s",`, e.Source.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"src_container_path":"%s",`, e.Source.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"src_overlay_numlower":%d,`, e.Source.OverlayNumLower)
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.Target.MountID)
-	fmt.Fprintf(&buf, `"new_inode":%d,`, e.Source.Inode)
-	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.Target.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"new_container_path":"%s",`, e.Target.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"new_overlay_numlower":%d`, e.Target.OverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

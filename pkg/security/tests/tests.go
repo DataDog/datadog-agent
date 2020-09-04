@@ -131,7 +131,7 @@ func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Eve
 	h.discarders <- &testDiscarder{event: event, field: field}
 }
 
-func setTestConfig(dir string, macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
+func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return "", err
@@ -187,7 +187,7 @@ func setTestConfig(dir string, macros []*policy.MacroDefinition, rules []*policy
 	return testPolicyFile.Name(), nil
 }
 
-func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testModule, error) {
+func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
 	st, err := newSimpleTest(macros, rules)
 	if err != nil {
 		return nil, err
@@ -273,7 +273,7 @@ func waitProcScan(test *testProbe) {
 	cancel()
 }
 
-func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testProbe, error) {
+func newTestProbe(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
 	st, err := newSimpleTest(macros, rules)
 	if err != nil {
 		return nil, err
@@ -295,8 +295,9 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	ruleSet, err := module.LoadPolicies(config, probe)
-	if err != nil {
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(false, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+
+	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err
 	}
 
@@ -311,7 +312,9 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	if _, err := probe.ApplyRuleSet(ruleSet, false); err != nil {
+	rsa := sprobe.NewRuleSetApplier(config)
+
+	if _, err := rsa.Apply(ruleSet, probe); err != nil {
 		return nil, err
 	}
 
@@ -376,7 +379,7 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	return filename, unsafe.Pointer(filenamePtr), nil
 }
 
-func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (*simpleTest, error) {
 	var logLevel seelog.LogLevel = seelog.InfoLvl
 	if testing.Verbose() {
 		logLevel = seelog.TraceLvl

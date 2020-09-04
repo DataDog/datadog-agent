@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package ebpf
+// +build linux,!linux_bpf
 
-// KProbe describes a Linux Kprobe
-type KProbe struct {
-	Name      string
-	EntryFunc string
-	ExitFunc  string
+package probe
+
+func getSyscallFnName(name string) string {
+	return name
 }

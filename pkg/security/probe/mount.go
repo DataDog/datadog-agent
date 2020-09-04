@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -33,43 +34,33 @@ var mountHookPoints = []*HookPoint{
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/attach_recursive_mnt",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "propagate_mnt",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/propagate_mnt",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
-		Name:    "sys_mount",
-		KProbes: syscallKprobe("mount"),
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		Name:       "sys_mount",
+		KProbes:    syscallKprobe("mount"),
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "security_sb_umount",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/security_sb_umount",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "sys_umount",
 		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 }
 
