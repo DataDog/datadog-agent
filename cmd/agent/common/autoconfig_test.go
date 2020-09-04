@@ -10,23 +10,23 @@ import (
 	"time"
 )
 
-func TestBlockUntilAutoConfigRunnedOnce(t *testing.T) {
+func TestBlockUntilAutoConfigRanOnce(t *testing.T) {
 	SetupAutoConfig("/tmp")
 	start := time.Now()
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		AC.LoadAndRun()
 	}()
-	BlockUntilAutoConfigRunnedOnce(2 * time.Second)
+	BlockUntilAutoConfigRanOnce(2 * time.Second)
 	if time.Since(start) > 500*time.Millisecond {
 		t.Fatalf("should not have timeout")
 	}
 }
 
-func TestBlockUntilAutoConfigRunnedOnceTimeout(t *testing.T) {
+func TestBlockUntilAutoConfigRanOnceTimeout(t *testing.T) {
 	SetupAutoConfig("/tmp")
 	start := time.Now()
-	BlockUntilAutoConfigRunnedOnce(3 * time.Second)
+	BlockUntilAutoConfigRanOnce(3 * time.Second)
 	if time.Since(start) < 2500*time.Millisecond {
 		t.Fatalf("should have timeout")
 	}

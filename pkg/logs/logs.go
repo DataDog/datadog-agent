@@ -83,10 +83,10 @@ func Start() error {
 	atomic.StoreInt32(&isRunning, 1)
 	log.Info("logs-agent started")
 
-	// add the default sources after the AutoConfig has been runned once because
+	// add the default sources after the AutoConfig has been executed once because
 	// we don't want the container_collect_all to reap all containers ownership
 	go func() {
-		common.BlockUntilAutoConfigRunnedOnce(time.Second * 30)
+		common.BlockUntilAutoConfigRanOnce(time.Second * 30)
 		log.Debug("Adding DefaultSources to the Logs Agent")
 		for _, source := range config.DefaultSources() {
 			sources.AddSource(source)

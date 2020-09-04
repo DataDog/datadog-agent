@@ -110,17 +110,17 @@ func StartAutoConfig() {
 	AC.LoadAndRun()
 }
 
-// BlockUntilAutoConfigRunnedOnce blocks until the AutoConfig has been runned once.
+// BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been ran once.
 // It also returns after the given timeout.
-func BlockUntilAutoConfigRunnedOnce(timeout time.Duration) {
+func BlockUntilAutoConfigRanOnce(timeout time.Duration) {
 	now := time.Now()
 	for {
 		time.Sleep(100 * time.Millisecond) // don't hog the CPU
-		if AC.HasRunnedOnce() {
+		if AC.HasRanOnce() {
 			return
 		}
 		if time.Since(now) > timeout {
-			log.Warn("BlockUntilAutoConfigRunnedOnce timeout after", timeout)
+			log.Warn("BlockUntilAutoConfigRanOnce timeout after", timeout)
 			return
 		}
 	}
