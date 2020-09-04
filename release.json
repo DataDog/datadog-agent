@@ -1,6 +1,6 @@
 {
     "nightly": {
-        "INTEGRATIONS_CORE_VERSION": "master",
+        "INTEGRATIONS_CORE_VERSION": "7caa8d5afe1ab145e5aeaf7694c4cdb90b775841",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.38.2",
@@ -10,7 +10,7 @@
         "WINDOWS_DDNPM_SHASUM": "ded26e4905378dbc18173635d3366eaa4cbf94eb0da172353b3c7eef3145824f"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "master",
+        "INTEGRATIONS_CORE_VERSION": "7caa8d5afe1ab145e5aeaf7694c4cdb90b775841",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.38.2",
