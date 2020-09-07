@@ -147,6 +147,9 @@ func TestOpen(t *testing.T) {
 	t.Run("open_by_handle_at", func(t *testing.T) {
 		h, mountID, err := unix.NameToHandleAt(unix.AT_FDCWD, testFile, 0)
 		if err != nil {
+			if err == unix.ENOTSUP {
+				t.Skip("NameToHandleAt is not supported")
+			}
 			t.Fatalf("NameToHandleAt: %v", err)
 		}
 		mount, err := openMountByID(mountID)

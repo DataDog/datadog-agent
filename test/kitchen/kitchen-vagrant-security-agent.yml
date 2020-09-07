@@ -1,0 +1,28 @@
+---
+driver:
+  name: vagrant
+  <% if ENV['KITCHEN_VAGRANT_PROVIDER'] %>
+  provider: <%= ENV['KITCHEN_VAGRANT_PROVIDER'] %>
+  <% end %>
+
+provisioner:
+  name: chef_zero
+
+platforms:
+<%
+    ENV['TEST_PLATFORMS'] ||= "centos7:centos/7,centos8:centos/8"
+    test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(':') }
+    test_platforms.each do |platform|
+%>
+  - name: <%= platform[0] %>
+    driver:
+      box: <%= platform[1] %>
+<%
+    end
+%>
+
+suites:
+  - name: dd-security-agent-test
+    run_list:
+      - recipe[dd-security-agent-check::default]
+    attributes:
