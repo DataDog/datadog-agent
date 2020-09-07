@@ -331,46 +331,109 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 
 	switch eventType {
 	case FileOpenEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `open`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileMkdirEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `mkdir`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileRmdirEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `rmdir`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileUnlinkEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `unlink`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileRenameEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `rename`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileChmodEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `chmod`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileChownEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `chown`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Chown.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileUtimeEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `utimes`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case FileLinkEventType:
+		read, err = unmarshalBinary(data[offset:], &event.Process, &event.Container)
+		if err != nil {
+			log.Errorf("failed to decode event `link`: %s", err)
+			return
+		}
+		offset += read
+
 		if _, err := event.Link.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, len(data))
 			return
@@ -387,11 +450,23 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 		}
 	case ExecEventType:
 		if _, err := event.Exec.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
+			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		if filename := event.Exec.FileEvent.ResolveInode(p.resolvers); filename != dentryPathKeyNotFound {
+			entry := ProcessResolverEntry{
+				Filename: filename,
+			}
+
+			p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &entry)
+		}
+	case ExitEventType:
+		if _, err := event.Exit.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
-		fmt.Printf("TTTTTTTTTTTTTTTTTTTTTT : %v\n", event.Exec)
+		p.resolvers.ProcessResolver.DelEntry(event.Exit.Pid)
 
 	default:
 		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)

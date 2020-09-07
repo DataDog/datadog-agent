@@ -6,9 +6,16 @@
 #include "container.h"
 
 struct exec_event_t {
-    struct event_t event;
-    u32 pid;
+    struct kevent_t event;
     struct proc_cache_t cache_entry;
+    u32 pid;
+    u32 padding;
+};
+
+struct exit_event_t {
+    struct kevent_t event;
+    u32 pid;
+    u32 padding;
 };
 
 struct _tracepoint_sched_process_fork
@@ -91,7 +98,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 
     struct exec_event_t event = {
         .event.type = EVENT_EXEC,
-        .event.timestamp = bpf_ktime_get_ns(),
         .pid = tgid,
         .cache_entry.executable = {
             .inode = get_path_ino(path),
@@ -100,34 +106,28 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         },
         .cache_entry.container_id = {},
     };
-    struct proc_cache_t *entry = &event.cache_entry;
-
-    // new cache entry
-    /*struct proc_cache_t entry = {
-        .executable = {
-            .inode = syscall->open.path_key.ino,
-            .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
-            .mount_id = get_path_mount_id(path),
-        },
-        .container_id = {},
-    };*/
 
     // select parent cache entry
     struct proc_cache_t *parent_entry = get_pid_cache(tgid);
     if (parent_entry) {
         // inherit container ID
-        copy_container_id(entry->container_id, parent_entry->container_id);
+        copy_container_id(event.cache_entry.container_id, parent_entry->container_id);
     }
 
     // insert new proc cache entry
     u32 cookie = bpf_get_prandom_u32();
-    bpf_map_update_elem(&proc_cache, &cookie, entry, BPF_ANY);
+    bpf_map_update_elem(&proc_cache, &cookie, &event.cache_entry, BPF_ANY);
 
     // insert pid <-> cookie mapping
     bpf_map_update_elem(&pid_cookie, &tgid, &cookie, BPF_ANY);
 
+    // cache dentry
+    struct dentry *dentry = get_path_dentry(path);
+    struct path_key_t path_key = get_key(dentry, path);
+    resolve_dentry(dentry, path_key, NULL);
+
     // send the entry to maintain userspace cache
-    send_exec_events(ctx, event);
+    send_process_events(ctx, event);
 
     // pop syscall as not called from an open not need handle it in the ret
     pop_syscall(SYSCALL_EXEC);
@@ -161,6 +161,14 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     // Delete pid <-> cookie mapping
     if (tgid == pid) {
         bpf_map_delete_elem(&pid_cookie, &tgid);
+
+        // send the entry to maintain userspace cache
+        struct exit_event_t event = {
+            .event.type = EVENT_EXIT,
+            .pid = tgid
+        };
+
+        send_process_events(ctx, event);
     }
     // (do not delete cookie <-> proc_cache entry since it can be used by a parent process)
     return 0;

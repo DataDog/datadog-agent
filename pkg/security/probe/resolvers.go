@@ -13,14 +13,22 @@ func NewResolvers(probe *Probe) (*Resolvers, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	timeResolver, err := NewTimeResolver()
 	if err != nil {
 		return nil, err
 	}
+
+	processResolver, err := NewProcessResolver(probe)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Resolvers{
-		probe:          probe,
-		DentryResolver: dentryResolver,
-		MountResolver:  NewMountResolver(probe),
-		TimeResolver:   timeResolver,
+		probe:           probe,
+		DentryResolver:  dentryResolver,
+		MountResolver:   NewMountResolver(probe),
+		TimeResolver:    timeResolver,
+		ProcessResolver: processResolver,
 	}, nil
 }

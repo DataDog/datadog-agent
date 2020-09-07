@@ -194,6 +194,7 @@ enum event_type
     EVENT_SETXATTR,
     EVENT_REMOVEXATTR,
     EVENT_EXEC,
+    EVENT_EXIT,
 };
 
 enum syscall_type
@@ -273,7 +274,7 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
 #define send_mountpoints_events(ctx, event) \
     bpf_perf_event_output(ctx, &mountpoints_events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
-struct bpf_map_def SEC("maps/exec_events") exec_events = {
+struct bpf_map_def SEC("maps/process_events") process_events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
@@ -282,8 +283,8 @@ struct bpf_map_def SEC("maps/exec_events") exec_events = {
     .namespace = "",
 };
 
-#define send_exec_events(ctx, event) \
-    bpf_perf_event_output(ctx, &exec_events, bpf_get_smp_processor_id(), &event, sizeof(event))
+#define send_process_events(ctx, event) \
+    bpf_perf_event_output(ctx, &process_events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {
