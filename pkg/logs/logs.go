@@ -84,15 +84,21 @@ func Start() error {
 	atomic.StoreInt32(&isRunning, 1)
 	log.Info("logs-agent started")
 
-	// add the default sources after the AutoConfig has been executed once because
-	// we don't want the container_collect_all to reap all containers ownership
-	go func() {
-		common.BlockUntilAutoConfigRanOnce(time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
-		log.Debug("Adding DefaultSources to the Logs Agent")
-		for _, source := range config.DefaultSources() {
+	// add SNMP traps source forwarding SNMP traps as logs if enabled.
+	if source := config.SNMPTrapsSource(); source != nil {
+		log.Debug("Adding SNMPTraps source to the Logs Agent")
+		sources.AddSource(source)
+	}
+
+	// adds the source collecting logs from all containers if enabled,
+	// but ensure that it is enabled after the AutoConfig initialization
+	if source := config.ContainerCollectAllSource(); source != nil {
+		go func() {
+			common.BlockUntilAutoConfigRanOnce(time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
+			log.Debug("Adding ContainerCollectAll source to the Logs Agent")
 			sources.AddSource(source)
-		}
-	}()
+		}()
+	}
 
 	return nil
 }
