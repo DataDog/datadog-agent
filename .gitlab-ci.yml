@@ -271,7 +271,7 @@ build_deb:
   - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
-        - $CI_PROJECT_DIR/outcomes/pkg/z*.deb
+        - $CI_PROJECT_DIR/outcomes/pkg/*.deb
         - $CI_PROJECT_DIR/outcomes/pkg/*.json
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
