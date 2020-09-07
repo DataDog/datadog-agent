@@ -105,10 +105,11 @@ func (r *Retrier) doTry() *Error {
 	}
 	method := r.cfg.AttemptMethod
 	r.RUnlock()
-	r.lastTryError = method()
+	err := method()
 
 	r.Lock()
-	if r.lastTryError == nil {
+	r.lastTryError = err
+	if err == nil {
 		r.status = OK
 	} else {
 		switch r.cfg.Strategy {
@@ -135,7 +136,7 @@ func (r *Retrier) doTry() *Error {
 	}
 	r.Unlock()
 
-	return r.wrapError(r.lastTryError)
+	return r.wrapError(err)
 }
 
 func (r *Retrier) errorf(format string, a ...interface{}) *Error {
