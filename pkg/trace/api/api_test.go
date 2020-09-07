@@ -368,6 +368,42 @@ func TestReceiverDecodingError(t *testing.T) {
 	})
 }
 
+func TestReceiveEndpointSniffingRequests(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(http.HandlerFunc(r.handleWithVersion(v05, r.handleTraces)))
+	client := &http.Client{}
+
+	t.Run("v0.5 detection request", func(t *testing.T) {
+		// send an empty v0.5 payload
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer([]byte{0x92, 0x90, 0x90}))
+		assert.NoError(err)
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set("Content-Length", "3")
+		req.Header.Set(headerTraceCount, "0")
+
+		resp, err := client.Do(req)
+		assert.NoError(err)
+
+		assert.Equal(200, resp.StatusCode)
+	})
+	t.Run("v0.4 detection request", func(t *testing.T) {
+		// send an empty v0.4 payload
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer([]byte{0x90}))
+		assert.NoError(err)
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set("Content-Length", "1")
+		req.Header.Set(headerTraceCount, "0")
+
+		resp, err := client.Do(req)
+		assert.NoError(err)
+
+		assert.Equal(200, resp.StatusCode)
+	})
+}
+
+
 func TestTraceCount(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.NoError(t, err)
