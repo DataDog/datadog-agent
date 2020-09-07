@@ -297,7 +297,7 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // SetXAttrEvent represents an extended attributes event
 type SetXAttrEvent struct {
-	BaseEvent
+	SyscallEvent
 	FileEvent
 	Namespace string `field:"namespace" handler:"GetNamespace,string"`
 	Name      string `field:"name" handler:"GetName,string"`
@@ -322,7 +322,7 @@ func (e *SetXAttrEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent, &e.FileEvent)
 	if err != nil {
 		return n, err
 	}
@@ -599,7 +599,7 @@ func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // MountEvent represents a mount event
 type MountEvent struct {
-	BaseEvent
+	SyscallEvent
 	MountID       uint32
 	GroupID       uint32
 	Device        uint32
@@ -634,7 +634,7 @@ func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
 		return n, err
 	}
@@ -687,7 +687,7 @@ func (e *MountEvent) GetFSType() string {
 
 // UmountEvent represents an umount event
 type UmountEvent struct {
-	BaseEvent
+	SyscallEvent
 	MountID uint32
 }
 
@@ -702,7 +702,7 @@ func (e *UmountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := unmarshalBinary(data, &e.BaseEvent)
+	n, err := unmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
 		return n, err
 	}
@@ -793,7 +793,7 @@ func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	offset += read
 
-	e.Pid = byteOrder.Uint32(data[offset : offset+4])
+	e.Pid = ebpf.ByteOrder.Uint32(data[offset : offset+4])
 
 	return offset + 4, nil
 }
@@ -810,7 +810,7 @@ func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Pid = byteOrder.Uint32(data[:4])
+	e.Pid = ebpf.ByteOrder.Uint32(data[:4])
 
 	return 8, nil
 }
@@ -1132,7 +1132,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Mount.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Mount.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "mount",
@@ -1142,7 +1142,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.Umount.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.Umount.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "umount",
@@ -1152,7 +1152,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.SetXAttr.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.SetXAttr.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",
@@ -1162,7 +1162,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		entries = append(entries,
 			eventMarshaler{
 				field:      "syscall",
-				marshalFnc: eventMarshalJSON(&e.RemoveXAttr.BaseEvent),
+				marshalFnc: eventMarshalJSON(&e.RemoveXAttr.SyscallEvent),
 			},
 			eventMarshaler{
 				field:      "file",

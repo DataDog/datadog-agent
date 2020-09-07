@@ -155,7 +155,7 @@ func (p *Probe) InitManager() error {
 		return err
 	}
 
-	if err := p.resolvers.Init(); err != nil {
+	if err := p.resolvers.Start(); err != nil {
 		return err
 	}
 
@@ -458,7 +458,8 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 				Filename: filename,
 			}
 
-			p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &entry)
+			_ = entry
+			//p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &entry)
 		}
 	case ExitEventType:
 		if _, err := event.Exit.UnmarshalBinary(data[offset:]); err != nil {
@@ -545,7 +546,7 @@ func (p *Probe) RegisterProbesSelectors(selectors []manager.ProbesSelector) erro
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
-	return p.resolvers.Snapshot(5)
+	return p.resolvers.Snapshot()
 }
 
 func (p *Probe) Close() error {

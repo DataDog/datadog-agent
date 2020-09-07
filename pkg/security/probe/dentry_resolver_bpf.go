@@ -11,7 +11,6 @@ import (
 	"C"
 	"fmt"
 	"unsafe"
-	"os"
 
 	lib "github.com/DataDog/ebpf"
 	"github.com/pkg/errors"
