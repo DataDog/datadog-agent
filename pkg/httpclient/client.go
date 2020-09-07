@@ -152,25 +152,31 @@ func (rc *RetryableHTTPClient) requestRetryHandler(method, path string, body []b
 	retryTicker := time.NewTicker(retryInterval)
 	retriesLeft := retryCount
 	responseChan := make(chan *HTTPResponse, 1)
-	var response *HTTPResponse
+	waitResponseChan := make(chan *HTTPResponse, 1)
 
 	defer watchdog.LogOnPanic()
 	defer close(responseChan)
-retry:
-	for {
-		select {
-		case <-retryTicker.C:
-			rc.handleRequest(method, path, body, retriesLeft, responseChan)
-			rc.mux.Lock()
-			// Lock so we can decrement the retriesLeft
-			retriesLeft = retriesLeft - 1
-			rc.mux.Unlock()
-		case response = <-responseChan:
-			// Stop retrying and return the response
-			retryTicker.Stop()
-			break retry
+
+	go func() {
+	retry:
+		for {
+			select {
+			case <-retryTicker.C:
+				rc.handleRequest(method, path, body, retriesLeft, responseChan)
+				rc.mux.Lock()
+				// Lock so we can decrement the retriesLeft
+				retriesLeft = retriesLeft - 1
+				rc.mux.Unlock()
+			case response := <-responseChan:
+				// Stop retrying and return the response
+				retryTicker.Stop()
+				waitResponseChan <- response
+				break retry
+			}
 		}
-	}
+	}()
+
+	response := <-waitResponseChan
 	rc.mux.Lock()
 	response.RetriesLeft = retriesLeft
 	rc.mux.Unlock()
