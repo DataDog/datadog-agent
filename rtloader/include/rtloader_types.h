@@ -93,7 +93,7 @@ typedef enum {
 // aggregator
 //
 // (id, metric_type, metric_name, value, tags, hostname)
-typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **, char *);
+typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, double, char **, char *);
 // (id, sc_name, status, tags, hostname, message)
 typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, char *, char *);
 // (id, event)
