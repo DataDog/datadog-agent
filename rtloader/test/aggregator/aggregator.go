@@ -17,7 +17,7 @@ import (
 #include "rtloader_mem.h"
 #include "datadog_agent_rtloader.h"
 
-extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
+extern void submitMetric(char *, metric_type_t, char *, double, char **, char *);
 extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void submitEvent(char*, event_t*);
 extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);
@@ -151,7 +151,7 @@ func charArrayToSlice(array **C.char) (res []string) {
 }
 
 //export submitMetric
-func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.float, t **C.char, hname *C.char) {
+func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.double, t **C.char, hname *C.char) {
 	checkID = C.GoString(id)
 	metricType = int(mt)
 	name = C.GoString(mname)
