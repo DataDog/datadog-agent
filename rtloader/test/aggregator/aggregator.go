@@ -17,7 +17,7 @@ import (
 #include "rtloader_mem.h"
 #include "datadog_agent_rtloader.h"
 
-extern void submitMetric(char *, metric_type_t, double *, float, char **, char *);
+extern void submitMetric(char *, metric_type_t, char *, double, char **, char *);
 extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void submitEvent(char*, event_t*);
 extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);
