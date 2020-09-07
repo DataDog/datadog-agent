@@ -371,6 +371,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		if err == ErrLimitedReaderLimitReached {
 			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
+		} else if err == io.EOF || err == io.ErrUnexpectedEOF {
+			atomic.AddInt64(&ts.TracesDropped.UnexpectedEOF, tracen)
+		} else if err, ok := err.(net.Error); ok && err.Timeout() {
+			atomic.AddInt64(&ts.TracesDropped.Timeout, tracen)
 		} else {
 			atomic.AddInt64(&ts.TracesDropped.DecodingError, tracen)
 		}

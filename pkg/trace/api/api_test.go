@@ -368,6 +368,31 @@ func TestReceiverDecodingError(t *testing.T) {
 	})
 }
 
+func TestReceiverUnexpectedEOF(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(http.HandlerFunc(r.handleWithVersion(v05, r.handleTraces)))
+	// we get to read the header and the entire dictionary, but the request claims to be much larger
+	data := []byte{0x92, 0x91, 0xA5, 'a', 'b', 'c', 'd', 'e'}
+	client := &http.Client{}
+	traceCount := 2
+
+	t.Run("Content-Length larger than input", func(t *testing.T) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		assert.NoError(err)
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set("Content-Length", "270")
+		req.Header.Set(headerTraceCount, strconv.Itoa(traceCount))
+
+		resp, err := client.Do(req)
+		assert.NoError(err)
+
+		assert.Equal(400, resp.StatusCode)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.UnexpectedEOF)
+	})
+}
+
 func TestTraceCount(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.NoError(t, err)

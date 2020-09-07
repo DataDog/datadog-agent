@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -44,6 +45,17 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	if err == ErrLimitedReaderLimitReached {
 		status = http.StatusRequestEntityTooLarge
 		errtag := "payload-too-large"
+		msg = errtag
+	}
+	// is it a timeout?
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		status = http.StatusRequestTimeout
+		errtag := "timeout"
+		msg = errtag
+	}
+	// is there something wrong with the content length?
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		errtag = "unexpected-eof"
 		msg = errtag
 	}
 
