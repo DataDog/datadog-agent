@@ -42,7 +42,6 @@ import (
 func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
@@ -56,6 +55,8 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
 	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
 	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/flare/log/{flare_id}/{tracer_id}/{type}", flareHandler).Methods("POST")
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
@@ -113,6 +114,34 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func flareHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	flareId := vars["flare_id"]
+	tracerId := vars["tracer_id"]
+	logType := vars["type"]
+	log.Tracef("Logging entry for flare (%v) from tracer: %v", flareId, tracerId)
+
+	// content is simple UTF-8 encoded string
+
+	r.ParseForm() //nolint:errcheck
+	value := html.UnescapeString(r.Form.Get("value"))
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := flare.LogEntry(logType, flareId, tracerId, r.Body); err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		switch err.(type) {
+		case *flare.InvalidLogType:
+		case *flare.InvalidTracerId:
+		case *flare.InvalidFlareId:
+			http.Error(w, string(body), 400)
+		default:
+			http.Error(w, string(body), 500)
+		}
+		return
+	}
+
 }
 
 func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
