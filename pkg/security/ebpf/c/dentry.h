@@ -6,9 +6,17 @@
 #include <linux/mount.h>
 #include <linux/fs.h>
 
+#include "defs.h"
 #include "filters.h"
 
 #define DENTRY_MAX_DEPTH 16
+
+#define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
+#if USE_SYSCALL_WRAPPER == 1
+# define MNT_OFFSETOF_MNTID 284 // offsetof(struct mount, mnt_id)
+#else
+# define MNT_OFFSETOF_MNTID 268 // offsetof(struct mount, mnt_id)
+#endif
 
 struct path_key_t {
     unsigned long ino;
@@ -58,25 +66,10 @@ dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
     return dev;
 }
 
-int __attribute__((always_inline)) get_inode_mount_id(struct inode *dir) {
-    // Mount ID
-    int mount_id;
-    struct super_block *spb;
-    bpf_probe_read(&spb, sizeof(spb), &dir->i_sb);
-
-    struct list_head s_mounts;
-    bpf_probe_read(&s_mounts, sizeof(s_mounts), &spb->s_mounts);
-
-    bpf_probe_read(&mount_id, sizeof(int), (void *)s_mounts.next + 172);
-    // bpf_probe_read(&mount_id, sizeof(int), &((struct mount *) s_mounts.next)->mnt_id);
-
-    return mount_id;
-}
-
 int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     int mount_id;
     // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + 252);
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + MNT_OFFSETOF_MNTID - MNT_OFFSETOF_MNT);
     return mount_id;
 }
 
@@ -90,7 +83,7 @@ int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     int mount_id;
 
     // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + 284);
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + MNT_OFFSETOF_MNTID);
     return mount_id;
 }
 
@@ -98,7 +91,7 @@ int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
     int mount_id;
 
     // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_group_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + 288);
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + MNT_OFFSETOF_MNTID + 4);
     return mount_id;
 }
 
@@ -151,27 +144,6 @@ int __attribute__((always_inline)) get_overlay_numlower(struct dentry *dentry) {
     return numlower;
 }
 
-struct dentry * __attribute__((always_inline)) get_inode_mountpoint(struct inode *dir) {
-    // Mount ID
-    struct dentry *mountpoint = NULL;
-    struct super_block *spb;
-    bpf_probe_read(&spb, sizeof(spb), &dir->i_sb);
-
-    struct list_head s_mounts;
-    bpf_probe_read(&s_mounts, sizeof(s_mounts), &spb->s_mounts);
-
-    // bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *) s_mounts.next - offsetof(struct mount, mnt_instance) + offsetof(struct mount, mnt_mountpoint));
-    bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *)s_mounts.next - 88);
-
-    return mountpoint;
-}
-
-struct inode * __attribute__((always_inline)) get_dentry_inode(struct dentry *dentry) {
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
-    return d_inode;
-}
-
 unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
@@ -180,12 +152,6 @@ unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentr
 
 void __attribute__((always_inline)) write_dentry_inode(struct dentry *dentry, struct inode **d_inode) {
     bpf_probe_read(d_inode, sizeof(d_inode), &dentry->d_inode);
-}
-
-struct inode* __attribute__((always_inline)) get_file_inode(struct file *file) {
-    struct inode *f_inode;
-    bpf_probe_read(&f_inode, sizeof(f_inode), &file->f_inode);
-    return f_inode;
 }
 
 struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file) {
