@@ -33,7 +33,7 @@ struct _tracepoint_sched_process_fork
 
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *dst, struct proc_cache_t *src) {
     dst->executable = src->executable;
-    copy_container_id(dst->container_id, src->container_id);
+    copy_container_id(dst->container.container_id, src->container.container_id);
     return;
 }
 
@@ -104,14 +104,14 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
         },
-        .cache_entry.container_id = {},
+        .cache_entry.container = {},
     };
 
     // select parent cache entry
     struct proc_cache_t *parent_entry = get_pid_cache(tgid);
     if (parent_entry) {
         // inherit container ID
-        copy_container_id(event.cache_entry.container_id, parent_entry->container_id);
+        copy_container_id(event.cache_entry.container.container_id, parent_entry->container.container_id);
     }
 
     // insert new proc cache entry

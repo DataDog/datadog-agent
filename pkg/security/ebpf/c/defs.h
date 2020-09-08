@@ -247,7 +247,7 @@ struct container_context_t {
 
 struct proc_cache_t {
     struct file_t executable;
-    char container_id[CONTAINER_ID_LEN];
+    struct container_context_t container;
 };
 
 struct bpf_map_def SEC("maps/events") events = {
@@ -274,17 +274,9 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
 #define send_mountpoints_events(ctx, event) \
     bpf_perf_event_output(ctx, &mountpoints_events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
-struct bpf_map_def SEC("maps/process_events") process_events = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(__u32),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+// currently sending over the syscall event perf ring to avoid races
 #define send_process_events(ctx, event) \
-    bpf_perf_event_output(ctx, &process_events, bpf_get_smp_processor_id(), &event, sizeof(event))
+    bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {

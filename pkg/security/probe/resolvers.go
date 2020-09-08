@@ -19,16 +19,20 @@ func NewResolvers(probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	processResolver, err := NewProcessResolver(probe)
+	resolvers := &Resolvers{
+		probe:             probe,
+		DentryResolver:    dentryResolver,
+		MountResolver:     NewMountResolver(probe),
+		TimeResolver:      timeResolver,
+		ContainerResolver: &ContainerResolver{},
+	}
+
+	processResolver, err := NewProcessResolver(probe, resolvers)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Resolvers{
-		probe:           probe,
-		DentryResolver:  dentryResolver,
-		MountResolver:   NewMountResolver(probe),
-		TimeResolver:    timeResolver,
-		ProcessResolver: processResolver,
-	}, nil
+	resolvers.ProcessResolver = processResolver
+
+	return resolvers, nil
 }

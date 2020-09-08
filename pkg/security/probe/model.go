@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -151,7 +152,9 @@ func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
 		}
+		e.PathnameStr = path.Join(mountPath, e.PathnameStr)
 	}
+
 	return e.PathnameStr
 }
 
@@ -216,6 +219,15 @@ func unmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 		}
 	}
 	return read, nil
+}
+
+// Bytes returns a binary representation of itself
+func (e *FileEvent) Bytes() []byte {
+	b := make([]byte, 16)
+	ebpf.ByteOrder.PutUint64(b[0:8], e.Inode)
+	ebpf.ByteOrder.PutUint32(b[8:12], e.MountID)
+	ebpf.ByteOrder.PutUint32(b[12:16], uint32(e.OverlayNumLower))
+	return b
 }
 
 // ChmodEvent represents a chmod event
@@ -747,6 +759,11 @@ func (e *ContainerEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	return 64, nil
+}
+
+// Bytes returns a binary representation of itself
+func (e *ContainerEvent) Bytes() []byte {
+	return utils.ContainerID(e.ID).Bytes()
 }
 
 // ResolveContainerID resolves the container ID of the event

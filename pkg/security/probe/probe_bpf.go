@@ -453,13 +453,13 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		if filename := event.Exec.FileEvent.ResolveInode(p.resolvers); filename != dentryPathKeyNotFound {
+		filename := event.Exec.FileEvent.ResolveInode(p.resolvers)
+		if filename != dentryPathKeyNotFound {
 			entry := ProcessResolverEntry{
 				Filename: filename,
 			}
 
-			_ = entry
-			//p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &entry)
+			p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &entry)
 		}
 	case ExitEventType:
 		if _, err := event.Exit.UnmarshalBinary(data[offset:]); err != nil {
@@ -467,8 +467,9 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 
+		// as far as we keep only one perf for all the event we can delete the entry right away, there won't be
+		// any race
 		p.resolvers.ProcessResolver.DelEntry(event.Exit.Pid)
-
 	default:
 		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
 		return

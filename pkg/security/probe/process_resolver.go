@@ -8,8 +8,6 @@
 package probe
 
 import (
-	"bytes"
-	"encoding/binary"
 	"os"
 	"syscall"
 
@@ -33,34 +31,19 @@ var snapshotProbeIDs = []manager.ProbeIdentificationPair{
 
 // ProcCacheEntry this structure holds the container context that we keep in kernel for each process
 type ProcCacheEntry struct {
-	Inode    uint64
-	Numlower uint32
-	Padding  uint32
-	ID       [utils.ContainerIDLen]byte
+	FileEvent
+	ContainerEvent
 }
 
 // Bytes returns the bytes representation of process cache entry
 func (pc *ProcCacheEntry) Bytes() []byte {
-	b := make([]byte, 16+utils.ContainerIDLen)
-	ebpf.ByteOrder.PutUint64(b[0:8], pc.Inode)
-	ebpf.ByteOrder.PutUint32(b[8:12], pc.Numlower)
-	copy(b[16:16+utils.ContainerIDLen], pc.ID[:])
+	b := pc.FileEvent.Bytes()
+	b = append(b, pc.ContainerEvent.Bytes()...)
 	return b
 }
 
 func (pc *ProcCacheEntry) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16+utils.ContainerIDLen {
-		return 0, ErrNotEnoughData
-	}
-
-	pc.Inode = ebpf.ByteOrder.Uint64(data[0:8])
-	pc.Numlower = ebpf.ByteOrder.Uint32(data[8:12])
-
-	if err := binary.Read(bytes.NewBuffer(data[16:utils.ContainerIDLen+16]), ebpf.ByteOrder, &pc.ID); err != nil {
-		return 0, err
-	}
-
-	return 16 + utils.ContainerIDLen, nil
+	return unmarshalBinary(data, &pc.FileEvent, &pc.ContainerEvent)
 }
 
 type ProcessResolverEntry struct {
@@ -70,6 +53,7 @@ type ProcessResolverEntry struct {
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	probe            *Probe
+	resolvers        *Resolvers
 	snapshotProbes   []*manager.Probe
 	inodeNumlowerMap *lib.Map
 	procCacheMap     *lib.Map
@@ -85,13 +69,7 @@ func (p *ProcessResolver) DelEntry(pid uint32) {
 	delete(p.entryCache, pid)
 }
 
-func (p *ProcessResolver) Resolve(pid uint32) *ProcessResolverEntry {
-	entry, ok := p.entryCache[pid]
-	if ok {
-		return entry
-	}
-
-	// fallback request the map directly, the perf event should be delayed
+func (p *ProcessResolver) resolve(pid uint32) *ProcessResolverEntry {
 	pidb := make([]byte, 4)
 	ebpf.ByteOrder.PutUint32(pidb, pid)
 
@@ -110,7 +88,27 @@ func (p *ProcessResolver) Resolve(pid uint32) *ProcessResolverEntry {
 		return nil
 	}
 
-	return nil
+	filename := procCacheEntry.FileEvent.ResolveInode(p.resolvers)
+	if filename == dentryPathKeyNotFound {
+		return nil
+	}
+
+	entry := &ProcessResolverEntry{
+		Filename: filename,
+	}
+	p.AddEntry(pid, entry)
+
+	return entry
+}
+
+func (p *ProcessResolver) Resolve(pid uint32) *ProcessResolverEntry {
+	entry, ok := p.entryCache[pid]
+	if ok {
+		return entry
+	}
+
+	// fallback request the map directly, the perf event should be delayed
+	return p.resolve(pid)
 }
 
 func (p *ProcessResolver) Start() error {
@@ -130,7 +128,7 @@ func (p *ProcessResolver) Start() error {
 	return nil
 }
 
-func (p *ProcessResolver) snapshot(containerResolver *ContainerResolver, mountResolver *MountResolver) error {
+func (p *ProcessResolver) snapshot() error {
 	processes, err := process.AllProcesses()
 	if err != nil {
 		return err
@@ -145,7 +143,7 @@ func (p *ProcessResolver) snapshot(containerResolver *ContainerResolver, mountRe
 		}
 
 		// Notify that we modified the cache.
-		if p.snapshotProcess(uint32(proc.Pid), containerResolver, mountResolver) {
+		if p.snapshotProcess(uint32(proc.Pid)) {
 			cacheModified = true
 		}
 	}
@@ -161,7 +159,7 @@ func (p *ProcessResolver) snapshot(containerResolver *ContainerResolver, mountRe
 }
 
 // snapshotProcess snapshots /proc for the provided pid. This method returns true if it updated the kernel process cache.
-func (p *ProcessResolver) snapshotProcess(pid uint32, containerResolver *ContainerResolver, mountResolver *MountResolver) bool {
+func (p *ProcessResolver) snapshotProcess(pid uint32) bool {
 	entry := ProcCacheEntry{}
 	pidb := make([]byte, 4)
 	cookieb := make([]byte, 4)
@@ -175,7 +173,7 @@ func (p *ProcessResolver) snapshotProcess(pid uint32, containerResolver *Contain
 	}
 
 	// Populate the mount point cache for the process
-	if err := mountResolver.SyncCache(pid); err != nil {
+	if err := p.resolvers.MountResolver.SyncCache(pid); err != nil {
 		if !os.IsNotExist(err) {
 			log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't sync mount points", pid))
 			return false
@@ -183,12 +181,12 @@ func (p *ProcessResolver) snapshotProcess(pid uint32, containerResolver *Contain
 	}
 
 	// Retrieve the container ID of the process
-	containerID, err := containerResolver.GetContainerID(pid)
+	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
 	if err != nil {
 		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", pid))
 		return false
 	}
-	entry.ID = containerID.Bytes()
+	entry.ContainerEvent.ID = string(containerID)
 
 	procExecPath := utils.ProcExePath(pid)
 
@@ -222,7 +220,7 @@ func (p *ProcessResolver) snapshotProcess(pid uint32, containerResolver *Contain
 		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve numlower value", pid))
 		return false
 	}
-	entry.Numlower = ebpf.ByteOrder.Uint32(numlowerb)
+	entry.OverlayNumLower = int32(ebpf.ByteOrder.Uint32(numlowerb))
 
 	// Generate a new cookie for this pid
 	ebpf.ByteOrder.PutUint32(cookieb, utils.NewCookie())
@@ -285,23 +283,20 @@ func (p *ProcessResolver) Snapshot(containerResolver *ContainerResolver, mountRe
 	// Deregister probes
 	defer p.stopSnapshotProbes()
 
-	retry := 5
-
-	for retry > 0 {
-		if err := p.snapshot(containerResolver, mountResolver); err == nil {
+	for retry := 0; retry < 5; retry++ {
+		if err := p.snapshot(); err == nil {
 			return nil
 		}
-
-		retry--
 	}
 
 	return errors.New("unable to snapshot processes")
 }
 
 // NewProcessResolver returns a new process resolver
-func NewProcessResolver(probe *Probe) (*ProcessResolver, error) {
+func NewProcessResolver(probe *Probe, resolvers *Resolvers) (*ProcessResolver, error) {
 	return &ProcessResolver{
 		probe:      probe,
+		resolvers:  resolvers,
 		entryCache: make(map[uint32]*ProcessResolverEntry),
 	}, nil
 }
