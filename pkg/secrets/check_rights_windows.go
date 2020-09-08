@@ -24,7 +24,7 @@ var (
 
 // checkRights check that the given filename has access controls set only for
 // Administrator, Local System and the datadog user.
-func checkRights(filename string, options checkRightOptions) error {
+func checkRights(filename string, _ bool) error {
 	if _, err := os.Stat(filename); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("secretBackendCommand %s does not exist", filename)
