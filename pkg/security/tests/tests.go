@@ -273,13 +273,13 @@ func waitProcScan(test *testProbe) {
 	cancel()
 }
 
-func newTestProbe(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
-	st, err := newSimpleTest(macros, rules)
+func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
+	st, err := newSimpleTest(macrosDef, rulesDef)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macrosDef, rulesDef, opts)
 	if err != nil {
 		return nil, err
 	}

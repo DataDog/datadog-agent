@@ -47,8 +47,7 @@ int kprobe__mnt_want_write(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/mnt_want_write_file")
-int kprobe__mnt_want_write_file(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
@@ -65,6 +64,17 @@ int kprobe__mnt_want_write_file(struct pt_regs *ctx) {
         break;
     }
     return 0;
+}
+
+SEC("kprobe/mnt_want_write_file")
+int kprobe__mnt_want_write_file(struct pt_regs *ctx) {
+    return trace__mnt_want_write_file(ctx);
+}
+
+// mnt_want_write_file_path was used on old kernels (RHEL 7)
+SEC("kprobe/mnt_want_write_file_path")
+int kprobe__mnt_want_write_file_path(struct pt_regs *ctx) {
+    return trace__mnt_want_write_file(ctx);
 }
 
 #endif

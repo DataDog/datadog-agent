@@ -390,6 +390,7 @@ core,"github.com/mitchellh/copystructure",MIT
 core,"github.com/mitchellh/go-homedir",MIT
 core,"github.com/mitchellh/mapstructure",MIT
 core,"github.com/mitchellh/reflectwalk",MIT
+core,"github.com/moby/sys/mountinfo",Apache-2.0
 core,"github.com/modern-go/concurrent",Apache-2.0
 core,"github.com/modern-go/reflect2",Apache-2.0
 core,"github.com/munnerz/goautoneg",NewBSD
