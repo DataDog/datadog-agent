@@ -343,7 +343,7 @@ func install(cmd *cobra.Command, args []string) error {
 	if localWheel {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
-		// Verify that the wheel depends on `datadog_checks_base` to decide if it's an agent check or not
+		// Verify that the wheel depends on `datadog-checks-base` to decide if it's an agent check or not
 		wheelPath := args[0]
 
 		fmt.Println(disclaimer)
@@ -423,16 +423,16 @@ func install(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 	}
 
-	// Verify datadog_checks_base is compatible with the requirements
+	// Verify datadog-checks-base is compatible with the requirements
 	shippedBaseVersion, found, err := installedVersion("datadog-checks-base")
 	if err != nil {
-		return fmt.Errorf("unable to get the version of datadog_checks_base: %v", err)
+		return fmt.Errorf("unable to get the version of datadog-checks-base: %v", err)
 	}
 	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); found && err != nil {
 		return fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err)
 	} else if !ok {
 		return fmt.Errorf(
-			"%s %s is not compatible with datadog_checks_base %s shipped in the agent",
+			"%s %s is not compatible with datadog-checks-base %s shipped in the agent",
 			integration, versionToInstall, shippedBaseVersion,
 		)
 	}
