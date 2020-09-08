@@ -45,6 +45,9 @@ func Init(command string, arguments []string, timeout int, maxSize int, groupExe
 	secretBackendTimeout = timeout
 	SecretBackendOutputMaxSize = maxSize
 	secretBackendCommandAllowGroupExec = groupExecPerm
+	if secretBackendCommandAllowGroupExec {
+		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
+	}
 }
 
 type walkerCallback func(string) (string, error)
