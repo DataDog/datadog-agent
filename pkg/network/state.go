@@ -18,6 +18,7 @@ const (
 	// DEBUGCLIENT is the ClientID for debugging
 	DEBUGCLIENT = "-1"
 
+	// DNSResponseCodeNoError is the value that indicates that the DNS reply contains no errors.
 	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
 	// constant is not worth the increased memory cost.
 	DNSResponseCodeNoError = 0
