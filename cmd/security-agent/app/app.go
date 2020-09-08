@@ -133,7 +133,7 @@ func start(cmd *cobra.Command, args []string) error {
 	syslogURI := coreconfig.GetSyslogURI()
 	logFile := coreconfig.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = common.DefaultSecuriyAgentLogFile
 	}
 	if coreconfig.Datadog.GetBool("disable_file_logging") {
 		// this will prevent any logging on file

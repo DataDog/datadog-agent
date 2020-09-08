@@ -125,7 +125,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = common.DefaultSecuriyAgentLogFile
 	}
 
 	var runtimeAgentStatus map[string]interface{}

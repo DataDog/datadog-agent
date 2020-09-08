@@ -46,6 +46,8 @@ var (
 	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
 	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
+	// DefaultSecuriyAgentLogFile points to the log file that will be used by the security-agent if not configured
+	DefaultSecuriyAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
 )
 
 func init() {
@@ -54,6 +56,7 @@ func init() {
 		DefaultConfPath = pd
 		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
 		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
+		DefaultSecuriyAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 	} else {
 		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
 	}

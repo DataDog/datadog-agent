@@ -81,6 +81,9 @@ func requestFlare(caseID string) error {
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("security_agent.cmd_port"))
 
 	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = common.DefaultSecuriyAgentLogFile
+	}
 
 	// Set session token
 	e = util.SetAuthToken()
