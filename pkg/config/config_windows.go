@@ -30,7 +30,7 @@ func osinit() {
 		defaultConfdPath = filepath.Join(pd, "conf.d")
 		defaultAdditionalChecksPath = filepath.Join(pd, "checks.d")
 		defaultRunPath = filepath.Join(pd, "run")
-		defaultSecurityAgentLogFile = filepath.Join(pd, "security-agent.log")
+		defaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
