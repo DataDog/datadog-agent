@@ -256,6 +256,7 @@ core,"github.com/fatih/color",MIT
 core,"github.com/florianl/go-conntrack",MIT
 core,"github.com/florianl/go-tc",MIT
 core,"github.com/frapposelli/wwhrd",MIT
+core,"github.com/freddierice/go-losetup",MIT
 core,"github.com/fsnotify/fsnotify",NewBSD
 core,"github.com/ghodss/yaml",MIT
 core,"github.com/go-ini/ini",Apache-2.0

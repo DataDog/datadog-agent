@@ -22,13 +22,19 @@ func TestSetXAttr(t *testing.T) {
 		Expression: `setxattr.filename == "{{.Root}}/test-xattr" && setxattr.namespace == "user" && setxattr.name == "user.test_xattr"`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	testDrive, err := newTestDrive("ext4", []string{"user_xattr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true, testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test-xattr")
+	testFile, testFilePtr, err := testDrive.Path("test-xattr")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,12 +46,6 @@ func TestSetXAttr(t *testing.T) {
 	xattrNamePtr := unsafe.Pointer(xattrName)
 	xattrValuePtr := unsafe.Pointer(&[]byte{})
 
-	testSetXAttr(t, testFile, testFilePtr, test, xattrNamePtr, xattrValuePtr)
-	testLSetXAttr(t, testFile, testFilePtr, test, xattrNamePtr, xattrValuePtr)
-	testFSetXAttr(t, testFile, testFilePtr, test, xattrNamePtr, xattrValuePtr)
-}
-
-func testSetXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, test *testModule, xattrNamePtr unsafe.Pointer, xattrValuePtr unsafe.Pointer) {
 	t.Run("setxattr", func(t *testing.T) {
 		// create file
 		f, err := os.Create(testFile)
@@ -74,11 +74,9 @@ func testSetXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, tes
 			}
 		}
 	})
-}
 
-func testLSetXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, test *testModule, xattrNamePtr unsafe.Pointer, xattrValuePtr unsafe.Pointer) {
 	t.Run("lsetxattr", func(t *testing.T) {
-		testOldFile, testOldFilePtr, err := test.Path("test-xattr-old")
+		testOldFile, testOldFilePtr, err := testDrive.Path("test-xattr-old")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,9 +119,7 @@ func testLSetXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, te
 			}
 		}
 	})
-}
 
-func testFSetXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, test *testModule, xattrNamePtr unsafe.Pointer, xattrValuePtr unsafe.Pointer) {
 	t.Run("fsetxattr", func(t *testing.T) {
 		// create file
 		f, err := os.Create(testFile)
@@ -160,13 +156,19 @@ func TestRemoveXAttr(t *testing.T) {
 		Expression: `removexattr.filename == "{{.Root}}/test-xattr" && removexattr.namespace == "user" && removexattr.name == "user.test_xattr"`,
 	}
 
+	testDrive, err := newTestDrive("ext4", []string{"user_xattr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test-xattr")
+	testFile, testFilePtr, err := testDrive.Path("test-xattr")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,14 +178,7 @@ func TestRemoveXAttr(t *testing.T) {
 		t.Fatal(err)
 	}
 	xattrNamePtr := unsafe.Pointer(xattrName)
-	xattrValuePtr := unsafe.Pointer(&[]byte{})
 
-	testRemoveXAttr(t, testFile, testFilePtr, test, xattrNamePtr, xattrValuePtr)
-	testLRemoveXAttr(t, testFile, testFilePtr, test, xattrNamePtr, xattrValuePtr)
-	testFRemoveXAttr(t, testFile, testFilePtr, test, xattrNamePtr, xattrValuePtr)
-}
-
-func testRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, test *testModule, xattrNamePtr unsafe.Pointer, xattrValuePtr unsafe.Pointer) {
 	t.Run("removexattr", func(t *testing.T) {
 		// create file
 		f, err := os.Create(testFile)
@@ -194,7 +189,7 @@ func testRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, 
 		defer os.Remove(testFile)
 
 		// set xattr
-		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 1, 0, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), 0, 1, 0, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
@@ -218,11 +213,9 @@ func testRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, 
 			}
 		}
 	})
-}
 
-func testLRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, test *testModule, xattrNamePtr unsafe.Pointer, xattrValuePtr unsafe.Pointer) {
 	t.Run("lremovexattr", func(t *testing.T) {
-		testOldFile, testOldFilePtr, err := test.Path("test-xattr-old")
+		testOldFile, testOldFilePtr, err := testDrive.Path("test-xattr-old")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,7 +237,7 @@ func testLRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer,
 		defer os.Remove(testFile)
 
 		// set xattr
-		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, 1, 0)
+		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0, 0, 1, 0)
 		// Linux and Android don't support xattrs on symlinks according
 		// to xattr(7), so just test that we get the proper error.
 		if errno != syscall.EACCES && errno != syscall.EPERM {
@@ -272,9 +265,7 @@ func testLRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer,
 			}
 		}
 	})
-}
 
-func testFRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, test *testModule, xattrNamePtr unsafe.Pointer, xattrValuePtr unsafe.Pointer) {
 	t.Run("fremovexattr", func(t *testing.T) {
 		// create file
 		f, err := os.Create(testFile)
@@ -285,7 +276,7 @@ func testFRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer,
 		defer os.Remove(testFile)
 
 		// set xattr
-		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 1, 0, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), 0, 1, 0, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
