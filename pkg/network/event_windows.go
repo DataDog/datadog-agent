@@ -32,6 +32,7 @@ import "C"
 import (
 	"net"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -126,7 +127,7 @@ func FlowToConnStat(flow *C.struct__perFlowData, enableMonotonicCounts bool) Con
 		// the linux probe only reports the raw transport data.  So do that by default.
 		MonotonicSentBytes: monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicSentBytes, flow.transportBytesOut),
 		MonotonicRecvBytes: monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicRecvBytes, flow.transportBytesIn),
-		LastUpdateEpoch:    0,
+		LastUpdateEpoch:    uint64(time.Now().UnixNano()),
 		Pid:                uint32(flow.processId),
 		SPort:              uint16(flow.localPort),
 		DPort:              uint16(flow.remotePort),
