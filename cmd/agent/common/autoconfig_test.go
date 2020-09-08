@@ -8,6 +8,9 @@ package common
 import (
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 )
 
 func TestBlockUntilAutoConfigRanOnce(t *testing.T) {
@@ -17,7 +20,7 @@ func TestBlockUntilAutoConfigRanOnce(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		AC.LoadAndRun()
 	}()
-	BlockUntilAutoConfigRanOnce(2 * time.Second)
+	logs.BlockUntilAutoConfigRanOnce(func() *autodiscovery.AutoConfig { return AC }, 2*time.Second)
 	if time.Since(start) > 500*time.Millisecond {
 		t.Fatalf("should not have timeout")
 	}
@@ -26,7 +29,7 @@ func TestBlockUntilAutoConfigRanOnce(t *testing.T) {
 func TestBlockUntilAutoConfigRanOnceTimeout(t *testing.T) {
 	SetupAutoConfig("/tmp")
 	start := time.Now()
-	BlockUntilAutoConfigRanOnce(3 * time.Second)
+	logs.BlockUntilAutoConfigRanOnce(func() *autodiscovery.AutoConfig { return AC }, 3*time.Second)
 	if time.Since(start) < 2500*time.Millisecond {
 		t.Fatalf("should have timeout")
 	}

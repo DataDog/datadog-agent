@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
@@ -38,7 +38,10 @@ var (
 )
 
 // Start starts logs-agent
-func Start() error {
+// getAC is a func returning the prepared AutoConfig. It is nil until
+// the AutoConfig is ready, please consider using BlockUntilAutoConfigRanOnce
+// instead of directly using it.
+func Start(getAC func() *autodiscovery.AutoConfig) error {
 	if IsAgentRunning() {
 		return nil
 	}
@@ -94,13 +97,32 @@ func Start() error {
 	// but ensure that it is enabled after the AutoConfig initialization
 	if source := config.ContainerCollectAllSource(); source != nil {
 		go func() {
-			common.BlockUntilAutoConfigRanOnce(time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
+			BlockUntilAutoConfigRanOnce(getAC, time.Millisecond*time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
 			log.Debug("Adding ContainerCollectAll source to the Logs Agent")
 			sources.AddSource(source)
 		}()
 	}
 
 	return nil
+}
+
+// BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been ran once.
+// It also returns after the given timeout.
+func BlockUntilAutoConfigRanOnce(getAC func() *autodiscovery.AutoConfig, timeout time.Duration) {
+	now := time.Now()
+	for {
+		time.Sleep(100 * time.Millisecond) // don't hog the CPU
+		if getAC() == nil {
+			continue
+		}
+		if getAC().HasRanOnce() {
+			return
+		}
+		if time.Since(now) > timeout {
+			log.Error("BlockUntilAutoConfigRanOnce timeout after", timeout)
+			return
+		}
+	}
 }
 
 // Stop stops properly the logs-agent to prevent data loss,

@@ -7,7 +7,6 @@ package common
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -108,20 +107,4 @@ func SetupAutoConfig(confdPath string) {
 //   2. run all the Checks for each configuration found
 func StartAutoConfig() {
 	AC.LoadAndRun()
-}
-
-// BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been ran once.
-// It also returns after the given timeout.
-func BlockUntilAutoConfigRanOnce(timeout time.Duration) {
-	now := time.Now()
-	for {
-		time.Sleep(100 * time.Millisecond) // don't hog the CPU
-		if AC.HasRanOnce() {
-			return
-		}
-		if time.Since(now) > timeout {
-			log.Error("BlockUntilAutoConfigRanOnce timeout after", timeout)
-			return
-		}
-	}
 }
