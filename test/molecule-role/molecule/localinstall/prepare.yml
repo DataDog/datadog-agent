@@ -54,6 +54,12 @@
           set_fact:
             custom_installer: /tmp/current.rpm
       when: ansible_distribution != "Ubuntu"
+
+    - name: Install stackstate-agent
+      shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+      when: ansible_distribution == "Ubuntu"
+
     - name: Install stackstate-agent
       shell: "/tmp/install_script.sh {{ custom_installer }}"
       environment:
