@@ -86,7 +86,6 @@ start_and_wait() {
           log_success_msg
           service datadog-agent-process start
           service datadog-agent-trace start
-          service datadog-agent-security start
           return 0
         else
           retries=$(($retries - 1))
@@ -127,7 +126,6 @@ stop_and_wait() {
       log_success_msg
       service datadog-agent-process stop
       service datadog-agent-trace stop
-      service datadog-agent-security stop
       return 0
       ;;
     *) 
