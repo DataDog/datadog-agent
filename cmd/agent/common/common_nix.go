@@ -22,8 +22,6 @@ const (
 	DefaultLogFile = "/var/log/datadog/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
 	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
-	// DefaultSecuriyAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecuriyAgentLogFile = "/var/log/datadog/security-agent.log"
 )
 
 var (
