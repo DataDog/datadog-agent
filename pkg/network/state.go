@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gopacket/layers"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -204,7 +202,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
 			conn.DNSTimeouts = dnsStats.timeouts
-			conn.DNSSuccessfulResponses = dnsStats.countByRcode[uint8(layers.DNSResponseCodeNoErr)]
+			conn.DNSSuccessfulResponses = dnsStats.countByRcode[0] // 0 means No Error
 			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
 			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
 			conn.DNSCountByRcode = make(map[uint32]uint32)
