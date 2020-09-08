@@ -56,7 +56,7 @@ func testSetXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, tes
 		defer os.Remove(testFile)
 
 		// XATTR_CREATE = 1
-		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 1, 0, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, 1, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
@@ -93,18 +93,21 @@ func testLSetXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, te
 		}
 		defer os.Remove(testOldFile)
 
-		_, _, errno := syscall.Syscall(syscall.SYS_LINK, uintptr(testOldFilePtr), uintptr(testFilePtr), 0)
+		_, _, errno := syscall.Syscall(syscall.SYS_SYMLINK, uintptr(testOldFilePtr), uintptr(testFilePtr), 0)
 		if errno != 0 {
-			t.Fatal(err)
+			t.Fatal(error(errno))
 		}
 		defer os.Remove(testFile)
 
 		// XATTR_CREATE = 1
-		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 1, 0, 0)
-		if errno != 0 {
+		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, 1, 0)
+		// Linux and Android don't support xattrs on symlinks according
+		// to xattr(7), so just test that we get the proper error.
+		if errno != syscall.EACCES && errno != syscall.EPERM {
 			t.Fatal(error(errno))
 		}
 
+		// We should get the event though
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
@@ -131,7 +134,7 @@ func testFSetXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer, te
 		defer os.Remove(testFile)
 
 		// XATTR_CREATE = 1
-		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 1, 0, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, 1, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
@@ -234,21 +237,25 @@ func testLRemoveXAttr(t *testing.T, testFile string, testFilePtr unsafe.Pointer,
 		}
 		defer os.Remove(testOldFile)
 
-		_, _, errno := syscall.Syscall(syscall.SYS_LINK, uintptr(testOldFilePtr), uintptr(testFilePtr), 0)
+		_, _, errno := syscall.Syscall(syscall.SYS_SYMLINK, uintptr(testOldFilePtr), uintptr(testFilePtr), 0)
 		if errno != 0 {
-			t.Fatal(err)
+			t.Fatal(error(errno))
 		}
 		defer os.Remove(testFile)
 
 		// set xattr
-		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 1, 0, 0)
-		if errno != 0 {
+		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, 1, 0)
+		// Linux and Android don't support xattrs on symlinks according
+		// to xattr(7), so just test that we get the proper error.
+		if errno != syscall.EACCES && errno != syscall.EPERM {
 			t.Fatal(error(errno))
 		}
 
 		// XATTR_CREATE = 1
 		_, _, errno = syscall.Syscall(syscall.SYS_LREMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
-		if errno != 0 {
+		// Linux and Android don't support xattrs on symlinks according
+		// to xattr(7), so just test that we get the proper error.
+		if errno != syscall.EACCES && errno != syscall.EPERM {
 			t.Fatal(error(errno))
 		}
 

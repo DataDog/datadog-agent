@@ -72,6 +72,16 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ct
             return 0;
         syscall->setattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
+    case EVENT_SETXATTR:
+        if (syscall->setxattr.path_key.mount_id > 0)
+            return 0;
+        syscall->setxattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        break;
+    case EVENT_REMOVEXATTR:
+        if (syscall->setxattr.path_key.mount_id > 0)
+            return 0;
+        syscall->setxattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        break;
     }
     return 0;
 }
