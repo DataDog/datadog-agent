@@ -224,8 +224,19 @@ If the failing repository is StackState, please contact StackState support.
     else
         print_blu "* ($INSTALL_MODE) Installing local deb package $LOCAL_PKG_NAME \n"
 # If unattended upgrade in place - wait for lock to disappear.
-        print_blu "* ($INSTALL_MODE) Waiting for /var/lib/dpkg/lock absence \n"
+        print_blu "* ($INSTALL_MODE) Waiting for initial /var/lib/dpkg/lock absence \n"
         while $sudo_cmd fuser /var/lib/dpkg/lock >/dev/null 2>&1; do echo "."; sleep 10; done;
+# wait additional 10 seconds to ensure, that activity around lock is done
+        i=0
+        while [ $i -lt 10 ]
+        do
+        if [ $($sudo_cmd fuser /var/lib/dpkg/lock) ]; then
+          i=0
+        fi
+        sleep 1
+        i=$[$i+1]
+        echo ".."
+        done
         $sudo_cmd dpkg -i $LOCAL_PKG_NAME
     fi
     if [ ! -z "$no_repo" ]; then
