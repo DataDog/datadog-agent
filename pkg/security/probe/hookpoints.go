@@ -79,6 +79,14 @@ var allHookPoints = []*HookPoint{
 		EventTypes: []eval.EventType{"chown"},
 	},
 	{
+		Name: "mnt_want_write_file_path", // used on old kernels (RHEL 7)
+		KProbes: []*ebpf.KProbe{{
+			EntryFunc: "kprobe/mnt_want_write_file_path",
+		}},
+		EventTypes: []eval.EventType{"chown"},
+		Optional:   true,
+	},
+	{
 		Name:       "sys_utime",
 		KProbes:    syscallKprobe("utime"),
 		EventTypes: []eval.EventType{"utimes"},
