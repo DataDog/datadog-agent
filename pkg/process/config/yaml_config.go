@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	ns   = "process_config"
-	spNS = "system_probe_config"
+	ns             = "process_config"
+	orchestratorNS = "orchestrator_explorer"
+	spNS           = "system_probe_config"
 )
 
 func key(pieces ...string) string {
@@ -184,9 +185,10 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		return fmt.Errorf("error parsing process_dd_url: %s", err)
 	}
 	a.APIEndpoints[0].Endpoint = URL
-	URL, err = url.Parse(config.GetMainEndpoint("https://orchestrator.", key(ns, "orchestrator_dd_url")))
+
+	URL, err = extractOrchestratorDDUrl()
 	if err != nil {
-		return fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
+		return err
 	}
 	a.OrchestratorEndpoints[0].Endpoint = URL
 
@@ -342,20 +344,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 		}
 	}
-
-	if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
-			u, err := URL.Parse(endpointURL)
-			if err != nil {
-				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
-			}
-			for _, k := range apiKeys {
-				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, api.Endpoint{
-					APIKey:   k,
-					Endpoint: u,
-				})
-			}
-		}
+	if err := extractOrchestratorAdditionalEndpoints(URL, &a.OrchestratorEndpoints); err != nil {
+		return err
 	}
 
 	// Used to override container source auto-detection
@@ -397,6 +387,46 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
 
 	return nil
+}
+
+func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {
+	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
+		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
+			return err
+		}
+	} else if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
+		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
+	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
+		u, err := URL.Parse(endpointURL)
+		if err != nil {
+			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
+		}
+		for _, k := range apiKeys {
+			*endpoints = append(*endpoints, api.Endpoint{
+				APIKey:   k,
+				Endpoint: u,
+			})
+		}
+	}
+	return nil
+}
+
+// extractOrchestratorDDUrl contains backward compatible config parsing code.
+func extractOrchestratorDDUrl() (*url.URL, error) {
+	orchestratorURL := key(orchestratorNS, "orchestrator_dd_url")
+	processURL := key(ns, "orchestrator_dd_url")
+	URL, err := url.Parse(config.GetMainEndpointWithConfigBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
+	if err != nil {
+		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
+	}
+	return URL, nil
 }
 
 func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {

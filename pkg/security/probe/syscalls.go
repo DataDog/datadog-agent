@@ -3,11 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//go:generate stringer -type=Syscall
+// +build linux
+
+//go:generate stringer -type Syscall -output syscalls_string_linux.go
 
 package probe
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+)
 
 // Syscall represents a syscall identifier
 type Syscall int
@@ -322,4 +328,11 @@ const (
 // MarshalText maps the syscall identifier to UTF-8-encoded text and returns the result
 func (s Syscall) MarshalText() ([]byte, error) {
 	return []byte(strings.ToLower(strings.TrimPrefix(s.String(), "Sys"))), nil
+}
+
+func syscallKprobe(name string) []*ebpf.KProbe {
+	return []*ebpf.KProbe{{
+		EntryFunc: "kprobe/" + getSyscallFnName(name),
+		ExitFunc:  "kretprobe/" + getSyscallFnName(name),
+	}}
 }

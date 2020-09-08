@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.0.1
+install_script_version=1.0.2
 logfile="ddagent-install.log"
 
 LEGACY_ETCDIR="/etc/dd-agent"
@@ -126,6 +126,7 @@ else
 fi
 
 keyserver="hkp://keyserver.ubuntu.com:80"
+backup_keyserver="hkp://pool.sks-keyservers.net:80"
 # use this env var to specify another key server, such as
 # hkp://p80.pool.sks-keyservers.net:80 for example.
 if [ -n "$DD_KEYSERVER" ]; then
@@ -220,7 +221,24 @@ elif [ "$OS" = "Debian" ]; then
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
     $sudo_cmd sh -c "echo 'deb https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
-    $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" A2923DFF56EDA6E76E55E492D3A80E30382E94DE
+    for retries in {0..4}; do
+      $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" A2923DFF56EDA6E76E55E492D3A80E30382E94DE && break
+      if [ "$retries" -eq 4 ]; then
+        ERROR_MESSAGE="ERROR
+Couldn't fetch Datadog public key.
+This might be due to a connectivity error with the key server
+or a temporary service interruption.
+*****
+"
+        false
+      fi
+      printf "\033[33m\napt-key failed to retrieve Datadog's public key, retrying in 5 seconds...\n\033[0m\n"
+      sleep 5
+      if [ "$retries" -eq 1 ]; then
+        printf "\033[34mSwitching to backup keyserver\n\033[0m\n"
+        keyserver="${backup_keyserver}"
+      fi
+    done
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR

@@ -142,7 +142,7 @@ api_key:
 ## @param aggregator_stop_timeout - integer - optional - default: 2
 ## When stopping the agent, the Aggregator will try to flush out data ready for
 ## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
-## to be sent to DataDog, therefore the Agent might take at most
+## to be sent to Datadog, therefore the Agent might take at most
 ## 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
 ##
 ## You can set the maximum amount of time, in seconds, allocated to the
@@ -915,7 +915,7 @@ api_key:
 ##########################################
 ## Security Agent Runtime Configuration ##
 ##                                      ##
-## Settings to sent logs to DataDog are ##
+## Settings to sent logs to Datadog are ##
 ## fetched from section `logs_config`   ##
 ##########################################
 
@@ -1197,10 +1197,10 @@ api_key:
 #
 # jmx_reconnection_thread_pool_size: 3
 
-## @param jmx_reconnection_timeout - integer - optional - default: 10
+## @param jmx_reconnection_timeout - integer - optional - default: 60
 ## Determines the maximum waiting period in seconds before timing up on instance reconnection.
 #
-# jmx_reconnection_timeout: 10
+# jmx_reconnection_timeout: 60
 
 {{ end -}}
 {{- if .Logging }}

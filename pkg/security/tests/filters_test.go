@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/pkg/errors"
 )
 
@@ -86,12 +86,12 @@ func waitForOpenDiscarder(test *testProbe, filename string) (*probe.Event, error
 }
 
 func TestOpenBasenameApproverFilter(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/test-oba-1"`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,12 +121,12 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 }
 
 func TestOpenParentDiscarderFilter(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "/etc/passwd"`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true, disableApprovers: true})
+	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true, disableApprovers: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,12 +156,12 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 }
 
 func TestOpenFlagsApproverFilter(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.flags & (O_CREAT | O_TRUNC) > 0`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,12 +200,12 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 }
 
 func TestOpenProcessInodeApproverFilter(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename =~ "{{.Root}}/test-oba-1" && process.filename == "/bin/cat"`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -50,6 +50,9 @@ const (
 
 	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
 	ClusterIDCacheKey = "orchestratorClusterID"
+
+	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
+	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 )
 
 var overrideVars = make(map[string]interface{})
@@ -482,7 +485,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_reconnection_thread_pool_size", 3)
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
-	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
+	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -512,8 +515,7 @@ func InitConfig(config Config) {
 		overrideVars["process_config.enabled"] = ddProcessAgentEnabled
 	}
 
-	config.BindEnv("process_config.process_dd_url", "")      //nolint:errcheck
-	config.BindEnv("process_config.orchestrator_dd_url", "") //nolint:errcheck
+	config.BindEnv("process_config.process_dd_url", "") //nolint:errcheck
 
 	// Logs Agent
 
@@ -638,11 +640,19 @@ func InitConfig(config Config) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
-	// Ochestrator explorer
+	// Orchestrator Explorer DCA and process-agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
 	// enabling/disabling the environment variables & command scrubbing from the container specs
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
+
+	// Orchestrator Explorer - process agent
+	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "") //nolint:errcheck
+	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
+	config.BindEnv("process_config.orchestrator_dd_url", "") //nolint:errcheck
+	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
+	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
+	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
@@ -661,7 +671,6 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
 	config.SetKnown("process_config.additional_endpoints.*")
-	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
@@ -763,7 +772,7 @@ func InitConfig(config Config) {
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
-	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", "/etc/datadog-agent/runtime-security.d")
+	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
@@ -1026,16 +1035,37 @@ func getMainInfraEndpointWithConfig(config Config) string {
 func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
-		resolvedDDURL = config.GetString(ddURLKey)
-		if config.IsSet("site") {
-			log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", ddURLKey, ddURLKey, config.GetString(ddURLKey))
-		}
+		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
 	} else if config.GetString("site") != "" {
 		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
 	} else {
 		resolvedDDURL = prefix + DefaultSite
 	}
 	return
+}
+
+// GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
+func GetMainEndpointWithConfigBackwardCompatible(config Config, prefix string, ddURLKey string, backwardKey string) (resolvedDDURL string) {
+	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
+		// value under ddURLKey takes precedence over backwardKey and 'site'
+		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
+	} else if config.IsSet(backwardKey) && config.GetString(backwardKey) != "" {
+		// value under backwardKey takes precedence over 'site'
+		resolvedDDURL = getResolvedDDUrl(config, backwardKey)
+	} else if config.GetString("site") != "" {
+		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
+	} else {
+		resolvedDDURL = prefix + DefaultSite
+	}
+	return
+}
+
+func getResolvedDDUrl(config Config, urlKey string) string {
+	resolvedDDURL := config.GetString(urlKey)
+	if config.IsSet("site") {
+		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, config.GetString(urlKey))
+	}
+	return resolvedDDURL
 }
 
 // getMultipleEndpointsWithConfig implements the logic to extract the api keys per domain from an agent config

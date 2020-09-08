@@ -1,0 +1,6 @@
+*.pb.go -diff -merge
+*.pb.go linguist-generated=true
+*.pb.gw.go -diff -merge
+*.pb.gw.go linguist-generated=true
+pkg/ebpf/bytecode/tracer-ebpf.go -diff -merge
+pkg/ebpf/bytecode/tracer-ebpf.go linguist-generated=true

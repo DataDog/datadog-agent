@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -13,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"golang.org/x/sys/unix"
 )
@@ -375,7 +374,7 @@ func (f UnlinkFlags) String() string {
 	return bitmaskToString(int(f), unlinkFlagsStrings)
 }
 
-// ReturnValue represents a syscall return value
+// RetValError represents a syscall return error value
 type RetValError int
 
 func (f RetValError) String() string {
@@ -389,5 +388,3 @@ func (f RetValError) String() string {
 func init() {
 	initConstants()
 }
-
-var byteOrder = ebpf.ByteOrder
