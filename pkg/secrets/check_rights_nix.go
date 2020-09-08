@@ -22,7 +22,7 @@ func checkRights(path string, allowGroupExec bool) error {
 	// checking that group and others don't have any rights
 	if allowGroupExec {
 		// Allow group to have read and exec rights, blacklisting write
-		if stat.Mode&(syscall.S_IRWXG|syscall.S_IWGRP) != 0 {
+		if stat.Mode&(syscall.S_IRWXO|syscall.S_IWGRP) != 0 {
 			return fmt.Errorf("invalid executable '%s', 'others' have rights on it or 'group' has write permissions on it", path)
 		}
 	} else {
