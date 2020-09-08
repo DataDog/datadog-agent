@@ -90,9 +90,15 @@ type filePermsInfo struct {
 
 // Profile is a performance profile containing heap and CPU profiles.
 type Profile struct {
+	// agent profiles
 	FirstHeapProfile  []byte
 	SecondHeapProfile []byte
 	CPUProfile        []byte
+
+	// trace-agent profiles
+	TraceFirstHeap  []byte
+	TraceSecondHeap []byte
+	TraceCPU        []byte
 }
 
 // CreatePerformanceProfile creates a CPU and Heap profile to include
@@ -117,11 +123,39 @@ func CreatePerformanceProfile(pprofURL string, profileDuration int) (*Profile, e
 		return nil, err
 	}
 
-	return &Profile{
+	p := &Profile{
 		FirstHeapProfile:  firstHeapProf,
 		SecondHeapProfile: secondHeapProf,
 		CPUProfile:        cpuProf,
-	}, nil
+	}
+
+	if k := "apm_config.enabled"; config.Datadog.IsSet(k) && !config.Datadog.GetBool(k) {
+		return p, nil
+	}
+
+	apmPort := 8126
+	if v := config.Datadog.GetInt("apm_config.receiver_port"); v != 0 {
+		apmPort = v
+	}
+	tracePath := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", apmPort)
+	p.TraceFirstHeap, err = apiutil.DoGet(c, tracePath+"/heap")
+	if err != nil {
+		return nil, err
+	}
+	cpuLength := 4 // 5s is the default maximum connection timeout on the HTTP server
+	if v := config.Datadog.GetInt("apm_config.receiver_timeout"); v > 0 {
+		cpuLength = v - 1
+	}
+	p.TraceCPU, err = apiutil.DoGet(c, fmt.Sprintf(tracePath+"/profile?seconds=%d", cpuLength))
+	if err != nil {
+		return nil, err
+	}
+	p.TraceSecondHeap, err = apiutil.DoGet(c, tracePath+"/heap")
+	if err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
 
 // CreateArchive packages up the files
@@ -795,43 +829,23 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 }
 
 func zipPerformanceProfile(tempDir, hostname string, profile *Profile) error {
-	cpuProfilePath := filepath.Join(tempDir, hostname, cpuProfileName)
-
-	if err := ensureParentDirsExist(cpuProfilePath); err != nil {
+	if err := os.MkdirAll(filepath.Join(tempDir, hostname), os.ModePerm); err != nil {
 		return err
 	}
-
-	cpuProfile, err := os.OpenFile(cpuProfilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
+	for name, data := range map[string][]byte{
+		cpuProfileName:         profile.CPUProfile,
+		firstHeapProfileName:   profile.FirstHeapProfile,
+		secondHeapProfileName:  profile.SecondHeapProfile,
+		"trace-1st-heap.pprof": profile.TraceFirstHeap,
+		"trace-2nd-heap.pprof": profile.TraceSecondHeap,
+		"trace-cpu.pprof":      profile.TraceCPU,
+	} {
+		fullpath := filepath.Join(tempDir, hostname, name)
+		if err := ioutil.WriteFile(fullpath, data, os.ModePerm); err != nil {
+			return err
+		}
 	}
-
-	defer cpuProfile.Close()
-
-	firstHeapProfilePath := filepath.Join(tempDir, hostname, firstHeapProfileName)
-	firstHeapProfile, err := os.OpenFile(firstHeapProfilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer firstHeapProfile.Close()
-
-	secondHeapProfilePath := filepath.Join(tempDir, hostname, secondHeapProfileName)
-	secondHeapProfile, err := os.OpenFile(secondHeapProfilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer secondHeapProfile.Close()
-
-	_, err = cpuProfile.Write(profile.CPUProfile)
-	if err != nil {
-		return err
-	}
-	_, err = firstHeapProfile.Write(profile.FirstHeapProfile)
-	if err != nil {
-		return err
-	}
-	_, err = secondHeapProfile.Write(profile.SecondHeapProfile)
-	return err
+	return nil
 }
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
