@@ -127,7 +127,7 @@ var allHookPoints = []*HookPoint{
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write_file_path",
 		}},
-		EventTypes: []eval.EventType{"chown"},
+		EventTypes: []eval.EventType{"chown", "setxattr", "removexattr"},
 		Optional:   true,
 	},
 	{

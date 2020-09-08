@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
+//+build functionaltests
+
 package tests
 
 import (
@@ -61,7 +68,7 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 
 	mkfsCmd := exec.Command("mkfs."+fsType, dev.Path())
 	if err := mkfsCmd.Run(); err != nil {
-		dev.Detach()
+		_ = dev.Detach()
 		os.Remove(backingFile.Name())
 		return nil, errors.Wrap(err, "failed to create ext4 filesystem")
 	}
@@ -70,7 +77,7 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 	fmt.Printf("CMD %s\n", mountCmd.String())
 
 	if err := mountCmd.Run(); err != nil {
-		dev.Detach()
+		_ = dev.Detach()
 		os.Remove(backingFile.Name())
 		return nil, errors.Wrap(err, "failed to mount filesystem")
 	}
