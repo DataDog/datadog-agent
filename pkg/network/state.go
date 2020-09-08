@@ -17,6 +17,10 @@ var (
 const (
 	// DEBUGCLIENT is the ClientID for debugging
 	DEBUGCLIENT = "-1"
+
+	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
+	// constant is not worth the increased memory cost.
+	DNSResponseCodeNoError = 0
 )
 
 // State takes care of handling the logic for:
@@ -202,7 +206,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
 			conn.DNSTimeouts = dnsStats.timeouts
-			conn.DNSSuccessfulResponses = dnsStats.countByRcode[0] // 0 means No Error
+			conn.DNSSuccessfulResponses = dnsStats.countByRcode[DNSResponseCodeNoError]
 			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
 			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
 			conn.DNSCountByRcode = make(map[uint32]uint32)
