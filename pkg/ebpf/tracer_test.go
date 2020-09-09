@@ -99,10 +99,6 @@ func TestTracerExpvar(t *testing.T) {
 			"TruncatedPackets",
 		},
 		"kprobes": {
-			"PXSysBindHits",
-			"PXSysBindMisses",
-			"PXSysSocketHits",
-			"PXSysSocketMisses",
 			"PTcpCleanupRbufHits",
 			"PTcpCleanupRbufMisses",
 			"PTcpCloseHits",
@@ -121,10 +117,6 @@ func TestTracerExpvar(t *testing.T) {
 			"PUdpRecvmsgMisses",
 			"PIpMakeSkbHits",
 			"PIpMakeSkbMisses",
-			"RXSysBindHits",
-			"RXSysBindMisses",
-			"RXSysSocketHits",
-			"RXSysSocketMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
@@ -136,11 +128,37 @@ func TestTracerExpvar(t *testing.T) {
 		},
 	}
 
+	archSpecificKprobes := [][]string{
+		{"PSySBindHits", "PXSysBindHits"},
+		{"PSySBindMisses", "PXSysBindMisses"},
+		{"PSySSocketHits", "PXSysSocketHits"},
+		{"PSySSocketMisses", "PXSysSocketMisses"},
+		{"RSySBindHits", "RXSysBindHits"},
+		{"RSySBindMisses", "RXSysBindMisses"},
+		{"RSySSocketHits", "RXSysSocketHits"},
+		{"RSySSocketMisses", "RXSysSocketMisses"},
+	}
+
 	for _, et := range expvarTypes {
 		expvar := map[string]float64{}
 		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
 		for _, name := range expected[et] {
 			assert.Contains(t, expvar, name, "%s actual is missing %s", et, name)
+		}
+		// check variants of arch-specific syscall kprobes
+		if et == "kprobes" {
+			for _, options := range archSpecificKprobes {
+				inMap := false
+				for _, opt := range options {
+					_, inMap = expvar[opt]
+					if inMap {
+						break
+					}
+				}
+				if !inMap {
+					assert.Failf(t, "missing kprobe in expvar", "one of %v", options)
+				}
+			}
 		}
 	}
 }
