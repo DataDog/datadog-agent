@@ -57,6 +57,14 @@ func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	return c.Viper.GetKnownKeys()
 }
 
+// SetEnvKeyTransformer allows defining a transformer function which decides
+// how an environment variables value gets assigned to key.
+func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, fn)
+}
+
 // SetFs wraps Viper for concurrent access
 func (c *safeConfig) SetFs(fs afero.Fs) {
 	c.Lock()

@@ -47,6 +47,7 @@ type Config interface {
 	SetEnvPrefix(in string)
 	BindEnv(input ...string) error
 	SetEnvKeyReplacer(r *strings.Replacer)
+	SetEnvKeyTransformer(key string, fn func(string) interface{})
 
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
 	Unmarshal(rawVal interface{}) error

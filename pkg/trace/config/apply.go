@@ -7,7 +7,6 @@ package config
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -214,10 +213,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if k := "apm_config.max_payload_size"; config.Datadog.IsSet(k) {
 		c.MaxRequestBytes = config.Datadog.GetInt64(k)
 	}
-	if v := config.Datadog.GetString("apm_config.replace_tags"); v != "" {
+	if k := "apm_config.replace_tags"; config.Datadog.IsSet(k) {
 		rt := make([]*ReplaceRule, 0)
-		if err := json.Unmarshal([]byte(v), &rt); err != nil {
-			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', got: %q, error: %v", "apm_config.replace_tags", v, err)
+		if err := config.Datadog.UnmarshalKey(k, &rt); err != nil {
+			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "apm_config.replace_tags", err)
 		} else {
 			err := compileReplaceRules(rt)
 			if err != nil {
@@ -283,21 +282,18 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	// undocumeted
 	if k := "apm_config.analyzed_spans"; config.Datadog.IsSet(k) {
-		rateBySpan, err := parseAnalyzedSpans(config.Datadog.GetString(k))
-		if err != nil {
-			return err
-		}
-		for key, rate := range rateBySpan {
+		for key, rate := range config.Datadog.GetStringMap("apm_config.analyzed_spans") {
 			serviceName, operationName, err := parseServiceAndOp(key)
 			if err != nil {
 				log.Errorf("Error parsing names: %v", err)
 				continue
 			}
-
-			if _, ok := c.AnalyzedSpansByService[serviceName]; !ok {
-				c.AnalyzedSpansByService[serviceName] = make(map[string]float64)
+			if floatrate, ok := rate.(float64); ok {
+				if _, ok := c.AnalyzedSpansByService[serviceName]; !ok {
+					c.AnalyzedSpansByService[serviceName] = make(map[string]float64)
+				}
+				c.AnalyzedSpansByService[serviceName][operationName] = floatrate
 			}
-			c.AnalyzedSpansByService[serviceName][operationName] = rate
 		}
 	}
 
