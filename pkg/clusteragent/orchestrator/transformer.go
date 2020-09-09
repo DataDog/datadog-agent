@@ -211,16 +211,22 @@ func extractNode(n *corev1.Node) *model.Node {
 		},
 	}
 
-	if n.Spec.Taints != nil && len(n.Spec.Taints) != 0 {
+	if len(n.Spec.Taints) > 0 {
 		msg.Taints = extractTaints(n.Spec.Taints)
 	}
 
 	// status
-	extractNodeInfo(n, msg)
+	msg.Status.KubeletVersion = n.Status.NodeInfo.KubeletVersion
+	msg.Status.ContainerRuntimeVersion = n.Status.NodeInfo.ContainerRuntimeVersion
+	msg.Status.OperatingSystem = n.Status.NodeInfo.OperatingSystem
+	msg.Status.Architecture = n.Status.NodeInfo.Architecture
+	msg.Status.OsImage = n.Status.NodeInfo.OSImage
+	msg.Status.KubeProxyVersion = n.Status.NodeInfo.KubeProxyVersion
+	msg.Status.KernelVersion = n.Status.NodeInfo.KernelVersion
 	extractCapacitiesAndAllocatables(n, msg)
 
 	// extract status addresses
-	if n.Status.Addresses != nil && len(n.Status.Addresses) > 0 {
+	if len(n.Status.Addresses) > 0 {
 		msg.Status.NodeAddresses = map[string]string{}
 		for _, address := range n.Status.Addresses {
 			msg.Status.NodeAddresses[string(address.Type)] = address.Address
@@ -228,7 +234,7 @@ func extractNode(n *corev1.Node) *model.Node {
 	}
 
 	// extract conditions
-	if n.Status.Conditions != nil && len(n.Status.Conditions) > 0 {
+	if len(n.Status.Conditions) > 0 {
 		for _, condition := range n.Status.Conditions {
 			msg.Status.Conditions = append(msg.Status.Conditions, &model.NodeCondition{
 				Type:               string(condition.Type),
@@ -257,16 +263,6 @@ func extractNode(n *corev1.Node) *model.Node {
 	}
 
 	return msg
-}
-
-func extractNodeInfo(n *corev1.Node, message *model.Node) {
-	message.Status.KubeletVersion = n.Status.NodeInfo.KubeletVersion
-	message.Status.ContainerRuntimeVersion = n.Status.NodeInfo.ContainerRuntimeVersion
-	message.Status.OperatingSystem = n.Status.NodeInfo.OperatingSystem
-	message.Status.Architecture = n.Status.NodeInfo.Architecture
-	message.Status.OsImage = n.Status.NodeInfo.OSImage
-	message.Status.KubeProxyVersion = n.Status.NodeInfo.KubeProxyVersion
-	message.Status.KernelVersion = n.Status.NodeInfo.KernelVersion
 }
 
 func extractCapacitiesAndAllocatables(n *corev1.Node, mn *model.Node) {

@@ -245,7 +245,6 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 		}
 
 		nodeModel := extractNode(node)
-
 		// k8s objects only have json "omitempty" annotations
 		// + marshalling is more performant than YAML
 		jsonSvc, err := jsoniter.Marshal(node)
