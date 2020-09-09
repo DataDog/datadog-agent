@@ -65,7 +65,7 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool, fa
 	}
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
-	if err != nil && !(!failOnMissingFile && errors.As(err, &e) && confFilePath == "") {
+	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
 		return warnings, fmt.Errorf("unable to load Datadog config file: %w", err)
 	}
 	return warnings, nil
