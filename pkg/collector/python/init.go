@@ -142,7 +142,7 @@ void initTaggerModule(rtloader_t *rtloader) {
 // containers module
 //
 
-int IsContainerExcluded(char *, char *);
+int IsContainerExcluded(char *, char *, char *);
 
 void initContainersModule(rtloader_t *rtloader) {
 	set_is_excluded_cb(rtloader, IsContainerExcluded);
