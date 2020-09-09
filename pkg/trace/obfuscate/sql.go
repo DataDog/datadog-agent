@@ -172,8 +172,7 @@ func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	if err != nil {
 		return oq, err
 	}
-	cost := len(in) + len(oq.Query) + len(oq.TablesCSV)
-	o.queryCache.Set(in, oq, int64(cost))
+	o.queryCache.Set(in, oq, oq.Cost())
 	return oq, nil
 }
 
@@ -255,6 +254,12 @@ func (f *tableFinderFilter) Reset() {
 type ObfuscatedQuery struct {
 	Query     string // the obfuscated SQL query
 	TablesCSV string // comma-separated list of tables that the query addresses
+}
+
+// Cost returns the number of bytes needed to store all the fields
+// of this ObfuscatedQuery.
+func (oq *ObfuscatedQuery) Cost() int64 {
+	return int64(len(oq.Query) + len(oq.TablesCSV))
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the

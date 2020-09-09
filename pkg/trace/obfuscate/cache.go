@@ -54,18 +54,19 @@ func newMeasuredCache() *measuredCache {
 		return &measuredCache{}
 	}
 	cfg := &ristretto.Config{
-		Metrics: true,
-		// We know that both cache keys and values will have a maximum
-		// length of 5K, so one entry (key + value) will be 10K maximum.
-		// At worst case scenario, a 5M cache should fit at least 500 queries.
-		MaxCost: 5 * 1024 * 1024,
-		// An appromixation worst-case scenario when the cache is filled of small
-		// queries averaged as being of length 19 (SELECT * FROM users), we would
-		// be able to fit 263K of them into 5MB of cost.
-		// We multiply the value by x10 as advised in the ristretto.Config documentation.
-		NumCounters: 3 * 1000 * 1000,
-		// 64 is the recommended default value
-		BufferItems: 64,
+		// We know that the maximum allowed resource length is 5K. This means that
+		// in 5MB we can store a minimum of 1000 queries.
+		MaxCost: 5_000_000,
+
+		// An appromixated worst-case scenario when the cache is filled with small
+		// queries averaged as being of length 11 ("LOCK TABLES"), we would be able
+		// to fit 476K of them into 5MB of cost.
+		//
+		// We average it to 500K and multiply 10x as the documentation recommends.
+		NumCounters: 500_000 * 10,
+
+		BufferItems: 64,   // default recommended value
+		Metrics:     true, // enable hit/miss counters
 	}
 	cache, err := ristretto.NewCache(cfg)
 	if err != nil {
