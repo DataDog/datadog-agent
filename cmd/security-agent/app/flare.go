@@ -80,7 +80,7 @@ func requestFlare(caseID string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("security_agent.cmd_port"))
 
-	logFile := config.Datadog.GetString("log_file")
+	logFile := config.Datadog.GetString("security_agent.log_file")
 
 	// Set session token
 	e = util.SetAuthToken()
