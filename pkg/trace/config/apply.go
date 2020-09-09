@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -207,17 +208,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.max_traces_per_second") {
 		c.MaxTPS = config.Datadog.GetFloat64("apm_config.max_traces_per_second")
 	}
-	if config.Datadog.IsSet("apm_config.ignore_resources") {
-		c.Ignore["resource"] = config.Datadog.GetStringSlice("apm_config.ignore_resources")
+	if k := "apm_config.ignore_resources"; config.Datadog.IsSet(k) {
+		c.Ignore["resource"] = config.Datadog.GetStringSlice(k)
 	}
 	if k := "apm_config.max_payload_size"; config.Datadog.IsSet(k) {
 		c.MaxRequestBytes = config.Datadog.GetInt64(k)
 	}
-
-	if config.Datadog.IsSet("apm_config.replace_tags") {
+	if v := config.Datadog.GetString("apm_config.replace_tags"); v != "" {
 		rt := make([]*ReplaceRule, 0)
-		err := config.Datadog.UnmarshalKey("apm_config.replace_tags", &rt)
-		if err == nil {
+		if err := json.Unmarshal([]byte(v), &rt); err != nil {
+			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', got: %q, error: %v", "apm_config.replace_tags", v, err)
+		} else {
 			err := compileReplaceRules(rt)
 			if err != nil {
 				osutil.Exitf("replace_tags: %s", err)
@@ -281,9 +282,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		}
 	}
 	// undocumeted
-	if config.Datadog.IsSet("apm_config.analyzed_spans") {
-		rateBySpan := make(map[string]float64)
-		if err := config.Datadog.UnmarshalKey("apm_config.analyzed_spans", &rateBySpan); err != nil {
+	if k := "apm_config.analyzed_spans"; config.Datadog.IsSet(k) {
+		rateBySpan, err := parseAnalyzedSpans(config.Datadog.GetString(k))
+		if err != nil {
 			return err
 		}
 		for key, rate := range rateBySpan {
