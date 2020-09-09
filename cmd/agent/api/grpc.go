@@ -14,6 +14,7 @@ import (
 	"context"
 
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
+	"github.com/DataDog/datadog-agent/pkg/flare/remote"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
@@ -37,12 +38,18 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 }
 
 func (s *server) ServiceHeartbeat(ctx context.Context, in *pb.FlareHeartbeatRequest) (*pb.FlareHeartbeatResponse, error) {
+	remote.RegisterSource(in.TracerIdentifier, "APM", in.TracerService, in.TracerEnvironment)
+	flare, err : = remote.flareForId(in.TracerIdentifier)
+	if err != nil {
+		return &pb.FlareHeartbeatResponse{}, err
+	}
+
 	trigger := &pb.FlareHeartbeatResponse_Trigger{
-		FlareIdentifier: 1234,
-		LogLevel:        pb.FlareLogLevel_INFO,
-		DurationSeconds: 60,
+		FlareIdentifier: flare.Id,
+		DurationSeconds: flare.Duration,
 	}
 	return &pb.FlareHeartbeatResponse{Trigger: trigger}, nil
+
 }
 
 func (s *server) FlareLogEvent(ctx context.Context, in *pb.FlareLogRequest) (*pb.FlareLogResponse, error) {

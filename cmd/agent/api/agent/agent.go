@@ -56,7 +56,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
 	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
-	r.HandleFunc("/flare/log/{flare_id}/{tracer_id}/{type}", flareHandler).Methods("POST")
+	r.HandleFunc("/flare/log/{flare_id}/{tracer_id}/{type}", flareLogHandler).Methods("POST")
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
@@ -116,17 +116,14 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(filePath))
 }
 
-func flareHandler(w http.ResponseWriter, r *http.Request) {
+func flareLogHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	flareId := vars["flare_id"]
 	tracerId := vars["tracer_id"]
 	logType := vars["type"]
 	log.Tracef("Logging entry for flare (%v) from tracer: %v", flareId, tracerId)
 
-	// content is simple UTF-8 encoded string
-
-	r.ParseForm() //nolint:errcheck
-	value := html.UnescapeString(r.Form.Get("value"))
+	// r.Body content is simple UTF-8 encoded string text/plain; charset=utf-8
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := flare.LogEntry(logType, flareId, tracerId, r.Body); err != nil {

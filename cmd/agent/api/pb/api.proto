@@ -72,6 +72,8 @@ enum FlareLogLevel {
 
 message FlareHeartbeatRequest {
     string tracer_identifier = 1;
+    string tracer_service = 2;
+    string tracer_environment = 3;
 }
 
 message FlareHeartbeatResponse {
