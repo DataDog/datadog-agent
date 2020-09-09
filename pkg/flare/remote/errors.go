@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package flare
+package remote
 
 // InvalidLogType is used to warn about invalid log types
 type InvalidLogType struct {
