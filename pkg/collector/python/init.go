@@ -81,7 +81,7 @@ void GetConfig(char*, char **);
 void GetHostname(char **);
 void GetVersion(char **);
 void Headers(char **);
-void ReadPersistentCache(char *);
+char * ReadPersistentCache(char *);
 void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
