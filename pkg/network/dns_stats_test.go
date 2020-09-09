@@ -16,6 +16,15 @@ const (
 	DNSTimeoutSecs = 10
 )
 
+func getSampleDNSKey() dnsKey {
+	return dnsKey{
+		serverIP:   util.AddressFromString("8.8.8.8"),
+		clientIP:   util.AddressFromString("1.1.1.1"),
+		clientPort: 1000,
+		protocol:   UDP,
+	}
+}
+
 func testLatency(
 	t *testing.T,
 	respType DNSPacketType,
@@ -25,12 +34,7 @@ func testLatency(
 	expectedTimeouts uint32,
 ) {
 	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
-	key := dnsKey{
-		serverIP:   util.AddressFromString("8.8.8.8"),
-		clientIP:   util.AddressFromString("1.1.1.1"),
-		clientPort: 1000,
-		protocol:   UDP,
-	}
+	key := getSampleDNSKey()
 	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key}
 	then := time.Now()
 	sk.ProcessPacketInfo(qPkt, then)
@@ -64,13 +68,35 @@ func TestTimeout(t *testing.T) {
 	testLatency(t, SuccessfulResponse, delta, 0, 0, 1)
 }
 
+func TestExpiredStateRemoval(t *testing.T) {
+	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
+	key := getSampleDNSKey()
+	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key}
+	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: SuccessfulResponse}
+	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key}
+	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key}
+	rPkt3 := dnsPacketInfo{transactionID: 3, key: key, pktType: SuccessfulResponse}
+
+	sk.ProcessPacketInfo(qPkt1, time.Now())
+	sk.ProcessPacketInfo(rPkt1, time.Now())
+
+	sk.ProcessPacketInfo(qPkt2, time.Now())
+	sk.removeExpiredStates(time.Now().Add(DNSTimeoutSecs * time.Second))
+
+	sk.ProcessPacketInfo(qPkt3, time.Now())
+	sk.ProcessPacketInfo(rPkt3, time.Now())
+
+	stats := sk.GetAndResetAllStats()
+	require.Contains(t, stats, key)
+
+	require.Contains(t, stats[key].countByRcode, uint8(0))
+	assert.Equal(t, uint32(2), stats[key].countByRcode[0])
+	assert.Equal(t, uint32(1), stats[key].timeouts)
+}
+
 func BenchmarkStats(b *testing.B) {
-	key := dnsKey{
-		serverIP:   util.AddressFromString("8.8.8.8"),
-		clientIP:   util.AddressFromString("1.1.1.1"),
-		clientPort: 1000,
-		protocol:   UDP,
-	}
+	key := getSampleDNSKey()
+
 	var packets []dnsPacketInfo
 	for j := 0; j < MaxStateMapSize*2; j++ {
 		qPkt := dnsPacketInfo{pktType: Query, key: key}
