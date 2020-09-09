@@ -189,7 +189,7 @@ func (o *Controller) processDeploys() {
 
 	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
-		log.Errorf("Unable to process deployments list: %v", err)
+		log.Errorf("Unable to process deployment list: %v", err)
 		return
 	}
 
@@ -209,7 +209,7 @@ func (o *Controller) processReplicaSets() {
 
 	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
-		log.Errorf("Unable to process replica sets list: %v", err)
+		log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
 
@@ -270,7 +270,7 @@ func (o *Controller) processNodes() {
 
 	messages, err := processNodesList(nodesList, groupID, o.processConfig, o.clusterName, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process nodes list: %s", err)
+		log.Errorf("Unable to process node list: %s", err)
 		return
 	}
 
