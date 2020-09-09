@@ -5,6 +5,7 @@ package ebpf
 import (
 	"expvar"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -34,6 +35,7 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      network.ReverseDNS
+	bufferLock      sync.Mutex
 
 	timerInterval int
 
@@ -115,6 +117,9 @@ func printStats(stats []network.ConnectionStats) {
 
 // GetActiveConnections returns all active connections
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
+	t.bufferLock.Lock()
+	defer t.bufferLock.Unlock()
+
 	connStatsActive, connStatsClosed, err := t.driverInterface.GetConnectionStats()
 	if err != nil {
 		log.Errorf("failed to get connnections")
