@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.0.2
+install_script_version=1.0.3
 logfile="ddagent-install.log"
 
 LEGACY_ETCDIR="/etc/dd-agent"
@@ -240,6 +240,19 @@ or a temporary service interruption.
       fi
     done
 
+    # Add future Datadog gpg key
+    # Do not fail even if we don't retrieve the future key, it shouldn't be blocking (yet).
+    for retries in {0..4}; do
+      $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" D75CEA17048B9ACBF186794B32637D44F14F620E && break
+
+      printf "\033[33m\napt-key failed to retrieve Datadog's public key, retrying in 5 seconds...\n\033[0m\n"
+      sleep 5
+      if [ "$retries" -eq 1 ]; then
+        printf "\033[34mSwitching to backup keyserver\n\033[0m\n"
+        keyserver="${backup_keyserver}"
+      fi
+    done
+
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
 Failed to update the sources after adding the Datadog repository.
@@ -283,17 +296,24 @@ elif [ "$OS" = "SUSE" ]; then
     fi
     $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public "https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
     $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
+
+    $sudo_cmd curl -o /tmp/DATADOG_MASTER_KEY_20200908.public "https://${yum_url}/DATADOG_MASTER_KEY_20200908.public"
+    $sudo_cmd rpm --import /tmp/DATADOG_MASTER_KEY_20200908.public
+    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_20200908.public "https://${yum_url}/DATADOG_RPM_KEY_20200908.public"
+    $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY_20200908.public
   else
     if [ "$agent_major_version" -lt 7 ]; then
       $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY.public"
     fi
     $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+    $sudo_cmd rpm --import "https://${yum_url}/DATADOG_MASTER_KEY_20200908.public"
+    $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY_20200908.public"
   fi
 
   if [ "$agent_major_version" -eq 7 ]; then
-    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public\n       https://${yum_url}/DATADOG_MASTER_KEY_20200908.public       https://${yum_url}/DATADOG_RPM_KEY_20200908.public"
   else
-    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public\n       https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public\n       https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public\n       https://${yum_url}/DATADOG_MASTER_KEY_20200908.public       https://${yum_url}/DATADOG_RPM_KEY_20200908.public"
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
