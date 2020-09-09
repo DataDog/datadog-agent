@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -341,14 +342,10 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
-	t.SkipNow()
 	config := NewDefaultConfig()
 	config.TCPConnTimeout = 100 * time.Millisecond
 	tr, err := NewTracer(config)
-
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	// Create a dummy TCP Server
@@ -361,14 +358,11 @@ func TestTCPRemoveEntries(t *testing.T) {
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Write a message
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
 	defer c.Close()
 
 	// Write a bunch of messages with blocking iptable rule to create retransmits
@@ -385,14 +379,11 @@ func TestTCPRemoveEntries(t *testing.T) {
 
 	// Create a new client
 	c2, err := net.DialTimeout("tcp", server.address, 1*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Send a messages
-	if _, err = c2.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c2.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
 	defer c2.Close()
 
 	// Retrieve the list of connections
@@ -402,13 +393,23 @@ func TestTCPRemoveEntries(t *testing.T) {
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.False(t, ok)
 
-	// Assert the TCP map is empty because of the clean up
-	key, nextKey := &ConnTuple{}, &ConnTuple{}
+	// Assert the TCP map does not contain first connection because of the clean up
 	tcpMp, err := tr.getMap(bytecode.TcpStatsMap)
-	assert.Nil(t, err)
-	// This should return false and an error
-	err = tcpMp.NextKey(unsafe.Pointer(key), unsafe.Pointer(nextKey))
-	assert.EqualError(t, err, ebpf.ErrKeyNotExist.Error())
+	require.NoError(t, err)
+
+	key, err := connTupleFromConn(c, 0)
+	require.NoError(t, err)
+	stats := new(TCPStats)
+	err = tcpMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
+	if !assert.True(t, errors.Is(err, ebpf.ErrKeyNotExist)) {
+		t.Logf("tcp_stats map entries:\n")
+		ek := &ConnTuple{}
+		sv := new(TCPStats)
+		entries := tcpMp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
+		for entries.Next(unsafe.Pointer(ek), unsafe.Pointer(sv)) {
+			t.Logf("%s => %+v\n", ek, sv)
+		}
+	}
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
 	require.True(t, ok)
