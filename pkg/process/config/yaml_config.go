@@ -172,6 +172,19 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Windows.DriverBufferSize = driverBufferSize
 	}
 
+	if config.Datadog.IsSet(key(spNS, "network_config")) {
+		// System probe can be run without the network module as determined on the network_config.enabled value
+		a.EnableNetwork = config.Datadog.GetBool(key(spNS, "network_config.enabled"))
+	} else {
+		// If there is no network_config, assume it is an old version of the config, and enable
+		// the network check.  The network check won't be run if sysprobe isn't enabled so
+		// there's no need to check EnableSystemProbe here.
+		a.EnableNetwork = true
+	}
+	if a.EnableNetwork {
+		a.EnabledChecks = append(a.EnabledChecks, "Network")
+	}
+
 	return nil
 }
 

@@ -102,6 +102,7 @@ type AgentConfig struct {
 	MaxConnectionsStateBuffered    int
 	OffsetGuessThreshold           uint64
 	EnableTracepoints              bool
+	EnableNetwork                  bool
 
 	// DNS stats configuration
 	CollectDNSStats bool
@@ -224,6 +225,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		OffsetGuessThreshold:  400,
 		EnableTracepoints:     false,
 		CollectDNSStats:       true,
+		EnableNetwork:         false,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -481,6 +483,7 @@ func loadEnvVariables() {
 func loadSysProbeEnvVariables() {
 	for _, variable := range []struct{ env, cfg string }{
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
+		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "system_probe_config.network_config.enabled"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},

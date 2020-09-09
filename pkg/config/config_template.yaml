@@ -959,6 +959,20 @@ api_key:
     #
     #  enabled: false
 {{ end -}}
+
+{{- if .NetworkModule }}
+
+#########################################
+## System Probe Network  Configuration ##
+#########################################
+
+# network_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Network Module of the System Probe
+  #
+  # enabled: false
+
+{{ end -}}
 {{ end -}}
 {{- if .Dogstatsd }}
 
