@@ -73,7 +73,27 @@ typedef enum _uninstall_type {
 
 UINT doUninstallAs(UNINSTALL_TYPE t);
 
-inline std::string GetLastErrorStr()
+// see https://stackoverflow.com/a/45565001/425565
+// Template ErrType can be HRESULT (long) or DWORD (unsigned long)
+template <class ErrType>
+std::string GetErrorMessageStr(ErrType errCode)
 {
-    return std::system_category().message(GetLastError());
+    const int buffsize = 4096;
+    char buffer[buffsize];
+    const DWORD len =
+        FormatMessageA(
+            FORMAT_MESSAGE_FROM_SYSTEM
+            | FORMAT_MESSAGE_IGNORE_INSERTS
+            | FORMAT_MESSAGE_MAX_WIDTH_MASK,
+            nullptr, // (not used with FORMAT_MESSAGE_FROM_SYSTEM)
+            errCode,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            &buffer[0],
+            buffsize,
+            nullptr);
+    if (len > 0)
+    {
+        return std::string(buffer, len);
+    }
+    return "Failed to retrieve error message string.";
 }

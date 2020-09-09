@@ -215,7 +215,16 @@ UINT doFinalizeInstall(CustomActionData &data)
         std::wstring embedded = installdir + L"\\embedded";
         std::wstring bindir = installdir + L"\\bin";
         BOOL bRet = CreateSymbolicLink(embedded.c_str(), bindir.c_str(), SYMBOLIC_LINK_FLAG_DIRECTORY);
-        WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink %d %d (%S)", bRet, GetLastError(), GetLastErrorStr().c_str());
+        if (!bRet)
+        {
+            DWORD lastErr = GetLastError();
+            std::string lastErrStr = GetErrorMessageStr(lastErr);
+            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %s (%d)", lastErrStr.c_str(), lastErr);
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink");
+        }
     }
 LExit:
     if (sid) {
