@@ -132,7 +132,7 @@ void initUtilModule(rtloader_t *rtloader) {
 // tagger module
 //
 
-char **Tags(char **, int);
+char **Tags(char *, int);
 
 void initTaggerModule(rtloader_t *rtloader) {
 	set_tags_cb(rtloader, Tags);
