@@ -84,6 +84,12 @@ struct syscall_cache_t {
             struct path_key_t target_key;
             int src_overlay_numlower;
         } link;
+
+        struct {
+            struct dentry *dentry;
+            struct path_key_t path_key;
+            char *name;
+        } setxattr;
     };
 };
 

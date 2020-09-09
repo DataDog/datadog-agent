@@ -257,7 +257,6 @@ func (p *Probe) handleEvent(data []byte) {
 			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		event.Open.ResolveInode(p.resolvers)
 	case FileMkdirEventType:
 		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, len(data))
@@ -317,6 +316,16 @@ func (p *Probe) handleEvent(data []byte) {
 		// Delete new mount point from cache
 		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
+		}
+	case FileSetXAttrEventType:
+		if _, err := event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileRemoveXAttrEventType:
+		if _, err := event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)

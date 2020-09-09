@@ -47,6 +47,8 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 	"link.source.filename": dentryInvalidDiscarder,
 	"link.target.filename": dentryInvalidDiscarder,
 	"process.filename":     dentryInvalidDiscarder,
+	"setxattr.filename":    dentryInvalidDiscarder,
+	"removexattr.filename": dentryInvalidDiscarder,
 }
 
 // ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
@@ -285,12 +287,73 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 8, nil
 }
 
+// SetXAttrEvent represents an extended attributes event
+type SetXAttrEvent struct {
+	BaseEvent
+	FileEvent
+	Namespace string `field:"namespace" handler:"GetNamespace,string"`
+	Name      string `field:"name" handler:"GetName,string"`
+
+	NameRaw [200]byte
+}
+
+func (e *SetXAttrEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
+	fmt.Fprintf(&buf, `"attribute_name":"%s",`, e.GetName(resolvers))
+	fmt.Fprintf(&buf, `"attribute_namespace":"%s"`, e.GetNamespace(resolvers))
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 200 {
+		return n, ErrNotEnoughData
+	}
+	if err := binary.Read(bytes.NewBuffer(data[0:200]), byteOrder, &e.NameRaw); err != nil {
+		return 0, err
+	}
+	return n + 200, nil
+}
+
+// GetName returns the string representation of the extended attribute name
+func (e *SetXAttrEvent) GetName(resolvers *Resolvers) string {
+	if len(e.Name) == 0 {
+		e.Name = string(bytes.Trim(e.NameRaw[:], "\x00"))
+	}
+	return e.Name
+}
+
+// GetNamespace returns the string representation of the extended attribute namespace
+func (e *SetXAttrEvent) GetNamespace(resolvers *Resolvers) string {
+	if len(e.Namespace) == 0 {
+		fragments := strings.Split(e.GetName(resolvers), ".")
+		if len(fragments) > 0 {
+			e.Namespace = fragments[0]
+		}
+	}
+	return e.Namespace
+}
+
 // OpenEvent represents an open event
 type OpenEvent struct {
 	BaseEvent
 	FileEvent
-	Flags uint32 `yaml:"flags" field:"flags"`
-	Mode  uint32 `yaml:"mode" field:"mode"`
+	Flags uint32 `field:"flags"`
+	Mode  uint32 `field:"mode"`
 }
 
 func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -486,6 +549,7 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // MountEvent represents a mount event
 type MountEvent struct {
+	BaseEvent
 	NewMountID    uint32
 	NewGroupID    uint32
 	NewDevice     uint32
@@ -520,6 +584,12 @@ func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.BaseEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
 	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
@@ -565,6 +635,7 @@ func (e *MountEvent) GetFSType() string {
 
 // UmountEvent represents an umount event
 type UmountEvent struct {
+	BaseEvent
 	MountID uint32
 }
 
@@ -579,6 +650,12 @@ func (e *UmountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.BaseEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
 	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
@@ -740,19 +817,21 @@ type Event struct {
 	ID   string `field:"-"`
 	Type uint64 `field:"-"`
 
-	Process   ProcessEvent   `yaml:"process" field:"process" event:"*"`
-	Container ContainerEvent `yaml:"container" field:"container"`
-	Chmod     ChmodEvent     `yaml:"chmod" field:"chmod" event:"chmod"`
-	Chown     ChownEvent     `yaml:"chown" field:"chown" event:"chown"`
-	Open      OpenEvent      `yaml:"open" field:"open" event:"open"`
-	Mkdir     MkdirEvent     `yaml:"mkdir" field:"mkdir" event:"mkdir"`
-	Rmdir     RmdirEvent     `yaml:"rmdir" field:"rmdir" event:"rmdir"`
-	Rename    RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
-	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
-	Utimes    UtimesEvent    `yaml:"utimes" field:"utimes" event:"utimes"`
-	Link      LinkEvent      `yaml:"link" field:"link" event:"link"`
-	Mount     MountEvent     `yaml:"mount" field:"-"`
-	Umount    UmountEvent    `yaml:"umount" field:"-"`
+	Process     ProcessEvent   `yaml:"process" field:"process" event:"*"`
+	Container   ContainerEvent `yaml:"container" field:"container"`
+	Chmod       ChmodEvent     `yaml:"chmod" field:"chmod" event:"chmod"`
+	Chown       ChownEvent     `yaml:"chown" field:"chown" event:"chown"`
+	Open        OpenEvent      `yaml:"open" field:"open" event:"open"`
+	Mkdir       MkdirEvent     `yaml:"mkdir" field:"mkdir" event:"mkdir"`
+	Rmdir       RmdirEvent     `yaml:"rmdir" field:"rmdir" event:"rmdir"`
+	Rename      RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
+	Unlink      UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
+	Utimes      UtimesEvent    `yaml:"utimes" field:"utimes" event:"utimes"`
+	Link        LinkEvent      `yaml:"link" field:"link" event:"link"`
+	SetXAttr    SetXAttrEvent  `yaml:"setxattr" field:"setxattr" event:"setxattr"`
+	RemoveXAttr SetXAttrEvent  `yaml:"removexattr" field:"removexattr" event:"removexattr"`
+	Mount       MountEvent     `yaml:"mount" field:"-"`
+	Umount      UmountEvent    `yaml:"umount" field:"-"`
 
 	resolvers *Resolvers `field:"-"`
 }
@@ -902,14 +981,42 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	case FileMountEventType:
 		entries = append(entries,
 			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Mount.BaseEvent),
+			},
+			eventMarshaler{
 				field:      "mount",
 				marshalFnc: e.Mount.marshalJSON,
 			})
 	case FileUmountEventType:
 		entries = append(entries,
 			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Umount.BaseEvent),
+			},
+			eventMarshaler{
 				field:      "umount",
 				marshalFnc: e.Umount.marshalJSON,
+			})
+	case FileSetXAttrEventType:
+		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.SetXAttr.BaseEvent),
+			},
+			eventMarshaler{
+				field:      "file",
+				marshalFnc: e.SetXAttr.marshalJSON,
+			})
+	case FileRemoveXAttrEventType:
+		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.RemoveXAttr.BaseEvent),
+			},
+			eventMarshaler{
+				field:      "file",
+				marshalFnc: e.RemoveXAttr.marshalJSON,
 			})
 	}
 

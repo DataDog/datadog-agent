@@ -138,7 +138,9 @@ def build(
 
 
 @task
-def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7'):
+def build_in_docker(
+    ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7', bundle_ebpf=False
+):
     """
     Build the system_probe using a container
     This can be used when the current OS don't have up to date linux headers
@@ -162,6 +164,8 @@ def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_bui
         cmd += " --race"
     if incremental_build:
         cmd += " --incremental-build"
+    if bundle_ebpf:
+        cmd += " --bundle-ebpf"
 
     ctx.run(docker_cmd.format(cwd=os.getcwd(), builder=EBPF_BUILDER_IMAGE, cmd=cmd))
 
