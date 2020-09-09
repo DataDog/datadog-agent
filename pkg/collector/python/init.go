@@ -152,7 +152,7 @@ void initContainersModule(rtloader_t *rtloader) {
 // kubeutil module
 //
 
-void GetKubeletConnectionInfo(char *);
+void GetKubeletConnectionInfo(char **);
 
 void initkubeutilModule(rtloader_t *rtloader) {
 	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
