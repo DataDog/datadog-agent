@@ -17,6 +17,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const (
+	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+	kernel4_13 = (4 << 16) + (13 << 8) //nolint:deadcode,unused
+)
+
 // EventType describes the type of an event sent from the kernel
 type EventType uint64
 

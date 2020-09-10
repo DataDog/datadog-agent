@@ -275,6 +275,7 @@ func newFSDevice() *FSDevice {
 
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
+	probe   *Probe
 	lock    sync.RWMutex
 	devices map[uint32]*FSDevice
 	mounts  map[uint32]*Mount
@@ -391,8 +392,9 @@ func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, s
 }
 
 // NewMountResolver instantiates a new mount resolver
-func NewMountResolver() *MountResolver {
+func NewMountResolver(probe *Probe) *MountResolver {
 	return &MountResolver{
+		probe:   probe,
 		lock:    sync.RWMutex{},
 		devices: make(map[uint32]*FSDevice),
 		mounts:  make(map[uint32]*Mount),
