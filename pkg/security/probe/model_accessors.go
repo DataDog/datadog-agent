@@ -411,7 +411,7 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).Process.ResolveInode((*Event)(ctx.Object).resolvers)
+				return (*Event)(ctx.Object).Process.ResolveProcessPid((*Event)(ctx.Object).resolvers)
 			},
 
 			Field: field,
@@ -1117,7 +1117,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.filename":
 
-		return e.Process.ResolveInode(e.resolvers), nil
+		return e.Process.ResolveProcessPid(e.resolvers), nil
 
 	case "process.gid":
 

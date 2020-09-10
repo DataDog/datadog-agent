@@ -851,12 +851,16 @@ type ProcessEvent struct {
 }
 
 func (p *ProcessEvent) ResolveProcessPid(resolvers *Resolvers) string {
-	entry := resolvers.ProcessResolver.Resolve(p.Pid)
-	if entry == nil {
-		return ""
+	if p.PathnameStr == "" {
+		entry := resolvers.ProcessResolver.Resolve(p.Pid)
+		if entry == nil {
+			return ""
+		}
+
+		p.PathnameStr = entry.Filename
 	}
 
-	return entry.Filename
+	return p.PathnameStr
 }
 
 func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -988,7 +992,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"id":"%s",`, eventID)
+	fmt.Fprintf(&buf, `"id":"%s"`, eventID)
 
 	var entries []eventMarshaler
 
@@ -1187,21 +1191,17 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			})
 	}
 
-	var prev bool
 	for _, entry := range entries {
 		d, err := entry.marshalFnc(e.resolvers)
 		if err != nil {
 			return nil, errors.Wrapf(err, "in %s", entry.field)
 		}
 		if d != nil {
-			if prev {
-				buf.WriteRune(',')
-			}
+			buf.WriteRune(',')
 			if entry.field != "" {
 				buf.WriteString(`"` + entry.field + `":`)
 			}
 			buf.Write(d)
-			prev = true
 		}
 	}
 	buf.WriteRune('}')
