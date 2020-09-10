@@ -5,6 +5,7 @@ package ebpf
 import (
 	"expvar"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -34,6 +35,10 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      network.ReverseDNS
+	bufferLock      sync.Mutex
+
+	connStatsActive []network.ConnectionStats
+	connStatsClosed []network.ConnectionStats
 
 	timerInterval int
 
@@ -62,6 +67,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		timerInterval:   defaultPollInterval,
 		state:           state,
 		reverseDNS:      network.NewNullReverseDNS(),
+		connStatsActive: make([]network.ConnectionStats, 512),
+		connStatsClosed: make([]network.ConnectionStats, 512),
 	}
 
 	go tr.expvarStats(tr.stopChan)
@@ -115,20 +122,39 @@ func printStats(stats []network.ConnectionStats) {
 
 // GetActiveConnections returns all active connections
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
-	connStatsActive, connStatsClosed, err := t.driverInterface.GetConnectionStats()
+	t.bufferLock.Lock()
+	defer t.bufferLock.Unlock()
+
+	activeConnStats, closedConnStats, err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0])
 	if err != nil {
 		log.Errorf("failed to get connnections")
 		return nil, err
 	}
 
-	for _, connStat := range connStatsClosed {
+	for _, connStat := range closedConnStats {
 		t.state.StoreClosedConnection(connStat)
 	}
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
-	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), connStatsActive, t.reverseDNS.GetDNSStats())
+	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
+	t.checkBufferResize(len(activeConnStats), len(closedConnStats))
 	return &network.Connections{Conns: conns}, nil
+}
+
+func (t *Tracer) checkBufferResize(activeConnSize int, closedConnSize int) {
+	// Grow or shrink buffer depending on the usage
+	if activeConnSize >= cap(t.connStatsActive)*2 {
+		t.connStatsActive = make([]network.ConnectionStats, 0, cap(t.connStatsActive)*2)
+	} else if activeConnSize <= cap(t.connStatsActive)/2 {
+		t.connStatsActive = make([]network.ConnectionStats, 0, cap(t.connStatsActive)/2)
+	}
+
+	if closedConnSize >= cap(t.connStatsClosed)*2 {
+		t.connStatsClosed = make([]network.ConnectionStats, 0, cap(t.connStatsClosed)*2)
+	} else if closedConnSize <= cap(t.connStatsClosed)/2 {
+		t.connStatsClosed = make([]network.ConnectionStats, 0, cap(t.connStatsClosed)/2)
+	}
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
