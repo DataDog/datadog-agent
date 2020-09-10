@@ -257,8 +257,13 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 		nodeModel.Yaml = jsonNode
 
 		// additional tags
-		tags := fmt.Sprintf("node_status:%s", strings.ToLower(nodeModel.Status.Status))
-		nodeModel.Tags = []string{tags}
+		for _, tag := range convertNodeStatusToTags(nodeModel.Status.Status) {
+			nodeModel.Tags = append(nodeModel.Tags, tag)
+		}
+
+		for _, role := range nodeModel.Roles {
+			nodeModel.Tags = append(nodeModel.Tags, fmt.Sprintf("node_role:%s", strings.ToLower(role)))
+		}
 
 		nodeMsgs = append(nodeMsgs, nodeModel)
 	}
@@ -283,6 +288,17 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 
 	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Now().Sub(start))
 	return messages, nil
+}
+
+func convertNodeStatusToTags(nodeStatus string) []string {
+	var tags []string
+	for _, status := range strings.Split(nodeStatus, ",") {
+		if status == "" {
+			continue
+		}
+		tags = append(tags, fmt.Sprintf("node_status:%s", strings.ToLower(status)))
+	}
+	return tags
 }
 
 // chunkNodes chunks the given list of nodes, honoring the given chunk count and size.
