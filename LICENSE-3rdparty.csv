@@ -1097,3 +1097,6 @@ core,"google.golang.org/appengine/datastore/internal/cloudkey",Apache-2.0
 core,"google.golang.org/appengine/datastore/internal/cloudpb",Apache-2.0
 core,"google.golang.org/appengine/internal/app_identity",Apache-2.0
 core,"google.golang.org/appengine/internal/modules",Apache-2.0
+core,"github.com/cespare/xxhash",MIT
+core,"github.com/dgraph-io/ristretto",Apache-2.0
+core,"github.com/dgraph-io/ristretto/z",Apache-2.0
