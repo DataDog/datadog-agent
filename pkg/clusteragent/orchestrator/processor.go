@@ -8,6 +8,8 @@
 package orchestrator
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -247,12 +249,16 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 		nodeModel := extractNode(node)
 		// k8s objects only have json "omitempty" annotations
 		// + marshalling is more performant than YAML
-		jsonSvc, err := jsoniter.Marshal(node)
+		jsonNode, err := jsoniter.Marshal(node)
 		if err != nil {
 			log.Debugf("Could not marshal service to JSON: %s", err)
 			continue
 		}
-		nodeModel.Yaml = jsonSvc
+		nodeModel.Yaml = jsonNode
+
+		// additional tags
+		tags := fmt.Sprintf("node_status:%s", strings.ToLower(nodeModel.Status.Status))
+		nodeModel.Tags = []string{tags}
 
 		nodeMsgs = append(nodeMsgs, nodeModel)
 	}

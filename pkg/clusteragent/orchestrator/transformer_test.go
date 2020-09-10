@@ -756,6 +756,7 @@ func TestExtractNode(t *testing.T) {
 			}, expected: model.Node{
 				Metadata: &model.Metadata{},
 				Status: &model.NodeStatus{
+					Status: "Unknown",
 					Capacity: map[string]int64{
 						"pods": 100,
 						"cpu":  10000,
@@ -799,7 +800,7 @@ func TestExtractNode(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.ObjectsAreEqualValues(&tc.expected, extractNode(&tc.input))
+			assert.Equal(t, &tc.expected, extractNode(&tc.input))
 		})
 	}
 }

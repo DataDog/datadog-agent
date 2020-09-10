@@ -236,13 +236,16 @@ func extractNode(n *corev1.Node) *model.Node {
 	// extract conditions
 	if len(n.Status.Conditions) > 0 {
 		for _, condition := range n.Status.Conditions {
-			msg.Status.Conditions = append(msg.Status.Conditions, &model.NodeCondition{
-				Type:               string(condition.Type),
-				Status:             string(condition.Status),
-				LastTransitionTime: condition.LastTransitionTime.Unix(),
-				Reason:             condition.Reason,
-				Message:            condition.Message,
-			})
+			c := &model.NodeCondition{
+				Type:    string(condition.Type),
+				Status:  string(condition.Status),
+				Reason:  condition.Reason,
+				Message: condition.Message,
+			}
+			if !condition.LastTransitionTime.IsZero() {
+				c.LastTransitionTime = condition.LastTransitionTime.Unix()
+			}
+			msg.Status.Conditions = append(msg.Status.Conditions, c)
 		}
 	}
 
@@ -304,10 +307,10 @@ func extractTaints(taints []corev1.Taint) []*model.Taint {
 			Value:  taint.Value,
 			Effect: string(taint.Effect),
 		}
-		if taint.TimeAdded != nil {
+		if taint.TimeAdded != nil && !taint.TimeAdded.IsZero() {
 			modelTaint.TimeAdded = taint.TimeAdded.Unix()
 		}
-		modelTaints = append(modelTaints)
+		modelTaints = append(modelTaints, modelTaint)
 	}
 	return modelTaints
 }
