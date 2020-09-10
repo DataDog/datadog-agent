@@ -462,17 +462,12 @@ func (r *HTTPReceiver) loop() {
 			// Publish the stats accumulated during the last flush
 			r.Stats.Publish()
 
-			// We reset the stats accumulated during the last 10s.
-			r.Stats.Reset()
-
 			if now.Sub(lastLog) >= time.Minute {
 				// We expose the stats accumulated to expvar
 				info.UpdateReceiverStats(accStats)
 
 				accStats.LogStats()
 
-				// We reset the stats accumulated during the last minute
-				accStats.Reset()
 				lastLog = now
 
 				// Also publish rates by service (they are updated by receiver)

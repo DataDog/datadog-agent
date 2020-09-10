@@ -52,11 +52,12 @@ func (rs *ReceiverStats) Acc(recent *ReceiverStats) {
 
 // Publish updates stats about per-tag stats
 func (rs *ReceiverStats) Publish() {
-	rs.RLock()
-	for _, tagStats := range rs.Stats {
-		tagStats.publish()
+	rs.Lock()
+	for k, ts := range rs.Stats {
+		ts.publish()
+		delete(rs.Stats, k)
 	}
-	rs.RUnlock()
+	rs.Unlock()
 }
 
 // Languages returns the set of languages reporting traces to the Agent.
@@ -78,20 +79,6 @@ func (rs *ReceiverStats) Languages() []string {
 	return langs
 }
 
-// Reset resets the ReceiverStats internal data
-func (rs *ReceiverStats) Reset() {
-	rs.Lock()
-	for key, tagStats := range rs.Stats {
-		// If a tagStats was empty, let's drop it.
-		// That's a way to avoid over-time leaks.
-		if tagStats.isEmpty() {
-			delete(rs.Stats, key)
-		}
-		tagStats.reset()
-	}
-	rs.Unlock()
-}
-
 // LogStats logs one-line summaries of ReceiverStats. Problematic stats are logged as warnings.
 func (rs *ReceiverStats) LogStats() {
 	rs.RLock()
@@ -102,7 +89,7 @@ func (rs *ReceiverStats) LogStats() {
 		return
 	}
 
-	for _, ts := range rs.Stats {
+	for k, ts := range rs.Stats {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
 			log.Infof("%v -> %s", tags, ts.infoString())
@@ -111,6 +98,7 @@ func (rs *ReceiverStats) LogStats() {
 				log.Warnf("%v -> %s. Enable debug logging for more details.", tags, warnString)
 			}
 		}
+		delete(rs.Stats, k)
 	}
 }
 
@@ -125,48 +113,48 @@ func newTagStats(tags Tags) *TagStats {
 }
 
 func (ts *TagStats) publish() {
-	// Atomically load the stats from ts
-	tracesReceived := atomic.LoadInt64(&ts.TracesReceived)
-	tracesFiltered := atomic.LoadInt64(&ts.TracesFiltered)
-	tracesPriorityNone := atomic.LoadInt64(&ts.TracesPriorityNone)
-	tracesPriorityNeg := atomic.LoadInt64(&ts.TracesPriorityNeg)
-	tracesPriority0 := atomic.LoadInt64(&ts.TracesPriority0)
-	tracesPriority1 := atomic.LoadInt64(&ts.TracesPriority1)
-	tracesPriority2 := atomic.LoadInt64(&ts.TracesPriority2)
-	tracesBytes := atomic.LoadInt64(&ts.TracesBytes)
-	spansReceived := atomic.LoadInt64(&ts.SpansReceived)
-	spansDropped := atomic.LoadInt64(&ts.SpansDropped)
-	spansFiltered := atomic.LoadInt64(&ts.SpansFiltered)
-	eventsExtracted := atomic.LoadInt64(&ts.EventsExtracted)
-	eventsSampled := atomic.LoadInt64(&ts.EventsSampled)
-	requestsMade := atomic.LoadInt64(&ts.PayloadAccepted)
-	requestsRejected := atomic.LoadInt64(&ts.PayloadRefused)
-
-	// Publish the stats
 	tags := ts.Tags.toArray()
 
-	metrics.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_filtered", tracesFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNone, append(tags, "priority:none"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNeg, append(tags, "priority:neg"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority0, append(tags, "priority:0"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority1, append(tags, "priority:1"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority2, append(tags, "priority:2"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_bytes", tracesBytes, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_received", spansReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_dropped", spansDropped, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_filtered", spansFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_refused", requestsRejected, tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.trace",
+		atomic.SwapInt64(&ts.TracesReceived, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_received",
+		atomic.SwapInt64(&ts.TracesReceived, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_filtered",
+		atomic.SwapInt64(&ts.TracesFiltered, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_priority",
+		atomic.SwapInt64(&ts.TracesPriorityNone, 0), append(tags, "priority:none"), 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_priority",
+		atomic.SwapInt64(&ts.TracesPriorityNeg, 0), append(tags, "priority:neg"), 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_priority",
+		atomic.SwapInt64(&ts.TracesPriority0, 0), append(tags, "priority:0"), 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_priority",
+		atomic.SwapInt64(&ts.TracesPriority1, 0), append(tags, "priority:1"), 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_priority",
+		atomic.SwapInt64(&ts.TracesPriority2, 0), append(tags, "priority:2"), 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_bytes",
+		atomic.SwapInt64(&ts.TracesBytes, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_received",
+		atomic.SwapInt64(&ts.SpansReceived, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_dropped",
+		atomic.SwapInt64(&ts.SpansDropped, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_filtered",
+		atomic.SwapInt64(&ts.SpansFiltered, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.events_extracted",
+		atomic.SwapInt64(&ts.EventsExtracted, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.events_sampled",
+		atomic.SwapInt64(&ts.EventsSampled, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.payload_accepted",
+		atomic.SwapInt64(&ts.PayloadAccepted, 0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.payload_refused",
+		atomic.SwapInt64(&ts.PayloadRefused, 0), tags, 1)
 
-	for reason, count := range ts.TracesDropped.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
+	for reason, counter := range ts.TracesDropped.tagCounters() {
+		metrics.Count("datadog.trace_agent.normalizer.traces_dropped",
+			atomic.SwapInt64(counter, 0), append(tags, "reason:"+reason), 1)
 	}
-	for reason, count := range ts.SpansMalformed.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+reason), 1)
+	for reason, counter := range ts.SpansMalformed.tagCounters() {
+		metrics.Count("datadog.trace_agent.normalizer.spans_malformed",
+			atomic.SwapInt64(counter, 0), append(tags, "reason:"+reason), 1)
 	}
 }
 
@@ -211,18 +199,26 @@ type TracesDropped struct {
 	EOF int64
 }
 
+func (s *TracesDropped) tagCounters() map[string]*int64 {
+	return map[string]*int64{
+		"payload_too_large": &s.PayloadTooLarge,
+		"decoding_error":    &s.DecodingError,
+		"empty_trace":       &s.EmptyTrace,
+		"trace_id_zero":     &s.TraceIDZero,
+		"span_id_zero":      &s.SpanIDZero,
+		"foreign_span":      &s.ForeignSpan,
+		"timeout":           &s.Timeout,
+		"unexpected_eof":    &s.EOF,
+	}
+}
+
 // tagValues converts TracesDropped into a map representation with keys matching standardized names for all reasons
 func (s *TracesDropped) tagValues() map[string]int64 {
-	return map[string]int64{
-		"payload_too_large": atomic.LoadInt64(&s.PayloadTooLarge),
-		"decoding_error":    atomic.LoadInt64(&s.DecodingError),
-		"empty_trace":       atomic.LoadInt64(&s.EmptyTrace),
-		"trace_id_zero":     atomic.LoadInt64(&s.TraceIDZero),
-		"span_id_zero":      atomic.LoadInt64(&s.SpanIDZero),
-		"foreign_span":      atomic.LoadInt64(&s.ForeignSpan),
-		"timeout":           atomic.LoadInt64(&s.Timeout),
-		"unexpected_eof":    atomic.LoadInt64(&s.EOF),
+	v := make(map[string]int64)
+	for tag, counter := range s.tagCounters() {
+		v[tag] = atomic.LoadInt64(counter)
 	}
+	return v
 }
 
 func (s *TracesDropped) String() string {
@@ -259,19 +255,27 @@ type SpansMalformed struct {
 
 // tagValues converts SpansMalformed into a map representation with keys matching standardized names for all reasons
 func (s *SpansMalformed) tagValues() map[string]int64 {
-	return map[string]int64{
-		"duplicate_span_id":        atomic.LoadInt64(&s.DuplicateSpanID),
-		"service_empty":            atomic.LoadInt64(&s.ServiceEmpty),
-		"service_truncate":         atomic.LoadInt64(&s.ServiceTruncate),
-		"service_invalid":          atomic.LoadInt64(&s.ServiceInvalid),
-		"span_name_empty":          atomic.LoadInt64(&s.SpanNameEmpty),
-		"span_name_truncate":       atomic.LoadInt64(&s.SpanNameTruncate),
-		"span_name_invalid":        atomic.LoadInt64(&s.SpanNameInvalid),
-		"resource_empty":           atomic.LoadInt64(&s.ResourceEmpty),
-		"type_truncate":            atomic.LoadInt64(&s.TypeTruncate),
-		"invalid_start_date":       atomic.LoadInt64(&s.InvalidStartDate),
-		"invalid_duration":         atomic.LoadInt64(&s.InvalidDuration),
-		"invalid_http_status_code": atomic.LoadInt64(&s.InvalidHTTPStatusCode),
+	v := make(map[string]int64)
+	for reason, counter := range s.tagCounters() {
+		v[reason] = atomic.LoadInt64(counter)
+	}
+	return v
+}
+
+func (s *SpansMalformed) tagCounters() map[string]*int64 {
+	return map[string]*int64{
+		"duplicate_span_id":        &s.DuplicateSpanID,
+		"service_empty":            &s.ServiceEmpty,
+		"service_truncate":         &s.ServiceTruncate,
+		"service_invalid":          &s.ServiceInvalid,
+		"span_name_empty":          &s.SpanNameEmpty,
+		"span_name_truncate":       &s.SpanNameTruncate,
+		"span_name_invalid":        &s.SpanNameInvalid,
+		"resource_empty":           &s.ResourceEmpty,
+		"type_truncate":            &s.TypeTruncate,
+		"invalid_start_date":       &s.InvalidStartDate,
+		"invalid_duration":         &s.InvalidDuration,
+		"invalid_http_status_code": &s.InvalidHTTPStatusCode,
 	}
 }
 
@@ -355,48 +359,8 @@ func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.PayloadRefused, atomic.LoadInt64(&recent.PayloadRefused))
 }
 
-func (s *Stats) reset() {
-	atomic.StoreInt64(&s.TracesReceived, 0)
-	atomic.StoreInt64(&s.TracesDropped.PayloadTooLarge, 0)
-	atomic.StoreInt64(&s.TracesDropped.DecodingError, 0)
-	atomic.StoreInt64(&s.TracesDropped.EmptyTrace, 0)
-	atomic.StoreInt64(&s.TracesDropped.TraceIDZero, 0)
-	atomic.StoreInt64(&s.TracesDropped.SpanIDZero, 0)
-	atomic.StoreInt64(&s.TracesDropped.ForeignSpan, 0)
-	atomic.StoreInt64(&s.TracesDropped.Timeout, 0)
-	atomic.StoreInt64(&s.TracesDropped.EOF, 0)
-	atomic.StoreInt64(&s.SpansMalformed.DuplicateSpanID, 0)
-	atomic.StoreInt64(&s.SpansMalformed.ServiceEmpty, 0)
-	atomic.StoreInt64(&s.SpansMalformed.ServiceTruncate, 0)
-	atomic.StoreInt64(&s.SpansMalformed.ServiceInvalid, 0)
-	atomic.StoreInt64(&s.SpansMalformed.SpanNameEmpty, 0)
-	atomic.StoreInt64(&s.SpansMalformed.SpanNameTruncate, 0)
-	atomic.StoreInt64(&s.SpansMalformed.SpanNameInvalid, 0)
-	atomic.StoreInt64(&s.SpansMalformed.ResourceEmpty, 0)
-	atomic.StoreInt64(&s.SpansMalformed.TypeTruncate, 0)
-	atomic.StoreInt64(&s.SpansMalformed.InvalidStartDate, 0)
-	atomic.StoreInt64(&s.SpansMalformed.InvalidDuration, 0)
-	atomic.StoreInt64(&s.SpansMalformed.InvalidHTTPStatusCode, 0)
-	atomic.StoreInt64(&s.TracesFiltered, 0)
-	atomic.StoreInt64(&s.TracesPriorityNone, 0)
-	atomic.StoreInt64(&s.TracesPriorityNeg, 0)
-	atomic.StoreInt64(&s.TracesPriority0, 0)
-	atomic.StoreInt64(&s.TracesPriority1, 0)
-	atomic.StoreInt64(&s.TracesPriority2, 0)
-	atomic.StoreInt64(&s.TracesBytes, 0)
-	atomic.StoreInt64(&s.SpansReceived, 0)
-	atomic.StoreInt64(&s.SpansDropped, 0)
-	atomic.StoreInt64(&s.SpansFiltered, 0)
-	atomic.StoreInt64(&s.EventsExtracted, 0)
-	atomic.StoreInt64(&s.EventsSampled, 0)
-	atomic.StoreInt64(&s.PayloadAccepted, 0)
-	atomic.StoreInt64(&s.PayloadRefused, 0)
-}
-
 func (s *Stats) isEmpty() bool {
-	tracesBytes := atomic.LoadInt64(&s.TracesBytes)
-
-	return tracesBytes == 0
+	return atomic.LoadInt64(&s.TracesBytes) == 0
 }
 
 // infoString returns a string representation of the Stats struct containing standard operational stats (not problems)
