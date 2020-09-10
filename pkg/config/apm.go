@@ -63,25 +63,24 @@ func setupAPM(config Config) {
 		config.BindEnvAndSetDefault("apm_config.enabled", true, "DD_APM_ENABLED")
 	}
 
-	config.BindEnvAndSetDefault("apm_config.connection_limit", 0, "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
-	config.BindEnvAndSetDefault("apm_config.env", "none", "DD_APM_ENV")
-	config.BindEnvAndSetDefault("apm_config.apm_non_local_traffic", false, "DD_APM_NON_LOCAL_TRAFFIC")
-	config.BindEnvAndSetDefault("apm_config.apm_dd_url", "https://trace.agent.datadoghq.com", "DD_APM_DD_URL")
-	config.BindEnvAndSetDefault("apm_config.connection_reset_interval", 0, "DD_APM_CONNECTION_RESET_INTERVAL")
 	config.BindEnvAndSetDefault("apm_config.receiver_port", 8126, "DD_APM_RECEIVER_PORT", "DD_RECEIVER_PORT")
-	config.BindEnvAndSetDefault("apm_config.max_events_per_second", 200, "DD_APM_MAX_EPS", "DD_MAX_EPS")
-	config.BindEnvAndSetDefault("apm_config.max_traces_per_second", 10, "DD_APM_MAX_TPS", "DD_MAX_TPS")
-	config.BindEnvAndSetDefault("apm_config.max_memory", 5e8, "DD_APM_MAX_MEMORY")
-	config.BindEnvAndSetDefault("apm_config.max_cpu_percent", 50, "DD_APM_MAX_CPU_PERCENT")
-	config.BindEnvAndSetDefault("apm_config.receiver_socket", "", "DD_APM_RECEIVER_SOCKET")
-	config.BindEnvAndSetDefault("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.com/v1/input", "DD_APM_PROFILING_DD_URL")
 
+	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
+	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")
+	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")
+	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")
+	config.BindEnv("apm_config.env", "DD_APM_ENV")
+	config.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")
+	config.BindEnv("apm_config.apm_dd_url", "DD_APM_DD_URL")
+	config.BindEnv("apm_config.connection_limit", "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
+	config.BindEnv("apm_config.connection_reset_interval", "DD_APM_CONNECTION_RESET_INTERVAL")
+	config.BindEnv("apm_config.profiling_dd_url", "DD_APM_PROFILING_DD_URL")
 	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")
-
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
+	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

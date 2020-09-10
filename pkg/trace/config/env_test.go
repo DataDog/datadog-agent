@@ -52,6 +52,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env := "DD_API_KEY"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "123")
 		assert.NoError(err)
@@ -63,6 +64,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_SITE"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "my-site.com")
 		assert.NoError(err)
@@ -74,6 +76,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_ENABLED"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "true")
 		assert.NoError(err)
@@ -85,6 +88,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_DD_URL"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "my-site.com")
 		assert.NoError(err)
@@ -96,6 +100,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "HTTPS_PROXY"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "my-proxy.url")
 		assert.NoError(err)
@@ -107,6 +112,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_PROXY_HTTPS"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "my-proxy.url")
 		assert.NoError(err)
@@ -118,6 +124,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_HOSTNAME"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "local.host")
 		assert.NoError(err)
@@ -129,6 +136,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_BIND_HOST"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "bindhost.com")
 		assert.NoError(err)
@@ -143,6 +151,7 @@ func TestLoadEnv(t *testing.T) {
 		"DD_APM_RECEIVER_PORT",
 	} {
 		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
 			assert := assert.New(t)
 			err := os.Setenv(envKey, "1234")
 			assert.NoError(err)
@@ -155,6 +164,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_DOGSTATSD_PORT"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "4321")
 		assert.NoError(err)
@@ -166,6 +176,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_NON_LOCAL_TRAFFIC"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "true")
 		assert.NoError(err)
@@ -180,6 +191,7 @@ func TestLoadEnv(t *testing.T) {
 		"DD_APM_IGNORE_RESOURCES",
 	} {
 		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
 			assert := assert.New(t)
 			err := os.Setenv(envKey, "1,2,3")
 			assert.NoError(err)
@@ -192,6 +204,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_LOG_LEVEL"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "warn")
 		assert.NoError(err)
@@ -203,6 +216,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_ANALYZED_SPANS"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "web|http.request=1,db|sql.query=0.5")
 		assert.NoError(err)
@@ -217,6 +231,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_REPLACE_TAGS"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, `[{"name":"name1", "pattern":"pattern1"}, {"name":"name2","pattern":"pattern2","repl":"replace2"}]`)
 		assert.NoError(err)
@@ -243,6 +258,7 @@ func TestLoadEnv(t *testing.T) {
 		"DD_APM_CONNECTION_LIMIT",
 	} {
 		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
 			assert := assert.New(t)
 			err := os.Setenv(envKey, "50")
 			assert.NoError(err)
@@ -258,6 +274,7 @@ func TestLoadEnv(t *testing.T) {
 		"DD_APM_MAX_TPS",
 	} {
 		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
 			assert := assert.New(t)
 			err := os.Setenv(envKey, "6")
 			assert.NoError(err)
@@ -273,6 +290,7 @@ func TestLoadEnv(t *testing.T) {
 		"DD_APM_MAX_EPS",
 	} {
 		t.Run(envKey, func(t *testing.T) {
+			defer cleanConfig()()
 			assert := assert.New(t)
 			err := os.Setenv(envKey, "7")
 			assert.NoError(err)
@@ -285,6 +303,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 		assert.NoError(err)
@@ -298,6 +317,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_PROFILING_DD_URL"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, "my-site.com")
 		assert.NoError(err)
@@ -309,6 +329,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
 		assert := assert.New(t)
 		err := os.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 		assert.NoError(err)
