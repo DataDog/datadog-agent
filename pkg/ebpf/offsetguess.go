@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 )
 
 /*
@@ -656,7 +657,7 @@ func acceptHandler(l net.Listener) {
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
+func tcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		return nil, errors.New("not a TCPConn")
@@ -668,23 +669,12 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 	}
 	defer file.Close()
 
-	var tcpInfo syscall.TCPInfo
-	size := uint32(unsafe.Sizeof(tcpInfo))
-	_, _, errno := syscall.Syscall6(
-		syscall.SYS_GETSOCKOPT,
-		file.Fd(),
-		uintptr(syscall.SOL_TCP),
-		uintptr(syscall.TCP_INFO),
-		uintptr(unsafe.Pointer(&tcpInfo)),
-		uintptr(unsafe.Pointer(&size)),
-		0,
-	)
-
-	if errno != 0 {
-		return nil, errors.Wrap(errno, "error calling syscall.SYS_GETSOCKOPT")
+	tcpInfo, err := unix.GetsockoptTCPInfo(int(file.Fd()), syscall.SOL_TCP, syscall.TCP_INFO)
+	if err != nil {
+		return nil, errors.Wrap(err, "error calling syscall.SYS_GETSOCKOPT")
 	}
 
-	return &tcpInfo, nil
+	return tcpInfo, nil
 }
 
 func logAndAdvance(status *tracerStatus, offset C.__u64, next C.__u64) {
