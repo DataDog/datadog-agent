@@ -135,26 +135,27 @@ func extractIPsAndPorts(conn net.Conn) (
 	sport, dport uint16,
 	err error,
 ) {
-	saddr_s, sport_s, err := net.SplitHostPort(conn.LocalAddr().String())
+	saddrStr, sportStr, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
 		return
 	}
-	saddr = binary.LittleEndian.Uint32(net.ParseIP(saddr_s).To4())
-	sportn, err := strconv.Atoi(sport_s)
+	saddr = binary.LittleEndian.Uint32(net.ParseIP(saddrStr).To4())
+	sportn, err := strconv.Atoi(sportStr)
 	if err != nil {
 		return
 	}
 	sport = uint16(sportn)
 
-	daddr_s, dport_s, err := net.SplitHostPort(conn.RemoteAddr().String())
+	daddrStr, dportStr, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
 		return
 	}
-	daddr = binary.LittleEndian.Uint32(net.ParseIP(daddr_s).To4())
-	dportn, err := strconv.Atoi(dport_s)
+	daddr = binary.LittleEndian.Uint32(net.ParseIP(daddrStr).To4())
+	dportn, err := strconv.Atoi(dportStr)
 	if err != nil {
 		return
 	}
+
 	dport = uint16(dportn)
 	return
 }

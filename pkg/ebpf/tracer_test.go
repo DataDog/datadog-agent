@@ -1725,6 +1725,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 
 func TestConnectedUDPSendIPv6(t *testing.T) {
 	cfg := NewDefaultConfig()
+	cfg.CollectIPv6Conns = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -1744,5 +1745,6 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	})
 
 	require.Len(t, outgoing, 1)
+	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
 	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
 }
