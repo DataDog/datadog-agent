@@ -251,7 +251,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 		// + marshalling is more performant than YAML
 		jsonNode, err := jsoniter.Marshal(node)
 		if err != nil {
-			log.Debugf("Could not marshal service to JSON: %s", err)
+			log.Debugf("Could not marshal node to JSON: %s", err)
 			continue
 		}
 		nodeModel.Yaml = jsonNode
