@@ -172,16 +172,18 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Windows.DriverBufferSize = driverBufferSize
 	}
 
+	// If there is no network_config, assume it is an old version of the config, and enable
+	// the network check. This has the downside that if the network_config is deleted, network
+	// check will be enabled.  However, this seems like the best option for backwards compatibility.
+	//
+	// The network check won't be run if sysprobe isn't enabled so there's no need to check
+	// EnableSystemProbe here.
+	networkEnabled := true
 	if config.Datadog.IsSet(key(spNS, "network_config")) {
 		// System probe can be run without the network module as determined on the network_config.enabled value
-		a.EnableNetwork = config.Datadog.GetBool(key(spNS, "network_config.enabled"))
-	} else {
-		// If there is no network_config, assume it is an old version of the config, and enable
-		// the network check.  The network check won't be run if sysprobe isn't enabled so
-		// there's no need to check EnableSystemProbe here.
-		a.EnableNetwork = true
+		networkEnabled = config.Datadog.GetBool(key(spNS, "network_config.enabled"))
 	}
-	if a.EnableNetwork {
+	if networkEnabled {
 		a.EnabledChecks = append(a.EnabledChecks, "Network")
 	}
 
