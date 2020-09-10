@@ -138,23 +138,18 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
-	t.checkBufferResize(len(activeConnStats), len(closedConnStats))
+	t.connStatsActive = t.resizeBuffer(len(activeConnStats), t.connStatsActive)
+	t.connStatsClosed = t.resizeBuffer(len(closedConnStats), t.connStatsClosed)
 	return &network.Connections{Conns: conns}, nil
 }
 
-func (t *Tracer) checkBufferResize(activeConnSize int, closedConnSize int) {
-	// Grow or shrink buffer depending on the usage
-	if activeConnSize >= cap(t.connStatsActive)*2 {
-		t.connStatsActive = make([]network.ConnectionStats, 0, cap(t.connStatsActive)*2)
-	} else if activeConnSize <= cap(t.connStatsActive)/2 {
-		t.connStatsActive = make([]network.ConnectionStats, 0, cap(t.connStatsActive)/2)
+func (t *Tracer) resizeBuffer(compareSize int, buffer []network.ConnectionStats) []network.ConnectionStats {
+	if compareSize >= cap(buffer)*2 {
+		return make([]network.ConnectionStats, 0, cap(buffer)*2)
+	} else if compareSize <= cap(buffer)/2 {
+		return make([]network.ConnectionStats, 0, cap(buffer)/2)
 	}
-
-	if closedConnSize >= cap(t.connStatsClosed)*2 {
-		t.connStatsClosed = make([]network.ConnectionStats, 0, cap(t.connStatsClosed)*2)
-	} else if closedConnSize <= cap(t.connStatsClosed)/2 {
-		t.connStatsClosed = make([]network.ConnectionStats, 0, cap(t.connStatsClosed)/2)
-	}
+	return buffer
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
