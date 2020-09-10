@@ -9,6 +9,10 @@ package module
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/DataDog/datadog-go/statsd"
+	"math"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -21,7 +25,8 @@ import (
 // EventServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type EventServer struct {
-	msgs chan *api.SecurityEventMessage
+	msgs          chan *api.SecurityEventMessage
+	droppedEvents map[string]*int64
 }
 
 // GetEvents waits for security events
@@ -68,15 +73,49 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	case e.msgs <- msg:
 		break
 	default:
+		// Update stats
+		eventsStat, ok := e.droppedEvents[rule.ID]
+		if ok {
+			atomic.AddInt64(eventsStat, 1)
+		}
 		// Do not wait for the channel to free up, we don't want to delay the processing pipeline further
 		log.Warnf("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
 		break
 	}
 }
 
-// NewEventServer returns a new gRPC event server
-func NewEventServer() *EventServer {
-	return &EventServer{
-		msgs: make(chan *api.SecurityEventMessage, 5),
+// GetStats returns a map indexed by ruleIDs that describes the amount of events
+// that were dropped because the groc channel was full
+func (e *EventServer) GetStats() map[string]int64 {
+	stats := make(map[string]int64)
+	for ruleID, val := range e.droppedEvents {
+		stats[ruleID] = atomic.SwapInt64(val, 0)
 	}
+	return stats
+}
+
+// SendStats sends statistics about the number of dropped events
+func (e *EventServer) SendStats(client *statsd.Client) error {
+	for ruleID, val := range e.GetStats() {
+		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
+		if val > 0 {
+			if err := client.Count(sprobe.MetricPrefix+".rules.event_server.drop", val, tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// NewEventServer returns a new gRPC event server
+func NewEventServer(ids []string) *EventServer {
+	es := &EventServer{
+		msgs:          make(chan *api.SecurityEventMessage, defaultBurst*int(math.Min(float64(len(ids)), 50))),
+		droppedEvents: make(map[string]*int64),
+	}
+	for _, id := range ids {
+		var val int64
+		es.droppedEvents[id] = &val
+	}
+	return es
 }

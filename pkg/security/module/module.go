@@ -142,6 +142,9 @@ func (m *Module) statsMonitor(ctx context.Context) {
 			if err := m.rateLimiter.SendStats(m.statsdClient); err != nil {
 				log.Debug(err)
 			}
+			if err := m.eventServer.SendStats(m.statsdClient); err != nil {
+				log.Debug(err)
+			}
 		case <-ctx.Done():
 			return
 		}
@@ -203,7 +206,7 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		config:       config,
 		probe:        probe,
 		ruleSet:      ruleSet,
-		eventServer:  NewEventServer(),
+		eventServer:  NewEventServer(ruleSet.ListRuleIDs()),
 		grpcServer:   grpc.NewServer(),
 		statsdClient: statsdClient,
 		rateLimiter:  NewRateLimiter(ruleSet.ListRuleIDs()),
