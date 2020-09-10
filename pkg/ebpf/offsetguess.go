@@ -605,34 +605,9 @@ func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) e
 		return nil
 	} else if status.what == guessSaddrFl4 || status.what == guessDaddrFl4 || status.what == guessSportFl4 || status.what == guessDportFl4 {
 		payload := []byte("test")
-		e.udpConn.Write(payload)
+		_, err := e.udpConn.Write(payload)
 
-		saddr, sport, err := net.SplitHostPort(e.udpConn.LocalAddr().String())
-		if err != nil {
-			return err
-		}
-
-		sip := net.ParseIP(saddr).To4()
-		sportn, err := strconv.Atoi(sport)
-		if err != nil {
-			return err
-		}
-
-		daddr, dport, err := net.SplitHostPort(e.udpConn.RemoteAddr().String())
-		if err != nil {
-			return err
-		}
-		dip := net.ParseIP(daddr).To4()
-		dportn, err := strconv.Atoi(dport)
-		if err != nil {
-			return err
-		}
-
-		expected.saddrFl4 = binary.LittleEndian.Uint32(sip)
-		expected.sportFl4 = uint16(sportn)
-		expected.daddrFl4 = binary.LittleEndian.Uint32(dip)
-		expected.dportFl4 = uint16(dportn)
-		return nil
+		return err
 	}
 
 	// This triggers the KProbe handler attached to `tcp_get_info`
@@ -640,8 +615,16 @@ func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) e
 	return err
 }
 
-func (e *eventGenerator) populateUDPExpectedValues(expected *fieldValues) {
-
+func (e *eventGenerator) populateUDPExpectedValues(expected *fieldValues) error {
+	saddr, daddr, sport, dport, err := extractIPsAndPorts(e.udpConn)
+	if err != nil {
+		return err
+	}
+	expected.saddrFl4 = saddr
+	expected.sportFl4 = sport
+	expected.daddrFl4 = daddr
+	expected.dportFl4 = dport
+	return nil
 }
 
 func (e *eventGenerator) Close() {

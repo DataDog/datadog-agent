@@ -133,7 +133,6 @@ static __always_inline int guess_offsets(tracer_status_t* status, struct sock* s
 
 SEC("kprobe/ip_make_skb")
 int kprobe__ip_make_skb(struct pt_regs* ctx) {
-    // log_info("In ip_make_skb\n");
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
 
