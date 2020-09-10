@@ -189,6 +189,9 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
+		currentUnixTime := time.Now().Unix()
+		d.reportUptime(c.StartedAt, currentUnixTime, tags, sender)
+
 		if c.CPU != nil {
 			d.reportCPUMetrics(c.CPU, &c.Limits, c.StartedAt, tags, sender)
 		} else {

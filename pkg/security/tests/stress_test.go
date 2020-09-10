@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 type stressEventHandler struct {
@@ -32,13 +32,13 @@ func (h *stressEventHandler) HandleEvent(event *sprobe.Event) {
 	}
 }
 
-func BenchmarkE2EOpen(b *testing.B) {
-	rule := &policy.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
+func benchmarkOpen(b *testing.B, rule *rules.RuleDefinition, size int) {
+	var rules []*rules.RuleDefinition
+	if rule != nil {
+		rules = append(rules, rule)
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestProbe(nil, rules, testOpts{enableFilters: true})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -62,6 +62,13 @@ func BenchmarkE2EOpen(b *testing.B) {
 			b.Fatal(err)
 		}
 
+		if size > 0 {
+			data := make([]byte, size, size)
+			if n, err := f.Write(data); err != nil || n != 1024 {
+				b.Fatal(err)
+			}
+		}
+
 		if err := f.Close(); err != nil {
 			b.Fatal(err)
 		}
@@ -73,4 +80,62 @@ func BenchmarkE2EOpen(b *testing.B) {
 	b.ReportMetric(float64(handler.count), "events")
 	b.ReportMetric(100*float64(handler.count)/float64(b.N), "%seen")
 	b.ReportMetric(100*float64(lost)/float64(b.N), "%lost")
+}
+
+// goal: measure host abality to handle open syscall without any kprobe, act as a reference
+// this benchmark generate syscall but without having kprobe installed
+
+func BenchmarkE2EOpenNoKprobe(b *testing.B) {
+	benchmarkOpen(b, nil, 0)
+}
+
+// goal: measure the impact of an event catched and passed from the kernel to the userspace
+// this benchmark generate event that passs from the kernel to the userspace
+func BenchmarkE2EOpenEvent(b *testing.B) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
+	}
+
+	benchmarkOpen(b, rule, 0)
+}
+
+// goal: measure the impact on the kprobe only
+// this benchmark generate syscall but without having event generated
+func BenchmarkE2EOpenNoEvent(b *testing.B) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename == "{{.Root}}/test-no-event" && open.flags & O_APPEND != 0`,
+	}
+
+	benchmarkOpen(b, rule, 0)
+}
+
+// goal: measure the impact of an event catched and passed from the kernel to the userspace
+// this benchmark generate event that passs from the kernel to the userspace
+func BenchmarkE2EOpenWrite1KEvent(b *testing.B) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
+	}
+
+	benchmarkOpen(b, rule, 1024)
+}
+
+// goal: measure host abality to handle open syscall without any kprobe, act as a reference
+// this benchmark generate syscall but without having kprobe installed
+
+func BenchmarkE2EOpenWrite1KNoKprobe(b *testing.B) {
+	benchmarkOpen(b, nil, 1024)
+}
+
+// goal: measure the impact on the kprobe only
+// this benchmark generate syscall but without having event generated
+func BenchmarkE2EOpenWrite1KNoEvent(b *testing.B) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename == "{{.Root}}/test-no-event" && open.flags & O_APPEND != 0`,
+	}
+
+	benchmarkOpen(b, rule, 1024)
 }

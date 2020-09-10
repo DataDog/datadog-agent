@@ -1,6 +1,24 @@
-#include <linux/bpf.h>
 #ifndef __BPF_HELPERS_H
 #define __BPF_HELPERS_H
+
+#include <uapi/linux/bpf.h>
+
+/* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
+ */
+#if DEBUG == 1
+#define log_debug(fmt, ...)                                        \
+    ({                                                             \
+        char ____fmt[] = fmt;                                      \
+        bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
+    })
+#else
+// No op
+#define log_debug(fmt, ...)
+#endif
+
+#ifndef __always_inline
+#define __always_inline __attribute__((always_inline))
+#endif
 
 /* helper macro to place programs, maps, license in
  * different sections in elf_bpf file. Section names

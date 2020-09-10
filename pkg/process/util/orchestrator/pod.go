@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
-	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -36,13 +35,27 @@ const (
 )
 
 // ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
 	for p := 0; p < len(podList); p++ {
 		// extract pod info
 		podModel := extractPodMessage(podList[p])
+
+		// static pods "uid" are actually not unique across nodes.
+		// we differ from the k8 uuid format in purpose to differentiate those static pods.
+		if pod.IsStaticPod(podList[p]) {
+			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName)
+			// modify it in the original pod for the YAML and in our model
+			podList[p].UID = types.UID(newUID)
+			podModel.Metadata.Uid = newUID
+		}
+
+		pd := podList[p]
+		if SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
+			continue
+		}
 
 		// insert tagger tags
 		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
@@ -51,34 +64,28 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			continue
 		}
 
-		// additionnal tags
+		// additional tags
 		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 		podModel.Tags = tags
 
-		// static pods "uid" are actually not unique across nodes.
-		// we differ from the k8 uuid format in purpose to differentiate those static pods.
-		if pod.IsStaticPod(podList[p]) {
-			podList[p].UID = types.UID(generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName))
+		// scrub & generate YAML
+		if withScrubbing {
+			for c := 0; c < len(podList[p].Spec.Containers); c++ {
+				ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+			}
+			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
+				ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+			}
 		}
 
-		// scrub & generate YAML
-		for c := 0; c < len(podList[p].Spec.Containers); c++ {
-			ScrubContainer(&podList[p].Spec.Containers[c], cfg)
-		}
-		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-			ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
-		}
 		// k8s objects only have json "omitempty" annotations
-		// we're doing json<>yaml to get rid of the null properties
+		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
 		if err != nil {
-			log.Debugf("Could not marshal pod in JSON: %s", err)
+			log.Debugf("Could not marshal pod to JSON: %s", err)
 			continue
 		}
-		var jsonObj interface{}
-		yaml.Unmarshal(jsonPod, &jsonObj) //nolint:errcheck
-		yamlPod, _ := yaml.Marshal(jsonObj)
-		podModel.Yaml = yamlPod
+		podModel.Yaml = jsonPod
 
 		podMsgs = append(podMsgs, podModel)
 	}
@@ -100,7 +107,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		})
 	}
 
-	log.Debugf("Collected & enriched %d pods in %s", len(podMsgs), time.Now().Sub(start))
+	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
 }
 

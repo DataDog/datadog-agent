@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
@@ -43,7 +42,7 @@ const (
 // Builder defines an interface to build checks from rules
 type Builder interface {
 	ChecksFromFile(file string, onCheck compliance.CheckVisitor) error
-	CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error)
+	GetCheckStatus() compliance.CheckStatusList
 	Close() error
 }
 
@@ -187,6 +186,7 @@ func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, err
 		reporter:      reporter,
 		checkInterval: 20 * time.Minute,
 		etcGroupPath:  "/etc/group",
+		status:        newStatus(),
 	}
 
 	for _, o := range options {
@@ -220,6 +220,8 @@ type builder struct {
 	dockerClient env.DockerClient
 	auditClient  env.AuditClient
 	kubeClient   env.KubeClient
+
+	status *status
 }
 
 func (b *builder) Close() error {
@@ -243,45 +245,77 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 		return err
 	}
 
-	if b.suiteMatcher != nil && !b.suiteMatcher(&suite.Meta) {
-		log.Tracef("%s/%s: skipped suite from %s", suite.Meta.Name, suite.Meta.Version, file)
-		return nil
+	if b.suiteMatcher != nil {
+		if b.suiteMatcher(&suite.Meta) {
+			log.Infof("%s/%s: matched suite in %s", suite.Meta.Name, suite.Meta.Version, file)
+		} else {
+			log.Tracef("%s/%s: skipped suite in %s", suite.Meta.Name, suite.Meta.Version, file)
+			return nil
+		}
 	}
 
 	log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, file)
+
+	matchedCount := 0
 	for _, r := range suite.Rules {
-		if b.ruleMatcher != nil && !b.ruleMatcher(&r) {
-			log.Tracef("%s/%s: skipped rule %s from %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
-			continue
+		if b.ruleMatcher != nil {
+			if b.ruleMatcher(&r) {
+				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
+			} else {
+				log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
+				continue
+			}
 		}
+		matchedCount++
 
 		if len(r.Resources) == 0 {
-			log.Debugf("%s/%s: skipping rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
+			log.Infof("%s/%s: skipped rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
 			continue
 		}
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
-		check, err := b.CheckFromRule(&suite.Meta, &r)
+		check, err := b.checkFromRule(&suite.Meta, &r)
 
 		if err != nil {
 			if err != ErrRuleDoesNotApply {
 				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
 			}
-			continue
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
 		}
 
-		log.Debugf("%s/%s: init check %s", suite.Meta.Name, suite.Meta.Version, check.ID())
-		err = onCheck(check)
-		if err != nil {
-			log.Errorf("%s/%s: onCheck failed %s", suite.Meta.Name, suite.Meta.Version, check.ID())
+		if b.status != nil {
+			b.status.addCheck(&compliance.CheckStatus{
+				RuleID:      r.ID,
+				Description: r.Description,
+				Name:        compliance.CheckName(r.ID, r.Description),
+				Framework:   suite.Meta.Framework,
+				Source:      suite.Meta.Source,
+				Version:     suite.Meta.Version,
+				InitError:   err,
+			})
+		}
+		ok := onCheck(&r, check, err)
+		if !ok {
+			log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
 			return err
 		}
+	}
+
+	if b.ruleMatcher != nil && matchedCount == 0 {
+		log.Infof("%s/%s: no rules matched", suite.Meta.Name, suite.Meta.Version)
 	}
 
 	return nil
 }
 
-func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
+func (b *builder) GetCheckStatus() compliance.CheckStatusList {
+	if b.status != nil {
+		return b.status.getChecksStatus()
+	}
+	return compliance.CheckStatusList{}
+}
+
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.Check, error) {
 	ruleScope, err := getRuleScope(meta, rule)
 	if err != nil {
 		return nil, err
@@ -297,7 +331,7 @@ func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 		return nil, ErrRuleDoesNotApply
 	}
 
-	return b.newCheck(meta, ruleScope, rule), nil
+	return b.newCheck(meta, ruleScope, rule)
 }
 
 func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.RuleScope, error) {
@@ -403,11 +437,16 @@ func (b *builder) nodeLabelKeys() []string {
 	return keys
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule) *complianceCheck {
+func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule) (compliance.Check, error) {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
 
 	if err != nil {
-		log.Warnf("%s: check failed to initialize: %v", rule.ID, err)
+		return nil, err
+	}
+
+	var notify eventNotify
+	if b.status != nil {
+		notify = b.status.updateCheck
 	}
 
 	// We capture err as configuration error but do not prevent check creation
@@ -418,16 +457,15 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 		description: rule.Description,
 		interval:    b.checkInterval,
 
-		framework: meta.Framework,
-		suiteName: meta.Name,
-		version:   meta.Version,
+		suiteMeta: meta,
 
 		// For now we are using rule scope (e.g. docker, kubernetesNode) as resource type
 		resourceType: string(ruleScope),
 		resourceID:   b.hostname,
-		configError:  err,
 		checkable:    checkable,
-	}
+
+		eventNotify: notify,
+	}, nil
 }
 
 func (b *builder) Reporter() event.Reporter {
@@ -469,7 +507,6 @@ func (b *builder) RelativeToHostRoot(path string) string {
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
-
 	instance := &eval.Instance{
 		Functions: eval.FunctionMap{
 			builderFuncShell:       b.withValueCache(builderFuncShell, evalCommandShell),

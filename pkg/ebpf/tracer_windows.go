@@ -2,10 +2,6 @@
 
 package ebpf
 
-/*
-#include "c/ddfilterapi.h"
-*/
-import "C"
 import (
 	"expvar"
 	"fmt"
@@ -21,7 +17,7 @@ const (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_total_flow_stats", "driver_flow_handle_stats", "total_flows"}
+	expvarTypes     = []string{"state", "driver_total_flow_stats", "driver_flow_handle_stats", "total_flows", "open_flows", "closed_flows", "more_data_errors"}
 )
 
 func init() {
@@ -48,7 +44,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config.EnableMonotonicCount)
+	di, err := network.NewDriverInterface(config.EnableMonotonicCount, config.DriverBufferSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
@@ -90,6 +86,13 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 			stats, err := t.GetStats()
 			if err != nil {
 				continue
+			}
+
+			// Move state stats into proper field
+			if states, ok := stats["state"]; ok {
+				if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+					stats["state"] = telemetry
+				}
 			}
 
 			for name, stat := range stats {
@@ -141,8 +144,14 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		log.Errorf("not printing driver stats: %v", err)
 	}
 
+	stateStats := t.state.GetStats()
+
 	return map[string]interface{}{
+		"state":                    stateStats,
 		"total_flows":              driverStats["total_flows"],
+		"open_flows":               driverStats["open_flows"],
+		"closed_flows":             driverStats["closed_flows"],
+		"more_data_errors":         driverStats["more_data_errors"],
 		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
 		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil

@@ -142,7 +142,7 @@ api_key:
 ## @param aggregator_stop_timeout - integer - optional - default: 2
 ## When stopping the agent, the Aggregator will try to flush out data ready for
 ## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
-## to be sent to DataDog, therefore the Agent might take at most
+## to be sent to Datadog, therefore the Agent might take at most
 ## 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
 ##
 ## You can set the maximum amount of time, in seconds, allocated to the
@@ -214,6 +214,21 @@ api_key:
 ## Collect AWS EC2 custom tags as host tags.
 #
 # collect_ec2_tags: false
+
+## @param ec2_metadata_timeout - integer - optional - default: 300
+## Timeout in milliseconds on calls to the AWS EC2 metadata endpoints.
+#
+# ec2_metadata_timeout: 300
+
+## @param ec2_prefer_imdsv2 - boolean - optional - default: false
+## If this flag is true then the agent will request EC2 metadata using IMDS v2,
+## which offers additional security for accessing metadata. However, in some
+## situations (such as a containerized agent on a plain EC2 instance) it may
+## require additional configuration on the AWS side. See the AWS guidelines
+## for further details:
+## https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html#instance-metadata-transition-to-version-2
+#
+# ec2_prefer_imdsv2: false
 
 ## @param collect_gce_tags - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
@@ -727,10 +742,10 @@ api_key:
   #     <OBFUSCATION_CONFIGURATION>
 
   ## @param replace_tags - list of objects - optional
-  ## Defines a set of rules to replace or remove certain services, resources, tags containing
+  ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
   ## Each rules has to contain:
-  ##  * name - string - The tag name to replace, for services or resources use "service.name" or "resource.name".
+  ##  * name - string - The tag name to replace, for resources use "resource.name".
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##
@@ -900,7 +915,7 @@ api_key:
 ##########################################
 ## Security Agent Runtime Configuration ##
 ##                                      ##
-## Settings to sent logs to DataDog are ##
+## Settings to sent logs to Datadog are ##
 ## fetched from section `logs_config`   ##
 ##########################################
 
@@ -938,7 +953,7 @@ api_key:
   ## Syscall monitoring
   #
   # syscall_monitor:
-  
+
     ## @param enabled - boolean - optional - default: false
     ## Set to true to enable the Syscall monitoring.
     #
@@ -1182,10 +1197,10 @@ api_key:
 #
 # jmx_reconnection_thread_pool_size: 3
 
-## @param jmx_reconnection_timeout - integer - optional - default: 10
+## @param jmx_reconnection_timeout - integer - optional - default: 60
 ## Determines the maximum waiting period in seconds before timing up on instance reconnection.
 #
-# jmx_reconnection_timeout: 10
+# jmx_reconnection_timeout: 60
 
 {{ end -}}
 {{- if .Logging }}
@@ -1816,3 +1831,47 @@ api_key:
   # key_file: ""
 
 {{ end -}}
+{{- if .SNMP }}
+
+########################
+## SNMP Configuration ##
+########################
+
+## @param snmp_traps_enabled - boolean - optional - default: false
+## Set to true to enable collection of traps.
+#
+# snmp_traps_enabled: false
+
+## @param snmp_traps_config - custom object - optional
+## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
+## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
+## change in the future. Only SNMPv2 is supported.
+#
+# snmp_traps_config:
+
+  ## @param port - integer - optional - default: 162
+  ## The UDP port to use when listening for incoming trap packets.
+  #
+  # port: 162
+
+  ## @param community_strings - list of strings - required
+  ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
+  ## Traps with an unknown community string are ignored.
+  ## Must be non-empty.
+  #
+  # community_strings:
+  #   - <COMMUNITY_1>
+  #   - <COMMUNITY_2>
+
+  ## @param bind_host - string - optional
+  ## The hostname to listen on for incoming trap packets.
+  ## Defaults to the global `bind_host` config option value.
+  #
+  # bind_host: <BIND_HOST>
+
+  ## stop_timeout - float - optional - default: 5.0
+  ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+  #
+  # stop_timeout: 5.0
+
+{{end -}}

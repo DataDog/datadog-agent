@@ -68,6 +68,9 @@ type Config struct {
 	// BPFDebug enables bpf debug logs
 	BPFDebug bool
 
+	// BPFDir is the directory to load the eBPF program from
+	BPFDir string
+
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
@@ -93,8 +96,14 @@ type Config struct {
 	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
 	OffsetGuessThreshold uint64
 
+	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
+	EnableTracepoints bool
+
 	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
+
+	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
+	DriverBufferSize int
 }
 
 // NewDefaultConfig enables traffic collection for all connection types

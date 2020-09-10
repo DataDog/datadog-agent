@@ -1,49 +1,25 @@
-
-/**
- * We need to pull in this header, which is depended upon by ptrace.h
- * and then re-define asm_volatile_goto which is unsupported in
- * the version of clang we commonly use to build.
- */
-#include <linux/compiler.h>
-
-#include <linux/kconfig.h>
-
-/* clang 8 does not support "asm volatile goto" yet.
- * So redefine asm_volatile_goto to some invalid asm code.
- * If asm_volatile_goto is actually used by the bpf program,
- * a compilation error will appear.
- */
-#ifdef asm_volatile_goto
-#undef asm_volatile_goto
-#endif
-#define asm_volatile_goto(x...) asm volatile("invalid use of asm_volatile_goto")
-#pragma clang diagnostic ignored "-Wunused-label"
-
-#include <linux/ptrace.h>
-#include "bpf_helpers.h"
 #include "tracer-ebpf.h"
-#include <linux/version.h>
-
-#include <net/sock.h>
+#include "bpf_helpers.h"
+#include "syscalls.h"
+#include <linux/kconfig.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <net/tcp_states.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
-#include <uapi/linux/udp.h>
+#include <uapi/linux/ptrace.h>
 #include <uapi/linux/tcp.h>
+#include <uapi/linux/udp.h>
 
-/* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
+/* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
+ * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
+ * eliminates a bpf_map_lookup_elem per kprobe hit. The constants are best accessed with a
+ * dedicated inlined function. See example functions offset_* below.
  */
-#if DEBUG == 1
-#define log_debug(fmt, ...)                                        \
-    ({                                                             \
-        char ____fmt[] = fmt;                                      \
-        bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
-    })
-#else
-// No op
-#define log_debug(fmt, ...)
-#endif
+#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
+                                      : "=r"(var))
+
+enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, udp_send_processed, udp_send_missed};
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
@@ -72,7 +48,7 @@ struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
 /* Will hold the tcp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
-struct bpf_map_def SEC("maps/tcp_close_events") tcp_close_event = {
+struct bpf_map_def SEC("maps/tcp_close_event") tcp_close_event = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
@@ -90,19 +66,6 @@ struct bpf_map_def SEC("maps/tcp_close_batch") tcp_close_batch = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u32),
     .value_size = sizeof(batch_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
-/* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
- */
-struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(void*),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
@@ -209,23 +172,8 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
     .namespace = "",
 };
 
-/* This map is used for passing config from userspace.
- * Only key 0 is used. If it is present, it means DNS stat collection
- * is enabled.
- * Value does not matter.
- */
-struct bpf_map_def SEC("maps/config") config = {
-      .type = BPF_MAP_TYPE_HASH,
-      .key_size = sizeof(__u16),
-      .value_size = sizeof(__u8),
-      .max_entries = 1,
-      .pinning = 0,
-      .namespace = "",
-};
-
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
-__attribute__((always_inline))
-static bool is_big_endian(void) {
+static __always_inline bool is_big_endian(void) {
     union {
         uint32_t i;
         char c[4];
@@ -240,8 +188,7 @@ static bool is_big_endian(void) {
  * in the most significant 32 bits of part saddr_l and daddr_l.
  * Meanwhile the end of the mask is stored in the least significant 32 bits.
  */
-__attribute__((always_inline))
-static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr_l) {
+static __always_inline bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr_l) {
     if (is_big_endian()) {
         return ((saddr_h == 0 && ((u32)(saddr_l >> 32) == 0x0000FFFF)) || (daddr_h == 0 && ((u32)(daddr_l >> 32) == 0x0000FFFF)));
     } else {
@@ -249,126 +196,85 @@ static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr
     }
 }
 
-struct bpf_map_def SEC("maps/tracer_status") tracer_status = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(tracer_status_t),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
-// Keeping track of latest timestamp of monotonic clock
-struct bpf_map_def SEC("maps/latest_ts") latest_ts = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(__u64),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
-__attribute__((always_inline))
-static bool proc_t_comm_equals(proc_t a, proc_t b) {
-    int i;
-    for (i = 0; i < TASK_COMM_LEN; i++) {
-        if (a.comm[i] != b.comm[i]) {
-            return false;
-        }
-    }
-    return true;
+static __always_inline bool dns_stats_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("dns_stats_enabled", val);
+    return val == 1;
 }
 
-__attribute__((always_inline))
-static bool check_family(struct sock* sk, tracer_status_t* status, u16 expected_family) {
+static __always_inline __u64 offset_family() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_family", val);
+    return val;
+}
+
+static __always_inline __u64 offset_saddr() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_saddr", val);
+    return val;
+}
+
+static __always_inline __u64 offset_daddr() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_daddr", val);
+    return val;
+}
+
+static __always_inline __u64 offset_daddr_ipv6() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_daddr_ipv6", val);
+    return val;
+}
+
+static __always_inline __u64 offset_sport() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_sport", val);
+    return val;
+}
+
+static __always_inline __u64 offset_dport() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_dport", val);
+    return val;
+}
+
+static __always_inline __u64 offset_netns() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_netns", val);
+    return val;
+}
+
+static __always_inline __u64 offset_ino() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_ino", val);
+    return val;
+}
+
+static __always_inline __u64 offset_rtt() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_rtt", val);
+    return val;
+}
+
+static __always_inline __u64 offset_rtt_var() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_rtt_var", val);
+    return val;
+}
+
+static __always_inline bool is_ipv6_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("ipv6_enabled", val);
+    return val == TRACER_IPV6_ENABLED;
+}
+
+static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
     u16 family = 0;
-    bpf_probe_read(&family, sizeof(u16), ((char*)sk) + status->offset_family);
+    bpf_probe_read(&family, sizeof(u16), ((char*)sk) + offset_family());
     return family == expected_family;
 }
 
-__attribute__((always_inline))
-static int guess_offsets(tracer_status_t* status, struct sock* skp) {
-    u64 zero = 0;
-
-    if (status->state != TRACER_STATE_CHECKING) {
-        return 1;
-    }
-
-    // Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
-    // Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
-    // with runtime.LockOSThread.
-    proc_t proc = {};
-    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
-
-    if (!proc_t_comm_equals(status->proc, proc))
-        return 0;
-
-    tracer_status_t new_status = {};
-    // Copy values from status to new_status
-    bpf_probe_read(&new_status, sizeof(tracer_status_t), status);
-    new_status.state = TRACER_STATE_CHECKED;
-    new_status.err = 0;
-    bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
-
-    possible_net_t* possible_skc_net = NULL;
-    u32 possible_netns = 0;
-    long ret = 0;
-
-    switch (status->what) {
-    case GUESS_SADDR:
-        bpf_probe_read(&new_status.saddr, sizeof(new_status.saddr), ((char*)skp) + status->offset_saddr);
-        break;
-    case GUESS_DADDR:
-        bpf_probe_read(&new_status.daddr, sizeof(new_status.daddr), ((char*)skp) + status->offset_daddr);
-        break;
-    case GUESS_FAMILY:
-        bpf_probe_read(&new_status.family, sizeof(new_status.family), ((char*)skp) + status->offset_family);
-        break;
-    case GUESS_SPORT:
-        bpf_probe_read(&new_status.sport, sizeof(new_status.sport), ((char*)skp) + status->offset_sport);
-        break;
-    case GUESS_DPORT:
-        bpf_probe_read(&new_status.dport, sizeof(new_status.dport), ((char*)skp) + status->offset_dport);
-        break;
-    case GUESS_NETNS:
-        bpf_probe_read(&possible_skc_net, sizeof(possible_net_t*), ((char*)skp) + status->offset_netns);
-        // if we get a kernel fault, it means possible_skc_net
-        // is an invalid pointer, signal an error so we can go
-        // to the next offset_netns
-        ret = bpf_probe_read(&possible_netns, sizeof(possible_netns), ((char*)possible_skc_net) + status->offset_ino);
-        if (ret == -EFAULT) {
-            new_status.err = 1;
-            break;
-        }
-        new_status.netns = possible_netns;
-        break;
-    case GUESS_RTT:
-        bpf_probe_read(&new_status.rtt, sizeof(new_status.rtt), ((char*)skp) + status->offset_rtt);
-        bpf_probe_read(&new_status.rtt_var, sizeof(new_status.rtt_var), ((char*)skp) + status->offset_rtt_var);
-        break;
-    case GUESS_DADDR_IPV6:
-        if (!check_family(skp, status, AF_INET6))
-            break;
-
-        bpf_probe_read(new_status.daddr_ipv6, sizeof(u32) * 4, ((char*)skp) + status->offset_daddr_ipv6);
-        break;
-    default:
-        // not for us
-        return 0;
-    }
-
-    bpf_map_update_elem(&tracer_status, &zero, &new_status, BPF_ANY);
-
-    return 0;
-}
-
-__attribute__((always_inline))
-static bool is_ipv6_enabled(tracer_status_t* status) {
-    return status->ipv6_enabled == TRACER_IPV6_ENABLED;
-}
-
-__attribute__((always_inline))
-static int read_conn_tuple(conn_tuple_t* t, tracer_status_t* status, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     t->saddr_h = 0;
     t->saddr_l = 0;
     t->daddr_h = 0;
@@ -379,20 +285,20 @@ static int read_conn_tuple(conn_tuple_t* t, tracer_status_t* status, struct sock
     t->metadata = type;
 
     // Retrieve addresses
-    if (check_family(skp, status, AF_INET)) {
+    if (check_family(skp, AF_INET)) {
         t->metadata |= CONN_V4;
-        bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + status->offset_saddr);
-        bpf_probe_read(&t->daddr_l, sizeof(u32), ((char*)skp) + status->offset_daddr);
+        bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
+        bpf_probe_read(&t->daddr_l, sizeof(u32), ((char*)skp) + offset_daddr());
 
         if (!t->saddr_l || !t->daddr_l) {
             log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
             return 0;
         }
-    } else if (is_ipv6_enabled(status) && check_family(skp, status, AF_INET6)) {
-        bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + status->offset_daddr_ipv6 + 2 * sizeof(u64));
-        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + status->offset_daddr_ipv6 + 3 * sizeof(u64));
-        bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + status->offset_daddr_ipv6);
-        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + status->offset_daddr_ipv6 + sizeof(u64));
+    } else if (is_ipv6_enabled() && check_family(skp, AF_INET6)) {
+        bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
+        bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
+        bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
+        bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
@@ -421,8 +327,8 @@ static int read_conn_tuple(conn_tuple_t* t, tracer_status_t* status, struct sock
     }
 
     // Retrieve ports
-    bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + status->offset_sport);
-    bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + status->offset_dport);
+    bpf_probe_read(&t->sport, sizeof(t->sport), ((char*)skp) + offset_sport());
+    bpf_probe_read(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
@@ -435,14 +341,13 @@ static int read_conn_tuple(conn_tuple_t* t, tracer_status_t* status, struct sock
 
     // Retrieve network namespace id
     possible_net_t* skc_net = NULL;
-    bpf_probe_read(&skc_net, sizeof(void*), ((char*)skp) + status->offset_netns);
-    bpf_probe_read(&t->netns, sizeof(t->netns), ((char*)skc_net) + status->offset_ino);
+    bpf_probe_read(&skc_net, sizeof(void*), ((char*)skp) + offset_netns());
+    bpf_probe_read(&t->netns, sizeof(t->netns), ((char*)skc_net) + offset_ino());
 
     return 1;
 }
 
-__attribute__((always_inline))
-static void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
+static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts) {
     conn_stats_ts_t* val;
 
     // initialize-if-no-exist the connection stat, and load it
@@ -462,8 +367,7 @@ static void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_by
     }
 }
 
-__attribute__((always_inline))
-static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
+static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
     // query stats without the PID from the tuple
     u32 pid = t->pid;
     t->pid = 0;
@@ -488,10 +392,40 @@ static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
         val->rtt = stats.rtt >> 3;
         val->rtt_var = stats.rtt_var >> 2;
     }
+
+    if (stats.state_transitions > 0) {
+        val->state_transitions |= stats.state_transitions;
+    }
 }
 
-__attribute__((always_inline))
-static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
+static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
+    __u64 key = 0;
+    telemetry_t empty = {};
+    telemetry_t* val;
+    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+    val = bpf_map_lookup_elem(&telemetry, &key);
+
+    if (val == NULL) {
+        return;
+    }
+    switch (counter_name) {
+        case tcp_sent_miscounts:
+            __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
+            break;
+        case missed_tcp_close:
+            __sync_fetch_and_add(&val->missed_tcp_close, 1);
+            break;
+        case udp_send_processed:
+            __sync_fetch_and_add(&val->udp_sends_processed, 1);
+            break;
+        case udp_send_missed:
+            __sync_fetch_and_add(&val->udp_sends_missed, 1);
+            break;
+    }
+    return;
+}
+
+static __always_inline void cleanup_tcp_conn(struct pt_regs* __attribute__((unused)) ctx, conn_tuple_t* tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
@@ -513,6 +447,7 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
     if (tst != NULL) {
         conn.tcp_stats = *tst;
     }
+    conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
 
     if (cst != NULL) {
         cst->timestamp = bpf_ktime_get_ns();
@@ -520,7 +455,7 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
     }
 
     // Batch TCP closed connections before generating a perf event
-    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    batch_t* batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
     if (batch_ptr == NULL) {
         return;
     }
@@ -553,95 +488,38 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
     // This could result in a missed tcp_close event, so we track it using our telemetry map.
-    u64 key = 0;
-    telemetry_t empty = {};
-    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
-
-    telemetry_t* val = bpf_map_lookup_elem(&telemetry, &key);
-    if (val != NULL) {
-        __sync_fetch_and_add(&val->missed_tcp_close, 1);
-    }
+    increment_telemetry_count(missed_tcp_close);
 }
 
-__attribute__((always_inline))
-static int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
-    u64 zero = 0;
+static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes) {
     u64 ts = bpf_ktime_get_ns();
 
     update_conn_stats(t, sent_bytes, recv_bytes, ts);
 
-    // Update latest timestamp that we've seen - for connection expiration tracking
-    bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
     return 0;
 }
 
-__attribute__((always_inline))
-static int handle_retransmit(struct sock* sk, tracer_status_t* status) {
+static __always_inline int handle_retransmit(struct sock* sk) {
     conn_tuple_t t = {};
-    u64 ts = bpf_ktime_get_ns();
     u64 zero = 0;
 
-    if (!read_conn_tuple(&t, status, sk, zero, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    tcp_stats_t stats = {.retransmits = 1, .rtt = 0, .rtt_var = 0 };
+    tcp_stats_t stats = { .retransmits = 1, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats);
 
-    // Update latest timestamp that we've seen - for connection expiration tracking
-    bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
     return 0;
 }
 
-__attribute__((always_inline))
-static void handle_tcp_stats(conn_tuple_t* t, tracer_status_t* status, struct sock* sk) {
+static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
     u32 rtt = 0, rtt_var = 0;
-    bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + status->offset_rtt);
-    bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + status->offset_rtt_var);
+    bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
+    bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
 
-    tcp_stats_t stats = {.retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     update_tcp_stats(t, stats);
-    return;
-}
-
-// Used for offset guessing (see: pkg/offsetguess.go)
-SEC("kprobe/tcp_v6_connect")
-int kprobe__tcp_v6_connect(struct pt_regs* ctx) {
-    struct sock* sk;
-    u64 pid = bpf_get_current_pid_tgid();
-
-    sk = (struct sock*)PT_REGS_PARM1(ctx);
-
-    bpf_map_update_elem(&connectsock_ipv6, &pid, &sk, BPF_ANY);
-
-    return 0;
-}
-
-// Used for offset guessing (see: pkg/offsetguess.go)
-SEC("kretprobe/tcp_v6_connect")
-int kretprobe__tcp_v6_connect(struct pt_regs* ctx) {
-    u64 pid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
-    struct sock** skpp;
-    tracer_status_t* status;
-    skpp = bpf_map_lookup_elem(&connectsock_ipv6, &pid);
-    if (skpp == 0) {
-        return 0; // missed entry
-    }
-
-    bpf_map_delete_elem(&connectsock_ipv6, &pid);
-
-    struct sock* skp = *skpp;
-
-    status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
-    // We should figure out offsets if they're not already figured out
-    guess_offsets(status, skp);
-
-    return 0;
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -649,20 +527,14 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
-
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    handle_tcp_stats(&t, status, sk);
+    handle_tcp_stats(&t, sk);
     return handle_message(&t, size, 0);
 }
 
@@ -671,20 +543,14 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
-
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
     log_debug("kprobe/tcp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    handle_tcp_stats(&t, status, sk);
+    handle_tcp_stats(&t, sk);
     return handle_message(&t, size, 0);
 }
 
@@ -696,15 +562,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     // If ret < 0 it means an error occurred but we still counted the bytes as being sent
     // let's increment our miscount count
     if (ret < 0) {
-        // Initialize the counter if it does not exist
-        __u64 key = 0;
-        telemetry_t empty = {};
-        telemetry_t* val;
-        bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
-        val = bpf_map_lookup_elem(&telemetry, &key);
-        if (val != NULL) {
-            __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
-        }
+        increment_telemetry_count(tcp_sent_miscounts);
     }
 
     return 0;
@@ -718,17 +576,10 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
-
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -738,16 +589,9 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs* ctx) {
     struct sock* sk;
-    tracer_status_t* status;
     conn_tuple_t t = {};
-    u64 zero = 0;
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock*)PT_REGS_PARM1(ctx);
-
-    status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
 
     u32 net_ns_inum;
 
@@ -756,12 +600,12 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 
     skc_net = NULL;
     net_ns_inum = 0;
-    bpf_probe_read(&skc_net, sizeof(possible_net_t*), ((char*)sk) + status->offset_netns);
-    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + status->offset_ino);
+    bpf_probe_read(&skc_net, sizeof(possible_net_t*), ((char*)sk) + offset_netns());
+    bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + offset_ino());
 
     log_debug("kprobe/tcp_close: pid_tgid: %d, ns: %d\n", pid_tgid, net_ns_inum);
 
-    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -772,7 +616,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close(struct pt_regs* ctx) {
     u32 cpu = bpf_get_smp_processor_id();
-    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    batch_t* batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
     if (batch_ptr == NULL) {
         return 0;
     }
@@ -790,40 +634,21 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
-/* Used exclusively for offset guessing */
-SEC("kprobe/tcp_get_info")
-int kprobe__tcp_get_info(struct pt_regs* ctx) {
-    u64 zero = 0;
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
-    status->tcp_info_kprobe_status = 1;
-    guess_offsets(status, sk);
-    return 0;
-}
-
 SEC("kprobe/udp_sendmsg")
 int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
-
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        increment_telemetry_count(udp_send_missed);
         return 0;
     }
 
     log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
+    increment_telemetry_count(udp_send_processed);
 
     return 0;
 }
@@ -833,20 +658,16 @@ int kprobe__udp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
-
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        increment_telemetry_count(udp_send_missed);
         return 0;
     }
 
     log_debug("kprobe/udp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
+    increment_telemetry_count(udp_send_processed);
 
     return 0;
 }
@@ -885,7 +706,6 @@ int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
 SEC("kretprobe/udp_recvmsg")
 int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 zero = 0;
 
     // Retrieve socket pointer from kprobe via pid/tgid
     struct sock** skpp = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
@@ -902,13 +722,8 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
         return 0;
     }
 
@@ -921,14 +736,31 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    u64 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
     log_debug("kprobe/tcp_retransmit\n");
 
-    return handle_retransmit(sk, status);
+    return handle_retransmit(sk);
+}
+
+SEC("kprobe/tcp_set_state")
+int kprobe__tcp_set_state(struct pt_regs* ctx) {
+    u8 state = (u8)PT_REGS_PARM2(ctx);
+
+    // For now we're tracking only TCP_ESTABLISHED
+    if (state != TCP_ESTABLISHED) {
+        return 0;
+    }
+
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    tcp_stats_t stats = { .state_transitions = (1 << state) };
+    update_tcp_stats(&t, stats);
+
+    return 0;
 }
 
 SEC("kretprobe/inet_csk_accept")
@@ -939,15 +771,9 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
         return 0;
     }
 
-    u64 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
     __u16 lport = 0;
 
-    bpf_probe_read(&lport, sizeof(lport), ((char*)newsk) + status->offset_dport + sizeof(lport));
+    bpf_probe_read(&lport, sizeof(lport), ((char*)newsk) + offset_dport() + sizeof(lport));
 
     if (lport == 0) {
         return 0;
@@ -973,15 +799,9 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
-    u64 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
     __u16 lport = 0;
 
-    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_dport + sizeof(lport));
+    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + offset_dport() + sizeof(lport));
 
     if (lport == 0) {
         log_debug("ERR(tcp_v4_destroy_sock): lport is 0 \n");
@@ -1008,16 +828,9 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
-    // get tracer status and return early if we are still offset-guessing
-    u64 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
     // get the port for the current sock
     __u16 lport = 0;
-    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_sport);
+    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + offset_sport());
     lport = ntohs(lport);
 
     if (lport == 0) {
@@ -1029,7 +842,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &lport);
 
     if (state == NULL) {
-        log_debug("kprobe/udp_destroy_sock: sock was not listening, will drop event");
+        log_debug("kprobe/udp_destroy_sock: sock was not listening, will drop event\n");
         return 0;
     }
 
@@ -1037,15 +850,14 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     __u8 new_state = PORT_CLOSED;
     bpf_map_update_elem(&udp_port_bindings, &lport, &new_state, BPF_ANY);
 
-    log_debug("kprobe/udp_destroy_sock: port %d marked as closed", lport);
+    log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
 
     return 0;
 }
 
-SEC("kprobe/sys_bind")
-int kprobe__sys_bind(struct pt_regs* ctx) {
+//region sys_enter_bind
 
-    __s32 fd = PT_REGS_PARM1(ctx);
+static __always_inline int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
     __u64 tid = bpf_get_current_pid_tgid();
 
     // determine if the fd for this process is an unbound UDP socket
@@ -1053,13 +865,12 @@ int kprobe__sys_bind(struct pt_regs* ctx) {
     __u64* u = bpf_map_lookup_elem(&unbound_sockets, &fd_and_tid);
 
     if (u == NULL) {
-        log_debug("kprobe/sys_bind: bind happened, but not on a UDP socket\n");
+        log_debug("sys_enter_bind: bind happened, but not on a UDP socket, fd=%u, tid=%u\n", fd, tid);
         return 0;
     }
 
-    struct sockaddr* addr = (struct sockaddr*)PT_REGS_PARM2(ctx);
     if (addr == NULL) {
-      log_debug("kprobe/sys_bind: could not read sockaddr\n");
+        log_debug("sys_enter_bind: could not read sockaddr, fd=%u, tid=%u\n", fd, tid);
         return 0;
     }
 
@@ -1074,87 +885,156 @@ int kprobe__sys_bind(struct pt_regs* ctx) {
     args.port = sin_port;
 
     bpf_map_update_elem(&pending_bind, &tid, &args, BPF_ANY);
-    log_debug("kprobe/sys_bind: started a bind on UDP port=%d fd=%d tid=%d\n", sin_port, fd, tid);
+    log_debug("sys_enter_bind: started a bind on UDP port=%d fd=%u tid=%u\n", sin_port, fd, tid);
 
     return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_bind")
+int tracepoint__sys_enter_bind(struct syscalls_enter_bind_args* ctx) {
+    log_debug("tp/sys_enter_bind: fd=%u, umyaddr=%x\n", ctx->fd, ctx->umyaddr);
+    return sys_enter_bind(ctx->fd, ctx->umyaddr);
+}
+
+SEC("kprobe/sys_bind/x64")
+int kprobe__sys_bind_x64(struct pt_regs* ctx) {
+    struct pt_regs* _ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
+
+    __u64 fd;
+    struct sockaddr* addr;
+    bpf_probe_read(&fd, sizeof(fd), &(PT_REGS_PARM1(_ctx)));
+    bpf_probe_read(&addr, sizeof(struct sockaddr*), &(PT_REGS_PARM2(_ctx)));
+    log_debug("kprobe/sys_bind/x64: fd=%u, umyaddr=%x\n", fd, addr);
+    return sys_enter_bind(fd, addr);
+}
+
+SEC("kprobe/sys_bind")
+int kprobe__sys_bind(struct pt_regs* ctx) {
+    __u64 fd = PT_REGS_PARM1(ctx);
+    struct sockaddr* addr = (struct sockaddr*)PT_REGS_PARM2(ctx);
+    log_debug("kprobe/sys_bind: fd=%u, umyaddr=%x\n", fd, addr);
+    return sys_enter_bind(fd, addr);
+}
+
+//endregion
+
+//region sys_exit_bind
+
+static __always_inline int sys_exit_bind(__s64 ret) {
+    __u64 tid = bpf_get_current_pid_tgid();
+
+    // bail if this bind() is not the one we're instrumenting
+    bind_syscall_args_t* args;
+    args = bpf_map_lookup_elem(&pending_bind, &tid);
+
+    log_debug("sys_exit_bind: tid=%u, ret=%d\n", tid, ret);
+
+    if (args == NULL) {
+        log_debug("sys_exit_bind: was not a UDP bind, will not process\n");
+        return 0;
+    }
+
+    if (ret != 0) {
+        return 0;
+    }
+
+    __u16 sin_port = args->port;
+    __u8 port_state = PORT_LISTENING;
+    bpf_map_update_elem(&udp_port_bindings, &sin_port, &port_state, BPF_ANY);
+    log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
+
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_bind")
+int tracepoint__sys_exit_bind(struct syscalls_exit_args* ctx) {
+    log_debug("tp/sys_exit_bind: ret=%d\n", ctx->ret);
+    return sys_exit_bind(ctx->ret);
 }
 
 SEC("kretprobe/sys_bind")
 int kretprobe__sys_bind(struct pt_regs* ctx) {
-  __u64 tid = bpf_get_current_pid_tgid();
-  int ret = PT_REGS_RC(ctx);
-
-  // bail if this bind() is not the one we're instrumenting
-  bind_syscall_args_t *args;
-  args = bpf_map_lookup_elem(&pending_bind, &tid);
-
-  log_debug("kretprobe/bind: for tid %d and return value: %d\n", tid, ret);
-
-  if (args == NULL) {
-    log_debug("kretprobe/bind: was not a UDP bind, will not process\n");
-    return 0;
-  }
-
-  if (ret != 0) {
-    log_debug("kretprobe/bind: return %d for tid %d\n", tid, ret);
-    return 0;
-  }
-
-
-  __u16 sin_port = args->port;
-  __u8 port_state = PORT_LISTENING;
-  bpf_map_update_elem(&udp_port_bindings, &sin_port, &port_state, BPF_ANY);
-  log_debug("kretprobe/bind: bound UDP port  %d\n", sin_port);
-
-  return 0;
+    __s64 ret = PT_REGS_RC(ctx);
+    log_debug("kretprobe/sys_bind: ret=%d\n", ret);
+    return sys_exit_bind(ret);
 }
 
+//endregion
+
+//region sys_enter_socket
+
 // used for capturing UDP sockets that are bound
-SEC("kprobe/sys_socket")
-int kprobe__sys_socket(struct pt_regs* ctx) {
-    int domain = PT_REGS_PARM1(ctx);
-    int type = PT_REGS_PARM2(ctx);
+static __always_inline int sys_enter_socket(__u64 family, __u64 type) {
     __u64 tid = bpf_get_current_pid_tgid();
+    log_debug("sys_enter_socket: tid=%u, family=%u, type=%u\n", tid, family, type);
 
     // figuring out if the socket being constructed is UDP. We will call
     // a socket UDP if it is in the AF_INET or AF_INET6 domain. And
     // the type is SOCK_DGRAM.
     __u8 pending_udp = 0;
-    if ((domain & (AF_INET | AF_INET6)) > 0 && (type & SOCK_DGRAM) > 0) {
+    if ((family & (AF_INET | AF_INET6)) > 0 && (type & SOCK_DGRAM) > 0) {
         pending_udp = 1;
     }
 
     if (pending_udp == 0) {
-        log_debug("kprobe sys_socket: got a socket() call, but was not for UDP with tid=%d", tid);
+        log_debug("sys_enter_socket: got a socket() call, but was not for UDP with tid=%u, family=%u, type=%u\n", tid, family, type);
         return 0;
     }
 
-    log_debug("kprobe sys_socket: started a UDP socket for tid=%d", tid);
+    log_debug("sys_enter_socket: started a UDP socket for tid=%u\n", tid);
     __u8 x = 1;
     bpf_map_update_elem(&pending_sockets, &tid, &x, BPF_ANY);
 
     return 0;
 }
 
+SEC("tracepoint/syscalls/sys_enter_socket")
+int tracepoint__sys_enter_socket(struct syscalls_enter_socket_args* ctx) {
+    log_debug("tp/sys_enter_socket: family=%u, type=%u\n", ctx->family, ctx->type);
+    return sys_enter_socket(ctx->family, ctx->type);
+}
+
+SEC("kprobe/sys_socket/x64")
+int kprobe__sys_socket_x64(struct pt_regs* ctx) {
+    struct pt_regs* _ctx = (struct pt_regs*)PT_REGS_PARM1(ctx);
+
+    __u64 family;
+    __u64 type;
+    bpf_probe_read(&family, sizeof(family), &(PT_REGS_PARM1(_ctx)));
+    bpf_probe_read(&type, sizeof(type), &(PT_REGS_PARM2(_ctx)));
+    log_debug("kprobe/sys_socket/x64: family=%u, type=%u\n", family, type);
+    return sys_enter_socket(family, type);
+}
+
+SEC("kprobe/sys_socket")
+int kprobe__sys_socket(struct pt_regs* ctx) {
+    __u64 family = PT_REGS_PARM1(ctx);
+    __u64 type = PT_REGS_PARM2(ctx);
+    log_debug("kprobe/sys_socket: family=%u, type=%u\n", family, type);
+    return sys_enter_socket(family, type);
+}
+
+//endregion
+
+//region sys_exit_socket
+
 // used in combination with the kprobe for sys_socket to find file descriptors for UDP sockets that have not
 // yet been "binded".
-SEC("kretprobe/sys_socket")
-int kretprobe__sys_socket(struct pt_regs* ctx) {
+static __always_inline int sys_exit_socket(__s64 fd) {
     __u64 tid = bpf_get_current_pid_tgid();
     __u8* udp_pending = bpf_map_lookup_elem(&pending_sockets, &tid);
 
-    int fd = PT_REGS_RC(ctx);
     // move the socket to "unbound"
     __u64 fd_and_tid = (tid << 32) | fd;
 
     if (udp_pending == NULL) {
         // in most cases this will be a no-op, but
-        // in the case that this is a non-UDP soccket call,
+        // in the case that this is a non-UDP socket call,
         // and an older process with the same TID created a UDP
         // socket with the same FD, we want to prevent
         // subsequent calls to bind() from having an effect.
         bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
-        log_debug("kretprobe/sys_socket: socket() call finished but was not UDP\n");
+        log_debug("sys_exit_socket: socket() call finished but was not UDP, fd=%d, tid=%u\n", fd, tid);
         return 0;
     }
 
@@ -1162,18 +1042,32 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
         // if the socket() call has failed, don't keep track of the returned
         // file descriptor (which will be negative one)
         bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
-        log_debug("kretprobe/sys_socket: socket() call failed\n");
+        log_debug("sys_exit_socket: socket() call failed, fd=%d, tid=%u\n", fd, tid);
     }
-
 
     bpf_map_delete_elem(&pending_sockets, &tid);
 
-    log_debug("kretprobe/sys_socket: socket() call for UDP socket terminated, fd (%d) is now unbound tid=%d\n", fd, tid);
+    log_debug("sys_exit_socket: socket() call for UDP socket terminated, fd (%d) is now unbound tid=%u\n", fd, tid);
 
     __u64 v = 1;
     bpf_map_update_elem(&unbound_sockets, &fd_and_tid, &v, BPF_ANY);
     return 0;
 }
+
+SEC("tracepoint/syscalls/sys_exit_socket")
+int tracepoint__sys_exit_socket(struct syscalls_exit_args* ctx) {
+    log_debug("tp/sys_exit_socket: fd=%d\n", ctx->ret);
+    return sys_exit_socket(ctx->ret);
+}
+
+SEC("kretprobe/sys_socket")
+int kretprobe__sys_socket(struct pt_regs* ctx) {
+    __s64 fd = PT_REGS_RC(ctx);
+    log_debug("kretprobe/sys_socket: fd=%d\n", fd);
+    return sys_exit_socket(fd);
+}
+
+//endregion
 
 // This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
 // When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
@@ -1214,16 +1108,14 @@ int socket__dns_filter(struct __sk_buff* skb) {
 
     __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
     __u16 dst_port = load_half(skb, ETH_HLEN + ip_hdr_size + dst_port_offset);
-    __u16 key = 0;
-    __u8* val = bpf_map_lookup_elem(&config, &key);
 
-    if (src_port != 53 && (val == NULL || dst_port != 53))
+    if (src_port != 53 && (!dns_stats_enabled() || dst_port != 53))
         return 0;
 
     return -1;
 }
 
-// This number will be interpreted by gobpf-elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE;
+// This number will be interpreted by elf-loader to set the current running kernel version
+__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
 
-char _license[] SEC("license") = "GPL";
+char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)

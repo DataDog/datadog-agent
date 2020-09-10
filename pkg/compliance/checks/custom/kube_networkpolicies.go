@@ -20,7 +20,7 @@ func init() {
 	registerCustomCheck("kubernetesNetworkPolicies", kubernetesNetworkPoliciesCheck)
 }
 
-func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]string, expr *eval.IterableExpression) (*compliance.Report, error) {
+func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]string, _ *eval.IterableExpression) (*compliance.Report, error) {
 	if e.KubeClient() == nil {
 		return nil, fmt.Errorf("unable to run kubernetesNetworkPolicies check for rule: %s - Kubernetes client not initialized", ruleID)
 	}

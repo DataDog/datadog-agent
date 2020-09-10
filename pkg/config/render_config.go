@@ -42,6 +42,7 @@ type context struct {
 	ClusterChecks     bool
 	CloudFoundryBBS   bool
 	Compliance        bool
+	SNMP              bool
 	SecurityModule    bool
 }
 
@@ -70,6 +71,7 @@ func mkContext(buildType string) context {
 		Kubelet:           true,
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
 		Compliance:        true,
+		SNMP:              true,
 		SecurityModule:    true,
 	}
 

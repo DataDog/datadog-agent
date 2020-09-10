@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/gopacket/layers"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,9 +63,11 @@ type telemetry struct {
 }
 
 type stats struct {
-	totalSent        uint64
-	totalRecv        uint64
-	totalRetransmits uint32
+	totalSent           uint64
+	totalRecv           uint64
+	totalRetransmits    uint32
+	totalTCPEstablished uint32
+	totalTCPClosed      uint32
 }
 
 type client struct {
@@ -143,6 +147,8 @@ func (ns *networkState) Connections(
 			c.LastSentBytes = 0
 			c.LastRecvBytes = 0
 			c.LastRetransmits = 0
+			c.LastTCPEstablished = 0
+			c.LastTCPClosed = 0
 		}
 
 		ns.determineConnectionIntraHost(latestConns)
@@ -197,11 +203,17 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 		}
 
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
-			conn.DNSSuccessfulResponses = dnsStats.successfulResponses
-			conn.DNSFailedResponses = dnsStats.failedResponses
 			conn.DNSTimeouts = dnsStats.timeouts
+			conn.DNSSuccessfulResponses = dnsStats.countByRcode[uint8(layers.DNSResponseCodeNoErr)]
 			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
 			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
+			conn.DNSCountByRcode = make(map[uint32]uint32)
+			var total uint32
+			for rcode, count := range dnsStats.countByRcode {
+				conn.DNSCountByRcode[uint32(rcode)] = count
+				total += count
+			}
+			conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
 		}
 		seen[key] = struct{}{}
 	}
@@ -248,6 +260,8 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 			prev.MonotonicSentBytes += conn.MonotonicSentBytes
 			prev.MonotonicRecvBytes += conn.MonotonicRecvBytes
 			prev.MonotonicRetransmits += conn.MonotonicRetransmits
+			prev.MonotonicTCPEstablished += conn.MonotonicTCPEstablished
+			prev.MonotonicTCPClosed += conn.MonotonicTCPClosed
 			// Also update the timestamp
 			prev.LastUpdateEpoch = conn.LastUpdateEpoch
 			client.closedConnections[string(key)] = prev
@@ -264,13 +278,14 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 func (ns *networkState) storeDNSStats(stats map[dnsKey]dnsStats) {
 	for key, dns := range stats {
 		for _, client := range ns.clients {
-			// If we've seen DNS stats for this key already, lets combine the two
+			// If we've seen DNS stats for this key already, let's combine the two
 			if prev, ok := client.dnsStats[key]; ok {
-				prev.successfulResponses += dns.successfulResponses
-				prev.failedResponses += dns.failedResponses
 				prev.timeouts += dns.timeouts
 				prev.successLatencySum += dns.successLatencySum
 				prev.failureLatencySum += dns.failureLatencySum
+				for rcode, count := range dns.countByRcode {
+					prev.countByRcode[rcode] += count
+				}
 				client.dnsStats[key] = prev
 			} else if len(client.dnsStats) >= ns.maxDNSStats {
 				ns.telemetry.dnsStatsDropped++
@@ -320,6 +335,8 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 				closedConn.MonotonicSentBytes += activeConn.MonotonicSentBytes
 				closedConn.MonotonicRecvBytes += activeConn.MonotonicRecvBytes
 				closedConn.MonotonicRetransmits += activeConn.MonotonicRetransmits
+				closedConn.MonotonicTCPEstablished += activeConn.MonotonicTCPEstablished
+				closedConn.MonotonicTCPClosed += activeConn.MonotonicTCPClosed
 
 				ns.createStatsForKey(client, key)
 				ns.updateConnWithStatWithActiveConn(client, key, *activeConn, &closedConn)
@@ -373,15 +390,21 @@ func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key str
 		closed.LastSentBytes = closed.MonotonicSentBytes - st.totalSent
 		closed.LastRecvBytes = closed.MonotonicRecvBytes - st.totalRecv
 		closed.LastRetransmits = closed.MonotonicRetransmits - st.totalRetransmits
+		closed.LastTCPEstablished = closed.LastTCPEstablished - st.totalTCPEstablished
+		closed.LastTCPClosed = closed.LastTCPClosed - st.totalTCPClosed
 
 		// Update stats object with latest values
 		st.totalSent = active.MonotonicSentBytes
 		st.totalRecv = active.MonotonicRecvBytes
 		st.totalRetransmits = active.MonotonicRetransmits
+		st.totalTCPEstablished = active.MonotonicTCPEstablished
+		st.totalTCPClosed = active.MonotonicTCPClosed
 	} else {
 		closed.LastSentBytes = closed.MonotonicSentBytes
 		closed.LastRecvBytes = closed.MonotonicRecvBytes
 		closed.LastRetransmits = closed.MonotonicRetransmits
+		closed.LastTCPEstablished = closed.MonotonicTCPEstablished
+		closed.LastTCPClosed = closed.MonotonicTCPClosed
 	}
 }
 
@@ -393,15 +416,21 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 		c.LastSentBytes = c.MonotonicSentBytes - st.totalSent
 		c.LastRecvBytes = c.MonotonicRecvBytes - st.totalRecv
 		c.LastRetransmits = c.MonotonicRetransmits - st.totalRetransmits
+		c.LastTCPEstablished = c.MonotonicTCPEstablished - st.totalTCPEstablished
+		c.LastTCPClosed = c.MonotonicTCPClosed - st.totalTCPClosed
 
 		// Update stats object with latest values
 		st.totalSent = c.MonotonicSentBytes
 		st.totalRecv = c.MonotonicRecvBytes
 		st.totalRetransmits = c.MonotonicRetransmits
+		st.totalTCPEstablished = c.MonotonicTCPEstablished
+		st.totalTCPClosed = c.MonotonicTCPClosed
 	} else {
 		c.LastSentBytes = c.MonotonicSentBytes
 		c.LastRecvBytes = c.MonotonicRecvBytes
 		c.LastRetransmits = c.MonotonicRetransmits
+		c.LastTCPEstablished = c.MonotonicTCPEstablished
+		c.LastTCPClosed = c.MonotonicTCPClosed
 	}
 }
 
@@ -517,9 +546,11 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	if client, ok := ns.clients[clientID]; ok {
 		for connKey, s := range client.stats {
 			data[BeautifyKey(connKey)] = map[string]uint64{
-				"total_sent":        s.totalSent,
-				"total_recv":        s.totalRecv,
-				"total_retransmits": uint64(s.totalRetransmits),
+				"total_sent":            s.totalSent,
+				"total_recv":            s.totalRecv,
+				"total_retransmits":     uint64(s.totalRetransmits),
+				"total_tcp_established": uint64(s.totalTCPEstablished),
+				"total_tcp_closed":      uint64(s.totalTCPClosed),
 			}
 		}
 	}

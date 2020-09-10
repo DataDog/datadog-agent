@@ -17,33 +17,22 @@ import (
 )
 
 var (
-	dockerImageReportedFields = []string{
+	dockerReportedFields = []string{
 		compliance.DockerImageFieldID,
 		compliance.DockerImageFieldTags,
-	}
-
-	dockerContainerReportedFields = []string{
 		compliance.DockerContainerFieldID,
 		compliance.DockerContainerFieldName,
 		compliance.DockerContainerFieldImage,
-	}
-
-	dockerNetworkReportedFields = []string{
 		compliance.DockerNetworkFieldName,
-	}
-
-	dockerVersionReportedFields = []string{
 		compliance.DockerVersionFieldVersion,
 	}
-
-	dockerInfoReportedFields = []string{}
 )
 
 func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
 
-func checkDocker(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
+func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
 	if res.Docker == nil {
 		return nil, fmt.Errorf("expecting docker resource in docker check")
 	}
@@ -54,102 +43,54 @@ func checkDocker(e env.Env, ruleID string, res compliance.Resource, expr *eval.I
 	}
 
 	switch res.Docker.Kind {
-	case "image", "container", "network":
-		return checkDockerIterator(ruleID, expr, res.Docker, client)
-	case "info", "version":
-		return checkDockerInstance(ruleID, expr, res.Docker, client)
+	case "image":
+		return newDockerImageIterator(ctx, client)
+	case "container":
+		return newDockerContainerIterator(ctx, client)
+	case "network":
+		return newDockerNetworkIterator(ctx, client)
+	case "info":
+		return newDockerInfoInstance(ctx, client)
+	case "version":
+		return newDockerVersionInstance(ctx, client)
 	default:
 		return nil, dockerKindNotSupported(res.Docker.Kind)
 	}
 }
 
-func checkDockerIterator(ruleID string, expr *eval.IterableExpression, docker *compliance.DockerResource, client env.DockerClient) (*compliance.Report, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-
-	var (
-		it             eval.Iterator
-		err            error
-		reportedFields []string
-	)
-
-	switch docker.Kind {
-	case "image":
-		reportedFields = dockerImageReportedFields
-		it, err = newDockerImageIterator(ctx, client)
-
-	case "container":
-		reportedFields = dockerContainerReportedFields
-		it, err = newDockerContainerIterator(ctx, client)
-
-	case "network":
-		reportedFields = dockerNetworkReportedFields
-		it, err = newDockerNetworkIterator(ctx, client)
-
-	default:
-		return nil, dockerKindNotSupported(docker.Kind)
-	}
-
+func newDockerInfoInstance(ctx context.Context, client env.DockerClient) (*eval.Instance, error) {
+	info, err := client.Info(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := expr.EvaluateIterator(it, globalInstance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceResultToReport(result, reportedFields), nil
+	return &eval.Instance{
+		Functions: eval.FunctionMap{
+			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, info),
+		},
+	}, nil
 }
 
-func checkDockerInstance(ruleID string, expr *eval.IterableExpression, docker *compliance.DockerResource, client env.DockerClient) (*compliance.Report, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-
-	var (
-		instance       *eval.Instance
-		reportedFields []string
-	)
-
-	switch docker.Kind {
-	case "info":
-		reportedFields = dockerInfoReportedFields
-		if info, err := client.Info(ctx); err == nil {
-			instance = &eval.Instance{
-				Functions: eval.FunctionMap{
-					compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, info),
-				},
-			}
-		}
-	case "version":
-		reportedFields = dockerVersionReportedFields
-		if version, err := client.ServerVersion(ctx); err == nil {
-
-			instance = &eval.Instance{
-				Vars: eval.VarMap{
-					compliance.DockerVersionFieldVersion:       version.Version,
-					compliance.DockerVersionFieldAPIVersion:    version.APIVersion,
-					compliance.DockerVersionFieldPlatform:      version.Platform.Name,
-					compliance.DockerVersionFieldExperimental:  version.Experimental,
-					compliance.DockerVersionFieldOS:            version.Os,
-					compliance.DockerVersionFieldArch:          version.Arch,
-					compliance.DokcerVersionFieldKernelVersion: version.KernelVersion,
-				},
-				Functions: eval.FunctionMap{
-					compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, version),
-				},
-			}
-		}
-	default:
-		return nil, dockerKindNotSupported(docker.Kind)
-	}
-
-	passed, err := expr.Evaluate(instance)
+func newDockerVersionInstance(ctx context.Context, client env.DockerClient) (*eval.Instance, error) {
+	version, err := client.ServerVersion(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return instanceToReport(instance, passed, reportedFields), nil
+	return &eval.Instance{
+		Vars: eval.VarMap{
+			compliance.DockerVersionFieldVersion:       version.Version,
+			compliance.DockerVersionFieldAPIVersion:    version.APIVersion,
+			compliance.DockerVersionFieldPlatform:      version.Platform.Name,
+			compliance.DockerVersionFieldExperimental:  version.Experimental,
+			compliance.DockerVersionFieldOS:            version.Os,
+			compliance.DockerVersionFieldArch:          version.Arch,
+			compliance.DokcerVersionFieldKernelVersion: version.KernelVersion,
+		},
+		Functions: eval.FunctionMap{
+			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, version),
+		},
+	}, nil
 }
 
 func dockerTemplateQuery(funcName, obj interface{}) eval.Function {

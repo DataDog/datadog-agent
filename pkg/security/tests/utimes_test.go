@@ -14,16 +14,16 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestUtime(t *testing.T) {
-	ruleDef := &policy.RuleDefinition{
+	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `utimes.filename == "{{.Root}}/test-utime"`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}

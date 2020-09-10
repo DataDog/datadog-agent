@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
 // OOMKillProbe Factory
@@ -20,8 +21,11 @@ var OOMKillProbe = api.Factory{
 		}
 
 		log.Infof("Starting the OOM Kill probe")
-		okp, err := ebpf.NewOOMKillProbe()
-		return &oomKillModule{okp}, err
+		okp, err := ebpf.NewOOMKillProbe(config.SysProbeConfigFromConfig(cfg))
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to start the OOM kill probe")
+		}
+		return &oomKillModule{okp}, nil
 	},
 }
 

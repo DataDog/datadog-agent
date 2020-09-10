@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -49,6 +50,9 @@ const (
 
 	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
 	ClusterIDCacheKey = "orchestratorClusterID"
+
+	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
+	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 )
 
 var overrideVars = make(map[string]interface{})
@@ -411,6 +415,12 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
+	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
+	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
+	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})
+	config.BindEnvAndSetDefault("snmp_traps_config.bind_host", "localhost")
+	config.BindEnvAndSetDefault("snmp_traps_config.stop_timeout", 5) // in seconds
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
@@ -434,12 +444,15 @@ func InitConfig(config Config) {
 
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
+	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300)          // value in milliseconds
+	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
+	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
+	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
-	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
@@ -472,7 +485,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_reconnection_thread_pool_size", 3)
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
-	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
+	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -502,8 +515,7 @@ func InitConfig(config Config) {
 		overrideVars["process_config.enabled"] = ddProcessAgentEnabled
 	}
 
-	config.BindEnv("process_config.process_dd_url", "")      //nolint:errcheck
-	config.BindEnv("process_config.orchestrator_dd_url", "") //nolint:errcheck
+	config.BindEnv("process_config.process_dd_url", "") //nolint:errcheck
 
 	// Logs Agent
 
@@ -628,8 +640,19 @@ func InitConfig(config Config) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
-	// Ochestrator explorer
+	// Orchestrator Explorer DCA and process-agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
+	// enabling/disabling the environment variables & command scrubbing from the container specs
+	// this option will potentially impact the CPU usage of the agent
+	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
+
+	// Orchestrator Explorer - process agent
+	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "") //nolint:errcheck
+	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
+	config.BindEnv("process_config.orchestrator_dd_url", "") //nolint:errcheck
+	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
+	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
+	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
@@ -648,7 +671,6 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
 	config.SetKnown("process_config.additional_endpoints.*")
-	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
@@ -658,6 +680,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.log_file")
 	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
+	config.SetKnown("system_probe_config.bpf_dir")
 	config.SetKnown("system_probe_config.disable_tcp")
 	config.SetKnown("system_probe_config.disable_udp")
 	config.SetKnown("system_probe_config.disable_ipv6")
@@ -680,7 +703,9 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.offset_guess_threshold")
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
+	config.SetKnown("system_probe_config.enable_tracepoints")
 	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
+	config.SetKnown("system_probe_config.windows.driver_buffer_size")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -694,6 +719,8 @@ func InitConfig(config Config) {
 	config.SetKnown("apm_config.max_memory")
 	config.SetKnown("apm_config.log_file")
 	config.SetKnown("apm_config.apm_dd_url")
+	config.SetKnown("apm_config.profiling_dd_url")
+	config.SetKnown("apm_config.profiling_additional_endpoints.*")
 	config.SetKnown("apm_config.max_cpu_percent")
 	config.SetKnown("apm_config.receiver_port")
 	config.SetKnown("apm_config.receiver_socket")
@@ -732,19 +759,24 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
+	// Datadog security agent (common)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
+	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
+
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
-	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
+	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
-	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", "/etc/datadog-agent/runtime-security.d")
+	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -753,12 +785,7 @@ func InitConfig(config Config) {
 }
 
 var (
-	ddURLs = map[string]interface{}{
-		"app.datadoghq.com": nil,
-		"app.datadoghq.eu":  nil,
-		"app.datad0g.com":   nil,
-		"app.datad0g.eu":    nil,
-	}
+	ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
 )
 
 // GetProxies returns the proxy settings from the configuration
@@ -988,8 +1015,8 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 		return "", err
 	}
 
-	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
-	if _, found := ddURLs[u.Host]; !found {
+	// we don't update unknown URLs (ie: proxy or custom DD domain)
+	if !ddURLRegexp.MatchString(u.Host) {
 		return DDURL, nil
 	}
 
@@ -1008,16 +1035,37 @@ func getMainInfraEndpointWithConfig(config Config) string {
 func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
-		resolvedDDURL = config.GetString(ddURLKey)
-		if config.IsSet("site") {
-			log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", ddURLKey, ddURLKey, config.GetString(ddURLKey))
-		}
+		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
 	} else if config.GetString("site") != "" {
 		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
 	} else {
 		resolvedDDURL = prefix + DefaultSite
 	}
 	return
+}
+
+// GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
+func GetMainEndpointWithConfigBackwardCompatible(config Config, prefix string, ddURLKey string, backwardKey string) (resolvedDDURL string) {
+	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
+		// value under ddURLKey takes precedence over backwardKey and 'site'
+		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
+	} else if config.IsSet(backwardKey) && config.GetString(backwardKey) != "" {
+		// value under backwardKey takes precedence over 'site'
+		resolvedDDURL = getResolvedDDUrl(config, backwardKey)
+	} else if config.GetString("site") != "" {
+		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
+	} else {
+		resolvedDDURL = prefix + DefaultSite
+	}
+	return
+}
+
+func getResolvedDDUrl(config Config, urlKey string) string {
+	resolvedDDURL := config.GetString(urlKey)
+	if config.IsSet("site") {
+		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, config.GetString(urlKey))
+	}
+	return resolvedDDURL
 }
 
 // getMultipleEndpointsWithConfig implements the logic to extract the api keys per domain from an agent config
@@ -1229,4 +1277,22 @@ func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) 
 		}
 	}
 	return mappings, nil
+}
+
+// IsCLCRunner returns whether the Agent is in cluster check runner mode
+func IsCLCRunner() bool {
+	if !Datadog.GetBool("clc_runner_enabled") {
+		return false
+	}
+	var cp []ConfigurationProviders
+	if err := Datadog.UnmarshalKey("config_providers", &cp); err == nil {
+		for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+			cp = append(cp, ConfigurationProviders{Name: name})
+		}
+		if len(cp) == 1 && cp[0].Name == "clusterchecks" {
+			// A cluster check runner is an Agent configured to run clusterchecks only
+			return true
+		}
+	}
+	return false
 }

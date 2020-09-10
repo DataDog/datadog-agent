@@ -2,6 +2,156 @@
 Release Notes
 =============
 
+.. _Release Notes_7.22.0:
+
+7.22.0 / 6.22.0
+======
+
+.. _Release Notes_7.22.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-08-25
+
+- Please refer to the `7.22.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7220>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.22.0_New Features:
+
+New Features
+------------
+
+- Implements agent-side compliance rule evaluation in security agent using expressions.
+
+- Add IO operations monitoring for Docker check (docker.io.read/write_operations)
+
+- Track TCP connection churn on system-probe
+
+- The new Runtime Security Agent collects file integrity monitoring events.
+  It is disabled by default and only available for Linux for now.
+
+- Make security-agent part of automatically started agents in RPM/DEB/etc. packages (will do nothing and exit 0 by default)
+
+- Add support for receiving and processing SNMP traps, and forwarding them as logs to Datadog.
+
+- APM: A new trace ingestion endpoint was introduced at /v0.5/traces which supports a more compact payload format, greatly
+  improving resource usage. The spec for the new wire format can be viewed `here <https://github.com/DataDog/datadog-agent/blob/7.22.0/pkg/trace/api/version.go#L21-L69>`_.
+  Tracers supporting this change will automatically use the new endpoint.
+
+.. _Release Notes_7.22.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds a gauge for `system.mem.slab_reclaimable`. This is part of slab
+  memory that might be reclaimed (i.e. caches). Datadog 7.x adds
+  `SReclaimable` memory, if available on the system, to the
+  `system.mem.cached` gauge by default. This may lead to inconsistent
+  metrics for clients migrating from Datadog 5.x, where
+  `system.mem.cached` didn't include `SReclaimable` memory. Adding a gauge
+  for `system.mem.slab_reclaimable` allows inverse calculation to remove
+  this value from the `system.mem.cached` gauge.
+
+- Expand GCR pause container image filter
+
+- Kubernetes events for pods, replicasets and deployments now have tags that match the metrics metadata.
+  Namely, `pod_name`, `kube_deployment`, `kube_replicas_set`.
+
+- Enabled the collection of the kubernetes resource requirements (requests and limits)
+  by bumping the agent-payload dep. and collecting the resource requirements.
+
+- Implements resource fallbacks for complex compliance check assertions.
+
+- Add system.cpu.num_cores metric with the number of CPU cores (windows/linux)
+
+- compliance: Add support for Go custom compliance checks and implement two for CIS Kubernetes
+
+- Make DSD Mapper also map metrics that already contain tags.
+
+- If the retrieval of the AWS EC2 instance ID or hostname fails, previously-retrieved
+  values are now sent, which should mitigate host aliases flapping issues in-app.
+
+- Increase default timeout on AWS EC2 metadata endpoints, and make it configurable
+  with ``ec2_metadata_timeout``
+
+- Add container incl./excl. lists support for ECS Fargate (process-agent)
+
+- Adds support for a heap profile and cpu profile (of configurable length) to be created and
+  included in the flare.
+
+- Upgrade embedded Python 3 to 3.8.5. Link to Python 3.8 changelog: https://docs.python.org/3/whatsnew/3.8.html
+  
+  Note that the Python 2 version shipped in Agent v6 continues to be version 2.7.18 (unchanged).
+
+- Upgrade pip to v20.1.1. Link to pip 20.1.1 changelog: https://pip.pypa.io/en/stable/news/#id54
+
+- Upgrade pip-tools to v5.3.1. Link to pip-tools 5.3.1 changelog: https://github.com/jazzband/pip-tools/blob/master/CHANGELOG.md
+
+- Introduces support for resolving pathFrom from in File and Audit checks.
+
+- On Windows, always add the user to the required groups during installation.
+
+- APM: A series of changes to internal algorithms were made which reduced CPU usage between 20-40% based on throughput.
+
+
+.. _Release Notes_7.22.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Allow integration commands to work for pre-release versions.
+
+- [Windows] Ensure ``PYTHONPATH`` variable is ignored correctly when initializing the Python runtime.
+
+- Enable listening for conntrack info from all namespaces in system probe
+
+- Fix cases where the resolution of secrets in integration configs would not
+  be performed for autodiscovered containers.
+
+- Fixes submission of containers blkio metrics that may modify array after being already used by aggregator. Can cause missing tags on containerd.* metrics
+
+- Restore support of JSON-formatted lists for configuration options passed as environment variables.
+
+- Don't allow pressing the disable button on checks twice.
+
+- Fix `container_include_metrics` support for all container checks
+
+- Fix a bug where the Agent disables collecting tags when the
+  cluster checks advanced dispatching is enabled in the Daemonset Agent.
+
+- Fixes a bug where the ECS metadata endpoint V2 would get queried even though it was not configured
+  with the configuration option `cloud_provider_metadata`.
+
+- Fix a bug when a kubernetes job has exited after some time the tagger does not update it even if it did change its state.
+
+- Fixes the Agent failing to start on sysvinit on systems with dpkg >= 1.19.3
+
+- The agent was collecting docker container logs (metrics)
+  even if they are matching `DD_CONTAINER_EXCLUDE_LOGS`
+  (resp. `DD_CONTAINER_EXCLUDE_METRICS`)
+  if they were started before the agent. This is now fixed.
+
+- Fix a bug where the Agent would not remove tags for pods that no longer
+  exist, potentially causing unbounded memory growth.
+
+- Fix pidfile support on security-agent
+
+- Fixed system-probe not working on CentOS/RHEL 8 due to our custom SELinux policy.
+  We now install the custom policy only on CentOS/RHEL 7, where the system-probe is known
+  not to work with the default. On other platform the default will be used.
+
+- Stop sending payload for Cloud Foundry applications containers that have no `container_name` tag attached to avoid them showing up in the UI with empty name.
+
+
+.. _Release Notes_7.22.0_Other Notes:
+
+Other Notes
+-----------
+
+- APM: datadog.trace_agent.receiver.* metrics are now also tagged by endpoint_version 
+
+
 .. _Release Notes_7.21.1:
 
 7.21.1

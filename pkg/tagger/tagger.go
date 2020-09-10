@@ -68,7 +68,7 @@ func newTagger() *Tagger {
 // for this host. It then starts the collection logic and is ready for
 // requests.
 func (t *Tagger) Init(catalog collectors.Catalog) {
-	if config.Datadog.GetBool("clc_runner_enabled") {
+	if config.IsCLCRunner() {
 		log.Infof("Tagger not started on CLC")
 		return
 	}

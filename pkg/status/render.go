@@ -16,6 +16,7 @@ import (
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 )
 
 var fmap = Textfmap()
@@ -39,6 +40,7 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
+	snmpTrapsStats := stats["snmpTrapsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
@@ -55,6 +57,9 @@ func FormatStatus(data []byte) (string, error) {
 	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
 	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
+	}
+	if traps.IsEnabled() {
+		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 	}
 
 	return b.String(), nil
@@ -101,10 +106,13 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats) //nolint:errcheck
 	runnerStats := stats["runnerStats"]
+	complianceChecks := stats["complianceChecks"]
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
-	renderComplianceChecksStats(b, runnerStats)
+
+	renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"])
+	renderComplianceChecksStats(b, runnerStats, complianceChecks)
 
 	return b.String(), nil
 }
@@ -150,10 +158,17 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	return b.String(), nil
 }
 
-func renderComplianceChecksStats(w io.Writer, runnerStats /*, checkSchedulerStats*/ interface{} /*, onlyCheck string*/) {
+func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks interface{}) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
+	checkStats["ComplianceChecks"] = complianceChecks
 	renderStatusTemplate(w, "/compliance.tmpl", checkStats)
+}
+
+func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) {
+	status := make(map[string]interface{})
+	status["RuntimeSecurityStatus"] = runtimeSecurityStatus
+	renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {

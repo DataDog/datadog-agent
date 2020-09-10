@@ -82,3 +82,9 @@ The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by
 
 You'll find information and help on how to contribute code to this project under
 [the `docs/dev` directory](docs/dev) of the present repo.
+
+## License
+
+The Datadog agent user space components are licensed under the
+[Apache License, Version 2.0](LICENSE). The BPF code is licensed
+under the [General Public License, Version 2.0](pkg/ebpf/c/COPYING).
