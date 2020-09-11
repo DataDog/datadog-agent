@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ebpflib "github.com/DataDog/ebpf"
 )
 
 const (
@@ -56,6 +57,7 @@ type Probe struct {
 	tables           map[string]*ebpf.Table
 	eventsStats      EventsStats
 	syscallMonitor   *SyscallMonitor
+	kernelVersion    uint32
 }
 
 func (p *Probe) getTableNames() []string {
@@ -64,11 +66,13 @@ func (p *Probe) getTableNames() []string {
 		"noisy_processes_buffer",
 		"noisy_processes_fb",
 		"noisy_processes_bb",
+		"mount_id_offset",
 	}
 
 	tables = append(tables, openTables...)
 	tables = append(tables, execTables...)
 	tables = append(tables, unlinkTables...)
+	tables = append(tables, mountTables...)
 
 	return tables
 }
@@ -97,8 +101,18 @@ func (p *Probe) getPerfMaps() []*ebpf.PerfMapDefinition {
 	}
 }
 
+func (p *Probe) detectKernelVersion() {
+	if kernelVersion, err := ebpflib.CurrentKernelVersion(); err != nil {
+		log.Warn("unable to detect the kernel version")
+	} else {
+		p.kernelVersion = kernelVersion
+	}
+}
+
 // Start the runtime security probe
 func (p *Probe) Start() error {
+	p.detectKernelVersion()
+
 	asset := "pkg/security/ebpf/c/runtime-security"
 	openSyscall := getSyscallFnName("open")
 	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {

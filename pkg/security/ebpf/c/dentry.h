@@ -12,11 +12,17 @@
 #define DENTRY_MAX_DEPTH 16
 
 #define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
-#if USE_SYSCALL_WRAPPER == 1
-# define MNT_OFFSETOF_MNTID 284 // offsetof(struct mount, mnt_id)
-#else
-# define MNT_OFFSETOF_MNTID 268 // offsetof(struct mount, mnt_id)
-#endif
+#define MNT_OFFSETOF_MNTID 284 // offsetof(struct mount, mnt_id)
+
+// temporary fix before constant edition
+struct bpf_map_def SEC("maps/mount_id_offset") mount_id_offset = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
 
 struct path_key_t {
     unsigned long ino;
@@ -67,9 +73,18 @@ dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
 }
 
 int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
+    u32 key = 0;
+    u32 id_offset = MNT_OFFSETOF_MNTID;
+
+    // this will be done by constant edition in the future
+    u32 *offset = bpf_map_lookup_elem(&mount_id_offset, &key);
+    if (offset && *offset) {
+        id_offset = *offset;
+    }
+
     int mount_id;
     // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + MNT_OFFSETOF_MNTID - MNT_OFFSETOF_MNT);
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + id_offset - MNT_OFFSETOF_MNT);
     return mount_id;
 }
 
