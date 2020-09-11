@@ -14,6 +14,7 @@ import (
 const (
 	expirationInterval = 5 * time.Minute
 	purgeInterval      = 30 * time.Second
+	maxTracers         = 10
 )
 
 type RegisteredSource struct {
@@ -31,6 +32,10 @@ func RegisterSource(id, source, service, env string) *RegisteredSource {
 		return item.(*RegisteredSource)
 	}
 
+	// Unfortunately go-cache does not update the timestamp
+	// on get operations, so everything currently expires, this
+	// results in increased allocations. Upstream PR in order
+	// to add these functionalities, or write our own.
 	entry := &RegisteredSource{
 		Id:      id,
 		Source:  source,
@@ -38,16 +43,21 @@ func RegisterSource(id, source, service, env string) *RegisteredSource {
 		Env:     env,
 	}
 	registrationMap.SetDefault(id, entry)
+
+	return entry
+}
+
+func GetSourceById(id string) (*RegisteredSource, bool) {
+	source, err := registrationMap.Get(id)
+	return source.(*RegisteredSource), err
 }
 
 func GetSourcesForServiceAndEnv(service, env string) map[string]*RegisteredSource {
 	sources := map[string]*RegisteredSource{}
+
+	// only unexpired items are returned by Items()
 	items := registrationMap.Items()
 	for id, item := range items {
-		if item.Expired() {
-			continue
-		}
-
 		match := true
 		source := item.Object.(*RegisteredSource)
 		if service != "" && source.Service != service {
@@ -61,6 +71,13 @@ func GetSourcesForServiceAndEnv(service, env string) map[string]*RegisteredSourc
 			sources[id] = source
 		}
 	}
+
+	// if service == "" && env == "" {
+	// 	if len(sources) >= maxTracers {
+	// 		return source, errors.New("Too many tracers in sources")
+
+	// 	}
+	// }
 
 	return sources
 }

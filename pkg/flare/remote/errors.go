@@ -5,6 +5,11 @@
 
 package remote
 
+// OngoingFlareError is used to warn about ongoing flares
+type OngoingFlareError struct {
+	err string
+}
+
 // InvalidLogType is used to warn about invalid log types
 type InvalidLogType struct {
 	err string
@@ -18,6 +23,10 @@ type InvalidTracerId struct {
 // InvalidFlareId is used to warn about invalid flare id in requests
 type InvalidFlareId struct {
 	err string
+}
+
+func (e OngoingFlareError) Error() string {
+	return e.err
 }
 
 func (e InvalidLogType) Error() string {

@@ -136,7 +136,7 @@ func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, profi
 }
 
 func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFilePath string, profile *Profile) (string, error) {
-	tempDir, err := createTempDir()
+	tempDir, err := CreateTempDir()
 	if err != nil {
 		return "", err
 	}
@@ -308,7 +308,8 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFile
 	return zipFilePath, nil
 }
 
-func createTempDir() (string, error) {
+// CrateTempDir created a temporary directory
+func CreateTempDir() (string, error) {
 	b := make([]byte, 10)
 	_, err := rand.Read(b)
 	if err != nil {
