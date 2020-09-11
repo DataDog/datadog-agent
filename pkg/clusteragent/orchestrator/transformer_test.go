@@ -810,7 +810,7 @@ func TestFindNodeRoles(t *testing.T) {
 		input    map[string]string
 		expected []string
 	}{
-		"2 labels": {
+		"kubernetes.io/role role": {
 			input: map[string]string{
 				"label":                    "foo",
 				"node-role.kubernetes.io/": "master",
@@ -818,22 +818,28 @@ func TestFindNodeRoles(t *testing.T) {
 			},
 			expected: []string{"data"},
 		},
-		"2 other labels": {
+		"node-role.kubernetes.io roles": {
 			input: map[string]string{
 				"node-role.kubernetes.io/compute":                              "",
 				"node-role.kubernetes.io/ingress-haproxy-metrics-agent-public": "",
 			},
 			expected: []string{"compute", "ingress-haproxy-metrics-agent-public"},
+		}, "node-role.kubernetes.io roles and kubernetes.io/role role": {
+			input: map[string]string{
+				"node-role.kubernetes.io/compute":                              "",
+				"node-role.kubernetes.io/ingress-haproxy-metrics-agent-public": "",
+				"kubernetes.io/role":                                           "master",
+			},
+			expected: []string{"compute", "ingress-haproxy-metrics-agent-public", "master"},
 		},
-		"1 label": {
+		"incorrect label": {
 			input: map[string]string{
 				"node-role.kubernetes.io/": "master",
 			},
 			expected: []string{},
 		},
-		"0 labels": {
+		"no labels": {
 			input: map[string]string{
-				"label": "foo",
 			},
 			expected: []string{},
 		},
