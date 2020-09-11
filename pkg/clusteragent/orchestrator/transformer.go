@@ -306,7 +306,7 @@ func extractTaints(taints []corev1.Taint) []*model.Taint {
 			Value:  taint.Value,
 			Effect: string(taint.Effect),
 		}
-		if taint.TimeAdded != nil && !taint.TimeAdded.IsZero() {
+		if !taint.TimeAdded.IsZero() {
 			modelTaint.TimeAdded = taint.TimeAdded.Unix()
 		}
 		modelTaints = append(modelTaints, modelTaint)
