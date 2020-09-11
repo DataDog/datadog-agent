@@ -10,7 +10,7 @@
 
 set -e
 
-LAYER_NAMES=("Datadog-Extension-Python" "Datadog-Extension-Node" "Datadog-Extension-Java" "Datadog-Extension-Ruby" "Datadog-Extension-DotNet" "Datadog-Extension-Provided")
+LAYERS=("Datadog-Extension")
 AVAILABLE_REGIONS=$(aws ec2 describe-regions | jq -r '.[] | .[] | .RegionName')
 LAYERS_MISSING_REGIONS=()
 
@@ -28,21 +28,6 @@ else
         exit 1
     fi
     REGIONS=($2)
-fi
-
-# Check region arg
-if [ -z "$1" ]; then
-    >&2 echo "Layer parameter not specified, running for all layers "
-    LAYERS=("${LAYER_NAMES[@]}")
-else
-    >&2 echo "Layer parameter specified: $1"
-    if [[ ! " ${LAYER_NAMES[@]} " =~ " ${1} " ]]; then
-        >&2 echo "Could not find $1 in layers: ${LAYER_NAMES[@]}"
-        >&2 echo ""
-        >&2 echo "EXITING SCRIPT."
-        return 1
-    fi
-    LAYERS=($1)
 fi
 
 for region in $REGIONS

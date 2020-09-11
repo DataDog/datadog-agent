@@ -15,6 +15,8 @@ cd $DIR/../..
 LAYER_DIR=".layers"
 LAYER_FILE="datadog_extension"
 EXTENSION_DIR="./extensions"
+# Magic file while extensions are still in preview
+PREVIEW_FILE="preview-extensions-ggqizro707"
 
 rm -rf $LAYER_DIR
 rm -rf $EXTENSION_DIR
@@ -25,7 +27,9 @@ echo "Building layer"
 cd cmd/serverless
 GOOS=linux go build  -tags serverless -o ../../$EXTENSION_DIR/datadog-agent
 cd ../..
-zip -q -r "${LAYER_DIR}/${LAYER_FILE}" $EXTENSION_DIR
+touch $PREVIEW_FILE
+zip -q -r "${LAYER_DIR}/${LAYER_FILE}" -r $PREVIEW_FILE $EXTENSION_DIR
 rm -rf ./extensions
+rm $PREVIEW_FILE
 echo "Done creating archive $LAYER_FILE"
 ls $LAYER_DIR | xargs -I _ echo "$LAYER_DIR/_"

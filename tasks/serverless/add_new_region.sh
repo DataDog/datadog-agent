@@ -12,7 +12,7 @@ set -e
 
 OLD_REGION='us-east-1'
 
-LAYER_NAMES=("Datadog-Extension-Python" "Datadog-Extension-Node" "Datadog-Extension-Java" "Datadog-Extension-Ruby" "Datadog-Extension-DotNet" "Datadog-Extension-Provided")
+LAYER_NAMES=("Datadog-Extension")
 
 NEW_REGION=$1
 
@@ -48,7 +48,6 @@ for layer_name in "${LAYER_NAMES[@]}"; do
     # run for each version of layer
     for i in $(seq 1 $last_layer_version); do
         layer_path=$layer_name"_"$i.zip
-        aws_version_key="${PYTHON_VERSIONS_FOR_AWS_CLI[$j]}"
 
         # download layer versions
         URL=$(AWS_REGION=$OLD_REGION aws lambda get-layer-version --layer-name $layer_name --version-number $i --query Content.Location --output text)
@@ -57,7 +56,7 @@ for layer_name in "${LAYER_NAMES[@]}"; do
         # publish layer to new region
         ./publish_layer
 
-        publish_layer $NEW_REGION $layer_name
+        publish_layer $NEW_REGION
         rm $layer_path
     done
 
