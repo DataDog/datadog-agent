@@ -207,8 +207,15 @@ func extractNode(n *corev1.Node) *model.Node {
 		ProviderID:    n.Spec.ProviderID,
 		Unschedulable: n.Spec.Unschedulable,
 		Status: &model.NodeStatus{
-			Allocatable: map[string]int64{},
-			Capacity:    map[string]int64{},
+			Allocatable:             map[string]int64{},
+			Capacity:                map[string]int64{},
+			Architecture:            n.Status.NodeInfo.Architecture,
+			ContainerRuntimeVersion: n.Status.NodeInfo.ContainerRuntimeVersion,
+			OperatingSystem:         n.Status.NodeInfo.OperatingSystem,
+			OsImage:                 n.Status.NodeInfo.OSImage,
+			KernelVersion:           n.Status.NodeInfo.KernelVersion,
+			KubeletVersion:          n.Status.NodeInfo.KubeletVersion,
+			KubeProxyVersion:        n.Status.NodeInfo.KubeProxyVersion,
 		},
 	}
 
@@ -216,14 +223,6 @@ func extractNode(n *corev1.Node) *model.Node {
 		msg.Taints = extractTaints(n.Spec.Taints)
 	}
 
-	// status
-	msg.Status.KubeletVersion = n.Status.NodeInfo.KubeletVersion
-	msg.Status.ContainerRuntimeVersion = n.Status.NodeInfo.ContainerRuntimeVersion
-	msg.Status.OperatingSystem = n.Status.NodeInfo.OperatingSystem
-	msg.Status.Architecture = n.Status.NodeInfo.Architecture
-	msg.Status.OsImage = n.Status.NodeInfo.OSImage
-	msg.Status.KubeProxyVersion = n.Status.NodeInfo.KubeProxyVersion
-	msg.Status.KernelVersion = n.Status.NodeInfo.KernelVersion
 	extractCapacitiesAndAllocatables(n, msg)
 
 	// extract status addresses
