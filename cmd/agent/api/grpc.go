@@ -35,7 +35,10 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 	return &pb.HostnameReply{Hostname: h}, nil
 }
 
-// AuthFuncOverride will override the AuthFunc registered with the unary interceptor
+// AuthFuncOverride implements the `grpc_auth.ServiceAuthFuncOverride` interface which allows
+// override of the AuthFunc registered with the unary interceptor.
+//
+// see: https://godoc.org/github.com/grpc-ecosystem/go-grpc-middleware/auth#ServiceAuthFuncOverride
 func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
 	return ctx, nil
 }
