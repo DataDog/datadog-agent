@@ -778,6 +778,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("runtime_security_config.syscall_monitor.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
+	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

@@ -206,7 +206,7 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		config:       config,
 		probe:        probe,
 		ruleSet:      ruleSet,
-		eventServer:  NewEventServer(ruleSet.ListRuleIDs()),
+		eventServer:  NewEventServer(ruleSet.ListRuleIDs(), config),
 		grpcServer:   grpc.NewServer(),
 		statsdClient: statsdClient,
 		rateLimiter:  NewRateLimiter(ruleSet.ListRuleIDs()),
