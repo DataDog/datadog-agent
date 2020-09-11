@@ -82,12 +82,9 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgraph-io/ristretto v0.0.3
-	github.com/docker/cli v0.0.0-20200130152716-5d0cf8839492 // indirect
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200309214505-aa6a9891b09c+incompatible
-	github.com/docker/go v1.5.1-1 // indirect
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
-	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
@@ -122,7 +119,6 @@ require (
 	github.com/mdlayher/netlink v1.1.0
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/miekg/dns v1.1.31
-	github.com/miekg/pkcs11 v1.0.3 // indirect
 	github.com/moby/sys/mountinfo v0.1.3
 	github.com/munnerz/goautoneg v0.0.0-20190414153302-2ae31c8b6b30 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
@@ -147,7 +143,6 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
-	github.com/theupdateframework/notary v0.6.1 // indirect
 	github.com/tinylib/msgp v1.1.2
 	github.com/twmb/murmur3 v1.1.3
 	github.com/ulikunitz/xz v0.5.7 // indirect
