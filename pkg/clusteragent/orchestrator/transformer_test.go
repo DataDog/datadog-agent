@@ -839,8 +839,7 @@ func TestFindNodeRoles(t *testing.T) {
 			expected: []string{},
 		},
 		"no labels": {
-			input: map[string]string{
-			},
+			input:    map[string]string{},
 			expected: []string{},
 		},
 	}
