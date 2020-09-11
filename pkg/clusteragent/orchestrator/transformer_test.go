@@ -578,9 +578,7 @@ func TestExtractNode(t *testing.T) {
 					Name:              "node",
 					CreationTimestamp: timestamp,
 					Labels: map[string]string{
-						"label":                    "foo",
-						"node-role.kubernetes.io/": "master",
-						"kubernetes.io/role":       "data",
+						"kubernetes.io/role": "data",
 					},
 					Annotations: map[string]string{
 						"annotation": "bar",
@@ -590,11 +588,6 @@ func TestExtractNode(t *testing.T) {
 					PodCIDR:       "1234-5678-90",
 					Unschedulable: true,
 					Taints: []corev1.Taint{{
-						Key:       "taint1",
-						Value:     "val1",
-						Effect:    "effect1",
-						TimeAdded: &timestamp,
-					}, {
 						Key:    "taint2NoTimeStamp",
 						Value:  "val1",
 						Effect: "effect1",
@@ -615,7 +608,7 @@ func TestExtractNode(t *testing.T) {
 						Address: "1234567890",
 					}},
 					Images: []corev1.ContainerImage{{
-						Names:     []string{"image1", "image2"},
+						Names:     []string{"image1"},
 						SizeBytes: 10,
 					}},
 					DaemonEndpoints: corev1.NodeDaemonEndpoints{KubeletEndpoint: corev1.DaemonEndpoint{Port: 11}},
@@ -636,27 +629,6 @@ func TestExtractNode(t *testing.T) {
 						LastTransitionTime: timestamp,
 						Reason:             "node to ready",
 						Message:            "ready",
-					}, {
-						Type:               corev1.NodePIDPressure,
-						Status:             corev1.ConditionTrue,
-						LastHeartbeatTime:  timestamp,
-						LastTransitionTime: timestamp,
-						Reason:             "node to pid",
-						Message:            "pid",
-					}, {
-						Type:               corev1.NodeNetworkUnavailable,
-						Status:             corev1.ConditionFalse,
-						LastHeartbeatTime:  timestamp,
-						LastTransitionTime: timestamp,
-						Reason:             "node to unavailable",
-						Message:            "unavailable",
-					}, {
-						Type:               corev1.NodeDiskPressure,
-						Status:             corev1.ConditionUnknown,
-						LastHeartbeatTime:  timestamp,
-						LastTransitionTime: timestamp,
-						Reason:             "node to pressure",
-						Message:            "pressure",
 					}},
 				},
 			}, expected: model.Node{
@@ -664,7 +636,7 @@ func TestExtractNode(t *testing.T) {
 					Name:              "node",
 					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
 					CreationTimestamp: 1389744000,
-					Labels:            []string{"label:foo", "node-role.kubernetes.io/:master", "kubernetes.io/role:data"},
+					Labels:            []string{"kubernetes.io/role:data"},
 					Annotations:       []string{"annotation:bar"},
 				},
 				Status: &model.NodeStatus{
@@ -681,7 +653,7 @@ func TestExtractNode(t *testing.T) {
 					NodeAddresses: map[string]string{"endpoint": "1234567890"},
 					Status:        "Ready,SchedulingDisabled",
 					Images: []*model.ContainerImage{{
-						Names:     []string{"image1", "image2"},
+						Names:     []string{"image1"},
 						SizeBytes: 10,
 					}},
 					KernelVersion:           "kernel1",
@@ -697,34 +669,11 @@ func TestExtractNode(t *testing.T) {
 						LastTransitionTime: timestamp.Unix(),
 						Reason:             "node to ready",
 						Message:            "ready",
-					}, {
-						Type:               string(corev1.NodePIDPressure),
-						Status:             string(corev1.ConditionTrue),
-						LastTransitionTime: timestamp.Unix(),
-						Reason:             "node to pid",
-						Message:            "pid",
-					}, {
-						Type:               string(corev1.NodeNetworkUnavailable),
-						Status:             string(corev1.ConditionFalse),
-						LastTransitionTime: timestamp.Unix(),
-						Reason:             "node to unavailable",
-						Message:            "unavailable",
-					}, {
-						Type:               string(corev1.NodeDiskPressure),
-						Status:             string(corev1.ConditionUnknown),
-						LastTransitionTime: timestamp.Unix(),
-						Reason:             "node to pressure",
-						Message:            "pressure",
 					}},
 				},
 				PodCIDR:       "1234-5678-90",
 				Unschedulable: true,
 				Taints: []*model.Taint{{
-					Key:       "taint1",
-					Value:     "val1",
-					Effect:    "effect1",
-					TimeAdded: timestamp.Unix(),
-				}, {
 					Key:    "taint2NoTimeStamp",
 					Value:  "val1",
 					Effect: "effect1",
