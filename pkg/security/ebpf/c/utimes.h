@@ -70,10 +70,8 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
 
     struct utime_event_t event = {
         .event.type = EVENT_UTIME,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .atime = {
             .tv_sec = syscall->setattr.atime.tv_sec,
             .tv_usec = syscall->setattr.atime.tv_nsec,

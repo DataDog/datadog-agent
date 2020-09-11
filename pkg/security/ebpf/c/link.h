@@ -75,10 +75,8 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
 
     struct link_event_t event = {
         .event.type = EVENT_LINK,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .source = {
             .inode = inode,
             .mount_id = syscall->link.src_key.mount_id,

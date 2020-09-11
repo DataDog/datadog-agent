@@ -78,10 +78,8 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     struct mkdir_event_t event = {
         .event.type = EVENT_MKDIR,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .file = {
             .inode = inode,
             .mount_id = syscall->mkdir.path_key.mount_id,

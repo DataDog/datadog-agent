@@ -88,38 +88,26 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
-	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"-"`
-	Retval       int64     `field:"retval"`
+	Retval int64 `field:"retval"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[0:8])
-	e.Retval = int64(ebpf.ByteOrder.Uint64(data[8:16]))
-	return 16, nil
+	e.Retval = int64(ebpf.ByteOrder.Uint64(data[0:8]))
+	return 8, nil
 }
 
 func (e *SyscallEvent) marshalJSON(eventType EventType, resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"type":"%s",`, eventType.String())
-	fmt.Fprintf(&buf, `"timestamp":"%s",`, e.ResolveMonotonicTimestamp(resolvers))
 	fmt.Fprintf(&buf, `"retval":%d`, e.Retval)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
-}
-
-// ResolveMonotonicTimestamp resolves the monolitic kernel timestamp to an absolute time
-func (e *SyscallEvent) ResolveMonotonicTimestamp(resolvers *Resolvers) time.Time {
-	if (e.Timestamp.Equal(time.Time{})) {
-		e.Timestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(e.TimestampRaw)
-	}
-	return e.Timestamp
 }
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -835,32 +823,46 @@ func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 // ProcessEvent holds the process context of an event
 type ProcessEvent struct {
 	FileEvent
-	Pidns       uint64 `field:"pidns"`
-	Comm        string `field:"name" handler:"ResolveComm,string"`
-	TTYName     string `field:"tty_name" handler:"ResolveTTY,string"`
-	Pid         uint32 `field:"pid"`
-	Tid         uint32 `field:"tid"`
-	UID         uint32 `field:"uid"`
-	GID         uint32 `field:"gid"`
-	User        string `field:"user" handler:"ResolveUser,string"`
-	Group       string `field:"group" handler:"ResolveGroup,string"`
-	PathnameStr string `field:"filename" handler:"ResolveProcessPid,string"`
+	Pidns       uint64    `field:"pidns"`
+	Comm        string    `field:"name" handler:"ResolveComm,string"`
+	TTYName     string    `field:"tty_name" handler:"ResolveTTY,string"`
+	Pid         uint32    `field:"pid"`
+	Tid         uint32    `field:"tid"`
+	UID         uint32    `field:"uid"`
+	GID         uint32    `field:"gid"`
+	User        string    `field:"user" handler:"ResolveUser,string"`
+	Group       string    `field:"group" handler:"ResolveGroup,string"`
+	PathnameStr string    `field:"filename" handler:"ResolvePid,string"`
+	Timestamp   time.Time `field:"-" handler:"ResolveTimestamp,string"`
 
 	CommRaw    [16]byte `field:"-"`
 	TTYNameRaw [64]byte `field:"-"`
 }
 
-func (p *ProcessEvent) ResolveProcessPid(resolvers *Resolvers) string {
+func (p *ProcessEvent) ResolvePid(resolvers *Resolvers) string {
 	if p.PathnameStr == "" {
 		entry := resolvers.ProcessResolver.Resolve(p.Pid)
 		if entry == nil {
 			return ""
 		}
 
-		p.PathnameStr = entry.Filename
+		p.PathnameStr = entry.PathnameStr
 	}
 
 	return p.PathnameStr
+}
+
+func (p *ProcessEvent) ResolveTimestamp(resolvers *Resolvers) time.Time {
+	if p.Timestamp.IsZero() {
+		entry := resolvers.ProcessResolver.Resolve(p.Pid)
+		if entry == nil {
+			return time.Time{}
+		}
+
+		p.Timestamp = entry.Timestamp
+	}
+
+	return p.Timestamp
 }
 
 func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -875,7 +877,8 @@ func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
 	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
 	fmt.Fprintf(&buf, `"gid":%d,`, p.GID)
-	fmt.Fprintf(&buf, `"filename":"%s"`, p.ResolveProcessPid(resolvers))
+	fmt.Fprintf(&buf, `"filename":"%s",`, p.ResolvePid(resolvers))
+	fmt.Fprintf(&buf, `"timestamp":"%s"`, p.ResolveTimestamp(resolvers))
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
@@ -949,8 +952,10 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID   string `field:"-"`
-	Type uint64 `field:"-"`
+	ID           string    `field:"-"`
+	Type         uint64    `field:"-"`
+	TimestampRaw uint64    `field:"-"`
+	Timestamp    time.Time `field:"-"`
 
 	Process     ProcessEvent   `yaml:"process" field:"process" event:"*"`
 	Container   ContainerEvent `yaml:"container" field:"container"`
@@ -986,13 +991,22 @@ type eventMarshaler struct {
 	marshalFnc func(resolvers *Resolvers) ([]byte, error)
 }
 
+// ResolveMonotonicTimestamp resolves the monolitic kernel timestamp to an absolute time
+func (e *Event) ResolveMonotonicTimestamp(resolvers *Resolvers) time.Time {
+	if e.Timestamp.IsZero() {
+		e.Timestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(e.TimestampRaw)
+	}
+	return e.Timestamp
+}
+
 // MarshalJSON returns the JSON encoding of the event
 func (e *Event) MarshalJSON() ([]byte, error) {
 	eventID, _ := uuid.NewRandom()
 
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"id":"%s"`, eventID)
+	fmt.Fprintf(&buf, `"id":"%s",`, eventID)
+	fmt.Fprintf(&buf, `"timestamp":"%s"`, e.ResolveMonotonicTimestamp(e.resolvers))
 
 	var entries []eventMarshaler
 
@@ -1227,11 +1241,13 @@ func (e *Event) GetPointer() unsafe.Pointer {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 	e.Type = ebpf.ByteOrder.Uint64(data[0:8])
-	return 8, nil
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[8:16])
+
+	return 16, nil
 }
 
 // NewEvent returns a new event

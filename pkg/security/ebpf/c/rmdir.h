@@ -89,10 +89,8 @@ SYSCALL_KRETPROBE(rmdir) {
 
     struct rmdir_event_t event = {
         .event.type = EVENT_RMDIR,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .file = {
             .inode = inode,
             .mount_id = syscall->rmdir.path_key.mount_id,

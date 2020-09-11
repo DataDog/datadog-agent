@@ -105,6 +105,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
             .mount_id = get_path_mount_id(path),
         },
         .cache_entry.container = {},
+        .cache_entry.timestamp = bpf_ktime_get_ns(),
     };
 
     // select parent cache entry
