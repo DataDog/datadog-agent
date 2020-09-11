@@ -290,17 +290,6 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 	return messages, nil
 }
 
-func convertNodeStatusToTags(nodeStatus string) []string {
-	var tags []string
-	for _, status := range strings.Split(nodeStatus, ",") {
-		if status == "" {
-			continue
-		}
-		tags = append(tags, fmt.Sprintf("node_status:%s", strings.ToLower(status)))
-	}
-	return tags
-}
-
 // chunkNodes chunks the given list of nodes, honoring the given chunk count and size.
 // The last chunk may be smaller than the others.
 func chunkNodes(nodes []*model.Node, chunkCount, chunkSize int) [][]*model.Node {

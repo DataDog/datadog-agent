@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"fmt"
 	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -234,26 +235,24 @@ func extractNode(n *corev1.Node) *model.Node {
 	}
 
 	// extract conditions
-	if len(n.Status.Conditions) > 0 {
-		for _, condition := range n.Status.Conditions {
-			c := &model.NodeCondition{
-				Type:    string(condition.Type),
-				Status:  string(condition.Status),
-				Reason:  condition.Reason,
-				Message: condition.Message,
-			}
-			if !condition.LastTransitionTime.IsZero() {
-				c.LastTransitionTime = condition.LastTransitionTime.Unix()
-			}
-			msg.Status.Conditions = append(msg.Status.Conditions, c)
+	for _, condition := range n.Status.Conditions {
+		c := &model.NodeCondition{
+			Type:    string(condition.Type),
+			Status:  string(condition.Status),
+			Reason:  condition.Reason,
+			Message: condition.Message,
 		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+		msg.Status.Conditions = append(msg.Status.Conditions, c)
 	}
 
 	// extract status message
 	msg.Status.Status = computeNodeStatus(n)
 
 	// extract role
-	roles := findNodeRoles(n)
+	roles := findNodeRoles(n.Labels)
 	if len(roles) > 0 {
 		msg.Roles = roles
 	}
@@ -341,7 +340,17 @@ func computeNodeStatus(n *corev1.Node) string {
 		status = append(status, "SchedulingDisabled")
 	}
 	return strings.Join(status, ",")
+}
 
+func convertNodeStatusToTags(nodeStatus string) []string {
+	var tags []string
+	for _, status := range strings.Split(nodeStatus, ",") {
+		if status == "" {
+			continue
+		}
+		tags = append(tags, fmt.Sprintf("node_status:%s", strings.ToLower(status)))
+	}
+	return tags
 }
 
 // findNodeRoles returns the roles of a given node.
@@ -349,12 +358,12 @@ func computeNodeStatus(n *corev1.Node) string {
 // * a node-role.kubernetes.io/<role>="" label
 // * a kubernetes.io/role="<role>" label
 // is mostly copied from kubernetes, for issues check upstream: https://github.com/kubernetes/kubernetes/blob/1e12d92a5179dbfeb455c79dbf9120c8536e5f9c/pkg/printers/internalversion/printers.go#L1487
-func findNodeRoles(node *corev1.Node) []string {
+func findNodeRoles(nodeLabels map[string]string) []string {
 	labelNodeRolePrefix := "node-role.kubernetes.io/"
 	nodeLabelRole := "kubernetes.io/role"
 
 	roles := sets.NewString()
-	for k, v := range node.Labels {
+	for k, v := range nodeLabels {
 		switch {
 		case strings.HasPrefix(k, labelNodeRolePrefix):
 			if role := strings.TrimPrefix(k, labelNodeRolePrefix); len(role) > 0 {

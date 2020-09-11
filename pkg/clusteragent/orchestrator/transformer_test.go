@@ -804,3 +804,116 @@ func TestExtractNode(t *testing.T) {
 		})
 	}
 }
+
+func TestFindNodeRoles(t *testing.T) {
+	tests := map[string]struct {
+		input    map[string]string
+		expected []string
+	}{
+		"2 labels": {
+			input: map[string]string{
+				"label":                    "foo",
+				"node-role.kubernetes.io/": "master",
+				"kubernetes.io/role":       "data",
+			},
+			expected: []string{"data"},
+		},
+		"2 other labels": {
+			input: map[string]string{
+				"node-role.kubernetes.io/compute":                              "",
+				"node-role.kubernetes.io/ingress-haproxy-metrics-agent-public": "",
+			},
+			expected: []string{"compute", "ingress-haproxy-metrics-agent-public"},
+		},
+		"1 label": {
+			input: map[string]string{
+				"node-role.kubernetes.io/": "master",
+			},
+			expected: []string{},
+		},
+		"0 labels": {
+			input: map[string]string{
+				"label": "foo",
+			},
+			expected: []string{},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, findNodeRoles(tc.input))
+		})
+	}
+}
+
+func TestComputeNodeStatus(t *testing.T) {
+	tests := map[string]struct {
+		input    corev1.Node
+		expected string
+	}{
+		"Ready": {
+			input: corev1.Node{
+				Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				}},
+			},
+			expected: "Ready",
+		},
+		"Ready,SchedulingDisabled": {
+			input: corev1.Node{
+				Spec: corev1.NodeSpec{Unschedulable: true},
+				Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				}},
+			},
+			expected: "Ready,SchedulingDisabled",
+		},
+		"Unknown": {
+			input: corev1.Node{
+				Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{}},
+			},
+			expected: "Unknown",
+		},
+		"Unknown,SchedulingDisabled": {
+			input: corev1.Node{
+				Spec:   corev1.NodeSpec{Unschedulable: true},
+				Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{}},
+			},
+			expected: "Unknown,SchedulingDisabled",
+		},
+		"NotReady": {
+			input: corev1.Node{
+				Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionFalse,
+					},
+				}},
+			},
+			expected: "NotReady",
+		}, "NotReady,SchedulingDisabled": {
+			input: corev1.Node{
+				Spec: corev1.NodeSpec{Unschedulable: true},
+				Status: corev1.NodeStatus{
+					Conditions: []corev1.NodeCondition{
+						{
+							Type:   corev1.NodeReady,
+							Status: corev1.ConditionFalse,
+						},
+					}},
+			},
+			expected: "NotReady,SchedulingDisabled",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, computeNodeStatus(&tc.input))
+		})
+	}
+}

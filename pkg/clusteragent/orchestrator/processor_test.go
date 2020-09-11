@@ -133,7 +133,6 @@ func TestChunkReplicasets(t *testing.T) {
 }
 
 func TestConvertNodeStatusToTags(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		input    string
