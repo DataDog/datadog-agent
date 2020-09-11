@@ -119,8 +119,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PUdpDestroySockMisses",
 			"PUdpRecvmsgHits",
 			"PUdpRecvmsgMisses",
-			"PUdpSendmsgHits",
-			"PUdpSendmsgMisses",
+			"PIpMakeSkbHits",
+			"PIpMakeSkbMisses",
 			"RXSysBindHits",
 			"RXSysBindMisses",
 			"RXSysSocketHits",
@@ -1513,7 +1513,6 @@ const (
 func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
 	config := NewDefaultConfig()
 	config.CollectDNSStats = true
-	config.CollectLocalDNS = true
 	config.DNSTimeout = 1 * time.Second
 	tr, err := NewTracer(config)
 	require.NoError(t, err)
@@ -1697,4 +1696,55 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, uint32(0), conn.MonotonicTCPEstablished)
 	assert.Equal(t, uint32(1), conn.MonotonicTCPClosed)
+}
+
+func TestUnconnectedUDPSendIPv4(t *testing.T) {
+	cfg := NewDefaultConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	remotePort := rand.Int()%5000 + 15000
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: remotePort}
+	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
+	conn, err := net.ListenUDP("udp", nil)
+	require.NoError(t, err)
+	defer conn.Close()
+	message := []byte("payload")
+	bytesSent, err := conn.WriteTo(message, remoteAddr)
+	require.NoError(t, err)
+
+	connections := getConnections(t, tr)
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+		return cs.DPort == uint16(remotePort)
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+}
+
+func TestConnectedUDPSendIPv6(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.CollectIPv6Conns = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	remotePort := rand.Int()%5000 + 15000
+	remoteAddr := &net.UDPAddr{IP: net.IPv6loopback, Port: remotePort}
+	conn, err := net.DialUDP("udp6", nil, remoteAddr)
+	require.NoError(t, err)
+	defer conn.Close()
+	message := []byte("payload")
+	bytesSent, err := conn.Write(message)
+	require.NoError(t, err)
+
+	connections := getConnections(t, tr)
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+		return cs.DPort == uint16(remotePort)
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
 }
