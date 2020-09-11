@@ -146,7 +146,9 @@ def functional_tests(
     if arch == "x86":
         env["GOARCH"] = "386"
 
-    cmd = 'sudo -E go test -tags functionaltests,linux_bpf,{build_tags} {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
+    cmd = 'go test -tags functionaltests,linux_bpf,{build_tags} {output_opt} {verbose_opt} {run_opt} {repo_path}/pkg/security/tests'
+    if os.getuid() != 0 and not output:
+        cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
         "verbose_opt": "-v" if verbose else "",
@@ -154,7 +156,8 @@ def functional_tests(
         "output_opt": "-c -o " + output if output else "",
         "run_opt": "-run " + pattern if pattern else "",
         "build_tags": build_tags,
-        "REPO_PATH": REPO_PATH,
+        "path": os.environ['PATH'],
+        "repo_path": REPO_PATH,
     }
 
     if one_by_one:
