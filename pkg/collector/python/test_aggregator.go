@@ -26,43 +26,43 @@ func testSubmitMetric(t *testing.T) {
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_RATE,
 		C.CString("test_rate"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_COUNT,
 		C.CString("test_count"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT,
 		C.CString("test_monotonic_count"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_COUNTER,
 		C.CString("test_counter"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_HISTOGRAM,
 		C.CString("test_histogram"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_HISTORATE,
 		C.CString("test_historate"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 
@@ -83,7 +83,7 @@ func testSubmitMetricEmptyTags(t *testing.T) {
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 
@@ -98,7 +98,7 @@ func testSubmitMetricEmptyHostname(t *testing.T) {
 	SubmitMetric(C.CString("testID"),
 		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
-		C.float(21),
+		C.double(21),
 		&cTags[0],
 		nil)
 

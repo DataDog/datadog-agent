@@ -15,6 +15,7 @@
 
 #define TTY_NAME_LEN 64
 #define CONTAINER_ID_LEN 64
+#define MAX_XATTR_NAME_LEN 200
 
 
 #define bpf_printk(fmt, ...)                       \
@@ -39,13 +40,9 @@ enum event_type
     EVENT_UTIME,
     EVENT_MOUNT,
     EVENT_UMOUNT,
+    EVENT_SETXATTR,
+    EVENT_REMOVEXATTR,
     EVENT_EXEC,
-};
-
-struct event_t {
-    u64 type;
-    u64 timestamp;
-    s64 retval;
 };
 
 struct kevent_t {

@@ -47,12 +47,10 @@ elif [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ]; then
         update-rc.d $SERVICE_NAME defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with update-rc.d"
         update-rc.d $SERVICE_NAME-process defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with update-rc.d"
         update-rc.d $SERVICE_NAME-trace defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with update-rc.d"
-        update-rc.d $SERVICE_NAME-security defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-security with update-rc.d"
     elif command -v chkconfig >/dev/null 2>&1; then
         chkconfig --set $SERVICE_NAME on || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with chkconfig"
         chkconfig --set $SERVICE_NAME-process on || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with chkconfig"
         chkconfig --set $SERVICE_NAME-trace on || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with chkconfig"
-        chkconfig --set $SERVICE_NAME-security on || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-security with chkconfig"
     fi
 else
     echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."

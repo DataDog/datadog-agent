@@ -256,6 +256,7 @@ core,"github.com/fatih/color",MIT
 core,"github.com/florianl/go-conntrack",MIT
 core,"github.com/florianl/go-tc",MIT
 core,"github.com/frapposelli/wwhrd",MIT
+core,"github.com/freddierice/go-losetup",MIT
 core,"github.com/fsnotify/fsnotify",NewBSD
 core,"github.com/ghodss/yaml",MIT
 core,"github.com/go-ini/ini",Apache-2.0
@@ -390,6 +391,7 @@ core,"github.com/mitchellh/copystructure",MIT
 core,"github.com/mitchellh/go-homedir",MIT
 core,"github.com/mitchellh/mapstructure",MIT
 core,"github.com/mitchellh/reflectwalk",MIT
+core,"github.com/moby/sys/mountinfo",Apache-2.0
 core,"github.com/modern-go/concurrent",Apache-2.0
 core,"github.com/modern-go/reflect2",Apache-2.0
 core,"github.com/munnerz/goautoneg",NewBSD
@@ -1095,3 +1097,6 @@ core,"google.golang.org/appengine/datastore/internal/cloudkey",Apache-2.0
 core,"google.golang.org/appengine/datastore/internal/cloudpb",Apache-2.0
 core,"google.golang.org/appengine/internal/app_identity",Apache-2.0
 core,"google.golang.org/appengine/internal/modules",Apache-2.0
+core,"github.com/cespare/xxhash",MIT
+core,"github.com/dgraph-io/ristretto",Apache-2.0
+core,"github.com/dgraph-io/ristretto/z",Apache-2.0

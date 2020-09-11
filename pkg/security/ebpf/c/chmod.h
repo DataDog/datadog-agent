@@ -86,8 +86,6 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
 
-    resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, NULL);
-
     send_event(ctx, event);
 
     return 0;

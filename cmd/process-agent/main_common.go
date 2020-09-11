@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -163,8 +164,11 @@ func runAgent(exit chan struct{}) {
 		return
 	}
 
-	// Run a profile server.
+	// Run a profile & telemetry server.
 	go func() {
+		if ddconfig.Datadog.GetBool("telemetry.enabled") {
+			http.Handle("/telemetry", telemetry.Handler())
+		}
 		http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil) //nolint:errcheck
 	}()
 

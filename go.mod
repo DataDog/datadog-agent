@@ -81,6 +81,7 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/davecgh/go-spew v1.1.1
+	github.com/dgraph-io/ristretto v0.0.3
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200309214505-aa6a9891b09c+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
@@ -89,6 +90,7 @@ require (
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/fatih/color v1.9.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
+	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/go-ini/ini v1.55.0
 	github.com/go-ole/go-ole v1.2.4
 	github.com/go-openapi/spec v0.19.8 // indirect
@@ -117,6 +119,7 @@ require (
 	github.com/mdlayher/netlink v1.1.0
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/miekg/dns v1.1.31
+	github.com/moby/sys/mountinfo v0.1.3
 	github.com/munnerz/goautoneg v0.0.0-20190414153302-2ae31c8b6b30 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
@@ -131,6 +134,7 @@ require (
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil v2.20.3+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
+	github.com/shuLhan/go-bindata v3.4.0+incompatible
 	github.com/soniah/gosnmp v1.26.0
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.0.0

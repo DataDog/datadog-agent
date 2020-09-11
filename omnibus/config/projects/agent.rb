@@ -234,13 +234,11 @@ if linux?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
   end
   if suse?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
   end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"
@@ -255,7 +253,21 @@ end
 exclude '\.git*'
 exclude 'bundler\/git'
 
-if linux?
+if windows?
+  #
+  # For Windows build, files need to be stripped must be specified here.
+  #
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+end
+
+if linux? or windows?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.

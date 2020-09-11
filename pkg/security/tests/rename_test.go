@@ -12,16 +12,16 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestRename(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `rename.old.filename == "{{.Root}}/test-rename" && rename.new.filename == "{{.Root}}/test2-rename"`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}

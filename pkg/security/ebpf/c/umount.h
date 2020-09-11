@@ -4,9 +4,10 @@
 #include "syscalls.h"
 
 struct umount_event_t {
-    struct event_t event;
+    struct kevent_t event;
     struct process_context_t process;
     struct container_context_t container;
+    struct syscall_t syscall;
     int mount_id;
 
 };
@@ -29,9 +30,11 @@ SYSCALL_KRETPROBE(umount) {
         return 0;
 
     struct umount_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_UMOUNT,
-        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall = {
+            .retval = PT_REGS_RC(ctx),
+            .timestamp = bpf_ktime_get_ns(),
+        },
         .mount_id = get_vfsmount_mount_id(syscall->umount.vfs),
     };
 

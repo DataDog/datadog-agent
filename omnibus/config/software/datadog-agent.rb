@@ -190,10 +190,6 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-trace",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.security.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat? || suse?
       # Ship a different upstart job definition on RHEL to accommodate the old
       # version of upstart (0.6.5) that RHEL 6 provides.
@@ -229,10 +225,6 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_suse.trace.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_suse.security.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end

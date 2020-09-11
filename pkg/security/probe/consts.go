@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -13,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"golang.org/x/sys/unix"
 )
@@ -46,6 +45,10 @@ const (
 	FileMountEventType
 	// FileUmountEventType - Umount event
 	FileUmountEventType
+	// FileSetXAttrEventType - Setxattr event
+	FileSetXAttrEventType
+	// FileRemoveXAttrEventType - Removexattr event
+	FileRemoveXAttrEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
 	maxEventType
 )
@@ -74,6 +77,10 @@ func (t EventType) String() string {
 		return "mount"
 	case FileUmountEventType:
 		return "umount"
+	case FileSetXAttrEventType:
+		return "setxattr"
+	case FileRemoveXAttrEventType:
+		return "removexattr"
 	}
 	return "unknown"
 }
@@ -375,7 +382,7 @@ func (f UnlinkFlags) String() string {
 	return bitmaskToString(int(f), unlinkFlagsStrings)
 }
 
-// ReturnValue represents a syscall return value
+// RetValError represents a syscall return error value
 type RetValError int
 
 func (f RetValError) String() string {
@@ -389,5 +396,3 @@ func (f RetValError) String() string {
 func init() {
 	initConstants()
 }
-
-var byteOrder = ebpf.ByteOrder

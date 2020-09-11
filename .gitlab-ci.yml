@@ -91,7 +91,6 @@ variables:
   DATADOG_AGENT_BUILDIMAGES: v2894686-d80c3ce
   DATADOG_AGENT_BUILDERS: v2894668-736db00
   DATADOG_AGENT_WINBUILDIMAGES: v2894686-d80c3ce
-  DATADOG_AGENT_WINBUILDERS: v2894668-736db00
   DATADOG_AGENT_ARMBUILDIMAGES: v2894686-d80c3ce
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2894686-d80c3ce
   BCC_VERSION: v0.12.0
@@ -135,12 +134,13 @@ variables:
 # - web (when the build is triggered by a specific build request through the
 #        web interface.  This way, if a kitchen run is desired on a specific branch,
 #        it can be triggered by requesting a specific build)
+# - api (when the build is triggered by an API call)
 #
 .if_test_kitchen_deploy: &if_test_kitchen_deploy
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web"
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
 
 .if_not_test_kitchen_deploy: &if_not_test_kitchen_deploy
-  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web"
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web" && $CI_PIPELINE_SOURCE != "api"
 
 # true only on deploys and when RELEASE_VERSION_X is NOT "nightly". In this setting
 # we are building either a new tagged version of the agent (an RC for example).
@@ -2939,6 +2939,8 @@ twistlock_scan-7:
       @"
       Set-PSDebug -Trace 1
       `$ErrorActionPreference = "Stop"
+      pip3 install -r requirements.txt
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       # ECR Login
       `$AWS_ECR_PASSWORD = aws ecr get-login-password --region us-east-1
       docker login --username AWS --password "`${AWS_ECR_PASSWORD}" 486234852809.dkr.ecr.us-east-1.amazonaws.com
@@ -2959,6 +2961,8 @@ twistlock_scan-7:
       docker trust key load `$PWD\docker.key
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       Remove-Item `$PWD\docker.key
+      ridk enable # This is only needed because invoke docker.publish-manifest calls "cat" which doesn't exist on Windows
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | out-file ci-scripts/docker-publish.ps1
 
 dev_branch_docker_hub-a6:
@@ -3035,7 +3039,7 @@ dev_branch_docker_hub-a7-windows:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
-    - docker run --rm -w C:\mnt -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDERS} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 dev_branch_multiarch_docker_hub-a6:
@@ -3158,7 +3162,7 @@ dev_master_docker_hub-a7-windows:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
-    - docker run --rm -w C:\mnt -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDERS} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 dev_master_docker_hub-dogstatsd:
@@ -3263,7 +3267,7 @@ dev_nightly_docker_hub-a7-windows:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
-    - docker run --rm -w C:\mnt -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDERS} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 # deploys nightlies to agent-dev
@@ -3824,7 +3828,7 @@ tag_release_7_windows:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
-    - docker run --rm -w C:\mnt -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDERS} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 tag_release_7_manifests:
