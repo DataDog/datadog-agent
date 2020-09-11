@@ -5,6 +5,7 @@ package ebpf
 import (
 	"expvar"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -147,7 +148,8 @@ func (t *Tracer) resizeBuffer(compareSize int, buffer []network.ConnectionStats)
 	if compareSize >= cap(buffer)*2 {
 		return make([]network.ConnectionStats, 0, cap(buffer)*2)
 	} else if compareSize <= cap(buffer)/2 {
-		return make([]network.ConnectionStats, 0, cap(buffer)/2)
+		// Take the max of buffer/2 and compareSize to limit future array resizes
+		return make([]network.ConnectionStats, 0, math.Max(float64(cap(buffer)/2), float64(compareSize)))
 	}
 	return buffer
 }
