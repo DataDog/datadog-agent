@@ -521,7 +521,7 @@ molecule_tests_local_install:
   only:
     - master
     - tags
-    - STAC-5977-local-install
+    - STAC-10025-local-install-bis
 
 molecule_tests_kubernetes:
   stage: acceptance
