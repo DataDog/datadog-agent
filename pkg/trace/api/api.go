@@ -466,7 +466,7 @@ func (r *HTTPReceiver) loop() {
 				// We expose the stats accumulated to expvar
 				info.UpdateReceiverStats(accStats)
 
-				accStats.LogStats()
+				accStats.LogAndResetStats()
 
 				lastLog = now
 

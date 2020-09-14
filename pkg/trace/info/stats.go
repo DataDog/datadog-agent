@@ -78,10 +78,10 @@ func (rs *ReceiverStats) Languages() []string {
 	return langs
 }
 
-// LogStats logs one-line summaries of ReceiverStats. Problematic stats are logged as warnings.
-func (rs *ReceiverStats) LogStats() {
-	rs.RLock()
-	defer rs.RUnlock()
+// LogAndResetStats logs one-line summaries of ReceiverStats. Problematic stats are logged as warnings.
+func (rs *ReceiverStats) LogAndResetStats() {
+	rs.Lock()
+	defer rs.Unlock()
 
 	if len(rs.Stats) == 0 {
 		log.Info("No data received")
