@@ -11,14 +11,15 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
 	"path"
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -135,6 +136,9 @@ func TestOpen(t *testing.T) {
 	defer mount.Close()
 	fdInt, err := unix.OpenByHandleAt(int(mount.Fd()), h, unix.O_CREAT)
 	if err != nil {
+		if err == unix.EINVAL {
+			t.Skip("open_by_handle_at not supported")
+		}
 		t.Fatalf("OpenByHandleAt: %v", err)
 	}
 	defer unix.Close(fdInt)
