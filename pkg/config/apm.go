@@ -12,22 +12,6 @@ import (
 )
 
 func setupAPM(config Config) {
-	config.SetKnown("apm_config.enabled")
-	config.SetKnown("apm_config.env")
-	config.SetKnown("apm_config.additional_endpoints.*")
-	config.SetKnown("apm_config.apm_non_local_traffic")
-	config.SetKnown("apm_config.max_traces_per_second")
-	config.SetKnown("apm_config.max_memory")
-	config.SetKnown("apm_config.log_file")
-	config.SetKnown("apm_config.apm_dd_url")
-	config.SetKnown("apm_config.profiling_dd_url")
-	config.SetKnown("apm_config.profiling_additional_endpoints.*")
-	config.SetKnown("apm_config.max_cpu_percent")
-	config.SetKnown("apm_config.receiver_port")
-	config.SetKnown("apm_config.receiver_socket")
-	config.SetKnown("apm_config.connection_limit")
-	config.SetKnown("apm_config.ignore_resources")
-	config.SetKnown("apm_config.replace_tags")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.enabled")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.keep_values")
 	config.SetKnown("apm_config.obfuscation.mongodb.enabled")
@@ -39,21 +23,16 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.obfuscation.memcached.enabled")
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.dd_agent_bin")
-	config.SetKnown("apm_config.max_events_per_second")
 	config.SetKnown("apm_config.trace_writer.connection_limit")
 	config.SetKnown("apm_config.trace_writer.queue_size")
 	config.SetKnown("apm_config.service_writer.connection_limit")
 	config.SetKnown("apm_config.service_writer.queue_size")
 	config.SetKnown("apm_config.stats_writer.connection_limit")
 	config.SetKnown("apm_config.stats_writer.queue_size")
-	config.SetKnown("apm_config.connection_reset_interval") // in seconds
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
-	config.SetKnown("apm_config.analyzed_spans.*")
 	config.SetKnown("apm_config.log_throttling")
 	config.SetKnown("apm_config.bucket_size_seconds")
-	config.SetKnown("apm_config.receiver_timeout")
 	config.SetKnown("apm_config.watchdog_check_delay")
-	config.SetKnown("apm_config.max_payload_size")
 
 	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
@@ -65,22 +44,25 @@ func setupAPM(config Config) {
 
 	config.BindEnvAndSetDefault("apm_config.receiver_port", 8126, "DD_APM_RECEIVER_PORT", "DD_RECEIVER_PORT")
 
-	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
-	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")
-	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")
-	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")
-	config.BindEnv("apm_config.env", "DD_APM_ENV")
-	config.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")
-	config.BindEnv("apm_config.apm_dd_url", "DD_APM_DD_URL")
-	config.BindEnv("apm_config.connection_limit", "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
-	config.BindEnv("apm_config.connection_reset_interval", "DD_APM_CONNECTION_RESET_INTERVAL")
-	config.BindEnv("apm_config.profiling_dd_url", "DD_APM_PROFILING_DD_URL")
-	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS")
-	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")
-	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")
-	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")
-	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
-	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")
+	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")                             //nolint:errcheck
+	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")                             //nolint:errcheck
+	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")                                             //nolint:errcheck
+	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")                   //nolint:errcheck
+	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")                   //nolint:errcheck
+	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")                                         //nolint:errcheck
+	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")                               //nolint:errcheck
+	config.BindEnv("apm_config.env", "DD_APM_ENV")                                                       //nolint:errcheck
+	config.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")                       //nolint:errcheck
+	config.BindEnv("apm_config.apm_dd_url", "DD_APM_DD_URL")                                             //nolint:errcheck
+	config.BindEnv("apm_config.connection_limit", "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")      //nolint:errcheck
+	config.BindEnv("apm_config.connection_reset_interval", "DD_APM_CONNECTION_RESET_INTERVAL")           //nolint:errcheck
+	config.BindEnv("apm_config.profiling_dd_url", "DD_APM_PROFILING_DD_URL")                             //nolint:errcheck
+	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS") //nolint:errcheck
+	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")                     //nolint:errcheck
+	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")                                     //nolint:errcheck
+	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")                                 //nolint:errcheck
+	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")       //nolint:errcheck
+	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                               //nolint:errcheck
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')
