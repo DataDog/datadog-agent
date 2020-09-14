@@ -10,7 +10,6 @@ from .utils import load_release_versions
 def trigger_macos_build(
     ctx,
     datadog_agent_ref="master",
-    buildimages_ref="master",
     release_version="nightly-a7",
     major_version="7",
     python_runtimes="3",
@@ -23,7 +22,6 @@ def trigger_macos_build(
     run_id = trigger_macos_workflow(
         github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
-        buildimages_ref=buildimages_ref,
         release_version=release_version,
         major_version=major_version,
         python_runtimes=python_runtimes,

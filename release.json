@@ -5,7 +5,7 @@
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.38.2",
         "JMXFETCH_HASH": "9a344b7cc76c9e9ab1171073e3e46656a8c1097273f72aee30f3564ed815b681",
-        "MACOS_BUILD_VERSION": "master",
+        "MACOS_BUILD_VERSION": "kserrania/upload-artifact-tests",
         "WINDOWS_DDNPM_DRIVER": "testsigned",
         "WINDOWS_DDNPM_VERSION": "0.98.2.git.12.54ae2bc",
         "WINDOWS_DDNPM_SHASUM": "ded26e4905378dbc18173635d3366eaa4cbf94eb0da172353b3c7eef3145824f"
@@ -16,7 +16,7 @@
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.38.2",
         "JMXFETCH_HASH": "9a344b7cc76c9e9ab1171073e3e46656a8c1097273f72aee30f3564ed815b681",
-        "MACOS_BUILD_VERSION": "master",
+        "MACOS_BUILD_VERSION": "kserrania/upload-artifact-tests",
         "WINDOWS_DDNPM_DRIVER": "testsigned",
         "WINDOWS_DDNPM_VERSION": "0.98.2.git.12.54ae2bc",
         "WINDOWS_DDNPM_SHASUM": "ded26e4905378dbc18173635d3366eaa4cbf94eb0da172353b3c7eef3145824f"

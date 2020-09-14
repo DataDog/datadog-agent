@@ -12,7 +12,6 @@ from .github import Github
 def trigger_macos_workflow(
     github_action_ref="master",
     datadog_agent_ref="master",
-    buildimages_ref="master",
     release_version="nightly-a7",
     major_version="7",
     python_runtimes="3",
@@ -34,9 +33,6 @@ def trigger_macos_workflow(
     if python_runtimes is not None:
         inputs["python_runtimes"] = python_runtimes
 
-    if buildimages_ref is not None:
-        inputs["buildimages_ref"] = buildimages_ref
-
     print(
         "Creating workflow on datadog-agent-macos-build on commit {} with args:\n{}".format(
             github_action_ref, "\n".join(["  - {}: {}".format(k, inputs[k]) for k in inputs])
@@ -48,8 +44,8 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    Github().trigger_workflow("DataDog/datadog-agent-macos-build", "macos.yaml", github_action_ref, inputs)
-
+    res = Github().trigger_workflow("DataDog/datadog-agent-macos-build", "macos.yaml", github_action_ref, inputs)
+    print(res)
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
     # that started after we triggered the workflow
     retries = 1
@@ -57,7 +53,7 @@ def trigger_macos_workflow(
     while retries <= MAX_RETRIES:
         print("Fetching triggered workflow (try {}/{})".format(retries, MAX_RETRIES))
         run = get_macos_workflow_run_for_ref(github_action_ref)
-        if run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now:
+        if run is not None and run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now:
             return run.get("id")
 
         retries += 1

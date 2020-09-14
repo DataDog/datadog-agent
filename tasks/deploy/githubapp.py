@@ -6,17 +6,6 @@ import time
 import jwt
 import requests
 
-'''
-# key_str should be base64 encoded value of a PEM encoded RSA Private Key
-# command: `cat private-key.pem | base64 -w 0 > private-key.pem.b64`
-# Then use `with open('private-key.pem.b64') as f: key=f.read()`
-config = {
-        'key': b64_key_str,
-        'installation_id': '12345',
-        'app_id': '123456'
-    }
-'''
-
 # Defines how many times the HTTP requests will be retried
 NB_RETRIES = 3
 
