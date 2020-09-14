@@ -88,7 +88,7 @@ func TestDecodeIncomingData(t *testing.T) {
 	assert.Equal(t, "hello world!", string(line.content))
 	assert.Equal(t, len("hello world!\n"), line.rawDataLen)
 
-	// too long line in one raw should be sent by chuncks
+	// excessively long line in one row should be sent by chunks
 	d.decodeIncomingData([]byte(strings.Repeat("a", contentLenLimit+10) + "\n"))
 	line = <-p.inputChan
 	assert.Equal(t, contentLenLimit, len(line.content))
@@ -97,7 +97,7 @@ func TestDecodeIncomingData(t *testing.T) {
 	assert.Equal(t, strings.Repeat("a", 10), string(line.content))
 	assert.Equal(t, 11, line.rawDataLen)
 
-	// too long line in multiple rows should be sent by chuncks
+	// excessively long line in multiple rows should be sent by chunks
 	d.decodeIncomingData([]byte(strings.Repeat("a", contentLenLimit-5)))
 	d.decodeIncomingData([]byte(strings.Repeat("a", 15) + "\n"))
 	line = <-p.inputChan

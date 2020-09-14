@@ -62,16 +62,17 @@ func TestSingleLineParser(t *testing.T) {
 
 	line := header
 
-	lineParser.Handle(&DecodedInput{[]byte(line), 7})
+	inputLen := len(line) + 1
+	lineParser.Handle(&DecodedInput{[]byte(line), inputLen})
 	message = <-h.ouputChan
 	assert.Equal(t, "", string(message.Content))
-	assert.Equal(t, 7, message.RawDataLen)
+	assert.Equal(t, inputLen, message.RawDataLen)
 
-	lineParser.Handle(&DecodedInput{[]byte(line + "one message"), 18})
+	inputLen = len(line+"one message") + 1
+	lineParser.Handle(&DecodedInput{[]byte(line + "one message"), inputLen})
 	message = <-h.ouputChan
-
 	assert.Equal(t, "one message", string(message.Content))
-	assert.Equal(t, 18, message.RawDataLen)
+	assert.Equal(t, inputLen, message.RawDataLen)
 
 	lineParser.Stop()
 }
