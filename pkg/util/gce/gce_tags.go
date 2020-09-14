@@ -13,6 +13,12 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	tagsCacheKey = cache.BuildAgentKey("gce", "GetTags")
 )
 
 type gceMetadata struct {
@@ -34,27 +40,34 @@ type gceProjectMetadata struct {
 	NumericProjectID int64
 }
 
+func getCachedTags(err error) ([]string, error) {
+	if gceTags, found := cache.Cache.Get(tagsCacheKey); found {
+		log.Infof("unable to get tags from gce, returning cached tags: %s", err)
+		return gceTags.([]string), nil
+	}
+	return nil, log.Warnf("unable to get tags from gce and cache is empty: %s", err)
+}
+
 // GetTags gets the tags from the GCE api
 func GetTags() ([]string, error) {
-	tags := []string{}
 
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return tags, fmt.Errorf("cloud provider is disabled by configuration")
+		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
 	metadataResponse, err := getResponse(metadataURL + "/?recursive=true")
 	if err != nil {
-		return tags, err
+		return getCachedTags(err)
 	}
 
 	metadata := gceMetadata{}
 
 	err = json.Unmarshal([]byte(metadataResponse), &metadata)
 	if err != nil {
-		return tags, err
+		return getCachedTags(err)
 	}
 
-	tags = metadata.Instance.Tags
+	tags := metadata.Instance.Tags
 	if metadata.Instance.Zone != "" {
 		ts := strings.Split(metadata.Instance.Zone, "/")
 		tags = append(tags, fmt.Sprintf("zone:%s", ts[len(ts)-1]))
@@ -83,6 +96,9 @@ func GetTags() ([]string, error) {
 			}
 		}
 	}
+
+	// save tags to the cache in case we exceed quotas later
+	cache.Cache.Set(tagsCacheKey, tags, cache.NoExpiration)
 
 	return tags, nil
 }

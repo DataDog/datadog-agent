@@ -17,6 +17,8 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 		LastBytesSent:          conn.LastSentBytes,
 		LastBytesReceived:      conn.LastRecvBytes,
 		LastRetransmits:        conn.LastRetransmits,
+		LastTcpEstablished:     conn.LastTCPEstablished,
+		LastTcpClosed:          conn.LastTCPClosed,
 		Rtt:                    conn.RTT,
 		RttVar:                 conn.RTTVar,
 		Direction:              formatDirection(conn.Direction),
@@ -28,6 +30,7 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 		DnsTimeouts:            conn.DNSTimeouts,
 		DnsSuccessLatencySum:   conn.DNSSuccessLatencySum,
 		DnsFailureLatencySum:   conn.DNSFailureLatencySum,
+		DnsCountByRcode:        conn.DNSCountByRcode,
 	}
 }
 
@@ -43,6 +46,26 @@ func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
 	}
 
 	return ipToNames
+}
+
+// FormatTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
+	if tel == nil {
+		return nil
+	}
+
+	return &model.ConnectionsTelemetry{
+		MonotonicKprobesTriggered:          tel.MonotonicKprobesTriggered,
+		MonotonicKprobesMissed:             tel.MonotonicKprobesMissed,
+		MonotonicConntrackRegisters:        tel.MonotonicConntrackRegisters,
+		MonotonicConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped,
+		MonotonicDnsPacketsProcessed:       tel.MonotonicDNSPacketsProcessed,
+		MonotonicConnsClosed:               tel.MonotonicConnsClosed,
+		ConnsBpfMapSize:                    tel.ConnsBpfMapSize,
+		MonotonicUdpSendsProcessed:         tel.MonotonicUDPSendsProcessed,
+		MonotonicUdpSendsMissed:            tel.MonotonicUDPSendsMissed,
+		ConntrackSamplingPercent:           tel.ConntrackSamplingPercent,
+	}
 }
 
 func formatAddr(addr util.Address, port uint16) *model.Addr {

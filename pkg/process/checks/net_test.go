@@ -3,7 +3,6 @@ package checks
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -26,12 +25,9 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		makeConnection(4),
 	}
 
-	Process.lastCtrIDForPID = map[int32]string{}
 	for _, proc := range p {
-		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
+		proc.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", proc.Pid)}
 	}
-	// update lastRun to indicate that Process check is enabled and ran
-	Process.lastRun = time.Now()
 
 	cfg := config.NewDefaultAgentConfig(false)
 
@@ -73,11 +69,12 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		},
 	} {
 		cfg.MaxConnsPerMessage = tc.maxSize
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid")
+		tm := &model.CollectorConnectionsTelemetry{}
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", tm)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
-		for _, c := range chunks {
+		for i, c := range chunks {
 			connections := c.(*model.CollectorConnections)
 			total += len(connections.Connections)
 			assert.Equal(t, int32(tc.expectedChunks), connections.GroupSize, "group size test %d", i)
@@ -88,6 +85,13 @@ func TestNetworkConnectionBatching(t *testing.T) {
 			for _, conn := range connections.Connections {
 				assert.Contains(t, connections.ContainerForPid, conn.Pid)
 				assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
+			}
+
+			// ensure only first chunk has telemetry
+			if i == 0 {
+				assert.NotNil(t, connections.Telemetry)
+			} else {
+				assert.Nil(t, connections.Telemetry)
 			}
 		}
 		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
@@ -107,16 +111,14 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		"1.1.2.3": {Names: []string{"datacat.edu"}},
 	}
 
-	Process.lastCtrIDForPID = map[int32]string{}
 	for _, proc := range p {
-		Process.lastCtrIDForPID[proc.Pid] = fmt.Sprintf("%d", proc.Pid)
+		proc.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", proc.Pid)}
 	}
-	Process.lastRun = time.Now() // Update lastRun to indicate that Process check is enabled and ran
 
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid")
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0

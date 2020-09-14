@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 
@@ -51,7 +52,7 @@ func GetPayload(hostnameData util.HostnameData) *Payload {
 
 	p := &Payload{
 		Os:            osName,
-		AgentFlavor:   config.AgentFlavor,
+		AgentFlavor:   flavor.GetFlavor(),
 		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,

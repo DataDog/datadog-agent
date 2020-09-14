@@ -138,11 +138,14 @@ func (w *AutoscalerWatcher) processAutoscalers() {
 	}
 
 	// In `datadogMetricReferences` we now only have existing references that we should create
+	// Or autoscalers referencing inexisting DatadogMetrics (in this case, externalMetric is nil)
 	for datadogMetricID, externalMetric := range datadogMetricReferences {
-		autogenQuery := buildDatadogQueryForExternalMetric(externalMetric.metricName, externalMetric.metricLabels)
-		autogenDatadogMetric := model.NewDatadogMetricInternalFromExternalMetric(datadogMetricID, autogenQuery, externalMetric.metricName)
-		log.Infof("Creating DatadogMetric: %s for ExternalMetric: %s, Query: %s", datadogMetricID, externalMetric.metricName, autogenQuery)
-		w.store.Set(datadogMetricID, autogenDatadogMetric, autoscalerWatcherStoreID)
+		if externalMetric != nil {
+			autogenQuery := buildDatadogQueryForExternalMetric(externalMetric.metricName, externalMetric.metricLabels)
+			autogenDatadogMetric := model.NewDatadogMetricInternalFromExternalMetric(datadogMetricID, autogenQuery, externalMetric.metricName)
+			log.Infof("Creating DatadogMetric: %s for ExternalMetric: %s, Query: %s", datadogMetricID, externalMetric.metricName, autogenQuery)
+			w.store.Set(datadogMetricID, autogenDatadogMetric, autoscalerWatcherStoreID)
+		}
 	}
 }
 

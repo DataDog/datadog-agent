@@ -2,15 +2,13 @@
 systray tasks
 """
 from __future__ import print_function
+
 import os
 import sys
 
-import invoke
 from invoke import task
 
-from .utils import bin_name, get_version_numeric_only
-from .utils import REPO_PATH
-from .utils import get_version_ldflags
+from .utils import REPO_PATH, bin_name, get_version_ldflags, get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -18,9 +16,18 @@ AGENT_TAG = "datadog/agent:master"
 
 
 @task
-def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          iot=False, development=True, precompile_only=False, skip_assets=False,
-          major_version='7', arch="x64", go_mod="vendor"):
+def build(
+    ctx,
+    rebuild=False,
+    race=False,
+    iot=False,
+    development=True,
+    precompile_only=False,
+    skip_assets=False,
+    major_version='7',
+    arch="x64",
+    go_mod="vendor",
+):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -45,10 +52,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         windres_target = "pe-i386"
 
     command = "windres -v  --target {target_arch} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
-        build_maj=build_maj,
-        build_min=build_min,
-        build_patch=build_patch,
-        target_arch=windres_target
+        build_maj=build_maj, build_min=build_min, build_patch=build_patch, target_arch=windres_target
     )
     command += "-i cmd/systray/systray.rc -O coff -o cmd/systray/rsrc.syso"
     ctx.run(command)
@@ -67,8 +71,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
 
 @task
-def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        iot=False, skip_build=False):
+def run(ctx, rebuild=False, race=False, skip_build=False):
     """
     Execute the systray binary.
 
@@ -76,7 +79,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, iot)
+        build(ctx, rebuild, race)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("ddtray.exe")))
 

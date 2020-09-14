@@ -38,6 +38,7 @@ func loadEnv() {
 		{"DD_APM_ENV", "apm_config.env"},
 		{"DD_APM_NON_LOCAL_TRAFFIC", "apm_config.apm_non_local_traffic"},
 		{"DD_APM_DD_URL", "apm_config.apm_dd_url"},
+		{"DD_APM_CONNECTION_RESET_INTERVAL", "apm_config.connection_reset_interval"},
 		{"DD_RECEIVER_PORT", "apm_config.receiver_port"}, // deprecated
 		{"DD_APM_RECEIVER_PORT", "apm_config.receiver_port"},
 		{"DD_MAX_EPS", "apm_config.max_events_per_second"}, // deprecated
@@ -47,6 +48,7 @@ func loadEnv() {
 		{"DD_APM_MAX_MEMORY", "apm_config.max_memory"},
 		{"DD_APM_MAX_CPU_PERCENT", "apm_config.max_cpu_percent"},
 		{"DD_APM_RECEIVER_SOCKET", "apm_config.receiver_socket"},
+		{"DD_APM_PROFILING_DD_URL", "apm_config.profiling_dd_url"},
 	} {
 		if v := os.Getenv(override.env); v != "" {
 			config.Datadog.Set(override.key, v)
@@ -86,6 +88,15 @@ func loadEnv() {
 			log.Errorf(`Could not parse DD_APM_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://trace.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
 		} else {
 			config.Datadog.Set("apm_config.additional_endpoints", ap)
+		}
+	}
+
+	if v := os.Getenv("DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"); v != "" {
+		ap := make(map[string][]string)
+		if err := json.Unmarshal([]byte(v), &ap); err != nil {
+			log.Errorf(`Could not parse DD_APM_PROFILING_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://intake.profile.datadoghq.com/v1/input": ["apikey1", ...], ...}'.`, err)
+		} else {
+			config.Datadog.Set("apm_config.profiling_additional_endpoints", ap)
 		}
 	}
 }

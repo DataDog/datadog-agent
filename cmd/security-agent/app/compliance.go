@@ -6,22 +6,26 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner"
+	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -33,90 +37,142 @@ var (
 	eventCmd = &cobra.Command{
 		Use:   "event",
 		Short: "Issue logs to test Security Agent compliance events",
-		RunE:  event,
+		RunE:  eventRun,
 	}
 
 	eventArgs = struct {
-		tags          []string
-		sourceName    string
-		sourceType    string
-		sourceService string
-		event         compliance.RuleEvent
-		data          []string
+		sourceName string
+		sourceType string
+		event      event.Event
+		data       []string
 	}{}
 )
 
 func init() {
 	complianceCmd.AddCommand(eventCmd)
-	eventCmd.Flags().StringSliceVarP(&eventArgs.tags, "tags", "t", []string{"security:compliance"}, "Tags")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.sourceService, "source-service", "", "compliance-agent", "Log source service")
-	eventCmd.Flags().StringVarP(&eventArgs.event.RuleName, "rule-name", "", "", "Rule name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.RuleVersion, "rule-version", "", "", "Rule version")
-	eventCmd.Flags().StringVarP(&eventArgs.event.Framework, "framework", "", "", "Compliance framework")
+	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, "rule-id", "", "", "Rule ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
+	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
 	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
 }
 
-func event(cmd *cobra.Command, args []string) error {
-	// we'll search for a config file named `datadog-security.yaml`
-	coreconfig.Datadog.SetConfigName("datadog-security")
+func eventRun(cmd *cobra.Command, args []string) error {
+	// we'll search for a config file named `datadog.yaml`
+	coreconfig.Datadog.SetConfigName("datadog")
 	err := common.SetupConfig(confPath)
 	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		return fmt.Errorf("unable to set up global agent configuration: %w", err)
 	}
 
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
-	}
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
+	stopper := restart.NewSerialStopper()
+	defer stopper.Stop()
+
+	endpoints, dstContext, err := newLogContext()
 	if err != nil {
-		return fmt.Errorf("Invalid endpoints: %v", err)
+		return err
 	}
 
-	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.Start()
-	defer destinationsCtx.Stop()
+	reporter, err := newComplianceReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext)
+	if err != nil {
+		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
+	}
 
-	health := health.RegisterLiveness("security-agent")
-
-	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
-	auditor.Start()
-	defer auditor.Stop()
-
-	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, destinationsCtx)
-	pipelineProvider.Start()
-	defer pipelineProvider.Stop()
-
-	src := config.NewLogSource("compliance-agent", &config.LogsConfig{
-		Type:    eventArgs.sourceType,
-		Service: eventArgs.sourceService,
-		Source:  eventArgs.sourceName,
-		Tags:    eventArgs.tags,
-	})
-
-	eventArgs.event.Data = map[string]string{}
+	eventData := event.Data{}
 	for _, d := range eventArgs.data {
 		kv := strings.SplitN(d, ":", 2)
 		if len(kv) != 2 {
 			continue
 		}
-		eventArgs.event.Data[kv[0]] = kv[1]
+		eventData[kv[0]] = kv[1]
 	}
-	buf, err := json.Marshal(eventArgs.event)
+	eventArgs.event.Data = eventData
+
+	reporter.Report(&eventArgs.event)
+
+	return nil
+}
+
+func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
+	health := health.RegisterLiveness("compliance")
+
+	// setup the auditor
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-registry.json", health)
+	auditor.Start()
+	stopper.Add(auditor)
+
+	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, context)
+	pipelineProvider.Start()
+	stopper.Add(pipelineProvider)
+
+	logSource := config.NewLogSource(
+		sourceName,
+		&config.LogsConfig{
+			Type:    sourceType,
+			Service: sourceName,
+			Source:  sourceName,
+		},
+	)
+	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
+}
+
+func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) error {
+	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
+	if !enabled {
+		return nil
+	}
+
+	reporter, err := newComplianceReporter(stopper, "compliance-agent", "compliance", endpoints, context)
 	if err != nil {
 		return err
 	}
 
-	msg := message.NewMessageWithSource(buf, message.StatusInfo, src)
+	runner := runner.NewRunner()
+	stopper.Add(runner)
 
-	ch := pipelineProvider.NextPipelineChan()
-	ch <- msg
+	scheduler := scheduler.NewScheduler(runner.GetChan())
+	runner.SetScheduler(scheduler)
 
+	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
+
+	options := []checks.BuilderOption{
+		checks.WithInterval(checkInterval),
+		checks.WithHostname(hostname),
+		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
+		checks.MayFail(checks.WithDocker()),
+		checks.MayFail(checks.WithAudit()),
+	}
+
+	if coreconfig.IsKubernetes() {
+		nodeLabels, err := agent.WaitGetNodeLabels()
+		if err != nil {
+			log.Error(err)
+		} else {
+			options = append(options, checks.WithNodeLabels(nodeLabels))
+		}
+	}
+
+	agent, err := agent.New(
+		reporter,
+		scheduler,
+		configDir,
+		options...,
+	)
+	if err != nil {
+		log.Errorf("Compliance agent failed to initialize: %v", err)
+		return err
+	}
+	err = agent.Run()
+	if err != nil {
+		log.Errorf("Error starting compliance agent, exiting: %v", err)
+		return err
+	}
+	stopper.Add(agent)
+
+	log.Infof("Running compliance checks every %s", checkInterval.String())
 	return nil
 }

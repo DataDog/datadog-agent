@@ -13,11 +13,15 @@ import (
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
+
+// SnmpTraps is the name of the integration that collects logs from SNMP traps received by the Agent
+const SnmpTraps = "snmp_traps"
 
 // logs-intake endpoint prefix.
 const (
@@ -57,6 +61,16 @@ func DefaultSources() []*LogSource {
 		sources = append(sources, source)
 	}
 
+	if traps.IsEnabled() && traps.IsRunning() {
+		// Append a new source to forward SNMP traps as logs.
+		source := NewLogSource(SnmpTraps, &LogsConfig{
+			Type:    SnmpTrapsType,
+			Service: "snmp",
+			Source:  "snmp",
+		})
+		sources = append(sources, source)
+	}
+
 	return sources
 }
 
@@ -89,6 +103,7 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 
 // BuildEndpoints returns the endpoints to send logs.
 func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
+	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
 	if coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
@@ -156,6 +171,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
+		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
 	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
@@ -163,9 +179,10 @@ func buildTCPEndpoints() (*Endpoints, error) {
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpoints() (*Endpoints, error) {
 	main := Endpoint{
-		APIKey:           getLogsAPIKey(coreConfig.Datadog),
-		UseCompression:   coreConfig.Datadog.GetBool("logs_config.use_compression"),
-		CompressionLevel: coreConfig.Datadog.GetInt("logs_config.compression_level"),
+		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
+		UseCompression:          coreConfig.Datadog.GetBool("logs_config.use_compression"),
+		CompressionLevel:        coreConfig.Datadog.GetInt("logs_config.compression_level"),
+		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt("logs_config.connection_reset_interval")) * time.Second,
 	}
 
 	switch {
@@ -185,6 +202,7 @@ func BuildHTTPEndpoints() (*Endpoints, error) {
 	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
+		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
 
 	batchWait := batchWait(coreConfig.Datadog)

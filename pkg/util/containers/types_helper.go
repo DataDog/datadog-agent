@@ -26,7 +26,5 @@ func (ctn *Container) SetLimits(ctnLimits *metrics.ContainerLimits) {
 		return
 	}
 
-	ctn.CPULimit = ctnLimits.CPULimit
-	ctn.MemLimit = ctnLimits.MemLimit
-	ctn.ThreadLimit = ctnLimits.ThreadLimit
+	ctn.Limits = *ctnLimits
 }

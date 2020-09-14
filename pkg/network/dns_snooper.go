@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/google/gopacket/afpacket"
-	bpflib "github.com/iovisor/gobpf/elf"
 )
 
 const (
@@ -44,12 +44,17 @@ type SocketFilterSnooper struct {
 	polls          int64
 	decodingErrors int64
 	truncatedPkts  int64
+
+	// DNS telemetry, values calculated *till* the last tick in pollStats
+	queries   int64
+	successes int64
+	errors    int64
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(
 	rootPath string,
-	filter *bpflib.SocketFilter,
+	filter *manager.Probe,
 	collectDNSStats bool,
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
@@ -117,13 +122,16 @@ func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
 
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.cache.Stats()
-	stats["socket_polls"] = atomic.SwapInt64(&s.polls, 0)
-	stats["packets_processed"] = atomic.SwapInt64(&s.processed, 0)
-	stats["packets_captured"] = atomic.SwapInt64(&s.captured, 0)
-	stats["packets_dropped"] = atomic.SwapInt64(&s.dropped, 0)
-	stats["decoding_errors"] = atomic.SwapInt64(&s.decodingErrors, 0)
-	stats["truncated_packets"] = atomic.SwapInt64(&s.truncatedPkts, 0)
-
+	stats["socket_polls"] = atomic.LoadInt64(&s.polls)
+	stats["packets_processed"] = atomic.LoadInt64(&s.processed)
+	stats["packets_captured"] = atomic.LoadInt64(&s.captured)
+	stats["packets_dropped"] = atomic.LoadInt64(&s.dropped)
+	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
+	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
+	stats["queries"] = atomic.LoadInt64(&s.queries)
+	stats["successes"] = atomic.LoadInt64(&s.successes)
+	stats["errors"] = atomic.LoadInt64(&s.errors)
+	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
 	return stats
 }
 
@@ -142,14 +150,15 @@ func (s *SocketFilterSnooper) Close() {
 // the reverse DNS cache. The underlying packet data can't be referenced after this method
 // call since the underlying memory content gets invalidated by `afpacket`.
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
-func (s *SocketFilterSnooper) processPacket(data []byte) {
-	ts := time.Now() // record the timestamp before we do any processing
+// The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
+// and much more reliable than calling time.Now() at the user layer.
+func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
 	if err := s.parser.ParseInto(data, t, &pktInfo); err != nil {
 		switch err {
-		case skippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
+		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
 			atomic.AddInt64(&s.truncatedPkts, 1)
 		default:
@@ -165,12 +174,17 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 
 	if pktInfo.pktType == SuccessfulResponse {
 		s.cache.Add(t, time.Now())
+		atomic.AddInt64(&s.successes, 1)
+	} else if pktInfo.pktType == FailedResponse {
+		atomic.AddInt64(&s.errors, 1)
+	} else {
+		atomic.AddInt64(&s.queries, 1)
 	}
 }
 
 func (s *SocketFilterSnooper) pollPackets() {
 	for {
-		data, _, err := s.source.ZeroCopyReadPacketData()
+		data, captureInfo, err := s.source.ZeroCopyReadPacketData()
 
 		// Properly synchronizes termination process
 		select {
@@ -180,7 +194,7 @@ func (s *SocketFilterSnooper) pollPackets() {
 		}
 
 		if err == nil {
-			s.processPacket(data)
+			s.processPacket(data, captureInfo.Timestamp)
 			continue
 		}
 
@@ -245,11 +259,11 @@ func (s *SocketFilterSnooper) getCachedTranslation() *translation {
 // packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type packetSource struct {
 	*afpacket.TPacket
-	socketFilter *bpflib.SocketFilter
+	socketFilter *manager.Probe
 	socketFD     int
 }
 
-func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
+func newPacketSource(filter *manager.Probe) (*packetSource, error) {
 	rawSocket, err := afpacket.NewTPacket(
 		afpacket.OptPollTimeout(1*time.Second),
 		// This setup will require ~4Mb that is mmap'd into the process virtual space
@@ -266,7 +280,8 @@ func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
 	socketFD := int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
 
 	// Attaches DNS socket filter to the RAW_SOCKET
-	if err := bpflib.AttachSocketFilter(filter, socketFD); err != nil {
+	filter.SocketFD = socketFD
+	if err := filter.Attach(); err != nil {
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
 
@@ -278,7 +293,7 @@ func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
 }
 
 func (p *packetSource) Close() {
-	if err := bpflib.DetachSocketFilter(p.socketFilter, p.socketFD); err != nil {
+	if err := p.socketFilter.Detach(); err != nil {
 		log.Errorf("error detaching socket filter: %s", err)
 	}
 

@@ -95,11 +95,12 @@ func TestGetTask(t *testing.T) {
 				},
 			},
 		},
-		KnownStatus:   "RUNNING",
-		TaskARN:       "arn:aws:ecs:us-east-2:012345678910:task/9781c248-0edd-4cdb-9a93-f63cb662a5d3",
-		Family:        "nginx",
-		Version:       "5",
-		DesiredStatus: "RUNNING",
+		KnownStatus:      "RUNNING",
+		TaskARN:          "arn:aws:ecs:us-east-2:012345678910:task/9781c248-0edd-4cdb-9a93-f63cb662a5d3",
+		Family:           "nginx",
+		Version:          "5",
+		DesiredStatus:    "RUNNING",
+		AvailabilityZone: "us-east-2b",
 	}
 
 	metadata, err := NewClient(ts.URL).GetTask()
@@ -188,11 +189,12 @@ func TestGetTaskWithTags(t *testing.T) {
 				},
 			},
 		},
-		KnownStatus:   "RUNNING",
-		TaskARN:       "arn:aws:ecs:us-west-1:601427279990:task/ecs-cluster/36a297a28f0f4ad2959801747cfe8703",
-		Family:        "ecs-cluster_redis-awsvpc",
-		Version:       "12",
-		DesiredStatus: "RUNNING",
+		KnownStatus:      "RUNNING",
+		TaskARN:          "arn:aws:ecs:us-west-1:601427279990:task/ecs-cluster/36a297a28f0f4ad2959801747cfe8703",
+		Family:           "ecs-cluster_redis-awsvpc",
+		Version:          "12",
+		DesiredStatus:    "RUNNING",
+		AvailabilityZone: "us-west-1c",
 		TaskTags: map[string]string{
 			"Creator":             "john.doe",
 			"Environment":         "sandbox",
@@ -328,6 +330,11 @@ func TestGetContainerStats(t *testing.T) {
 	metadata, err := NewClient(ts.URL).GetContainerStats(containerID)
 	assert.Nil(err)
 	assert.Equal(expected, metadata)
+
+	// Container without stats
+	metadata, err = NewClient(ts.URL).GetContainerStats("470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42")
+	assert.NotNil(err)
+	assert.Nil(metadata)
 
 	select {
 	case r := <-ecsinterface.Requests:

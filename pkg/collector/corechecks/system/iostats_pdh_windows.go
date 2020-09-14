@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,9 +41,10 @@ const (
 // IOCheck doesn't need additional fields
 type IOCheck struct {
 	core.CheckBase
-	blacklist    *regexp.Regexp
-	counters     map[string]*pdhutil.PdhMultiInstanceCounterSet
-	counternames map[string]string
+	blacklist          *regexp.Regexp
+	lowercaseDeviceTag bool
+	counters           map[string]*pdhutil.PdhMultiInstanceCounterSet
+	counternames       map[string]string
 }
 
 var pfnGetDriveType = getDriveType
@@ -115,8 +117,17 @@ func (c *IOCheck) Run() error {
 			}
 			tagbuff.Reset()
 			tagbuff.WriteString("device:")
+			if c.lowercaseDeviceTag {
+				inst = strings.ToLower(inst)
+			}
 			tagbuff.WriteString(inst)
 			tags := []string{tagbuff.String()}
+
+			if !driveLetterPattern.MatchString(inst) {
+				// if this is not a drive letter, add device_name to tags
+				tags = append(tags, "device_name:"+inst)
+			}
+
 			if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
 				val /= 1024
 			}

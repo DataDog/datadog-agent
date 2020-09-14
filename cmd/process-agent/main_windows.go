@@ -26,6 +26,7 @@ const ServiceName = "datadog-process-agent"
 
 // opts are the command-line options
 var defaultConfigPath = "c:\\programdata\\datadog\\datadog.yaml"
+var defaultSysProbeConfigPath = "c:\\programdata\\datadog\\system-probe.yaml"
 var defaultConfdPath = "c:\\programdata\\datadog\\conf.d"
 var defaultLogFilePath = "c:\\programdata\\datadog\\logs\\process-agent.log"
 
@@ -41,6 +42,7 @@ func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfigPath = filepath.Join(pd, "datadog.yaml")
+		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
 		defaultConfdPath = filepath.Join(pd, "conf.d")
 		defaultLogFilePath = filepath.Join(pd, "logs", "process-agent.log")
 	}
@@ -114,6 +116,7 @@ func runService(isDebug bool) {
 func main() {
 	ignore := ""
 	flag.StringVar(&opts.configPath, "config", defaultConfigPath, "Path to datadog.yaml config")
+	flag.StringVar(&opts.sysProbeConfigPath, "sysprobe-config", defaultSysProbeConfigPath, "Path to system-probe.yaml config")
 	flag.StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
 	flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")

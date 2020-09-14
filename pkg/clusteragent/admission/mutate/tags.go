@@ -12,9 +12,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -26,6 +29,8 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
+var ownerCacheTTL = config.Datadog.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
+
 var labelsToEnv = map[string]string{
 	kubernetes.EnvTagLabelKey:     kubernetes.EnvTagEnvVar,
 	kubernetes.ServiceTagLabelKey: kubernetes.ServiceTagEnvVar,
@@ -36,6 +41,11 @@ var labelsToEnv = map[string]string{
 type ownerInfo struct {
 	gvr  schema.GroupVersionResource
 	name string
+}
+
+// buildID returns a unique identifier for the ownerInfo object
+func (o *ownerInfo) buildID(ns string) string {
+	return fmt.Sprintf("%s/%s/%s", ns, o.name, o.gvr.String())
 }
 
 // InjectTags adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
@@ -144,7 +154,7 @@ func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*un
 		return nil, err
 	}
 
-	obj, err := dc.Resource(ownerInfo.gvr).Namespace(ns).Get(ownerInfo.name, metav1.GetOptions{})
+	obj, err := getAndCacheOwner(ownerInfo, ns, dc)
 	if err != nil {
 		return nil, err
 	}
@@ -156,9 +166,35 @@ func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*un
 			return nil, err
 		}
 
-		return dc.Resource(rsOwnerInfo.gvr).Namespace(ns).Get(rsOwnerInfo.name, metav1.GetOptions{})
-
+		return getAndCacheOwner(rsOwnerInfo, ns, dc)
 	}
 
 	return obj, nil
+}
+
+// getAndCacheOwner tries to fetch the owner object from cache before querying the api server
+func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*unstructured.Unstructured, error) {
+	infoID := info.buildID(ns)
+	var ownerObj *unstructured.Unstructured
+
+	if cachedObj, hit := cache.Cache.Get(infoID); hit {
+		metrics.GetOwnerCacheHit.Inc(info.gvr.Resource)
+		var valid bool
+		ownerObj, valid = cachedObj.(*unstructured.Unstructured)
+		if !valid {
+			log.Debugf("Invalid owner object for '%s', forcing a cache miss", infoID)
+		} else {
+			return ownerObj, nil
+		}
+	}
+
+	log.Tracef("Cache miss while getting owner '%s'", infoID)
+	metrics.GetOwnerCacheMiss.Inc(info.gvr.Resource)
+	ownerObj, err := dc.Resource(info.gvr).Namespace(ns).Get(info.name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	cache.Cache.Set(infoID, ownerObj, ownerCacheTTL)
+	return ownerObj, nil
 }

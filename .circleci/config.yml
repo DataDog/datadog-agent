@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1138
+      - image: datadog/datadog-agent-runner-circle:go1147
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -29,17 +29,17 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen15-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen15-godeps-{{ .Branch }}-
-          - gen15-godeps-master-
+          - gen16-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen16-godeps-{{ .Branch }}-
+          - gen16-godeps-master-
     - save_cache: &save_deps
-        key: gen15-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen16-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
-          - v4-repo-{{ .Revision }}
+          - v5-repo-{{ .Revision }}
     - save_cache: &save_source
-        key: v4-repo-{{ .Revision }}
+        key: v5-repo-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -61,12 +61,13 @@ jobs:
       - run:
           name: setup python deps
           command: |
-            pip install wheel
-            pip install -r requirements.txt
+            python3 -m pip install wheel
+            python3 -m pip install -r requirements.txt
+            python3 -m pip install flake8~=3.8.3 flake8-bugbear~=20.1.4 black~=19.10b0 isort~=5.2.2
       - run:
           name: grab go deps
           command: |
-            inv deps --verbose --dep-vendor-only
+            inv deps --verbose
       - run:
           name: build rtloader
           command: |
@@ -79,8 +80,6 @@ jobs:
       - run:
           name: test rtloader
           command: |
-            # remove base check before running tests, go on if pip fails
-            pip uninstall datadog-checks-base -y || :
             inv rtloader.test
       - run:
           name: pre-compile go deps
@@ -92,7 +91,7 @@ jobs:
             - /go/src/github.com/DataDog/datadog-agent/dev
             - /go/pkg
             - /go/bin
-            - /usr/local/lib/python2.7/dist-packages
+            - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 
   unit_tests:
@@ -155,6 +154,33 @@ jobs:
           name: run filename linting
           command: inv -e lint-filenames
 
+  shell_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: Install shellcheck
+          command: inv -e install-shellcheck
+      - run:
+          name: Print shellcheck version
+          command: shellcheck --version
+      - run:
+          name: Run shellcheck
+          #Excludes:
+          #SC2028: echo may not expand escape sequences. Use printf.
+          #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
+          command: shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
+
+  python_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: lint python files
+          command: inv -e lint-python
+
   docker_tests:
     <<: *job_template
     steps:
@@ -201,11 +227,84 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
+  macos_tests:
+    macos:
+      xcode: 10.1.0
+    environment:
+      BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+    working_directory: ~/go/src/github.com/DataDog/datadog-agent
+    steps:
+      - checkout
+      - run:
+          name: Setup runner
+          command: |
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
+      - run:
+          name: Install python deps & clang-format
+          command: |
+            brew install clang-format
+            python3 -m pip install -r requirements.txt
+      - run:
+          name: Compile rtloader
+          command: |
+            source ~/.build_setup
+
+            inv rtloader.make --install-prefix=$GOPATH/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.install
+      - run:
+          name: Lint rtloader
+          command: |
+            source ~/.build_setup
+
+            inv rtloader.format --raise-if-changed
+      - run:
+          name: Test rtloader
+          command: |
+            source ~/.build_setup
+
+            inv rtloader.test
+      - run:
+          name: Run tests
+          command: |
+            source ~/.build_setup
+
+            inv -e deps
+            inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+
+  macos_build:
+    macos:
+      xcode: 10.1.0
+    environment:
+      BUILDIMAGES_VERSION: "f43e0e081e9a54fea3241ef0efde28374981f7a0" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      RELEASE_VERSION: "nightly-a7"
+      AGENT_MAJOR_VERSION: "7"
+      PYTHON_RUNTIMES: "3"
+    working_directory: ~/go/src/github.com/DataDog/datadog-agent
+    steps:
+      - checkout
+      - run:
+          name: Setup builder
+          command: |
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
+      - run:
+          name: Run omnibus build
+          no_output_timeout: 30m
+          command: |
+            export VERSION=$CIRCLE_SHA1
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/build_script.sh)"
+      - run: mkdir -p ~/artifacts && cp omnibus/pkg/*.dmg ~/artifacts
+      - store_artifacts:
+          path: ~/artifacts
+
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
+      - macos_tests
+      - macos_build:
+          requires:
+            - macos_tests
       - dependencies:
           requires:
             - checkout_code
@@ -225,6 +324,12 @@ workflows:
           requires:
             - dependencies
       - filename_linting:
+          requires:
+            - dependencies
+      - shell_linting:
+          requires:
+            - dependencies
+      - python_linting:
           requires:
             - dependencies
       - docker_tests:

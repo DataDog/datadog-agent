@@ -11,10 +11,15 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic/fake"
 )
 
 func Test_injectTagsFromLabels(t *testing.T) {
@@ -191,4 +196,70 @@ func Test_getOwnerInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+const (
+	testGroup      = "testgroup"
+	testVersion    = "testversion"
+	testResource   = "testkinds"
+	testNamespace  = "testns"
+	testName       = "testname"
+	testKind       = "TestKind"
+	testAPIVersion = "testgroup/testversion"
+)
+
+func TestGetAndCacheOwner(t *testing.T) {
+	ownerInfo := dummyInfo()
+	ownerObj := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
+
+	// Cache hit
+	cache.Cache.Set(ownerInfo.buildID(testNamespace), ownerObj, ownerCacheTTL)
+	dc := fake.NewSimpleDynamicClient(runtime.NewScheme())
+	obj, err := getAndCacheOwner(ownerInfo, testNamespace, dc)
+	assert.NoError(t, err)
+	assert.NotNil(t, obj)
+	assert.Equal(t, ownerObj, obj)
+	assert.Len(t, dc.Actions(), 0)
+	cache.Cache.Flush()
+
+	// Cache miss
+	dc = fake.NewSimpleDynamicClient(runtime.NewScheme(), ownerObj)
+	obj, err = getAndCacheOwner(ownerInfo, testNamespace, dc)
+	assert.NoError(t, err)
+	assert.NotNil(t, obj)
+	assert.Equal(t, ownerObj, obj)
+	assert.Len(t, dc.Actions(), 1)
+	cachedObj, found := cache.Cache.Get(ownerInfo.buildID(testNamespace))
+	assert.True(t, found)
+	assert.NotNil(t, cachedObj)
+}
+
+func dummyInfo() *ownerInfo {
+	return &ownerInfo{
+		name: testName,
+		gvr: schema.GroupVersionResource{
+			Group:    testGroup,
+			Resource: testResource,
+			Version:  testVersion,
+		},
+	}
+}
+
+func newUnstructured(apiVersion, kind, namespace, name string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": apiVersion,
+			"kind":       kind,
+			"metadata": map[string]interface{}{
+				"namespace": namespace,
+				"name":      name,
+			},
+		},
+	}
+}
+
+func newUnstructuredWithSpec(spec map[string]interface{}) *unstructured.Unstructured {
+	u := newUnstructured(testAPIVersion, testKind, testNamespace, testName)
+	u.Object["spec"] = spec
+	return u
 }

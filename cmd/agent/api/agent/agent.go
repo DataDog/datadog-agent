@@ -12,10 +12,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io/ioutil"
 	"net/http"
 	"sort"
 
 	"github.com/gorilla/mux"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
@@ -33,11 +36,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
@@ -57,6 +59,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
+
+	return r
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -78,13 +82,28 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
+	var profile *flare.Profile
+
+	if r.Body != http.NoBody {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &profile); err != nil {
+			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
+	}
+
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
 
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
+	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile, profile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -338,9 +357,13 @@ func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
-	configurableSettings := make(map[string]string)
+
+	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
 	for name, setting := range settings.RuntimeSettings() {
-		configurableSettings[name] = setting.Description()
+		configurableSettings[name] = settings.RuntimeSettingResponse{
+			Description: setting.Description(),
+			Hidden:      setting.Hidden(),
+		}
 	}
 	body, err := json.Marshal(configurableSettings)
 	if err != nil {

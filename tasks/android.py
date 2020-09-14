@@ -2,26 +2,21 @@
 Android namespaced tasks
 """
 from __future__ import print_function
-import glob
-import yaml
+
 import os
 import shutil
 import sys
-from distutils.dir_util import copy_tree
 
-import invoke
+import yaml
 from invoke import task
-from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, load_release_versions, get_version
-from .utils import REPO_PATH
 from .build_tags import get_default_build_tags
-from .go import deps, generate
+from .go import generate
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
-from .agent import DEFAULT_BUILD_TAGS
 
 ANDROID_CORECHECKS = [
     "cpu",
@@ -33,10 +28,19 @@ ANDROID_CORECHECKS = [
     "uptime",
 ]
 CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
+
+
 @task
-def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        development=True, precompile_only=False, skip_assets=False, major_version='7',
-        python_runtimes='3'):
+def build(
+    ctx,
+    rebuild=False,
+    race=False,
+    development=True,
+    precompile_only=False,
+    skip_assets=False,
+    major_version='7',
+    python_runtimes='3',
+):
     """
     Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -56,9 +60,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
-    build_tags = get_default_build_tags(android=True)
+    build_tags = get_default_build_tags(build="android")
 
-    build_tags.append("android")
     cmd = "gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
@@ -99,8 +102,7 @@ def sign_apk(ctx, development=True):
 
 
 @task
-def install(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        skip_build=False):
+def install(ctx, rebuild=False, race=False, skip_build=False):
     """
     Installs the APK on a device.
 
@@ -108,7 +110,7 @@ def install(ctx, rebuild=False, race=False, build_include=None, build_exclude=No
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude)
+        build(ctx, rebuild, race)
 
     sign_apk(ctx)
     cmd = "adb install -r bin/agent/ddagent-release-signed.apk"
@@ -130,14 +132,11 @@ def clean(ctx):
 
     shutil.rmtree(CORECHECK_CONFS_DIR)
 
+
 @task
 def assetconfigs(ctx):
     # move the core check config
-    try:
-        shutil.rmtree(CORECHECK_CONFS_DIR)
-    except:
-        ## it's ok if the dir is not there
-        pass
+    shutil.rmtree(CORECHECK_CONFS_DIR, ignore_errors=True)
 
     files = {}
     files_list = []
@@ -152,6 +151,7 @@ def assetconfigs(ctx):
     with open("{}/directory_manifest.yaml".format(CORECHECK_CONFS_DIR), 'w') as outfile:
         yaml.dump(files, outfile, default_flow_style=False)
 
+
 @task
 def launchservice(ctx, api_key, hostname=None, tags=None):
     if api_key is None:
@@ -160,14 +160,17 @@ def launchservice(ctx, api_key, hostname=None, tags=None):
 
     if hostname is None:
         print("Setting hostname to android-tablet")
-        hostname="android-tablet"
+        hostname = "android-tablet"
 
     if tags is None:
         print("Setting tags to owner:db,env:local,role:windows")
-        tags="owner:db,env:local,role:windows"
+        tags = "owner:db,env:local,role:windows"
 
-    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(api_key, hostname, tags)
+    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(
+        api_key, hostname, tags
+    )
     ctx.run(cmd)
+
 
 @task
 def stopservice(ctx):

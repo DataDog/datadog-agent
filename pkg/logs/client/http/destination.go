@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // ContentType options,
@@ -38,7 +38,7 @@ type Destination struct {
 	url                 string
 	contentType         string
 	contentEncoding     ContentEncoding
-	client              *http.Client
+	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
 	once                sync.Once
 	payloadChan         chan []byte
@@ -52,14 +52,10 @@ func NewDestination(endpoint config.Endpoint, contentType string, destinationsCo
 
 func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration) *Destination {
 	return &Destination{
-		url:             buildURL(endpoint),
-		contentType:     contentType,
-		contentEncoding: buildContentEncoding(endpoint),
-		client: &http.Client{
-			Timeout: timeout,
-			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(),
-		},
+		url:                 buildURL(endpoint),
+		contentType:         contentType,
+		contentEncoding:     buildContentEncoding(endpoint),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
 		destinationsContext: destinationsContext,
 	}
 }
@@ -139,6 +135,16 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 			}
 		}
 	}()
+}
+
+func httpClientFactory(timeout time.Duration) func() *http.Client {
+	return func() *http.Client {
+		return &http.Client{
+			Timeout: timeout,
+			// reusing core agent HTTP transport to benefit from proxy settings.
+			Transport: httputils.CreateHTTPTransport(),
+		}
+	}
 }
 
 // buildURL buils a url from a config endpoint.

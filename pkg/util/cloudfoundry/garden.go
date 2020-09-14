@@ -27,6 +27,21 @@ const (
 	AppInstanceIndexTagKey = "app_instance_index"
 	// AppGUIDTagKey tag key for container tags
 	AppGUIDTagKey = "app_guid"
+	// AppIDTagKey tag key for container tags. We carry both app_guid and app_id; this is because
+	// we added app_guid initially here, but then we added space_id and org_id that have just "_id"
+	// to be consistent with https://github.com/DataDog/datadog-firehose-nozzle; therefore we now
+	// also include "app_id" to have a consistent set of tags that end with "_id".
+	AppIDTagKey = "app_id"
+	// OrgIDTagKey tag key for container tags
+	// NOTE: we use "org_*" instead of "organization_* to have the tags consistent with
+	// tags attached by https://github.com/DataDog/datadog-firehose-nozzle
+	OrgIDTagKey = "org_id"
+	// OrgNameTagKey tag key for container tags
+	OrgNameTagKey = "org_name"
+	// SpaceIDTagKey tag key for container tags
+	SpaceIDTagKey = "space_id"
+	// SpaceNameTagKey tag key for container tags
+	SpaceNameTagKey = "space_name"
 )
 
 var (
@@ -87,7 +102,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 		return nil, fmt.Errorf("error listing garden containers: %v", err)
 	}
 
-	var cList = make([]*containers.Container, len(gardenContainers))
+	var cList = make([]*containers.Container, 0, len(gardenContainers))
 	handles := make([]string, len(gardenContainers))
 	for i, gardenContainer := range gardenContainers {
 		handles[i] = gardenContainer.Handle()
@@ -101,7 +116,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 		return nil, fmt.Errorf("error getting metrics for garden containers: %v", err)
 	}
 
-	for i, handle := range handles {
+	for _, handle := range handles {
 		infoEntry := gardenContainerInfo[handle]
 		if err := infoEntry.Err; err != nil {
 			log.Debugf("could not get info for container %s: %v", handle, err)
@@ -113,7 +128,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 			continue
 		}
 		container := containers.Container{
-			Type:        "garden",
+			Type:        containers.RuntimeNameGarden,
 			ID:          handle,
 			EntityID:    containers.BuildTaggerEntityName(handle),
 			State:       infoEntry.Info.State,
@@ -121,7 +136,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 			Created:     time.Now().Add(-metricsEntry.Metrics.Age).Unix(),
 			AddressList: parseContainerPorts(infoEntry.Info),
 		}
-		cList[i] = &container
+		cList = append(cList, &container)
 	}
 
 	for _, container := range cList {

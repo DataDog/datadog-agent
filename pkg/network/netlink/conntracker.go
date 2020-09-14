@@ -57,7 +57,6 @@ type realConntracker struct {
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
 
-	statsTicker   *time.Ticker
 	compactTicker *time.Ticker
 	stats         struct {
 		gets                 int64
@@ -109,6 +108,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int) (Con
 	}
 
 	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
+	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET6))
 	ctr.run()
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
@@ -148,7 +148,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 
 	m := map[string]int64{
 		"state_size": int64(size),
-		"expires":    int64(ctr.stats.expiresTotal),
+		"expires":    ctr.stats.expiresTotal,
 	}
 
 	if ctr.stats.gets != 0 {
@@ -215,6 +215,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 		conns := DecodeAndReleaseEvent(e)
 		for _, c := range conns {
 			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
+				log.Tracef("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort)
 				if k, ok := formatKey(c.Origin); ok {
 					ctr.state[k] = formatIPTranslation(c.Reply, gen)
 				}
@@ -228,7 +229,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 
 // register is registered to be called whenever a conntrack update/create is called.
 // it will keep being called until it returns nonzero.
-func (ctr *realConntracker) register(c ct.Con) int {
+func (ctr *realConntracker) register(c Con) int {
 	// don't bother storing if the connection is not NAT
 	if !isNAT(c) {
 		atomic.AddInt64(&ctr.stats.registersDropped, 1)
@@ -250,6 +251,8 @@ func (ctr *realConntracker) register(c ct.Con) int {
 		generation := getNthGeneration(generationLength, now, 3)
 		ctr.state[key] = formatIPTranslation(transTuple, generation)
 	}
+
+	log.Tracef("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort)
 
 	ctr.Lock()
 	defer ctr.Unlock()
@@ -304,7 +307,7 @@ func (ctr *realConntracker) compact() {
 	ctr.state = copied
 }
 
-func isNAT(c ct.Con) bool {
+func isNAT(c Con) bool {
 	if c.Origin == nil ||
 		c.Reply == nil ||
 		c.Origin.Proto == nil ||
@@ -359,20 +362,4 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 	}
 
 	return
-}
-
-func conDebug(c ct.Con) string {
-	proto := "tcp"
-	if *c.Origin.Proto.Number == 17 {
-		proto = "udp"
-	}
-
-	return fmt.Sprintf(
-		"orig_src=%s:%d orig_dst=%s:%d reply_src=%s:%d reply_dst=%s:%d proto=%s",
-		c.Origin.Src, *c.Origin.Proto.SrcPort,
-		c.Origin.Dst, *c.Origin.Proto.DstPort,
-		c.Reply.Src, *c.Reply.Proto.SrcPort,
-		c.Reply.Dst, *c.Reply.Proto.DstPort,
-		proto,
-	)
 }

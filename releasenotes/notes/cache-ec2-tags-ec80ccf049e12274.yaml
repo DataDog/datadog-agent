@@ -1,5 +1,5 @@
 ---
 enhancements:
   - |
-    When enabling `collect_ec2_tags` option, EC2 tags are now cached to avoid
-    missing tags when user exceed his AWS quotas.
+    When enabling `collect_ec2_tags` or `collect_gce_tags` option, EC2/GCE tags
+    are now cached to avoid missing tags when user exceed his AWS/GCE quotas.

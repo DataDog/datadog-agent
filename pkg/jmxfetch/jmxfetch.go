@@ -277,6 +277,10 @@ func (j *JMXFetch) Start(manage bool) error {
 		"--reporter", reporter, // Reporter to use
 	)
 
+	if config.Datadog.GetBool("log_format_rfc3339") {
+		subprocessArgs = append(subprocessArgs, "--log_format_rfc3339")
+	}
+
 	subprocessArgs = append(subprocessArgs, j.Command)
 
 	j.cmd = exec.Command(j.JavaBinPath, subprocessArgs...)

@@ -223,6 +223,14 @@ func TestCreateAutogenDatadogMetrics(t *testing.T) {
 				},
 			},
 		}),
+		newFakeHorizontalPodAutoscaler("ns0", "hpa1", []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName: "datadogmetric@ns0:donotexist",
+				},
+			},
+		}),
 	}
 
 	f.wpaLister = []*datadoghq.WatermarkPodAutoscaler{
@@ -265,7 +273,7 @@ func TestCreateAutogenDatadogMetrics(t *testing.T) {
 		Error:      nil,
 	}, f.store.Get("default/dd-metric-0"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265",
+		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22",
 		Active:             true,
 		Query:              "avg:docker.cpu.usage{foo:bar}.rollup(30)",
 		Valid:              false,
@@ -274,9 +282,9 @@ func TestCreateAutogenDatadogMetrics(t *testing.T) {
 		Value:              0.0,
 		UpdateTime:         updateTime,
 		Error:              nil,
-	}, f.store.Get("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265"))
+	}, f.store.Get("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8",
+		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412",
 		Active:             true,
 		Query:              "avg:docker.cpu.usage{bar:foo}.rollup(30)",
 		Valid:              false,
@@ -285,7 +293,7 @@ func TestCreateAutogenDatadogMetrics(t *testing.T) {
 		Value:              0.0,
 		UpdateTime:         updateTime,
 		Error:              nil,
-	}, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8"))
+	}, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412"))
 }
 
 func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
@@ -305,8 +313,8 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 		Error:      nil,
 	}, "utest")
 	// HPA has been deleted but last update time was 30 minutes ago, we should keep it
-	f.store.Set("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265", model.DatadogMetricInternal{
-		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265",
+	f.store.Set("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22", model.DatadogMetricInternal{
+		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22",
 		Active:             true,
 		Query:              "avg:docker.cpu.usage{foo:bar}.rollup(30)",
 		Valid:              false,
@@ -318,8 +326,8 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 		Error:              nil,
 	}, "utest")
 	// WPA has been deleted for 90 minutes, we should flag this as deleted
-	f.store.Set("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8", model.DatadogMetricInternal{
-		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8",
+	f.store.Set("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412", model.DatadogMetricInternal{
+		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412",
 		Active:             true,
 		Query:              "avg:docker.cpu.usage{bar:foo}.rollup(30)",
 		Valid:              false,
@@ -346,7 +354,7 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 		Error:      nil,
 	}, f.store.Get("default/dd-metric-0"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265",
+		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22",
 		Active:             false,
 		Query:              "avg:docker.cpu.usage{foo:bar}.rollup(30)",
 		Valid:              false,
@@ -356,9 +364,9 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 		Value:              0.0,
 		UpdateTime:         oldUpdateTime,
 		Error:              nil,
-	}, f.store.Get("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265"))
+	}, f.store.Get("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d22"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8",
+		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412",
 		Active:             false,
 		Query:              "avg:docker.cpu.usage{bar:foo}.rollup(30)",
 		Valid:              false,
@@ -368,5 +376,5 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 		Value:              0.0,
 		UpdateTime:         expiredUpdateTime,
 		Error:              nil,
-	}, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8"))
+	}, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412"))
 }

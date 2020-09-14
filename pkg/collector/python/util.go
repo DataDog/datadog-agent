@@ -25,15 +25,20 @@ import (
 // GetSubprocessOutput runs the subprocess and returns the output
 // Indirectly used by the C function `get_subprocess_output` that's mapped to `_util.get_subprocess_output`.
 //export GetSubprocessOutput
-func GetSubprocessOutput(argv **C.char, cStdout **C.char, cStderr **C.char, cRetCode *C.int, exception **C.char) {
+func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr **C.char, cRetCode *C.int, exception **C.char) {
 	subprocessArgs := cStringArrayToSlice(argv)
-	// this should never happen has: this case is filtered by rtloader
+	// this should never happen as this case is filtered by rtloader
 	if len(subprocessArgs) == 0 {
 		return
 	}
 
 	ctx, _ := GetSubprocessContextCancel()
 	cmd := exec.CommandContext(ctx, subprocessArgs[0], subprocessArgs[1:]...)
+
+	subprocessEnv := cStringArrayToSlice(env)
+	if len(subprocessEnv) != 0 {
+		cmd.Env = subprocessEnv
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

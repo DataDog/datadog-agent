@@ -78,7 +78,7 @@ type Server struct {
 	histToDist                bool
 	histToDistPrefix          string
 	extraTags                 []string
-	Debug                     dsdServerDebug
+	Debug                     *dsdServerDebug
 	mapper                    *mapper.MetricMapper
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
@@ -163,6 +163,16 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		}
 	}
 
+	pipeName := config.Datadog.GetString("dogstatsd_windows_pipe_name")
+	if len(pipeName) > 0 {
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPool)
+		if err != nil {
+			log.Errorf("named pipe error: %v", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, namedPipeListener)
+		}
+	}
+
 	if len(tmpListeners) == 0 {
 		return nil, fmt.Errorf("listening on neither udp nor socket, please check your configuration")
 	}
@@ -204,9 +214,8 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		telemetryEnabled:          telemetry.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
-		Debug: dsdServerDebug{
-			Enabled: metricsStatsEnabled,
-			Stats:   make(map[ckey.ContextKey]metricStat),
+		Debug: &dsdServerDebug{
+			Stats: make(map[ckey.ContextKey]metricStat),
 			metricsCounts: metricsCountBuckets{
 				counts:     [5]uint64{0, 0, 0, 0, 0},
 				metricChan: make(chan struct{}),
@@ -420,9 +429,10 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
 		return metrics.MetricSample{}, err
 	}
-	if s.mapper != nil && len(sample.tags) == 0 {
+	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
 		if mapResult != nil {
+			log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
 			sample.name = mapResult.Name
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}

@@ -28,18 +28,18 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 	if meta.KnownStatus != "RUNNING" {
 		return output, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
 	}
-	globalTags := config.Datadog.GetStringSlice("tags")
 
 	c.doOnceOrchScope.Do(func() {
 		tags := utils.NewTagList()
 		tags.AddOrchestrator("task_arn", meta.TaskARN)
-		low, orch, high := tags.Compute()
+		low, orch, high, standard := tags.Compute()
 		info := &TagInfo{
 			Source:               ecsFargateCollectorName,
 			Entity:               OrchestratorScopeEntityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
+			StandardTags:         standard,
 		}
 		output = append(output, info)
 	})
@@ -47,14 +47,6 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 	for _, ctr := range meta.Containers {
 		if c.expire.Update(ctr.DockerID, now) || parseAll {
 			tags := utils.NewTagList()
-
-			// global tags
-			for _, value := range globalTags {
-				if strings.Contains(value, ":") {
-					tag := strings.SplitN(value, ":", 2)
-					tags.AddLow(tag[0], tag[1])
-				}
-			}
 
 			// cluster
 			clusterName := parseECSClusterName(meta.ClusterName)
@@ -67,6 +59,13 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			region := parseFargateRegion(meta.ClusterName)
 			if region != "" {
 				tags.AddLow("region", region)
+			}
+
+			// the AvailabilityZone metadata is only available for
+			// Fargate tasks using platform version 1.4 or later
+			availabilityZone := meta.AvailabilityZone
+			if availabilityZone != "" {
+				tags.AddLow("availability_zone", availabilityZone)
 			}
 
 			// task
@@ -96,11 +95,11 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			for labelName, labelValue := range ctr.Labels {
 				switch labelName {
 				case dockerLabelEnv:
-					tags.AddLow(tagKeyEnv, labelValue)
+					tags.AddStandard(tagKeyEnv, labelValue)
 				case dockerLabelVersion:
-					tags.AddLow(tagKeyVersion, labelValue)
+					tags.AddStandard(tagKeyVersion, labelValue)
 				case dockerLabelService:
-					tags.AddLow(tagKeyService, labelValue)
+					tags.AddStandard(tagKeyService, labelValue)
 				}
 
 				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
@@ -108,13 +107,14 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 				}
 			}
 
-			low, orch, high := tags.Compute()
+			low, orch, high, standard := tags.Compute()
 			info := &TagInfo{
 				Source:               ecsFargateCollectorName,
 				Entity:               containers.BuildTaggerEntityName(ctr.DockerID),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
+				StandardTags:         standard,
 			}
 			output = append(output, info)
 		}

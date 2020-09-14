@@ -31,6 +31,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
+	configConverter := config.NewConfigConverter()
 	const cfgExt = ".yaml"
 	const dirExt = ".d"
 
@@ -53,7 +54,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 
 	// setup the configuration system
 	config.Datadog.AddConfigPath(newConfigDir)
-	err = config.Load()
+	_, err = config.Load()
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
@@ -65,7 +66,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// merge current agent configuration with the converted data
-	err = legacy.FromAgentConfig(agentConfig)
+	err = legacy.FromAgentConfig(agentConfig, configConverter)
 	if err != nil {
 		return fmt.Errorf("unable to convert configuration data from %s: %v", datadogConfPath, err)
 	}
@@ -95,7 +96,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
 
 		if f.Name() == "docker_daemon.yaml" {
-			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.yaml"), force)
+			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.d", "conf.yaml"), force, configConverter)
 			if err != nil {
 				return err
 			}
@@ -108,7 +109,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			)
 			continue
 		} else if f.Name() == "kubernetes.yaml" {
-			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.yaml"), force)
+			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.d", "conf.yaml"), force, configConverter)
 			if err != nil {
 				return err
 			}

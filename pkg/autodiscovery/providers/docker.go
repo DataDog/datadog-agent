@@ -22,6 +22,7 @@ import (
 
 const (
 	dockerADLabelPrefix = "com.datadoghq.ad."
+	delayDuration       = 5 * time.Second
 )
 
 // DockerConfigProvider implements the ConfigProvider interface for the docker labels.
@@ -123,13 +124,20 @@ CONNECT:
 						log.Warnf("Error inspecting container: %s", err)
 					} else {
 						d.Lock()
-						d.labelCache[ev.ContainerID] = container.Config.Labels
-						d.upToDate = false
+						_, containerSeen := d.labelCache[ev.ContainerID]
 						d.Unlock()
+						if containerSeen {
+							// Container restarted with the same ID within 5 seconds.
+							time.AfterFunc(delayDuration, func() {
+								d.addLabels(ev.ContainerID, container.Config.Labels)
+							})
+						} else {
+							d.addLabels(ev.ContainerID, container.Config.Labels)
+						}
 					}
 				} else if ev.Action == "die" {
 					// delay for short lived detection
-					time.AfterFunc(5*time.Second, func() {
+					time.AfterFunc(delayDuration, func() {
 						d.Lock()
 						delete(d.labelCache, ev.ContainerID)
 						d.upToDate = false
@@ -158,6 +166,14 @@ func (d *DockerConfigProvider) IsUpToDate() (bool, error) {
 	d.RLock()
 	defer d.RUnlock()
 	return (d.streaming && d.upToDate), nil
+}
+
+// addLabels updates the label cache for a given container
+func (d *DockerConfigProvider) addLabels(containerID string, labels map[string]string) {
+	d.Lock()
+	defer d.Unlock()
+	d.labelCache[containerID] = labels
+	d.upToDate = false
 }
 
 func parseDockerLabels(containers map[string]map[string]string) ([]integration.Config, error) {

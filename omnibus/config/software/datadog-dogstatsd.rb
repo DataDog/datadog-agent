@@ -46,11 +46,19 @@ build do
   move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
 
   if linux?
-    erb source: "upstart.conf.erb",
-        dest: "#{install_dir}/scripts/datadog-dogstatsd.conf",
-        mode: 0644,
-        vars: { install_dir: install_dir }
-
+    if debian?
+      erb source: "upstart_debian.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-dogstatsd.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir }
+    # Ship a different upstart job definition on RHEL to accommodate the old
+    # version of upstart (0.6.5) that RHEL 6 provides.
+    elsif redhat? || suse?
+      erb source: "upstart_redhat.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-dogstatsd.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir }
+    end
     erb source: "systemd.service.erb",
         dest: "#{install_dir}/scripts/datadog-dogstatsd.service",
         mode: 0644,

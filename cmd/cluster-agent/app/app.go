@@ -179,45 +179,46 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.ClusterAgentName)
+	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
-	apiCl, err := apiserver.GetAPIClient() // make sure we can connect to the apiserver
+	apiCl, err := apiserver.WaitForAPIClient(context.Background()) // make sure we can connect to the apiserver
 	if err != nil {
-		log.Errorf("Could not connect to the apiserver: %v", err)
-	} else {
-		le, err := leaderelection.GetLeaderEngine()
-		if err != nil {
-			return err
+		return log.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
+	}
+
+	le, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return err
+	}
+
+	// Create event recorder
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(log.Infof)
+	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
+	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
+
+	ctx := apiserver.ControllerContext{
+		InformerFactory:    apiCl.InformerFactory,
+		WPAClient:          apiCl.WPAClient,
+		WPAInformerFactory: apiCl.WPAInformerFactory,
+		DDClient:           apiCl.DDClient,
+		DDInformerFactory:  apiCl.DDInformerFactory,
+		Client:             apiCl.Cl,
+		IsLeaderFunc:       le.IsLeader,
+		EventRecorder:      eventRecorder,
+		StopCh:             stopCh,
+	}
+
+	if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
+		for _, err := range aggErr.Errors() {
+			log.Warnf("Error while starting controller: %v", err)
 		}
+	}
 
-		// Create event recorder
-		eventBroadcaster := record.NewBroadcaster()
-		eventBroadcaster.StartLogging(log.Infof)
-		eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
-		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
-
-		stopCh := make(chan struct{})
-		ctx := apiserver.ControllerContext{
-			InformerFactory:    apiCl.InformerFactory,
-			WPAClient:          apiCl.WPAClient,
-			WPAInformerFactory: apiCl.WPAInformerFactory,
-			DDClient:           apiCl.DDClient,
-			DDInformerFactory:  apiCl.DDInformerFactory,
-			Client:             apiCl.Cl,
-			IsLeaderFunc:       le.IsLeader,
-			EventRecorder:      eventRecorder,
-			StopCh:             stopCh,
-		}
-
-		if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
-			for _, err := range aggErr.Errors() {
-				log.Warnf("Error while starting controller: %v", err)
-			}
-		}
-
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster
 		// so we store it in a configmap that we try and read before generating a new one.
@@ -231,6 +232,7 @@ func start(cmd *cobra.Command, args []string) error {
 		orchestratorCtx := orchestrator.ControllerContext{
 			IsLeaderFunc:                 le.IsLeader,
 			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			InformerFactory:              apiCl.InformerFactory,
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			Hostname:                     hostname,
@@ -241,22 +243,24 @@ func start(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Errorf("Could not start orchestrator controller: %v", err)
 		}
+	} else {
+		log.Info("Orchestrator explorer is disabled")
+	}
 
-		if config.Datadog.GetBool("admission_controller.enabled") {
-			admissionCtx := admissionpkg.ControllerContext{
-				IsLeaderFunc:     le.IsLeader,
-				SecretInformers:  apiCl.CertificateSecretInformerFactory,
-				WebhookInformers: apiCl.WebhookConfigInformerFactory,
-				Client:           apiCl.Cl,
-				StopCh:           stopCh,
-			}
-			err = admissionpkg.StartControllers(admissionCtx)
-			if err != nil {
-				log.Errorf("Could not start admission controller: %v", err)
-			}
-		} else {
-			log.Info("Admission controller is disabled")
+	if config.Datadog.GetBool("admission_controller.enabled") {
+		admissionCtx := admissionpkg.ControllerContext{
+			IsLeaderFunc:     le.IsLeader,
+			SecretInformers:  apiCl.CertificateSecretInformerFactory,
+			WebhookInformers: apiCl.WebhookConfigInformerFactory,
+			Client:           apiCl.Cl,
+			StopCh:           stopCh,
 		}
+		err = admissionpkg.StartControllers(admissionCtx)
+		if err != nil {
+			log.Errorf("Could not start admission controller: %v", err)
+		}
+	} else {
+		log.Info("Admission controller is disabled")
 	}
 
 	// Setup a channel to catch OS signals
@@ -319,6 +323,18 @@ func start(cmd *cobra.Command, args []string) error {
 			errServ := server.Run(mainCtx, apiCl.Cl)
 			if errServ != nil {
 				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
+			}
+		}()
+	}
+
+	// Compliance
+	if config.Datadog.GetBool("compliance_config.enabled") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			if err := runCompliance(mainCtx, apiCl, le.IsLeader); err != nil {
+				log.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
 	}

@@ -17,12 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -33,41 +35,21 @@ var timeFormat = "2006-01-02 15:04:05.000000 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
+	stats, err := getCommonStatus()
 	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
+		return nil, err
 	}
 
-	stats["version"] = version.AgentVersion
-	hostnameData, err := util.GetHostnameData()
-
-	var metadata *host.Payload
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		metadata = host.GetPayloadFromCache(hostnameData)
-	}
-	stats["metadata"] = metadata
-
+	stats["config"] = getPartialConfig()
+	metadata := stats["metadata"].(*host.Payload)
 	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))
 	hostTags = append(hostTags, metadata.HostTags.System...)
 	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
 	stats["hostTags"] = hostTags
 
-	stats["config"] = getPartialConfig()
-	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-
-	stats["pid"] = os.Getpid()
-	stats["go_version"] = runtime.Version()
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
-	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["hostinfo"] = host.GetStatusInformation()
-	stats["build_arch"] = runtime.GOARCH
-	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
 
 	stats["JMXStatus"] = GetJMXStatus()
 	stats["JMXStartupError"] = GetJMXStartupError()
@@ -147,25 +129,15 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 
 // GetDCAStatus grabs the status from expvar and puts it into a map
 func GetDCAStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
+	stats, err := getCommonStatus()
 	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
+		return nil, err
 	}
+
 	stats["config"] = getDCAPartialConfig()
-	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-	stats["version"] = version.AgentVersion
-	stats["pid"] = os.Getpid()
-	hostnameData, err := util.GetHostnameData()
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
-	}
-	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
+
+	stats["logsStats"] = logs.GetStatus()
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -215,6 +187,27 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 	return []byte(st), nil
 }
 
+// GetAndFormatSecurityAgentStatus gets and formats the security agent status
+func GetAndFormatSecurityAgentStatus(runtimeStatus map[string]interface{}) ([]byte, error) {
+	s, err := GetStatus()
+	if err != nil {
+		return nil, err
+	}
+	s["runtimeSecurityStatus"] = runtimeStatus
+
+	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := FormatSecurityAgentStatus(statusJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(st), nil
+}
+
 // getDCAPartialConfig returns config parameters of interest for the status page.
 func getDCAPartialConfig() map[string]string {
 	conf := make(map[string]string)
@@ -252,6 +245,37 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 	}
 
 	return endpointsInfos, nil
+}
+
+// getCommonStatus grabs the status from expvar and puts it into a map.
+// It gets the status elements common to all Agent flavors.
+func getCommonStatus() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+	stats, err := expvarStats(stats)
+	if err != nil {
+		log.Errorf("Error Getting ExpVar Stats: %v", err)
+	}
+
+	stats["version"] = version.AgentVersion
+	stats["flavor"] = flavor.GetFlavor()
+	hostnameData, err := util.GetHostnameData()
+
+	if err != nil {
+		log.Errorf("Error grabbing hostname for status: %v", err)
+		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+	} else {
+		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
+	}
+
+	stats["conf_file"] = config.Datadog.ConfigFileUsed()
+	stats["pid"] = os.Getpid()
+	stats["go_version"] = runtime.Version()
+	stats["agent_start"] = startTime.Format(timeFormat)
+	stats["build_arch"] = runtime.GOARCH
+	now := time.Now()
+	stats["time"] = now.Format(timeFormat)
+
+	return stats, nil
 }
 
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
@@ -323,7 +347,8 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	if expvar.Get("ntpOffset").String() != "" {
+	ntpOffset := expvar.Get("ntpOffset")
+	if ntpOffset != nil && ntpOffset.String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
 
@@ -360,6 +385,18 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["agent_metadata"] = data
 	} else {
 		stats["agent_metadata"] = map[string]string{}
+	}
+
+	stats["snmpTrapsStats"] = traps.GetStatus()
+
+	complianceVar := expvar.Get("compliance")
+	if complianceVar != nil {
+		complianceStatusJSON := []byte(complianceVar.String())
+		complianceStatus := make(map[string]interface{})
+		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
+		stats["complianceChecks"] = complianceStatus["Checks"]
+	} else {
+		stats["complianceChecks"] = map[string]interface{}{}
 	}
 
 	return stats, err

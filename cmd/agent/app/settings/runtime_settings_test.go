@@ -6,6 +6,7 @@
 package settings
 
 import (
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type runtimeTestSetting struct {
@@ -36,6 +38,16 @@ func (t *runtimeTestSetting) Get() (interface{}, error) {
 func (t *runtimeTestSetting) Set(v interface{}) error {
 	t.value = v.(int)
 	return nil
+}
+
+func (t *runtimeTestSetting) Hidden() bool {
+	return false
+}
+
+func setupConf() config.Config {
+	conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config.InitConfig(conf)
+	return conf
 }
 
 func cleanRuntimeSetting() {
@@ -101,9 +113,9 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	var err error
 
 	serializer := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(serializer, "", "agent")
+	agg := aggregator.InitAggregator(serializer, "")
 	common.DSD, err = dogstatsd.NewServer(agg)
-	assert.Nil(err)
+	require.Nil(t, err)
 
 	cleanRuntimeSetting()
 
@@ -153,4 +165,22 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)
+}
+
+func TestProfiling(t *testing.T) {
+	cleanRuntimeSetting()
+	setupConf()
+
+	ll := profilingRuntimeSetting("profiling")
+	assert.Equal(t, "profiling", ll.Name())
+
+	err := ll.Set("false")
+	assert.Nil(t, err)
+
+	v, err := ll.Get()
+	assert.Equal(t, false, v)
+	assert.Nil(t, err)
+
+	err = ll.Set("on")
+	assert.NotNil(t, err)
 }

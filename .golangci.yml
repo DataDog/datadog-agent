@@ -11,9 +11,6 @@ run:
     - pkg/trace
     # TODO metrics-aggregation
     - pkg/quantile
-    # TODO burrito
-    - pkg/ebpf
-    - pkg/network
 
 issues:
   # Do not limit the number of issues per linter.
@@ -27,7 +24,7 @@ issues:
     - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
     - "`defaultRetryDuration` is unused" # used by APM and Process
     - "`defaultRetries` is unused"       # used by APM and Process
-    - "python._Ctype_char, which can be annoying to use" # ignore warning abour returning unexported field from CGO
+    - "python._Ctype_char, which can be annoying to use" # ignore warning about returning unexported field from CGO
 
     # [Golint] Ignore package name repetition for checks since it makes code easier to read/maintain
     - "type name will be used as jmx.JMXCheck by other packages, and that stutters"

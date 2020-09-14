@@ -19,8 +19,9 @@ func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	}
 
 	payload := &model.Connections{
-		Conns: agentConns,
-		Dns:   FormatDNS(conns.DNS),
+		Conns:     agentConns,
+		Dns:       FormatDNS(conns.DNS),
+		Telemetry: FormatTelemetry(conns.Telemetry),
 	}
 
 	return proto.Marshal(payload)

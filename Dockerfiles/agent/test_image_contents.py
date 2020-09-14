@@ -5,6 +5,7 @@ import os.path
 import stat
 import unittest
 from hashlib import sha256
+
 from six import iteritems
 
 EXPECTED_PRESENT = [
@@ -49,7 +50,7 @@ class TestFiles(unittest.TestCase):
         def has_write_permissions(path):
             try:
                 return bool(os.stat(path).st_mode & stat.S_IWOTH)
-            except:
+            except Exception:
                 return False
 
         for root, dirs, files in os.walk("/etc"):
@@ -60,25 +61,5 @@ class TestFiles(unittest.TestCase):
                 self.assertFalse(has_write_permissions(os.path.join(root, name)))
 
 
-def correct_permissions(root):
-    def correct_perm(path):
-        try:
-            mode = os.stat(path).st_mode
-        except:
-            return
-
-        if bool(mode & stat.S_IWOTH):
-            mode -= mode & (stat.S_IWGRP | stat.S_IWOTH)
-            print("Changing permissions for: ", path)
-            os.chmod(path, mode)
-
-    for root, dirs, files in os.walk(root):
-        for name in files:
-            correct_perm(os.path.join(root, name))
-        for name in dirs:
-            correct_perm(os.path.join(root, name))
-
-
 if __name__ == "__main__":
-    correct_permissions("/etc")
     unittest.main()

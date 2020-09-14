@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ctaUnspec = iota
+	_ = iota
 	ctaTupleOrig
 	ctaTupleReply
 )
@@ -20,7 +20,7 @@ const (
 const (
 	ctaTupleIP    = 1
 	ctaTupleProto = 2
-	ctaTupleZone  = 3
+	ctaTupleZone  = 3 //nolint:deadcode
 )
 
 const (
@@ -36,18 +36,27 @@ const (
 	ctaProtoDstPort = 3
 )
 
+// Con represents a conntrack entry, along with any network namespace info (nsid)
+type Con struct {
+	ct.Con
+	NetNS int32
+}
+
 var scanner = NewAttributeScanner()
 
 // DecodeAndReleaseEvent decodes a single Event into a slice of []ct.Con objects and
 // releases the underlying buffer.
 // TODO: Replace the intermediate ct.Con object by the same format we use in the cache
-func DecodeAndReleaseEvent(e Event) []ct.Con {
+func DecodeAndReleaseEvent(e Event) []Con {
 	msgs := e.Messages()
-	conns := make([]ct.Con, 0, len(msgs))
+	conns := make([]Con, 0, len(msgs))
 
 	for _, msg := range msgs {
-		c := &ct.Con{}
-		scanner.ResetTo(msg.Data)
+		c := &Con{NetNS: e.netns}
+		if err := scanner.ResetTo(msg.Data); err != nil {
+			log.Debugf("error decoding netlink message: %s", err)
+			continue
+		}
 		err := unmarshalCon(scanner, c)
 		if err != nil {
 			log.Debugf("error decoding netlink message: %s", err)
@@ -62,7 +71,7 @@ func DecodeAndReleaseEvent(e Event) []ct.Con {
 	return conns
 }
 
-func unmarshalCon(s *AttributeScanner, c *ct.Con) error {
+func unmarshalCon(s *AttributeScanner, c *Con) error {
 	c.Origin = &ct.IPTuple{}
 	c.Reply = &ct.IPTuple{}
 
@@ -129,7 +138,7 @@ func unmarshalProto(s *AttributeScanner, t *ct.IPTuple) error {
 		switch s.Type() {
 		case ctaProtoNum:
 			toDecode--
-			protoNum := uint8(s.Bytes()[0])
+			protoNum := s.Bytes()[0]
 			t.Proto.Number = &protoNum
 		case ctaProtoSrcPort:
 			toDecode--

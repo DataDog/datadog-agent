@@ -27,10 +27,8 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultSystemProbeSocketPath is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
-	// defaultSystemProbeFilePath is the default logging file for the system probe
-	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
+	// defaultSystemProbeBPFDir is the default path for eBPF programs
+	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
@@ -38,12 +36,20 @@ var (
 
 type proxyFunc func(*http.Request) (*url.URL, error)
 
-// WindowsConfig stores all windows-specific configuration for the process-agent.
+// WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
 type WindowsConfig struct {
 	// Number of checks runs between refreshes of command-line arguments
 	ArgsRefreshInterval int
 	// Controls getting process arguments immediately when a new process is discovered
 	AddNewArgs bool
+
+	//System Probe Configuration
+
+	// EnableMonotonicCount determines if we will calculate send/recv bytes of connections with headers and retransmits
+	EnableMonotonicCount bool
+
+	// DriverBufferSize (bytes) determines the size of the buffer we pass to the driver when reading flows
+	DriverBufferSize int
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -79,8 +85,9 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
-	SystemProbeSocketPath          string
+	SystemProbeAddress             string
 	SystemProbeLogFile             string
+	SystemProbeBPFDir              string
 	MaxTrackedConnections          uint
 	SysProbeBPFDebug               bool
 	ExcludedBPFLinuxVersions       []string
@@ -93,6 +100,8 @@ type AgentConfig struct {
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
+	OffsetGuessThreshold           uint64
+	EnableTracepoints              bool
 
 	// DNS stats configuration
 	CollectDNSStats bool
@@ -101,6 +110,7 @@ type AgentConfig struct {
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
 	KubeClusterName                string
+	IsScrubbingEnabled             bool
 
 	// Check config
 	EnabledChecks  []string
@@ -134,6 +144,7 @@ const (
 	maxMessageBatch              = 100
 	maxConnsMessageBatch         = 1000
 	defaultMaxTrackedConnections = 65536
+	maxOffsetThreshold           = 3000
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -202,13 +213,16 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableUDPTracing:     false,
 		DisableIPv6Tracing:    false,
 		DisableDNSInspection:  false,
-		SystemProbeSocketPath: defaultSystemProbeSocketPath,
-		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		SystemProbeAddress:    defaultSystemProbeAddress,
+		SystemProbeLogFile:    defaultSystemProbeLogFilePath,
+		SystemProbeBPFDir:     defaultSystemProbeBPFDir,
 		MaxTrackedConnections: defaultMaxTrackedConnections,
 		EnableConntrack:       true,
 		ClosedChannelSize:     500,
 		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
 		ConntrackRateLimit:    500,
+		OffsetGuessThreshold:  400,
+		EnableTracepoints:     false,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -227,8 +241,10 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 		// Windows process config
 		Windows: WindowsConfig{
-			ArgsRefreshInterval: 15, // with default 20s check interval we refresh every 5m
-			AddNewArgs:          true,
+			ArgsRefreshInterval:  15, // with default 20s check interval we refresh every 5m
+			AddNewArgs:           true,
+			EnableMonotonicCount: false,
+			DriverBufferSize:     1024,
 		},
 	}
 
@@ -254,7 +270,24 @@ func loadConfigIfExists(path string) error {
 			config.Datadog.SetConfigFile(path)
 		}
 
-		if err := config.LoadWithoutSecret(); err != nil {
+		if _, err := config.LoadWithoutSecret(); err != nil {
+			return err
+		}
+	} else {
+		log.Infof("no config exists at %s, ignoring...", path)
+	}
+	return nil
+}
+
+func mergeConfigIfExists(path string) error {
+	if util.PathExists(path) {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		if err := config.Datadog.MergeConfig(file); err != nil {
 			return err
 		}
 	} else {
@@ -291,7 +324,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	loadConfigIfExists(netYamlPath) //nolint:errcheck
+	mergeConfigIfExists(netYamlPath) //nolint:errcheck
 	if err = cfg.loadSysProbeYamlConfig(netYamlPath); err != nil {
 		return nil, err
 	}
@@ -316,6 +349,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 			}
 		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname
+		} else {
+			log.Errorf("Cannot get hostname: %v", err)
 		}
 	}
 
@@ -387,7 +422,7 @@ func loadEnvVariables() {
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
-		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
+		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
 		{"DD_BIND_HOST", "bind_host"},
@@ -416,7 +451,7 @@ func loadEnvVariables() {
 
 	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
 		log.Infof("overriding API key from env %s value", envKey)
-		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(apiKey, ",")[0]))
+		config.Datadog.Set("api_key", config.SanitizeAPIKey(strings.Split(apiKey, ",")[0]))
 	}
 
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
@@ -437,7 +472,7 @@ func loadEnvVariables() {
 		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
 			log.Errorf(`Could not parse DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
 		} else {
-			config.Datadog.Set("process_config.orchestrator_additional_endpoints", endpoints)
+			config.Datadog.Set("orchestrator_explorer.orchestrator_additional_endpoints", endpoints)
 		}
 	}
 }
@@ -452,6 +487,7 @@ func loadSysProbeEnvVariables() {
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
 		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
 		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
+		{"DD_COLLECT_DNS_STATS", "system_probe_config.collect_dns_stats"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)

@@ -43,6 +43,15 @@
 #define _SUBPROCESS_OUTPUT_ERROR_NAME "SubprocessOutputEmptyError"
 #define _SUBPROCESS_OUTPUT_ERROR_NS_NAME _UTIL_MODULE_NAME _DOT _SUBPROCESS_OUTPUT_ERROR_NAME
 
+// The keyword-only arguments separator ($) for PyArg_ParseTupleAndKeywords()
+// has been introduced in Python 3.3
+// https://docs.python.org/3/c-api/arg.html#other-objects
+#ifdef DATADOG_AGENT_THREE
+#    define PY_ARG_PARSE_TUPLE_KEYWORD_ONLY "$"
+#elif defined(DATADOG_AGENT_TWO)
+#    define PY_ARG_PARSE_TUPLE_KEYWORD_ONLY ""
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

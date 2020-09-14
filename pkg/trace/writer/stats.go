@@ -58,8 +58,9 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWri
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
-		// allow 1% of the connection limit to outgoing sends.
-		climit = int(math.Max(1, float64(cfg.ConnectionLimit)/100))
+		// Allow 1% of the connection limit to outgoing sends. The original
+		// connection limit was removed and used to be 2000 (1% = 20)
+		climit = 20
 	}
 	qsize := cfg.StatsWriter.QueueSize
 	if qsize == 0 {

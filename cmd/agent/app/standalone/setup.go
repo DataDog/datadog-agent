@@ -16,7 +16,7 @@ import (
 // - config, with defaults to avoid conflicting with an agent process running in parallel
 // - logger
 // and returns the log level resolved from cliLogLevel and defaultLogLevel
-func SetupCLI(loggerName config.LoggerName, confFilePath string, cliLogLevel string, defaultLogLevel string) (string, error) {
+func SetupCLI(loggerName config.LoggerName, confFilePath, configName string, cliLogLevel string, defaultLogLevel string) (string, *config.Warnings, error) {
 	var resolvedLogLevel string
 
 	if cliLogLevel != "" {
@@ -33,15 +33,15 @@ func SetupCLI(loggerName config.LoggerName, confFilePath string, cliLogLevel str
 	overrides["cmd_port"] = 0 // let the OS assign an available port for the HTTP server
 	config.AddOverrides(overrides)
 
-	err := common.SetupConfig(confFilePath)
+	warnings, err := common.SetupConfigWithWarnings(confFilePath, configName)
 	if err != nil {
-		return resolvedLogLevel, fmt.Errorf("unable to set up global agent configuration: %v", err)
+		return resolvedLogLevel, warnings, fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
 	err = config.SetupLogger(loggerName, resolvedLogLevel, "", "", false, true, false)
 	if err != nil {
-		return resolvedLogLevel, fmt.Errorf("unable to set up logger: %v", err)
+		return resolvedLogLevel, warnings, fmt.Errorf("unable to set up logger: %v", err)
 	}
 
-	return resolvedLogLevel, nil
+	return resolvedLogLevel, warnings, nil
 }

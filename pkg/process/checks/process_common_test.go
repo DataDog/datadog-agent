@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
+//nolint:unused
 func makeContainer(id string) *containers.Container {
 	return &containers.Container{
 		ID: id,
@@ -30,6 +31,7 @@ func makeContainer(id string) *containers.Container {
 	}
 }
 
+//nolint:deadcode,unused
 func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*process.FilledProcess, []*containers.Container) {
 	procs := make([]*process.FilledProcess, 0, pCount)
 	for i := 0; i < pCount; i++ {
@@ -55,6 +57,18 @@ func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*process.
 	return procs, ctrs
 }
 
+func containersByPid(ctrs []*containers.Container) map[int32]string {
+	ctrsByPid := make(map[int32]string)
+	for _, c := range ctrs {
+		for _, p := range c.Pids {
+			ctrsByPid[p] = c.ID
+		}
+	}
+
+	return ctrsByPid
+}
+
+//nolint:deadcode,unused
 func procsToHash(procs []*process.FilledProcess) (procsByPid map[int32]*process.FilledProcess) {
 	procsByPid = make(map[int32]*process.FilledProcess)
 	for _, p := range procs {
@@ -72,6 +86,7 @@ func makeProcess(pid int32, cmdline string) *process.FilledProcess {
 	}
 }
 
+//nolint:deadcode,unused
 // procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
 func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*process.FilledProcess, maxSize int, cfg *config.AgentConfig) {
 	actualProcs := 0
@@ -174,8 +189,7 @@ func TestProcessChunking(t *testing.T) {
 		for _, c := range tc.last {
 			last[c.Pid] = c
 		}
-
-		procs := fmtProcesses(cfg, cur, last, containers, syst2, syst1, lastRun)
+		procs := fmtProcesses(cfg, cur, last, containersByPid(containers), syst2, syst1, lastRun)
 		// only deal with non-container processes
 		chunked := chunkProcesses(procs[emptyCtrID], cfg.MaxPerMessage)
 		assert.Len(t, chunked, tc.expectedChunks, "len %d", i)

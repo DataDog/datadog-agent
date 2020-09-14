@@ -9,6 +9,7 @@ package containers
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/types"
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -83,8 +85,8 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 		return err
 	}
 	c.sub.Filters = c.instance.ContainerdFilters
-	// GetSharedFilter should not return a nil instance of *Filter if there is an error during its setup.
-	fil, err := ddContainers.GetSharedFilter()
+	// GetSharedMetricFilter should not return a nil instance of *Filter if there is an error during its setup.
+	fil, err := ddContainers.GetSharedMetricFilter()
 	if err != nil {
 		return err
 	}
@@ -215,9 +217,16 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 		computeUptime(sender, info, currentTime, tags)
 		computeMem(sender, metrics.Memory, tags)
 
-		if metrics.CPU.Throttling != nil && metrics.CPU.Usage != nil {
-			computeCPU(sender, metrics.CPU, tags)
+		ociSpec, err := cu.Spec(ctn)
+		if err != nil {
+			log.Errorf("Could not retrieve OCI Spec from: %s: %v", ctn.ID(), err)
 		}
+
+		var cpuLimits *specs.LinuxCPU
+		if ociSpec.Linux != nil && ociSpec.Linux.Resources != nil {
+			cpuLimits = ociSpec.Linux.Resources.CPU
+		}
+		computeCPU(sender, metrics.CPU, cpuLimits, info.CreatedAt, currentTime, tags)
 
 		if metrics.Blkio.Size() > 0 {
 			computeBlkio(sender, metrics.Blkio, tags)
@@ -255,8 +264,8 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 }
 
 func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
-	// The container name is not available in Containerd, we only rely on image name based exclusion
-	return fil.IsExcluded("", ctn.Image, "")
+	// The container name is not available in Containerd, we only rely on image name and kube namespace based exclusion
+	return fil.IsExcluded("", ctn.Image, ctn.Labels["io.kubernetes.pod.namespace"])
 }
 
 func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*v1.Metrics, error) {
@@ -336,12 +345,28 @@ func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *v1.Mem
 
 }
 
-func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, tags []string) {
+func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.LinuxCPU, startTime, currentTime time.Time, tags []string) {
+	if cpu == nil || cpu.Usage == nil {
+		return
+	}
+
 	sender.Rate("containerd.cpu.system", float64(cpu.Usage.Kernel), "", tags)
 	sender.Rate("containerd.cpu.total", float64(cpu.Usage.Total), "", tags)
 	sender.Rate("containerd.cpu.user", float64(cpu.Usage.User), "", tags)
-	sender.Rate("containerd.cpu.throttled.periods", float64(cpu.Throttling.ThrottledPeriods), "", tags)
 
+	if cpu.Throttling != nil {
+		sender.Rate("containerd.cpu.throttled.periods", float64(cpu.Throttling.ThrottledPeriods), "", tags)
+		sender.Rate("containerd.cpu.throttled.time", float64(cpu.Throttling.ThrottledTime), "", tags)
+	}
+
+	timeDiff := float64(currentTime.Sub(startTime).Nanoseconds()) // cpu.total is in nanoseconds
+	if timeDiff > 0 {
+		cpuLimitPct := float64(runtime.NumCPU())
+		if cpuLimits != nil && cpuLimits.Period != nil && *cpuLimits.Period > 0 && cpuLimits.Quota != nil && *cpuLimits.Quota > 0 {
+			cpuLimitPct = float64(*cpuLimits.Quota) / float64(*cpuLimits.Period)
+		}
+		sender.Rate("containerd.cpu.limit", cpuLimitPct*timeDiff, "", tags)
+	}
 }
 
 func computeBlkio(sender aggregator.Sender, blkio *v1.BlkIOStat, tags []string) {
@@ -366,12 +391,16 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*v1
 			continue
 		}
 
-		tags = append(tags, fmt.Sprintf("device:%s", m.Device))
-		tags = append(tags, fmt.Sprintf("device_name:%s", m.Device))
+		// +3 As we will add tags after
+		deviceTags := make([]string, 0, len(tags)+3)
+		deviceTags = append(deviceTags, tags...)
+
+		deviceTags = append(deviceTags, fmt.Sprintf("device:%s", m.Device))
+		deviceTags = append(deviceTags, fmt.Sprintf("device_name:%s", m.Device))
 		if m.Op != "" {
-			tags = append(tags, fmt.Sprintf("operation:%s", m.Op))
+			deviceTags = append(deviceTags, fmt.Sprintf("operation:%s", m.Op))
 		}
 
-		sender.Rate(metricName, float64(m.Value), "", tags)
+		sender.Rate(metricName, float64(m.Value), "", deviceTags)
 	}
 }

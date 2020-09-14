@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
@@ -62,6 +64,8 @@ const ServiceName = "dogstatsd"
 // EnableLoggingToFile -- set up logging to file
 
 func main() {
+	// set the Agent flavor
+	flavor.SetFlavor(flavor.Dogstatsd)
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
 	// go_expvar server
@@ -95,12 +99,15 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 
 	log.Infof("Service control function")
 	importRegistryConfig()
-	mainCtx, mainCtxCancel, err := runAgent()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	err := runAgent(ctx)
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
+		stopAgent(cancel)
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
@@ -133,7 +140,7 @@ loop:
 	elog.Info(0x40000006, ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	stopAgent(mainCtx, mainCtxCancel)
+	stopAgent(cancel)
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }

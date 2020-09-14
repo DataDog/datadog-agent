@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -20,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+
+	"k8s.io/kubernetes/third_party/forked/golang/expansion"
 )
 
 const (
@@ -52,16 +53,34 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			// Standard pod labels
 			switch name {
 			case kubernetes.EnvTagLabelKey:
-				tags.AddLow(tagKeyEnv, value)
+				tags.AddStandard(tagKeyEnv, value)
 			case kubernetes.VersionTagLabelKey:
-				tags.AddLow(tagKeyVersion, value)
+				tags.AddStandard(tagKeyVersion, value)
 			case kubernetes.ServiceTagLabelKey:
-				tags.AddLow(tagKeyService, value)
+				tags.AddStandard(tagKeyService, value)
+			case kubernetes.KubeAppNameLabelKey:
+				tags.AddLow(tagKeyKubeAppName, value)
+			case kubernetes.KubeAppInstanceLabelKey:
+				tags.AddLow(tagKeyKubeAppInstance, value)
+			case kubernetes.KubeAppVersionLabelKey:
+				tags.AddLow(tagKeyKubeAppVersion, value)
+			case kubernetes.KubeAppComponentLabelKey:
+				tags.AddLow(tagKeyKubeAppComponent, value)
+			case kubernetes.KubeAppPartOfLabelKey:
+				tags.AddLow(tagKeyKubeAppPartOf, value)
+			case kubernetes.KubeAppManagedByLabelKey:
+				tags.AddLow(tagKeyKubeAppManagedBy, value)
 			}
 			for pattern, tmpl := range c.labelsAsTags {
-				if ok, _ := filepath.Match(pattern, strings.ToLower(name)); ok {
-					tags.AddAuto(resolveTag(tmpl, name), value)
+				n := strings.ToLower(name)
+				if g, ok := c.globMap[pattern]; ok {
+					if !g.Match(n) {
+						continue
+					}
+				} else if pattern != n {
+					continue
 				}
+				tags.AddAuto(resolveTag(tmpl, name), value)
 			}
 		}
 
@@ -119,7 +138,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					tags.AddLow("kube_job", owner.Name)
 				}
 			case "ReplicaSet":
-				deployment := parseDeploymentForReplicaset(owner.Name)
+				deployment := parseDeploymentForReplicaSet(owner.Name)
 				if len(deployment) > 0 {
 					tags.AddOrchestrator("kube_replica_set", owner.Name)
 					tags.AddLow("kube_deployment", deployment)
@@ -131,7 +150,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 		}
 
-		low, orch, high := tags.Compute()
+		low, orch, high, standard := tags.Compute()
 		if pod.Metadata.UID != "" {
 			podInfo := &TagInfo{
 				Source:               kubeletCollectorName,
@@ -139,6 +158,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
+				StandardTags:         standard,
 			}
 			output = append(output, podInfo)
 		}
@@ -162,7 +182,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			for _, tag := range labelTags {
 				label := fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tag)
 				if value, ok := pod.Metadata.Labels[label]; ok {
-					cTags.AddLow(tag, value)
+					cTags.AddStandard(tag, value)
 				}
 			}
 
@@ -180,16 +200,29 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 
 			// check env vars and image tag in spec
+			// TODO: Implement support of environment variables set from ConfigMap, Secret, DownwardAPI.
+			// See https://github.com/kubernetes/kubernetes/blob/d20fd4088476ec39c5ae2151b8fffaf0f4834418/pkg/kubelet/kubelet_pods.go#L566
+			// for the complete environment variable resolution process that is done by the kubelet.
 			for _, containerSpec := range pod.Spec.Containers {
 				if containerSpec.Name == container.Name {
+					tmpEnv := make(map[string]string)
+					mappingFunc := expansion.MappingFuncFor(tmpEnv)
+
 					for _, env := range containerSpec.Env {
-						switch env.Name {
-						case envVarEnv:
-							cTags.AddLow(tagKeyEnv, env.Value)
-						case envVarVersion:
-							cTags.AddLow(tagKeyVersion, env.Value)
-						case envVarService:
-							cTags.AddLow(tagKeyService, env.Value)
+						if env.Value != "" {
+							runtimeVal := expansion.Expand(env.Value, mappingFunc)
+							tmpEnv[env.Name] = runtimeVal
+
+							switch env.Name {
+							case envVarEnv:
+								cTags.AddStandard(tagKeyEnv, runtimeVal)
+							case envVarVersion:
+								cTags.AddStandard(tagKeyVersion, runtimeVal)
+							case envVarService:
+								cTags.AddStandard(tagKeyService, runtimeVal)
+							}
+						} else if env.Name == envVarEnv || env.Name == envVarVersion || env.Name == envVarService {
+							log.Warnf("Reading %s from a ConfigMap, Secret or anything but a literal value is not implemented yet.", env.Name)
 						}
 					}
 					imageName, shortImage, imageTag, err := containers.SplitImageName(containerSpec.Image)
@@ -208,7 +241,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				}
 			}
 
-			cLow, cOrch, cHigh := cTags.Compute()
+			cLow, cOrch, cHigh, standard := cTags.Compute()
 			entityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
 			if err != nil {
 				log.Warnf("Unable to parse container pName: %s / cName: %s / cId: %s / err: %s", pod.Metadata.Name, container.Name, container.ID, err)
@@ -220,6 +253,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				HighCardTags:         cHigh,
 				OrchestratorCardTags: cOrch,
 				LowCardTags:          cLow,
+				StandardTags:         standard,
 			}
 			output = append(output, info)
 		}
@@ -227,9 +261,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 	return output, nil
 }
 
-// parseDeploymentForReplicaset gets the deployment name from a replicaset,
+// parseDeploymentForReplicaSet gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
-func parseDeploymentForReplicaset(name string) string {
+func parseDeploymentForReplicaSet(name string) string {
 	lastDash := strings.LastIndexAny(name, "-")
 	if lastDash == -1 {
 		// No dash

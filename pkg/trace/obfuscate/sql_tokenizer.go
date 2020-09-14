@@ -58,6 +58,7 @@ const (
 	Insert
 	Into
 	Join
+	ColonCast
 
 	// FilteredGroupable specifies that the given token has been discarded by one of the
 	// token filters and that it is groupable together with consecutive FilteredGroupable
@@ -149,6 +150,10 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		case EOFChar:
 			return EOFChar, nil
 		case ':':
+			if tkn.lastChar == ':' {
+				tkn.next()
+				return ColonCast, []byte("::")
+			}
 			if tkn.lastChar != '=' {
 				return tkn.scanBindVar()
 			}
@@ -262,7 +267,7 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	buffer.WriteRune(tkn.lastChar)
-	if !isLetter(tkn.lastChar) {
+	if !isLetter(tkn.lastChar) && !isDigit(tkn.lastChar) {
 		tkn.setErr(`unexpected character "%c" (%d) in literal identifier`, tkn.lastChar, tkn.lastChar)
 		return LexError, buffer.Bytes()
 	}
@@ -429,6 +434,9 @@ exponent:
 	}
 
 exit:
+	if buffer.Len() == 0 {
+		return LexError, nil
+	}
 	return Number, buffer.Bytes()
 }
 
@@ -552,7 +560,7 @@ func digitVal(ch rune) int {
 	return 16 // larger than any legal digit val
 }
 
-func isDigit(ch rune) bool { return unicode.IsDigit(ch) }
+func isDigit(ch rune) bool { return '0' <= ch && ch <= '9' }
 
 // runeBytes converts the given rune to a slice of bytes.
 func runeBytes(r rune) []byte {
