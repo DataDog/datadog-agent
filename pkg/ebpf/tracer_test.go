@@ -329,7 +329,7 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 		}
 
 		return false
-	}, "did not find 1.1.1.1 connection classified as local")
+	}, "did not find 1.1.1.1 connection classified as local: %v", conns)
 
 	assert.Condition(t, func() bool {
 		for _, c := range conns {
@@ -409,6 +409,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 		for entries.Next(unsafe.Pointer(ek), unsafe.Pointer(sv)) {
 			t.Logf("%s => %+v\n", ek, sv)
 		}
+		require.NoError(t, entries.Err())
 	}
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
@@ -996,7 +997,7 @@ func TestIsExpired(t *testing.T) {
 }
 
 func TestTCPMiscount(t *testing.T) {
-	t.SkipNow()
+	t.Skip("skipping because this test will pass/fail depending on host performance")
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -1031,7 +1032,7 @@ func TestTCPMiscount(t *testing.T) {
 		Sec:  0,
 		Usec: 1,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// 100 MB payload
 	x := make([]byte, 100*1024*1024)
