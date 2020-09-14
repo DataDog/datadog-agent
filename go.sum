@@ -104,6 +104,8 @@ github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 h1:UcKqIrOowv2PjTkOC2
 github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/viper v1.7.1 h1:yyn+WujSB5rnBXHm7VzilXK8gN7qB4TLN1KU90RZVd8=
 github.com/DataDog/viper v1.7.1/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
+github.com/DataDog/viper v1.8.0 h1:+0s6jzOzQEpMCW+c4bkirz+4vNoWm4jmiQNmKfO2p38=
+github.com/DataDog/viper v1.8.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
 github.com/DataDog/watermarkpodautoscaler v0.1.0 h1:EK8mxbhGt+jNRu/q8fdGi05aX7buVSQqONWxS/DnzXM=
 github.com/DataDog/watermarkpodautoscaler v0.1.0/go.mod h1:JHOlfw4/9Ng1io9QDotxKggdFEYFd2Au9cj+lXzQSRA=
 github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360 h1:CiuXIvblnzlQEnFP5tvrzcONd0AZpOuqzFg+bkCq95U=
