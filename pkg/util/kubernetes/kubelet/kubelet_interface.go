@@ -20,6 +20,7 @@ type KubeUtilInterface interface {
 	ForceGetLocalPodList() ([]*Pod, error)
 	GetPodForContainerID(containerID string) (*Pod, error)
 	GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error)
+	GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error)
 	GetPodFromUID(podUID string) (*Pod, error)
 	GetPodForEntityID(entityID string) (*Pod, error)
 	QueryKubelet(path string) ([]byte, int, error)
