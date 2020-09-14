@@ -55,7 +55,7 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 
 	tags = append(tags, fmt.Sprintf("error:%s", errtag))
 	metrics.Count(receiverErrorKey, 1, tags, 1)
-	http.Error(w, fmt.Sprintf("%s:%v", errtag, err), status)
+	http.Error(w, fmt.Sprintf("%s: %v", errtag, err), status)
 }
 
 // httpOK is a dumb response for when things are a OK
