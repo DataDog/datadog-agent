@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 if [[ -z "${DD_INSIDE_CI}" ]]; then
     exit 0
