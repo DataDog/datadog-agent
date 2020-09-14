@@ -94,6 +94,18 @@ github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822 h1:E5WN
 github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822/go.mod h1:a5NqgPglcSct+NwO9gPvVhoL5V6G1+gHbRaRnU8U54M=
 github.com/DataDog/ebpf v0.0.0-20200825200022-7a8f7d072a50 h1:SDv8tEPuNd5sSIDksVwvwcgXP3ElGaQSuCB7Mtfluf8=
 github.com/DataDog/ebpf v0.0.0-20200825200022-7a8f7d072a50/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200910092745-108f7763988a h1:bs79z8ToT4Hzngsq63ZA5WYo0dSUEdlshGN/r5twNjM=
+github.com/DataDog/ebpf v0.0.0-20200910092745-108f7763988a/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200911163344-e591d3008971 h1:geqG5+0Nr0WUxLcyvzP3mgJDeWpXhvkwJ/b2ZztjS34=
+github.com/DataDog/ebpf v0.0.0-20200911163344-e591d3008971/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200914091016-e4047d57961c h1:ZnK+s6TxIkucoW0BH26lY+Duh8lGEuSrvBY/3zXO+70=
+github.com/DataDog/ebpf v0.0.0-20200914091016-e4047d57961c/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200914092151-9c88b8430ea2 h1:cHb30u28wp8oB/lF87fpZBA/Gbrf1O4b/KZEVkPjteY=
+github.com/DataDog/ebpf v0.0.0-20200914092151-9c88b8430ea2/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200914110521-2f2e7196d642 h1:2+JAS39JDdES+NQp8LdVohqIvIDsmYCdZzAy8Vh6VwA=
+github.com/DataDog/ebpf v0.0.0-20200914110521-2f2e7196d642/go.mod h1:KNnyHMGc9auLVSPvYY8ws1BRvZP5THoxJuhfEOsuW7U=
+github.com/DataDog/ebpf v0.0.0-20200914122217-4ae764452e0c h1:yuhgwYipZGft4iiZjp0fRt8joaloFMiMw7OxZ+o3UKk=
+github.com/DataDog/ebpf v0.0.0-20200914122217-4ae764452e0c/go.mod h1:G6NxI0QPFzGNL00kbkDgHcduq6kUkZZI22gAQieM3Dc=
 github.com/DataDog/gobpf v0.0.0-20200907093925-5f8313cb4d71 h1:0TOAH3X9tEvMBVQ1HYrQfrnAUcSS1mfMrhqeN+spV1s=
 github.com/DataDog/gobpf v0.0.0-20200907093925-5f8313cb4d71/go.mod h1:rNvi5cSHdpxN6495MOYAWN3yukac8lORoluL+9Osrsw=
 github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a h1:BkU6uq4Ib7Kp1zP7MT33IdHZQazC+kxbuTyEmgePyyA=
@@ -419,6 +431,7 @@ github.com/florianl/go-conntrack v0.2.0 h1:JEB4w895ZX35tvNH5JjNM9pxa+Qn73paiA37V
 github.com/florianl/go-conntrack v0.2.0/go.mod h1:HRSlXmrl5M//9hiHmkwyLDwlaoba2sVDcBpHFRiVo1Q=
 github.com/florianl/go-tc v0.1.0 h1:oOChnhxvsYaZLvxrILdKe1uf4lq1zDGrnG52iP5FEMk=
 github.com/florianl/go-tc v0.1.0/go.mod h1:n77vbeG0iBmb6p3oGSfS+tKZ27vV4tF+kQLevzOTzQU=
+github.com/florianl/go-tc v0.2.0/go.mod h1:aWdDOHrIpaff8cZp6z7dgJZ1bRsgTS6pXIW0xRdFTK8=
 github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568/go.mod h1:xEzjJPgXI435gkrCt3MPfRiAkVrwSbHsst4LCFVfpJc=
 github.com/fortytw2/leaktest v1.3.0/go.mod h1:jDsjWgpAGjm2CA7WthBh/CdZYEPF31XHquHwclZch5g=
 github.com/franela/goblin v0.0.0-20200105215937-c9ffbefa60db/go.mod h1:7dvUGVsVBjqR7JHJk0brhHOZYGmfBYOrK0ZhYMEtBr4=
@@ -773,6 +786,7 @@ github.com/jpillora/backoff v1.0.0/go.mod h1:J/6gKK9jxlEcS3zixgDgUAsiuZ7yrSoa/FX
 github.com/jsimonetti/rtnetlink v0.0.0-20190606172950-9527aa82566a/go.mod h1:Oz+70psSo5OFh8DBl0Zv2ACw7Esh6pPUphlvZG9x7uw=
 github.com/jsimonetti/rtnetlink v0.0.0-20200117123717-f846d4f6c1f4 h1:nwOc1YaOrYJ37sEBrtWZrdqzK22hiJs3GpDmP3sR2Yw=
 github.com/jsimonetti/rtnetlink v0.0.0-20200117123717-f846d4f6c1f4/go.mod h1:WGuG/smIU4J/54PblvSbh+xvCZmpJnFgr3ds6Z55XMQ=
+github.com/jsimonetti/rtnetlink v0.0.0-20200319143528-d89fb9e42094/go.mod h1:WGuG/smIU4J/54PblvSbh+xvCZmpJnFgr3ds6Z55XMQ=
 github.com/json-iterator/go v0.0.0-20180612202835-f2b4162afba3/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
 github.com/json-iterator/go v0.0.0-20180701071628-ab8a2e0c74be/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
 github.com/json-iterator/go v1.1.5/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
@@ -1547,6 +1561,7 @@ golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20200212091648-12a6c2dcc1e4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200302150141-5c8b2ff67527/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20200320181252-af34d8274f85/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200331124033-c3d80250170d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 h1:opSr2sbRXk5X5/givKrrKj9HXxFpW2sdCiP8MJSKLQY=
