@@ -40,26 +40,22 @@ func httpFormatError(w http.ResponseWriter, v Version, err error) {
 func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	status := http.StatusBadRequest
 	errtag := "decoding-error"
-	msg := err.Error()
 
 	switch err {
 	case ErrLimitedReaderLimitReached:
 		status = http.StatusRequestEntityTooLarge
 		errtag = "payload-too-large"
-		msg = errtag
 	case io.EOF, io.ErrUnexpectedEOF:
 		errtag = "unexpected-eof"
-		msg = errtag
 	}
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		status = http.StatusRequestTimeout
 		errtag = "timeout"
-		msg = errtag
 	}
 
 	tags = append(tags, fmt.Sprintf("error:%s", errtag))
 	metrics.Count(receiverErrorKey, 1, tags, 1)
-	http.Error(w, msg, status)
+	http.Error(w, fmt.Sprintf("%s:%v", errtag, err), status)
 }
 
 // httpOK is a dumb response for when things are a OK
