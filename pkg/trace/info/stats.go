@@ -52,12 +52,11 @@ func (rs *ReceiverStats) Acc(recent *ReceiverStats) {
 
 // Publish updates stats about per-tag stats
 func (rs *ReceiverStats) Publish() {
-	rs.Lock()
-	for k, ts := range rs.Stats {
-		ts.publish()
-		delete(rs.Stats, k)
+	rs.RLock()
+	for _, tagStats := range rs.Stats {
+		tagStats.publish()
 	}
-	rs.Unlock()
+	rs.RUnlock()
 }
 
 // Languages returns the set of languages reporting traces to the Agent.
@@ -92,7 +91,7 @@ func (rs *ReceiverStats) LogStats() {
 	for k, ts := range rs.Stats {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
-			log.Infof("%v -> %s", tags, ts.infoString())
+			log.Infof("%v -> %s", tags, ts.InfoString())
 			warnString := ts.WarnString()
 			if len(warnString) > 0 {
 				log.Warnf("%v -> %s. Enable debug logging for more details.", tags, warnString)
@@ -363,19 +362,15 @@ func (s *Stats) isEmpty() bool {
 	return atomic.LoadInt64(&s.TracesBytes) == 0
 }
 
-// infoString returns a string representation of the Stats struct containing standard operational stats (not problems)
-func (s *Stats) infoString() string {
-	// Atomically load the stats
-	tracesReceived := atomic.LoadInt64(&s.TracesReceived)
-	tracesFiltered := atomic.LoadInt64(&s.TracesFiltered)
-	// Omitting priority information, use expvar or metrics for debugging purpose
-	tracesBytes := atomic.LoadInt64(&s.TracesBytes)
-	eventsExtracted := atomic.LoadInt64(&s.EventsExtracted)
-	eventsSampled := atomic.LoadInt64(&s.EventsSampled)
-
-	return fmt.Sprintf("traces received: %d, traces filtered: %d, "+
-		"traces amount: %d bytes, events extracted: %d, events sampled: %d",
-		tracesReceived, tracesFiltered, tracesBytes, eventsExtracted, eventsSampled)
+// InfoString returns a string representation of the Stats struct containing standard operational stats (not problems)
+func (s *Stats) InfoString() string {
+	return fmt.Sprintf("traces received: %d, traces filtered: %d, traces amount: %d bytes, events extracted: %d, events sampled: %d",
+		atomic.LoadInt64(&s.TracesReceived),
+		atomic.LoadInt64(&s.TracesFiltered),
+		atomic.LoadInt64(&s.TracesBytes),
+		atomic.LoadInt64(&s.EventsExtracted),
+		atomic.LoadInt64(&s.EventsSampled),
+	)
 }
 
 // WarnString returns a string representation of the Stats struct containing only issues which we should be warning on
