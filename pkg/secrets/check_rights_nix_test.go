@@ -36,11 +36,11 @@ func TestGroupOtherRights(t *testing.T) {
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0700))
 	require.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
-	// we should at least be able to execute it
-	require.Nil(t, os.Chmod(tmpfile.Name(), 0100))
+	// we should at least be able to read and execute it
+	require.Nil(t, os.Chmod(tmpfile.Name(), 0500))
 	require.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
-	// owner have write permission
+	// owner have R&W but not X permission
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0600))
 	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
