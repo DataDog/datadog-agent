@@ -30,6 +30,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	gorilla "github.com/gorilla/mux"
 )
 
@@ -80,7 +81,9 @@ func StartServer() error {
 
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
-	pb.RegisterAgentSecureServer(s, &serverSecure{})
+	pb.RegisterAgentSecureServer(s, &serverSecure{
+		tagger: tagger.GetDefaultTagger(),
+	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
 		ServerName: tlsAddr,
