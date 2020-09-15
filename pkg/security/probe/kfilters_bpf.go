@@ -95,7 +95,7 @@ func discardFlags(probe *Probe, tableName string, flags ...int) error {
 }
 
 func discardProcessFilename(probe *Probe, tableName string, event *Event) error {
-	key := ebpf.Uint32MapItem(event.Process.Pid)
+	/*key := ebpf.Uint32MapItem(event.Process.Pid)
 
 	table := probe.Map(tableName)
 	if table == nil {
@@ -103,7 +103,7 @@ func discardProcessFilename(probe *Probe, tableName string, event *Event) error 
 	}
 	if err := table.Put(key, ebpf.ZeroUint8MapItem); err != nil {
 		return err
-	}
+	}*/
 
 	return nil
 }

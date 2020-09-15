@@ -775,12 +775,14 @@ type ExecEvent struct {
 	SyscallEvent
 	FileEvent
 	ContainerEvent
-	Pid uint32
+	TimestampRaw uint64    `field:"-"`
+	Timestamp    time.Time `field:"-"`
+	Pid          uint32    `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 84 {
+	if len(data) < 92 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -798,9 +800,10 @@ func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	offset += read
 
-	e.Pid = ebpf.ByteOrder.Uint32(data[offset : offset+4])
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[offset : offset+8])
+	e.Pid = ebpf.ByteOrder.Uint32(data[offset+8 : offset+12])
 
-	return offset + 4, nil
+	return 92, nil
 }
 
 // ExitEvent represents a exit event
@@ -823,33 +826,19 @@ func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 // ProcessEvent holds the process context of an event
 type ProcessEvent struct {
 	FileEvent
-	Pidns       uint64    `field:"pidns"`
-	Comm        string    `field:"name" handler:"ResolveComm,string"`
-	TTYName     string    `field:"tty_name" handler:"ResolveTTY,string"`
-	Pid         uint32    `field:"pid"`
-	Tid         uint32    `field:"tid"`
-	UID         uint32    `field:"uid"`
-	GID         uint32    `field:"gid"`
-	User        string    `field:"user" handler:"ResolveUser,string"`
-	Group       string    `field:"group" handler:"ResolveGroup,string"`
-	PathnameStr string    `field:"filename" handler:"ResolvePid,string"`
-	Timestamp   time.Time `field:"-" handler:"ResolveTimestamp,string"`
+	Pidns     uint64    `field:"pidns"`
+	Comm      string    `field:"name" handler:"ResolveComm,string"`
+	TTYName   string    `field:"tty_name" handler:"ResolveTTY,string"`
+	Pid       uint32    `field:"pid"`
+	Tid       uint32    `field:"tid"`
+	UID       uint32    `field:"uid"`
+	GID       uint32    `field:"gid"`
+	User      string    `field:"user" handler:"ResolveUser,string"`
+	Group     string    `field:"group" handler:"ResolveGroup,string"`
+	Timestamp time.Time `field:"-" handler:"ResolveTimestamp,string"`
 
 	CommRaw    [16]byte `field:"-"`
 	TTYNameRaw [64]byte `field:"-"`
-}
-
-func (p *ProcessEvent) ResolvePid(resolvers *Resolvers) string {
-	if p.PathnameStr == "" {
-		entry := resolvers.ProcessResolver.Resolve(p.Pid)
-		if entry == nil {
-			return ""
-		}
-
-		p.PathnameStr = entry.PathnameStr
-	}
-
-	return p.PathnameStr
 }
 
 func (p *ProcessEvent) ResolveTimestamp(resolvers *Resolvers) time.Time {
@@ -877,7 +866,11 @@ func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
 	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
 	fmt.Fprintf(&buf, `"gid":%d,`, p.GID)
-	fmt.Fprintf(&buf, `"filename":"%s",`, p.ResolvePid(resolvers))
+	fmt.Fprintf(&buf, `"filename":"%s",`, p.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"container_path":"%s",`, p.ResolveContainerPath(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, p.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, p.MountID)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, p.OverlayNumLower)
 	fmt.Fprintf(&buf, `"timestamp":"%s"`, p.ResolveTimestamp(resolvers))
 	buf.WriteRune('}')
 

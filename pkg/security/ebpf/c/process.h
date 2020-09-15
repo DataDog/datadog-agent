@@ -63,12 +63,14 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_data(st
     data->uid = userid >> 32;
     data->gid = userid;
 
-    struct proc_cache_t *entry = get_pid_cache(tgid);
+    /*struct proc_cache_t *entry = get_pid_cache(tgid);
     if (entry) {
         data->executable = entry->executable;
     }
 
-    return entry;
+    return entry;*/
+
+    return NULL;
 }
 
 #endif

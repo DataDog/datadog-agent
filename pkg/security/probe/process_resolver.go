@@ -11,7 +11,32 @@ import (
 	"time"
 )
 
+// ProcCacheEntry this structure holds the container context that we keep in kernel for each process
+type ProcCacheEntry struct {
+	FileEvent
+	ContainerEvent
+	TimestampRaw uint64
+	Timestamp    time.Time
+}
+
+// UnmarshalBinary returns the binary representation of itself
+func (pc *ProcCacheEntry) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 45 {
+		return 0, ErrNotEnoughData
+	}
+
+	read, err := unmarshalBinary(data, &pc.FileEvent, &pc.ContainerEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	pc.TimestampRaw = byteOrder.Uint64(data[read : read+8])
+
+	return read + 8, nil
+}
+
 type ProcessResolverEntry struct {
-	PathnameStr string
-	Timestamp   time.Time
+	FileEvent
+	ContainerEvent
+	Timestamp time.Time
 }

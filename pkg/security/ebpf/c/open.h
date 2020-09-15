@@ -281,8 +281,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    fill_process_data(&event.process);
 
     send_event(ctx, event);
 
