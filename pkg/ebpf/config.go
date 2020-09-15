@@ -104,6 +104,11 @@ type Config struct {
 
 	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
 	DriverBufferSize int
+	// EnableFlowReadHint (Windows only) determines if the flow read optimization is enabled in the driver
+	EnableFlowReadHint bool
+
+	// EnableFlowContextCache (Windows only) determines if the flow contexts are cached or return to the heap
+	EnableFlowContextCache bool
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
