@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 )
 
 var (
@@ -60,7 +61,7 @@ func NewStats(c Check) *Stats {
 		CheckName:         c.String(),
 		CheckVersion:      c.Version(),
 		CheckConfigSource: c.ConfigSource(),
-		telemetry:         telemetry.IsCheckEnabled(c.String()),
+		telemetry:         telemetry_utils.IsCheckEnabled(c.String()),
 	}
 }
 
