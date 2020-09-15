@@ -213,6 +213,8 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
 
+	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for %s", file.Path, offset, whence, file.Source.Config.Identifier)
+
 	err = tailer.Start(offset, whence)
 	if err != nil {
 		log.Warn(err)
@@ -234,7 +236,7 @@ func (s *Scanner) handleTailingModeChange(tailerID string, currentTailingMode co
 	}
 	previousMode, _ := config.TailingModeFromString(s.registry.GetTailingMode(tailerID))
 	if previousMode != currentTailingMode {
-		log.Infof("Tailing mode changed for %v from %v to %v", tailerID, previousMode, currentTailingMode)
+		log.Infof("Tailing mode changed for %v. Was: %v: Now: %v", tailerID, previousMode, currentTailingMode)
 		if currentTailingMode == config.Beginning {
 			// end -> beginning, the offset will be honored if it exists
 			return config.Beginning

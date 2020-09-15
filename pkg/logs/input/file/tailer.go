@@ -194,7 +194,7 @@ func (t *Tailer) startStopTimer() {
 
 // onStop finishes to stop the tailer
 func (t *Tailer) onStop() {
-	log.Info("Closing ", t.path)
+	log.Info("Closing", t.path, "of", t.source.Config.Identifier)
 	t.file.Close()
 	t.decoder.Stop()
 }
