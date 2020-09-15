@@ -260,6 +260,8 @@ core,"github.com/fatih/color",MIT
 core,"github.com/florianl/go-conntrack",MIT
 core,"github.com/florianl/go-conntrack/internal/unix",MIT
 core,"github.com/florianl/go-tc",MIT
+core,"github.com/florianl/go-tc/core",MIT
+core,"github.com/florianl/go-tc/internal/unix",MIT
 core,"github.com/frapposelli/wwhrd",MIT
 core,"github.com/freddierice/go-losetup",MIT
 core,"github.com/fsnotify/fsnotify",NewBSD
