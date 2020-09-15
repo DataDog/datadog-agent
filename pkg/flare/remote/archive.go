@@ -15,16 +15,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	// "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/mholt/archiver"
 	"github.com/rs/xid"
 )
 
 type RemoteFlare struct {
-	flareId string
+	Id      string
+	Ts      int64 // collect until this timestamp
 	tempDir string
 	zipPath string
-	ts      int64 // collect until this timestamp
 	files   map[string]*os.File
 	sources map[string]*RegisteredSource
 }
@@ -36,10 +36,10 @@ var (
 
 func NewRemoteFlare(path, zip string, d time.Duration) *RemoteFlare {
 	return &RemoteFlare{
-		flareId: xid.New().String(),
+		Id:      xid.New().String(),
 		tempDir: path,
 		zipPath: zip,
-		ts:      time.Now().Add(d).Unix(),
+		Ts:      time.Now().Add(d).Unix(),
 		files:   map[string]*os.File{},
 		sources: map[string]*RegisteredSource{},
 	}
@@ -69,6 +69,11 @@ func (f RemoteFlare) GetFile(id string) (*os.File, error) {
 	return fp, nil
 }
 
+func (f RemoteFlare) hasSource(id string) (*RegisteredSource, bool) {
+	src, ok := f.sources[id]
+	return src, ok
+}
+
 func (f RemoteFlare) wrapUp(d time.Duration) error {
 	defer os.RemoveAll(f.tempDir)
 
@@ -82,9 +87,10 @@ func (f RemoteFlare) wrapUp(d time.Duration) error {
 
 	err := archiver.Zip.Make(f.zipPath, []string{f.tempDir})
 	if err != nil {
-		return "", err
+		return err
 	}
 
+	return nil
 }
 
 func GetCurrentFlareId() (string, error) {
@@ -94,7 +100,7 @@ func GetCurrentFlareId() (string, error) {
 		return "", errors.New("no ongoing flare")
 	}
 
-	return currentFlare.flareId, nil
+	return currentFlare.Id, nil
 }
 
 func CreateRemoteFlareArchive(tracerId, svc, env string, d time.Duration) (*RemoteFlare, error) {
@@ -109,18 +115,31 @@ func CreateRemoteFlareArchive(tracerId, svc, env string, d time.Duration) (*Remo
 		return nil, err
 	}
 
-	currentFlare = NewRemoteFlare(tempDir, d)
+	currentFlare = NewRemoteFlare(tempDir, flare.GetArchivePath(), d)
 	if tracerId != "" {
 		src, ok := GetSourceById(tracerId)
 		if ok {
 			currentFlare.sources[src.Id] = src
 		}
 	} else {
-		currentFlare.sources = GetSourcesForServiceAndEnv(svc, env)
+		currentFlare.sources = GetSourcesByServiceAndEnv(svc, env)
 	}
 
 	// do this somewhere else
 	// defer os.RemoveAll(tempDir)
+	return currentFlare, nil
+
+}
+
+func GetFlareForId(id string) (*RemoteFlare, error) {
+	mutex.RLock()
+	f := currentFlare
+	mutex.RUnlock()
+
+	if _, ok := f.hasSource(id); !ok {
+		return nil, nil
+	}
+	return f, nil
 
 }
 
@@ -131,7 +150,7 @@ func LogEntry(flareId, tracerId string, data io.ReadCloser) error {
 		return InvalidFlareId{}
 	}
 
-	if flareId != currentFlare.flareId {
+	if flareId != currentFlare.Id {
 		return errors.New("")
 	}
 	mutex.RUnlock()

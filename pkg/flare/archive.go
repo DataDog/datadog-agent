@@ -126,7 +126,7 @@ func CreatePerformanceProfile(pprofURL string, profileDuration int) (*Profile, e
 
 // CreateArchive packages up the files
 func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, profile *Profile) (string, error) {
-	zipFilePath := getArchivePath()
+	zipFilePath := GetArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
@@ -923,7 +923,7 @@ func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
 
-func getArchivePath() string {
+func GetArchivePath() string {
 	dir := os.TempDir()
 	t := time.Now()
 	timeString := t.Format("2006-01-02-15-04-05")

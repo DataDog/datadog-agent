@@ -107,7 +107,7 @@ func request_Agent_FlareLogEvent_0(ctx context.Context, marshaler runtime.Marsha
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "flare_identifier")
 	}
 
-	protoReq.FlareIdentifier, err = runtime.Int64(val)
+	protoReq.FlareIdentifier, err = runtime.String(val)
 
 	if err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "flare_identifier", err)
@@ -118,7 +118,7 @@ func request_Agent_FlareLogEvent_0(ctx context.Context, marshaler runtime.Marsha
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "tracer_identifier")
 	}
 
-	protoReq.TracerIdentifier, err = runtime.Int64(val)
+	protoReq.TracerIdentifier, err = runtime.String(val)
 
 	if err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "tracer_identifier", err)
@@ -153,7 +153,7 @@ func local_request_Agent_FlareLogEvent_0(ctx context.Context, marshaler runtime.
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "flare_identifier")
 	}
 
-	protoReq.FlareIdentifier, err = runtime.Int64(val)
+	protoReq.FlareIdentifier, err = runtime.String(val)
 
 	if err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "flare_identifier", err)
@@ -164,7 +164,7 @@ func local_request_Agent_FlareLogEvent_0(ctx context.Context, marshaler runtime.
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "tracer_identifier")
 	}
 
-	protoReq.TracerIdentifier, err = runtime.Int64(val)
+	protoReq.TracerIdentifier, err = runtime.String(val)
 
 	if err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "tracer_identifier", err)

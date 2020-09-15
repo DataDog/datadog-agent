@@ -78,14 +78,14 @@ message FlareHeartbeatRequest {
 
 message FlareHeartbeatResponse {
     message Trigger {
-        int64 flare_identifier = 1;   // Identifier that the tracer
+        string flare_identifier = 1;   // Identifier that the tracer
                                       // should supply with the log
                                       // request to be able to
                                       // correlate the log lines with
                                       // a specific flare request.
         FlareLogLevel log_level = 2;  // Which log level the tracer
                                       // should switch to.
-        int32 duration_seconds  = 3;  // For how long should the dump
+        int64 end_time  = 3;          // For how long should the dump
                                       // logs be sent to the agent.
                                       // Can be 0 to only send the
                                       // initialization logs and
@@ -101,8 +101,8 @@ message FlareHeartbeatResponse {
 
 
 message FlareLogRequest {
-    int64 flare_identifier = 1;
-    int64 tracer_identifier = 2;
+    string flare_identifier = 1;
+    string tracer_identifier = 2;
     message LogLine {
         // relevant?
         FlareLogLevel log_level = 1;

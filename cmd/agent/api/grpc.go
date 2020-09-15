@@ -39,14 +39,18 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 
 func (s *server) ServiceHeartbeat(ctx context.Context, in *pb.FlareHeartbeatRequest) (*pb.FlareHeartbeatResponse, error) {
 	remote.RegisterSource(in.TracerIdentifier, "APM", in.TracerService, in.TracerEnvironment)
-	flare, err : = remote.flareForId(in.TracerIdentifier)
+	flare, err := remote.GetFlareForId(in.TracerIdentifier)
 	if err != nil {
 		return &pb.FlareHeartbeatResponse{}, err
 	}
 
+	if flare == nil {
+		return &pb.FlareHeartbeatResponse{}, nil
+	}
+
 	trigger := &pb.FlareHeartbeatResponse_Trigger{
 		FlareIdentifier: flare.Id,
-		DurationSeconds: flare.Duration,
+		EndTime:         flare.Ts,
 	}
 	return &pb.FlareHeartbeatResponse{Trigger: trigger}, nil
 

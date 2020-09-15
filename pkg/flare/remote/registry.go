@@ -17,6 +17,7 @@ const (
 	maxTracers         = 10
 )
 
+// Questions: should this schema be looser?
 type RegisteredSource struct {
 	Id      string
 	Source  string
@@ -52,7 +53,7 @@ func GetSourceById(id string) (*RegisteredSource, bool) {
 	return source.(*RegisteredSource), err
 }
 
-func GetSourcesForServiceAndEnv(service, env string) map[string]*RegisteredSource {
+func GetSourcesByServiceAndEnv(service, env string) map[string]*RegisteredSource {
 	sources := map[string]*RegisteredSource{}
 
 	// only unexpired items are returned by Items()

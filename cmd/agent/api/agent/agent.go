@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	remote_flare "github.com/DataDog/datadog-agent/pkg/flare/remote"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -120,18 +121,17 @@ func flareLogHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	flareId := vars["flare_id"]
 	tracerId := vars["tracer_id"]
-	logType := vars["type"]
 	log.Tracef("Logging entry for flare (%v) from tracer: %v", flareId, tracerId)
 
 	// r.Body content is simple UTF-8 encoded string text/plain; charset=utf-8
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := flare.LogEntry(logType, flareId, tracerId, r.Body); err != nil {
+	if err := remote_flare.LogEntry(flareId, tracerId, r.Body); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
-		case *flare.InvalidLogType:
-		case *flare.InvalidTracerId:
-		case *flare.InvalidFlareId:
+		case *remote_flare.InvalidLogType:
+		case *remote_flare.InvalidTracerId:
+		case *remote_flare.InvalidFlareId:
 			http.Error(w, string(body), 400)
 		default:
 			http.Error(w, string(body), 500)
