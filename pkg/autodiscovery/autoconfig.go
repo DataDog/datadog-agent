@@ -197,8 +197,8 @@ func (ac *AutoConfig) LoadAndRun() {
 	log.Debug("LoadAndRun done.")
 }
 
-// HasRanOnce returns true if the AutoConfig has ran once.
-func (ac *AutoConfig) HasRanOnce() bool {
+// HasRunOnce returns true if the AutoConfig has ran once.
+func (ac *AutoConfig) HasRunOnce() bool {
 	if ac == nil {
 		return false
 	}

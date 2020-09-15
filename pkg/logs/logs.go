@@ -106,7 +106,7 @@ func Start(getAC func() *autodiscovery.AutoConfig) error {
 	return nil
 }
 
-// BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been ran once.
+// BlockUntilAutoConfigRanOnce blocks until the AutoConfig has been run once.
 // It also returns after the given timeout.
 func BlockUntilAutoConfigRanOnce(getAC func() *autodiscovery.AutoConfig, timeout time.Duration) {
 	now := time.Now()
@@ -115,7 +115,7 @@ func BlockUntilAutoConfigRanOnce(getAC func() *autodiscovery.AutoConfig, timeout
 		if getAC() == nil {
 			continue
 		}
-		if getAC().HasRanOnce() {
+		if getAC().HasRunOnce() {
 			return
 		}
 		if time.Since(now) > timeout {
