@@ -604,7 +604,7 @@ func zipRegistryJSON(tempDir, hostname string) error {
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "version-history.json")
+	originalPath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
 	original, err := os.Open(originalPath)
 	if err != nil {
 		return err
