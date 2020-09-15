@@ -649,7 +649,7 @@ dogstatsd_x64_size_test:
     - inv -e dogstatsd.size-test --skip-build
 
 # check the size of the static dogstatsd binary
-dogstatsd_arm_size_test:
+dogstatsd_arm64_size_test:
   stage: integration_test
   needs: ["build_dogstatsd_static-deb_arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
