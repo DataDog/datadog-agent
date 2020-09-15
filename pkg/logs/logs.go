@@ -112,9 +112,6 @@ func BlockUntilAutoConfigRanOnce(getAC func() *autodiscovery.AutoConfig, timeout
 	now := time.Now()
 	for {
 		time.Sleep(100 * time.Millisecond) // don't hog the CPU
-		if getAC() == nil {
-			continue
-		}
 		if getAC().HasRunOnce() {
 			return
 		}
