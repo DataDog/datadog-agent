@@ -17,7 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+// EnableExperimentalEndpoints enables experimental endpoints (set via -X)
+var EnableExperimentalEndpoints bool
 
 type server struct {
 	pb.UnimplementedAgentServer
@@ -44,6 +49,11 @@ func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (c
 }
 
 func (s *serverSecure) GetTags(ctx context.Context, in *pb.TagRequest) (*pb.TagReply, error) {
-	tags, _ := tagger.Tag(in.GetEntity(), collectors.HighCardinality)
-	return &pb.TagReply{Tags: tags}, nil
+	if EnableExperimentalEndpoints {
+		tags, _ := tagger.Tag(in.GetEntity(), collectors.HighCardinality)
+		return &pb.TagReply{Tags: tags}, nil
+	}
+
+	return nil, status.Errorf(codes.PermissionDenied,
+		"This is an experimental endpoint and has been disabled in this build")
 }
