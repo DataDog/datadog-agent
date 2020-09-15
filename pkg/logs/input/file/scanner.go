@@ -6,7 +6,6 @@
 package file
 
 import (
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,7 +24,6 @@ const scanPeriod = 10 * time.Second
 // Scanner checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Scanner struct {
-	sync.Mutex
 	pipelineProvider    pipeline.Provider
 	addedSources        chan *config.LogSource
 	removedSources      chan *config.LogSource
@@ -87,8 +85,6 @@ func (s *Scanner) run() {
 
 // cleanup all tailers
 func (s *Scanner) cleanup() {
-	s.Lock()
-	defer s.Unlock()
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range s.tailers {
 		stopper.Add(tailer)
@@ -105,8 +101,6 @@ func (s *Scanner) cleanup() {
 // The Scanner needs to stop that previous tailer,
 // and start a new one for the new file.
 func (s *Scanner) scan() {
-	s.Lock()
-	defer s.Unlock()
 	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
@@ -162,16 +156,12 @@ func (s *Scanner) scan() {
 
 // addSource keeps track of the new source and launch new tailers for this source.
 func (s *Scanner) addSource(source *config.LogSource) {
-	s.Lock()
-	defer s.Unlock()
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }
 
 // removeSource removes the source from cache.
 func (s *Scanner) removeSource(source *config.LogSource) {
-	s.Lock()
-	defer s.Unlock()
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
