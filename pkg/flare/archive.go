@@ -88,88 +88,69 @@ type filePermsInfo struct {
 	group string
 }
 
-// Profile is a performance profile containing heap and CPU profiles.
-type Profile struct {
-	// agent profiles
-	FirstHeapProfile  []byte
-	SecondHeapProfile []byte
-	CPUProfile        []byte
-
-	// trace-agent profiles
-	TraceFirstHeap  []byte
-	TraceSecondHeap []byte
-	TraceCPU        []byte
-}
+// ProfileData maps (pprof) profile names to the profile data.
+type ProfileData map[string][]byte
 
 // CreatePerformanceProfile creates a CPU and Heap profile to include
-func CreatePerformanceProfile(pprofURL string, profileDuration int) (*Profile, error) {
-	cpuProfURL := fmt.Sprintf("%s/profile?seconds=%d", pprofURL, profileDuration)
-	heapProfURL := fmt.Sprintf("%s/heap", pprofURL)
-
-	// Two heap profiles for diff
+func CreatePerformanceProfile(pprofURL string, profileDuration int) (ProfileData, error) {
+	p := make(ProfileData)
 	c := apiutil.GetClient(false)
-	firstHeapProf, err := apiutil.DoGet(c, heapProfURL)
-	if err != nil {
-		return nil, err
-	}
 
-	cpuProf, err := apiutil.DoGet(c, cpuProfURL)
-	if err != nil {
-		return nil, err
-	}
-
-	secondHeapProf, err := apiutil.DoGet(c, heapProfURL)
-	if err != nil {
-		return nil, err
-	}
-
-	p := &Profile{
-		FirstHeapProfile:  firstHeapProf,
-		SecondHeapProfile: secondHeapProf,
-		CPUProfile:        cpuProf,
+	for _, prof := range []struct{ Name, Path string }{
+		{firstHeapProfileName, pprofURL + "/heap"},
+		{cpuProfileName, fmt.Sprintf("%s/profile?seconds=%d", pprofURL, profileDuration)},
+		{secondHeapProfileName, pprofURL + "/heap"},
+	} {
+		if b, err := apiutil.DoGet(c, prof.Path); err != nil {
+			return nil, err
+		} else {
+			p[prof.Name] = b
+		}
 	}
 
 	if k := "apm_config.enabled"; config.Datadog.IsSet(k) && !config.Datadog.GetBool(k) {
+		// APM is disabled
 		return p, nil
 	}
 
-	apmPort := 8126
-	if v := config.Datadog.GetInt("apm_config.receiver_port"); v != 0 {
-		apmPort = v
-	}
+	apmPort := config.Datadog.GetInt("apm_config.receiver_port")
 	tracePath := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", apmPort)
-	p.TraceFirstHeap, err = apiutil.DoGet(c, tracePath+"/heap")
-	if err != nil {
-		return nil, err
-	}
-	cpuLength := 4 // 5s is the default maximum connection timeout on the HTTP server
+	cpusec := 4 // 5s is the default maximum connection timeout on the trace-agent HTTP server
 	if v := config.Datadog.GetInt("apm_config.receiver_timeout"); v > 0 {
-		cpuLength = v - 1
+		if v > profileDuration {
+			// do not exceed requested duration
+			cpusec = profileDuration
+		} else {
+			// fit within set limit
+			cpusec = v - 1
+		}
 	}
-	p.TraceCPU, err = apiutil.DoGet(c, fmt.Sprintf(tracePath+"/profile?seconds=%d", cpuLength))
-	if err != nil {
-		return nil, err
+	for _, prof := range []struct{ Name, Path string }{
+		{"trace-1st-heap.pprof", tracePath + "/heap"},
+		{"trace-cpu.pprof", fmt.Sprintf("%s/profile?seconds=%d", tracePath, cpusec)},
+		{"trace-2nd-heap.pprof", tracePath + "/heap"},
+	} {
+		if b, err := apiutil.DoGet(c, prof.Path); err != nil {
+			return nil, err
+		} else {
+			p[prof.Name] = b
+		}
 	}
-	p.TraceSecondHeap, err = apiutil.DoGet(c, tracePath+"/heap")
-	if err != nil {
-		return nil, err
-	}
-
 	return p, nil
 }
 
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, profile *Profile) (string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, pdata ProfileData) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(confSearchPaths, local, zipFilePath, logFilePath, profile)
+	return createArchive(confSearchPaths, local, zipFilePath, logFilePath, pdata)
 }
 
-func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFilePath string, profile *Profile) (string, error) {
+func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFilePath string, pdata ProfileData) (string, error) {
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -322,8 +303,8 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFile
 		log.Errorf("Could not zip install_info: %s", err)
 	}
 
-	if profile != nil {
-		err = zipPerformanceProfile(tempDir, hostname, profile)
+	if pdata != nil {
+		err = zipPerformanceProfile(tempDir, hostname, pdata)
 		if err != nil {
 			log.Errorf("Could not zip performance profile: %s", err)
 		}
@@ -828,19 +809,13 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	return err
 }
 
-func zipPerformanceProfile(tempDir, hostname string, profile *Profile) error {
-	if err := os.MkdirAll(filepath.Join(tempDir, hostname), os.ModePerm); err != nil {
+func zipPerformanceProfile(tempDir, hostname string, pdata ProfileData) error {
+	dir := filepath.Join(tempDir, hostname, "profiles")
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		return err
 	}
-	for name, data := range map[string][]byte{
-		cpuProfileName:         profile.CPUProfile,
-		firstHeapProfileName:   profile.FirstHeapProfile,
-		secondHeapProfileName:  profile.SecondHeapProfile,
-		"trace-1st-heap.pprof": profile.TraceFirstHeap,
-		"trace-2nd-heap.pprof": profile.TraceSecondHeap,
-		"trace-cpu.pprof":      profile.TraceCPU,
-	} {
-		fullpath := filepath.Join(tempDir, hostname, name)
+	for name, data := range pdata {
+		fullpath := filepath.Join(dir, name)
 		if err := ioutil.WriteFile(fullpath, data, os.ModePerm); err != nil {
 			return err
 		}
