@@ -182,11 +182,13 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "network_config")) {
 		// System probe can be run without the network module as determined on the network_config.enabled value
 		networkEnabled = config.Datadog.GetBool(key(spNS, "network_config.enabled"))
+		log.Info(fmt.Sprintf("network_config found, enabled = %v", networkEnabled))
+	} else {
+		log.Info("network_config not found, enabling network check by default")
 	}
 	if networkEnabled {
 		a.EnabledChecks = append(a.EnabledChecks, "Network")
 	}
-
 	return nil
 }
 
