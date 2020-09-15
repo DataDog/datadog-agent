@@ -267,7 +267,7 @@ linux_armhf_go_deps:
   mkdir vendor && tar xzf vendor.tar.gz -C vendor
   rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
 
-.run_tests_windows_base:
+.tests_windows_base:
   stage: source_test
   needs: []
   tags: ["runner:windows-docker", "windowsversion:1809"]
@@ -277,7 +277,7 @@ linux_armhf_go_deps:
     NEW_BUILDER: "true"
 
 tests_windows-x64:
-  extends: .run_tests_windows_base
+  extends: .tests_windows_base
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
@@ -286,12 +286,12 @@ tests_windows-x86:
   rules:
     - <<: *if_not_deploy
   # temporarily allow failure for tests
-  extends: .run_tests_windows_base
+  extends: .tests_windows_base
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x86"
 
-.run_tests_preparation: &run_tests_preparation
+.tests_preparation: &tests_preparation
   needs: ["linux_x64_go_deps"]
   before_script:
     - *retrieve_linux_go_deps
@@ -313,7 +313,7 @@ tests_deb-x64-py2:
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
-  <<: *run_tests_preparation
+  <<: *tests_preparation
   script:
     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
 
@@ -324,7 +324,7 @@ tests_deb-x64-py3:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-  <<: *run_tests_preparation
+  <<: *tests_preparation
   script:
     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
 
@@ -336,7 +336,7 @@ tests_rpm-x64-py2:
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
-  <<: *run_tests_preparation
+  <<: *tests_preparation
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -350,7 +350,7 @@ tests_rpm-x64-py3:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-  <<: *run_tests_preparation
+  <<: *tests_preparation
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -612,7 +612,7 @@ cluster_agent_cloudfoundry-build_amd64:
 #
 
 # run benchmarks on deb
-# run_benchmarks-deb_x64:
+# benchmarks-deb_x64:
 #   stage: integration_test
 #   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
 #   allow_failure: true  # FIXME: this was set to true to temporarily unblock the pipeline
