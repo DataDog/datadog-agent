@@ -134,4 +134,13 @@ struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u16 type) {
     return NULL;
 }
 
+void __attribute__((always_inline)) set_policy(struct syscall_cache_t *syscall, struct bpf_map_def *policy_map) {
+    u32 key = 0;
+    struct policy_t *policy = bpf_map_lookup_elem(policy_map, &key);
+    if (policy) {
+        syscall->policy.mode = policy->mode;
+        syscall->policy.flags = policy->flags;
+    }
+}
+
 #endif

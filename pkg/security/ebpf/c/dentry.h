@@ -217,7 +217,7 @@ static __attribute__((always_inline)) void link_dentry_inode(struct path_key_t k
     bpf_map_update_elem(&pathnames, &new_key, &map_value, BPF_ANY);
 }
 
-static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, struct bpf_map_def *discarders_table) {
+static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, struct bpf_map_def *discarders_map) {
     struct path_leaf_t map_value = {};
     struct path_key_t next_key = key;
     struct qstr qstr;
@@ -241,8 +241,8 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
         }
 
         // discard filename and its parent only in order to limit the number of lookup
-        if (discarders_table && i < 2) {
-            struct filter_t *filter = bpf_map_lookup_elem(discarders_table, &key);
+        if (discarders_map && i < 2) {
+            struct filter_t *filter = bpf_map_lookup_elem(discarders_map, &key);
             if (filter) {
                 return -1;
             }

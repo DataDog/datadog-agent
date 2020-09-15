@@ -135,8 +135,8 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field); err != nil {
+func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
 		log.Trace(err)
 	}
 }

@@ -49,7 +49,7 @@ func (rd *RuleDefinition) GetTags() []string {
 // notified of events on a rule set.
 type RuleSetListener interface {
 	RuleMatch(rule *eval.Rule, event eval.Event)
-	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field)
+	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
 // Opts defines rules set options
@@ -202,9 +202,9 @@ func (rs *RuleSet) NotifyRuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
 // NotifyDiscarderFound notifies all the ruleset listeners that a discarder was found for an event
-func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field) {
+func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field, eventType eval.EventType) {
 	for _, listener := range rs.listeners {
-		listener.EventDiscarderFound(rs, event, field)
+		listener.EventDiscarderFound(rs, event, field, eventType)
 	}
 }
 
@@ -325,8 +325,8 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				}
 			}
 			if isDiscarder {
-				log.Tracef("Found a discarder for field `%s` with value `%s`\n", field, vs)
-				rs.NotifyDiscarderFound(event, field)
+				log.Tracef("Found a `%s` discarder for event type `%s` with value `%s`\n", field, eventType, vs)
+				rs.NotifyDiscarderFound(event, field, eventType)
 			}
 		}
 	}

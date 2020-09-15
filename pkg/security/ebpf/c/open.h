@@ -6,14 +6,7 @@
 #include "process.h"
 #include "open_filter.h"
 
-struct bpf_map_def SEC("maps/open_policy") open_policy = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct policy_t),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
+POLICY_MAP(open);
 
 struct bpf_map_def SEC("maps/open_basename_approvers") open_basename_approvers = {
     .type = BPF_MAP_TYPE_HASH,
@@ -42,15 +35,6 @@ struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/open_process_inode_approvers") open_process_inode_approvers = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),
-    .value_size = sizeof(struct filter_t),
-    .max_entries = 256,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discarders = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct path_key_t),
@@ -59,6 +43,8 @@ struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discar
     .pinning = 0,
     .namespace = "",
 };
+
+PROCESS_DISCARDERS_MAP(open);
 
 struct open_event_t {
     struct kevent_t event;
@@ -71,6 +57,7 @@ struct open_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
+
     struct syscall_cache_t syscall = {
         .type = SYSCALL_OPEN,
         .policy = {.mode = ACCEPT},
@@ -80,11 +67,10 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
         }
     };
 
-    u32 key = 0;
-    struct policy_t *policy = bpf_map_lookup_elem(&open_policy, &key);
-    if (policy) {
-        syscall.policy.mode = policy->mode;
-        syscall.policy.flags = policy->flags;
+    set_policy(&syscall, POLICY_MAP_PTR(open));
+
+    if (syscall.policy.mode != NO_FILTER && discard_by_pid(PROCESS_DISCARDERS_MAP_PTR(open))) {
+        return 0;
     }
 
     cache_syscall(&syscall);
@@ -154,25 +140,6 @@ int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *sysc
     return 0;
 }
 
-int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache_t *syscall) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-
-    struct proc_cache_t *proc = get_pid_cache(tgid);
-    if (!proc) {
-        return 0;
-    }
-    u64 inode = proc->executable.inode;
-    struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_approvers, &inode);
-    if (filter) {
-#ifdef DEBUG
-        bpf_printk("open pid %d with inode %d approved\n", tgid, inode);
-#endif
-        return 1;
-    }
-    return 0;
-}
-
 int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) {
     if (syscall->policy.mode == NO_FILTER)
         return 0;
@@ -182,10 +149,6 @@ int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) 
     if (syscall->policy.mode == DENY) {
         if ((syscall->policy.flags & BASENAME) > 0) {
             pass_to_userspace = approve_by_basename(syscall);
-        }
-
-        if (!pass_to_userspace && ((syscall->policy.flags & PROCESS_INODE))) {
-            pass_to_userspace = approve_by_process_inode(syscall);
         }
 
         if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {

@@ -12,6 +12,7 @@ import (
 )
 
 var unlinkTables = []string{
+	"unlink_policy",
 	"unlink_path_inode_discarders",
 }
 
@@ -19,6 +20,8 @@ func unlinkOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discard
 	field := discarder.Field
 
 	switch field {
+	case "process.filename":
+		return discardProcessFilename(probe, "unlink_process_discarders", event)
 	case "unlink.filename":
 		value, err := event.GetFieldValue(field)
 		if err != nil {

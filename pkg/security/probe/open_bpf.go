@@ -34,11 +34,6 @@ func openOnNewApprovers(probe *Probe, approvers rules.Approvers) error {
 
 	for field, values := range approvers {
 		switch field {
-		case "process.filename":
-			if err := approveProcessFilenames(probe, "open_process_inode_approvers", stringValues(values)...); err != nil {
-				return err
-			}
-
 		case "open.basename":
 			if err := approveBasenames(probe, "open_basename_approvers", stringValues(values)...); err != nil {
 				return err
@@ -69,6 +64,8 @@ func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder
 	field := discarder.Field
 
 	switch field {
+	case "process.filename":
+		return discardProcessFilename(probe, "open_process_discarders", event)
 	case "open.flags":
 		value, err := event.GetFieldValue(field)
 		if err != nil {

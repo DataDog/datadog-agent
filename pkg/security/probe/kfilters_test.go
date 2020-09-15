@@ -33,7 +33,7 @@ func addRuleExpr(t *testing.T, rs *rules.RuleSet, exprs ...string) {
 }
 
 func TestIsParentDiscarder(t *testing.T) {
-	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants))
 	addRuleExpr(t, rs, `unlink.filename =~ "/var/log/*" && unlink.filename != "/var/log/datadog/system-probe.log"`)
 
 	if is, _ := isParentPathDiscarder(rs, "unlink", "unlink.filename", "/var/log/datadog/system-probe.log"); is {

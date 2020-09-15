@@ -49,25 +49,25 @@ func AllProbes() []*manager.Probe {
 // AllMaps returns the list of maps of the runtime security module
 func AllMaps() []*manager.Map {
 	return []*manager.Map{
-		// Dentry resolver map
+		// Dentry resolver table
 		{Name: "pathnames"},
-		// Snapshot map
+		// Snapshot table
 		{Name: "inode_numlower"},
-		// Open maps
+		// Open tables
 		{Name: "open_policy"},
 		{Name: "open_basename_approvers"},
 		{Name: "open_flags_approvers"},
 		{Name: "open_flags_discarders"},
-		{Name: "open_process_inode_approvers"},
 		{Name: "open_path_inode_discarders"},
-		// Exec maps
+		{Name: "open_process_discarders"},
+		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cookie"},
-		// Unlink maps
+		// Unlink tables
 		{Name: "unlink_path_inode_discarders"},
-		// Mount map
+		// Mount tables
 		{Name: "mount_id_offset"},
-		// Syscall monitor maps
+		// Syscall monitor tables
 		{Name: "noisy_processes_buffer"},
 		{Name: "noisy_processes_fb"},
 		{Name: "noisy_processes_bb"},

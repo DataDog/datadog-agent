@@ -24,7 +24,7 @@ type testHandler struct {
 func (f *testHandler) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
-func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string) {
+func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {
 	values, ok := f.filters[event.GetType()]
 	if !ok {
 		values = make(testFieldValues)

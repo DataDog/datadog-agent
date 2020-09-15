@@ -63,3 +63,31 @@ func TestProcess(t *testing.T) {
 		}
 	}
 }
+
+func TestProcessFilename(t *testing.T) {
+	ruleDef := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: fmt.Sprintf(`open.filename == "/etc/hosts"`),
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{enableFilters: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	f, err := os.Open("/etc/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	event, _, err := test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		if filename, _ := event.GetFieldValue("process.filename"); filename == "" {
+			t.Error("should get a valid filename")
+		}
+	}
+}

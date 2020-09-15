@@ -159,10 +159,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
 
-    // Delete pid <-> cookie mapping
     if (tgid == pid) {
-        bpf_map_delete_elem(&pid_cookie, &tgid);
-
         // send the entry to maintain userspace cache
         struct exit_event_t event = {
             .event.type = EVENT_EXIT,
@@ -171,7 +168,6 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
         send_process_events(ctx, event);
     }
-    // (do not delete cookie <-> proc_cache entry since it can be used by a parent process)
     return 0;
 }
 

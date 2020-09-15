@@ -84,4 +84,5 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 
 func init() {
 	allPolicyTables["open"] = "open_policy"
+	allPolicyTables["unlink"] = "unlink_policy"
 }

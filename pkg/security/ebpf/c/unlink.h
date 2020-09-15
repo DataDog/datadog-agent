@@ -4,6 +4,8 @@
 #include "syscalls.h"
 #include "process.h"
 
+POLICY_MAP(unlink);
+
 struct bpf_map_def SEC("maps/unlink_path_inode_discarders") unlink_path_inode_discarders = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct path_key_t),
@@ -12,6 +14,8 @@ struct bpf_map_def SEC("maps/unlink_path_inode_discarders") unlink_path_inode_di
     .pinning = 0,
     .namespace = "",
 };
+
+PROCESS_DISCARDERS_MAP(unlink);
 
 struct unlink_event_t {
     struct kevent_t event;
@@ -30,6 +34,13 @@ int __attribute__((always_inline)) trace__sys_unlink(int flags) {
             .flags = flags,
         }
     };
+
+    set_policy(&syscall, POLICY_MAP_PTR(unlink));
+
+    if (syscall.policy.mode != NO_FILTER && discard_by_pid(PROCESS_DISCARDERS_MAP_PTR(unlink))) {
+        return 0;
+    }
+
     cache_syscall(&syscall);
 
     return 0;

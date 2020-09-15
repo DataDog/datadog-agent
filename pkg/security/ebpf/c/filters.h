@@ -14,7 +14,6 @@ enum policy_flags
     FLAGS = 2,
     MODE = 4,
     PARENT_NAME = 8,
-    PROCESS_INODE = 16,
 };
 
 struct policy_t {
@@ -27,5 +26,16 @@ struct filter_t {
 };
 
 void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file);
+
+#define POLICY_MAP_PTR(name) &name##_policy
+
+#define POLICY_MAP(name) struct bpf_map_def SEC("maps/"#name"_policy") name##_policy = { \
+    .type = BPF_MAP_TYPE_ARRAY, \
+    .key_size = sizeof(u32), \
+    .value_size = sizeof(struct policy_t), \
+    .max_entries = 1, \
+    .pinning = 0, \
+    .namespace = "", \
+}
 
 #endif
