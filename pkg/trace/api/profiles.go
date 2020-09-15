@@ -125,6 +125,9 @@ type multiTransport struct {
 }
 
 func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	dump, err := httputil.DumpRequestOut(req, false)
+	log.Infof("Profiling request: %s, %s", dump, err)
+
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
