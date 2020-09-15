@@ -10,4 +10,4 @@ if (-not (Test-Path C:\ProgramData\Datadog\datadog.yaml)) {
 }
 
 # Remove all default checks
-Get-ChildItem C:\ProgramData\Datadog\conf.d -Include *.yaml.default -Recurse | Remove-Item -WhatIf
+Get-ChildItem C:\ProgramData\Datadog\conf.d -Include *.yaml.default -Recurse | Remove-Item
