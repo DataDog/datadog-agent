@@ -55,7 +55,7 @@ func GetNTPHosts() []string {
 		}
 	}
 
-	return []string{}
+	return nil
 }
 
 func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {

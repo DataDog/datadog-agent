@@ -64,7 +64,7 @@ func GetNTPHosts() []string {
 		return []string{"ntpupdate.tencentyun.com"}
 	}
 
-	return []string{}
+	return nil
 }
 
 func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {

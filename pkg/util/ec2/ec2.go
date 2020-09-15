@@ -146,7 +146,7 @@ func GetNTPHosts() []string {
 		return []string{"169.254.169.123"}
 	}
 
-	return []string{}
+	return nil
 }
 
 func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {

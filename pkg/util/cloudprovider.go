@@ -17,9 +17,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 )
 
+var datadogNTPHosts = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
+
 type cloudProviderDetector struct {
 	name     string
 	callback func() bool
+}
+
+type cloudProviderNTPDetector struct {
+	name     string
+	callback func() []string
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
@@ -47,4 +54,26 @@ func DetectCloudProvider() {
 		}
 	}
 	log.Info("No cloud provider detected")
+}
+
+// GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
+func GetCloudProviderNTPHosts() []string {
+	detectors := []cloudProviderNTPDetector{
+		{name: ecscommon.CloudProviderName, callback: ecs.GetNTPHosts},
+		{name: ec2.CloudProviderName, callback: ec2.GetNTPHosts},
+		{name: gce.CloudProviderName, callback: gce.GetNTPHosts},
+		{name: azure.CloudProviderName, callback: azure.GetNTPHosts},
+		{name: alibaba.CloudProviderName, callback: alibaba.GetNTPHosts},
+		{name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
+	}
+
+	for _, cloudNTPdetector := range detectors {
+		if cloudNTPserver := cloudNTPdetector.callback(); cloudNTPserver != nil {
+			log.Debug("Cloud provider %s detected", cloudNTPdetector.name)
+			return cloudNTPserver
+		}
+	}
+
+	log.Debug("No cloud provider detected, using default ntp pool.")
+	return datadogNTPHosts
 }

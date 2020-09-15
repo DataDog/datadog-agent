@@ -126,7 +126,7 @@ func GetNTPHosts() []string {
 		return []string{"metadata.google.internal"}
 	}
 
-	return []string{}
+	return nil
 }
 
 func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {

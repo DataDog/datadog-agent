@@ -1,4 +1,3 @@
 enhancements:
   - |
-    The NTP check now uses the cloud provider's NTP server by default, and the NTP pool of ntp.org
-    we use if no cloud provider is detected.
+    The NTP check now uses the cloud provider's NTP server by default, if possible.

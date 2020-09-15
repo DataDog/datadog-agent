@@ -110,7 +110,7 @@ func GetNTPHosts() []string {
 		return []string{"169.254.169.123"}
 	}
 
-	return []string{}
+	return nil
 }
 
 func queryCacheBool(cacheKey string, cacheMissEvalFunc func() (bool, time.Duration)) bool {

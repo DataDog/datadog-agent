@@ -70,7 +70,7 @@ func GetNTPHosts() []string {
 		return []string{"time.windows.com"}
 	}
 
-	return []string{}
+	return nil
 }
 
 func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {

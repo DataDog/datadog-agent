@@ -21,12 +21,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
-	"github.com/DataDog/datadog-agent/pkg/util/azure"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 )
 
 const (
@@ -41,8 +37,6 @@ var (
 
 	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
 		nil, "Ntp offset")
-
-	datadogNTPHosts = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 )
 
 // NTPCheck only has sender and config
@@ -82,7 +76,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultPort := 123
 	defaultOffsetThreshold := 60
 
-	defaultHosts := getCloudProviderNTPHosts()
+	defaultHosts := util.GetCloudProviderNTPHosts()
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
 		return err
@@ -133,28 +127,6 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	c.initConf = initConf
 
 	return nil
-}
-
-func getCloudProviderNTPHosts() []string {
-	if ec2Hosts := ec2.GetNTPHosts(); len(ec2Hosts) != 0 {
-		log.Debug("AWS EC2 cloud provider detected, using their NTP servers: %v", ec2Hosts)
-		return ec2Hosts
-	} else if ecsHosts := ecs.GetNTPHosts(); len(ecsHosts) != 0 {
-		log.Debug("AWS EC2 cloud provider detected, using their NTP servers: %v", ec2Hosts)
-		return ecsHosts
-	} else if azureHosts := azure.GetNTPHosts(); len(azureHosts) != 0 {
-		log.Debug("Azure cloud provider detected, using their NTP servers: %v", azureHosts)
-		return azureHosts
-	} else if alibabaHosts := alibaba.GetNTPHosts(); len(alibabaHosts) != 0 {
-		log.Debug("Alibaba cloud provider detected, using their NTP servers: %v", alibabaHosts)
-		return alibabaHosts
-	} else if tencentHosts := tencent.GetNTPHosts(); len(tencentHosts) != 0 {
-		log.Debug("Tencent cloud provider detected, using their NTP servers: %v", tencentHosts)
-		return tencentHosts
-	} else {
-		log.Debug("No cloud provider detected, using Datadog's NTP servers: %v", datadogNTPHosts)
-		return datadogNTPHosts
-	}
 }
 
 // Configure configure the data from the yaml
