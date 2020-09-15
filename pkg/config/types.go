@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 // Config represents an object that can load and store configuration parameters
@@ -46,8 +47,9 @@ type Config interface {
 	SetEnvPrefix(in string)
 	BindEnv(input ...string) error
 	SetEnvKeyReplacer(r *strings.Replacer)
+	SetEnvKeyTransformer(key string, fn func(string) interface{})
 
-	UnmarshalKey(key string, rawVal interface{}) error
+	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
 	Unmarshal(rawVal interface{}) error
 	UnmarshalExact(rawVal interface{}) error
 
@@ -76,8 +78,11 @@ type Config interface {
 	// API not implemented by viper.Viper and that have proven useful for our config usage
 
 	// BindEnvAndSetDefault sets the default value for a config parameter and adds an env binding
-	// in one call, used for most config options
-	BindEnvAndSetDefault(key string, val interface{})
+	// in one call, used for most config options.
+	//
+	// If env is provided, it will override the name of the environment variable used for this
+	// config key
+	BindEnvAndSetDefault(key string, val interface{}, env ...string)
 	// GetEnvVars returns a list of the non-sensitive env vars that the config supports
 	GetEnvVars() []string
 }

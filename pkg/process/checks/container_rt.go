@@ -1,5 +1,3 @@
-// +build linux
-
 package checks
 
 import (
@@ -25,15 +23,12 @@ type RTContainerCheck struct {
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemInfo) {
+func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
 	r.sysInfo = sysInfo
 }
 
 // Name returns the name of the RTContainerCheck.
 func (r *RTContainerCheck) Name() string { return "rtcontainer" }
-
-// Endpoint returns the endpoint where this check is submitted.
-func (r *RTContainerCheck) Endpoint() string { return "/api/v1/container" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTContainerCheck) RealTime() bool { return true }
@@ -51,6 +46,11 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		return nil, err
 	}
 
+	if len(ctrList) == 0 {
+		log.Trace("no containers found")
+		return nil, nil
+	}
+
 	// End check early if this is our first run.
 	if r.lastRates == nil {
 		r.lastRates = util.ExtractContainerRateMetric(ctrList)
@@ -66,12 +66,13 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorContainerRealTime{
-			HostName:    cfg.HostName,
-			Stats:       chunked[i],
-			NumCpus:     int32(runtime.NumCPU()),
-			TotalMemory: r.sysInfo.TotalMemory,
-			GroupId:     groupID,
-			GroupSize:   int32(groupSize),
+			HostName:          cfg.HostName,
+			Stats:             chunked[i],
+			NumCpus:           int32(runtime.NumCPU()),
+			TotalMemory:       r.sysInfo.TotalMemory,
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 
@@ -112,18 +113,18 @@ func fmtContainerStats(
 			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
 			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
 			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			CpuLimit:    float32(ctr.CPULimit),
+			CpuLimit:    float32(ctr.Limits.CPULimit),
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
-			MemLimit:    ctr.MemLimit,
+			MemLimit:    ctr.Limits.MemLimit,
 			Rbps:        calculateRate(ctr.IO.ReadBytes, lastCtr.IO.ReadBytes, lastRun),
 			Wbps:        calculateRate(ctr.IO.WriteBytes, lastCtr.IO.WriteBytes, lastRun),
 			NetRcvdPs:   calculateRate(ifStats.PacketsRcvd, lastCtr.NetworkSum.PacketsRcvd, lastRun),
 			NetSentPs:   calculateRate(ifStats.PacketsSent, lastCtr.NetworkSum.PacketsSent, lastRun),
 			NetRcvdBps:  calculateRate(ifStats.BytesRcvd, lastCtr.NetworkSum.BytesRcvd, lastRun),
 			NetSentBps:  calculateRate(ifStats.BytesSent, lastCtr.NetworkSum.BytesSent, lastRun),
-			ThreadCount: ctr.ThreadCount,
-			ThreadLimit: ctr.ThreadLimit,
+			ThreadCount: ctr.CPU.ThreadCount,
+			ThreadLimit: ctr.Limits.ThreadLimit,
 			State:       model.ContainerState(model.ContainerState_value[ctr.State]),
 			Health:      model.ContainerHealth(model.ContainerHealth_value[ctr.Health]),
 			Started:     ctr.StartedAt,

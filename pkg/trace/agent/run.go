@@ -40,6 +40,19 @@ func Run(ctx context.Context) {
 
 	cfg, err := config.Load(flags.ConfigPath)
 	if err != nil {
+		if err == config.ErrMissingAPIKey {
+			fmt.Println(config.ErrMissingAPIKey)
+
+			// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
+			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+			// http://supervisord.org/subprocess.html#process-states
+			time.Sleep(5 * time.Second)
+
+			// Don't use os.Exit() method here, even with os.Exit(0) the Service Control Manager
+			// on Windows will consider the process failed and log an error in the Event Viewer and
+			// attempt to restart the process.
+			return
+		}
 		osutil.Exitf("%v", err)
 	}
 	err = info.InitInfo(cfg) // for expvar & -info option
@@ -49,7 +62,7 @@ func Run(ctx context.Context) {
 
 	if flags.Info {
 		if err := info.Info(os.Stdout, cfg); err != nil {
-			osutil.Exitf("failed to print info: %s", err)
+			osutil.Exitf("Failed to print info: %s", err)
 		}
 		return
 	}
@@ -63,7 +76,7 @@ func Run(ctx context.Context) {
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
 	); err != nil {
-		osutil.Exitf("cannot create logger: %v", err)
+		osutil.Exitf("Cannot create logger: %v", err)
 	}
 	defer log.Flush()
 

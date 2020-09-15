@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 )
 
 const (
@@ -43,7 +43,7 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 	}
 
 	return rawconn.Control(func(fd uintptr) {
-		unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_PASSCRED, 1)
+		unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_PASSCRED, 1) //nolint:errcheck
 	})
 }
 
@@ -104,7 +104,7 @@ func getEntityForPID(pid int32) (string, error) {
 // entityForPID returns the entity ID for a given PID. It can return
 // errNoContainerMatch if no match is found for the PID.
 func entityForPID(pid int32) (string, error) {
-	cID, err := metrics.ContainerIDForPID(int(pid))
+	cID, err := providers.ContainerImpl().ContainerIDForPID(int(pid))
 	if err != nil {
 		return "", err
 	}

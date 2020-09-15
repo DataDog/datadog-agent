@@ -32,7 +32,7 @@ type Sender interface {
 	Histogram(metric string, value float64, hostname string, tags []string)
 	Historate(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
-	HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string)
+	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string)
 	Event(e metrics.Event)
 	GetMetricStats() map[string]int64
 	DisableDefaultHostname(disable bool)
@@ -143,8 +143,8 @@ func GetDefaultSender() (Sender, error) {
 	}
 
 	senderInit.Do(func() {
-		var defaultCheckID check.ID // the default value is the zero value
-		aggregatorInstance.registerSender(defaultCheckID)
+		var defaultCheckID check.ID                       // the default value is the zero value
+		aggregatorInstance.registerSender(defaultCheckID) //nolint:errcheck
 		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn)
 	})
 
@@ -287,7 +287,7 @@ func (s *checkSender) Histogram(metric string, value float64, hostname string, t
 }
 
 // HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics
-func (s *checkSender) HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
+func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
 	tags = append(tags, s.checkTags...)
 
 	log.Tracef(

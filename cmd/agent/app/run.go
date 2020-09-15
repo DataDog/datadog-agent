@@ -11,8 +11,6 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
@@ -21,6 +19,7 @@ import (
 	"os/signal"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -36,16 +35,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -179,12 +181,25 @@ func StartAgent() error {
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
+	// init settings that can be changed at runtime
+	if err := settings.InitRuntimeSettings(); err != nil {
+		log.Warnf("Can't initiliaze the runtime settings: %v", err)
+	}
+
+	// Setup Profiling
+	if config.Datadog.GetBool("profiling.enabled") {
+		err := settings.SetRuntimeSetting("profiling", true)
+		if err != nil {
+			log.Errorf("Error starting profiler: %v", err)
+		}
+	}
+
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	if config.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -245,27 +260,40 @@ func StartAgent() error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
+	common.Forwarder = forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	log.Debugf("Starting forwarder")
-	common.Forwarder.Start()
+	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	metricSamplePool := metrics.NewMetricSamplePool(32)
-	agg := aggregator.InitAggregator(s, metricSamplePool, hostname, "agent")
+	agg := aggregator.InitAggregator(s, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		sampleC, eventC, serviceCheckC := agg.GetBufferedChannels()
-		common.DSD, err = dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
+		common.DSD, err = dogstatsd.NewServer(agg)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}
 	}
 	log.Debugf("statsd started")
+
+	// Start SNMP trap server
+	if traps.IsEnabled() {
+		if config.Datadog.GetBool("logs_enabled") {
+			err = traps.StartServer()
+			if err != nil {
+				log.Errorf("Failed to start snmp-traps server: %s", err)
+			}
+		} else {
+			log.Warn(
+				"snmp-traps server did not start, as log collection is disabled. " +
+					"Please enable log collection to collect and forward traps.",
+			)
+		}
+	}
 
 	// start logs-agent
 	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
@@ -280,8 +308,15 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
+	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
+		log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
+	}
+
 	// Detect Cloud Provider
 	go util.DetectCloudProvider()
+
+	// Append version and timestamp to version history log file if this Agent is different than the last run version
+	util.LogVersionHistory()
 
 	// create and setup the Autoconfig instance
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
@@ -308,8 +343,8 @@ func StartAgent() error {
 // StopAgent Tears down the agent process
 func StopAgent() {
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
@@ -328,6 +363,7 @@ func StopAgent() {
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
+	traps.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
@@ -335,8 +371,11 @@ func StopAgent() {
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
+
 	logs.Stop()
 	gui.StopGUIServer()
+	profiler.Stop()
+
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

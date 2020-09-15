@@ -22,6 +22,9 @@ build do
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
+            if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
+              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
+            end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
@@ -49,7 +52,33 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.conf*"
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
-        elsif linux?
+        end
+
+        if linux? || osx?
+            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
+            # default to `pip2` if the default Python runtime is Python 2.
+            if with_python_runtime? "2"
+                delete "#{install_dir}/embedded/bin/pip"
+                link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
+
+                delete "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
+            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
+            # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
+            # Caution: we don't want to do this for Agent 6.x
+            elsif with_python_runtime? "3"
+                delete "#{install_dir}/embedded/bin/pip"
+                link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
+
+                delete "#{install_dir}/embedded/bin/python"
+                link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
+
+                delete "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.8", "#{install_dir}/embedded/bin/2to3"
+            end
+        end
+
+        if linux?
             # Fix pip after building on extended toolchain in CentOS builder
             if redhat?
               unless arm?
@@ -67,6 +96,7 @@ build do
             move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
             move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
             move "#{install_dir}/scripts/datadog-agent-sysprobe.conf", "/etc/init"
+            move "#{install_dir}/scripts/datadog-agent-security.conf", "/etc/init"
             systemd_directory = "/usr/lib/systemd/system"
             if debian?
                 # debian recommends using a different directory for systemd unit files
@@ -89,6 +119,7 @@ build do
             move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-sysprobe.service", systemd_directory
+            move "#{install_dir}/scripts/datadog-agent-security.service", systemd_directory
 
             # Move configuration files
             mkdir "/etc/datadog-agent"
@@ -96,6 +127,13 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
+
+            # Move SELinux policy
+            if debian? || redhat?
+              move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+            end
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
@@ -116,6 +154,12 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
+            # The prerm and preinst scripts of the package will use this list to detect which files
+            # have been setup by the installer, this way, on removal, we'll be able to delete only files
+            # which have not been created by the package.
+            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
+            command "find . -path './embedded/lib/python*/site-packages/*' >> #{install_dir}/embedded/.installed_by_pkg.txt", cwd: install_dir
+
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"
 
@@ -127,28 +171,6 @@ build do
             # removing useless folder
             delete "#{install_dir}/embedded/share/aclocal"
             delete "#{install_dir}/embedded/share/examples"
-
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip2` if the default Python runtime is Python 2.
-            if with_python_runtime? "2"
-                delete "#{install_dir}/embedded/bin/pip"
-                link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
-
-                delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
-            # Caution: we don't want to do this for Agent 6.x
-            elsif with_python_runtime? "3"
-                delete "#{install_dir}/embedded/bin/pip"
-                link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
-
-                delete "#{install_dir}/embedded/bin/python"
-                link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
-
-                delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.7", "#{install_dir}/embedded/bin/2to3"
-            end
 
             # removing the man pages from the embedded folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/man"
@@ -164,19 +186,31 @@ build do
             strip_exclude("*psycopg2*")
             strip_exclude("*cffi_backend*")
 
-        elsif osx?
+            # Do not strip eBPF programs
+            strip_exclude("*tracer-ebpf*")
+            strip_exclude("*offset-guess*")
+            strip_exclude("*runtime-security*")
+        end
+
+        if osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
 
+            if ENV['HARDENED_RUNTIME_MAC'] == 'true'
+                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
+            else
+                hardened_runtime = ""
+            end
+
             if code_signing_identity
                 # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign --force --timestamp --deep -s '#{code_signing_identity}'"
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s '#{code_signing_identity}'"
-                command "find #{install_dir}/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s '#{code_signing_identity}'"
-                command "codesign --force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
+                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
             end
         end
     end

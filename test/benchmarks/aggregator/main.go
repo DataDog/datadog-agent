@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/test/util"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
@@ -206,12 +205,12 @@ func main() {
 		return
 	}
 
-	util.SetHostname("foo")
+	SetHostname("foo")
 
 	f := &forwarderBenchStub{}
 	s := serializer.NewSerializer(f)
 
-	agg = aggregator.InitAggregatorWithFlushInterval(s, nil, "hostname", time.Duration(*flushIval)*time.Second)
+	agg = aggregator.InitAggregatorWithFlushInterval(s, "hostname", time.Duration(*flushIval)*time.Second)
 
 	aggregator.SetDefaultAggregator(agg)
 	sender, err := aggregator.GetSender(check.ID("benchmark check"))

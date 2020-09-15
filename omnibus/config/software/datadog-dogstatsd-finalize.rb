@@ -29,6 +29,7 @@ build do
         move "#{install_dir}/scripts/datadog-dogstatsd.conf", "/etc/init"
         mkdir "/lib/systemd/system"
         move "#{install_dir}/scripts/datadog-dogstatsd.service", "/lib/systemd/system"
+        mkdir "/var/log/datadog"
 
         # cleanup clutter
         delete "#{install_dir}/etc" if !osx?

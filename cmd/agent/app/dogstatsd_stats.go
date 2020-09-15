@@ -78,7 +78,7 @@ func requestDogstatsdStats() error {
 	r, e := util.DoGet(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
 			e = fmt.Errorf(err)
@@ -97,7 +97,7 @@ func requestDogstatsdStats() error {
 	// The rendering is done in the client so that the agent has less work to do
 	if prettyPrintJSON {
 		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ")
+		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else if jsonStatus {
 		s = string(r)

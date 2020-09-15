@@ -42,6 +42,8 @@ func Fmap() htemplate.FuncMap {
 		"greenText":          greenText,
 		"ntpWarning":         ntpWarning,
 		"version":            getVersion,
+		"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
+		"complianceResult":   complianceResult,
 	}
 }
 
@@ -63,6 +65,8 @@ func Textfmap() ttemplate.FuncMap {
 		"greenText":          greenText,
 		"ntpWarning":         ntpWarning,
 		"version":            getVersion,
+		"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
+		"complianceResult":   complianceResult,
 	}
 }
 
@@ -200,6 +204,19 @@ func status(check map[string]interface{}) string {
 		return fmt.Sprintf("[%s]", color.YellowString("WARNING"))
 	}
 	return fmt.Sprintf("[%s]", color.GreenString("OK"))
+}
+
+func complianceResult(result string) string {
+	switch result {
+	case "error":
+		return fmt.Sprintf("[%s]", color.RedString("ERROR"))
+	case "failed":
+		return fmt.Sprintf("[%s]", color.RedString("FAILED"))
+	case "passed":
+		return fmt.Sprintf("[%s]", color.GreenString("PASSED"))
+	default:
+		return fmt.Sprintf("[%s]", color.YellowString("UNKNOWN"))
+	}
 }
 
 // Renders the message in a red color

@@ -53,6 +53,11 @@ func getHostTags() *tags {
 	hostTags := make([]string, 0, len(rawHostTags))
 	hostTags = appendToHostTags(hostTags, rawHostTags)
 
+	env := config.Datadog.GetString("env")
+	if env != "" {
+		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
+	}
+
 	if config.Datadog.GetBool("collect_ec2_tags") {
 		ec2Tags, err := ec2.GetTags()
 		if err != nil {
@@ -64,7 +69,12 @@ func getHostTags() *tags {
 
 	clusterName := clustername.GetClusterName()
 	if len(clusterName) != 0 {
-		hostTags = appendToHostTags(hostTags, []string{"cluster_name:" + clusterName})
+		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
+		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+			clusterNameTags = append(clusterNameTags, "cluster_name:"+clusterName)
+			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+		}
+		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
 	k8sTags, err := k8s.GetTags()

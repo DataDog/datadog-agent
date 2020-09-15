@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ import (
 func cleanConfig() func() {
 	oldConfig := config.Datadog
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config.InitConfig(config.Datadog)
 	return func() { config.Datadog = oldConfig }
 }
 
@@ -114,7 +116,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal("INFO", c.LogLevel)
 	assert.Equal(true, c.Enabled)
 
-	assert.Equal([]string{"http.status_code", "version"}, c.ExtraAggregators)
+	assert.Equal([]string{"http.status_code", "version", "_dd.hostname"}, c.ExtraAggregators)
 }
 
 func TestNoAPMConfig(t *testing.T) {
@@ -177,6 +179,8 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
 	}, c.Endpoints)
 
 	assert.ElementsMatch([]*ReplaceRule{
@@ -235,6 +239,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(100.0, c.MaxTPS)
 	assert.Equal(1000.0, c.MaxEPS)
 	assert.Equal(25, c.ReceiverPort)
+	assert.Equal(120*time.Second, c.ConnectionResetInterval)
 	// watchdog
 	assert.Equal(0.07, c.MaxCPU)
 	assert.Equal(30e6, c.MaxMemory)

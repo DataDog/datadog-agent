@@ -64,7 +64,7 @@ func (c *Scheduler) Stop() {
 	c.contextCancel()
 	for _, sc := range c.collectors {
 		sc.sendTimer.Stop()
-		sc.healthHandle.Deregister()
+		sc.healthHandle.Deregister() //nolint:errcheck
 	}
 }
 
@@ -81,7 +81,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 
 	sc := &scheduledCollector{
 		sendTimer:    newTimer(interval),
-		healthHandle: health.Register("metadata-" + name),
+		healthHandle: health.RegisterLiveness("metadata-" + name),
 	}
 
 	go func() {
@@ -106,7 +106,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	c.collectors[name] = sc
 
 	if withInit, ok := p.(CollectorWithInit); ok {
-		withInit.Init()
+		withInit.Init() //nolint:errcheck
 	}
 
 	return nil

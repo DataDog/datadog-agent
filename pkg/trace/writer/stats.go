@@ -58,14 +58,20 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWri
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
-		// allow 1% of the connection limit to outgoing sends.
-		climit = int(math.Max(1, float64(cfg.ConnectionLimit)/100))
+		// Allow 1% of the connection limit to outgoing sends. The original
+		// connection limit was removed and used to be 2000 (1% = 20)
+		climit = 20
 	}
 	qsize := cfg.StatsWriter.QueueSize
 	if qsize == 0 {
 		payloadSize := float64(maxEntriesPerPayload * bytesPerEntry)
 		// default to 25% of maximum memory.
-		qsize = int(math.Max(1, cfg.MaxMemory/4/payloadSize))
+		maxmem := cfg.MaxMemory / 4
+		if maxmem == 0 {
+			// or 250MB if unbound
+			maxmem = 250 * 1024 * 1024
+		}
+		qsize = int(math.Max(1, maxmem/payloadSize))
 	}
 	log.Debugf("Stats writer initialized (climit=%d qsize=%d)", climit, qsize)
 	sw.senders = newSenders(cfg, sw, pathStats, climit, qsize)
@@ -120,9 +126,8 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 			return
 		}
 		atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
-		for _, sender := range w.senders {
-			sender.Push(req)
-		}
+
+		sendPayloads(w.senders, req)
 	}
 }
 

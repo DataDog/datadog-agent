@@ -1,7 +1,8 @@
 <Include>
   <ComboBox Property="SITE">
-    <ListItem Text="Datadog US (datadoghq.com)" Value="datadoghq.com"/>
-    <ListItem Text="Datadog EU (datadoghq.eu)" Value="datadoghq.eu"/>
+    <ListItem Text="datadoghq.com" Value="datadoghq.com"/>
+    <ListItem Text="datadoghq.eu" Value="datadoghq.eu"/>
+    <ListItem Text="us3.datadoghq.com" Value="us3.datadoghq.com"/>
   </ComboBox>
  <Dialog Id="SiteDlg" Width="370" Height="270" Title="!(loc.SiteDialogTitle)">
   <Control Id="SiteFromDefault" Type="ComboBox" ComboList="no" Height="15" Width="320" X="25" Y="148" Property="SITE"/>

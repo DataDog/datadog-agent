@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/coreos/go-systemd/dbus"
@@ -34,9 +35,10 @@ const (
 	typeService = "service"
 	typeSocket  = "socket"
 
-	canConnectServiceCheck  = "systemd.can_connect"
-	systemStateServiceCheck = "systemd.system.state"
-	unitStateServiceCheck   = "systemd.unit.state"
+	canConnectServiceCheck   = "systemd.can_connect"
+	systemStateServiceCheck  = "systemd.system.state"
+	unitStateServiceCheck    = "systemd.unit.state"
+	unitSubStateServiceCheck = "systemd.unit.substate"
 )
 
 var dbusTypeMap = map[string]string{
@@ -59,6 +61,7 @@ var metricConfigs = map[string][]metricConfigItem{
 	typeService: {
 		{
 			// only present from systemd v220
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L5571-L5576
 			metricName:         "systemd.service.cpu_time_consumed",
 			propertyName:       "CPUUsageNSec",
 			accountingProperty: "CPUAccounting",
@@ -70,12 +73,17 @@ var metricConfigs = map[string][]metricConfigItem{
 			accountingProperty: "MemoryAccounting",
 		},
 		{
+			// only present from systemd v227
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L4980-L4984
+			// https://montecristosoftware.eu/matteo/systemd/commit/03a7b521e3ffb7f5d153d90480ba5d4bc29d1e8f#6e0729ff5b041f3624fb339e9484dbfad911e297_799_823
 			metricName:         "systemd.service.task_count",
 			propertyName:       "TasksCurrent",
 			accountingProperty: "TasksAccounting",
+			optional:           true,
 		},
 		{
 			// only present from systemd v235
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L3027-L3029
 			metricName:   "systemd.service.restart_count",
 			propertyName: "NRestarts",
 			optional:     true,
@@ -92,6 +100,7 @@ var metricConfigs = map[string][]metricConfigItem{
 		},
 		{
 			// only present from systemd v239
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L2256-L2258
 			metricName:   "systemd.socket.connection_refused_count",
 			propertyName: "NRefused",
 			optional:     true,
@@ -100,6 +109,21 @@ var metricConfigs = map[string][]metricConfigItem{
 }
 
 var unitActiveStates = []string{"active", "activating", "inactive", "deactivating", "failed"}
+
+var validServiceCheckStatus = []string{
+	"ok",
+	"warning",
+	"critical",
+	"unknown",
+}
+
+var serviceCheckStateMapping = map[string]string{
+	"active":       "ok",
+	"inactive":     "critical",
+	"failed":       "critical",
+	"activating":   "unknown",
+	"deactivating": "unknown",
+}
 
 var systemdStatusMapping = map[string]metrics.ServiceCheckStatus{
 	"initializing": metrics.ServiceCheckUnknown,
@@ -116,10 +140,12 @@ type SystemdCheck struct {
 	stats  systemdStats
 	config systemdConfig
 }
+type unitSubstateMapping = map[string]string
 
 type systemdInstanceConfig struct {
-	PrivateSocket string   `yaml:"private_socket"`
-	UnitNames     []string `yaml:"unit_names"`
+	PrivateSocket         string                         `yaml:"private_socket"`
+	UnitNames             []string                       `yaml:"unit_names"`
+	SubstateStatusMapping map[string]unitSubstateMapping `yaml:"substate_status_mapping"`
 }
 
 type systemdInitConfig struct{}
@@ -139,6 +165,7 @@ type systemdStats interface {
 	SystemState(c *dbus.Conn) (*dbus.Property, error)
 	ListUnits(c *dbus.Conn) ([]dbus.UnitStatus, error)
 	GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error)
+	GetVersion(c *dbus.Conn) (string, error)
 
 	// Misc
 	UnixNow() int64
@@ -170,6 +197,10 @@ func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName strin
 	return c.GetUnitTypeProperties(unitName, unitType)
 }
 
+func (s *defaultSystemdStats) GetVersion(c *dbus.Conn) (string, error) {
+	return c.GetManagerProperty("Version")
+}
+
 func (s *defaultSystemdStats) UnixNow() int64 {
 	return time.Now().Unix()
 }
@@ -187,6 +218,7 @@ func (c *SystemdCheck) Run() error {
 	}
 	defer c.stats.CloseConn(conn)
 
+	c.submitVersion(conn)
 	c.submitSystemdState(sender, conn)
 
 	err = c.submitMetrics(sender, conn)
@@ -194,6 +226,7 @@ func (c *SystemdCheck) Run() error {
 		return err
 	}
 	sender.Commit()
+
 	return nil
 }
 
@@ -263,6 +296,17 @@ func (c *SystemdCheck) getSystemBusSocketConnection() (*dbus.Conn, error) {
 	return conn, err
 }
 
+func (c *SystemdCheck) submitVersion(conn *dbus.Conn) {
+	version, err := c.stats.GetVersion(conn)
+	if err != nil {
+		log.Debugf("Error collecting version from the systemd: %v", err)
+		return
+	}
+	checkID := string(c.ID())
+	log.Debugf("Submit version %v for checkID %v", version, checkID)
+	inventories.SetCheckMetadata(checkID, "version.raw", version)
+}
+
 func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
 	units, err := c.stats.ListUnits(conn)
 	if err != nil {
@@ -282,7 +326,16 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 		}
 		monitoredCount++
 		tags := []string{"unit:" + unit.Name}
-		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState), "", tags, "")
+
+		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState, serviceCheckStateMapping), "", tags, "")
+
+		if subStateMapping, found := c.config.instance.SubstateStatusMapping[unit.Name]; found {
+			// User provided a custom mapping for this unit. Submit the systemd.unit.substate service check based on that
+			if _, ok := subStateMapping[unit.SubState]; !ok {
+				log.Debugf("The systemd unit %s has a substate value of %s that is not defined in the mapping set in the conf.yaml file. The service check will report 'UNKNOWN'", unit.Name, unit.SubState)
+			}
+			sender.ServiceCheck(unitSubStateServiceCheck, getServiceCheckStatus(unit.SubState, subStateMapping), "", tags, "")
+		}
 
 		c.submitBasicUnitMetrics(sender, conn, unit, tags)
 		c.submitPropertyMetricsAsGauge(sender, conn, unit, tags)
@@ -432,14 +485,15 @@ func getPropertyBool(properties map[string]interface{}, propertyName string) (bo
 	return propValue, nil
 }
 
-func getServiceCheckStatus(activeState string) metrics.ServiceCheckStatus {
-	switch activeState {
-	case "active":
+// getServiceCheckStatus returns a service check status for a given unit state (or substate) and a provided mapping
+func getServiceCheckStatus(state string, mapping map[string]string) metrics.ServiceCheckStatus {
+	switch mapping[state] {
+	case "ok":
 		return metrics.ServiceCheckOK
-	case "inactive", "failed":
+	case "warning":
+		return metrics.ServiceCheckWarning
+	case "critical":
 		return metrics.ServiceCheckCritical
-	case "activating", "deactivating":
-		return metrics.ServiceCheckUnknown
 	}
 	return metrics.ServiceCheckUnknown
 }
@@ -448,6 +502,15 @@ func getServiceCheckStatus(activeState string) metrics.ServiceCheckStatus {
 func (c *SystemdCheck) isMonitored(unitName string) bool {
 	for _, name := range c.config.instance.UnitNames {
 		if name == unitName {
+			return true
+		}
+	}
+	return false
+}
+
+func isValidServiceCheckStatus(serviceCheckStatus string) bool {
+	for _, validStatus := range validServiceCheckStatus {
+		if serviceCheckStatus == validStatus {
 			return true
 		}
 	}
@@ -471,6 +534,20 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 
 	if len(c.config.instance.UnitNames) == 0 {
 		return fmt.Errorf("instance config `unit_names` must not be empty")
+	}
+
+	for unitNameInMapping := range c.config.instance.SubstateStatusMapping {
+		if !c.isMonitored(unitNameInMapping) {
+			return fmt.Errorf("instance config specifies a custom substate mapping for unit '%s' but this unit is not monitored. Please add '%s' to 'unit_names'", unitNameInMapping, unitNameInMapping)
+		}
+	}
+
+	for unitName, unitMapping := range c.config.instance.SubstateStatusMapping {
+		for _, serviceCheckStatus := range unitMapping {
+			if !isValidServiceCheckStatus(serviceCheckStatus) {
+				return fmt.Errorf("Status '%s' for unit '%s' in 'substate_status_mapping' is invalid. It should be one of '%s'", serviceCheckStatus, unitName, strings.Join(validServiceCheckStatus, ", "))
+			}
+		}
 	}
 
 	return nil

@@ -19,21 +19,19 @@ git clone git@github.com:DataDog/datadog-agent.git
 cd datadog-agent
 ```
 
-Pull down the latest dependencies via `dep`:
+Note that you must be in `$GOPATH/src/github.com/DataDog/datadog-agent`, NOT `~/dd/datadog-agent`.
+
+Pull down the latest dependencies via `dep`, and build the Process Agent:
 
 ```
 inv -e deps
-inv -e build
+inv -e process-agent.build
 ```
 
 You can now run the Agent on the command-line:
 
-`./bin/process-agent/process-agent -config $PATH_TO_PROCESS_CONFIG_FILE`
-
-If you modify any of the `.proto` files you _must_ rebuild the *.pb.go files with
-
 ```
-inv process-agent.protobuf
+./bin/process-agent/process-agent -config $PATH_TO_PROCESS_CONFIG_FILE
 ```
 
 ## Development

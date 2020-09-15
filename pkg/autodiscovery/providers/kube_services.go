@@ -42,6 +42,7 @@ func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigP
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
@@ -153,10 +154,12 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		for _, err := range errors {
 			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
+		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
 			svcConf[i].Source = "kube_services:" + serviceID
+			svcConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 		}
 		configs = append(configs, svcConf...)
 	}

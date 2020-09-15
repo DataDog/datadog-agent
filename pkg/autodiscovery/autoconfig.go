@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -73,7 +74,7 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
-		healthListening:    health.Register("ad-servicelistening"),
+		healthListening:    health.RegisterLiveness("ad-servicelistening"),
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
@@ -94,7 +95,7 @@ func (ac *AutoConfig) serviceListening() {
 	for {
 		select {
 		case <-ac.listenerStop:
-			ac.healthListening.Deregister()
+			ac.healthListening.Deregister() //nolint:errcheck
 			return
 		case <-ac.healthListening.C:
 		case svc := <-ac.newService:
@@ -280,17 +281,10 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 			return configs
 		}
 
-		// each template can resolve to multiple configs
-		for _, config := range resolvedConfigs {
-			config, err := decryptConfig(config)
-			if err != nil {
-				log.Errorf("Dropping conf for %q: %s", config.Name, err.Error())
-				continue
-			}
-			configs = append(configs, config)
-		}
-		return configs
+		return resolvedConfigs
 	}
+
+	// decrypt and store non-template config in AC as well
 	config, err := decryptConfig(config)
 	if err != nil {
 		log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
@@ -298,8 +292,8 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 	}
 	configs = append(configs, config)
 
-	// store non template configs in the AC
 	ac.store.setLoadedConfig(config)
+
 	return configs
 }
 
@@ -518,14 +512,19 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 	return resolved
 }
 
-// resolveTemplateForService calls the config resolver for the template against the service
-// and stores the resolved config and service mapping if successful
+// resolveTemplateForService calls the config resolver for the template against the service,
+// decrypts secrets and stores the resolved config and service mapping if successful
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	resolvedConfig, err := configresolver.Resolve(tpl, svc)
+	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetEntity(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())
 		return tpl, log.Warn(newErr)
+	}
+	resolvedConfig, err := decryptConfig(config)
+	if err != nil {
+		newErr := fmt.Errorf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetEntity(), err)
+		return config, log.Warn(newErr)
 	}
 	ac.store.setLoadedConfig(resolvedConfig)
 	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
@@ -602,10 +601,12 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// FIXME: schedule new services as well
 	ac.schedule([]integration.Config{
 		{
-			LogsConfig:   integration.Data{},
-			Entity:       svc.GetEntity(),
-			TaggerEntity: svc.GetTaggerEntity(),
-			CreationTime: svc.GetCreationTime(),
+			LogsConfig:      integration.Data{},
+			Entity:          svc.GetEntity(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			CreationTime:    svc.GetCreationTime(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
 
@@ -621,10 +622,12 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{
 		{
-			LogsConfig:   integration.Data{},
-			Entity:       svc.GetEntity(),
-			TaggerEntity: svc.GetTaggerEntity(),
-			CreationTime: svc.GetCreationTime(),
+			LogsConfig:      integration.Data{},
+			Entity:          svc.GetEntity(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			CreationTime:    svc.GetCreationTime(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
 }

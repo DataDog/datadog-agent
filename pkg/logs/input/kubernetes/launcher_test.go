@@ -11,16 +11,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetSource(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -35,20 +36,26 @@ func TestGetSource(t *testing.T) {
 		Status: kubelet.Status{
 			Containers: []kubelet.ContainerStatus{container},
 		},
+		Spec: kubelet.Spec{
+			Containers: []kubelet.ContainerSpec{{
+				Name:  "foo",
+				Image: "bar",
+			}},
+		},
 	}
 
 	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
-	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", filepath.ToSlash(source.Config.Path))
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "bar", source.Config.Source)
 	assert.Equal(t, "bar", source.Config.Service)
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -72,7 +79,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
-	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", filepath.ToSlash(source.Config.Path))
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
@@ -80,7 +87,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -107,7 +114,7 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceAddContainerdParser(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -130,8 +137,8 @@ func TestGetSourceAddContainerdParser(t *testing.T) {
 }
 
 func TestContainerCollectAll(t *testing.T) {
-	launcherCollectAll := &Launcher{collectAll: true}
-	launcherCollectAllDisabled := &Launcher{collectAll: false}
+	launcherCollectAll := getLauncher(true)
+	launcherCollectAllDisabled := getLauncher(false)
 	containerFoo := kubelet.ContainerStatus{
 		Name:  "fooName",
 		Image: "fooImage",
@@ -201,7 +208,7 @@ func TestContainerCollectAll(t *testing.T) {
 }
 
 func TestGetPath(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -222,21 +229,34 @@ func TestGetPath(t *testing.T) {
 	defer os.RemoveAll(basePath)
 	assert.Nil(t, err)
 
-	var (
-		path         string
-		podDirectory string
-	)
-
-	podDirectory = "buu_fuz_baz"
-	path = launcher.getPath(basePath, pod, container)
+	// v1.14+ (default)
+	podDirectory := "buu_fuz_baz"
+	path := launcher.getPath(basePath, pod, container)
 	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo", "*.log"), path)
 
+	// v1.10 - v1.13
 	podDirectory = "baz"
-	err = os.Mkdir(filepath.Join(basePath, podDirectory), 0777)
+	containerDirectory := "foo"
+
+	err = os.MkdirAll(filepath.Join(basePath, podDirectory, containerDirectory), 0777)
 	assert.Nil(t, err)
 
 	path = launcher.getPath(basePath, pod, container)
 	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo", "*.log"), path)
+
+	// v1.9
+	os.RemoveAll(basePath)
+	podDirectory = "baz"
+	logFile := "foo_1.log"
+
+	err = os.MkdirAll(filepath.Join(basePath, podDirectory), 0777)
+	assert.Nil(t, err)
+
+	_, err = os.Create(filepath.Join(basePath, podDirectory, logFile))
+	assert.Nil(t, err)
+
+	path = launcher.getPath(basePath, pod, container)
+	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo_*.log"), path)
 }
 
 // contains returns true if the list contains all the items.
@@ -251,4 +271,175 @@ func contains(list []string, items ...string) bool {
 		}
 	}
 	return true
+}
+
+func TestGetSourceServiceNameOrder(t *testing.T) {
+	tests := []struct {
+		name            string
+		sFunc           func(string, string) string
+		pod             *kubelet.Pod
+		container       kubelet.ContainerStatus
+		wantServiceName string
+		wantErr         bool
+	}{
+		{
+			name:  "log config",
+			sFunc: func(n, e string) string { return "stdServiceName" },
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "podName",
+					Namespace: "podNamespace",
+					UID:       "podUIDFoo",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/fooName.logs": `[{"source":"foo","service":"annotServiceName"}]`,
+					},
+				},
+			},
+			container: kubelet.ContainerStatus{
+				Name:  "fooName",
+				Image: "fooImage",
+				ID:    "docker://fooID",
+			},
+			wantServiceName: "annotServiceName",
+			wantErr:         false,
+		},
+		{
+			name:  "standard tags",
+			sFunc: func(n, e string) string { return "stdServiceName" },
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "podName",
+					Namespace: "podNamespace",
+					UID:       "podUIDFoo",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/fooName.logs": `[{"source":"foo"}]`,
+					},
+				},
+			},
+			container: kubelet.ContainerStatus{
+				Name:  "fooName",
+				Image: "fooImage",
+				ID:    "docker://fooID",
+			},
+			wantServiceName: "stdServiceName",
+			wantErr:         false,
+		},
+		{
+			name:  "image name",
+			sFunc: func(n, e string) string { return "" },
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "podName",
+					Namespace: "podNamespace",
+					UID:       "podUIDFoo",
+				},
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
+						Name:  "fooName",
+						Image: "fooImage",
+					}},
+				},
+			},
+			container: kubelet.ContainerStatus{
+				Name:  "fooName",
+				Image: "fooImage",
+				ID:    "docker://fooID",
+			},
+			wantServiceName: "fooImage",
+			wantErr:         false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &Launcher{
+				collectAll:      true,
+				kubeutil:        kubelet.NewKubeUtil(),
+				serviceNameFunc: tt.sFunc,
+			}
+			got, err := l.getSource(tt.pod, tt.container)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Launcher.getSource() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got.Config.Service, tt.wantServiceName) {
+				t.Errorf("Launcher.getSource() = %v, want %v", got, tt.wantServiceName)
+			}
+		})
+	}
+}
+
+func TestGetShortImageName(t *testing.T) {
+	tests := []struct {
+		name          string
+		pod           *kubelet.Pod
+		containerName string
+		wantImageName string
+		wantErr       bool
+	}{
+		{
+			name: "standard",
+			pod: &kubelet.Pod{
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
+						Name:  "fooName",
+						Image: "fooImage",
+					}},
+				},
+			},
+			containerName: "fooName",
+			wantImageName: "fooImage",
+			wantErr:       false,
+		},
+		{
+			name: "empty",
+			pod: &kubelet.Pod{
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
+						Name:  "fooName",
+						Image: "",
+					}},
+				},
+			},
+			containerName: "fooName",
+			wantImageName: "",
+			wantErr:       true,
+		},
+		{
+			name: "with prefix",
+			pod: &kubelet.Pod{
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{{
+						Name:  "fooName",
+						Image: "org/fooImage:tag",
+					}},
+				},
+			},
+			containerName: "fooName",
+			wantImageName: "fooImage",
+			wantErr:       false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := getLauncher(true)
+
+			got, err := l.getShortImageName(tt.pod, tt.containerName)
+			if got != tt.wantImageName {
+				t.Errorf("Launcher.getShortImageName() = %s, want %s", got, tt.wantImageName)
+			}
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Launcher.getShortImageName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+}
+
+func getLauncher(collectAll bool) *Launcher {
+	k := kubelet.NewKubeUtil()
+	return &Launcher{
+		collectAll:      collectAll,
+		kubeutil:        k,
+		serviceNameFunc: func(string, string) string { return "" },
+	}
 }

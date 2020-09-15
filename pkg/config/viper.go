@@ -13,9 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 // safeConfig implements Config:
@@ -55,6 +55,14 @@ func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
 	return c.Viper.GetKnownKeys()
+}
+
+// SetEnvKeyTransformer allows defining a transformer function which decides
+// how an environment variables value gets assigned to key.
+func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, fn)
 }
 
 // SetFs wraps Viper for concurrent access
@@ -245,10 +253,10 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 }
 
 // UnmarshalKey wraps Viper for concurrent access
-func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}) error {
+func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.Viper.UnmarshalKey(key, rawVal)
+	return c.Viper.UnmarshalKey(key, rawVal, opts...)
 }
 
 // Unmarshal wraps Viper for concurrent access
@@ -348,9 +356,9 @@ func (c *safeConfig) GetEnvVars() []string {
 }
 
 // BindEnvAndSetDefault implements the Config interface
-func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}) {
+func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(key)
+	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
 }
 
 // NewConfig returns a new Config object.

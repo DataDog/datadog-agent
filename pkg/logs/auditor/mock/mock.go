@@ -7,7 +7,8 @@ package mock
 
 // Registry does nothing
 type Registry struct {
-	offset string
+	offset      string
+	tailingMode string
 }
 
 // NewRegistry returns a new registry.
@@ -23,4 +24,14 @@ func (r *Registry) GetOffset(identifier string) string {
 // SetOffset sets the offset.
 func (r *Registry) SetOffset(offset string) {
 	r.offset = offset
+}
+
+// GetTailingMode returns the tailing mode.
+func (r *Registry) GetTailingMode(identifier string) string {
+	return r.tailingMode
+}
+
+// SetTailingMode sets the tailing mode.
+func (r *Registry) SetTailingMode(tailingMode string) {
+	r.tailingMode = tailingMode
 }

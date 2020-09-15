@@ -7,11 +7,37 @@
 
 package apiserver
 
-// LeaderElectorInterface is the interface avoiding the import cycle between the LeaderElection and the APIServer
-type LeaderElectorInterface interface {
-	IsLeader() bool
-}
+const (
+	autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
+)
+
+// controllerName represents the cluster agent controller names
+type controllerName string
 
 const (
-	autoscalerNowHandleMsgEvent = "Autoscaler is now handle by the Cluster-Agent"
+	metadataController    controllerName = "metadata"
+	autoscalersController controllerName = "autoscalers"
+	servicesController    controllerName = "services"
+	endpointsController   controllerName = "endpoints"
+)
+
+// InformerName represents the kubernetes informer names
+type InformerName string
+
+const (
+	endpointsInformer InformerName = "endpoints"
+	// SecretsInformer holds the name of the informer
+	SecretsInformer InformerName = "secrets"
+	// WebhooksInformer holds the name of the informer
+	WebhooksInformer InformerName = "webhooks"
+	// PodsInformer holds the name of the informer
+	PodsInformer InformerName = "pods"
+	// DeploysInformer holds the name of the informer
+	DeploysInformer InformerName = "deploys"
+	// ReplicaSetsInformer holds the name of the informer
+	ReplicaSetsInformer InformerName = "replicaSets"
+	// ServicesInformer holds the name of the informer
+	ServicesInformer InformerName = "services"
+	// NodesInformer holds the name of the informer
+	NodesInformer InformerName = "nodes"
 )

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -78,7 +79,7 @@ func ResetCache() {
 	cache.Cache.Delete(podListCacheKey)
 }
 
-func newKubeUtil() *KubeUtil {
+func NewKubeUtil() *KubeUtil {
 	ku := &KubeUtil{
 		kubeletAPIClient:         &http.Client{Timeout: time.Second},
 		kubeletAPIRequestHeaders: &http.Header{},
@@ -100,8 +101,8 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 	globalKubeUtilMutex.Lock()
 	defer globalKubeUtilMutex.Unlock()
 	if globalKubeUtil == nil {
-		globalKubeUtil = newKubeUtil()
-		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{
+		globalKubeUtil = NewKubeUtil()
+		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "kubeutil",
 			AttemptMethod:     globalKubeUtil.init,
 			Strategy:          retry.Backoff,
@@ -286,6 +287,16 @@ func (ku *KubeUtil) GetStatusForContainerID(pod *Pod, containerID string) (Conta
 	return ContainerStatus{}, fmt.Errorf("Container %v not found", containerID)
 }
 
+// GetSpecForContainerName returns the container spec from the pod given a name
+func (ku *KubeUtil) GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error) {
+	for _, containerSpec := range pod.Spec.Containers {
+		if containerName == containerSpec.Name {
+			return containerSpec, nil
+		}
+	}
+	return ContainerSpec{}, fmt.Errorf("Container %v not found", containerName)
+}
+
 func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
 	if podUID == "" {
 		return nil, fmt.Errorf("pod UID is empty")
@@ -358,7 +369,7 @@ func (ku *KubeUtil) setupkubeletAPIClient() error {
 		log.Debug("Using HTTPS with service account bearer token")
 		return ku.setBearerToken(kubernetes.ServiceAccountTokenPath)
 	default:
-		log.Debug("No configured token or TLS certificates, will try http only")
+		log.Debug("No configured token or TLS certificates, https probably won't work - only http")
 		return nil
 	}
 }
@@ -487,7 +498,7 @@ func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
 
 // IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
 func (ku *KubeUtil) IsAgentHostNetwork() (bool, error) {
-	cid, err := docker.GetAgentCID()
+	cid, err := providers.ContainerImpl().GetAgentCID()
 	if err != nil {
 		return false, err
 	}
@@ -579,7 +590,7 @@ func (ku *KubeUtil) init() error {
 		return err
 	}
 
-	ku.filter, err = containers.GetSharedFilter()
+	ku.filter, err = containers.GetSharedMetricFilter()
 	if err != nil {
 		return err
 	}
@@ -703,35 +714,43 @@ func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort in
 		log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s", ku.kubeletAPIEndpoint)
 		return nil
 	}
-	kubeletHost, errors := selectFromPotentialHostsHTTPS(ku, hosts.ips, httpsPort)
-	if kubeletHost != "" && errors == nil {
-		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
-		return nil
-	}
-	connectionErrors = append(connectionErrors, errors...)
 
-	kubeletHost, errors = selectFromPotentialHostsHTTPS(ku, hosts.hostnames, httpsPort)
-	if kubeletHost != "" && errors == nil {
-		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
-		return nil
-	}
-	connectionErrors = append(connectionErrors, errors...)
+	var kubeletHost string
+	var errors []error
 
-	kubeletHost, errors = selectFromPotentialHostsHTTP(hosts.ips, httpPort)
-	if kubeletHost != "" && errors == nil {
-		ku.kubeletHost = kubeletHost
-		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
-		return nil
-	}
-	connectionErrors = append(connectionErrors, errors...)
+	if httpsPort > 0 {
+		kubeletHost, errors = selectFromPotentialHostsHTTPS(ku, hosts.ips, httpsPort)
+		if kubeletHost != "" && errors == nil {
+			log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
+			return nil
+		}
+		connectionErrors = append(connectionErrors, errors...)
 
-	kubeletHost, errors = selectFromPotentialHostsHTTP(hosts.hostnames, httpPort)
-	if kubeletHost != "" && errors == nil {
-		ku.kubeletHost = kubeletHost
-		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
-		return nil
+		kubeletHost, errors = selectFromPotentialHostsHTTPS(ku, hosts.hostnames, httpsPort)
+		if kubeletHost != "" && errors == nil {
+			log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
+			return nil
+		}
+		connectionErrors = append(connectionErrors, errors...)
 	}
-	connectionErrors = append(connectionErrors, errors...)
+
+	if httpPort > 0 {
+		kubeletHost, errors = selectFromPotentialHostsHTTP(hosts.ips, httpPort)
+		if kubeletHost != "" && errors == nil {
+			ku.kubeletHost = kubeletHost
+			log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
+			return nil
+		}
+		connectionErrors = append(connectionErrors, errors...)
+
+		kubeletHost, errors = selectFromPotentialHostsHTTP(hosts.hostnames, httpPort)
+		if kubeletHost != "" && errors == nil {
+			ku.kubeletHost = kubeletHost
+			log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)
+			return nil
+		}
+		connectionErrors = append(connectionErrors, errors...)
+	}
 
 	log.Debug("All connection attempts to the Kubelet failed.")
 	return fmt.Errorf("cannot set a valid kubelet host: cannot connect to kubelet using any of the given hosts: %v %v, Errors: %v", hosts.ips, hosts.hostnames, connectionErrors)

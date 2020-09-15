@@ -1,22 +1,35 @@
+// +build linux windows
+
 package main
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	_ "net/http/pprof"
+
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	_ "net/http/pprof"
 )
+
+// All System Probe modules should register their factories here
+var factories = []api.Factory{
+	modules.NetworkTracer,
+	modules.TCPQueueLength,
+	modules.OOMKillProbe,
+	modules.SecurityRuntime,
+}
 
 // Flag values
 var opts struct {
@@ -24,6 +37,7 @@ var opts struct {
 	pidFilePath string
 	debug       bool
 	version     bool
+	console     bool // windows only; execute on console rather than via SCM
 }
 
 // Version info sourced from build flags
@@ -37,27 +51,18 @@ var (
 
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
-func main() {
-	// Parse flags
-	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
-	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
-	checkCmd := flag.NewFlagSet("check", flag.ExitOnError)
-	checkType := checkCmd.String("type", "", "The type of the check to run. Choose from: connections, network_maps, network_state, stats")
-	checkClient := checkCmd.String("client", "", "The client ID that the check will use to run")
-	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
-	flag.Parse()
-
+func runAgent(exit <-chan struct{}) {
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
-		os.Exit(0)
+		cleanupAndExit(0)
 	}
 
 	// --pid
 	if opts.pidFilePath != "" {
 		if err := pidfile.WritePID(opts.pidFilePath); err != nil {
 			log.Errorf("Error while writing PID file, exiting: %v", err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), opts.pidFilePath)
@@ -71,7 +76,7 @@ func main() {
 	cfg, err := config.NewSystemProbeConfig(loggerName, opts.configPath)
 	if err != nil {
 		log.Criticalf("Failed to create agent config: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	// Exit if system probe is disabled
@@ -80,52 +85,76 @@ func main() {
 		gracefulExit()
 	}
 
-	// run check command if the flag is specified
-	if len(os.Args) >= 2 && os.Args[1] == "check" {
-		err = checkCmd.Parse(os.Args[2:])
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		if *checkType == "" {
-			checkCmd.PrintDefaults()
-			os.Exit(1)
-		}
-		err := querySocketEndpoint(cfg, *checkType, *checkClient)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-
-		os.Exit(0)
-	}
-
 	log.Infof("running system-probe with version: %s", versionString(", "))
 
 	// configure statsd
 	if err := statsd.Configure(cfg); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
-	sysprobe, err := CreateSystemProbe(cfg)
-	if err != nil && strings.HasPrefix(err.Error(), ErrSysprobeUnsupported.Error()) {
-		// If tracer is unsupported by this operating system, then exit gracefully
-		log.Infof("%s, exiting.", err)
-		gracefulExit()
-	} else if err != nil {
+	conn, err := net.NewListener(cfg)
+	if err != nil {
+		log.Criticalf("Error creating IPC socket: %s", err)
+		cleanupAndExit(1)
+	}
+
+	// if a debug port is specified, we expose the default handler to that port
+	if cfg.SystemProbeDebugPort > 0 {
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
+	}
+
+	loader := NewLoader()
+	defer loader.Close()
+
+	httpMux := http.NewServeMux()
+
+	err = loader.Register(cfg, httpMux, factories)
+	if err != nil {
+		loader.Close()
+
+		if strings.HasPrefix(err.Error(), modules.ErrSysprobeUnsupported.Error()) {
+			// If tracer is unsupported by this operating system, then exit gracefully
+			log.Infof("%s, exiting.", err)
+			gracefulExit()
+		}
+
 		log.Criticalf("failed to create system probe: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
-	defer sysprobe.Close()
 
-	go sysprobe.Run()
+	// Register stats endpoint
+	httpMux.HandleFunc("/debug/stats", func(w http.ResponseWriter, req *http.Request) {
+		stats := loader.GetStats()
+		utils.WriteAsJSON(w, stats)
+	})
+
+	go func() {
+		err = http.Serve(conn.GetListener(), httpMux)
+		if err != nil {
+			log.Criticalf("Error creating HTTP server: %s", err)
+			loader.Close()
+			cleanupAndExit(1)
+		}
+	}()
+
 	log.Infof("system probe successfully started")
 
-	// Handles signals, which tells us whether we should exit.
-	e := make(chan bool)
-	go util.HandleSignals(e)
-	<-e
+	go func() {
+		tags := []string{
+			fmt.Sprintf("version:%s", Version),
+			fmt.Sprintf("revision:%s", GitCommit),
+		}
+		heartbeat := time.NewTicker(15 * time.Second)
+		for range heartbeat.C {
+			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1) //nolint:errcheck
+			for moduleName := range loader.modules {
+				statsd.Client.Gauge(fmt.Sprintf("datadog.system_probe.agent.%s", moduleName), 1, tags, 1) //nolint:errcheck
+			}
+		}
+	}()
+
+	<-exit
 }
 
 func gracefulExit() {
@@ -133,7 +162,7 @@ func gracefulExit() {
 	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 	// http://supervisord.org/subprocess.html#process-states
 	time.Sleep(5 * time.Second)
-	os.Exit(0)
+	cleanupAndExit(0)
 }
 
 // versionString returns the version information filled in at build time
@@ -151,4 +180,17 @@ func versionString(sep string) string {
 	addString(&buf, "Build date: %s%s", BuildDate, sep)
 	addString(&buf, "Go Version: %s%s", GoVersion, sep)
 	return buf.String()
+}
+
+// cleanupAndExit cleans all resources allocated by system-probe before calling
+// os.Exit
+func cleanupAndExit(status int) {
+	// remove pidfile if set
+	if opts.pidFilePath != "" {
+		if _, err := os.Stat(opts.pidFilePath); err == nil {
+			os.Remove(opts.pidFilePath)
+		}
+	}
+
+	os.Exit(status)
 }

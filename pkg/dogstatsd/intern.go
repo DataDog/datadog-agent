@@ -1,17 +1,34 @@
 package dogstatsd
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	// Amount of resets of the string interner used in dogstatsd
+	// Note that it's not ideal because there is many allocated string interner
+	// (one per worker) but it'll still give us an insight (and it's comparable
+	// as long as the amount of worker is stable).
+	tlmSIResets = telemetry.NewCounter("dogstatsd", "string_interner_resets",
+		nil, "Amount of resets of the string interner used in dogstatsd")
+)
+
 // stringInterner is a string cache providing a longer life for strings,
 // helping to avoid GC runs because they're re-used many times instead of
 // created every time.
 type stringInterner struct {
 	strings map[string]string
 	maxSize int
+	// telemetry
+	tlmEnabled bool
 }
 
 func newStringInterner(maxSize int) *stringInterner {
 	return &stringInterner{
-		strings: make(map[string]string),
-		maxSize: maxSize,
+		strings:    make(map[string]string),
+		maxSize:    maxSize,
+		tlmEnabled: telemetry.IsEnabled(),
 	}
 }
 
@@ -30,6 +47,10 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	}
 	if len(i.strings) >= i.maxSize {
 		i.strings = make(map[string]string)
+		log.Debug("clearing the string interner cache")
+		if i.tlmEnabled {
+			tlmSIResets.Inc()
+		}
 	}
 	s := string(key)
 	i.strings[s] = s

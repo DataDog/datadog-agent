@@ -4,6 +4,8 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
+// +build linux
+// As we compare some paths, running the tests on Linux only
 
 package legacy
 
@@ -86,7 +88,8 @@ func TestConvertDocker(t *testing.T) {
 	err = ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
 	require.Nil(t, err)
 
-	err = ImportDockerConf(src, dst, true)
+	configConverter := config.NewConfigConverter()
+	err = ImportDockerConf(src, dst, true, configConverter)
 	require.Nil(t, err)
 
 	newConf, err := ioutil.ReadFile(filepath.Join(dir, "docker.yaml"))
@@ -105,12 +108,12 @@ func TestConvertDocker(t *testing.T) {
 		config.Datadog.GetStringMapString("docker_labels_as_tags"))
 
 	// test overwrite
-	err = ImportDockerConf(src, dst, false)
+	err = ImportDockerConf(src, dst, false, configConverter)
 	require.NotNil(t, err)
 	_, err = os.Stat(filepath.Join(dir, "docker.yaml.bak"))
 	assert.True(t, os.IsNotExist(err))
 
-	err = ImportDockerConf(src, dst, true)
+	err = ImportDockerConf(src, dst, true, configConverter)
 	require.Nil(t, err)
 	_, err = os.Stat(filepath.Join(dir, "docker.yaml.bak"))
 	assert.False(t, os.IsNotExist(err))

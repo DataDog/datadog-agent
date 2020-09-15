@@ -149,31 +149,93 @@ func TestSetField(t *testing.T) {
 
 func TestDigest(t *testing.T) {
 	emptyConfig := &Config{}
-	assert.Equal(t, "cbf29ce484222325", emptyConfig.Digest())
+	assert.Equal(t, "8cbd29bb83d5daa", emptyConfig.Digest())
 	simpleConfig := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
 	}
-	assert.Equal(t, "d8cbc7186ba13533", simpleConfig.Digest())
+	assert.Equal(t, "86fa755714dd0344", simpleConfig.Digest())
 	simpleConfigWithLogs := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
-	assert.Equal(t, "6253da85b1624771", simpleConfigWithLogs.Digest())
+	assert.Equal(t, "6221a1957297b66", simpleConfigWithLogs.Digest())
 	simpleConfigWithInstances := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
 		Instances:  []Data{Data("{foo:bar}")},
 	}
-	assert.Equal(t, "148659939ea7642e", simpleConfigWithInstances.Digest())
+	assert.Equal(t, "88e8dfc8b715052", simpleConfigWithInstances.Digest())
 	simpleConfigWithInstancesAndLogs := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
 		Instances:  []Data{Data("{foo:bar}")},
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
-	assert.Equal(t, "acb889a316f2b01a", simpleConfigWithInstancesAndLogs.Digest())
+	assert.Equal(t, "6692ced6b2ad5480", simpleConfigWithInstancesAndLogs.Digest())
+	simpleConfigWithTags := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("tags: [\"foo\", \"foo:bar\"]")},
+	}
+	assert.Equal(t, "4702b7464dedf680", simpleConfigWithTags.Digest())
+	simpleConfigWithOtherTags := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("tags: [\"foo\", \"foo:baf\"]")},
+	}
+	assert.Equal(t, "c3fabecd59ae4584", simpleConfigWithOtherTags.Digest())
+
+	// assert a character change in a tag produces different hash
+	assert.NotEqual(t, simpleConfigWithTags.Digest(), simpleConfigWithOtherTags.Digest())
+
+	simpleConfigWithTagsDifferentOrder := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("tags: [\"foo:bar\", \"foo\"]")},
+	}
+	assert.Equal(t, "4702b7464dedf680", simpleConfigWithTagsDifferentOrder.Digest())
+
+	// assert an order change in the tags list doesn't change the hash
+	assert.Equal(t, simpleConfigWithTags.Digest(), simpleConfigWithTagsDifferentOrder.Digest())
+
+	simpleClusterCheckConfig := &Config{
+		Name:         "foo",
+		InitConfig:   Data(""),
+		ClusterCheck: true,
+	}
+	assert.Equal(t, "86fa755714dd0344", simpleClusterCheckConfig.Digest())
+
+	// assert the ClusterCheck field is not taken into account
+	assert.Equal(t, simpleConfig.Digest(), simpleClusterCheckConfig.Digest())
+
+	configWithEntity := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Entity:     "docker://f556178a47cf65fb70cd5772a9e80e661f71e021da49d3dc99565b861707041c",
+	}
+	assert.Equal(t, "6f0d4b04bfbf4321", configWithEntity.Digest())
+
+	configWithAnotherEntity := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Entity:     "docker://ddcd8a64616772f7ad4524f09fd75c9e3a265144050fc077563e63ea2eb46db0",
+	}
+	assert.Equal(t, "22e040015f8c50b1", configWithAnotherEntity.Digest())
+
+	// assert an entity change produces different hash
+	assert.NotEqual(t, configWithEntity.Digest(), configWithAnotherEntity.Digest())
+
+	simpleIngoreADTagsConfig := &Config{
+		Name:                    "foo",
+		InitConfig:              Data(""),
+		IgnoreAutodiscoveryTags: true,
+	}
+	assert.Equal(t, "ef50ccb77f4cc8eb", simpleIngoreADTagsConfig.Digest())
+
+	// assert the ClusterCheck field is not taken into account
+	assert.NotEqual(t, simpleConfig.Digest(), simpleIngoreADTagsConfig.Digest())
 }
 
 func TestGetNameForInstance(t *testing.T) {

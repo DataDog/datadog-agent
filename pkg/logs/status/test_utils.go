@@ -13,6 +13,6 @@ import (
 // InitStatus initialize a status builder
 func InitStatus(sources *config.LogSources) {
 	var isRunning int32 = 1
-	endpoints, _ := config.BuildEndpoints()
+	endpoints, _ := config.BuildEndpoints(config.HTTPConnectivityFailure)
 	Init(&isRunning, endpoints, sources, metrics.LogsExpvars)
 }

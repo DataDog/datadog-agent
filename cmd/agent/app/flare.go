@@ -7,21 +7,26 @@ package app
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"os"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 var (
+	pprofURL      string
 	customerEmail string
 	autoconfirm   bool
+	forceLocal    bool
+	profiling     int
 )
 
 func init() {
@@ -29,6 +34,8 @@ func init() {
 
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
+	flareCmd.Flags().IntVarP(&profiling, "profile", "p", -1, "Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -68,47 +75,46 @@ var flareCmd = &cobra.Command{
 			}
 		}
 
-		return requestFlare(caseID)
+		return makeFlare(caseID)
 	},
 }
 
-func requestFlare(caseID string) error {
-	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	var e error
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
-
+func makeFlare(caseID string) error {
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
 
-	// Set session token
-	e = util.SetAuthToken()
-	if e != nil {
-		return e
+	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
+	var profile *flare.Profile
+	var err error
+	if profiling >= 30 {
+		fmt.Fprintln(color.Output, color.BlueString("Creating a %ds performance profile.", profiling))
+		profile, err = flare.CreatePerformanceProfile(pprofURL, profiling)
+		if err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
+			return err
+		}
+	} else if profiling != -1 {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", profiling)))
+		return err
 	}
 
-	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string
-	if e != nil {
-		if r != nil && string(r) != "" {
-			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
-		} else {
-			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
-		}
-		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
-		if e != nil {
-			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
-			return e
-		}
+	if forceLocal {
+		filePath, err = createArchive(logFile, profile)
 	} else {
-		filePath = string(r)
+		filePath, err = requestArchive(logFile, profile)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(filePath); err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
+		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
+		return err
 	}
 
 	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
@@ -126,4 +132,51 @@ func requestFlare(caseID string) error {
 		return e
 	}
 	return nil
+}
+
+func requestArchive(logFile string, profile *flare.Profile) (string, error) {
+	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
+	var e error
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
+		return createArchive(logFile, profile)
+	}
+
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
+
+	// Set session token
+	e = util.SetAuthToken()
+	if e != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
+		return createArchive(logFile, profile)
+	}
+
+	p, err := json.Marshal(profile)
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", e)))
+		return "", err
+	}
+
+	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
+	if e != nil {
+		if r != nil && string(r) != "" {
+			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
+		} else {
+			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
+		}
+		return createArchive(logFile, profile)
+	}
+	return string(r), nil
+}
+
+func createArchive(logFile string, profile *flare.Profile) (string, error) {
+	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
+	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile, profile)
+	if e != nil {
+		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
+		return "", e
+	}
+	return filePath, nil
 }

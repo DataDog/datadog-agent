@@ -30,6 +30,7 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -69,6 +70,7 @@ func TestSuiteAPIServer(t *testing.T) {
 
 func (suite *apiserverSuite) SetupTest() {
 	leaderelection.ResetGlobalLeaderEngine()
+	telemetry.Reset()
 
 	tick := time.NewTicker(time.Millisecond * 500)
 	timeout := time.NewTicker(setupTimeout)
@@ -118,6 +120,7 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
 	leaderelection.ResetGlobalLeaderEngine()
+	telemetry.Reset()
 
 	leader, err := leaderelection.GetCustomLeaderEngine(holderIdentity, time.Second*30)
 	require.Nil(suite.T(), err)

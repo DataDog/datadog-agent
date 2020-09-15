@@ -64,7 +64,7 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 	}
 }
 
-func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
+func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -73,7 +73,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf 
 	autoscalerController, _ := NewAutoscalersController(
 		client,
 		eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
-		itf,
+		isLeaderFunc,
 		dcl,
 	)
 	autoscalerController.EnableHPA(informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
@@ -83,13 +83,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf 
 	return autoscalerController, informerFactory
 }
 
-var alwaysLeader = &fakeLeaderElector{true}
-
-type fakeLeaderElector struct {
-	isLeader bool
-}
-
-func (le *fakeLeaderElector) IsLeader() bool { return le.isLeader }
+var alwaysLeader = func() bool { return true }
 
 type fakeDatadogClient struct {
 	queryMetricsFunc  func(from, to int64, query string) ([]datadog.Series, error)
@@ -112,6 +106,9 @@ func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValu
 		return h.processFunc(metrics)
 	}
 	return nil
+}
+func (h *fakeProcessor) QueryExternalMetric(queries []string) (map[string]autoscalers.Point, error) {
+	return nil, nil
 }
 
 func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
@@ -291,15 +288,6 @@ func TestAutoscalerController(t *testing.T) {
 			},
 			Scope: makePtr("foo:bar"),
 		},
-		{
-			Metric: &metricName,
-			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12.34),
-				makePoints(penTime, 1.01),
-				makePoints(0, 0.902),
-			},
-			Scope: makePtr("dcos_version:2.1.9"),
-		},
 	}
 	d := &fakeDatadogClient{
 		queryMetricsFunc: func(from, to int64, query string) ([]datadog.Series, error) {
@@ -336,7 +324,8 @@ func TestAutoscalerController(t *testing.T) {
 	timeout := time.NewTimer(5 * time.Second)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	select {
-	case <-hctrl.autoscalers:
+	case key := <-hctrl.autoscalers:
+		t.Logf("hctrl process key:%s", key)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -384,11 +373,23 @@ func TestAutoscalerController(t *testing.T) {
 			},
 		},
 	}
+	ddSeries = []datadog.Series{
+		{
+			Metric: &metricName,
+			Points: []datadog.DataPoint{
+				makePoints(1531492452000, 12.34),
+				makePoints(penTime, 1.01),
+				makePoints(0, 0.902),
+			},
+			Scope: makePtr("dcos_version:2.1.9"),
+		},
+	}
 	mockedHPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
 	_, err = c.HorizontalPodAutoscalers(mockedHPA.Namespace).Update(mockedHPA)
 	require.NoError(t, err)
 	select {
-	case <-hctrl.autoscalers:
+	case key := <-hctrl.autoscalers:
+		t.Logf("hctrl process key:%s", key)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -440,7 +441,8 @@ func TestAutoscalerController(t *testing.T) {
 	_, err = c.HorizontalPodAutoscalers("default").Create(newMockedHPA)
 	require.NoError(t, err)
 	select {
-	case <-hctrl.autoscalers:
+	case key := <-hctrl.autoscalers:
+		t.Logf("hctrl process key:%s", key)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -564,9 +566,8 @@ func TestAutoscalerControllerGC(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
-			i := &fakeLeaderElector{}
 			d := &fakeDatadogClient{}
-			hctrl, inf := newFakeAutoscalerController(t, client, i, d)
+			hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, d)
 
 			hctrl.store = store
 

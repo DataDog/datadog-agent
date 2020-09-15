@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -147,9 +148,9 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
 		},
 	} {
-		oq, err := NewObfuscator(nil).obfuscateSQLString(tt.in)
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
 		assert.NoError(err)
-		assert.Equal(tt.out, oq.query)
+		assert.Equal(tt.out, oq.Query)
 	}
 }
 
@@ -213,17 +214,17 @@ func TestSQLTableFinder(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).obfuscateSQLString(tt.query)
+				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
-				assert.Equal(tt.tables, oq.tablesCSV)
+				assert.Equal(tt.tables, oq.TablesCSV)
 			})
 		}
 	})
 
 	t.Run("off", func(t *testing.T) {
-		oq, err := NewObfuscator(nil).obfuscateSQLString("DELETE FROM table WHERE table.a=1")
+		oq, err := NewObfuscator(nil).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
-		assert.Empty(t, oq.tablesCSV)
+		assert.Empty(t, oq.TablesCSV)
 	})
 }
 
@@ -538,6 +539,14 @@ ORDER BY [b].[Name]`,
 			`SELECT * FROM foo LEFT JOIN bar ON 'embedded \'quote\' in string' = foo.b WHERE foo.name = 'String'`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
+		{
+			`SELECT a :: VARCHAR(255) FROM foo WHERE foo.name = 'String'`,
+			`SELECT a :: VARCHAR ( ? ) FROM foo WHERE foo.name = ?`,
+		},
+		{
+			"SELECT MIN(`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_8720d2c0e0824ec2910ab9479085839c`) AS `MIN_BECR_DATE_CREATED` FROM (SELECT `49a39c4cc9ae4fdda07bcf49e99f8224`.`submittedOn` AS `scoped_8720d2c0e0824ec2910ab9479085839c`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`domain` AS `scoped_847e4dcfa1c54d72aad6dbeb231c46de`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventConsumer` AS `scoped_7b2f7b8da15646d1b75aa03901460eb2`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventType` AS `scoped_77a1b9308b384a9391b69d24335ba058` FROM (`SorDesignTime`.`businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e` AS `49a39c4cc9ae4fdda07bcf49e99f8224`) WHERE (`49a39c4cc9ae4fdda07bcf49e99f8224`.`systemData.ClientID`) = ('35c1ccc0-a83c-4812-a189-895e9d4dd223')) AS `scoped_49a39c4cc9ae4fdda07bcf49e99f8224` WHERE ((`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_847e4dcfa1c54d72aad6dbeb231c46de`) = ('Benefits') AND ((`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_7b2f7b8da15646d1b75aa03901460eb2`) = ('benefits') AND (`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_77a1b9308b384a9391b69d24335ba058`) = ('DMXSync'))); ",
+			"SELECT MIN ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_8720d2c0e0824ec2910ab9479085839c ) FROM ( SELECT 49a39c4cc9ae4fdda07bcf49e99f8224 . submittedOn, 49a39c4cc9ae4fdda07bcf49e99f8224 . domain, 49a39c4cc9ae4fdda07bcf49e99f8224 . eventConsumer, 49a39c4cc9ae4fdda07bcf49e99f8224 . eventType FROM ( SorDesignTime . businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e ) WHERE ( 49a39c4cc9ae4fdda07bcf49e99f8224 . systemData.ClientID ) = ( ? ) ) WHERE ( ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_847e4dcfa1c54d72aad6dbeb231c46de ) = ( ? ) AND ( ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_7b2f7b8da15646d1b75aa03901460eb2 ) = ( ? ) AND ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_77a1b9308b384a9391b69d24335ba058 ) = ( ? ) ) )",
+		},
 	}
 
 	for _, c := range cases {
@@ -657,6 +666,11 @@ in the middle'`,
 			`'String with backslash \ in the middle missing closing quote`,
 			"String with backslash  in the middle missing closing quote",
 			LexError,
+		},
+		{
+			`::`,
+			`::`,
+			ColonCast,
 		},
 		// The following case will treat the final quote as unescaped
 		{
@@ -837,9 +851,9 @@ LIMIT 1000`,
 
 	// The consumer is the same between executions
 	for _, tc := range testCases {
-		oq, err := NewObfuscator(nil).obfuscateSQLString(tc.query)
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(tc.query)
 		assert.Nil(err)
-		assert.Equal(tc.expected, oq.query)
+		assert.Equal(tc.expected, oq.Query)
 	}
 }
 
@@ -850,7 +864,7 @@ func TestConsumerError(t *testing.T) {
 	// what to do with malformed SQL
 	input := "SELECT * FROM users WHERE users.id = '1 AND users.name = 'dog'"
 
-	_, err := NewObfuscator(nil).obfuscateSQLString(input)
+	_, err := NewObfuscator(nil).ObfuscateSQLString(input)
 	assert.NotNil(err)
 }
 
@@ -870,12 +884,6 @@ func TestSQLErrors(t *testing.T) {
 			"SELECT 🥒",
 			`at position 11: unexpected byte 129362`,
 		},
-
-		{
-			"SELECT name, `1a` FROM profile",
-			`at position 14: unexpected character "1" (49) in literal identifier`,
-		},
-
 		{
 			"SELECT name, `age}` FROM profile",
 			`at position 17: literal identifiers must end in "` + "`" + `", got "}" (125)`,
@@ -934,7 +942,7 @@ func TestSQLErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
-			_, err := NewObfuscator(nil).obfuscateSQLString(tc.query)
+			_, err := NewObfuscator(nil).ObfuscateSQLString(tc.query)
 			assert.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
@@ -988,7 +996,7 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			o := NewObfuscator(nil)
 			o.SetSQLLiteralEscapes(c.initial)
-			_, err := o.obfuscateSQLString(c.query)
+			_, err := o.ObfuscateSQLString(c.query)
 			if c.err != nil {
 				assert.Equal(t, c.err, err)
 			} else {
@@ -1000,7 +1008,7 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 }
 
 // Benchmark the Tokenizer using a SQL statement
-func BenchmarkTokenizer(b *testing.B) {
+func BenchmarkObfuscateSQLString(b *testing.B) {
 	benchmarks := []struct {
 		name  string
 		query string
@@ -1008,13 +1016,86 @@ func BenchmarkTokenizer(b *testing.B) {
 		{"Escaping", `INSERT INTO delayed_jobs (attempts, created_at, failed_at, handler, last_error, locked_at, locked_by, priority, queue, run_at, updated_at) VALUES (0, '2016-12-04 17:09:59', NULL, '--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/object:Item\n  store:\n  - a simple string\n  - an \'escaped \' string\n  - another \'escaped\' string\n  - 42\n  string: a string with many \\\\\'escapes\\\\\'\nmethod_name: :show_store\nargs: []\n', NULL, NULL, NULL, 0, NULL, '2016-12-04 17:09:59', '2016-12-04 17:09:59')`},
 		{"Grouping", `INSERT INTO delayed_jobs (created_at, failed_at, handler) VALUES (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL)`},
 	}
+	obf := NewObfuscator(nil)
 	for _, bm := range benchmarks {
 		b.Run(bm.name+"/"+strconv.Itoa(len(bm.query)), func(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, _ = NewObfuscator(nil).obfuscateSQLString(bm.query)
+				_, err := obf.ObfuscateSQLString(bm.query)
+				if err != nil {
+					b.Fatal(err)
+				}
 			}
+		})
+	}
+
+	b.Run("random", func(b *testing.B) {
+		var j uint64
+		for i := 0; i < b.N; i++ {
+			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+// BenchmarkQueryCacheTippingPoint is meant to help evaluate the minimum cache hit rate needed for the
+// query cache to become performance beneficial.
+//
+// The first test in each suite (called "off") is the comparison point without a cache. The tipping
+// point is the hit rate at which the results are better than "off", with cache.
+func BenchmarkQueryCacheTippingPoint(b *testing.B) {
+	queries := 1000
+
+	bench1KQueries := func(
+		fn func(*Obfuscator, string) (*ObfuscatedQuery, error), // obfuscating function
+		hitrate float64, // desired cache hit rate
+		queryfmt string, // actual query (passed to fmt.Sprintf)
+	) func(*testing.B) {
+		if hitrate < 0 || hitrate > 1 {
+			b.Fatalf("invalid hit rate %.2f", hitrate)
+		}
+		return func(b *testing.B) {
+			o := NewObfuscator(nil)
+			hitcount := int(float64(queries) * hitrate)
+			var idx uint64
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for n := 0; n < hitcount; n++ {
+					if _, err := fn(o, fmt.Sprintf(queryfmt, -1)); err != nil {
+						b.Fatal(err)
+					}
+				}
+				for n := 0; n < queries-hitcount; n++ {
+					if _, err := fn(o, fmt.Sprintf(queryfmt, atomic.AddUint64(&idx, 1))); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+		}
+	}
+
+	for name, queryfmt := range map[string]string{
+		"shorter":     `SELECT * FROM users WHERE id=%d`,
+		"medium":      `INSERT INTO delayed_jobs (created_at, failed_at, handler) VALUES (%d, '2016-12-04 17:09:5912', NULL)`,
+		"medium-long": `INSERT INTO delayed_jobs (created_at, failed_at, handler) VALUES (%d, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL)`,
+		"long":        "SELECT\r\n\t                CodiFormacio\r\n\t                ,DataInici\r\n\t                ,DataFi\r\n\t                ,Tipo\r\n\t                ,CodiTecnicFormador\r\n\t                ,p.nombre AS TutorNombre\r\n\t                ,p.mail AS TutorMail\r\n\t                ,Sessions.Direccio\r\n\t                ,Sessions.NomEmpresa\r\n\t                ,Sessions.Telefon\r\n FROM\r\n\r\n\t when ModalitatSessio = '2' then 'Presencial'--Practica\r\n\t  when ModalitatSessio = '3' then 'Online'--Tutoria\r\n  when ModalitatSessio = '4' then 'Presencial'--Examen\r\n\t  ELSE 'Presencial'\r\n\t end as Tipo\r\n\t   ,ModalitatSessio\r\n\t ,DataInici\r\n\t  ,DataFi\r\n    ,CASE\r\n\t                   WHEn EsAltres = 1 then FormacioLlocImparticioDescripcio\r\n\t else Adreca + ' - ' + CodiPostal + ' ' + Poblacio\r\n\t                end as Direccio\r\n\t\r\n                FROM Consultas.dbo.View_AsActiva__FormacioSessions_InfoLlocImparticio) AS Sessions\r\n WHERE Sessions.CodiFormacio = '%d'",
+		"longer":      "SELECT\r\n\t                CodiFormacio\r\n\t                ,DataInici\r\n\t                ,DataFi\r\n\t                ,Tipo\r\n\t                ,CodiTecnicFormador\r\n\t                ,p.nombre AS TutorNombre\r\n\t                ,p.mail AS TutorMail\r\n\t                ,Sessions.Direccio\r\n\t                ,Sessions.NomEmpresa\r\n\t                ,Sessions.Telefon\r\n                FROM\r\n                ----------------------------\r\n                (SELECT\r\n\t                CodiFormacio\r\n\t                ,case\r\n\t                   when ModalitatSessio = '1' then 'Presencial'--Teoria\r\n\t                   when ModalitatSessio = '2' then 'Presencial'--Practica\r\n\t                   when ModalitatSessio = '3' then 'Online'--Tutoria\r\n                       when ModalitatSessio = '4' then 'Presencial'--Examen\r\n\t                   ELSE 'Presencial'\r\n\t                end as Tipo\r\n\t                ,ModalitatSessio\r\n\t                ,DataInici\r\n\t                ,DataFi\r\n                     ,NomEmpresa\r\n\t                ,Telefon\r\n\t                ,CodiTecnicFormador\r\n\t                ,CASE\r\n\t                   WHEn EsAltres = 1 then FormacioLlocImparticioDescripcio\r\n\t                   else Adreca + ' - ' + CodiPostal + ' ' + Poblacio\r\n\t                end as Direccio\r\n\t\r\n                FROM Consultas.dbo.View_AsActiva__FormacioSessions_InfoLlocImparticio) AS Sessions\r\n                ----------------------------------------\r\n                LEFT JOIN Consultas.dbo.View_AsActiva_Operari AS o\r\n\t                ON o.CodiOperari = Sessions.CodiTecnicFormador\r\n                LEFT JOIN MainAPP.dbo.persona AS p\r\n\t                ON 'preven\\' + o.codioperari = p.codi\r\n                WHERE Sessions.CodiFormacio = '%d'",
+		"xlong":       "select top ? percent IdTrebEmpresa, CodCli, NOMEMP, Baixa, CASE WHEN IdCentreTreball IS ? THEN ? ELSE CONVERT ( VARCHAR ( ? ) IdCentreTreball ) END, CASE WHEN NOMESTAB IS ? THEN ? ELSE NOMESTAB END, TIPUS, CASE WHEN IdLloc IS ? THEN ? ELSE CONVERT ( VARCHAR ( ? ) IdLloc ) END, CASE WHEN NomLlocComplert IS ? THEN ? ELSE NomLlocComplert END, CASE WHEN DesLloc IS ? THEN ? ELSE DesLloc END, IdLlocTreballUnic From ( SELECT ?, dbo.Treb_Empresa.IdTrebEmpresa, dbo.Treb_Empresa.IdTreballador, dbo.Treb_Empresa.CodCli, dbo.Clients.NOMEMP, dbo.Treb_Empresa.Baixa, dbo.Treb_Empresa.IdCentreTreball, dbo.Cli_Establiments.NOMESTAB, ?, ?, dbo.Treb_Empresa.DataInici, dbo.Treb_Empresa.DataFi, CASE WHEN dbo.Treb_Empresa.DesLloc IS ? THEN ? ELSE dbo.Treb_Empresa.DesLloc END DesLloc, dbo.Treb_Empresa.IdLlocTreballUnic FROM dbo.Clients WITH ( NOLOCK ) INNER JOIN dbo.Treb_Empresa WITH ( NOLOCK ) ON dbo.Clients.CODCLI = dbo.Treb_Empresa.CodCli LEFT OUTER JOIN dbo.Cli_Establiments WITH ( NOLOCK ) ON dbo.Cli_Establiments.Id_ESTAB_CLI = dbo.Treb_Empresa.IdCentreTreball AND dbo.Cli_Establiments.CODCLI = dbo.Treb_Empresa.CodCli WHERE dbo.Treb_Empresa.IdTreballador = ? AND Treb_Empresa.IdTecEIRLLlocTreball IS ? AND IdMedEIRLLlocTreball IS ? AND IdLlocTreballTemporal IS ? UNION ALL SELECT ?, dbo.Treb_Empresa.IdTrebEmpresa, dbo.Treb_Empresa.IdTreballador, dbo.Treb_Empresa.CodCli, dbo.Clients.NOMEMP, dbo.Treb_Empresa.Baixa, dbo.Treb_Empresa.IdCentreTreball, dbo.Cli_Establiments.NOMESTAB, dbo.Treb_Empresa.IdTecEIRLLlocTreball, dbo.fn_NomLlocComposat ( dbo.Treb_Empresa.IdTecEIRLLlocTreball ), dbo.Treb_Empresa.DataInici, dbo.Treb_Empresa.DataFi, CASE WHEN dbo.Treb_Empresa.DesLloc IS ? THEN ? ELSE dbo.Treb_Empresa.DesLloc END DesLloc, dbo.Treb_Empresa.IdLlocTreballUnic FROM dbo.Clients WITH ( NOLOCK ) INNER JOIN dbo.Treb_Empresa WITH ( NOLOCK ) ON dbo.Clients.CODCLI = dbo.Treb_Empresa.CodCli LEFT OUTER JOIN dbo.Cli_Establiments WITH ( NOLOCK ) ON dbo.Cli_Establiments.Id_ESTAB_CLI = dbo.Treb_Empresa.IdCentreTreball AND dbo.Cli_Establiments.CODCLI = dbo.Treb_Empresa.CodCli WHERE ( dbo.Treb_Empresa.IdTreballador = ? ) AND ( NOT ( dbo.Treb_Empresa.IdTecEIRLLlocTreball IS ? ) ) UNION ALL SELECT ?, dbo.Treb_Empresa.IdTrebEmpresa, dbo.Treb_Empresa.IdTreballador, dbo.Treb_Empresa.CodCli, dbo.Clients.NOMEMP, dbo.Treb_Empresa.Baixa, dbo.Treb_Empresa.IdCentreTreball, dbo.Cli_Establiments.NOMESTAB, dbo.Treb_Empresa.IdMedEIRLLlocTreball, dbo.fn_NomMedEIRLLlocComposat ( dbo.Treb_Empresa.IdMedEIRLLlocTreball ), dbo.Treb_Empresa.DataInici, dbo.Treb_Empresa.DataFi, CASE WHEN dbo.Treb_Empresa.DesLloc IS ? THEN ? ELSE dbo.Treb_Empresa.DesLloc END DesLloc, dbo.Treb_Empresa.IdLlocTreballUnic FROM dbo.Clients WITH ( NOLOCK ) INNER JOIN dbo.Treb_Empresa WITH ( NOLOCK ) ON dbo.Clients.CODCLI = dbo.Treb_Empresa.CodCli LEFT OUTER JOIN dbo.Cli_Establiments WITH ( NOLOCK ) ON dbo.Cli_Establiments.Id_ESTAB_CLI = dbo.Treb_Empresa.IdCentreTreball AND dbo.Cli_Establiments.CODCLI = dbo.Treb_Empresa.CodCli WHERE ( dbo.Treb_Empresa.IdTreballador = ? ) AND ( Treb_Empresa.IdTecEIRLLlocTreball IS ? ) AND ( NOT ( dbo.Treb_Empresa.IdMedEIRLLlocTreball IS ? ) ) UNION ALL SELECT ?, dbo.Treb_Empresa.IdTrebEmpresa, dbo.Treb_Empresa.IdTreballador, dbo.Treb_Empresa.CodCli, dbo.Clients.NOMEMP, dbo.Treb_Empresa.Baixa, dbo.Treb_Empresa.IdCentreTreball, dbo.Cli_Establiments.NOMESTAB, dbo.Treb_Empresa.IdLlocTreballTemporal, dbo.Lloc_Treball_Temporal.NomLlocTreball, dbo.Treb_Empresa.DataInici, dbo.Treb_Empresa.DataFi, CASE WHEN dbo.Treb_Empresa.DesLloc IS ? THEN ? ELSE dbo.Treb_Empresa.DesLloc END DesLloc, dbo.Treb_Empresa.IdLlocTreballUnic FROM dbo.Clients WITH ( NOLOCK ) INNER JOIN dbo.Treb_Empresa WITH ( NOLOCK ) ON dbo.Clients.CODCLI = dbo.Treb_Empresa.CodCli INNER JOIN dbo.Lloc_Treball_Temporal WITH ( NOLOCK ) ON dbo.Treb_Empresa.IdLlocTreballTemporal = dbo.Lloc_Treball_Temporal.IdLlocTreballTemporal LEFT OUTER JOIN dbo.Cli_Establiments WITH ( NOLOCK ) ON dbo.Cli_Establiments.Id_ESTAB_CLI = dbo.Treb_Empresa.IdCentreTreball AND dbo.Cli_Establiments.CODCLI = dbo.Treb_Empresa.CodCli WHERE dbo.Treb_Empresa.IdTreballador = ? AND Treb_Empresa.IdTecEIRLLlocTreball IS ? AND IdMedEIRLLlocTreball IS ? ) Where ? = %d",
+	} {
+		b.Run(fmt.Sprintf("%s-%d", name, len(queryfmt)), func(b *testing.B) {
+			b.Run("off", bench1KQueries((*Obfuscator).obfuscateSQLString, 1, queryfmt))
+			b.Run("0%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0, queryfmt))
+			b.Run("1%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.01, queryfmt))
+			b.Run("5%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.05, queryfmt))
+			b.Run("10%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.1, queryfmt))
+			b.Run("20%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.2, queryfmt))
+			b.Run("30%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.3, queryfmt))
+			b.Run("50%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.5, queryfmt))
+			b.Run("70%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.7, queryfmt))
+			b.Run("100%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 1, queryfmt))
 		})
 	}
 }
@@ -1067,4 +1148,10 @@ func TestCassQuantizer(t *testing.T) {
 		NewObfuscator(nil).Obfuscate(s)
 		assert.Equal(testCase.expected, s.Resource)
 	}
+}
+
+func TestUnicodeDigit(t *testing.T) {
+	hangStr := "٩"
+	o := NewObfuscator(nil)
+	o.ObfuscateSQLString(hangStr)
 }

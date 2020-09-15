@@ -1,5 +1,3 @@
-// +build linux
-
 package checks
 
 import (
@@ -52,9 +50,6 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 // Name returns the name of the ProcessCheck.
 func (c *ContainerCheck) Name() string { return "container" }
 
-// Endpoint returns the endpoint where this check is submitted.
-func (c *ContainerCheck) Endpoint() string { return "/api/v1/container" }
-
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ContainerCheck) RealTime() bool { return false }
 
@@ -78,6 +73,11 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, err
 	}
 
+	if len(ctrList) == 0 {
+		log.Trace("no containers found")
+		return nil, nil
+	}
+
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(ctrList)
 
@@ -99,12 +99,13 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	for i := 0; i < groupSize; i++ {
 		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorContainer{
-			HostName:   cfg.HostName,
-			NetworkId:  c.networkID,
-			Info:       c.sysInfo,
-			Containers: chunked[i],
-			GroupId:    groupID,
-			GroupSize:  int32(groupSize),
+			HostName:          cfg.HostName,
+			NetworkId:         c.networkID,
+			Info:              c.sysInfo,
+			Containers:        chunked[i],
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 
@@ -112,28 +113,14 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	c.lastRun = time.Now()
 	c.lastCtrIDForPID = ctrIDForPID(ctrList)
 
-	statsd.Client.Gauge("datadog.process.containers.host_count", totalContainers, []string{}, 1)
+	statsd.Client.Gauge("datadog.process.containers.host_count", totalContainers, []string{}, 1) //nolint:errcheck
 	log.Debugf("collected %d containers in %s", int(totalContainers), time.Now().Sub(start))
 	return messages, nil
 }
 
-// filterCtrIDsByPIDs uses lastCtrIDForPID and filter down only the pid -> cid that we need
-func (c *ContainerCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
-	c.Lock()
-	defer c.Unlock()
-
-	ctrByPid := make(map[int32]string)
-	for _, pid := range pids {
-		if cid, ok := c.lastCtrIDForPID[pid]; ok {
-			ctrByPid[pid] = cid
-		}
-	}
-	return ctrByPid
-}
-
 // fmtContainers loops through container list and converts them to a list of container objects
 func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time) []*model.Container {
-	containers := make([]*model.Container, 0, len(ctrList))
+	containersList := make([]*model.Container, 0, len(ctrList))
 	for _, ctr := range ctrList {
 		lastCtr, ok := lastRates[ctr.ID]
 		if !ok {
@@ -156,14 +143,21 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			tags = []string{}
 		}
 
-		containers = append(containers, &model.Container{
+		if ctr.Type == containers.RuntimeNameGarden && len(tags) == 0 {
+			// If there is an error retrieving tags, don't send the container for garden. It means it hasn't yet been
+			// discovered by the cluster agent, so avoid sending something with no tags, i.e. no container name, ...
+			log.Debugf("No tags found for app %s, it has probably not been discovered by the DCA, skipping.", ctr.ID)
+			continue
+		}
+
+		containersList = append(containersList, &model.Container{
 			Id:          ctr.ID,
 			Type:        ctr.Type,
-			CpuLimit:    float32(ctr.CPULimit),
+			CpuLimit:    float32(ctr.Limits.CPULimit),
 			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
 			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
 			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			MemoryLimit: ctr.MemLimit,
+			MemoryLimit: ctr.Limits.MemLimit,
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
 			Created:     ctr.Created,
@@ -175,14 +169,14 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			NetSentPs:   calculateRate(ifStats.PacketsSent, lastCtr.NetworkSum.PacketsSent, lastRun),
 			NetRcvdBps:  calculateRate(ifStats.BytesRcvd, lastCtr.NetworkSum.BytesRcvd, lastRun),
 			NetSentBps:  calculateRate(ifStats.BytesSent, lastCtr.NetworkSum.BytesSent, lastRun),
-			ThreadCount: ctr.ThreadCount,
-			ThreadLimit: ctr.ThreadLimit,
+			ThreadCount: ctr.CPU.ThreadCount,
+			ThreadLimit: ctr.Limits.ThreadLimit,
 			Addresses:   convertAddressList(ctr),
 			Started:     ctr.StartedAt,
 			Tags:        tags,
 		})
 	}
-	return containers
+	return containersList
 }
 
 // chunkContainers formats and chunks the ctrList into a slice of chunks using a specific number of chunks.
@@ -233,7 +227,7 @@ func fillNilContainer(ctr *containers.Container) *containers.Container {
 		ctr.Network = util.NullContainerRates.Network
 	}
 	if ctr.Memory == nil {
-		ctr.Memory = &metrics.CgroupMemStat{}
+		ctr.Memory = &metrics.ContainerMemStats{}
 	}
 	return ctr
 }

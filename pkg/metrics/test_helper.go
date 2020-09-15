@@ -15,6 +15,7 @@ import (
 	// 3p
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,7 +43,7 @@ func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
 	for _, serie := range series {
 		found := false
 		for _, expectedSerie := range expected {
-			if ckey.Compare(serie.ContextKey, expectedSerie.ContextKey) == 0 {
+			if ckey.Equals(serie.ContextKey, expectedSerie.ContextKey) {
 				AssertSerieEqual(t, expectedSerie, serie)
 				found = true
 			}
@@ -70,8 +71,23 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	AssertPointsEqual(t, expected.Points, actual.Points)
 }
 
+type sketchComparator func(exp, act *quantile.Sketch) bool
+
 // AssertSketchSeriesEqual checks whether two SketchSeries are equal
 func AssertSketchSeriesEqual(t assert.TestingT, exp, act SketchSeries) {
+	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
+		return exp.Equals(act)
+	})
+}
+
+// AssertSketchSeriesApproxEqual checks whether two SketchSeries are approximately equal. e represents the acceptable error %
+func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act SketchSeries, e float64) {
+	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
+		return quantile.SketchesApproxEqual(exp, act, e)
+	})
+}
+
+func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSeries, compareFn sketchComparator) {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
@@ -100,14 +116,15 @@ func AssertSketchSeriesEqual(t assert.TestingT, exp, act SketchSeries) {
 			})
 		}
 
-		assert.Equal(t, exp.Points, act.Points)
-
 		// assert.Equal does lots of magic, lets double check with a concrete equals
 		// method.
 		for i := range exp.Points {
 			a, e := act.Points[i], exp.Points[i]
-			if a.Ts != e.Ts || !a.Sketch.Equals(e.Sketch) {
-				t.Errorf("Points[%d]: %s != %s", a, e)
+			if a.Ts != e.Ts {
+				t.Errorf("Mismatched timestamps [%d]: %s != %s", e.Ts, a.Sketch, e.Sketch)
+			}
+			if !compareFn(a.Sketch, e.Sketch) {
+				t.Errorf("Points[%d]: %s != %s", e.Ts, a.Sketch, e.Sketch)
 			}
 		}
 	}

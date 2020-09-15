@@ -1,5 +1,20 @@
 #include "stdafx.h"
 
+bool AddUserToRequiredGroups(PSID userSid)
+{
+    DWORD errCode = AddUserToGroup(userSid, L"S-1-5-32-558", L"Performance Monitor Users");
+    if (errCode != NERR_Success) {
+        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
+        return false;
+    }
+    errCode = AddUserToGroup(userSid, L"S-1-5-32-573", L"Event Log Readers");
+    if (errCode != NERR_Success) {
+        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
+        return false;
+    }
+    return true;
+}
+
 UINT doFinalizeInstall(CustomActionData &data)
 {
     HRESULT hr = S_OK;
@@ -133,21 +148,11 @@ UINT doFinalizeInstall(CustomActionData &data)
     }
     hr = 0;
 
-    if (!ddUserExists)
+    if (!AddUserToRequiredGroups(sid))
     {
-        hr = -1;
-        nErr = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
-        if (nErr != NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
-            goto LExit;
-        }
-        nErr = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
-        if (nErr != NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
-            goto LExit;
-        }
-        hr = 0;
+        goto LExit;
     }
+
     if (!ddServiceExists) {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
         if (!passToUse) {

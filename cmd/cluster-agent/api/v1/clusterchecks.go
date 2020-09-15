@@ -27,6 +27,7 @@ import (
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/clusterchecks/status/{nodeName}", postCheckStatus(sc)).Methods("POST")
 	r.HandleFunc("/clusterchecks/configs/{nodeName}", getCheckConfigs(sc)).Methods("GET")
+	r.HandleFunc("/clusterchecks/rebalance", postRebalanceChecks(sc)).Methods("POST")
 	r.HandleFunc("/clusterchecks", getState(sc)).Methods("GET")
 }
 
@@ -92,6 +93,28 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 		}
 
 		writeJSONResponse(w, response, "getCheckConfigs")
+	}
+}
+
+// postRebalanceChecks requests that the cluster checks be rebalanced
+func postRebalanceChecks(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+	if sc.ClusterCheckHandler == nil {
+		return clusterChecksDisabledHandler
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !shouldHandle(w, r, sc.ClusterCheckHandler, "postRebalanceChecks") {
+			return
+		}
+
+		response, err := sc.ClusterCheckHandler.RebalanceClusterChecks()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			incrementRequestMetric("postRebalanceChecks", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSONResponse(w, response, "postRebalanceChecks")
 	}
 }
 

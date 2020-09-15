@@ -6,10 +6,8 @@ import (
 	"expvar"
 	"html/template"
 	"io"
-	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -37,7 +35,7 @@ type Data struct {
 func renderStatus(rawData []byte, request string) (string, error) {
 	var b = new(bytes.Buffer)
 	stats := make(map[string]interface{})
-	json.Unmarshal(rawData, &stats)
+	json.Unmarshal(rawData, &stats) //nolint:errcheck
 
 	data := Data{Stats: stats}
 	e := fillTemplate(b, data, request+"Status")
@@ -52,7 +50,7 @@ func renderRunningChecks() (string, error) {
 
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats)
+	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
 	loaderErrs := collector.GetLoaderErrors()
 	configErrs := autodiscovery.GetConfigErrors()
 
@@ -92,11 +90,14 @@ func renderError(name string) (string, error) {
 func fillTemplate(w io.Writer, data Data, request string) error {
 	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)
-	t, e := t.ParseFiles(filepath.Join(common.GetViewsPath(), "templates/"+request+".tmpl"))
+	tmpl, err := Asset("/templates/" + request + ".tmpl")
+	if err != nil {
+		return err
+	}
+	t, e := t.Parse(string(tmpl))
 	if e != nil {
 		return e
 	}
-
 	e = t.Execute(w, data)
 	return e
 }

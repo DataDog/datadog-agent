@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add `docker.cpu.limit` and `containerd.cpu.limit` metrics, reporting maximum cpu time (hz or ns) available for each container based on their limits. (Only supported on Linux)

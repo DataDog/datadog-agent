@@ -8,9 +8,11 @@
 package leaderelection
 
 import (
+	"context"
 	"encoding/json"
+	"strconv"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,7 +20,7 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 
-	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -72,26 +74,20 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	log.Debugf("Current registered leader is %q, building leader elector %q as candidate", currentLeader, le.HolderIdentity)
 	callbacks := ld.LeaderCallbacks{
 		OnNewLeader: func(identity string) {
-			le.leaderIdentityMutex.Lock()
-			le.leaderIdentity = identity
-			le.leaderIdentityMutex.Unlock()
-
+			le.updateLeaderIdentity(identity)
+			le.reportLeaderMetric(false)
 			log.Infof("New leader %q", identity)
 		},
 		OnStartedLeading: func(ctx context.Context) {
-			le.leaderIdentityMutex.Lock()
-			le.leaderIdentity = le.HolderIdentity
-			le.leaderIdentityMutex.Unlock()
-
+			le.updateLeaderIdentity(le.HolderIdentity)
+			le.reportLeaderMetric(true)
 			log.Infof("Started leading as %q...", le.HolderIdentity)
 		},
 		// OnStoppedLeading shouldn't be called unless the election is lost. This could happen if
 		// we lose connection to the apiserver for the duration of the lease.
 		OnStoppedLeading: func() {
-			le.leaderIdentityMutex.Lock()
-			le.leaderIdentity = ""
-			le.leaderIdentityMutex.Unlock()
-
+			le.updateLeaderIdentity("")
+			le.reportLeaderMetric(false)
 			log.Infof("Stopped leading %q", le.HolderIdentity)
 		},
 	}
@@ -127,4 +123,21 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		Callbacks:     callbacks,
 	}
 	return ld.NewLeaderElector(electionConfig)
+}
+
+// updateLeaderIdentity sets leaderIdentity
+func (le *LeaderEngine) updateLeaderIdentity(identity string) {
+	le.leaderIdentityMutex.Lock()
+	defer le.leaderIdentityMutex.Unlock()
+	le.leaderIdentity = identity
+}
+
+// reportLeaderMetric updates the label of the leader metric on every leadership change
+func (le *LeaderEngine) reportLeaderMetric(isLeader bool) {
+	// We want to make sure only one (the latest) context is exposed for this metric
+	// Delete previous run metric
+	le.leaderMetric.Delete(metrics.JoinLeaderValue, "false")
+	le.leaderMetric.Delete(metrics.JoinLeaderValue, "true")
+
+	le.leaderMetric.Set(1.0, metrics.JoinLeaderValue, strconv.FormatBool(isLeader))
 }

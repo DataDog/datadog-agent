@@ -6,8 +6,9 @@
 package pipeline
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/stretchr/testify/suite"
 
@@ -23,7 +24,7 @@ type ProviderTestSuite struct {
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	suite.a = auditor.New("", health.Register("fake"))
+	suite.a = auditor.New("", auditor.DefaultRegistryFilename, health.RegisterLiveness("fake"))
 	suite.p = &provider{
 		numberOfPipelines: 3,
 		auditor:           suite.a,

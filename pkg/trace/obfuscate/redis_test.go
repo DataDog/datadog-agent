@@ -105,6 +105,18 @@ func TestRedisObfuscator(t *testing.T) {
 		in, out string
 	}{
 		{
+			"AUTH my-secret-password",
+			"AUTH ?",
+		},
+		{
+			"AUTH james my-secret-password",
+			"AUTH ?",
+		},
+		{
+			"AUTH",
+			"AUTH",
+		},
+		{
 			"APPEND key value",
 			"APPEND key ?",
 		},

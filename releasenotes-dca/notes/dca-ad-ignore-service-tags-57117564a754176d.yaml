@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    It's now possible to use the Kubernetes Service annotations
+    ad.datadoghq.com/service.ignore_autodiscovery_tags="true"
+    and ad.datadoghq.com/endpoints.ignore_autodiscovery_tags="true"
+    to disable adding Service tags (e.g kube_service, kube_namespace)
+    to Cluster Checks and Endpoint Checks.

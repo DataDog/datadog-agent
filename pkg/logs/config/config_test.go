@@ -178,7 +178,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		CompressionLevel: 2}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second)
-	endpoints, err := buildHTTPEndpoints()
+	endpoints, err := BuildHTTPEndpoints()
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
@@ -191,7 +191,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128")
 	suite.config.Set("logs_config.dev_mode_use_proto", true)
 
-	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[{"api_key": "456", "host": "additional.endpoint", "port": 1234}]`)
+	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[{"api_key": "456      \n", "host": "additional.endpoint", "port": 1234}]`)
 	defer os.Unsetenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS")
 
 	expectedMainEndpoint := Endpoint{
@@ -227,7 +227,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	suite.config.Set("logs_config.logs_no_ssl", false)
 	endpointsInConfig := []map[string]interface{}{
 		{
-			"api_key":           "456",
+			"api_key":           "456     \n\n",
 			"host":              "additional.endpoint.1",
 			"port":              1234,
 			"use_compression":   true,
@@ -264,7 +264,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		CompressionLevel: 2}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second)
-	endpoints, err := buildHTTPEndpoints()
+	endpoints, err := BuildHTTPEndpoints()
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)

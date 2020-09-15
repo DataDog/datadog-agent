@@ -24,10 +24,10 @@ func (s *Summary) String() string {
 }
 
 // InsertN is equivalent to calling Insert(v) n times (but faster).
-func (s *Summary) InsertN(v float64, n uint) {
+func (s *Summary) InsertN(v float64, n float64) {
 	s.Merge(Summary{
 		Cnt: int64(n),
-		Sum: float64(n) * v,
+		Sum: n * v,
 		Min: v,
 		Max: v,
 		Avg: v,

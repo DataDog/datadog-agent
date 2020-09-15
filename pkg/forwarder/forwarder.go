@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,18 +22,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	// PayloadTypePod is the name of the pod payload type
+	PayloadTypePod = "pod"
+	// PayloadTypeDeployment is the name of the deployment payload type
+	PayloadTypeDeployment = "deployment"
+	// PayloadTypeReplicaSet is the name of the replica set payload type
+	PayloadTypeReplicaSet = "replicaset"
+	// PayloadTypeService is the name of the service payload type
+	PayloadTypeService = "service"
+	// PayloadTypeNode is the name of the node payload type
+	PayloadTypeNode = "node"
+)
+
 var (
-	forwarderExpvars          = expvar.NewMap("forwarder")
-	transactionsExpvars       = expvar.Map{}
-	transactionsSeries        = expvar.Int{}
-	transactionsEvents        = expvar.Int{}
-	transactionsServiceChecks = expvar.Int{}
-	transactionsSketchSeries  = expvar.Int{}
-	transactionsHostMetadata  = expvar.Int{}
-	transactionsMetadata      = expvar.Int{}
-	transactionsTimeseriesV1  = expvar.Int{}
-	transactionsCheckRunsV1   = expvar.Int{}
-	transactionsIntakeV1      = expvar.Int{}
+	forwarderExpvars              = expvar.NewMap("forwarder")
+	connectionEvents              = expvar.Map{}
+	transactionsExpvars           = expvar.Map{}
+	transactionsSeries            = expvar.Int{}
+	transactionsEvents            = expvar.Int{}
+	transactionsServiceChecks     = expvar.Int{}
+	transactionsSketchSeries      = expvar.Int{}
+	transactionsHostMetadata      = expvar.Int{}
+	transactionsMetadata          = expvar.Int{}
+	transactionsTimeseriesV1      = expvar.Int{}
+	transactionsCheckRunsV1       = expvar.Int{}
+	transactionsIntakeV1          = expvar.Int{}
+	transactionsIntakeProcesses   = expvar.Int{}
+	transactionsIntakeRTProcesses = expvar.Int{}
+	transactionsIntakeContainer   = expvar.Int{}
+	transactionsIntakeRTContainer = expvar.Int{}
+	transactionsIntakeConnections = expvar.Int{}
+	transactionsIntakePod         = expvar.Int{}
+	transactionsIntakeDeployment  = expvar.Int{}
+	transactionsIntakeReplicaSet  = expvar.Int{}
+	transactionsIntakeService     = expvar.Int{}
+	transactionsIntakeNode        = expvar.Int{}
 
 	tlm = telemetry.NewCounter("forwarder", "transactions",
 		[]string{"endpoint", "route"}, "Forwarder telemetry")
@@ -49,11 +74,20 @@ var (
 	sketchSeriesEndpoint  = endpoint{"/api/beta/sketches", "sketches_v2"}
 	hostMetadataEndpoint  = endpoint{"/api/v2/host_metadata", "host_metadata_v2"}
 	metadataEndpoint      = endpoint{"/api/v2/metadata", "metadata_v2"}
+
+	processesEndpoint    = endpoint{"/api/v1/collector", "process"}
+	rtProcessesEndpoint  = endpoint{"/api/v1/collector", "rtprocess"}
+	containerEndpoint    = endpoint{"/api/v1/container", "container"}
+	rtContainerEndpoint  = endpoint{"/api/v1/container", "rtcontainer"}
+	connectionsEndpoint  = endpoint{"/api/v1/collector", "connections"}
+	orchestratorEndpoint = endpoint{"/api/v1/orchestrator", "orchestrator"}
 )
 
 func init() {
 	transactionsExpvars.Init()
+	connectionEvents.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
+	forwarderExpvars.Set("ConnectionEvents", &connectionEvents)
 	transactionsExpvars.Set("Series", &transactionsSeries)
 	transactionsExpvars.Set("Events", &transactionsEvents)
 	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
@@ -63,6 +97,16 @@ func init() {
 	transactionsExpvars.Set("TimeseriesV1", &transactionsTimeseriesV1)
 	transactionsExpvars.Set("CheckRunsV1", &transactionsCheckRunsV1)
 	transactionsExpvars.Set("IntakeV1", &transactionsIntakeV1)
+	transactionsExpvars.Set("Processes", &transactionsIntakeProcesses)
+	transactionsExpvars.Set("RTProcesses", &transactionsIntakeRTProcesses)
+	transactionsExpvars.Set("Containers", &transactionsIntakeContainer)
+	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
+	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
+	transactionsExpvars.Set("Pods", &transactionsIntakePod)
+	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
+	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
+	transactionsExpvars.Set("Services", &transactionsIntakeService)
+	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
@@ -81,6 +125,10 @@ const (
 	useragentHTTPHeaderKey = "User-Agent"
 )
 
+// The amount of time the forwarder will wait to receive process-like response payloads before giving up
+// This is a var so that it can be changed for testing
+var defaultResponseTimeout = 30 * time.Second
+
 type endpoint struct {
 	// Route to hit in the HTTP transaction
 	route string
@@ -96,6 +144,14 @@ func (e endpoint) String() string {
 // payloads we pass into the forwarder
 type Payloads []*[]byte
 
+// Response contains the response details of a successfully posted transaction
+type Response struct {
+	Domain     string
+	Body       []byte
+	StatusCode int
+	Err        error
+}
+
 // Forwarder interface allows packages to send payload to the backend
 type Forwarder interface {
 	Start() error
@@ -109,6 +165,47 @@ type Forwarder interface {
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
 	SubmitHostMetadata(payload Payloads, extra http.Header) error
 	SubmitMetadata(payload Payloads, extra http.Header) error
+	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
+}
+
+// Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
+var _ Forwarder = &DefaultForwarder{}
+
+// Options contain the configuration options for the DefaultForwarder
+type Options struct {
+	NumberOfWorkers          int
+	RetryQueueSize           int
+	DisableAPIKeyChecking    bool
+	APIKeyValidationInterval time.Duration
+	KeysPerDomain            map[string][]string
+	ConnectionResetInterval  time.Duration
+}
+
+// NewOptions creates new Options with default values
+func NewOptions(keysPerDomain map[string][]string) *Options {
+	validationInterval := config.Datadog.GetInt("forwarder_apikey_validation_interval")
+	if validationInterval <= 0 {
+		log.Warnf(
+			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
+			validationInterval,
+			config.DefaultAPIKeyValidationInterval,
+		)
+		validationInterval = config.DefaultAPIKeyValidationInterval
+	}
+
+	return &Options{
+		NumberOfWorkers:          config.Datadog.GetInt("forwarder_num_workers"),
+		RetryQueueSize:           config.Datadog.GetInt("forwarder_retry_queue_max_size"),
+		DisableAPIKeyChecking:    false,
+		APIKeyValidationInterval: time.Duration(validationInterval) * time.Minute,
+		KeysPerDomain:            keysPerDomain,
+		ConnectionResetInterval:  time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
+	}
 }
 
 // DefaultForwarder is the default implementation of the Forwarder.
@@ -124,24 +221,26 @@ type DefaultForwarder struct {
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
-func NewDefaultForwarder(keysPerDomains map[string][]string) *DefaultForwarder {
+func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	f := &DefaultForwarder{
-		NumberOfWorkers:  config.Datadog.GetInt("forwarder_num_workers"),
+		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		keysPerDomains:   map[string][]string{},
 		internalState:    Stopped,
-		healthChecker:    &forwarderHealth{keysPerDomains: keysPerDomains},
+		healthChecker: &forwarderHealth{
+			keysPerDomains:        options.KeysPerDomain,
+			disableAPIKeyChecking: options.DisableAPIKeyChecking,
+			validationInterval:    options.APIKeyValidationInterval,
+		},
 	}
-	numWorkers := config.Datadog.GetInt("forwarder_num_workers")
-	retryQueueMaxSize := config.Datadog.GetInt("forwarder_retry_queue_max_size")
 
-	for domain, keys := range keysPerDomains {
+	for domain, keys := range options.KeysPerDomain {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
 		if keys == nil || len(keys) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, numWorkers, retryQueueMaxSize)
+			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.ConnectionResetInterval)
 		}
 	}
 
@@ -159,7 +258,7 @@ func (f *DefaultForwarder) Start() error {
 	}
 
 	for _, df := range f.domainForwarders {
-		df.Start()
+		_ = df.Start()
 	}
 
 	// log endpoints configuration
@@ -220,6 +319,7 @@ func (f *DefaultForwarder) Stop() {
 	}
 
 	f.healthChecker.Stop()
+
 	f.healthChecker = nil
 	f.domainForwarders = map[string]*domainForwarder{}
 
@@ -235,7 +335,7 @@ func (f *DefaultForwarder) State() uint32 {
 }
 
 func (f *DefaultForwarder) createHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
-	transactions := []*HTTPTransaction{}
+	transactions := make([]*HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
 	for _, payload := range payloads {
 		for domain, apiKeys := range f.keysPerDomains {
 			for _, apiKey := range apiKeys {
@@ -345,4 +445,107 @@ func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) e
 
 	transactionsIntakeV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitProcessChecks sends process checks
+func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeProcesses.Add(1)
+
+	return f.submitProcessLikePayload(processesEndpoint, payload, extra, true)
+}
+
+// SubmitRTProcessChecks sends real time process checks
+func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeRTProcesses.Add(1)
+
+	return f.submitProcessLikePayload(rtProcessesEndpoint, payload, extra, false)
+}
+
+// SubmitContainerChecks sends container checks
+func (f *DefaultForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeContainer.Add(1)
+
+	return f.submitProcessLikePayload(containerEndpoint, payload, extra, true)
+}
+
+// SubmitRTContainerChecks sends real time container checks
+func (f *DefaultForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeRTContainer.Add(1)
+
+	return f.submitProcessLikePayload(rtContainerEndpoint, payload, extra, false)
+}
+
+// SubmitConnectionChecks sends connection checks
+func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeConnections.Add(1)
+
+	return f.submitProcessLikePayload(connectionsEndpoint, payload, extra, true)
+}
+
+// SubmitOrchestratorChecks sends orchestrator checks
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	switch payloadType {
+	case PayloadTypePod:
+		transactionsIntakePod.Add(1)
+	case PayloadTypeDeployment:
+		transactionsIntakeDeployment.Add(1)
+	case PayloadTypeReplicaSet:
+		transactionsIntakeReplicaSet.Add(1)
+	case PayloadTypeService:
+		transactionsIntakeService.Add(1)
+	case PayloadTypeNode:
+		transactionsIntakeNode.Add(1)
+	}
+
+	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
+}
+
+func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {
+	transactions := f.createHTTPTransactions(ep, payload, false, extra)
+
+	results := make(chan Response, len(transactions))
+	internalResults := make(chan Response, len(transactions))
+	expectedResponses := len(transactions)
+
+	for _, txn := range transactions {
+		txn.retryable = retryable
+		txn.attemptHandler = func(transaction *HTTPTransaction) {
+			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
+				transaction.Headers.Set("X-DD-Agent-Attempts", "1")
+			} else {
+				attempts, _ := strconv.ParseInt(v, 10, 0)
+				transaction.Headers.Set("X-DD-Agent-Attempts", strconv.Itoa(int(attempts+1)))
+			}
+		}
+
+		txn.completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+			internalResults <- Response{
+				Domain:     transaction.Domain,
+				Body:       body,
+				StatusCode: statusCode,
+				Err:        err,
+			}
+		}
+	}
+
+	go func() {
+		receivedResponses := 0
+		for {
+			select {
+			case r := <-internalResults:
+				results <- r
+				receivedResponses++
+				if receivedResponses == expectedResponses {
+					close(results)
+					return
+				}
+			case <-time.After(defaultResponseTimeout):
+				log.Errorf("timed out waiting for responses, received %d/%d", receivedResponses, expectedResponses)
+				close(results)
+				return
+			}
+		}
+	}()
+
+	return results, f.sendHTTPTransactions(transactions)
 }

@@ -16,7 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
@@ -24,9 +26,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+
+	"github.com/DataDog/datadog-agent/pkg/logs"
+
+	"io/ioutil"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const packageCachePrefix = "host"
+
+type installInfo struct {
+	Method struct {
+		Tool             string `yaml:"tool"`
+		ToolVersion      string `yaml:"tool_version"`
+		InstallerVersion string `yaml:"installer_version"`
+	} `yaml:"install_method"`
+}
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
@@ -36,12 +52,15 @@ func GetPayload(hostnameData util.HostnameData) *Payload {
 
 	p := &Payload{
 		Os:            osName,
+		AgentFlavor:   flavor.GetFlavor(),
 		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
 		ContainerMeta: getContainerMeta(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(),
+		LogsMeta:      getLogsMeta(),
+		InstallMethod: getInstallMethod(getInstallInfoPath()),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -121,6 +140,14 @@ func getHostAliases() []string {
 	} else if k8sAlias != "" {
 		aliases = append(aliases, k8sAlias)
 	}
+
+	tencentAlias, err := tencent.GetHostAlias()
+	if err != nil {
+		log.Debugf("no Tencent Host Alias: %s", err)
+	} else if tencentAlias != "" {
+		aliases = append(aliases, tencentAlias)
+	}
+
 	return aliases
 }
 
@@ -207,6 +234,51 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 	}
 }
 
+func getLogsMeta() *LogsMeta {
+	return &LogsMeta{Transport: string(logs.CurrentTransport)}
+}
+
 func buildKey(key string) string {
 	return path.Join(common.CachePrefix, packageCachePrefix, key)
+}
+
+func getInstallInfoPath() string {
+	return path.Join(config.FileUsedDir(), "install_info")
+}
+
+func getInstallInfo(infoPath string) (*installInfo, error) {
+	yamlContent, err := ioutil.ReadFile(infoPath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var install installInfo
+
+	if err := yaml.UnmarshalStrict(yamlContent, &install); err != nil {
+		// file was manipulated and is not relevant to format
+		return nil, err
+	}
+
+	return &install, nil
+}
+
+func getInstallMethod(infoPath string) *InstallMethod {
+	install, err := getInstallInfo(infoPath)
+
+	// if we could not get install info
+	if err != nil {
+		// consider install info is kept "undefined"
+		return &InstallMethod{
+			ToolVersion:      "undefined",
+			Tool:             nil,
+			InstallerVersion: nil,
+		}
+	}
+
+	return &InstallMethod{
+		ToolVersion:      install.Method.ToolVersion,
+		Tool:             &install.Method.Tool,
+		InstallerVersion: &install.Method.InstallerVersion,
+	}
 }

@@ -6,7 +6,7 @@
 package testsuite
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -19,8 +19,8 @@ import (
 
 func TestMain(m *testing.M) {
 	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
-		fmt.Println("--- SKIP: to run tests in this package, set the INTEGRATION environment variable")
-		return
+		log.Println("--- SKIP: to run tests in this package, set the INTEGRATION environment variable")
+		os.Exit(0)
 	}
 	os.Exit(m.Run())
 }

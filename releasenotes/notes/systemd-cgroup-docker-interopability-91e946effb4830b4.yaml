@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Add support for examining processes inside Docker containers running under
+    systemd cgroups. This also reduces agent logging volume as it's able to
+    capture those statistics going forward.

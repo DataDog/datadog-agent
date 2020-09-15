@@ -1,17 +1,40 @@
 """
 Docker related tasks
 """
-from __future__ import print_function, absolute_import
-import tempfile
-import shutil
-import sys
+from __future__ import absolute_import, print_function
+
 import os
 import re
+import shutil
+import sys
+import tempfile
+import time
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
 from .dogstatsd import DOGSTATSD_TAG
+
+
+def retry_run(ctx, *args, **kwargs):
+    remaining_retries = 5
+    while True:
+        warn = True
+        if remaining_retries == 0:
+            warn = False
+
+        r = ctx.run(*args, warn=warn, **kwargs)
+
+        if r.ok:
+            return r
+
+        # Pause between retries. Hope it helps.
+        time.sleep(5)
+
+        remaining_retries -= 1
+
+    return r
 
 
 @task
@@ -23,7 +46,7 @@ def test(ctx):
 
 
 @task
-def integration_tests(ctx, skip_image_build=False, skip_build=False):
+def integration_tests(ctx, skip_image_build=False, skip_build=False, python_command="python3"):
     """
     Run docker integration tests
     """
@@ -31,11 +54,12 @@ def integration_tests(ctx, skip_image_build=False, skip_build=False):
         # postpone the import otherwise `image_build` will be added to the docker
         # namespace
         from .dogstatsd import image_build
+
         image_build(ctx, skip_build=skip_build)
 
     print("Starting docker integration tests")
     env = {"DOCKER_IMAGE": DOGSTATSD_TAG}
-    ctx.run("python ./test/integration/docker/dsd_listening.py", env=env)
+    ctx.run("{} ./test/integration/docker/dsd_listening.py".format(python_command), env=env)
 
 
 @task
@@ -52,7 +76,8 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
     ctx.run("cp %s %s/test.bin" % (binary, temp_folder))
 
     with open("%s/Dockerfile" % temp_folder, 'w') as stream:
-        stream.write("""FROM debian:stretch-slim
+        stream.write(
+            """FROM debian:stretch-slim
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 ADD https://github.com/docker/compose/releases/download/1.16.1/docker-compose-Linux-x86_64 /bin/docker-compose
@@ -61,7 +86,8 @@ RUN echo "1804b0ce6596efe707b9cab05d74b161833ed503f0535a937dd5d17bea8fc50a  /bin
     chmod +x /bin/docker-compose
 CMD /test.bin
 COPY test.bin /test.bin
-""")
+"""
+        )
         # Handle optional testdata folder
         if os.path.isdir("./testdata"):
             ctx.run("cp -R testdata %s" % temp_folder)
@@ -75,26 +101,20 @@ COPY test.bin /test.bin
         test_image.id,
         detach=True,
         pid_mode="host",  # For origin detection
-        environment=[
-            "SCRATCH_VOLUME_NAME=" + scratch_volume.name,
-            "SCRATCH_VOLUME_PATH=/tmp/scratch",
-        ],
-        volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
-                 '/proc': {'bind': '/host/proc', 'mode': 'ro'},
-                 '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
-                 scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'}})
+        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch",],
+        volumes={
+            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
+            '/proc': {'bind': '/host/proc', 'mode': 'ro'},
+            '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
+            scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'},
+        },
+    )
 
     exit_code = test_container.wait()['StatusCode']
 
-    print(test_container.logs(
-        stdout=True,
-        stderr=False,
-        stream=False))
+    print(test_container.logs(stdout=True, stderr=False, stream=False))
 
-    sys.stderr.write(test_container.logs(
-        stdout=False,
-        stderr=True,
-        stream=False))
+    sys.stderr.write(test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding))
 
     if not skip_cleanup:
         shutil.rmtree(temp_folder)
@@ -114,7 +134,7 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
     """
     if dst_tag == "auto":
         # Autogenerate tag
-        match = re.search('([^:\/\s]+):[v]?(.*)$', src_image)
+        match = re.search(r'([^:\/\s]+):[v]?(.*)$', src_image)
         if not match:
             print("Cannot guess destination tag for {}, please provide a --dst-tag option".format(src_image))
             raise Exit(code=1)
@@ -131,18 +151,17 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     pull_env = {}
     if signed_pull:
         pull_env["DOCKER_CONTENT_TRUST"] = "1"
-    ctx.run(
-        "docker pull {src} && docker tag {src} {dst}".format(src=src, dst=dst),
-        env=pull_env
-    )
+    ctx.run("docker pull {src} && docker tag {src} {dst}".format(src=src, dst=dst), env=pull_env)
 
     push_env = {}
     if signed_push:
         push_env["DOCKER_CONTENT_TRUST"] = "1"
-    ctx.run(
-        "docker push {dst}".format(dst=dst),
-        env=push_env
+    retry_run(
+        ctx, "docker push {dst}".format(dst=dst), env=push_env,
     )
+
+    ctx.run("docker rmi {src} {dst}".format(src=src, dst=dst))
+
 
 @task(iterable=['platform'])
 def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
@@ -163,8 +182,9 @@ def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
 
         publish(ctx, evalTemplate(src_template), evalTemplate(dst_template), signed_push=signed_push)
 
-@task(iterable=['platform'])
-def publish_manifest(ctx, name, tag, template, platform, signed_push=False):
+
+@task(iterable=['image'])
+def publish_manifest(ctx, name, tag, image, signed_push=False):
     """
     Publish a manifest referencing image names matching the specified pattern.
     In that pattern, OS and ARCH strings are replaced, if found, by corresponding
@@ -172,41 +192,71 @@ def publish_manifest(ctx, name, tag, template, platform, signed_push=False):
     a set of image references more easily. See the manifest tool documentation for
     further details: https://github.com/estesp/manifest-tool.
     """
-    platforms = ",".join(platform)
-    print("Publishing {}:{} for platforms {}".format(name, tag, platforms))
+    manifest_spec = {"image": "{}:{}".format(name, tag)}
+    src_images = []
 
-    # Create the manifest referencing platform-specific images
-    cmd = "manifest-tool push from-args --template {} --platforms {} --target {}:{}"
-    result = ctx.run(cmd.format(template, platforms, name, tag))
-    if result.stdout:
-        out = result.stdout.split('\n')[0]
-        fields = out.split(" ")
-
-        if len(fields) != 3:
-            print("Unexpected output when invoking manifest-tool")
+    for img in image:
+        img_splitted = img.replace(' ', '').split(',')
+        if len(img_splitted) != 2:
+            print("Impossible to parse source format for: '{}'".format(img))
             raise Exit(code=1)
 
-        digest_fields = fields[1].split(":")
-
-        if len(digest_fields) != 2 or digest_fields[0] != "sha256":
-            print("Unexpected digest format in manifest-tool output")
+        platform_splitted = img_splitted[1].split('/')
+        if len(platform_splitted) != 2:
+            print("Impossible to parse platform format for: '{}'".format(img))
             raise Exit(code=1)
 
-        digest = digest_fields[1]
-        length = fields[2]
+        src_images.append(
+            {"image": img_splitted[0], "platform": {"architecture": platform_splitted[1], "os": platform_splitted[0]}}
+        )
+    manifest_spec["manifests"] = src_images
 
-    if signed_push:
-        cmd = """
-        notary -s https://notary.docker.io -d {home}/.docker/trust addhash \
-            -p docker.io/{name} {tag} {length} --sha256 {sha256} \
-            -r targets/releases
-        """
-        ctx.run(cmd.format(home=os.environ.get("HOME"), name=name, tag=tag, length=length, sha256=digest))
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        temp_file_path = f.name
+        yaml.dump(manifest_spec, f, default_flow_style=False)
+
+    print("Using temp file: {}".format(temp_file_path))
+    ctx.run("cat {}".format(temp_file_path))
+
+    try:
+        result = retry_run(ctx, "manifest-tool push from-spec {}".format(temp_file_path))
+        if result.stdout:
+            out = result.stdout.split('\n')[0]
+            fields = out.split(" ")
+
+            if len(fields) != 3:
+                print("Unexpected output when invoking manifest-tool")
+                raise Exit(code=1)
+
+            digest_fields = fields[1].split(":")
+
+            if len(digest_fields) != 2 or digest_fields[0] != "sha256":
+                print("Unexpected digest format in manifest-tool output")
+                raise Exit(code=1)
+
+            digest = digest_fields[1]
+            length = fields[2]
+
+        if signed_push:
+            cmd = """
+            notary -s https://notary.docker.io -d {home}/.docker/trust addhash \
+                -p docker.io/{name} {tag} {length} --sha256 {sha256} \
+                -r targets/releases
+            """
+            retry_run(ctx, cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
+    finally:
+        os.remove(temp_file_path)
+
 
 @task
 def delete(ctx, org, image, tag, token):
     print("Deleting {org}/{image}:{tag}".format(org=org, image=image, tag=tag))
-    ctx.run("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT {token}' &>/dev/null".format(org=org, image=image, tag=tag, token=token))
+    ctx.run(
+        "curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT {token}' &>/dev/null".format(
+            org=org, image=image, tag=tag, token=token
+        )
+    )
+
 
 @task
 def pull_base_images(ctx, dockerfile, signed_pull=True):

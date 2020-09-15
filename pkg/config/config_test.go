@@ -18,13 +18,12 @@ import (
 
 func setupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	InitConfig(conf)
 	return conf
 }
 
 func setupConfFromYAML(yamlConfig string) Config {
-	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	conf := setupConf()
 	conf.SetConfigType("yaml")
 	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	if e != nil {
@@ -41,6 +40,7 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsSet("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
+	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba"}, config.GetStringSlice("cloud_provider_metadata"))
 }
 
 func TestDefaultSite(t *testing.T) {
@@ -403,6 +403,7 @@ additional_endpoints:
 }
 
 func TestAddAgentVersionToDomain(t *testing.T) {
+	// US
 	newURL, err := AddAgentVersionToDomain("https://app.datadoghq.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.com", newURL)
@@ -411,6 +412,7 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.com", newURL)
 
+	// EU
 	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.eu", newURL)
@@ -419,9 +421,88 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.eu", newURL)
 
+	// Additional site
+	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("app")+".us2.datadoghq.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("flare")+".us2.datadoghq.com", newURL)
+
+	// Custom DD URL: leave unchanged
+	newURL, err = AddAgentVersionToDomain("https://custom.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://custom.datadoghq.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://custom.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://custom.datadoghq.com", newURL)
+
+	// Custom DD URL with 'agent' subdomain: leave unchanged
+	newURL, err = AddAgentVersionToDomain("https://custom.agent.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://custom.agent.datadoghq.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://custom.agent.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://custom.agent.datadoghq.com", newURL)
+
+	// Custom DD URL: unclear if anyone is actually using such a URL, but for now leave unchanged
+	newURL, err = AddAgentVersionToDomain("https://app.custom.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.custom.datadoghq.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.custom.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.custom.datadoghq.com", newURL)
+
+	// Custom top-level domain: unclear if anyone is actually using this, but for now leave unchanged
+	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.internal", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.datadoghq.internal", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.internal", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.datadoghq.internal", newURL)
+
+	// DD URL set to proxy, leave unchanged
 	newURL, err = AddAgentVersionToDomain("https://app.myproxy.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://app.myproxy.com", newURL)
+}
+
+func TestIsCloudProviderEnabled(t *testing.T) {
+	holdValue := Datadog.Get("cloud_provider_metadata")
+	defer Datadog.Set("cloud_provider_metadata", holdValue)
+
+	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	assert.True(t, IsCloudProviderEnabled("AWS"))
+	assert.True(t, IsCloudProviderEnabled("GCP"))
+	assert.True(t, IsCloudProviderEnabled("Alibaba"))
+	assert.True(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{"aws"})
+	assert.True(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{})
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
 }
 
 func TestEnvNestedConfig(t *testing.T) {
@@ -621,83 +702,24 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
-func TestSanitizeAPIKey(t *testing.T) {
+func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := setupConf()
 
 	config.Set("api_key", "foo")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", " \n  foo   \n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
-}
-
-func TestTrimTrailingSlashFromURLS(t *testing.T) {
-	var urls = []string{
-		"site",
-		"dd_url",
-	}
-	var additionalEndpointSelectors = []string{
-		"additional_endpoints",
-		"apm_config.additional_endpoints",
-		"process_config.additional_endpoints",
-	}
-	datadogYaml := `
-api_key: fakeapikey
-site: datadoghq.com/////
-dd_url:
-additional_endpoints:
-  testing.com///:
-  - fakekey
-  test2.com/:
-  - fakekey
-apm_config:
-  additional_endpoints:
-    testingapm.com//:
-    - fakekey
-    test2apm.com/:
-    - fakekey
-process_config:
-  additional_endpoints:
-    testingproc.com/////:
-    - fakekey
-    test2proc.com/:
-    - fakekey
-`
-	testConfig := setupConfFromYAML(datadogYaml)
-	trimTrailingSlashFromURLS(testConfig)
-
-	for _, u := range urls {
-		testString := testConfig.GetString(u)
-		if len(testString) == 0 {
-			continue
-		}
-		if testString[len(testString)-1:] == "/" {
-			t.Errorf("Error: The key %v: has a vlue of %v -- The trailing forward slash was not properly trimmed", u, testConfig.GetString(u))
-		}
-	}
-	for _, es := range additionalEndpointSelectors {
-		additionalEndpoints := make(map[string][]string)
-		err := testConfig.UnmarshalKey(es, &additionalEndpoints)
-		if err != nil {
-			t.Errorf("Error: %v", err)
-		}
-
-		for domain := range additionalEndpoints {
-			if domain[len(domain)-1:] == "/" {
-				t.Errorf("Error: The key %v: has a vlue of %v -- The trailing forward slash was not properly trimmed", es, domain)
-			}
-		}
-	}
 }
 
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
@@ -708,7 +730,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := setupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	err := load(conf, "datadog_secrets.yaml", true)
+	_, err := load(conf, "datadog_secrets.yaml", true)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{

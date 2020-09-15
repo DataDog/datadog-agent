@@ -9,11 +9,13 @@ import (
 	"compress/gzip"
 	"io/ioutil"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +40,7 @@ func TestTraceWriter(t *testing.T) {
 		}
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
-		defer useFlushThreshold(testSpans[0].size() + testSpans[1].size() + 10)()
+		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
 		in := make(chan *SampledSpans)
 		tw := NewTraceWriter(cfg, in)
 		go tw.Run()
@@ -53,12 +55,61 @@ func TestTraceWriter(t *testing.T) {
 	})
 }
 
+func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
+	var (
+		srv = newTestServer()
+		cfg = &config.AgentConfig{
+			Hostname:   testHostname,
+			DefaultEnv: testEnv,
+			Endpoints: []*config.Endpoint{
+				{
+					APIKey: "123",
+					Host:   srv.URL,
+				},
+				{
+					APIKey: "123",
+					Host:   srv.URL,
+				},
+			},
+			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		}
+		numWorkers      = 10
+		numOpsPerWorker = 100
+	)
+
+	testSpans := []*SampledSpans{
+		randomSampledSpans(20, 8),
+		randomSampledSpans(10, 0),
+		randomSampledSpans(40, 5),
+	}
+	in := make(chan *SampledSpans, 100)
+	tw := NewTraceWriter(cfg, in)
+	go tw.Run()
+
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < numOpsPerWorker; j++ {
+				for _, ss := range testSpans {
+					in <- ss
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	tw.Stop()
+	payloadsContain(t, srv.Payloads(), testSpans)
+}
+
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold
 // and returns a function to restore it.
 func useFlushThreshold(n int) func() {
-	old := maxPayloadSize
-	maxPayloadSize = n
-	return func() { maxPayloadSize = old }
+	old := MaxPayloadSize
+	MaxPayloadSize = n
+	return func() { MaxPayloadSize = old }
 }
 
 // randomSampledSpans returns a set of spans sampled spans and events events.
@@ -66,8 +117,10 @@ func randomSampledSpans(spans, events int) *SampledSpans {
 	realisticIDs := true
 	trace := testutil.GetTestTraces(1, spans, realisticIDs)[0]
 	return &SampledSpans{
-		Trace:  trace,
-		Events: trace[:events],
+		Traces:    []*pb.APITrace{traceutil.APITrace(trace)},
+		Events:    trace[:events],
+		Size:      trace.Msgsize() + pb.Trace(trace[:events]).Msgsize(),
+		SpanCount: int64(len(trace)),
 	}
 }
 
@@ -92,7 +145,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledS
 	for _, ss := range sampledSpans {
 		var found bool
 		for _, trace := range all.Traces {
-			if reflect.DeepEqual(trace.Spans, ([]*pb.Span)(ss.Trace)) {
+			if reflect.DeepEqual(trace.Spans, ss.Traces[0].Spans) {
 				found = true
 				break
 			}

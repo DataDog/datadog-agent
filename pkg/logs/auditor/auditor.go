@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+// DefaultRegistryFilename is the default registry filename
+const DefaultRegistryFilename = "registry.json"
+
 const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 const defaultTTL = 23 * time.Hour
@@ -31,6 +34,7 @@ const registryAPIVersion = 2
 // Registry holds a list of offsets.
 type Registry interface {
 	GetOffset(identifier string) string
+	GetTailingMode(identifier string) string
 }
 
 // A RegistryEntry represents an entry in the registry where we keep track
@@ -38,6 +42,7 @@ type Registry interface {
 type RegistryEntry struct {
 	LastUpdated time.Time
 	Offset      string
+	TailingMode string
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -59,10 +64,10 @@ type Auditor struct {
 }
 
 // New returns an initialized Auditor
-func New(runPath string, health *health.Handle) *Auditor {
+func New(runPath string, filename string, health *health.Handle) *Auditor {
 	return &Auditor{
 		health:       health,
-		registryPath: filepath.Join(runPath, "registry.json"),
+		registryPath: filepath.Join(runPath, filename),
 		entryTTL:     defaultTTL,
 	}
 }
@@ -122,6 +127,17 @@ func (a *Auditor) GetOffset(identifier string) string {
 	return entry.Offset
 }
 
+// GetTailingMode returns the last committed offset for a given identifier,
+// returns an empty string if it does not exist.
+func (a *Auditor) GetTailingMode(identifier string) string {
+	r := a.readOnlyRegistryCopy()
+	entry, exists := r[identifier]
+	if !exists {
+		return ""
+	}
+	return entry.TailingMode
+}
+
 // run keeps up to date the registry depending on different events
 func (a *Auditor) run() {
 	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
@@ -143,7 +159,7 @@ func (a *Auditor) run() {
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset)
+			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode)
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()
@@ -195,7 +211,7 @@ func (a *Auditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
-func (a *Auditor) updateRegistry(identifier string, offset string) {
+func (a *Auditor) updateRegistry(identifier string, offset string, tailingMode string) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -207,6 +223,7 @@ func (a *Auditor) updateRegistry(identifier string, offset string) {
 	a.registry[identifier] = &RegistryEntry{
 		LastUpdated: time.Now().UTC(),
 		Offset:      offset,
+		TailingMode: tailingMode,
 	}
 }
 
