@@ -910,6 +910,20 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+{{- if .NetworkModule }}
+
+  #########################################
+  ## System Probe Network  Configuration ##
+  #########################################
+
+  # network_config:
+    ## @param enabled - boolean - optional - default: false
+    ## Set to true to enable the Network Module of the System Probe
+    #
+    # enabled: false
+
+{{ end -}}
+
 {{- if .SecurityModule }}
 
 ##########################################
@@ -958,20 +972,6 @@ api_key:
     ## Set to true to enable the Syscall monitoring.
     #
     #  enabled: false
-{{ end -}}
-
-{{- if .NetworkModule }}
-
-#########################################
-## System Probe Network  Configuration ##
-#########################################
-
-# network_config:
-  ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable the Network Module of the System Probe
-  #
-  # enabled: false
-
 {{ end -}}
 {{ end -}}
 {{- if .Dogstatsd }}
