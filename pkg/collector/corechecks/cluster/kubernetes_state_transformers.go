@@ -224,10 +224,9 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 
 	for i, tag := range tags {
 		split := strings.Split(tag, ":")
-		if len(split) == 2 && split[0] == "job" || split[0] == "job_name" {
+		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
 			tags[i] = fmt.Sprintf("%s:%s", split[0], trimJobTag(split[1]))
-			return tags, true
 		}
 	}
 
@@ -254,8 +253,6 @@ func jobStatusFailedTransformer(s aggregator.Sender, name string, metric ksmstor
 // jobMetric sends a gauge for job status
 func jobMetric(s aggregator.Sender, metric ksmstore.DDMetric, metricName string, hostname string, tags []string) {
 	if strippedTags, valid := validateJob(metric.Val, tags); valid {
-		// TODO: Many problems have been reported about job metrics in the v1 check
-		// This is different compared to what we do in the v1 check already but let's investigate more
 		s.Gauge(metricName, 1, hostname, strippedTags)
 	}
 }

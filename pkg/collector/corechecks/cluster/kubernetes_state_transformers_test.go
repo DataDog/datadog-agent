@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type args struct {
@@ -1356,6 +1358,52 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			} else {
 				s.AssertNotCalled(t, "Gauge")
 			}
+		})
+	}
+}
+
+func Test_validateJob(t *testing.T) {
+	tests := []struct {
+		name  string
+		val   float64
+		tags  []string
+		want  []string
+		want1 bool
+	}{
+		{
+			name:  "kube_job",
+			val:   1.0,
+			tags:  []string{"foo:bar", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "kube_job:foo"},
+			want1: true,
+		},
+		{
+			name:  "job",
+			val:   1.0,
+			tags:  []string{"foo:bar", "job:foo-1600167000"},
+			want:  []string{"foo:bar", "job:foo"},
+			want1: true,
+		},
+		{
+			name:  "job_name and kube_job",
+			val:   1.0,
+			tags:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo", "kube_job:foo"},
+			want1: true,
+		},
+		{
+			name:  "invalid",
+			val:   0.0,
+			tags:  []string{"foo:bar", "job_name:foo"},
+			want:  nil,
+			want1: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := validateJob(tt.val, tt.tags)
+			assert.ElementsMatch(t, got, tt.want)
+			assert.Equal(t, got1, tt.want1)
 		})
 	}
 }
