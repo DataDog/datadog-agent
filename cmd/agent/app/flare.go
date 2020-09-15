@@ -22,7 +22,6 @@ import (
 )
 
 var (
-	pprofURL      string
 	customerEmail string
 	autoconfirm   bool
 	forceLocal    bool
@@ -79,19 +78,42 @@ var flareCmd = &cobra.Command{
 	},
 }
 
+func readProfileData(pdata *flare.ProfileData) error {
+	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
+	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
+	if err := flare.CreatePerformanceProfile("core", coreDebugURL, profiling, pdata); err != nil {
+		return err
+	}
+
+	if k := "apm_config.enabled"; config.Datadog.IsSet(k) && !config.Datadog.GetBool(k) {
+		return nil
+	}
+	traceDebugURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", config.Datadog.GetInt("apm_config.receiver_port"))
+	cpusec := 4 // 5s is the default maximum connection timeout on the trace-agent HTTP server
+	if v := config.Datadog.GetInt("apm_config.receiver_timeout"); v > 0 {
+		if v > profiling {
+			// do not exceed requested duration
+			cpusec = profiling
+		} else {
+			// fit within set limit
+			cpusec = v - 1
+		}
+	}
+	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from trace.", cpusec))
+	return flare.CreatePerformanceProfile("trace", traceDebugURL, cpusec, pdata)
+}
+
 func makeFlare(caseID string) error {
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
-
-	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
-	var profile flare.ProfileData
-	var err error
+	var (
+		profile flare.ProfileData
+		err     error
+	)
 	if profiling >= 30 {
-		fmt.Fprintln(color.Output, color.BlueString("Creating a %ds performance profile.", profiling))
-		profile, err = flare.CreatePerformanceProfile(pprofURL, profiling)
-		if err != nil {
+		if err := readProfileData(&profile); err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
 			return err
 		}

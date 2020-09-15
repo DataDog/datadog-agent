@@ -39,10 +39,6 @@ import (
 )
 
 const (
-	firstHeapProfileName  = "first-heap.profile"
-	secondHeapProfileName = "second-heap.profile"
-	cpuProfileName        = "cpu.profile"
-
 	routineDumpFilename = "go-routine-dump.log"
 
 	// Maximum size for the root directory name
@@ -91,52 +87,40 @@ type filePermsInfo struct {
 // ProfileData maps (pprof) profile names to the profile data.
 type ProfileData map[string][]byte
 
-// CreatePerformanceProfile creates a CPU and Heap profile to include
-func CreatePerformanceProfile(pprofURL string, profileDuration int) (ProfileData, error) {
-	p := make(ProfileData)
+// CreatePerformanceProfile adds a set of heap and CPU profiles into target, using cpusec as the CPU
+// profile duration, debugURL as the target URL for fetching the profiles and prefix as a prefix for
+// naming them inside target.
+//
+// It is accepted to pass a nil target.
+func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *ProfileData) error {
 	c := apiutil.GetClient(false)
-
-	for _, prof := range []struct{ Name, Path string }{
-		{firstHeapProfileName, pprofURL + "/heap"},
-		{cpuProfileName, fmt.Sprintf("%s/profile?seconds=%d", pprofURL, profileDuration)},
-		{secondHeapProfileName, pprofURL + "/heap"},
+	if *target == nil {
+		*target = make(ProfileData)
+	}
+	for _, prof := range []struct{ Name, URL string }{
+		{
+			// 1st heap profile
+			Name: prefix + "-1st-heap.pprof",
+			URL:  debugURL + "/heap",
+		},
+		{
+			// CPU profile
+			Name: prefix + "-cpu.pprof",
+			URL:  fmt.Sprintf("%s/profile?seconds=%d", debugURL, cpusec),
+		},
+		{
+			// 2nd heap profile
+			Name: prefix + "-2nd-heap.pprof",
+			URL:  debugURL + "/heap",
+		},
 	} {
-		if b, err := apiutil.DoGet(c, prof.Path); err != nil {
-			return nil, err
+		if b, err := apiutil.DoGet(c, prof.URL); err != nil {
+			return err
 		} else {
-			p[prof.Name] = b
+			(*target)[prof.Name] = b
 		}
 	}
-
-	if k := "apm_config.enabled"; config.Datadog.IsSet(k) && !config.Datadog.GetBool(k) {
-		// APM is disabled
-		return p, nil
-	}
-
-	apmPort := config.Datadog.GetInt("apm_config.receiver_port")
-	tracePath := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", apmPort)
-	cpusec := 4 // 5s is the default maximum connection timeout on the trace-agent HTTP server
-	if v := config.Datadog.GetInt("apm_config.receiver_timeout"); v > 0 {
-		if v > profileDuration {
-			// do not exceed requested duration
-			cpusec = profileDuration
-		} else {
-			// fit within set limit
-			cpusec = v - 1
-		}
-	}
-	for _, prof := range []struct{ Name, Path string }{
-		{"trace-1st-heap.pprof", tracePath + "/heap"},
-		{"trace-cpu.pprof", fmt.Sprintf("%s/profile?seconds=%d", tracePath, cpusec)},
-		{"trace-2nd-heap.pprof", tracePath + "/heap"},
-	} {
-		if b, err := apiutil.DoGet(c, prof.Path); err != nil {
-			return nil, err
-		} else {
-			p[prof.Name] = b
-		}
-	}
-	return p, nil
+	return nil
 }
 
 // CreateArchive packages up the files
