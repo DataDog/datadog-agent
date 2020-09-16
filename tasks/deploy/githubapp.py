@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get('LOGGING_LEVEL', 'INFO'))
 
 # Defining a custom exception class to throw if the requests error out
-class GithubException(Exception):
+class GithubAppException(Exception):
     pass
 
 
@@ -91,7 +91,7 @@ class GithubApp:
                 time.sleep(1)
                 continue
             return r.json().get("token")
-        raise GithubException(
+        raise GithubAppException(
             """Unable to retrieve an access token.
         Status code: {} Response Text: {}""".format(
                 r.status_code, r.text
@@ -119,7 +119,7 @@ class GithubApp:
                 time.sleep(1)
                 continue
             return r.json()[0]["id"]
-        raise GithubException(
+        raise GithubAppException(
             """Unable to retrieve installation id.
         Status code: {} Response Text: {}""".format(
                 r.status_code, r.text

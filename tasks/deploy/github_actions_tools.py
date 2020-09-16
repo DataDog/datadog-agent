@@ -7,7 +7,7 @@ from time import sleep
 from invoke.exceptions import Exit
 
 from .color import color_message
-from .github import Github
+from .github import Github, GithubException
 
 
 def trigger_macos_workflow(
@@ -79,7 +79,11 @@ def follow_workflow_run(run_id):
     Follow the workflow run until completion.
     """
 
-    run = Github().workflow_run("DataDog/datadog-agent-macos-build", run_id)
+    try:
+        run = Github().workflow_run("DataDog/datadog-agent-macos-build", run_id)
+    except GithubException:
+        raise Exit(code=1)
+
     if run is None:
         print("Workflow run not found.")
         raise Exit(code=1)
@@ -87,8 +91,20 @@ def follow_workflow_run(run_id):
     print(color_message("Workflow run link: " + color_message(run["html_url"], "green",), "blue",))
 
     minutes = 0
+    failures = 0
+    MAX_FAILURES = 5
     while True:
-        run = Github().workflow_run("DataDog/datadog-agent-macos-build", run_id)
+        # Do not fail outright for temporary failures
+        try:
+            run = Github().workflow_run("DataDog/datadog-agent-macos-build", run_id)
+        except GithubException:
+            run = None
+
+        if run is None:
+            failures += 1
+            print("Workflow run not found, waiting one minute (failure {}/{})".format(failures, MAX_FAILURES))
+            if failures == MAX_FAILURES:
+                raise Exit(code=1)
 
         status = run["status"]
         conclusion = run["conclusion"]

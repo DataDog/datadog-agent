@@ -5,11 +5,15 @@ import re
 
 from invoke.exceptions import Exit
 
-from .githubapp import GithubApp
+from .githubapp import GithubApp, GithubAppException
 
 errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
-__all__ = ["Github"]
+__all__ = ["Github", "GithubException"]
+
+
+class GithubException(Exception):
+    pass
 
 
 class Github(object):
@@ -142,7 +146,12 @@ class Github(object):
                     print("Connection to Github ({}) refused".format(url))
                 else:
                     print("Error while connecting to {}: {}".format(url, str(e)))
-        raise Exit(code=1)
+        raise GithubException()
 
     def _api_token(self):
-        return GithubApp().get_token()
+        try:
+            token = GithubApp().get_token()
+        except GithubAppException:
+            raise GithubException()
+
+        return token
