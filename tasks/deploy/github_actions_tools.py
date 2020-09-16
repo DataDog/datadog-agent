@@ -44,10 +44,12 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    res = Github().trigger_workflow("DataDog/datadog-agent-macos-build", "macos.yaml", github_action_ref, inputs)
-    print(res)
+    Github().trigger_workflow("DataDog/datadog-agent-macos-build", "macos.yaml", github_action_ref, inputs)
+
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
-    # that started after we triggered the workflow
+    # that started after we triggered the workflow.
+    # In practice, this should almost never be a problem, even if the Agent 6 and 7 jobs run at the
+    # same time, given that these two jobs will target different github_action_ref on RCs / releases.
     retries = 1
     MAX_RETRIES = 10
     while retries <= MAX_RETRIES:
@@ -83,6 +85,7 @@ def follow_workflow_run(run_id):
 
     print(color_message("Workflow run link: " + color_message(run["html_url"], "green",), "blue",))
 
+    minutes = 0
     while True:
         run = Github().workflow_run("DataDog/datadog-agent-macos-build", run_id)
 
@@ -97,14 +100,15 @@ def follow_workflow_run(run_id):
                 print(color_message("Workflow run ended with state: {}".format(conclusion), "red",))
                 raise Exit(code=1)
         else:
-            print("Workflow still running...")
+            print("Workflow still running... ({} minutes)".format(minutes))
 
+        minutes += 1
         sleep(60)
 
 
 def download_artifacts(run_id, destination="."):
     """
-    Gets links to the zip files containing the artifacts.
+    Download all artifacts for a given job in the specified location.
     """
 
     print(color_message("Downloading artifacts for run {} to {}".format(run_id, destination), "blue"))

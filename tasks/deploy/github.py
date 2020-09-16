@@ -54,14 +54,14 @@ class Github(object):
 
     def workflow_run(self, repo_name, run_id):
         """
-        Gets info on a specific workflow
+        Gets info on a specific workflow.
         """
         path = "/repos/{}/actions/runs/{}".format(repo_name, run_id)
         return self.make_request(path, json=True)
 
     def download_artifact(self, repo_name, artifact_id, destination_dir):
         """
-        Gets info on a specific workflow
+        Downloads the artifact identified by artifact_id to destination_dir.
         """
         path = "/repos/{}/actions/artifacts/{}/zip".format(repo_name, artifact_id)
         content = self.make_request(path, raw_content=True)
@@ -73,7 +73,7 @@ class Github(object):
 
     def workflow_run_artifacts(self, repo_name, run_id):
         """
-        Gets list of artifacts for a run
+        Gets list of artifacts for a workflow run.
         """
         path = "/repos/{}/actions/runs/{}/artifacts".format(repo_name, run_id)
         return self.make_request(path, json=True)
@@ -104,8 +104,6 @@ class Github(object):
         import requests
 
         url = self.BASE_URL + path
-
-        print(url)
 
         headers = dict(headers or [])
         headers["Authorization"] = "token {}".format(self.api_token)
