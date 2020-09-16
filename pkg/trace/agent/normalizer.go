@@ -66,7 +66,6 @@ func fallbackService(lang string) string {
 // normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
 // is invalid beyond repair
 func normalize(ts *info.TagStats, s *pb.Span) error {
-	defaultService := func() string { return fallbackService(ts.Lang) }
 	if s.TraceID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
 		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
@@ -77,8 +76,8 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 	if s.Service == "" {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
-		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", defaultService(), s)
-		s.Service = defaultService()
+		s.Service = fallbackService(ts.Lang)
+		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", s.Service, s)
 	}
 	if len(s.Service) > MaxServiceLen {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
@@ -89,8 +88,8 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	svc := normalizeTag(s.Service)
 	if svc == "" {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceInvalid, 1)
-		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, defaultService(), s)
-		svc = defaultService()
+		svc = fallbackService(ts.Lang)
+		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
 	s.Service = svc
 
