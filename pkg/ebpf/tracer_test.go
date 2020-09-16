@@ -42,6 +42,10 @@ var (
 )
 
 func TestTracerExpvar(t *testing.T) {
+	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	require.NoError(t, err)
+	pre410Kernel := isPre410Kernel(currKernelVersion)
+
 	cfg := NewDefaultConfig()
 	// BPFDebug must be true for kretprobe/tcp_sendmsg to be included
 	cfg.BPFDebug = true
@@ -141,6 +145,11 @@ func TestTracerExpvar(t *testing.T) {
 	}
 
 	for _, et := range expvarTypes {
+		if et == "dns" && pre410Kernel {
+			// DNS stats not supported on <4.1.0
+			continue
+		}
+
 		expvar := map[string]float64{}
 		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
 		for _, name := range expected[et] {
