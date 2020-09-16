@@ -29,7 +29,11 @@ func checkRights(path string, allowGroupExec bool) error {
 		return checkUserPermission(&stat, usr, path)
 	}
 
-	return checkGroupPermission(&stat, usr, path)
+	userGroups, err := usr.GroupIds()
+	if err != nil {
+		return fmt.Errorf("can't query current user UID: %s", err)
+	}
+	return checkGroupPermission(&stat, usr, userGroups, path)
 }
 
 // checkUserPermission check that only the current User can exec and own the file path
@@ -52,17 +56,13 @@ func checkUserPermission(stat *syscall.Stat_t, usr *user.User, path string) erro
 }
 
 // checkUserPermission check that only the current User or one of his group can exec the path
-func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, path string) error {
+func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []string, path string) error {
 	var isUserFile bool
 	if fmt.Sprintf("%d", stat.Uid) == usr.Uid {
 		isUserFile = true
 	}
 	// If the file is not own by the user, lets check for on of his groups
 	if !isUserFile {
-		userGroups, err := usr.GroupIds()
-		if err != nil {
-			return fmt.Errorf("can't query current user UID: %s", err)
-		}
 		var isGroupFile bool
 		for _, userGroup := range userGroups {
 			if fmt.Sprintf("%d", stat.Gid) == userGroup {
