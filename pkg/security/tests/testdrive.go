@@ -49,16 +49,20 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 
 	mountPoint, err := ioutil.TempDir("", "secagent-testdrive-")
 	if err != nil {
+		os.Remove(backingFile.Name())
 		return nil, err
 	}
 
 	if err := os.Truncate(backingFile.Name(), 1*1024*1024); err != nil {
+		os.Remove(backingFile.Name())
+		os.RemoveAll(mountPoint)
 		return nil, err
 	}
 
 	dev, err := losetup.Attach(backingFile.Name(), 0, false)
 	if err != nil {
 		os.Remove(backingFile.Name())
+		os.RemoveAll(mountPoint)
 		return nil, err
 	}
 
@@ -70,6 +74,7 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 	if err := mkfsCmd.Run(); err != nil {
 		_ = dev.Detach()
 		os.Remove(backingFile.Name())
+		os.RemoveAll(mountPoint)
 		return nil, errors.Wrap(err, "failed to create ext4 filesystem")
 	}
 
@@ -79,6 +84,7 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 	if err := mountCmd.Run(); err != nil {
 		_ = dev.Detach()
 		os.Remove(backingFile.Name())
+		os.RemoveAll(mountPoint)
 		return nil, errors.Wrap(err, "failed to mount filesystem")
 	}
 
