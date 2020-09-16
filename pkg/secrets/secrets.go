@@ -22,9 +22,10 @@ var (
 	// list of handles and where they were found
 	secretOrigin map[string]common.StringSet
 
-	secretBackendCommand   string
-	secretBackendArguments []string
-	secretBackendTimeout   = 5
+	secretBackendCommand     string
+	secretBackendArguments   []string
+	secretBackendTermTimeout = 5
+	secretBackendKillTimeout = 6
 
 	// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
 	SecretBackendOutputMaxSize = 1024 * 1024
@@ -38,10 +39,11 @@ func init() {
 // Init initializes the command and other options of the secrets package. Since
 // this package is used by the 'config' package to decrypt itself we can't
 // directly use it.
-func Init(command string, arguments []string, timeout int, maxSize int) {
+func Init(command string, arguments []string, termTimeout int, killTimeout int, maxSize int) {
 	secretBackendCommand = command
 	secretBackendArguments = arguments
-	secretBackendTimeout = timeout
+	secretBackendTermTimeout = termTimeout
+	secretBackendKillTimeout = killTimeout
 	SecretBackendOutputMaxSize = maxSize
 }
 

@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -43,11 +44,15 @@ func (b *limitBuffer) Write(p []byte) (n int, err error) {
 }
 
 func execCommand(inputPayload string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(secretBackendTimeout)*time.Second)
-	defer cancel()
+	killCtx, killCancel := context.WithTimeout(context.Background(),
+		time.Duration(secretBackendKillTimeout)*time.Second)
+	defer killCancel()
 
-	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
+	termCtx, termCancel := context.WithTimeout(killCtx,
+		time.Duration(secretBackendTermTimeout)*time.Second)
+	defer termCancel()
+
+	cmd := exec.CommandContext(killCtx, secretBackendCommand, secretBackendArguments...)
 	if err := checkRights(cmd.Path); err != nil {
 		return nil, err
 	}
@@ -66,7 +71,22 @@ func execCommand(inputPayload string) ([]byte, error) {
 	cmd.Stderr = &stderr
 
 	start := time.Now()
-	err := cmd.Run()
+	err := cmd.Start()
+	if err != nil {
+		return nil, fmt.Errorf("secret_backend_command '%s' failed to start: %w", secretBackendCommand, err)
+	}
+	go func() {
+		select {
+		case <-termCtx.Done():
+			if termCtx.Err() == context.DeadlineExceeded {
+				err := cmd.Process.Signal(syscall.SIGTERM)
+				if err != nil {
+					log.Debugf("Failed to send SIGTERM to %s (%d): %v", secretBackendCommand, cmd.Process.Pid, err)
+				}
+			}
+		}
+	}()
+	err = cmd.Wait()
 	elapsed := time.Since(start)
 	log.Debugf("secret_backend_command '%s' completed in %s", secretBackendCommand, elapsed)
 
@@ -77,15 +97,13 @@ func execCommand(inputPayload string) ([]byte, error) {
 		var e *exec.ExitError
 		if errors.As(err, &e) {
 			exitCode = strconv.Itoa(e.ExitCode())
-		} else if ctx.Err() == context.DeadlineExceeded {
-			exitCode = "timeout"
 		}
 		tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, exitCode)
 
-		if ctx.Err() == context.DeadlineExceeded {
+		if killCtx.Err() == context.DeadlineExceeded {
 			return nil, fmt.Errorf("error while running '%s': command timeout", secretBackendCommand)
 		}
-		return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, err)
+		return nil, fmt.Errorf("error while running '%s': %w", secretBackendCommand, err)
 	}
 	tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, "0")
 	return stdout.buf.Bytes(), nil

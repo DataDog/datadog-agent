@@ -425,10 +425,15 @@ api_key:
 #
 # secret_backend_output_max_size: 1048576
 
-## @param secret_backend_timeout - integer - optional - default: 5
-## The timeout to execute the command in second
+## @param secret_backend_term_timeout - integer - optional - default: 5
+## The timeout to execute the command in second before sending a TERM signal
 #
 # secret_backend_timeout: 5
+
+## @param secret_backend_timeout - integer - optional - default: 6
+## The timeout to execute the command in second before sending a KILL signal
+#
+# secret_backend_timeout: 6
 
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
