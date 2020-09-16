@@ -96,6 +96,9 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
+    u64 ino = get_path_ino(path);
+    bpf_printk("IIIIIIIIIII: %d\n", ino);
+
     struct exec_event_t event = {
         .event.type = EVENT_EXEC,
         .pid = tgid,

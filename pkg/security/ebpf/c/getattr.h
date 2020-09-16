@@ -24,7 +24,6 @@ int kprobe__security_inode_getattr(struct pt_regs *ctx) {
     u32 overlay_numlower = get_overlay_numlower(dentry);
     u32 mount_id = get_path_mount_id(path);
 
-
     struct inode_info_entry_t entry = {
         .mount_id = mount_id,
         .overlay_numlower = overlay_numlower,

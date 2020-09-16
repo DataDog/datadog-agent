@@ -536,6 +536,8 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 
+		fmt.Printf("IIIIIIIIIIIIIII: %d\n", event.Exec.FileEvent.Inode)
+
 		// resolve now, so that the dentry cache is up to date
 		event.Exec.FileEvent.ResolveInode(p.resolvers)
 		event.Exec.FileEvent.ResolveContainerPath(p.resolvers)
