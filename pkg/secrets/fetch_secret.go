@@ -68,7 +68,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 	start := time.Now()
 	err := cmd.Run()
 	elapsed := time.Since(start)
-	log.Debugf("secret_backend_command '%s' completed in %d ms", secretBackendCommand, elapsed.Milliseconds())
+	log.Debugf("secret_backend_command '%s' completed in %s", secretBackendCommand, elapsed)
 
 	if err != nil {
 		log.Errorf("secret_backend_command stderr: %s", stderr.buf.String())
