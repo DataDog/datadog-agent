@@ -102,6 +102,8 @@ def follow_workflow_run(run_id):
                 raise Exit(code=1)
         else:
             print("Workflow still running... ({}m)".format(minutes))
+            # For some unknown reason, in Gitlab these lines do not get flushed, leading to not being
+            # able to see where's the job at in the logs. The following line forces the flush.
             sys.stdout.flush()
 
         minutes += 1
