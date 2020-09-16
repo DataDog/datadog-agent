@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 
 from invoke import task
 
@@ -128,7 +129,16 @@ def gen_mocks(ctx):
 
 @task
 def functional_tests(
-    ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output='', build_tags=''
+    ctx,
+    race=False,
+    verbose=False,
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    pattern='',
+    output='',
+    build_tags='',
+    one_by_one=False,
 ):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
@@ -146,7 +156,19 @@ def functional_tests(
         "REPO_PATH": REPO_PATH,
     }
 
-    ctx.run(cmd.format(**args), env=env)
+    if one_by_one:
+        all_tests = ctx.run(
+            "grep -e 'func Test' pkg/security/tests/*.go | perl -pe 's|.*func (.*?)\\(.*|\\1|g'"
+        ).stdout.split()
+
+        for i, test in enumerate(all_tests):
+            args["run_opt"] = "-run ^{test}$".format(test=test)
+            ctx.run(cmd.format(**args), env=env)
+            if i != len(all_tests) - 1:
+                time.sleep(2)
+
+    else:
+        ctx.run(cmd.format(**args), env=env)
 
 
 @task

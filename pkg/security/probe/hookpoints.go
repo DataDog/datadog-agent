@@ -175,9 +175,9 @@ var allHookPoints = []*HookPoint{
 		EventTypes: []eval.EventType{"mkdir"},
 	},
 	{
-		Name: "vfs_rmdir",
+		Name: "security_inode_rmdir",
 		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/vfs_rmdir",
+			EntryFunc: "kprobe/security_inode_rmdir",
 		}},
 		EventTypes: []eval.EventType{"rmdir", "unlink"},
 	},
