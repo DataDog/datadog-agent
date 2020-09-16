@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 )
 
-var datadogNTPHosts = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
-
 type cloudProviderDetector struct {
 	name     string
 	callback func() bool
@@ -69,11 +67,11 @@ func GetCloudProviderNTPHosts() []string {
 
 	for _, cloudNTPdetector := range detectors {
 		if cloudNTPserver := cloudNTPdetector.callback(); cloudNTPserver != nil {
-			log.Debug("Cloud provider %s detected", cloudNTPdetector.name)
+			log.Debug("Using NTP servers from %s cloud provider", cloudNTPdetector.name)
 			return cloudNTPserver
 		}
 	}
 
 	log.Debug("No cloud provider detected, using default ntp pool.")
-	return datadogNTPHosts
+	return nil
 }
