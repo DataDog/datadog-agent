@@ -114,11 +114,11 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			URL:  debugURL + "/heap",
 		},
 	} {
-		if b, err := apiutil.DoGet(c, prof.URL); err != nil {
+		b, err := apiutil.DoGet(c, prof.URL)
+		if err != nil {
 			return err
-		} else {
-			(*target)[prof.Name] = b
 		}
+		(*target)[prof.Name] = b
 	}
 	return nil
 }
