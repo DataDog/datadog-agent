@@ -41,120 +41,143 @@ func TestOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// openat
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT)
-	if errno != 0 {
-		t.Fatal(error(errno))
-	}
-	defer syscall.Close(int(fd))
-	defer os.Remove(testFile)
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "open" {
-			t.Errorf("expected open event, got %s", event.GetType())
+	t.Run("open", func(t *testing.T) {
+		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
+		if errno != 0 {
+			t.Fatal(error(errno))
 		}
+		defer syscall.Close(int(fd))
+		defer os.Remove(testFile)
 
-		if flags := event.Open.Flags; flags != syscall.O_CREAT {
-			t.Errorf("expected open mode O_CREAT, got %d", flags)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, got %s", event.GetType())
+			}
+
+			if flags := event.Open.Flags; flags != syscall.O_CREAT {
+				t.Errorf("expected open flag O_CREAT, got %d", flags)
+			}
+
+			if mode := event.Open.Mode; mode != 0755 {
+				t.Errorf("expected open mode 0755, got %#o", mode)
+			}
 		}
-	}
+	})
 
-	// open
-	fd, _, errno = syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0)
-	if errno != 0 {
-		t.Fatal(error(errno))
-	}
-	defer syscall.Close(int(fd))
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "open" {
-			t.Errorf("expected open event, got %s", event.GetType())
+	t.Run("openat", func(t *testing.T) {
+		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+		if errno != 0 {
+			t.Fatal(error(errno))
 		}
+		defer syscall.Close(int(fd))
+		defer os.Remove(testFile)
 
-		if flags := event.Open.Flags; flags != syscall.O_CREAT {
-			t.Errorf("expected open mode O_CREAT, got %d", flags)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, got %s", event.GetType())
+			}
+
+			if flags := event.Open.Flags; flags != syscall.O_CREAT {
+				t.Errorf("expected open mode O_CREAT, got %d", flags)
+			}
+
+			if mode := event.Open.Mode; mode != 0711 {
+				t.Errorf("expected open mode 0711, got %#o", mode)
+			}
 		}
-	}
+	})
 
-	// creat
-	fd, _, errno = syscall.Syscall(syscall.SYS_CREAT, uintptr(testFilePtr), 0, 0)
-	if errno != 0 {
-		t.Fatal(error(errno))
-	}
-	defer syscall.Close(int(fd))
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "open" {
-			t.Errorf("expected open event, got %s", event.GetType())
+	t.Run("creat", func(t *testing.T) {
+		fd, _, errno := syscall.Syscall(syscall.SYS_CREAT, uintptr(testFilePtr), 0, 0)
+		if errno != 0 {
+			t.Fatal(error(errno))
 		}
+		defer syscall.Close(int(fd))
 
-		if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
-			t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, got %s", event.GetType())
+			}
+
+			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
+				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
+			}
 		}
-	}
+	})
 
-	syscall.Write(int(fd), []byte("this data will soon be truncated\n"))
-
-	// truncate
-	fd, _, errno = syscall.Syscall(syscall.SYS_TRUNCATE, uintptr(testFilePtr), 4, 0)
-	if errno != 0 {
-		t.Fatal(error(errno))
-	}
-	defer syscall.Close(int(fd))
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "open" {
-			t.Errorf("expected open event, get %s", event.GetType())
+	t.Run("truncate", func(t *testing.T) {
+		f, err := os.Open(testFile)
+		if err != nil {
+			t.Fatal(err)
 		}
+		defer f.Close()
 
-		if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
-			t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
-		}
-	}
+		syscall.Write(int(f.Fd()), []byte("this data will soon be truncated\n"))
 
-	// open_by_handle_at
-	h, mountID, err := unix.NameToHandleAt(unix.AT_FDCWD, testFile, 0)
-	if err != nil {
-		t.Fatalf("NameToHandleAt: %v", err)
-	}
-	mount, err := openMountByID(mountID)
-	if err != nil {
-		t.Fatalf("openMountByID: %v", err)
-	}
-	defer mount.Close()
-	fdInt, err := unix.OpenByHandleAt(int(mount.Fd()), h, unix.O_CREAT)
-	if err != nil {
-		if err == unix.EINVAL {
-			t.Skip("open_by_handle_at not supported")
+		// truncate
+		fd, _, errno := syscall.Syscall(syscall.SYS_TRUNCATE, uintptr(testFilePtr), 4, 0)
+		if errno != 0 {
+			t.Fatal(error(errno))
 		}
-		t.Fatalf("OpenByHandleAt: %v", err)
-	}
-	defer unix.Close(fdInt)
+		defer syscall.Close(int(fd))
 
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "open" {
-			t.Errorf("expected open event, got %s", event.GetType())
-		}
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, get %s", event.GetType())
+			}
 
-		if flags := event.Open.Flags; flags != syscall.O_CREAT {
-			t.Errorf("expected open mode O_RDWR, got %d", flags)
+			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
+				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
+			}
 		}
-	}
+	})
+
+	t.Run("open_by_handle_at", func(t *testing.T) {
+		h, mountID, err := unix.NameToHandleAt(unix.AT_FDCWD, testFile, 0)
+		if err != nil {
+			t.Fatalf("NameToHandleAt: %v", err)
+		}
+		mount, err := openMountByID(mountID)
+		if err != nil {
+			t.Fatalf("openMountByID: %v", err)
+		}
+		defer mount.Close()
+
+		fdInt, err := unix.OpenByHandleAt(int(mount.Fd()), h, unix.O_CREAT)
+		if err != nil {
+			if err == unix.EINVAL {
+				t.Skip("open_by_handle_at not supported")
+			}
+			t.Fatalf("OpenByHandleAt: %v", err)
+		}
+		defer unix.Close(fdInt)
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, got %s", event.GetType())
+			}
+
+			if flags := event.Open.Flags; flags != syscall.O_CREAT {
+				t.Errorf("expected open mode O_RDWR, got %d", flags)
+			}
+		}
+	})
+
 }
 
 func openMountByID(mountID int) (f *os.File, err error) {

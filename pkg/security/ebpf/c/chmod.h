@@ -13,7 +13,7 @@ struct chmod_event_t {
     u32 padding;
 };
 
-int __attribute__((always_inline)) trace__sys_chmod(struct pt_regs *ctx, umode_t mode) {
+int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
     struct syscall_cache_t syscall = {
         .type = EVENT_CHMOD,
         .setattr = {
@@ -25,38 +25,16 @@ int __attribute__((always_inline)) trace__sys_chmod(struct pt_regs *ctx, umode_t
     return 0;
 }
 
-SYSCALL_KPROBE(chmod) {
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM2(ctx));
-#else
-    mode = (umode_t) PT_REGS_PARM2(ctx);
-#endif
-    return trace__sys_chmod(ctx, mode);
+SYSCALL_KPROBE2(chmod, const char*, filename, umode_t, mode) {
+    return trace__sys_chmod(mode);
 }
 
-SYSCALL_KPROBE(fchmod) {
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM2(ctx));
-#else
-    mode = (umode_t) PT_REGS_PARM2(ctx);
-#endif
-    return trace__sys_chmod(ctx, mode);
+SYSCALL_KPROBE2(fchmod, int, fd, umode_t, mode) {
+    return trace__sys_chmod(mode);
 }
 
-SYSCALL_KPROBE(fchmodat) {
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM3(ctx));
-#else
-    mode = (umode_t) PT_REGS_PARM3(ctx);
-#endif
-
-    return trace__sys_chmod(ctx, mode);
+SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
+    return trace__sys_chmod(mode);
 }
 
 int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {

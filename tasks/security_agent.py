@@ -145,6 +145,10 @@ def functional_tests(
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
 
+    env["CGO_ENABLED"] = "1"
+    if arch == "x86":
+        env["GOARCH"] = "386"
+
     cmd = 'sudo -E go test -tags functionaltests,linux_bpf,{build_tags} {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
 
     args = {
