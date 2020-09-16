@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/metadata/agentchecks"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	md "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -20,7 +21,7 @@ type AgentChecksCollector struct{}
 // Send collects the data needed and submits the payload
 func (hp *AgentChecksCollector) Send(s *serializer.Serializer) error {
 	payload := agentchecks.GetPayload()
-	if err := s.SendMetadata(payload); err != nil {
+	if err := s.SendMetadata(payload, forwarder.TransactionPriorityNormal); err != nil {
 		return fmt.Errorf("unable to submit host metadata payload, %s", err)
 	}
 	return nil
