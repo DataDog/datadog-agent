@@ -235,6 +235,8 @@ func InitConfig(config Config) {
 
 	// Yaml keys which values are stripped from flare
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
+	// Grace period for remote flare wrap-up in seconds
+	config.BindEnvAndSetDefault("flare_grace_period", 5)
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)

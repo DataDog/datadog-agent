@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	// "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/mholt/archiver"
@@ -74,8 +75,11 @@ func (f RemoteFlare) hasSource(id string) (*RegisteredSource, bool) {
 	return src, ok
 }
 
-func (f RemoteFlare) wrapUp(d time.Duration) error {
+func (f RemoteFlare) wrapUp() error {
 	defer os.RemoveAll(f.tempDir)
+
+	grace := config.Datadog.GetInt("flare_grace_period")
+	time.Sleep(time.Until(time.Unix(f.Ts, 0).Add(time.Second * time.Duration(grace))))
 
 	mutex.Lock()
 	currentFlare = nil
@@ -125,8 +129,8 @@ func CreateRemoteFlareArchive(tracerId, svc, env string, d time.Duration) (*Remo
 		currentFlare.sources = GetSourcesByServiceAndEnv(svc, env)
 	}
 
-	// do this somewhere else
-	// defer os.RemoveAll(tempDir)
+	go currentFlare.wrapUp()
+
 	return currentFlare, nil
 
 }
@@ -161,6 +165,7 @@ func LogEntry(flareId, tracerId string, data io.ReadCloser) error {
 	}
 
 	// write to file - thread safety enforced at OS-level (?)
+	// + writes from tracers should be serialized by nature.
 	_, err = io.Copy(fp, data)
 	return err
 
