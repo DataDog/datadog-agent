@@ -1,3 +1,4 @@
 enhancements:
   - |
-    The NTP check now uses the cloud provider's NTP server by default, if possible.
+    The NTP check now uses the cloud provider's recommended NTP servers by default, if the Agent
+    detects that it's running on said cloud provider.

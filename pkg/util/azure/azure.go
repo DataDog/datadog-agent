@@ -65,6 +65,7 @@ func GetClusterName() (string, error) {
 }
 
 // GetNTPHosts returns the NTP hosts for Azure if it is detected as the cloud provider, otherwise an empty array.
+// Demo: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync
 func GetNTPHosts() []string {
 	if IsRunningOn() {
 		return []string{"time.windows.com"}

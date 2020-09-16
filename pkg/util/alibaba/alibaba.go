@@ -45,6 +45,7 @@ func GetHostAlias() (string, error) {
 }
 
 // GetNTPHosts returns the NTP hosts for Alibaba if it is detected as the cloud provider, otherwise an empty array.
+// Docs: https://www.alibabacloud.com/help/doc-detail/92704.htm
 func GetNTPHosts() []string {
 	if IsRunningOn() {
 		return []string{

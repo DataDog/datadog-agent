@@ -121,6 +121,7 @@ func GetNetworkID() (string, error) {
 }
 
 // GetNTPHosts returns the NTP hosts for GCE if it is detected as the cloud provider, otherwise an empty array.
+// Docs: https://cloud.google.com/compute/docs/instances/managing-instances
 func GetNTPHosts() []string {
 	if IsRunningOn() {
 		return []string{"metadata.google.internal"}

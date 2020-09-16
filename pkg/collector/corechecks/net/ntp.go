@@ -80,6 +80,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 
 	// Default to our domains on pool.ntp.org if no cloud provider detected
 	if defaultHosts == nil {
+		log.Debug("No cloud provider detected, using default ntp pool.")
 		defaultHosts = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	}
 

@@ -72,6 +72,5 @@ func GetCloudProviderNTPHosts() []string {
 		}
 	}
 
-	log.Debug("No cloud provider detected, using default ntp pool.")
 	return nil
 }
