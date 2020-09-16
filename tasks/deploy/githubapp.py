@@ -60,7 +60,6 @@ class GithubApp:
         """
         import requests
 
-        print(endpoint)
         if method == 'GET':
             return requests.get(
                 '{base_url}{endpoint}'.format(base_url=self.base_url, endpoint=endpoint), headers=self.get_headers()

@@ -1,9 +1,10 @@
 # python development requirements for the Datadog Agent
-cryptography==2.9
+# cryptography doesn't build on arm without additional libs (libffi), and we don't need it there anyway
+cryptography==2.9 ; platform_machine == "x86_64"
 invoke==1.4.1
 reno==3.1.0
 docker==3.7.3
 requests==2.23.0
-PyYAML==5.3.1
 PyJWT==1.7.1
+PyYAML==5.3.1
 toml==0.9.4
