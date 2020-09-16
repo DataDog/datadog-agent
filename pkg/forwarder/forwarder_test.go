@@ -446,3 +446,51 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	_, ok := <-responses
 	require.False(t, ok) // channel should have been closed without receiving any responses
 }
+
+func TestHighPriorityTransaction(t *testing.T) {
+	requestCount := 0
+	var requestChan = make(chan (string))
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+
+		// First 3 requests failed
+		if requestCount < 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			defer r.Body.Close()
+			body, err := ioutil.ReadAll(r.Body)
+			assert.NoError(t, err)
+			w.WriteHeader(http.StatusOK)
+			requestChan <- string(body)
+		}
+	}))
+
+	config.Datadog.Set("forwarder_backoff_max", 0.5)
+	defer config.Datadog.Set("forwarder_backoff_max", nil)
+
+	oldFlushInterval := flushInterval
+	flushInterval = 500 * time.Millisecond
+	defer func() { flushInterval = oldFlushInterval }()
+
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
+		ts.URL: {"api_key1"},
+	}))
+
+	f.Start()
+	defer f.Stop()
+
+	data1 := []byte("data payload 1")
+	data2 := []byte("data payload 2")
+	dataHighPrio := []byte("data payload high Prio")
+	headers := http.Header{}
+	headers.Set("key", "value")
+
+	assert.Nil(t, f.SubmitMetadata(Payloads{&data1}, headers, TransactionPriorityNormal))
+	assert.Nil(t, f.SubmitMetadata(Payloads{&dataHighPrio}, headers, TransactionPriorityHigh))
+	assert.Nil(t, f.SubmitMetadata(Payloads{&data2}, headers, TransactionPriorityNormal))
+
+	assert.Equal(t, string(dataHighPrio), <-requestChan)
+	assert.Equal(t, string(data2), <-requestChan)
+	assert.Equal(t, string(data1), <-requestChan)
+}
