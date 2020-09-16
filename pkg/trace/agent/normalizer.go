@@ -12,6 +12,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode"
@@ -41,15 +42,31 @@ var (
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 )
 
+// fallbackServiceNames is a cache of default service names to use
+// when the span's service is unset or invalid.
+var fallbackServiceNames sync.Map
+
+// fallbackService returns the fallback service name for a service
+// belonging to language lang.
+func fallbackService(lang string) string {
+	if lang == "" {
+		return DefaultServiceName
+	}
+	if v, ok := fallbackServiceNames.Load(lang); ok {
+		return v.(string)
+	}
+	var str strings.Builder
+	str.WriteString("unnamed-")
+	str.WriteString(lang)
+	str.WriteString("-service")
+	fallbackServiceNames.Store(lang, str.String())
+	return str.String()
+}
+
 // normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
 // is invalid beyond repair
 func normalize(ts *info.TagStats, s *pb.Span) error {
-	defaultService := func() string {
-		if ts.Lang == "" {
-			return DefaultServiceName
-		}
-		return "unnamed-" + ts.Lang + "-service"
-	}
+	defaultService := func() string { return fallbackService(ts.Lang) }
 	if s.TraceID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
 		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
