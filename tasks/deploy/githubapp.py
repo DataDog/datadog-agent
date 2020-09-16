@@ -3,9 +3,6 @@ import logging
 import os
 import time
 
-import jwt
-import requests
-
 # Defines how many times the HTTP requests will be retried
 NB_RETRIES = 3
 
@@ -32,6 +29,8 @@ class GithubApp:
         return payload
 
     def get_headers(self):
+        import jwt
+
         payload = self.gen_payload()
         bearer_token = jwt.encode(payload, base64.b64decode(self.key_b64), algorithm='RS256').decode()
         headers = {
@@ -41,6 +40,8 @@ class GithubApp:
         return headers
 
     def make_request(self, endpoint, method='GET', payload=None):
+        import requests
+
         print(endpoint)
         if method == 'GET':
             return requests.get(
