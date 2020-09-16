@@ -54,7 +54,11 @@ func TestGroupOtherRights(t *testing.T) {
 
 	allowGroupExec = true
 
-	// group should have only read and exec rights
+	// event if allowGroupExec=true, group may have no permission
+	require.Nil(t, os.Chmod(tmpfile.Name(), 0700))
+	require.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
+
+	// group can have read and exec permission
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0750))
 	require.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
@@ -63,6 +67,6 @@ func TestGroupOtherRights(t *testing.T) {
 	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// other should have no right
-	require.Nil(t, os.Chmod(tmpfile.Name(), 0751))
+	require.Nil(t, os.Chmod(tmpfile.Name(), 0701))
 	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 }
