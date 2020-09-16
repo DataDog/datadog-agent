@@ -12,21 +12,21 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestChown(t *testing.T) {
-	ruleDef := &policy.RuleDefinition{
+	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `chown.filename == "{{.Root}}/test-chown"`,
 	}
 
-	ruleDef2 := &policy.RuleDefinition{
+	ruleDef2 := &rules.RuleDefinition{
 		ID:         "test_rule2",
 		Expression: `chown.filename == "{{.Root}}/test-symlink"`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{ruleDef, ruleDef2}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef, ruleDef2}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}

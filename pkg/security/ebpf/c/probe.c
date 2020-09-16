@@ -27,6 +27,7 @@
 #include "link.h"
 #include "raw_syscalls.h"
 #include "getattr.h"
+#include "setxattr.h"
 
 __u32 _version SEC("version") = 0xFFFFFFFE;
 

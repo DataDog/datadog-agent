@@ -43,6 +43,8 @@ spec:
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
               value: "8125"
+            - name: DD_COLLECT_KUBERNETES_EVENTS
+              value: "true"
             - name: DD_APM_ENABLED
               value: "false"
             - name: DD_LOGS_ENABLED
@@ -62,12 +64,15 @@ spec:
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: cgroups
               mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
               readOnly: true
           livenessProbe:
             failureThreshold: 6
@@ -109,9 +114,11 @@ spec:
               mountPath: /etc/datadog-agent
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
           env:
             - name: DD_API_KEY

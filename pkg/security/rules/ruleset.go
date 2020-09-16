@@ -11,10 +11,39 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// MacroID represents the ID of a macro
+type MacroID = string
+
+// MacroDefinition holds the definition of a macro
+type MacroDefinition struct {
+	ID         MacroID `yaml:"id"`
+	Expression string  `yaml:"expression"`
+}
+
+// RuleID represents the ID of a rule
+type RuleID = string
+
+// RuleDefinition holds the definition of a rule
+type RuleDefinition struct {
+	ID         RuleID            `yaml:"id"`
+	Expression string            `yaml:"expression"`
+	Tags       map[string]string `yaml:"tags"`
+}
+
+// GetTags returns the tags associated to a rule
+func (rd *RuleDefinition) GetTags() []string {
+	tags := []string{}
+	for k, v := range rd.Tags {
+		tags = append(
+			tags,
+			fmt.Sprintf("%s:%s", k, v))
+	}
+	return tags
+}
 
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
@@ -65,7 +94,7 @@ func NewOptsWithParams(debug bool, constants map[string]interface{}, invalidDisc
 type RuleSet struct {
 	opts             *Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
-	rules            map[policy.RuleID]*eval.Rule
+	rules            map[eval.RuleID]*eval.Rule
 	model            eval.Model
 	eventCtor        func() eval.Event
 	listeners        []RuleSetListener
@@ -84,7 +113,7 @@ func (rs *RuleSet) ListRuleIDs() []string {
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
-func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
+func (rs *RuleSet) AddMacros(macros []*MacroDefinition) error {
 	var result *multierror.Error
 
 	// Build the list of macros for the ruleset
@@ -98,7 +127,7 @@ func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
 }
 
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
-func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*eval.Macro, error) {
+func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
 	if _, exists := rs.opts.Macros[macroDef.ID]; exists {
 		return nil, fmt.Errorf("found multiple definition of the macro '%s'", macroDef.ID)
 	}
@@ -122,7 +151,7 @@ func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*eval.Macro, erro
 }
 
 // AddRules adds rules to the ruleset and generate their partials
-func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
+func (rs *RuleSet) AddRules(rules []*RuleDefinition) error {
 	var result *multierror.Error
 
 	for _, ruleDef := range rules {
@@ -139,7 +168,7 @@ func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*eval.Rule, error) {
+func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	if _, exists := rs.rules[ruleDef.ID]; exists {
 		return nil, fmt.Errorf("found multiple definition of the rule '%s'", ruleDef.ID)
 	}
@@ -380,7 +409,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		eventCtor:         eventCtor,
 		opts:              opts,
 		eventRuleBuckets:  make(map[eval.EventType]*RuleBucket),
-		rules:             make(map[policy.RuleID]*eval.Rule),
+		rules:             make(map[eval.RuleID]*eval.Rule),
 		invalidDiscarders: opts.getInvalidDiscarders(),
 	}
 }

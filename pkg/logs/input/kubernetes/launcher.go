@@ -169,7 +169,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 				Service: standardService,
 			}
 		} else {
-			shortImageName, err := l.getShortImageName(container)
+			shortImageName, err := l.getShortImageName(pod, container.Name)
 			if err != nil {
 				cfg = &config.LogsConfig{
 					Source:  kubernetesIntegration,
@@ -285,8 +285,12 @@ func (l *Launcher) getPodDirectorySince1_14(pod *kubelet.Pod) string {
 }
 
 // getShortImageName returns the short image name of a container
-func (l *Launcher) getShortImageName(container kubelet.ContainerStatus) (string, error) {
-	_, shortName, _, err := containers.SplitImageName(container.Image)
+func (l *Launcher) getShortImageName(pod *kubelet.Pod, containerName string) (string, error) {
+	containerSpec, err := l.kubeutil.GetSpecForContainerName(pod, containerName)
+	if err != nil {
+		return "", err
+	}
+	_, shortName, _, err := containers.SplitImageName(containerSpec.Image)
 	if err != nil {
 		log.Debugf("Cannot parse image name: %v", err)
 	}

@@ -5,6 +5,8 @@ package ebpf
 import (
 	"expvar"
 	"fmt"
+	"math"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -17,7 +19,7 @@ const (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_total_flow_stats", "driver_flow_handle_stats", "total_flows"}
+	expvarTypes     = []string{"state", "driver_total_flow_stats", "driver_flow_handle_stats", "total_flows", "open_flows", "closed_flows", "more_data_errors"}
 )
 
 func init() {
@@ -34,6 +36,10 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      network.ReverseDNS
+	bufferLock      sync.Mutex
+
+	connStatsActive []network.ConnectionStats
+	connStatsClosed []network.ConnectionStats
 
 	timerInterval int
 
@@ -44,7 +50,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config.EnableMonotonicCount)
+	di, err := network.NewDriverInterface(config.EnableMonotonicCount, config.DriverBufferSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
@@ -62,6 +68,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		timerInterval:   defaultPollInterval,
 		state:           state,
 		reverseDNS:      network.NewNullReverseDNS(),
+		connStatsActive: make([]network.ConnectionStats, 512),
+		connStatsClosed: make([]network.ConnectionStats, 512),
 	}
 
 	go tr.expvarStats(tr.stopChan)
@@ -88,6 +96,13 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 				continue
 			}
 
+			// Move state stats into proper field
+			if states, ok := stats["state"]; ok {
+				if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+					stats["state"] = telemetry
+				}
+			}
+
 			for name, stat := range stats {
 				for metric, val := range stat.(map[string]int64) {
 					currVal := &expvar.Int{}
@@ -108,20 +123,35 @@ func printStats(stats []network.ConnectionStats) {
 
 // GetActiveConnections returns all active connections
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
-	connStatsActive, connStatsClosed, err := t.driverInterface.GetConnectionStats()
+	t.bufferLock.Lock()
+	defer t.bufferLock.Unlock()
+
+	activeConnStats, closedConnStats, err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0])
 	if err != nil {
 		log.Errorf("failed to get connnections")
 		return nil, err
 	}
 
-	for _, connStat := range connStatsClosed {
+	for _, connStat := range closedConnStats {
 		t.state.StoreClosedConnection(connStat)
 	}
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
-	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), connStatsActive, t.reverseDNS.GetDNSStats())
+	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
+	t.connStatsActive = t.resizeBuffer(len(activeConnStats), t.connStatsActive)
+	t.connStatsClosed = t.resizeBuffer(len(closedConnStats), t.connStatsClosed)
 	return &network.Connections{Conns: conns}, nil
+}
+
+func (t *Tracer) resizeBuffer(compareSize int, buffer []network.ConnectionStats) []network.ConnectionStats {
+	if compareSize >= cap(buffer)*2 {
+		return make([]network.ConnectionStats, 0, cap(buffer)*2)
+	} else if compareSize <= cap(buffer)/2 {
+		// Take the max of buffer/2 and compareSize to limit future array resizes
+		return make([]network.ConnectionStats, 0, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
+	}
+	return buffer
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -137,8 +167,14 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		log.Errorf("not printing driver stats: %v", err)
 	}
 
+	stateStats := t.state.GetStats()
+
 	return map[string]interface{}{
+		"state":                    stateStats,
 		"total_flows":              driverStats["total_flows"],
+		"open_flows":               driverStats["open_flows"],
+		"closed_flows":             driverStats["closed_flows"],
+		"more_data_errors":         driverStats["more_data_errors"],
 		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
 		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil

@@ -101,6 +101,9 @@ type Config struct {
 
 	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
+
+	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
+	DriverBufferSize int
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -113,7 +116,7 @@ func NewDefaultConfig() *Config {
 		DNSInspection:         true,
 		UDPConnTimeout:        30 * time.Second,
 		TCPConnTimeout:        2 * time.Minute,
-		TCPClosedTimeout:      20 * time.Second,
+		TCPClosedTimeout:      time.Second,
 		MaxTrackedConnections: 65536,
 		ConntrackMaxStateSize: 65536,
 		ConntrackRateLimit:    500,
@@ -127,7 +130,7 @@ func NewDefaultConfig() *Config {
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
-		CollectDNSStats:      false,
+		CollectDNSStats:      true,
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
 		EnableMonotonicCount: false,

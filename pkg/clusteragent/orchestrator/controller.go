@@ -55,6 +55,8 @@ type Controller struct {
 	rsListerSync            cache.InformerSynced
 	serviceLister           corelisters.ServiceLister
 	serviceListerSync       cache.InformerSynced
+	nodesLister             corelisters.NodeLister
+	nodesListerSync         cache.InformerSynced
 	groupID                 int32
 	hostName                string
 	clusterName             string
@@ -91,6 +93,7 @@ func StartController(ctx ControllerContext) error {
 		apiserver.DeploysInformer:     ctx.InformerFactory.Apps().V1().Deployments().Informer(),
 		apiserver.ReplicaSetsInformer: ctx.InformerFactory.Apps().V1().ReplicaSets().Informer(),
 		apiserver.ServicesInformer:    ctx.InformerFactory.Core().V1().Services().Informer(),
+		apiserver.NodesInformer:       ctx.InformerFactory.Core().V1().Nodes().Informer(),
 	})
 }
 
@@ -104,6 +107,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	deployInformer := ctx.InformerFactory.Apps().V1().Deployments()
 	rsInformer := ctx.InformerFactory.Apps().V1().ReplicaSets()
 	serviceInformer := ctx.InformerFactory.Core().V1().Services()
+	nodesInformer := ctx.InformerFactory.Core().V1().Nodes()
 
 	cfg := processcfg.NewDefaultAgentConfig(true)
 	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
@@ -127,6 +131,8 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		rsListerSync:            rsInformer.Informer().HasSynced,
 		serviceLister:           serviceInformer.Lister(),
 		serviceListerSync:       serviceInformer.Informer().HasSynced,
+		nodesLister:             nodesInformer.Lister(),
+		nodesListerSync:         nodesInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
@@ -151,7 +157,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync) {
+	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync, o.nodesListerSync) {
 		return
 	}
 
@@ -160,6 +166,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		o.processReplicaSets,
 		o.processDeploys,
 		o.processServices,
+		o.processNodes,
 	}
 
 	spreadProcessors(processors, 2*time.Second, 10*time.Second, stopCh)
@@ -182,7 +189,7 @@ func (o *Controller) processDeploys() {
 
 	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
-		log.Errorf("Unable to process deployments list: %v", err)
+		log.Errorf("Unable to process deployment list: %v", err)
 		return
 	}
 
@@ -202,7 +209,7 @@ func (o *Controller) processReplicaSets() {
 
 	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
-		log.Errorf("Unable to process replica sets list: %v", err)
+		log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
 
@@ -248,6 +255,26 @@ func (o *Controller) processServices() {
 	}
 
 	o.sendMessages(messages, forwarder.PayloadTypeService)
+}
+
+func (o *Controller) processNodes() {
+	if !o.isLeaderFunc() {
+		return
+	}
+
+	nodesList, err := o.nodesLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("Unable to list nodes: %s", err)
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processNodesList(nodesList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	if err != nil {
+		log.Errorf("Unable to process node list: %s", err)
+		return
+	}
+
+	o.sendMessages(messages, forwarder.PayloadTypeNode)
 }
 
 func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {

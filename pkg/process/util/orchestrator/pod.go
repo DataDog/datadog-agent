@@ -43,17 +43,6 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// extract pod info
 		podModel := extractPodMessage(podList[p])
 
-		// insert tagger tags
-		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
-		if err != nil {
-			log.Debugf("Could not retrieve tags for pod: %s", err)
-			continue
-		}
-
-		// additionnal tags
-		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
-		podModel.Tags = tags
-
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
 		if pod.IsStaticPod(podList[p]) {
@@ -62,6 +51,22 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			podList[p].UID = types.UID(newUID)
 			podModel.Metadata.Uid = newUID
 		}
+
+		pd := podList[p]
+		if SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
+			continue
+		}
+
+		// insert tagger tags
+		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
+		if err != nil {
+			log.Debugf("Could not retrieve tags for pod: %s", err)
+			continue
+		}
+
+		// additional tags
+		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
+		podModel.Tags = tags
 
 		// scrub & generate YAML
 		if withScrubbing {
@@ -102,7 +107,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		})
 	}
 
-	log.Debugf("Collected & enriched %d pods in %s", len(podMsgs), time.Now().Sub(start))
+	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
 }
 

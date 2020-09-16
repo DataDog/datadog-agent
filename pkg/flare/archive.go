@@ -434,10 +434,6 @@ func zipExpVar(tempDir, hostname string) error {
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		apmPort = config.Datadog.GetString("apm_config.receiver_port")
 	}
-	// TODO(gbbr): Remove this once we use BindEnv for trace-agent
-	if v := os.Getenv("DD_APM_RECEIVER_PORT"); v != "" {
-		apmPort = v
-	}
 	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
 	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
@@ -608,7 +604,7 @@ func zipRegistryJSON(tempDir, hostname string) error {
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "version-history.json")
+	originalPath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
 	original, err := os.Open(originalPath)
 	if err != nil {
 		return err

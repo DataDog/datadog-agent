@@ -389,6 +389,16 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 
 	stats["snmpTrapsStats"] = traps.GetStatus()
 
+	complianceVar := expvar.Get("compliance")
+	if complianceVar != nil {
+		complianceStatusJSON := []byte(complianceVar.String())
+		complianceStatus := make(map[string]interface{})
+		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
+		stats["complianceChecks"] = complianceStatus["Checks"]
+	} else {
+		stats["complianceChecks"] = map[string]interface{}{}
+	}
+
 	return stats, err
 }
 

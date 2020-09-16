@@ -33,11 +33,6 @@ func TestCheckRun(t *testing.T) {
 		expectErr   error
 	}{
 		{
-			name:      "config error",
-			configErr: errors.New("configuration failed"),
-			expectErr: errors.New("configuration failed"),
-		},
-		{
 			name: "successful check",
 			checkReport: &compliance.Report{
 				Passed: true,
@@ -106,13 +101,11 @@ func TestCheckRun(t *testing.T) {
 				ruleID:       ruleID,
 				resourceType: resourceType,
 				resourceID:   resourceID,
-
-				configError: test.configErr,
-
-				checkable: checkable,
+				checkable:    checkable,
 			}
 
 			if test.configErr == nil {
+				env.On("IsLeader").Return(true)
 				env.On("Reporter").Return(reporter)
 				reporter.On("Report", test.expectEvent).Once()
 				checkable.On("check", check).Return(test.checkReport, test.checkErr)
@@ -122,4 +115,39 @@ func TestCheckRun(t *testing.T) {
 			assert.Equal(test.expectErr, err)
 		})
 	}
+}
+
+func TestCheckRunNoLeader(t *testing.T) {
+	const (
+		ruleID       = "rule-id"
+		resourceType = "resource-type"
+		resourceID   = "resource-id"
+	)
+
+	assert := assert.New(t)
+
+	env := &mocks.Env{}
+	defer env.AssertExpectations(t)
+
+	reporter := &mocks.Reporter{}
+	defer reporter.AssertExpectations(t)
+
+	checkable := &mockCheckable{}
+	defer checkable.AssertExpectations(t)
+
+	check := &complianceCheck{
+		Env: env,
+
+		ruleID:       ruleID,
+		resourceType: resourceType,
+		resourceID:   resourceID,
+		checkable:    checkable,
+	}
+
+	// Not leader
+	env.On("IsLeader").Return(false)
+	checkable.AssertNotCalled(t, "check")
+
+	err := check.Run()
+	assert.Nil(err)
 }

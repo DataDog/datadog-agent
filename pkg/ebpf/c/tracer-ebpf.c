@@ -265,7 +265,37 @@ static __always_inline __u64 offset_rtt_var() {
 static __always_inline bool is_ipv6_enabled() {
     __u64 val = 0;
     LOAD_CONSTANT("ipv6_enabled", val);
-    return val == TRACER_IPV6_ENABLED;
+    return val == ENABLED;
+}
+
+static __always_inline bool are_fl4_offsets_known() {
+    __u64 val = 0;
+    LOAD_CONSTANT("fl4_offsets", val);
+    return val == ENABLED;
+}
+
+static __always_inline __u64 offset_saddr_fl4() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_saddr_fl4", val);
+    return val;
+}
+
+static __always_inline __u64 offset_daddr_fl4() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_daddr_fl4", val);
+     return val;
+}
+
+static __always_inline __u64 offset_sport_fl4() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_sport_fl4", val);
+    return val;
+}
+
+static __always_inline __u64 offset_dport_fl4() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_dport_fl4", val);
+     return val;
 }
 
 static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
@@ -283,6 +313,12 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     t->dport = 0;
     t->pid = pid_tgid >> 32;
     t->metadata = type;
+
+    // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
+    // sends
+    possible_net_t* skc_net = NULL;
+    bpf_probe_read(&skc_net, sizeof(void*), ((char*)skp) + offset_netns());
+    bpf_probe_read(&t->netns, sizeof(t->netns), ((char*)skc_net) + offset_ino());
 
     // Retrieve addresses
     if (check_family(skp, AF_INET)) {
@@ -338,11 +374,6 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     // Making ports human-readable
     t->sport = ntohs(t->sport);
     t->dport = ntohs(t->dport);
-
-    // Retrieve network namespace id
-    possible_net_t* skc_net = NULL;
-    bpf_probe_read(&skc_net, sizeof(void*), ((char*)skp) + offset_netns());
-    bpf_probe_read(&t->netns, sizeof(t->netns), ((char*)skc_net) + offset_ino());
 
     return 1;
 }
@@ -634,38 +665,69 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/udp_sendmsg")
-int kprobe__udp_sendmsg(struct pt_regs* ctx) {
+SEC("kprobe/ip6_make_skb")
+int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    size_t size = (size_t)PT_REGS_PARM3(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+
         increment_telemetry_count(udp_send_missed);
         return 0;
     }
 
-    log_debug("kprobe/udp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
 }
 
-SEC("kprobe/udp_sendmsg/pre_4_1_0")
-int kprobe__udp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
-    size_t size = (size_t)PT_REGS_PARM4(ctx);
+// Note: This is used only in tne UDP send path.
+SEC("kprobe/ip_make_skb")
+int kprobe__ip_make_skb(struct pt_regs* ctx) {
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    size_t size = (size_t)PT_REGS_PARM5(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        increment_telemetry_count(udp_send_missed);
-        return 0;
+        if (!are_fl4_offsets_known()) {
+            log_debug("ERR: src/dst addr not set src:%d,dst:%d. fl4 offsets are not known\n", t.saddr_l, t.daddr_l);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
+        bpf_probe_read(&t.saddr_l, sizeof(u32), ((char*)fl4) + offset_saddr_fl4());
+        bpf_probe_read(&t.daddr_l, sizeof(u32), ((char*)fl4) + offset_daddr_fl4());
+
+        if (!t.saddr_l || !t.daddr_l) {
+            log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl4) + offset_sport_fl4());
+        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl4) + offset_dport_fl4());
+
+        if (t.sport == 0 || t.dport == 0) {
+            log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        t.sport = ntohs(t.sport);
+        t.dport = ntohs(t.dport);
     }
 
-    log_debug("kprobe/udp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
     increment_telemetry_count(udp_send_processed);
 

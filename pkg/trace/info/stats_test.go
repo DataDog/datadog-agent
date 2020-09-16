@@ -27,6 +27,8 @@ func TestTracesDropped(t *testing.T) {
 			"foreign_span":      1,
 			"trace_id_zero":     1,
 			"span_id_zero":      1,
+			"timeout":           0,
+			"unexpected_eof":    0,
 		}, s.tagValues())
 	})
 

@@ -8,14 +8,17 @@ from .gitlab import Gitlab
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
 
-def trigger_agent_pipeline(ref="master", release_version_6="nightly", release_version_7="nightly-a7", branch="nightly"):
+def trigger_agent_pipeline(
+    ref="master", release_version_6="nightly", release_version_7="nightly-a7", branch="nightly", deploy=True
+):
     """
     Trigger a pipeline to deploy an Agent to staging repos
     (as specified with the DEPLOY_AGENT arg).
     """
     args = {}
 
-    args["DEPLOY_AGENT"] = "true"
+    if deploy:
+        args["DEPLOY_AGENT"] = "true"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6

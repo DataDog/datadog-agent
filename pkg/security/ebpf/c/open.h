@@ -92,6 +92,36 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     return 0;
 }
 
+SYSCALL_KPROBE(creat) {
+    int flags = O_CREAT|O_WRONLY|O_TRUNC;
+    umode_t mode;
+#if USE_SYSCALL_WRAPPER
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
+    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM2(ctx));
+#else
+    mode = (umode_t) PT_REGS_PARM2(ctx);
+#endif
+    return trace__sys_openat(flags, mode);
+}
+
+SYSCALL_KPROBE(open_by_handle_at) {
+    int flags;
+    umode_t mode = 0;
+#if USE_SYSCALL_WRAPPER
+    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
+    bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
+#else
+    flags = (int) PT_REGS_PARM3(ctx);
+#endif
+    return trace__sys_openat(flags, mode);
+}
+
+SYSCALL_KPROBE(truncate) {
+    int flags = O_CREAT|O_WRONLY|O_TRUNC;
+    umode_t mode = 0;
+    return trace__sys_openat(flags, mode);
+}
+
 SYSCALL_KPROBE(open) {
     int flags;
     umode_t mode;
@@ -215,6 +245,19 @@ no_filter:
     return 0;
 }
 
+SEC("kprobe/vfs_truncate")
+int kprobe__vfs_truncate(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
+
+    if (syscall->type == EVENT_OPEN) {
+        return vfs_handle_open_event(ctx, syscall);
+    }
+
+    return 0;
+}
+
 SEC("kprobe/vfs_open")
 int kprobe__vfs_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
@@ -271,6 +314,18 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     send_event(ctx, event);
 
     return 0;
+}
+
+SYSCALL_KRETPROBE(creat) {
+    return trace__sys_open_ret(ctx);
+}
+
+SYSCALL_KRETPROBE(open_by_handle_at) {
+    return trace__sys_open_ret(ctx);
+}
+
+SYSCALL_KRETPROBE(truncate) {
+    return trace__sys_open_ret(ctx);
 }
 
 SYSCALL_KRETPROBE(open) {

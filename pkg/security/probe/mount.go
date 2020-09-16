@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -14,11 +14,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 var (
@@ -33,91 +34,66 @@ var mountHookPoints = []*HookPoint{
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/attach_recursive_mnt",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "propagate_mnt",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/propagate_mnt",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
-		Name:    "sys_mount",
-		KProbes: syscallKprobe("mount"),
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		Name:       "sys_mount",
+		KProbes:    syscallKprobe("mount"),
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "security_sb_umount",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/security_sb_umount",
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 	{
 		Name: "sys_umount",
 		KProbes: []*ebpf.KProbe{{
 			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
 		}},
-		EventTypes: map[string]Capabilities{
-			"*": {},
-		},
+		EventTypes: []eval.EventType{"*"},
 	},
 }
 
 // newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
-func newMountEventFromMountInfo(mnt *utils.MountInfo) (*MountEvent, error) {
-	// extract dev couple from "major:minor"
-	devCouple := strings.Split(mnt.MajorMinorVer, ":")
-	if len(devCouple) < 2 {
-		// unknown device number ignore
-		return nil, errors.New("invalid device number")
-	}
-	major, err := strconv.ParseUint(devCouple[0], 10, 32)
-	if err != nil {
-		// unknown device major number, ignore
-		return nil, err
-	}
-	minor, err := strconv.ParseUint(devCouple[1], 10, 32)
-	if err != nil {
-		// unknown device minor number, ignore
-		return nil, err
-	}
-
-	// extract group id from the parsed optional fields
+func newMountEventFromMountInfo(mnt *mountinfo.Info) (*MountEvent, error) {
+	var err error
 	var groupID uint64
-	if mnt.OptionalFields["shared"] != "" {
-		groupID, err = strconv.ParseUint(mnt.OptionalFields["shared"], 10, 64)
-		if err != nil {
-			// unknown group ID, ignore
-			return nil, err
-		}
-	}
-	if mnt.OptionalFields["master"] != "" {
-		groupID, err = strconv.ParseUint(mnt.OptionalFields["master"], 10, 64)
-		if err != nil {
-			// unknown group ID, ignore
-			return nil, err
+
+	// Has optional fields, which is a space separated list of values.
+	// Example: shared:2 master:7
+	if len(mnt.Optional) > 0 {
+		for _, field := range strings.Split(mnt.Optional, ",") {
+			optionSplit := strings.SplitN(field, ":", 2)
+			if len(optionSplit) == 2 {
+				target, value := optionSplit[0], optionSplit[1]
+				if target == "shared" || target == "master" {
+					if groupID, err = strconv.ParseUint(value, 10, 64); err != nil {
+						return nil, err
+					}
+				}
+			}
 		}
 	}
 
 	// create a MountEvent out of the parsed MountInfo
 	return &MountEvent{
-		ParentMountID: uint32(mnt.ParentID),
-		MountPointStr: mnt.MountPoint,
+		ParentMountID: uint32(mnt.Parent),
+		MountPointStr: mnt.Mountpoint,
 		RootStr:       mnt.Root,
-		NewMountID:    uint32(mnt.MountID),
+		NewMountID:    uint32(mnt.ID),
 		NewGroupID:    uint32(groupID),
-		NewDevice:     uint32(unix.Mkdev(uint32(major), uint32(minor))),
-		FSType:        mnt.FSType,
+		NewDevice:     uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
+		FSType:        mnt.Fstype,
 	}, nil
 }
 
@@ -299,6 +275,7 @@ func newFSDevice() *FSDevice {
 
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
+	probe   *Probe
 	lock    sync.RWMutex
 	devices map[uint32]*FSDevice
 	mounts  map[uint32]*Mount
@@ -309,7 +286,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 	// Parse /proc/[pid]/moutinfo
-	mnts, err := utils.GetProcMounts(pid)
+	mnts, err := mountinfo.PidMountInfo(int(pid))
 	if err != nil {
 		pErr, ok := err.(*os.PathError)
 		if !ok {
@@ -415,8 +392,9 @@ func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, s
 }
 
 // NewMountResolver instantiates a new mount resolver
-func NewMountResolver() *MountResolver {
+func NewMountResolver(probe *Probe) *MountResolver {
 	return &MountResolver{
+		probe:   probe,
 		lock:    sync.RWMutex{},
 		devices: make(map[uint32]*FSDevice),
 		mounts:  make(map[uint32]*Mount),

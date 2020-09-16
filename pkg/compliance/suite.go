@@ -30,6 +30,7 @@ type SuiteMeta struct {
 	Framework string      `yaml:"framework,omitempty"`
 	Version   string      `yaml:"version,omitempty"`
 	Tags      []string    `yaml:"tags,omitempty"`
+	Source    string      `yaml:"-"`
 }
 
 // Suite represents a set of compliance checks reporting events
@@ -54,6 +55,7 @@ func ParseSuite(config string) (*Suite, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.Meta.Source = config
 
 	v, err := semver.NewVersion(s.Meta.Schema.Version)
 	if err != nil {
