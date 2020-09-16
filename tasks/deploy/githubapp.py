@@ -3,9 +3,6 @@ import logging
 import os
 import time
 
-# Defines how many times the HTTP requests will be retried
-NB_RETRIES = 3
-
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get('LOGGING_LEVEL', 'INFO'))
 
@@ -82,7 +79,7 @@ class GithubApp:
         the Github API with the permissions of this App.
         """
         endpoint = '/app/installations/{}/access_tokens'.format(self.installation_id)
-        for _ in range(NB_RETRIES):
+        for _ in range(5):  # Retry up to 5 times
             r = self.make_request(endpoint, method='POST')
             if r.status_code != 200 and r.status_code != 201:
                 logger.warning(
@@ -110,7 +107,7 @@ class GithubApp:
         for our usage, but as of now we expect the App to only have one installation.
         """
         endpoint = '/app/installations'
-        for _ in range(NB_RETRIES):
+        for _ in range(5):  # Retry up to 5 times
             r = self.make_request(endpoint, method='GET')
             if r.status_code != 200 and r.status_code != 201:
                 logger.warning(

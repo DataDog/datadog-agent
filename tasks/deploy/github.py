@@ -108,41 +108,41 @@ class Github(object):
         headers = dict(headers or [])
         headers["Authorization"] = "token {}".format(self.api_token)
         headers["Accept"] = "application/vnd.github.v3+json"
-        try:
-            if data:
-                r = requests.post(url, headers=headers, data=data)
-            else:
-                r = requests.get(url, headers=headers)
-            if r.status_code == 401:
-                print("HTTP 401: The token is invalid. Is the Github App still allowed to perform this action?")
-                print("Github says: {}".format(r.json()["error_description"]))
-                raise Exit(code=1)
-        except requests.exceptions.Timeout:
-            print("Connection to Github ({}) timed out.".format(url))
-            raise Exit(code=1)
-        except requests.exceptions.RequestException as e:
-            m = errno_regex.match(str(e))
-            if not m:
-                print("Unknown error raised connecting to {}: {}".format(url, e))
+        for _ in range(5):  # Retry up to 5 times
+            try:
+                if data:
+                    r = requests.post(url, headers=headers, data=data)
+                else:
+                    r = requests.get(url, headers=headers)
+                if r.status_code < 400:  # Success
+                    if json:
+                        return r.json()
+                    if raw_content:
+                        return r.content
+                    return r.text
+                if r.status_code == 401:
+                    print("HTTP 401: The token is invalid. Is the Github App still allowed to perform this action?")
+                    print("Github says: {}".format(r.json()["error_description"]))
+            except requests.exceptions.Timeout:
+                print("Connection to Github ({}) timed out.".format(url))
+            except requests.exceptions.RequestException as e:
+                m = errno_regex.match(str(e))
+                if not m:
+                    print("Unknown error raised connecting to {}: {}".format(url, e))
 
-            # Parse errno to give a better explanation
-            # Requests doesn't have granularity at the level we want:
-            # http://docs.python-requests.org/en/master/_modules/requests/exceptions/
-            errno_code = int(m.group(1))
-            message = m.group(2)
+                # Parse errno to give a better explanation
+                # Requests doesn't have granularity at the level we want:
+                # http://docs.python-requests.org/en/master/_modules/requests/exceptions/
+                errno_code = int(m.group(1))
+                message = m.group(2)
 
-            if errno_code == errno.ENOEXEC:
-                print("Error resolving {}: {}".format(url, message))
-            elif errno_code == errno.ECONNREFUSED:
-                print("Connection to Github ({}) refused".format(url))
-            else:
-                print("Error while connecting to {}: {}".format(url, str(e)))
-            raise Exit(code=1)
-        if json:
-            return r.json()
-        if raw_content:
-            return r.content
-        return r.text
+                if errno_code == errno.ENOEXEC:
+                    print("Error resolving {}: {}".format(url, message))
+                elif errno_code == errno.ECONNREFUSED:
+                    print("Connection to Github ({}) refused".format(url))
+                else:
+                    print("Error while connecting to {}: {}".format(url, str(e)))
+        raise Exit(code=1)
 
     def _api_token(self):
         return GithubApp().get_token()
