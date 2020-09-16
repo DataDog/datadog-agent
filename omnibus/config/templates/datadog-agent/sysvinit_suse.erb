@@ -69,7 +69,7 @@ do_start() {
   if [ "$?" -eq "0" ]; then
     return 0
   fi
-  startproc -f -q -p $PIDFILE $AGENTPATH $AGENT_ARGS
+  startproc -f -q -u $AGENT_USER -p $PIDFILE $AGENTPATH $AGENT_ARGS
 }
 
 start_and_wait() {
@@ -82,7 +82,7 @@ start_and_wait() {
       while [ $retries -gt 1 ]; do
         checkproc $AGENTPATH
         if [ "$?" -eq "0" ]; then
-          # Successfully started. Start Process and Trace Agents
+          # Successfully started. Start other Agents
           log_success_msg
           service datadog-agent-process start
           service datadog-agent-trace start
@@ -122,7 +122,7 @@ stop_and_wait() {
   do_stop
   case "$?" in
     0)
-      # Successfully stopped. Stop Process and Trace Agents
+      # Successfully stopped. Stop other Agents
       log_success_msg
       service datadog-agent-process stop
       service datadog-agent-trace stop

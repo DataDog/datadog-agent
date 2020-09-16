@@ -194,10 +194,8 @@ func (d *dispatcher) run(ctx context.Context) {
 				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
 			}
 
-			// Update runner stats and rebalance if needed
+			// Rebalance if needed
 			if d.advancedDispatching {
-				// Collect CLC runners stats and update cache
-				d.updateRunnersStats()
 				// Rebalance checks distribution
 				d.rebalance()
 			}

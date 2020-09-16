@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
@@ -65,6 +66,8 @@ type AutoConfig struct {
 	delService         chan listeners.Service
 	store              *store
 	m                  sync.RWMutex
+	// ranOnce is an atomic uint32 set to 1 once the AutoConfig has been executed
+	ranOnce uint32
 }
 
 // NewAutoConfig creates an AutoConfig instance.
@@ -190,6 +193,16 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 func (ac *AutoConfig) LoadAndRun() {
 	resolvedConfigs := ac.GetAllConfigs()
 	ac.schedule(resolvedConfigs)
+	atomic.StoreUint32(&ac.ranOnce, 1)
+	log.Debug("LoadAndRun done.")
+}
+
+// HasRunOnce returns true if the AutoConfig has ran once.
+func (ac *AutoConfig) HasRunOnce() bool {
+	if ac == nil {
+		return false
+	}
+	return atomic.LoadUint32(&ac.ranOnce) == 1
 }
 
 // GetAllConfigs queries all the providers and returns all the integration
@@ -281,17 +294,10 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 			return configs
 		}
 
-		// each template can resolve to multiple configs
-		for _, config := range resolvedConfigs {
-			config, err := decryptConfig(config)
-			if err != nil {
-				log.Errorf("Dropping conf for %q: %s", config.Name, err.Error())
-				continue
-			}
-			configs = append(configs, config)
-		}
-		return configs
+		return resolvedConfigs
 	}
+
+	// decrypt and store non-template config in AC as well
 	config, err := decryptConfig(config)
 	if err != nil {
 		log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
@@ -299,8 +305,8 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 	}
 	configs = append(configs, config)
 
-	// store non template configs in the AC
 	ac.store.setLoadedConfig(config)
+
 	return configs
 }
 
@@ -519,14 +525,19 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 	return resolved
 }
 
-// resolveTemplateForService calls the config resolver for the template against the service
-// and stores the resolved config and service mapping if successful
+// resolveTemplateForService calls the config resolver for the template against the service,
+// decrypts secrets and stores the resolved config and service mapping if successful
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	resolvedConfig, err := configresolver.Resolve(tpl, svc)
+	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetEntity(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())
 		return tpl, log.Warn(newErr)
+	}
+	resolvedConfig, err := decryptConfig(config)
+	if err != nil {
+		newErr := fmt.Errorf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetEntity(), err)
+		return config, log.Warn(newErr)
 	}
 	ac.store.setLoadedConfig(resolvedConfig)
 	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)

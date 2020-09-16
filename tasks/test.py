@@ -3,22 +3,23 @@ High level testing tasks
 """
 from __future__ import print_function
 
+import copy
+import operator
 import os
 import re
-import operator
 import sys
-import yaml
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags
-from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
-from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
-from .dogstatsd import integration_tests as dsd_integration_tests
-from .trace_agent import integration_tests as trace_integration_tests
+from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .cluster_agent import integration_tests as dca_integration_tests
+from .dogstatsd import integration_tests as dsd_integration_tests
+from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
+from .trace_agent import integration_tests as trace_integration_tests
+from .utils import get_build_flags
 
 # We use `basestring` in the code for compat with python2 unicode strings.
 # This makes the same code work in python3 as well.
@@ -38,6 +39,13 @@ DEFAULT_TEST_TARGETS = [
     "./pkg",
     "./cmd",
 ]
+
+
+def ensure_bytes(s):
+    if not isinstance(s, bytes):
+        return s.encode('utf-8')
+
+    return s
 
 
 @task()
@@ -81,7 +89,9 @@ def test(
         tool_targets = test_targets = targets
 
     build_include = (
-        get_default_build_tags(process=True, arch=arch) if build_include is None else build_include.split(",")
+        get_default_build_tags(build="test-with-process-tags", arch=arch)
+        if build_include is None
+        else filter_incompatible_tags(build_include.split(","), arch=arch)
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
@@ -93,12 +103,12 @@ def test(
     print("--- go generating:")
     generate(ctx)
 
-    print("--- Linting licenses:")
-    lint_licenses(ctx)
-
     if skip_linters:
         print("--- [skipping linters]")
     else:
+        print("--- Linting licenses:")
+        lint_licenses(ctx)
+
         print("--- Linting filenames:")
         lint_filenames(ctx)
 
@@ -111,11 +121,12 @@ def test(
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
         ineffassign(ctx, targets=tool_targets)
+        staticcheck(ctx, targets=tool_targets)
 
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
             print("--- golangci_lint:")
-            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
@@ -169,7 +180,7 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go test {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'gotestsum --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
@@ -401,7 +412,8 @@ class TestProfiler:
 
     def write(self, txt):
         # Output to stdout
-        sys.stdout.write(txt)
+        # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
+        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
         # Extract the run time
         for result in self.parser.finditer(txt):
             self.times.append((result.group(1), float(result.group(2))))
@@ -423,6 +435,61 @@ class TestProfiler:
 
 
 @task
+def make_simple_gitlab_yml(
+    ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
+):
+    """
+    Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
+
+    Keyword arguments:
+        jobs_to_run -- a comma separated list of jobs to execute, for example "iot_agent_rpm-arm64,iot_agent_rpm-armhf"
+        yml_file_src -- the source YAML file
+        yml_file_dest -- the destination YAML file
+        dont_include_deps -- this flag controls whether or not dependent jobs will be included in the final job list. Specify it if you only want to run the jobs listed in 'jobs_to_run'
+    """
+    with open(yml_file_src) as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    jobs_processed = set(['stages', 'variables', 'include', 'default'])
+    jobs_to_process = set(jobs_to_process.split(','))
+    while jobs_to_process:
+        job_name = jobs_to_process.pop()
+        if job_name in data:
+            job = data[job_name]
+            jobs_processed.add(job_name)
+
+            # Process dependencies
+            if not dont_include_deps:
+                needs = job.get("needs", None)
+                if needs is not None:
+                    jobs_to_process.update(needs)
+
+            # Process base jobs
+            extends = job.get("extends", None)
+            if extends is not None:
+                if isinstance(extends, str):
+                    extends = [extends]
+                jobs_to_process.update(extends)
+
+            # Delete rules that may prevent our job from running
+            if 'rules' in job:
+                del job['rules']
+            if 'except' in job:
+                del job['except']
+            if 'only' in job:
+                del job['only']
+
+    out = copy.deepcopy(data)
+    for k, _ in data.items():
+        if k not in jobs_processed:
+            del out[k]
+            continue
+
+    with open(yml_file_dest, 'w') as f:
+        yaml.dump(out, f)
+
+
+@task
 def make_kitchen_gitlab_yml(ctx):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run kitchen-tests
@@ -432,46 +499,54 @@ def make_kitchen_gitlab_yml(ctx):
 
     data['stages'] = [
         'deps_build',
+        'deps_fetch',
         'binary_build',
         'package_build',
         'testkitchen_deploy',
         'testkitchen_testing',
         'testkitchen_cleanup',
     ]
-    for k, v in data.items():
-        if isinstance(v, dict) and v.get('stage', None) not in ([None] + data['stages']):
-            del data[k]
+    for name, job in data.items():
+        if isinstance(job, dict) and job.get('stage', None) not in ([None] + data['stages']):
+            del data[name]
             continue
         if (
-            isinstance(v, dict)
-            and v.get('stage', None) == 'binary_build'
-            and k != 'build_system-probe-arm64'
-            and k != 'build_system-probe-x64'
-            and k != 'build_system-probe_with-bcc-arm64'
-            and k != 'build_system-probe_with-bcc-x64'
+            isinstance(job, dict)
+            and job.get('stage', None) == 'binary_build'
+            and name != 'build_system-probe-arm64'
+            and name != 'build_system-probe-x64'
+            and name != 'build_system-probe_with-bcc-arm64'
+            and name != 'build_system-probe_with-bcc-x64'
         ):
-            del data[k]
+            del data[name]
             continue
-        if 'except' in v:
-            del v['except']
-        if 'only' in v:
-            del v['only']
-        if len(v) == 0:
-            del data[k]
+        if 'except' in job:
+            del job['except']
+        if 'only' in job:
+            del job['only']
+        if 'rules' in job:
+            del job['rules']
+        if len(job) == 0:
+            del data[name]
             continue
 
-    for k, v in data.items():
-        if 'extends' in v:
-            extended = v['extends']
-            if extended not in data:
-                del data[k]
-        if 'needs' in v:
-            needed = v['needs']
+    for name, job in data.items():
+        if 'extends' in job:
+            extended = job['extends']
+            if not isinstance(extended, list):
+                extended = [extended]
+            for job in extended:
+                if job not in data:
+                    del data[name]
+
+    for _, job in data.items():
+        if 'needs' in job:
+            needed = job['needs']
             new_needed = []
             for n in needed:
                 if n in data:
                     new_needed.append(n)
-            v['needs'] = new_needed
+            job['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
         yaml.dump(data, f, default_style='"')
@@ -507,8 +582,14 @@ def lint_python(ctx):
     If running locally, you probably want to use the pre-commit instead.
     """
 
+    print(
+        """Remember to set up pre-commit to lint your files before committing:
+    https://github.com/DataDog/datadog-agent/blob/master/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+    )
+
     ctx.run("flake8 .")
     ctx.run("black --check --diff .")
+    ctx.run("isort --check-only --diff .")
 
 
 @task
@@ -527,7 +608,7 @@ def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
         platform = "linux"
 
     ctx.run(
-        "wget -qO- \"https://storage.googleapis.com/shellcheck/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp".format(
+        "wget -qO- \"https://github.com/koalaman/shellcheck/releases/download/v{sc_version}/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp".format(
             sc_version=version, platform=platform
         )
     )

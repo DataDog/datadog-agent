@@ -105,7 +105,7 @@ var (
 	aggregatorHostnameUpdate                   = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
-		[]string{"data_type", "state"}, "Count of flush")
+		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
 	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
 		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
 	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
@@ -208,11 +208,22 @@ type BufferedAggregator struct {
 	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
 	stopChan           chan struct{}
 	health             *health.Handle
+	agentName          string // Name of the agent for telemetry metrics
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
+
+	agentName := flavor.GetFlavor()
+	if config.Datadog.GetBool("iot_host") {
+		// Override the agentName if this Agent is configured to report as IotAgent
+		agentName = flavor.IotAgent
+	}
+	if config.Datadog.GetBool("heroku_dyno") {
+		// Override the agentName if this Agent is configured to report as Heroku Dyno
+		agentName = flavor.HerokuAgent
+	}
 
 	aggregator := &BufferedAggregator{
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
@@ -237,6 +248,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 		hostnameUpdateDone: make(chan struct{}),
 		stopChan:           make(chan struct{}),
 		health:             health.RegisterLiveness("aggregator"),
+		agentName:          agentName,
 	}
 
 	return aggregator
@@ -277,8 +289,9 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 
 // AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
 func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
+
 	metric := &metrics.MetricSample{
-		Name:       fmt.Sprintf("datadog.%s.started", flavor.GetFlavor()),
+		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
 		Value:      1,
 		Tags:       []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:       agg.hostname,
@@ -446,7 +459,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
 	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
 	series = append(series, &metrics.Serie{
-		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
+		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
@@ -456,7 +469,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series = append(series, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,

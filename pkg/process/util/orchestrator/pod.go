@@ -9,7 +9,9 @@ package orchestrator
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strconv"
+	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -20,8 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
-	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/kubelet/pod"
 )
 
 const (
@@ -31,7 +35,7 @@ const (
 )
 
 // ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -39,32 +43,49 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// extract pod info
 		podModel := extractPodMessage(podList[p])
 
-		// insert tags
+		// static pods "uid" are actually not unique across nodes.
+		// we differ from the k8 uuid format in purpose to differentiate those static pods.
+		if pod.IsStaticPod(podList[p]) {
+			newUID := generateUniqueStaticPodHash(hostName, podList[p].Name, podList[p].Namespace, clusterName)
+			// modify it in the original pod for the YAML and in our model
+			podList[p].UID = types.UID(newUID)
+			podModel.Metadata.Uid = newUID
+		}
+
+		pd := podList[p]
+		if SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
+			continue
+		}
+
+		// insert tagger tags
 		tags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(podList[p].UID)), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("Could not retrieve tags for pod: %s", err)
 			continue
 		}
+
+		// additional tags
+		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 		podModel.Tags = tags
 
 		// scrub & generate YAML
-		for c := 0; c < len(podList[p].Spec.Containers); c++ {
-			scrubContainer(&podList[p].Spec.Containers[c], cfg)
+		if withScrubbing {
+			for c := 0; c < len(podList[p].Spec.Containers); c++ {
+				ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+			}
+			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
+				ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+			}
 		}
-		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-			scrubContainer(&podList[p].Spec.InitContainers[c], cfg)
-		}
+
 		// k8s objects only have json "omitempty" annotations
-		// we're doing json<>yaml to get rid of the null properties
+		// and marshalling is more performant than YAML
 		jsonPod, err := jsoniter.Marshal(podList[p])
 		if err != nil {
-			log.Debugf("Could not marshal pod in JSON: %s", err)
+			log.Debugf("Could not marshal pod to JSON: %s", err)
 			continue
 		}
-		var jsonObj interface{}
-		yaml.Unmarshal(jsonPod, &jsonObj) //nolint:errcheck
-		yamlPod, _ := yaml.Marshal(jsonObj)
-		podModel.Yaml = yamlPod
+		podModel.Yaml = jsonPod
 
 		podMsgs = append(podMsgs, podModel)
 	}
@@ -86,12 +107,12 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		})
 	}
 
-	log.Debugf("Collected & enriched %d pods in %s", len(podMsgs), time.Now().Sub(start))
+	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
 }
 
-// scrubContainer scrubs sensitive information in the command line & env vars
-func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
+// ScrubContainer scrubs sensitive information in the command line & env vars
+func ScrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 	// scrub command line
 	scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(c.Command)
 	c.Command = scrubbedCmd
@@ -107,63 +128,28 @@ func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
-func chunkPods(pods []*model.Pod, chunks, perChunk int) [][]*model.Pod {
-	chunked := make([][]*model.Pod, 0, chunks)
-	chunk := make([]*model.Pod, 0, perChunk)
+func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
+	chunks := make([][]*model.Pod, 0, chunkCount)
 
-	for _, p := range pods {
-		chunk = append(chunk, p)
-		if len(chunk) == perChunk {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.Pod, 0, perChunk)
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(pods)
 		}
+		chunks = append(chunks, pods[chunkStart:chunkEnd])
 	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
+
+	return chunks
 }
 
 // extractPodMessage extracts pod info into the proto model
 func extractPodMessage(p *v1.Pod) *model.Pod {
-	// pod medatadata
-	podMetadata := model.Metadata{
-		Name:      p.Name,
-		Namespace: p.Namespace,
-		Uid:       string(p.UID),
-	}
-	if !p.ObjectMeta.CreationTimestamp.IsZero() {
-		podMetadata.CreationTimestamp = p.ObjectMeta.CreationTimestamp.Unix()
-	}
-	if !p.ObjectMeta.DeletionTimestamp.IsZero() {
-		podMetadata.DeletionTimestamp = p.ObjectMeta.DeletionTimestamp.Unix()
-	}
-	if len(p.Annotations) > 0 {
-		podMetadata.Annotations = make([]string, len(p.Annotations))
-		i := 0
-		for k, v := range p.Annotations {
-			podMetadata.Annotations[i] = k + ":" + v
-			i++
-		}
-	}
-	if len(p.Labels) > 0 {
-		podMetadata.Labels = make([]string, len(p.Labels))
-		i := 0
-		for k, v := range p.Labels {
-			podMetadata.Labels[i] = k + ":" + v
-			i++
-		}
-	}
-	for _, o := range p.OwnerReferences {
-		owner := model.OwnerReference{
-			Name: o.Name,
-			Uid:  string(o.UID),
-			Kind: o.Kind,
-		}
-		podMetadata.OwnerReferences = append(podMetadata.OwnerReferences, &owner)
-	}
 	podModel := model.Pod{
-		Metadata: &podMetadata,
+		Metadata: ExtractMetadata(&p.ObjectMeta),
 	}
 	// pod spec
 	podModel.NodeName = p.Spec.NodeName
@@ -186,7 +172,64 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.Status = ComputeStatus(p)
 	podModel.ConditionMessage = GetConditionMessage(p)
 
+	for _, c := range p.Spec.Containers {
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_container); modelReq != nil {
+			podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
+		}
+	}
+
+	for _, c := range p.Spec.InitContainers {
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_initContainer); modelReq != nil {
+			podModel.ResourceRequirements = append(podModel.ResourceRequirements, modelReq)
+		}
+	}
+
 	return &podModel
+}
+
+// resourceRequirements calculations: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#:~:text=Resource%20units%20in%20Kubernetes&text=Limits%20and%20requests%20for%20CPU,A%20Container%20with%20spec.
+// CPU: 1/10 of a single core, would represent that as 100m.
+// Memory: Memory is measured in bytes. In addition, it may be used with SI suffices (E, P, T, G, M, K, m) or their power-of-two-equivalents (Ei, Pi, Ti, Gi, Mi, Ki).
+func convertResourceRequirements(rq v1.ResourceRequirements, containerName string, resourceType model.ResourceRequirementsType) *model.ResourceRequirements {
+	requests := map[string]int64{}
+	setRequests := false
+	setLimits := false
+	limits := map[string]int64{}
+
+	cpuLimit := rq.Limits.Cpu()
+	if !cpuLimit.IsZero() {
+		limits[v1.ResourceCPU.String()] = cpuLimit.MilliValue()
+		setLimits = true
+	}
+
+	memLimit := rq.Limits.Memory()
+	if !memLimit.IsZero() {
+		limits[v1.ResourceMemory.String()] = memLimit.Value()
+		setLimits = true
+	}
+
+	cpuRequest := rq.Requests.Cpu()
+	if !cpuRequest.IsZero() {
+		requests[v1.ResourceCPU.String()] = cpuRequest.MilliValue()
+		setRequests = true
+	}
+
+	memRequest := rq.Requests.Memory()
+	if !memRequest.IsZero() {
+		requests[v1.ResourceMemory.String()] = memRequest.Value()
+		setRequests = true
+	}
+
+	if !setRequests && !setLimits {
+		return nil
+	}
+
+	return &model.ResourceRequirements{
+		Limits:   limits,
+		Requests: requests,
+		Name:     containerName,
+		Type:     resourceType,
+	}
 }
 
 func convertContainerStatus(cs v1.ContainerStatus) model.ContainerStatus {
@@ -308,4 +351,57 @@ func GetConditionMessage(p *v1.Pod) string {
 		}
 	}
 	return ""
+}
+
+// this should generate a unique id because:
+// podName + namespace = unique per host
+// podName + namespace + host + clustername = unique
+func generateUniqueStaticPodHash(host, podName, namespace, clusterName string) string {
+	h := fnv.New64()
+	_, _ = h.Write([]byte(host))
+	_, _ = h.Write([]byte(podName))
+	_, _ = h.Write([]byte(namespace))
+	_, _ = h.Write([]byte(clusterName))
+	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// ExtractMetadata extracts standard metadata into the model
+func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
+	meta := model.Metadata{
+		Name:      m.Name,
+		Namespace: m.Namespace,
+		Uid:       string(m.UID),
+	}
+	if !m.CreationTimestamp.IsZero() {
+		meta.CreationTimestamp = m.CreationTimestamp.Unix()
+	}
+	if !m.DeletionTimestamp.IsZero() {
+		meta.DeletionTimestamp = m.DeletionTimestamp.Unix()
+	}
+	if len(m.Annotations) > 0 {
+		meta.Annotations = make([]string, len(m.Annotations))
+		i := 0
+		for k, v := range m.Annotations {
+			meta.Annotations[i] = k + ":" + v
+			i++
+		}
+	}
+	if len(m.Labels) > 0 {
+		meta.Labels = make([]string, len(m.Labels))
+		i := 0
+		for k, v := range m.Labels {
+			meta.Labels[i] = k + ":" + v
+			i++
+		}
+	}
+	for _, o := range m.OwnerReferences {
+		owner := model.OwnerReference{
+			Name: o.Name,
+			Uid:  string(o.UID),
+			Kind: o.Kind,
+		}
+		meta.OwnerReferences = append(meta.OwnerReferences, &owner)
+	}
+
+	return &meta
 }

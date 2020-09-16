@@ -26,8 +26,18 @@ type InformerName string
 
 const (
 	endpointsInformer InformerName = "endpoints"
-	servicesInformer  InformerName = "services"
-	SecretsInformer   InformerName = "secrets"
-	WebhooksInformer  InformerName = "webhooks"
-	PodsInformer      InformerName = "pods"
+	// SecretsInformer holds the name of the informer
+	SecretsInformer InformerName = "secrets"
+	// WebhooksInformer holds the name of the informer
+	WebhooksInformer InformerName = "webhooks"
+	// PodsInformer holds the name of the informer
+	PodsInformer InformerName = "pods"
+	// DeploysInformer holds the name of the informer
+	DeploysInformer InformerName = "deploys"
+	// ReplicaSetsInformer holds the name of the informer
+	ReplicaSetsInformer InformerName = "replicaSets"
+	// ServicesInformer holds the name of the informer
+	ServicesInformer InformerName = "services"
+	// NodesInformer holds the name of the informer
+	NodesInformer InformerName = "nodes"
 )

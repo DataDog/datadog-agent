@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	processFetcherFunc func() (map[int32]*process.FilledProcess, error) = process.AllProcesses
+	processFetcher func() (processes, error) = fetchProcesses
 )
 
 func (p processes) findProcessesByName(name string) []*process.FilledProcess {
@@ -41,19 +41,23 @@ func (p processes) findProcesses(matchFunc func(*process.FilledProcess) bool) []
 	return results
 }
 
+func fetchProcesses() (processes, error) {
+	return process.AllProcesses()
+}
+
 func getProcesses(maxAge time.Duration) (processes, error) {
 	if value, found := cache.Cache.Get(processCacheKey); found {
 		return value.(processes), nil
 	}
 
 	log.Debug("Updating process cache")
-	cachedProcesses, err := processFetcherFunc()
+	rawProcesses, err := processFetcher()
 	if err != nil {
 		return nil, err
 	}
 
-	cache.Cache.Set(processCacheKey, cachedProcesses, maxAge)
-	return cachedProcesses, nil
+	cache.Cache.Set(processCacheKey, rawProcesses, maxAge)
+	return rawProcesses, nil
 }
 
 // Parsing is far from being exhaustive, however for now it works sufficiently well

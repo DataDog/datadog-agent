@@ -45,7 +45,11 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 		converter.Set("process_config.enabled", "disabled")
 	}
 
-	converter.Set("tags", strings.Split(agentConfig["tags"], ","))
+	tags := strings.Split(agentConfig["tags"], ",")
+	for i, tag := range tags {
+		tags[i] = strings.TrimSpace(tag)
+	}
+	converter.Set("tags", tags)
 
 	if value, err := strconv.Atoi(agentConfig["forwarder_timeout"]); err == nil {
 		converter.Set("forwarder_timeout", value)

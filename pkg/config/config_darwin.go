@@ -11,6 +11,8 @@ const (
 	defaultRunPath              = "/opt/datadog-agent/run"
 	defaultSyslogURI            = "unixgram:///var/run/syslog"
 	defaultGuiPort              = 5002
+	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
+	defaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
 )
 
 // called by init in config.go, to ensure any os-specific config is done

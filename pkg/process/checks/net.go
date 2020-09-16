@@ -134,6 +134,9 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		DnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
 		ConnsClosed:               tel.MonotonicConnsClosed - c.lastTelemetry.ConnsClosed,
 		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
+		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
+		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
+		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
 	}
 	c.saveTelemetry(tel)
 	return cct
@@ -150,6 +153,8 @@ func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
 	c.lastTelemetry.ConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
 	c.lastTelemetry.DnsPacketsProcessed = tel.MonotonicDnsPacketsProcessed
 	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
+	c.lastTelemetry.UdpSendsProcessed = tel.MonotonicUdpSendsProcessed
+	c.lastTelemetry.UdpSendsMissed = tel.MonotonicUdpSendsMissed
 }
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
@@ -170,15 +175,17 @@ func batchConnections(
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
 
+		ctrIDForPID := make(map[int32]string)
 		batchDNS := make(map[string]*model.DNSEntry)
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				batchDNS[c.Raddr.Ip] = entries
 			}
-		}
 
-		// Get the container and process relationship from either the process or container checks
-		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
+			if c.Laddr.ContainerId != "" {
+				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+			}
+		}
 
 		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
@@ -227,13 +234,4 @@ func connectionPIDs(conns []*model.Connection) []int32 {
 		pids = append(pids, pid)
 	}
 	return pids
-}
-
-// getCtrIDsByPIDs will fetch container id and pid relationship from either process check or container check, depend on which one is enabled and ran
-func getCtrIDsByPIDs(pids []int32) map[int32]string {
-	// process check is never run, use container check instead
-	if Process.lastRun.IsZero() {
-		return Container.filterCtrIDsByPIDs(pids)
-	}
-	return Process.filterCtrIDsByPIDs(pids)
 }

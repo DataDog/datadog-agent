@@ -25,15 +25,15 @@ func testIsContainerExcluded(t *testing.T) {
 
 	r, err := regexp.Compile("bar")
 	assert.Nil(t, err)
-	filter.ImageBlacklist = append(filter.ImageBlacklist, r)
+	filter.ImageExcludeList = append(filter.ImageExcludeList, r)
 
 	r, err = regexp.Compile("white")
 	assert.Nil(t, err)
-	filter.NamespaceWhitelist = append(filter.NamespaceWhitelist, r)
+	filter.NamespaceIncludeList = append(filter.NamespaceIncludeList, r)
 
 	r, err = regexp.Compile("black")
 	assert.Nil(t, err)
-	filter.NamespaceBlacklist = append(filter.NamespaceBlacklist, r)
+	filter.NamespaceExcludeList = append(filter.NamespaceExcludeList, r)
 
 	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("ns")), C.int(1))
 	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("white")), C.int(0))

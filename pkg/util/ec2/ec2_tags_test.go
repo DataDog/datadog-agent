@@ -14,8 +14,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ func TestGetIAMRole(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := getIAMRole()
@@ -58,7 +58,7 @@ func TestGetSecurityCreds(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	cred, err := getSecurityCreds()
@@ -77,7 +77,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	}))
 	defer ts.Close()
 	instanceIdentityURL = ts.URL
-	timeout = time.Second
+	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := getInstanceIdentity()

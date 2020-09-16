@@ -3,12 +3,11 @@ Miscellaneous functions, no tasks here
 """
 from __future__ import print_function
 
+import json
 import os
 import re
 import sys
-import json
 from subprocess import check_output
-
 
 # constants
 ORG_PATH = "github.com/DataDog"
@@ -144,13 +143,16 @@ def get_payload_version():
                 continue
             pkgname = whitespace_split[0]
             if pkgname == "github.com/DataDog/agent-payload":
-                comment_split = line.split("//")
-                if len(comment_split) < 2:
+                # Example of line
+                # github.com/DataDog/agent-payload v4.40.0+incompatible
+                # github.com/DataDog/agent-payload v4.42.1-0.20200826134834-1ddcfb686e3f+incompatible
+                version_split = re.split(r'[ +]', line)
+                if len(version_split) < 2:
                     raise Exception(
                         "Versioning of agent-payload in go.mod has changed, the version logic needs to be updated"
                     )
-                version = comment_split[1].strip()
-                if not re.search(r"^\d+(\.\d+){2}$", version):
+                version = version_split[1].split("-")[0].strip()
+                if not re.search(r"^v\d+(\.\d+){2}$", version):
                     raise Exception("Version of agent-payload in go.mod is invalid: '{}'".format(version))
                 return version
 

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Implements resource fallbacks for complex compliance check assertions.

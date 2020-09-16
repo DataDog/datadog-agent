@@ -26,6 +26,7 @@ type KubeUtilInterface interface {
 	ForceGetLocalPodList() ([]*Pod, error)
 	GetPodForContainerID(containerID string) (*Pod, error)
 	GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error)
+	GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error)
 	GetPodFromUID(podUID string) (*Pod, error)
 	GetPodForEntityID(entityID string) (*Pod, error)
 	QueryKubelet(path string) ([]byte, int, error)
@@ -57,10 +58,11 @@ func (ku *KubeUtil) GetRawLocalPodList() ([]*v1.Pod, error) {
 	if !ok {
 		return nil, fmt.Errorf("pod list type assertion failed on %v", podListData)
 	}
+
 	// transform []v1.Pod in []*v1.Pod
-	pods := make([]*v1.Pod, 0, len(podList.Items))
-	for _, p := range podList.Items {
-		pods = append(pods, &p)
+	pods := make([]*v1.Pod, len(podList.Items))
+	for i := 0; i < len(pods); i++ {
+		pods[i] = &podList.Items[i]
 	}
 
 	return pods, nil

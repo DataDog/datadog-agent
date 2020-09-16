@@ -34,6 +34,7 @@ dogstatsd.yaml
 cloudfoundry.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
+Dockerfiles/cluster-agent/security-agent-policies
 
 # jetbrains IDE directory
 /.idea/
@@ -92,6 +93,11 @@ process-agent-msg.h
 # process agent test artifacts
 pkg/process/config/logs
 
+# sysprobe artifacts
+cmd/system-probe/windows_resources/system-probe-msg.rc
+cmd/system-probe/windows_resources/*.bin
+system-probe-msg.h
+
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
 cmd/dogstatsd/windows_resources/*.bin
@@ -113,6 +119,9 @@ tools/windows/install-help/cal/packages/
 
 # ebpf object files
 pkg/ebpf/c/*.o
+pkg/ebpf/c/*.bc
+pkg/security/ebpf/c/*.o
+pkg/security/ebpf/c/*.bc
 
 # windows container build output
 build.out/

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -136,6 +137,8 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
 
+	stats["logsStats"] = logs.GetStatus()
+
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
 		stats["endpointsInfos"] = endpointsInfos
@@ -185,11 +188,12 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 }
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
-func GetAndFormatSecurityAgentStatus() ([]byte, error) {
+func GetAndFormatSecurityAgentStatus(runtimeStatus map[string]interface{}) ([]byte, error) {
 	s, err := GetStatus()
 	if err != nil {
 		return nil, err
 	}
+	s["runtimeSecurityStatus"] = runtimeStatus
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {
@@ -381,6 +385,18 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["agent_metadata"] = data
 	} else {
 		stats["agent_metadata"] = map[string]string{}
+	}
+
+	stats["snmpTrapsStats"] = traps.GetStatus()
+
+	complianceVar := expvar.Get("compliance")
+	if complianceVar != nil {
+		complianceStatusJSON := []byte(complianceVar.String())
+		complianceStatus := make(map[string]interface{})
+		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
+		stats["complianceChecks"] = complianceStatus["Checks"]
+	} else {
+		stats["complianceChecks"] = map[string]interface{}{}
 	}
 
 	return stats, err

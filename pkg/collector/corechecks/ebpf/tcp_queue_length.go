@@ -111,12 +111,16 @@ func (t *TCPQueueLengthCheck) Run() error {
 	for _, lineRaw := range data {
 		line, ok := lineRaw.(tcpqueuelength.Stats)
 		if !ok {
+			log.Error("Raw data has incorrect type")
 			continue
 		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
-		tags, err := tagger.Tag(entityID, collectors.OrchestratorCardinality)
-		if err != nil {
-			log.Errorf("Could not collect tags for container %s: %s", line.ContainerID, err)
+		var tags []string
+		if entityID != "" {
+			tags, err = tagger.Tag(entityID, collectors.OrchestratorCardinality)
+			if err != nil {
+				log.Errorf("Could not collect tags for container %s: %s", line.ContainerID, err)
+			}
 		}
 
 		tags = append(tags,

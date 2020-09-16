@@ -142,6 +142,10 @@ package :msi do
   if ENV['SIGN_PFX']
     signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
   end
+  include_sysprobe = "false"
+  if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    include_sysprobe = "true"
+  end
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
@@ -150,6 +154,7 @@ package :msi do
     'IncludePython2' => "#{with_python_runtime? '2'}",
     'IncludePython3' => "#{with_python_runtime? '3'}",
     'Platform' => "#{arch}",
+    'IncludeSysprobe' => "#{include_sysprobe}",
   })
 end
 
@@ -177,11 +182,12 @@ end
 
 # Additional software
 if windows?
-  dependency 'cacerts_py2' if with_python_runtime? "2"
-  dependency 'cacerts_py3' if with_python_runtime? "3"
-else
-  dependency 'cacerts'
+  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    dependency 'datadog-windows-filter-driver'
+  end
 end
+# Bundled cacerts file (is this a good idea?)
+dependency 'cacerts'
 
 if osx?
   dependency 'datadog-agent-mac-app'
@@ -194,6 +200,10 @@ end
 
 if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
+end
+
+if linux?
+  dependency 'datadog-security-agent-policies'
 end
 
 # External agents
@@ -224,13 +234,11 @@ if linux?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
   end
   if suse?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
   end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"
@@ -245,7 +253,21 @@ end
 exclude '\.git*'
 exclude 'bundler\/git'
 
-if linux?
+if windows?
+  #
+  # For Windows build, files need to be stripped must be specified here.
+  #
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe"
+  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+end
+
+if linux? or windows?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.
