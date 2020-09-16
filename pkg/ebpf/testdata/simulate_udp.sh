@@ -33,7 +33,7 @@ server() {
 server &
 
 client() {
-	sleep_echo "$CLIENT_MESSAGE" | nc -u  "$LOCALHOST"  "$PORT"
+	sleep_echo "$CLIENT_MESSAGE" | nc -u "$LOCALHOST" "$PORT"
 	echo "client done"
 }
 
