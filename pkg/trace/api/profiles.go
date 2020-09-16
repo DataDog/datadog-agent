@@ -125,14 +125,19 @@ type multiTransport struct {
 }
 
 func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	dump, err := httputil.DumpRequestOut(req, false)
-	log.Infof("Profiling request: %s, %s", dump, err)
-
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
+
+	logreq := req.Clone(req.Context())
+	setTarget(logreq, m.targets[0], "super-secret")
+
+	dump, err := httputil.DumpRequestOut(logreq, false)
+	log.Infof("Profiling request: %s, %s", dump, err)
+
+	
 	if len(m.targets) == 1 {
 		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
