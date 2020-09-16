@@ -114,11 +114,7 @@ class Github(object):
             else:
                 r = requests.get(url, headers=headers)
             if r.status_code == 401:
-                print(
-                    "HTTP 401: Your GITHUB_TOKEN may have expired. You can "
-                    "check and refresh it at "
-                    "https://github.com/settings/tokens"
-                )
+                print("HTTP 401: The token is invalid. Is the Github App still allowed to perform this action?")
                 print("Github says: {}".format(r.json()["error_description"]))
                 raise Exit(code=1)
         except requests.exceptions.Timeout:

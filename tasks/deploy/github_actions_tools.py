@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import zipfile
 from datetime import datetime
@@ -100,7 +101,8 @@ def follow_workflow_run(run_id):
                 print(color_message("Workflow run ended with state: {}".format(conclusion), "red",))
                 raise Exit(code=1)
         else:
-            print("Workflow still running... ({} minutes)".format(minutes))
+            print("Workflow still running... ({}m)".format(minutes))
+            sys.stdout.flush()
 
         minutes += 1
         sleep(60)
