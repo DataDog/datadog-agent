@@ -21,6 +21,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -64,6 +65,10 @@ func TestOpen(t *testing.T) {
 			if mode := event.Open.Mode; mode != 0755 {
 				t.Errorf("expected open mode 0755, got %#o", mode)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+			}
 		}
 	})
 
@@ -90,6 +95,10 @@ func TestOpen(t *testing.T) {
 			if mode := event.Open.Mode; mode != 0711 {
 				t.Errorf("expected open mode 0711, got %#o", mode)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+			}
 		}
 	})
 
@@ -99,6 +108,7 @@ func TestOpen(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 		defer syscall.Close(int(fd))
+		defer os.Remove(testFile)
 
 		event, _, err := test.GetEvent()
 		if err != nil {
@@ -111,15 +121,24 @@ func TestOpen(t *testing.T) {
 			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
 				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+			}
 		}
 	})
 
 	t.Run("truncate", func(t *testing.T) {
-		f, err := os.Open(testFile)
+		f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer f.Close()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		}
 
 		syscall.Write(int(f.Fd()), []byte("this data will soon be truncated\n"))
 
@@ -130,7 +149,7 @@ func TestOpen(t *testing.T) {
 		}
 		defer syscall.Close(int(fd))
 
-		event, _, err := test.GetEvent()
+		event, _, err = test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -139,7 +158,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
-				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
+				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %s", probe.OpenFlags(flags))
 			}
 		}
 	})

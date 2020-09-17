@@ -131,6 +131,20 @@ func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Eve
 	h.discarders <- &testDiscarder{event: event, field: field}
 }
 
+func getInode(t *testing.T, path string) uint64 {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stats, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Fatal(errors.New("Not a syscall.Stat_t"))
+	}
+
+	return stats.Ino
+}
+
 func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
