@@ -39,7 +39,7 @@ func NewDecodingParser(e Encoding) *DecodingParser {
 	var enc encoding.Encoding
 	switch e {
 	case UTF16LE:
-		enc = unicode.UTF16(unicode.BigEndian, unicode.IgnoreBOM)
+		enc = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
 	case UTF16BE:
 		enc = unicode.UTF16(unicode.BigEndian, unicode.IgnoreBOM)
 	}

@@ -80,7 +80,7 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 		case "utf-16-le":
 			log.Info("Encoding=utf-16-le")
 			parser = lineParser.NewDecodingParser(lineParser.UTF16LE)
-			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL)
 		default:
 			parser = lineParser.NoopParser
 			matcher = &decoder.NewLineMatcher{}
