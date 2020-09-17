@@ -145,6 +145,35 @@ def _find_v6_tag(ctx, v7_tag):
     return v6_tag
 
 
+@task
+def list_major_change(ctx, milestone):
+    """
+    List all PR labeled "major_changed" for this release.
+    """
+
+    github_token = os.environ.get('GITHUB_TOKEN')
+    if github_token is None:
+        print(
+            "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
+            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
+        )
+        return Exit(code=1)
+
+    response = _query_github_api(
+        github_token,
+        "https://api.github.com/search/issues?q=repo:datadog/datadog-agent+label:major_change+milestone:{}".format(
+            milestone
+        ),
+    )
+    results = json.load(response)
+    if not results["items"]:
+        print("no major change for {}".format(milestone))
+        return
+
+    for pr in results["items"]:
+        print("#{}: {} ({})".format(pr["number"], pr["title"], pr["html_url"]))
+
+
 def _is_version_higher(version_1, version_2):
     if not version_2:
         return True
@@ -178,18 +207,23 @@ def _stringify_version(version_dict):
     return version
 
 
-def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
+def _query_github_api(auth_token, url):
     import urllib.request
 
     password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-    password_mgr.add_password(None, "api.github.com", auth, "x-oauth-basic")
+    password_mgr.add_password(None, "api.github.com", auth_token, "x-oauth-basic")
     opener = urllib.request.build_opener(urllib.request.HTTPBasicAuthHandler(password_mgr))
+    response = opener.open(url)
+    return response
+
+
+def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
     if new_rc_version is not None:
-        response = opener.open(
-            "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}".format(repo, new_rc_version["major"])
-        )
+        url = "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}".format(repo, new_rc_version["major"])
     else:
-        response = opener.open("https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo))
+        url = "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo)
+
+    response = _query_github_api(auth, url)
     tags = json.load(response)
     highest_version = None
     for tag in tags:
