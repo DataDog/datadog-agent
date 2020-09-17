@@ -97,7 +97,12 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	}
 }
 
-// Identifier returns a string that uniquely identifies a source
+// Identifier returns a string that uniquely identifies a source.
+// This is the identifier used in the registry.
+// FIXME(remy): during container rotation, this Identifier() method could return
+// the same value for different tailers. It is happening during container rotation
+// where the dead container still has a tailer running on the log file, and the tailer
+// of the freshly spawned container starts tailing this file as well.
 func (t *Tailer) Identifier() string {
 	return fmt.Sprintf("file:%s", t.path)
 }
@@ -194,7 +199,7 @@ func (t *Tailer) startStopTimer() {
 
 // onStop finishes to stop the tailer
 func (t *Tailer) onStop() {
-	log.Info("Closing", t.path, "of", t.source.Config.Identifier)
+	log.Info("Closing", t.path, "for tailer key", buildTailerKey(t))
 	t.file.Close()
 	t.decoder.Stop()
 }

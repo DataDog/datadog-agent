@@ -7,13 +7,18 @@ package file
 
 import "fmt"
 
-// tailerKey can be implemented by File and Tailer
+// tailerKey can be implemented by File and Tailer.
 type tailerKey interface {
 	getPath() string
 	getSourceIdentifier() string
 }
 
-// buildTailerKey returns a tailer identifier taking into account the file path and the container ID
+// buildTailerKey returns a tailer identifier taking into account the filepath and the container ID
+// when an container ID is available.
+// When no container ID is available, it's only returning the filepath.
 func buildTailerKey(obj tailerKey) string {
-	return fmt.Sprintf("%s/%s", obj.getPath(), obj.getSourceIdentifier())
+	if obj.getSourceIdentifier() != "" {
+		return fmt.Sprintf("%s/%s", obj.getPath(), obj.getSourceIdentifier())
+	}
+	return obj.getPath()
 }
