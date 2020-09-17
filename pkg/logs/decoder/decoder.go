@@ -128,7 +128,7 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 		} else if d.matcher.Match(d.lineBuffer.Bytes(), inBuf, i, j) {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
-			i = j + 1 // skip the matching byte.
+			i = j + 1 // skip the last bytes of the matched sequence
 			maxj = i + d.contentLenLimit
 		}
 	}
@@ -137,7 +137,8 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 
 // sendLine copies content from lineBuffer which is passed to lineHandler
 func (d *Decoder) sendLine() {
-	content := make([]byte, d.lineBuffer.Len())
+	// Account for longer-than-1-byte line separator
+	content := make([]byte, d.lineBuffer.Len()-(d.matcher.SeparatorLen()-1))
 	copy(content, d.lineBuffer.Bytes())
 	d.lineBuffer.Reset()
 	d.lineHandler.Handle(content)
