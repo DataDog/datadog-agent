@@ -106,6 +106,15 @@ func (s *Scanner) scan() {
 	tailersLen := len(s.tailers)
 
 	for _, file := range files {
+		// We're using generated key here: in case this file has been found while
+		// scanning files for container, the key will use the format:
+		//   <filepath>/<containerID>
+		// If it has been found while scanning for a regular integration config,
+		// its format will be:
+		//   <filepath>
+		// It is a hack to let two containers tail the same file (it's happening
+		// when a tailer for a dead container is still tailing the file, and another
+		// tailer is tailing the file for the new container).
 		tailerKey := buildTailerKey(file)
 		tailer, isTailed := s.tailers[tailerKey]
 		if isTailed && atomic.LoadInt32(&tailer.shouldStop) != 0 {
