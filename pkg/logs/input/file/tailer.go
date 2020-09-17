@@ -132,7 +132,7 @@ func (t *Tailer) readForever() {
 		select {
 		case <-t.stop:
 			if n != 0 && t.didFileRotate == 1 {
-				log.Warn("Tailer stopped after rotation close timeout with data remaining")
+				log.Warn("Tailer stopped after rotation close timeout with remaining unread data")
 			}
 			// stop reading data from file
 			return
