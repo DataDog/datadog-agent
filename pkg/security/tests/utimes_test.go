@@ -41,93 +41,102 @@ func TestUtime(t *testing.T) {
 	f.Close()
 	defer os.Remove(testFile)
 
-	utimbuf := &syscall.Utimbuf{
-		Actime:  123,
-		Modtime: 456,
-	}
-
-	if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "utimes" {
-			t.Errorf("expected utimes event, got %s", event.GetType())
+	t.Run("utime", func(t *testing.T) {
+		utimbuf := &syscall.Utimbuf{
+			Actime:  123,
+			Modtime: 456,
 		}
 
-		if atime := event.Utimes.Atime.Unix(); atime != 123 {
-			t.Errorf("expected access time of 123, got %d", atime)
+		if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
+			t.Fatal(err)
 		}
 
-		if mtime := event.Utimes.Mtime.Unix(); mtime != 456 {
-			t.Errorf("expected modification time of 456, got %d", mtime)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "utimes" {
+				t.Errorf("expected utimes event, got %s", event.GetType())
+			}
+
+			if atime := event.Utimes.Atime.Unix(); atime != 123 {
+				t.Errorf("expected access time of 123, got %d", atime)
+			}
+
+			if mtime := event.Utimes.Mtime.Unix(); mtime != 456 {
+				t.Errorf("expected modification time of 456, got %d", mtime)
+			}
 		}
-	}
+	})
 
-	var times = [2]syscall.Timeval{
-		{
-			Sec:  111,
-			Usec: 222,
-		},
-		{
-			Sec:  333,
-			Usec: 444,
-		},
-	}
-
-	if _, _, errno := syscall.Syscall(syscall.SYS_UTIMES, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "utimes" {
-			t.Errorf("expected utimes event, got %s", event.GetType())
-		}
-
-		if atime := event.Utimes.Atime.Unix(); atime != 111 {
-			t.Errorf("expected access time of 111, got %d", atime)
+	t.Run("utimes", func(t *testing.T) {
+		var times = [2]syscall.Timeval{
+			{
+				Sec:  111,
+				Usec: 222,
+			},
+			{
+				Sec:  333,
+				Usec: 444,
+			},
 		}
 
-		if atime := event.Utimes.Atime.UnixNano(); atime%int64(time.Second)/int64(time.Microsecond) != 222 {
-			t.Errorf("expected access microseconds of 222, got %d", atime%int64(time.Second)/int64(time.Microsecond))
-		}
-	}
-
-	var ntimes = [2]syscall.Timespec{
-		{
-			Sec:  111,
-			Nsec: 222,
-		},
-		{
-			Sec:  555,
-			Nsec: 666,
-		},
-	}
-
-	if _, _, errno := syscall.Syscall(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0]))); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "utimes" {
-			t.Errorf("expected utimes event, got %s", event.GetType())
+		if _, _, errno := syscall.Syscall(syscall.SYS_UTIMES, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
+			t.Fatal(err)
 		}
 
-		if mtime := event.Utimes.Mtime.Unix(); mtime != 555 {
-			t.Errorf("expected modification time of 555, got %d", mtime)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "utimes" {
+				t.Errorf("expected utimes event, got %s", event.GetType())
+			}
+
+			if atime := event.Utimes.Atime.Unix(); atime != 111 {
+				t.Errorf("expected access time of 111, got %d", atime)
+			}
+
+			if atime := event.Utimes.Atime.UnixNano(); atime%int64(time.Second)/int64(time.Microsecond) != 222 {
+				t.Errorf("expected access microseconds of 222, got %d", atime%int64(time.Second)/int64(time.Microsecond))
+			}
+		}
+	})
+
+	t.Run("utimensat", func(t *testing.T) {
+		var ntimes = [2]syscall.Timespec{
+			{
+				Sec:  111,
+				Nsec: 222,
+			},
+			{
+				Sec:  555,
+				Nsec: 666,
+			},
 		}
 
-		if mtime := event.Utimes.Mtime.UnixNano(); mtime%int64(time.Second)/int64(time.Nanosecond) != 666 {
-			t.Errorf("expected modification microseconds of 666, got %d (%d)", mtime%int64(time.Second)/int64(time.Nanosecond), mtime)
+		if _, _, errno := syscall.Syscall(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0]))); errno != 0 {
+			if errno == syscall.EINVAL {
+				t.Skip("utimensat not supported")
+			}
+			t.Fatal(errno)
 		}
-	}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "utimes" {
+				t.Errorf("expected utimes event, got %s", event.GetType())
+			}
+
+			if mtime := event.Utimes.Mtime.Unix(); mtime != 555 {
+				t.Errorf("expected modification time of 555, got %d", mtime)
+			}
+
+			if mtime := event.Utimes.Mtime.UnixNano(); mtime%int64(time.Second)/int64(time.Nanosecond) != 666 {
+				t.Errorf("expected modification microseconds of 666, got %d (%d)", mtime%int64(time.Second)/int64(time.Nanosecond), mtime)
+			}
+		}
+	})
 }

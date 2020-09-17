@@ -84,6 +84,9 @@ func GetTags() ([]string, error) {
 	}
 	if metadata.Project.ProjectID != "" {
 		tags = append(tags, fmt.Sprintf("project:%s", metadata.Project.ProjectID))
+		if config.Datadog.GetBool("gce_send_project_id_tag") {
+			tags = append(tags, fmt.Sprintf("project_id:%s", metadata.Project.ProjectID))
+		}
 	}
 	if metadata.Project.NumericProjectID != 0 {
 		tags = append(tags, fmt.Sprintf("numeric_project_id:%d", metadata.Project.NumericProjectID))
