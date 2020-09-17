@@ -65,6 +65,7 @@ struct syscall_cache_t {
                     struct ktimeval mtime;
                 };
             };
+            u64 inode;
         } setattr;
 
         struct {

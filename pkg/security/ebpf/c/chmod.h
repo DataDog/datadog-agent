@@ -46,6 +46,13 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
+    // add an fake entry to reach the first dentry with the proper inode
+    u64 inode = syscall->setattr.path_key.ino;
+    if (syscall->setattr.inode) {
+        inode = syscall->setattr.inode;
+        add_dentry_inode(syscall->setattr.path_key, inode);
+    }
+
     struct chmod_event_t event = {
         .event.type = EVENT_CHMOD,
         .syscall = {
@@ -54,7 +61,7 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
         },
         .file = {
             .mount_id = syscall->setattr.path_key.mount_id,
-            .inode = syscall->setattr.path_key.ino,
+            .inode = inode,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
         },
         .padding = 0,

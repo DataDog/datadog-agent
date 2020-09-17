@@ -63,6 +63,13 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
+    // add an fake entry to reach the first dentry with the proper inode
+    u64 inode = syscall->setattr.path_key.ino;
+    if (syscall->setattr.inode) {
+        inode = syscall->setattr.inode;
+        add_dentry_inode(syscall->setattr.path_key, inode);
+    }
+
     struct chown_event_t event = {
         .event.type = EVENT_CHOWN,
         .syscall = {
@@ -70,7 +77,7 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
             .timestamp = bpf_ktime_get_ns(),
         },
         .file = {
-            .inode = syscall->setattr.path_key.ino,
+            .inode = inode,
             .mount_id = syscall->setattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
         },
