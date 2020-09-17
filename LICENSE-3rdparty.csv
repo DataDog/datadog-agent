@@ -529,8 +529,14 @@ core,"golang.org/x/sys/windows/svc",NewBSD
 core,"golang.org/x/sys/windows/svc/debug",NewBSD
 core,"golang.org/x/sys/windows/svc/eventlog",NewBSD
 core,"golang.org/x/sys/windows/svc/mgr",NewBSD
+core,"golang.org/x/text/encoding",NewBSD
+core,"golang.org/x/text/encoding/internal",NewBSD
+core,"golang.org/x/text/encoding/internal/identifier",NewBSD
+core,"golang.org/x/text/encoding/unicode",NewBSD
+core,"golang.org/x/text/internal/utf8internal",NewBSD
 core,"golang.org/x/text/secure/bidirule",NewBSD
 core,"golang.org/x/text/transform",NewBSD
+core,"golang.org/x/text/runes",NewBSD
 core,"golang.org/x/text/unicode/bidi",NewBSD
 core,"golang.org/x/text/unicode/norm",NewBSD
 core,"golang.org/x/text/width",NewBSD
