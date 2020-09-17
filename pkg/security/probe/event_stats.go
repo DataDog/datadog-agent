@@ -10,6 +10,7 @@ package probe
 import "sync/atomic"
 
 // EventsStats holds statistics about the number of lost and received events
+//nolint:structcheck,unused
 type EventsStats struct {
 	Lost         int64
 	PerEventType [maxEventType]int64

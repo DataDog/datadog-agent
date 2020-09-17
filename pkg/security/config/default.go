@@ -56,7 +56,7 @@ rules:
   - id: kernel_module
     description: new file in kernel module location
     expression: >-
-      open.filename =~ "/lib/modules/*" && open.flags & O_CREAT > 0
+      (open.filename =~ "/usr/lib/modules/*" || open.filename =~ "/lib/modules/*") && open.flags & O_CREAT > 0
     tags:
       mitre: T1215
 `

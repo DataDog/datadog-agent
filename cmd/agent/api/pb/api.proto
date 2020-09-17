@@ -14,9 +14,28 @@ service Agent {
     }
 }
 
+service AgentSecure {
+    rpc GetTags (TagRequest) returns (TagReply) {
+        option (google.api.http) = {
+            post: "/v1/grpc/tags"
+            body: "*"
+        };
+    }
+}
+
 message HostnameRequest {}
 
 // The response message containing the requested hostname
 message HostnameReply {
     string hostname = 1;
+}
+
+// The request message containing the tag list for an entity.
+message TagRequest {
+    string entity = 1;
+}
+
+// The response message containing the tagger reply
+message TagReply {
+    repeated string tags = 1;
 }

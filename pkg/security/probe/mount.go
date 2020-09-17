@@ -45,7 +45,7 @@ var mountHookPoints = []*HookPoint{
 	},
 	{
 		Name:       "sys_mount",
-		KProbes:    syscallKprobe("mount"),
+		KProbes:    syscallKprobe("mount", true),
 		EventTypes: []eval.EventType{"*"},
 	},
 	{
@@ -56,10 +56,8 @@ var mountHookPoints = []*HookPoint{
 		EventTypes: []eval.EventType{"*"},
 	},
 	{
-		Name: "sys_umount",
-		KProbes: []*ebpf.KProbe{{
-			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
-		}},
+		Name:       "sys_umount",
+		KProbes:    syscallKprobe("umount"),
 		EventTypes: []eval.EventType{"*"},
 	},
 }

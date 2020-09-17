@@ -21,11 +21,11 @@ int __attribute__((always_inline)) trace__sys_link() {
     return 0;
 }
 
-SYSCALL_KPROBE(link) {
+SYSCALL_KPROBE0(link) {
     return trace__sys_link();
 }
 
-SYSCALL_KPROBE(linkat) {
+SYSCALL_KPROBE0(linkat) {
     return trace__sys_link();
 }
 

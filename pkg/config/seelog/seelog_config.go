@@ -29,7 +29,7 @@ const seelogConfigurationTemplate = `
 		<format id="json"          format="{{.jsonFormat}}"/>
 		<format id="common"        format="{{.commonFormat}}"/>
 		<format id="syslog-json"   format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{getJSONSyslogFormat .loggerName}}"/>
-		<format id="syslog-common" format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{.loggerName}} | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg%n" />
+		<format id="syslog-common" format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{.loggerName}} | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n" />
 	</formats>
 </seelog>`
 
@@ -46,7 +46,7 @@ func (c *Config) Render() (string, error) {
 	funcMap := template.FuncMap{
 		// This function will be called by the html/template engine that will perform HTML escaping of quotes characters in the output string
 		"getJSONSyslogFormat": func(name string) string {
-			return `{"agent":"` + strings.ToLower(name) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"}%n`
+			return `{"agent":"` + strings.ToLower(name) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n`
 		},
 	}
 	tmpl, err := template.New("seelog_config").Funcs(funcMap).Parse(seelogConfigurationTemplate)

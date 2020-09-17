@@ -35,20 +35,11 @@ int __attribute__((always_inline)) trace__sys_unlink(int flags) {
     return 0;
 }
 
-SYSCALL_KPROBE(unlink) {
+SYSCALL_KPROBE0(unlink) {
     return trace__sys_unlink(0);
 }
 
-SYSCALL_KPROBE(unlinkat) {
-    int flags;
-
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
-#else
-    flags = (int) PT_REGS_PARM3(ctx);
-#endif
-
+SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
     return trace__sys_unlink(flags);
 }
 
