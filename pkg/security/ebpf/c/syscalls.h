@@ -33,6 +33,7 @@ struct syscall_cache_t {
             struct path_key_t path_key;
             int overlay_numlower;
             int flags;
+            u64 inode;
         } unlink;
 
         struct {

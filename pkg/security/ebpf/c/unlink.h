@@ -48,15 +48,18 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
-    // In a container, vfs_unlink can be called multiple times to handle the different layers of the overlay filesystem.
-    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-    if (syscall->unlink.path_key.ino)
-        return 0;
 
     // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-    syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
+
+    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+    if (syscall->unlink.path_key.ino) {
+        syscall->unlink.inode = get_dentry_ino(dentry);
+        return 0;
+    }
+
     syscall->unlink.path_key.ino = get_dentry_ino(dentry);
+    syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     int ret = 0;
@@ -81,6 +84,13 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
+    // add an fake entry to reach the first dentry with the proper inode
+    u64 inode = syscall->unlink.path_key.ino;
+    if (syscall->unlink.inode) {
+        inode = syscall->unlink.inode;
+        add_dentry_inode(syscall->unlink.path_key, inode);
+    }
+
     struct unlink_event_t event = {
         .event.type = syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK,
         .syscall = {
@@ -89,7 +99,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         },
         .file = {
             .mount_id = syscall->unlink.path_key.mount_id,
-            .inode = syscall->unlink.path_key.ino,
+            .inode = inode,
             .overlay_numlower = syscall->unlink.overlay_numlower,
         },
         .flags = syscall->unlink.flags,
