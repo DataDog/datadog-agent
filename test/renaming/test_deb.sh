@@ -43,6 +43,12 @@ tar xvf data.tar.gz || true
 LICENSE_DIR1="/opt/stackstate-agent/licenses/"
 LICENSE_DIR2="/opt/stackstate-agent/LICENSES/"
 
+# Remove known dummy files
+
+rm ./opt/stackstate-agent/embedded/.installed_by_pkg.txt || true
+rm ./opt/stackstate-agent/embedded/.py_compiled_files.txt || true
+
+
 find . -iname \*datadog\* \
   | grep -v "$LICENSE_DIR1" \
   | grep -v "$LICENSE_DIR2" \
@@ -54,14 +60,27 @@ find . -iname \*datadog\* \
   | grep -v "/opt/stackstate-agent/embedded/lib/python2.7/site-packages/stackstate_checks/stubs/datadog_agent.py" \
   | grep -v "/opt/stackstate-agent/embedded/lib/python2.7/site-packages/stackstate_checks/base/stubs/datadog_agent.py" \
   | grep -v "/opt/stackstate-agent/embedded/lib/python2.7/site-packages/datadog_a7" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/python3\.8/site-packages/datadog_*" \
+  | grep -v "/opt/stackstate-agent/embedded/include/datadog_agent_rtloader.h" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/libdatadog-agent-rtloader.so" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/libdatadog-agent-rtloader.so.1" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/libdatadog-agent-three.so" \
   | tee -a out.txt
+
+#echo "pass 1" >> out.txt
+
 find . -iname \*dd-\* | tee -a out.txt
+
+#echo "pass 2" >> out.txt
 
 grep -R "datadog_checks" ./opt/stackstate-agent/embedded/ \
   | grep -v "datadog_checks_shared" \
+  | grep -v "site-packages" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/libdatadog-agent-three.so" \
   | tee -a out.txt \
 
-echo "Output:"
+echo "========Output:========================="
 cat out.txt
 echo "end"
 

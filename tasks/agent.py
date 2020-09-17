@@ -334,6 +334,41 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/com.datadoghq.ad/com.stackstate.ad/g', "./pkg/autodiscovery/providers/docker.go")
     do_sed_rename(ctx, 's/com.datadoghq.ad/com.stackstate.ad/g', "./pkg/autodiscovery/providers/ecs.go")
 
+    # omnibus
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/projects/agent.rb")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/projects/iot-agent.rb")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/software/datadog-agent-finalize.rb")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/templates/datadog-agent/sysvinit_debian.erb")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/package-scripts/dogstatsd/postinst")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/package-scripts/dogstatsd/posttrans")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/package-scripts/dogstatsd/preinst")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/package-scripts/iot-agent/postinst")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/package-scripts/iot-agent/postrm")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/package-scripts/iot-agent/posttrans")
+    do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/package-scripts/iot-agent/preinst")
+    do_sed_rename(ctx, 's/datadog\.yaml/stackstate\.yaml/', "./omnibus/config/software/datadog-iot-agent.rb")
+    do_sed_rename(ctx, 's/datadog-agent/stackstate-agent/', "./omnibus/config/software/datadog-iot-agent.rb")
+    do_sed_rename(ctx, 's/DataDog/Stackvista/', "./omnibus/config/software/datadog-iot-agent.rb")
+    do_sed_rename(ctx, 's/\/var\/log\/datadog/\/var\/log\/stackstate/', "./omnibus/config/software/datadog-iot-agent.rb")
+    do_sed_rename(ctx, 's/datadog-iot-agent\/src/stackstate-iot-agent\/src/', "./omnibus/config/software/datadog-iot-agent.rb")
+    do_sed_rename(ctx, 's/DataDog\/datadog-agent\/tools\/windows\/decompress_merge_module.ps1/StackVista\/stackstate-agent\/tools\/windows\/decompress_merge_module.ps1/',
+                  "./omnibus/config/software/vc_redist_14.rb")
+    do_sed_rename(ctx, 's/DataDog\/datadog-agent\/bin\/agent/StackVista\/stackstate-agent\/bin\/agent/',
+                "./omnibus/config/software/datadog-agent.rb")
+    do_sed_rename(ctx, 's/\/etc\/datadog-agent/\/etc\/stackstate-agent/',
+                  "./omnibus/config/software/datadog-agent.rb")
+    do_sed_rename(ctx, 's/datadog-agent\/src\/github\.com\/DataDog\/datadog-agent\/rtloader/datadog-agent\/src\/github\.com\/StackVista\/stackstate-agent\/rtloader/',
+                  "./omnibus/config/software/datadog-agent.rb")
+    do_sed_rename(ctx, 's/opt\\\\datadog-agent/opt\\\\stackstate-agent/',
+                  "./omnibus/resources/iot/msi/localbuild/rebuild.bat")
+    do_sed_rename(ctx, 's/opt\\\\datadog-agent/opt\\\\stackstate-agent/',
+                  "./omnibus/resources/agent/msi/localbuild/rebuild.bat")
+    do_sed_rename(ctx, 's/src\\\\etc\\\\datadog-agent/src\\\\etc\\\\stackstate-agent/',
+                  "./omnibus/resources/iot/msi/localbuild/rebuild.bat")
+    do_sed_rename(ctx, 's/src\\\\etc\\\\datadog-agent/src\\\\etc\\\\stackstate-agent/',
+                  "./omnibus/resources/agent/msi/localbuild/rebuild.bat")
+
+
 @task
 def build(
     ctx,
@@ -445,10 +480,13 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if iot else "agent",
     }
-    print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    if sys.platform.startswith('win'):
+        print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~contextdir:")
+        ctx.run("echo %cd%", env=env)
+    print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~cmd:")
     print(cmd.format(**args))
     print("~~~~~~")
-    print("~~~")
+    print("~~~ldflags:")
     print(ldflags)
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     ctx.run(cmd.format(**args), env=env)
@@ -470,7 +508,7 @@ def build(
         "go_file": "./pkg/config/render_config.go",
         "build_type": build_type,
         "template_file": "./pkg/config/config_template.yaml",
-        "output_file": "./cmd/agent/dist/datadog.yaml",
+        "output_file": "./cmd/agent/dist/stackstate.yaml",
     }
 
     ctx.run(cmd.format(**args), env=env)
@@ -511,7 +549,7 @@ def refresh_assets(ctx, build_tags, development=True, iot=False):
     # System probe not supported on windows
     if sys.platform.startswith('linux'):
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
-    shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
+    shutil.copy("./cmd/agent/dist/stackstate.yaml", os.path.join(dist_folder, "stackstate.yaml"))
 
     for check in AGENT_CORECHECKS if not iot else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))

@@ -21,6 +21,15 @@
       args:
         stdin: choco feature enable -n allowGlobalConfirmation
 
+    - name: Get recent cacerts (1/2)
+      win_copy:
+        src: files/GetLastCacert.ps1
+        dest: C:\
+
+    #    TODO: resolve
+    # - name: Get recent cacerts (2/2)
+    #   win_command: powershell.exe -File C:\GetLastCacert.ps1
+
 # Minoconda3 - agent7 part
     - name: Install Miniconda
       win_chocolatey:
@@ -122,10 +131,16 @@
       args:
         executable: cmd
 
-    - name: Support for Makefiles
+    # - name: Support for Makefiles (make)
+    #   win_chocolatey:
+    #     name: make
+    #     state: present
+
+    - name: Support for Makefiles (cmake)
       win_chocolatey:
-        name: make
+        name: cmake
         state: present
+        version: "3.17.2"
 
     - name: 7zip
       win_chocolatey:
@@ -143,6 +158,12 @@
         name: visualstudio2017community
         state: present
         package_params: "--norestart --wait --quiet --locale en-US --add Microsoft.VisualStudio.Workload.MSBuildTools --add Microsoft.VisualStudio.Workload.NativeDesktop  --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.CLI.Support --add Microsoft.VisualStudio.Workload.UniversalBuildTools --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81"
+
+    - name: Backward compatibility - Install Visual studio 2017 community buildtools
+      win_chocolatey:
+        name: visualstudio2017buildtools
+        state: present
+        package_params: "--norestart --wait --quiet --locale en-US --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81 --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre --add Microsoft.VisualStudio.Component.Windows10SDK.17763"
 
 # choco install visualstudio2019community --package-parameters "...."
     - name: Install Visual studio 2019 community
@@ -295,6 +316,13 @@
         value: "c:\\gopath"
         level: machine
 
+    - name: ENV | VSTUDIO_ROOT
+      win_environment:
+        state: present
+        name: VSTUDIO_ROOT
+        value: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\BuildTools"
+        level: machine
+
 # [VS] GOROOT is no longer needed
 #    - name: ENV | GOROOT
 #      win_environment:
@@ -324,10 +352,11 @@
       win_path:
         elements:
         - 'C:\\tools\\ruby24\\bin'
+        - 'C:\\gopath\\bin'
+        - 'C:\\Program Files\\CMake\\bin\'
         - 'C:\\python27-x64'
         - 'C:\\python27-x64\\Scripts'
         - 'C:\\Program Files\\Git\\usr\\bin'
-        - 'C:\\tools\\go\\bin'
         - 'C:\\Program Files\\Amazon\\AWSCLI'
         - 'C:\\Program Files\\Mercurial;C:\\Program Files (x86)\\WiX Toolset v3.11\\bin'
 
@@ -348,28 +377,40 @@
         state: present
         version: 2.4.3.1
 
+# ENV MSYS_VERSION "20190524.0.0.20191030"
+# cinst -y --no-progress msys2 --params \"/NoUpdate\" --version $ENV:MSYS_VERSION
+# choco install msys2 -y --params="'/NoUpdate'" --version 20190524.0.0.20191030
     - name: Install msys2 (1/2)
       win_chocolatey:
         name: msys2
         state: present
-        timeout: 90
         package_params: "/NoUpdate"
+        version: "20190524.0.0.20191030"
+        timeout: 90
       register: msys_try1
       ignore_errors: true
+      until: msys_try1.finished
 
     - name: Install msys2 (2/2)
       win_chocolatey:
         name: msys2
         state: present
         package_params: "/NoUpdate"
+        version: "20190524.0.0.20191030"
       when: msys_try1 is failed
 
-
-# Reenterable, "Latest version already installed. Done."
-    - name: Fix spotted bundler issue
-      win_shell: gem update --system 3.0.2
+    - name: Install python virtualwrapper
+      win_shell: pip install virtualenvwrapper-win
       args:
         executable: cmd
+
+#ENV CMAKE_VERSION "3.17.2"
+    - name: Support for Makefiles
+      win_chocolatey:
+        # name: make
+        name: cmake
+        version: "3.17.2"
+        state: present
 
     - name: Install invoke into python namespace
       win_shell: pip install invoke
@@ -378,7 +419,14 @@
 
 #  entry point for any linux paths here is C:\tools\msys64\
     - name: ridk install 1 2 3 woodo magic - does not break if msys from choco installed (download base around 0.6G)
-      win_shell: "ridk install 1 2 3"
+#      win_shell: "ridk install 1 2 3"
+      win_shell: "ridk install 3"  # seems smth wrong if updated?
+
+# Reenterable, "Latest version already installed. Done."
+    - name: Fix spotted bundler issue
+      win_shell: gem update --system 3.0.2
+      args:
+        executable: cmd
 
     # - name: Enable defender realtime scan back
     #   win_command: powershell.exe -

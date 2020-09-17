@@ -59,7 +59,11 @@ build do
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
+    command "echo %cd%"
+    # //TODO: sts mkdir workaround
+    mkdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "echo %PATH%" # TODO:sts
     command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild --no-development --arch #{platform}", env: env
   else

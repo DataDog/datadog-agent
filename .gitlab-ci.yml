@@ -7,7 +7,7 @@ stages:
 - acceptance
 - release
 
-variables:
+variables: &globalvariables
   STS_AWS_RELEASE_BUCKET: stackstate-agent-2
   STS_AWS_TEST_BUCKET: stackstate-agent-2-test
   STS_AWS_RELEASE_BUCKET_YUM: stackstate-agent-2-rpm
@@ -30,12 +30,15 @@ variables:
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR
   OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
+  OMNIBUS_BASE_DIR_WIN: c:\omnibus-ruby #\$CI_RUNNER_ID
+  OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omnibus-ruby #/$CI_RUNNER_ID
   # Directory in which we execute the omnibus build for SUSE
   # as we want to separate the RPM built for this distro.
   BCC_VERSION: v0.12.0
   SYSTEM_PROBE_GO_VERSION: 1.13.11
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   ARCH: amd64
+  VCINSTALLDIR: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community"
 
 
 ######################### pipeline bricks
@@ -340,8 +343,7 @@ build_deb:
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
   - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
   - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
-# TODO: localize /opt/datadog-agent
-  - cp -r /opt/datadog-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
+  - cp -r /opt/stackstate-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
 
   - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
 
@@ -421,32 +423,68 @@ build_rpm:
         - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
-build_win:
+old_win:
   stage: build_and_test
   needs:
     - deps_win
   before_script: []
   script:
-    - call .gitlab-scripts/setup_artifactory.cmd
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - type %APPDATA%\pip\pip.ini
     - call .gitlab-scripts/windows_build_env.cmd
+    - call ridk enable
+    - call ridk version
+    - echo "=====Environment vars:"
+    - call bundle config
+    - call bundle version
+    - call ruby --version
+    - call gem env
+    - cd omnibus && call bundle install
+    - where omnibus
+    - call omnibus --version
+    - where omnibus.bat
+  tags:
+    - sts_windows
+
+build_win:
+  stage: build_and_test
+  variables:
+    <<: *globalvariables
+    OMNIBUS_BASE_DIR: c:\omnibus-ruby
+  needs:
+    - deps_win
+  before_script:
+    - $Env:Path
+    - Write-Output "1 ==================================================================="
+    - *configure_windows_ps1_environment
+  script:
+    - Import-VisualStudioVars 2017 -Architecture amd64
+# pscx func ^^^
+    - ridk enable
+    - $Env:Path
+    - Write-Output "2 ==================================================================="
+# todo: unpack deps here? --skip-deps
+    - inv -e agent.omnibus-build --skip-sign --log-level debug --major-version 2
+#    - call .gitlab-scripts/setup_artifactory.cmd
+#    - set WIN_CI_PROJECT_DIR=%CD%
+#    - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
+#    - type %APPDATA%\pip\pip.ini
+#    - call .gitlab-scripts/windows_build_env.cmd
 # debug
 #    - call .gitlab-scripts/windows_deps.cmd
 #    - inv version -u > version.txt
 #    - whoami
 # /debug
-    - call .gitlab-scripts/windows_build.cmd
+#    - call .gitlab-scripts/windows_build.cmd
   after_script:
-    - copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi
+    - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
   artifacts:
     expire_in: 2 weeks
     paths:
       - ./*.msi
       - "version.txt"
   tags:
-    - sts_windows
+    - windows_agent7_ps1
 
 test_deb_renaming:
   stage: pre_release
@@ -529,7 +567,7 @@ pre_release_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - cp ./outcomes/pkg/*.deb ./Dockerfiles/agent
+    - cp ./outcomes/pkg/stackstate-agent_2*.deb ./Dockerfiles/agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
 
 pre_release_trace_agent_image:
@@ -564,11 +602,12 @@ pre_release_cluster_agent_image:
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
-    - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
+    - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
 
 molecule_tests_vms:
   stage: acceptance
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_deb
     - pre_release_rpm
@@ -589,6 +628,7 @@ molecule_tests_vms:
 
 molecule_tests_compose:
   stage: acceptance
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_image
   dependencies: []
@@ -607,6 +647,7 @@ molecule_tests_compose:
 
 molecule_tests_local_install:
   stage: acceptance
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_deb
     - pre_release_rpm
@@ -624,6 +665,7 @@ molecule_tests_local_install:
 
 molecule_tests_kubernetes:
   stage: acceptance
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_cluster_agent_image
     - pre_release_image
@@ -643,6 +685,7 @@ molecule_tests_kubernetes:
 
 molecule_tests_secrets:
   stage: acceptance
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_deb
   dependencies: []
@@ -733,7 +776,7 @@ release_image:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - export PUSH_LATEST=true
-    - cp ./outcomes/pkg/*.deb Dockerfiles/agent
+    - cp ./outcomes/pkg/stackstate-agent_2*.deb Dockerfiles/agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent $PUSH_LATEST
   when: manual
   only:

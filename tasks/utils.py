@@ -91,7 +91,9 @@ def get_build_flags(
         # fall back to local dev path
         embedded_path = "{}/src/github.com/StackVista/stackstate-agent/dev".format(get_gopath(ctx))
 
+    print("========= rtloader_root:", rtloader_root)
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_multi_python_location(embedded_path, rtloader_root)
+    print("========= rtloader_lib:", rtloader_lib)
 
     # setting python homes in the code
     if python_home_2:

@@ -9,7 +9,8 @@ WORKDIR /output
 COPY stackstate-cluster-agent opt/stackstate-agent/bin/stackstate-cluster-agent
 COPY ./conf.d etc/stackstate-agent/conf.d
 COPY ./stackstate-cluster.yaml etc/stackstate-agent/stackstate-cluster.yaml
-COPY ./dist/templates opt/stackstate-agent/bin/dist/templates
+# TODO: are templates no longer present?
+#COPY ./dist/templates opt/stackstate-agent/bin/dist/templates
 COPY entrypoint.sh .
 
 RUN chmod 755 entrypoint.sh \

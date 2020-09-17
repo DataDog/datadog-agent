@@ -54,10 +54,15 @@
         state: present
         version: 2.4.3.1
 
+# ENV MSYS_VERSION "20190524.0.0.20191030"
+# cinst -y --no-progress msys2 --params \"/NoUpdate\" --version $ENV:MSYS_VERSION
+# choco install msys2 -y --params="'/NoUpdate'" --version 20190524.0.0.20191030
     - name: Install msys2 (1/2)
       win_chocolatey:
         name: msys2
         state: present
+        package_params: "/NoUpdate"
+        version: "20190524.0.0.20191030"
         timeout: 90
       register: msys_try1
       ignore_errors: true
@@ -67,6 +72,8 @@
       win_chocolatey:
         name: msys2
         state: present
+        package_params: "/NoUpdate"
+        version: "20190524.0.0.20191030"
         when: msys_try1 is failed
 
     - name: Install python virtualwrapper
@@ -74,9 +81,12 @@
       args:
         executable: cmd
 
+#ENV CMAKE_VERSION "3.17.2"
     - name: Support for Makefiles
       win_chocolatey:
-        name: make
+        # name: make
+        name: cmake
+        version: "3.17.2"
         state: present
 
     - name: 7zip
@@ -229,6 +239,8 @@
     #     value: "C:\\tools\\ruby24\\bin;C:\\python27-x64;C:\\python27-x64\\Scripts;c:\\deps\\bin;%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SYSTEMROOT%\\System32\\WindowsPowerShell\\v1.0;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\Git\\usr\\bin;C:\\Program Files\\PowerShell\\6;C:\\Program Files\\OpenSSH-Win64;C:\\tools\\go\\bin;C:\\Program Files\\Amazon\\AWSCLI;C:\\Program Files\\Mercurial;C:\\Program Files (x86)\\WiX Toolset v3.11\\bin"
     #     level: machine
 
-    - name: ridk install 1 2 3 woodo magic - does not break if msys from choco installed
-      win_shell: "ridk install 1 2 3"
+#  entry point for any linux paths here is C:\tools\msys64\
+    - name: ridk install 1 2 3 woodo magic - does not break if msys from choco installed (download base around 0.6G)
+#      win_shell: "ridk install 1 2 3"
+      win_shell: "ridk install 3"  # seems smth wrong if updated?
 
