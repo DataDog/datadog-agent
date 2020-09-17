@@ -19,6 +19,11 @@ const (
 	JournaldType     = "journald"
 	WindowsEventType = "windows_event"
 	SnmpTrapsType    = "snmp_traps"
+
+	// UTF16BE for UTF-16 Big endian encoding
+	UTF16BE string = "utf-16-be"
+	// UTF16LE for UTF-16 Little Endian encoding
+	UTF16LE string = "utf-16-be"
 )
 
 // LogsConfig represents a log source config, which can be for instance
