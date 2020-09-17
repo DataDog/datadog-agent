@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -69,6 +68,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	prepareProcess(cmd)
 
 	start := time.Now()
 	err := cmd.Start()
@@ -79,10 +79,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 		select {
 		case <-termCtx.Done():
 			if termCtx.Err() == context.DeadlineExceeded {
-				err := cmd.Process.Signal(syscall.SIGTERM)
-				if err != nil {
-					log.Debugf("Failed to send SIGTERM to %s (%d): %v", secretBackendCommand, cmd.Process.Pid, err)
-				}
+				terminateProcess(cmd)
 			}
 		}
 	}()
