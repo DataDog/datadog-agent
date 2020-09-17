@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -28,8 +29,6 @@ import (
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
 const DefaultSleepDuration = 1 * time.Second
-
-const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
@@ -79,6 +78,7 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
+	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout")
 
 	return &Tailer{
 		path:           path,
@@ -88,7 +88,7 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 		tagProvider:    tagProvider,
 		readOffset:     0,
 		sleepDuration:  sleepDuration,
-		closeTimeout:   defaultCloseTimeout,
+		closeTimeout:   closeTimeout,
 		stop:           make(chan struct{}, 1),
 		done:           make(chan struct{}, 1),
 		isWildcardPath: isWildcardPath,
@@ -124,14 +124,20 @@ func (t *Tailer) Start(offset int64, whence int) error {
 func (t *Tailer) readForever() {
 	defer t.onStop()
 	for {
+		n, err := t.read()
+		if err != nil {
+			return
+		}
+
 		select {
 		case <-t.stop:
+			if n != 0 && t.didFileRotate == 1 {
+				log.Warn("Tailer stopped after rotation close timeout with data remaining")
+			}
 			// stop reading data from file
 			return
 		default:
-			if n, err := t.read(); err != nil {
-				return
-			} else if n == 0 {
+			if n == 0 {
 				// wait for new data to come
 				t.wait()
 			}
