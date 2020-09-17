@@ -82,12 +82,14 @@ if osx?
   # Blacklist ibm_was, which depends on lxml
   blacklist_folders.push('ibm_was')
 
-  # Blacklist ijson as it fails MacOS notarization: the _yajl2.so binary inside was built with a
+  # Blacklist snowflake-connector-python as it makes MacOS notarization fail.
+  # It pulls the ijson package, which contains a _yajl2.so binary that was built with a
   # MacOS SDK lower than 10.9. The Python 3 counterpart of the same package is not affected (it
   # doesn't ship this file).
+  blacklist_packages.push(/^snowflake-connector-python==/)
   blacklist_packages.push(/^ijson==/)
 
-  # Blacklist snowflake, which depends on lxml
+  # Blacklist snowflake, which depends on snowflake-connector-python
   blacklist_folders.push('snowflake')
 
   # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
