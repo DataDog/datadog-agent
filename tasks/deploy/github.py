@@ -3,8 +3,6 @@ import json
 import os
 import re
 
-from invoke.exceptions import Exit
-
 from .githubapp import GithubApp, GithubAppException
 
 errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
@@ -21,20 +19,6 @@ class Github(object):
 
     def __init__(self, api_token=None):
         self.api_token = api_token if api_token else self._api_token()
-
-    def test_repo_found(self, repo):
-        """
-        Checks if a repo can be found. This is useful for testing access permissions to repos.
-        """
-        result = self.repo(repo)
-
-        # name is arbitrary, just need to check if something is in the result
-        if "name" in result:
-            return
-
-        print("Cannot find Github repo {}".format(repo))
-        print("If you cannot see it in the Github UI, you likely need permission.")
-        raise Exit(code=1)
 
     def repo(self, repo_name):
         """
