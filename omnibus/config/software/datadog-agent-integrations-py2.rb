@@ -87,7 +87,6 @@ if osx?
   # MacOS SDK lower than 10.9. The Python 3 counterpart of the same package is not affected (it
   # doesn't ship this file).
   blacklist_packages.push(/^snowflake-connector-python==/)
-  blacklist_packages.push(/^ijson==/)
 
   # Blacklist snowflake, which depends on snowflake-connector-python
   blacklist_folders.push('snowflake')
