@@ -96,9 +96,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
-    u64 ino = get_path_ino(path);
-    bpf_printk("IIIIIIIIIII: %d\n", ino);
-
     struct exec_event_t event = {
         .event.type = EVENT_EXEC,
         .pid = tgid,
@@ -127,7 +124,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 
     // cache dentry
     struct dentry *dentry = get_path_dentry(path);
-    struct path_key_t path_key = get_key(dentry, path);
+    struct path_key_t path_key = get_key2(inode, path);
     resolve_dentry(dentry, path_key, NULL);
 
     // send the entry to maintain userspace cache

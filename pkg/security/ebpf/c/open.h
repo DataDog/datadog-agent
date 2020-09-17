@@ -106,6 +106,8 @@ int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *s
     struct open_basename_t basename = {};
     get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
 
+bpf_printk("kprobe/vfs_open basename '%s'\n", basename.value);
+
     struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
     if (filter) {
 #ifdef DEBUG
@@ -218,7 +220,7 @@ SEC("kretprobe/ovl_d_real")
 int kretprobe__ovl_d_real(struct pt_regs *ctx) {
    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
-        return 0;
+        return 0;   
 
     struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
     syscall->open.path_key.ino = get_dentry_ino(dentry);
