@@ -27,6 +27,8 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
 
     if (syscall->type == EVENT_UTIME || syscall->type == EVENT_CHMOD || syscall->type == EVENT_CHOWN) {
         struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+
+        // if second pass, ex: overlayfs, just cache the inode that will be used in ret
         if (syscall->setattr.dentry) {
             syscall->setattr.inode = get_dentry_ino(dentry);
             return 0;

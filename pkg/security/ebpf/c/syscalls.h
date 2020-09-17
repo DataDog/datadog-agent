@@ -39,6 +39,7 @@ struct syscall_cache_t {
         struct {
             struct path_key_t path_key;
             int overlay_numlower;
+            u64 inode;
         } rmdir;
 
         struct {
