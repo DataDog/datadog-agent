@@ -88,10 +88,6 @@ class Github(object):
         """
         runs = self.workflow_runs(repo_name, workflow_name)
         ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == ref]
-
-        if len(ref_runs) == 0:
-            return None
-
         return max(ref_runs, key=lambda run: run['created_at'], default=None)
 
     def workflow_runs(self, repo_name, workflow_name):
