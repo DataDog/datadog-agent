@@ -448,14 +448,12 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 }
 
 func TestHighPriorityTransaction(t *testing.T) {
-	requestCount := 0
+	var requestCount int32 = 0
 	var requestChan = make(chan (string))
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
-
 		// First 3 requests failed
-		if requestCount < 3 {
+		if atomic.AddInt32(&requestCount, 1) < 3 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			defer r.Body.Close()
