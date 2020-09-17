@@ -1306,6 +1306,7 @@ agent_dmg-x64-a6:
     - <<: *if_not_version_6
       when: never
     - <<: *if_deploy
+  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
@@ -1323,6 +1324,7 @@ agent_dmg-x64-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_deploy
+  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
@@ -3598,6 +3600,7 @@ deploy_staging_dmg-a6:
     - <<: *if_not_version_6
       when: never
     - <<: *if_deploy
+  allow_failure: true
   stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -3613,6 +3616,7 @@ deploy_staging_dmg-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_deploy
+  allow_failure: true
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
