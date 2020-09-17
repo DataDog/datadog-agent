@@ -96,13 +96,12 @@ def follow_workflow_run(run_id):
         try:
             run = Github().workflow_run("DataDog/datadog-agent-macos-build", run_id)
         except GithubException:
-            run = None
-
-        if run is None:
             failures += 1
-            print("Workflow run not found, waiting one minute (failure {}/{})".format(failures, MAX_FAILURES))
+            print("Workflow run not found, retrying in 15 seconds (failure {}/{})".format(failures, MAX_FAILURES))
             if failures == MAX_FAILURES:
                 raise Exit(code=1)
+            sleep(15)
+            continue
 
         status = run["status"]
         conclusion = run["conclusion"]
