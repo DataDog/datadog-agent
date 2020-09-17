@@ -20,6 +20,7 @@ type EndLineMatcher interface {
 	SeparatorLen() int
 }
 
+// NewLineMatcher implements EndLineMatcher for line ending with '\n'
 type NewLineMatcher struct {
 	EndLineMatcher
 }
@@ -29,6 +30,7 @@ func (n *NewLineMatcher) Match(exists []byte, appender []byte, start int, end in
 	return appender[end] == '\n'
 }
 
+// SeparatorLen returns the length of the line separator
 func (n *NewLineMatcher) SeparatorLen() int {
 	return 1
 }
@@ -43,7 +45,7 @@ func NewBytesSequenceMatcher(sequence []byte) *BytesSequenceMatcher {
 	return &BytesSequenceMatcher{sequence}
 }
 
-// Match returns true whenever it find a matching sequence at appender[end:...]
+// Match returns true whenever it finds a matching sequence at appender[end+1-len(b.sequence):end+1]
 func (b *BytesSequenceMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
 	// Total read message is append(exists,appender[start:end]) and the decoder just read appender[end]
 	// Thus the separator sequence is checked against append(exists, appender[start:end+1])
