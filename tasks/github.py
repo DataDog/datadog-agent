@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from invoke import task
 
 from .deploy.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
