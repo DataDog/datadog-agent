@@ -41,7 +41,7 @@ const contentLenLimit = 100
 
 func TestDecodeIncomingData(t *testing.T) {
 	h := NewMockLineHandler()
-	d := New(nil, nil, h, contentLenLimit, &newLineMatcher{})
+	d := New(nil, nil, h, contentLenLimit, &NewLineMatcher{})
 
 	var line []byte
 
@@ -189,7 +189,7 @@ func TestDecodeIncomingDataWithSingleByteCustomSequence(t *testing.T) {
 
 func TestDecoderLifeCycle(t *testing.T) {
 	h := NewMockLineHandler()
-	d := New(nil, nil, h, contentLenLimit, &newLineMatcher{})
+	d := New(nil, nil, h, contentLenLimit, &NewLineMatcher{})
 
 	// lineHandler should not receive any lines
 	d.Start()
@@ -213,7 +213,7 @@ func TestDecoderLifeCycle(t *testing.T) {
 func TestDecoderInputNotDockerHeader(t *testing.T) {
 	inputChan := make(chan *Input)
 	h := NewMockLineHandler()
-	d := New(inputChan, nil, h, 100, &newLineMatcher{})
+	d := New(inputChan, nil, h, 100, &NewLineMatcher{})
 	d.Start()
 
 	input := []byte("hello")

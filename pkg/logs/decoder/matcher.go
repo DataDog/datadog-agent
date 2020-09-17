@@ -20,16 +20,16 @@ type EndLineMatcher interface {
 	SeparatorLen() int
 }
 
-type newLineMatcher struct {
+type NewLineMatcher struct {
 	EndLineMatcher
 }
 
 // Match returns true whenever a '\n' (newline) is met.
-func (n *newLineMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
+func (n *NewLineMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
 	return appender[end] == '\n'
 }
 
-func (n *newLineMatcher) SeparatorLen() int {
+func (n *NewLineMatcher) SeparatorLen() int {
 	return 1
 }
 

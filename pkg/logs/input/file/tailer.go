@@ -63,14 +63,30 @@ type Tailer struct {
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var parser lineParser.Parser
+	var matcher decoder.EndLineMatcher
 	switch source.GetSourceType() {
 	case config.KubernetesSourceType:
 		parser = kubernetes.Parser
+		matcher = &decoder.NewLineMatcher{}
 	case config.DockerSourceType:
 		parser = docker.JSONParser
+		matcher = &decoder.NewLineMatcher{}
 	default:
-		parser = lineParser.NoopParser
+		switch source.Config.Encoding {
+		case "utf-16-be":
+			log.Info("Encoding=utf-16-be")
+			parser = lineParser.NewDecodingParser(lineParser.UTF16BE)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
+		case "utf-16-le":
+			log.Info("Encoding=utf-16-le")
+			parser = lineParser.NewDecodingParser(lineParser.UTF16LE)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
+		default:
+			parser = lineParser.NoopParser
+			matcher = &decoder.NewLineMatcher{}
+		}
 	}
+
 	var tagProvider tag.Provider
 	if source.Config.Identifier != "" {
 		tagProvider = tag.NewProvider(source.Config.Identifier)
@@ -83,7 +99,7 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	return &Tailer{
 		path:           path,
 		outputChan:     outputChan,
-		decoder:        decoder.InitializeDecoder(source, parser),
+		decoder:        decoder.NewDecoderWithEndLineMatcher(source, parser, matcher),
 		source:         source,
 		tagProvider:    tagProvider,
 		readOffset:     0,
