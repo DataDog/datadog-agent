@@ -23,8 +23,9 @@ struct syscall_cache_t {
 
         struct {
             umode_t mode;
-            struct path *dir; // ?????
             struct dentry *dentry;
+            struct dentry *dentry2;
+            struct path *path;
             struct path_key_t path_key;
         } mkdir;
 

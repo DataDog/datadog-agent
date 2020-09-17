@@ -10,8 +10,8 @@ int kprobe__filename_create(struct pt_regs *ctx) {
         return 0;
 
     switch (syscall->type) {
-       case EVENT_MKDIR:
-            syscall->mkdir.dir = (struct path *)PT_REGS_PARM3(ctx);
+        case EVENT_MKDIR:
+            syscall->mkdir.path = (struct path *)PT_REGS_PARM3(ctx);
             break;
        case EVENT_LINK:
             syscall->link.target_path = (struct path *)PT_REGS_PARM3(ctx);

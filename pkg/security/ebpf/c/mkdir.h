@@ -40,13 +40,19 @@ int kprobe__security_path_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
+
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+
     // In a container, vfs_mkdir can be called multiple times to handle the different layers of the overlay filesystem.
     // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-    if (syscall->mkdir.dentry)
+    if (syscall->mkdir.dentry) {
+        syscall->mkdir.dentry2 = dentry;
         return 0;
+    }
 
-    syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    syscall->mkdir.path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.dir);
+    syscall->mkdir.dentry = dentry;
+    syscall->mkdir.path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.path);
+
     return 0;
 }
 
@@ -61,6 +67,15 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
     syscall->mkdir.path_key.ino = get_dentry_ino(syscall->mkdir.dentry);
+
+    resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, NULL);
+
+    u64 inode = syscall->mkdir.path_key.ino;
+    if (syscall->mkdir.dentry2) {
+        inode = get_dentry_ino(syscall->mkdir.dentry2);
+        add_dentry_inode(syscall->mkdir.path_key, inode);
+    }
+
     struct mkdir_event_t event = {
         .event.type = EVENT_MKDIR,
         .syscall = {
@@ -68,7 +83,7 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
             .timestamp = bpf_ktime_get_ns(),
         },
         .file = {
-            .inode = syscall->mkdir.path_key.ino,
+            .inode = inode,
             .mount_id = syscall->mkdir.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->mkdir.dentry),
         },
@@ -77,8 +92,6 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
-
-    resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, NULL);
 
     send_event(ctx, event);
 
