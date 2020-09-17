@@ -94,6 +94,7 @@ struct syscall_cache_t {
             struct dentry *dentry;
             struct path_key_t path_key;
             const char *name;
+            u64 inode;
         } setxattr;
     };
 };

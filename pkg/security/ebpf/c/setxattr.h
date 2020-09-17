@@ -55,9 +55,15 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx) {
         return 0;
 
     if (syscall->type == EVENT_SETXATTR || syscall->type == EVENT_REMOVEXATTR) {
-        if (syscall->setxattr.dentry)
+        struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+
+        // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+        if (syscall->setxattr.dentry) {
+            syscall->setxattr.inode = get_dentry_ino(dentry);
             return 0;
-        syscall->setxattr.dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+        }
+
+        syscall->setxattr.dentry = dentry;
         syscall->setxattr.path_key.ino = get_dentry_ino(syscall->setxattr.dentry);
         // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
         resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, NULL);
@@ -85,6 +91,13 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
+    // add an fake entry to reach the first dentry with the proper inode
+    u64 inode = syscall->setxattr.path_key.ino;
+    if (syscall->setxattr.inode) {
+        inode = syscall->setxattr.inode;
+        add_dentry_inode(syscall->setxattr.path_key, inode);
+    }
+
     struct setxattr_event_t event = {
         .event.type = type,
         .syscall = {
@@ -92,7 +105,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
             .timestamp = bpf_ktime_get_ns(),
         },
         .file = {
-            .inode = syscall->setxattr.path_key.ino,
+            .inode = inode,
             .mount_id = syscall->setxattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setxattr.dentry),
         },
