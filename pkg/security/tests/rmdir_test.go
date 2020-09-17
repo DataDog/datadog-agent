@@ -18,7 +18,7 @@ import (
 func TestRmdir(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `rmdir.filename == "{{.Root}}/test-rmdir"`,
+		Expression: `rmdir.filename == "{{.Root}}/test-rmdir" || rmdir.filename == "{{.Root}}/test-unlink-rmdir"`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -27,26 +27,53 @@ func TestRmdir(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test-rmdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := syscall.Mkdir(testFile, 0777); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testFile)
-
-	if _, _, err := syscall.Syscall(syscall.SYS_RMDIR, uintptr(testFilePtr), 0, 0); err != 0 {
-		t.Fatal(error(err))
-	}
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "rmdir" {
-			t.Errorf("expected rmdir event, got %s", event.GetType())
+	t.Run("rmdir", func(t *testing.T) {
+		testFile, testFilePtr, err := test.Path("test-rmdir")
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
+
+		if err := syscall.Mkdir(testFile, 0777); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		if _, _, err := syscall.Syscall(syscall.SYS_RMDIR, uintptr(testFilePtr), 0, 0); err != 0 {
+			t.Fatal(error(err))
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "rmdir" {
+				t.Errorf("expected rmdir event, got %s", event.GetType())
+			}
+		}
+	})
+
+	t.Run("unlinkat-at_removedir", func(t *testing.T) {
+		testDir, testDirPtr, err := test.Path("test-unlink-rmdir")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := syscall.Mkdir(testDir, 0777); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testDir)
+
+		if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "rmdir" {
+				t.Errorf("expected rmdir event, got %s", event.GetType())
+			}
+		}
+	})
 }
