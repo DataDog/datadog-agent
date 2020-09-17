@@ -158,6 +158,8 @@ spec:
               auth_token: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
             external_metrics_provider:
               enabled: true
+              config:
+                secure-port: 6443
 
     - name: cluster-agent-deployment
       value: |
@@ -240,7 +242,7 @@ spec:
           ports:
           - protocol: TCP
             port: 443
-            targetPort: 443
+            targetPort: 6443
 
     - name: nginx-hpa
       value: |

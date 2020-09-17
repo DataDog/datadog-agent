@@ -172,7 +172,7 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
 	k8s.io/api v0.17.4
 	k8s.io/apimachinery v0.17.4
-	k8s.io/apiserver v0.17.4
+	k8s.io/apiserver v0.17.4 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.0.0
