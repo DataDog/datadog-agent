@@ -38,12 +38,16 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
-    // In a container, vfs_rename can be called multiple times to handle the different layers of the overlay filesystem.
-    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-    if (syscall->rename.src_dentry)
-        return 0;
 
-    syscall->rename.src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+
+    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+    if (syscall->rename.src_dentry) {
+        syscall->rename.src_dentry2 = dentry;
+        return 0;
+    }
+
+    syscall->rename.src_dentry = dentry;
     syscall->rename.src_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry);
 
     // we generate a fake source key as the inode is (can be ?) reused
@@ -66,7 +70,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
     // Warning: we use the src_dentry twice for compatibility with CentOS. Do not change it :)
     // (the mount id was set by kprobe/mnt_want_write)
-    syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.src_dentry);
+    syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.src_dentry2);
     struct rename_event_t event = {
         .event.type = EVENT_RENAME,
         .syscall = {

@@ -174,17 +174,21 @@ func (e *FileEvent) ResolveBasename(resolvers *Resolvers) string {
 	return e.BasenameStr
 }
 
-func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+func (e *FileEvent) marshalJSONInode(resolvers *Resolvers, inode uint64) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
 	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"inode":%d,`, inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
+}
+
+func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	return e.marshalJSONInode(resolvers, e.Inode)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -487,6 +491,26 @@ type RenameEvent struct {
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.BaseEvent, &e.Old, &e.New)
+}
+func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// use the new.inode as the old one is a fake one generated from the probe
+	buf.WriteString(`"old":`)
+	d, err := e.Old.marshalJSONInode(resolvers, e.New.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	buf.WriteString(`,"new":`)
+	d, err = e.New.marshalJSONInode(resolvers, e.New.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	return buf.Bytes(), nil
 }
 
 // UtimesEvent represents a utime event
@@ -949,12 +973,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 				marshalFnc: eventMarshalJSON(&e.Rename.BaseEvent),
 			},
 			eventMarshaler{
-				field:      "old",
-				marshalFnc: e.Rename.Old.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "new",
-				marshalFnc: e.Rename.New.marshalJSON,
+				marshalFnc: e.Rename.marshalJSON,
 			})
 	case FileUtimeEventType:
 		entries = append(entries,
@@ -1032,7 +1051,9 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			if prev {
 				buf.WriteRune(',')
 			}
-			buf.WriteString(`"` + entry.field + `":`)
+			if entry.field != "" {
+				buf.WriteString(`"` + entry.field + `":`)
+			}
 			buf.Write(d)
 			prev = true
 		}
