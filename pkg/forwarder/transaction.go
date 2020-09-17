@@ -123,14 +123,17 @@ func initTransactionExpvars() {
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
 }
 
-/// Define the priority of a transaction
-/// Transactions with priority `TransactionPriorityNormal` are dropped from the retry queue
-/// before dropping transactions with priority `TransactionPriorityHigh`.
+// TransactionPriority defines the priority of a transaction
+// Transactions with priority `TransactionPriorityNormal` are dropped from the retry queue
+// before dropping transactions with priority `TransactionPriorityHigh`.
 type TransactionPriority int
 
 const (
+	// TransactionPriorityNormal defines a transaction with a normal priority
 	TransactionPriorityNormal TransactionPriority = 0
-	TransactionPriorityHigh   TransactionPriority = 1
+
+	// TransactionPriorityHigh defines a transaction with an high priority
+	TransactionPriorityHigh TransactionPriority = 1
 )
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -189,6 +192,7 @@ func (t *HTTPTransaction) GetTarget() string {
 	return httputils.SanitizeURL(url) // sanitized url that can be logged
 }
 
+// GetPriority returns the priorty
 func (t *HTTPTransaction) GetPriority() TransactionPriority {
 	return t.priority
 }
