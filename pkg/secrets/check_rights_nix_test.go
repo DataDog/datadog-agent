@@ -56,7 +56,7 @@ func TestGroupOtherRights(t *testing.T) {
 
 	allowGroupExec = true
 
-	// event if allowGroupExec=true, group may have no permission
+	// even if allowGroupExec=true, group may have no permission
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0700))
 	require.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 

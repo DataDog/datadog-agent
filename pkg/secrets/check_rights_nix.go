@@ -61,7 +61,7 @@ func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []str
 	if fmt.Sprintf("%d", stat.Uid) == usr.Uid {
 		isUserFile = true
 	}
-	// If the file is not own by the user, lets check for on of his groups
+	// If the file is not owned by the user, let's check for one of his groups
 	if !isUserFile {
 		var isGroupFile bool
 		for _, userGroup := range userGroups {
@@ -76,7 +76,7 @@ func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []str
 
 		// Check that *group* can at least exec.
 		if stat.Mode&(syscall.S_IXGRP) == 0 {
-			return fmt.Errorf("invalid executable: '%s' is not readable or executable by group", path)
+			return fmt.Errorf("invalid executable: '%s' is not executable by group", path)
 		}
 	}
 
