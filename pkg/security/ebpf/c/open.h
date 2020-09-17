@@ -123,7 +123,7 @@ int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *s
     struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
     if (filter) {
 #ifdef DEBUG
-        bpf_printk("kprobe/vfs_open basename %s approved\n", basename.value);
+        bpf_printk("open basename %s approved\n", basename.value);
 #endif
         return 1;
     }
@@ -135,7 +135,7 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
 #ifdef DEBUG
-        bpf_printk("kprobe/vfs_open flags %d approved\n", syscall->open.flags);
+        bpf_printk("open flags %d approved\n", syscall->open.flags);
 #endif
         return 1;
     }
@@ -147,7 +147,7 @@ int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *sysc
     u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &key);
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
 #ifdef DEBUG
-        bpf_printk("kprobe/vfs_open flags %d discarded\n", syscall->open.flags);
+        bpf_printk("open flags %d discarded\n", syscall->open.flags);
 #endif
         return 1;
     }
@@ -166,19 +166,13 @@ int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache
     struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_approvers, &inode);
     if (filter) {
 #ifdef DEBUG
-        bpf_printk("kprobe/vfs_open pid %d with inode %d approved\n", tgid, inode);
+        bpf_printk("open pid %d with inode %d approved\n", tgid, inode);
 #endif
         return 1;
     }
     return 0;
 }
-
-int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    // NOTE(safchain) could be moved only if pass_to_userspace == 1
-    syscall->open.dir = (struct path *)PT_REGS_PARM1(ctx);
-    syscall->open.dentry = get_path_dentry(syscall->open.dir);
-    syscall->open.path_key = get_key(syscall->open.dentry, syscall->open.dir);
-
+int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) {
     if (syscall->policy.mode == NO_FILTER)
         goto no_filter;
 
@@ -211,6 +205,16 @@ no_filter:
     return 0;
 }
 
+int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
+    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
+    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
+
+    syscall->open.dentry = get_file_dentry(file);
+    syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
+
+    return filter_open(syscall);
+}
+
 SEC("kprobe/vfs_truncate")
 int kprobe__vfs_truncate(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
@@ -218,23 +222,42 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
         return 0;
 
     if (syscall->type == EVENT_OPEN) {
-        return vfs_handle_open_event(ctx, syscall);
+        struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+
+        syscall->open.dentry = get_path_dentry(path);
+        syscall->open.path_key = get_key(syscall->open.dentry, path);
+
+        return filter_open(syscall);
     }
 
     return 0;
 }
 
-SEC("kprobe/vfs_open")
-int kprobe__vfs_open(struct pt_regs *ctx) {
+SEC("kretprobe/ovl_d_real")
+int kretprobe__ovl_d_real(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
 
+    if (syscall->type == EVENT_OPEN) {
+        struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
+        syscall->open.path_key.ino = get_dentry_ino(dentry);
+    }
+
+    return 0;
+}
+
+SEC("kprobe/do_dentry_open")
+int kprobe__do_dentry_open(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;   
+
     switch(syscall->type) {
         case EVENT_OPEN:
-            return vfs_handle_open_event(ctx, syscall);
+            return handle_open_event(ctx, syscall);
         case EVENT_EXEC:
-            return vfs_handle_exec_event(ctx, syscall);
+            return handle_exec_event(ctx, syscall);
     }
 
     return 0;

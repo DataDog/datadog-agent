@@ -15,11 +15,15 @@ import (
 var openProbes = []*manager.Probe{
 	{
 		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_open",
+		Section: "kprobe/vfs_truncate",
 	},
 	{
 		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_truncate",
+		Section: "kretprobe/ovl_d_real",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/do_dentry_open",
 	},
 }
 

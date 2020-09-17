@@ -17,14 +17,13 @@ struct syscall_cache_t {
         struct {
             int flags;
             umode_t mode;
-            struct path *dir;
             struct dentry *dentry;
             struct path_key_t path_key;
         } open;
 
         struct {
             umode_t mode;
-            struct path *dir;
+            struct path *dir; // ?????
             struct dentry *dentry;
             struct path_key_t path_key;
         } mkdir;

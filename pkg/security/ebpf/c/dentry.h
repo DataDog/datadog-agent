@@ -198,6 +198,8 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 
 #define get_key(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 
+#define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
+
 static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, struct bpf_map_def *discarders_table) {
     struct path_leaf_t map_value = {};
     struct path_key_t next_key = key;

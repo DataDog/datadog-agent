@@ -72,13 +72,18 @@ struct proc_cache_t * __attribute__((always_inline)) get_pid_cache(u32 tgid) {
     return entry;
 }
 
-int __attribute__((always_inline)) vfs_handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
+    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
+    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
+    struct path *path = &file->f_path;
+
+    syscall->open.dentry = get_file_dentry(file);
+    syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
 
     // new cache entry
     struct proc_cache_t entry = {
         .executable = {
-            .inode = get_path_ino(path),
+            .inode = syscall->open.path_key.ino,
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
         },
