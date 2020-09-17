@@ -87,6 +87,7 @@ struct syscall_cache_t {
             struct dentry *target_dentry;
             struct path_key_t target_key;
             int src_overlay_numlower;
+            u64 src_inode;
         } link;
 
         struct {

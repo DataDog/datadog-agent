@@ -492,6 +492,7 @@ type RenameEvent struct {
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.BaseEvent, &e.Old, &e.New)
 }
+
 func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -569,6 +570,27 @@ type LinkEvent struct {
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.BaseEvent, &e.Source, &e.Target)
+}
+
+func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// use the source.inode as the target one is a fake one generated from the probe
+	buf.WriteString(`"source":`)
+	d, err := e.Source.marshalJSONInode(resolvers, e.Source.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	buf.WriteString(`,"target":`)
+	d, err = e.Target.marshalJSONInode(resolvers, e.Source.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	return buf.Bytes(), nil
 }
 
 // MountEvent represents a mount event
@@ -992,12 +1014,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 				marshalFnc: eventMarshalJSON(&e.Link.BaseEvent),
 			},
 			eventMarshaler{
-				field:      "source",
-				marshalFnc: e.Link.Source.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "target",
-				marshalFnc: e.Link.Target.marshalJSON,
+				marshalFnc: e.Link.marshalJSON,
 			})
 	case FileMountEventType:
 		entries = append(entries,

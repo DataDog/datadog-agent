@@ -34,12 +34,15 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
-    // In a container, vfs_link can be called multiple times to handle the different layers of the overlay filesystem.
-    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-    if (syscall->link.target_dentry)
-        return 0;
 
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+
+    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+    if (syscall->link.target_dentry) {
+        syscall->link.src_inode = get_dentry_ino(dentry);
+        return 0;
+    }
+
     syscall->link.target_dentry = (struct dentry *)PT_REGS_PARM3(ctx);
     syscall->link.src_overlay_numlower = get_overlay_numlower(dentry);
     // this is a hard link, source and target dentries are on the same filesystem & mount point
@@ -48,9 +51,9 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     // we generate a fake target key as the inode is the same
     syscall->link.target_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
     syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
-    get_key(syscall->link.target_dentry, syscall->link.target_path);
 
     resolve_dentry(dentry, syscall->link.src_key, NULL);
+
     return 0;
 }
 
@@ -63,6 +66,13 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
+    // add an fake entry to reach the first dentry with the proper inode
+    u64 inode = syscall->link.src_key.ino;
+    if (syscall->link.src_inode) {
+        inode = syscall->link.src_inode;
+        add_dentry_inode(syscall->link.src_key, inode);
+    }
+
     struct link_event_t event = {
         .event.type = EVENT_LINK,
         .syscall = {
@@ -70,7 +80,7 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
             .timestamp = bpf_ktime_get_ns(),
         },
         .source = {
-            .inode = syscall->link.src_key.ino,
+            .inode = inode,
             .mount_id = syscall->link.src_key.mount_id,
             .overlay_numlower = syscall->link.src_overlay_numlower,
         },
