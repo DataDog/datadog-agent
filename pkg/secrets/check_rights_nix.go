@@ -71,7 +71,7 @@ func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []str
 			}
 		}
 		if !isGroupFile {
-			return fmt.Errorf("invalid executable: '%s' isn't owned by this user or on of his group: username '%s', UID %s GUI %s. We can't execute it", path, usr.Username, usr.Uid, usr.Gid)
+			return fmt.Errorf("invalid executable: '%s' isn't owned by this user or one of his group: username '%s', UID %s GUI %s. We can't execute it", path, usr.Username, usr.Uid, usr.Gid)
 		}
 
 		// Check that *group* can at least exec.
