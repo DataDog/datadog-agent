@@ -71,6 +71,10 @@ func TestGroupOtherRights(t *testing.T) {
 	// other should have no right
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0701))
 	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
+
+	// other should not have write permission
+	require.Nil(t, os.Chmod(tmpfile.Name(), 0702))
+	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 }
 
 func Test_checkGroupPermission(t *testing.T) {

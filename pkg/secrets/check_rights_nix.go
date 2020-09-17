@@ -22,7 +22,7 @@ func checkRights(path string, allowGroupExec bool) error {
 	// get information about current user
 	usr, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("can't query current user UID: %s", err)
+		return fmt.Errorf("can't query current user's GIDs: %s", err)
 	}
 
 	if !allowGroupExec {
@@ -31,7 +31,7 @@ func checkRights(path string, allowGroupExec bool) error {
 
 	userGroups, err := usr.GroupIds()
 	if err != nil {
-		return fmt.Errorf("can't query current user UID: %s", err)
+		return fmt.Errorf("can't query current user's GIDs: %s", err)
 	}
 	return checkGroupPermission(&stat, usr, userGroups, path)
 }
@@ -55,14 +55,21 @@ func checkUserPermission(stat *syscall.Stat_t, usr *user.User, path string) erro
 	return nil
 }
 
-// checkUserPermission check that only the current User or one of his group can exec the path
+// checkGroupPermission check that only the current User or one of his group can exec the path
 func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []string, path string) error {
-	var isUserFile bool
-	if fmt.Sprintf("%d", stat.Uid) == usr.Uid {
-		isUserFile = true
+	var isUserHavePermission bool
+	// checking if the user is the owner and the owner have exec rights
+	if (fmt.Sprintf("%d", stat.Uid) == usr.Uid) && (stat.Mode&syscall.S_IXUSR != 0) {
+		isUserHavePermission = true
 	}
+
+	// If *group* executable, user can RWX, group can RX, and nothing else for anyone.
+	if stat.Mode&(syscall.S_IRWXO|syscall.S_IWGRP) != 0 {
+		return fmt.Errorf("invalid executable '%s', 'others' have rights on it or 'group' has write permissions on it", path)
+	}
+
 	// If the file is not owned by the user, let's check for one of his groups
-	if !isUserFile {
+	if !isUserHavePermission {
 		var isGroupFile bool
 		for _, userGroup := range userGroups {
 			if fmt.Sprintf("%d", stat.Gid) == userGroup {
@@ -78,11 +85,6 @@ func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []str
 		if stat.Mode&(syscall.S_IXGRP) == 0 {
 			return fmt.Errorf("invalid executable: '%s' is not executable by group", path)
 		}
-	}
-
-	// If *group* executable, user can RWX, group can RX, and nothing else for anyone.
-	if stat.Mode&(syscall.S_IRWXO|syscall.S_IWGRP) != 0 {
-		return fmt.Errorf("invalid executable '%s', 'others' have rights on it or 'group' has write permissions on it", path)
 	}
 
 	return nil
