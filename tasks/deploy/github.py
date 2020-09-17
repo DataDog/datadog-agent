@@ -42,7 +42,7 @@ class Github(object):
         """
 
         path = "/repos/{}".format(repo_name)
-        return self.make_request(path, json=True)
+        return self.make_request(path, method="GET", output_format="json")
 
     def trigger_workflow(self, repo_name, workflow_name, ref, inputs=None):
         """
@@ -50,25 +50,25 @@ class Github(object):
         ref must be a branch or a tag.
         """
         if inputs is None:
-            inputs = {}
+            inputs = dict()
 
         path = "/repos/{}/actions/workflows/{}/dispatches".format(repo_name, workflow_name)
         data = json.dumps({"ref": ref, "inputs": inputs})
-        return self.make_request(path, data=data)
+        return self.make_request(path, method="POST", data=data)
 
     def workflow_run(self, repo_name, run_id):
         """
         Gets info on a specific workflow.
         """
         path = "/repos/{}/actions/runs/{}".format(repo_name, run_id)
-        return self.make_request(path, json=True)
+        return self.make_request(path, method="GET", output_format="json")
 
     def download_artifact(self, repo_name, artifact_id, destination_dir):
         """
         Downloads the artifact identified by artifact_id to destination_dir.
         """
         path = "/repos/{}/actions/artifacts/{}/zip".format(repo_name, artifact_id)
-        content = self.make_request(path, raw_content=True)
+        content = self.make_request(path, method="GET", output_format="raw")
 
         zip_target_path = os.path.join(destination_dir, "{}.zip".format(artifact_id))
         with open(zip_target_path, "wb") as f:
@@ -80,7 +80,7 @@ class Github(object):
         Gets list of artifacts for a workflow run.
         """
         path = "/repos/{}/actions/runs/{}/artifacts".format(repo_name, run_id)
-        return self.make_request(path, json=True)
+        return self.make_request(path, method="GET", output_format="json")
 
     def latest_workflow_run_for_ref(self, repo_name, workflow_name, ref):
         """
@@ -92,36 +92,55 @@ class Github(object):
         if len(ref_runs) == 0:
             return None
 
-        return sorted(ref_runs, key=lambda run: run['created_at'], reverse=True)[0]
+        return max(ref_runs, key=lambda run: run['created_at'], default=None)
 
     def workflow_runs(self, repo_name, workflow_name):
         """
         Gets all workflow runs for a workflow.
         """
         path = "/repos/{}/actions/workflows/{}/runs".format(repo_name, workflow_name)
-        return self.make_request(path, json=True)
+        return self.make_request(path, method="GET", output_format="json")
 
-    def make_request(self, path, headers=None, data=None, json=False, raw_content=False):
+    def make_request(self, endpoint, headers=None, method="GET", data=None, output_format="text"):
         """
-        Utility to make a request to the Gitlab API.
+        Utility to make an HTTP request to the Gitlab API.
+        
+        endpoint is the HTTP endpoint that will be requested.
+
+        headers is a dict of HTTP headers that can be added to the request.
+
+        Adds "Authorization: token {self.api_token}" and "Accept: application/vnd.github.v3+json"
+        to the headers to be able to authenticate ourselves to Github.
+
+        The method parameter dictates the type of request made (GET or POST).
+        If method is GET, the data parameter is ignored (no body can be sent in a GET request).
+        
+        The output_format allows changing the structure of the response:
+        - text: a string containing the body of the response.
+        - json: an object containing the deserialized json body response. Works only if the response
+                is a json object.
+        - raw: a binary blob. Mainly useful when downloading things.
         """
         import requests
 
-        url = self.BASE_URL + path
+        url = self.BASE_URL + endpoint
 
         headers = dict(headers or [])
         headers["Authorization"] = "token {}".format(self.api_token)
         headers["Accept"] = "application/vnd.github.v3+json"
         for _ in range(5):  # Retry up to 5 times
             try:
-                if data:
-                    r = requests.post(url, headers=headers, data=data)
-                else:
+                if method == 'GET':
                     r = requests.get(url, headers=headers)
+                if method == 'POST':
+                    if data:
+                        r = requests.post(url, headers=headers, data=data)
+                    else:
+                        r = requests.post(url, headers=headers)
                 if r.status_code < 400:  # Success
-                    if json:
+                    if output_format == "json":
                         return r.json()
-                    if raw_content:
+                    if output_format == "raw":
                         return r.content
                     return r.text
                 if r.status_code == 401:
@@ -146,12 +165,12 @@ class Github(object):
                     print("Connection to Github ({}) refused".format(url))
                 else:
                     print("Error while connecting to {}: {}".format(url, str(e)))
-        raise GithubException()
+        raise GithubException("Failed while making HTTP request: {} {}".format(method, url))
 
     def _api_token(self):
         try:
             token = GithubApp().get_token()
         except GithubAppException:
-            raise GithubException()
+            raise GithubException("Couldn't get API token.")
 
         return token

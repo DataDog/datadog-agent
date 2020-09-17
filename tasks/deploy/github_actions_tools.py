@@ -51,15 +51,13 @@ def trigger_macos_workflow(
     # that started after we triggered the workflow.
     # In practice, this should almost never be a problem, even if the Agent 6 and 7 jobs run at the
     # same time, given that these two jobs will target different github_action_ref on RCs / releases.
-    retries = 1
-    MAX_RETRIES = 10
-    while retries <= MAX_RETRIES:
-        print("Fetching triggered workflow (try {}/{})".format(retries, MAX_RETRIES))
+    MAX_RETRIES = 10  # Retry up to 10 times
+    for i in range(MAX_RETRIES):
+        print("Fetching triggered workflow (try {}/{})".format(i + 1, MAX_RETRIES))
         run = get_macos_workflow_run_for_ref(github_action_ref)
         if run is not None and run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now:
             return run.get("id")
 
-        retries += 1
         sleep(5)
 
     # Something went wrong :(

@@ -50,28 +50,28 @@ class GithubApp:
         }
         return headers
 
-    def make_request(self, endpoint, method='GET', payload=None):
+    def make_request(self, endpoint, method='GET', data=None):
         """
-        Make a request to the Github API, while using a token crafted from the App ID and
+        Make an HTTP request to the Github API, while using a token crafted from the App ID and
         private key to authenticate ourselves as a Github App.
+
+        endpoint is the HTTP enpoint that will be requested.
+
+        The method parameter dictates the type of request made (GET or POST).
+        If method is GET, the data parameter is ignored (no body can be sent in a GET request).
+
         """
         import requests
 
+        url = self.base_url + endpoint
+
         if method == 'GET':
-            return requests.get(
-                '{base_url}{endpoint}'.format(base_url=self.base_url, endpoint=endpoint), headers=self.get_headers()
-            )
+            return requests.get(url, headers=self.get_headers())
         if method == 'POST':
-            if payload:
-                return requests.post(
-                    '{base_url}{endpoint}'.format(base_url=self.base_url, endpoint=endpoint),
-                    data=payload,
-                    headers=self.get_headers(),
-                )
+            if data:
+                return requests.post(url, data=data, headers=self.get_headers())
             else:
-                return requests.post(
-                    '{base_url}{endpoint}'.format(base_url=self.base_url, endpoint=endpoint), headers=self.get_headers()
-                )
+                return requests.post(url, headers=self.get_headers())
 
     def get_token(self):
         """
