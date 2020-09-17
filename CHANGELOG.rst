@@ -14,7 +14,7 @@ Prelude
 
 Release on: 2020-09-17
 
-Images of the containerized Agent will be released at a later date.
+The `7.22.1`/`6.22.1` images of the containerized Agent will be released at a later date.
 
 - Please refer to the `7.22.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7221>`_ for the list of changes on the Core Checks
 
