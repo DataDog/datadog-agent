@@ -176,6 +176,19 @@ def _create_version_dict_from_match(match):
     return version
 
 
+def _stringify_config(config_dict):
+    """
+    Takes a config dict of the following form:
+    {
+        "xxx_VERSION": { "major": x, "minor": y, "patch": z, "rc": t },
+        "xxx_HASH": "hashvalue",
+    }
+
+    and transforms all VERSIONs into their string representation.
+    """
+    return {key: _stringify_version(value) if "VERSION" in key else value for key, value in config_dict.items()}
+
+
 def _stringify_version(version_dict):
     version = "{}{}.{}".format(version_dict["v"], version_dict["major"], version_dict["minor"])
     if version_dict["patch"] is not None:
@@ -185,21 +198,22 @@ def _stringify_version(version_dict):
     return version
 
 
-def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
-    import urllib.request
+def _get_highest_repo_version(token, repo, new_rc_version, version_re):
+    import requests
 
-    password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-    password_mgr.add_password(None, "api.github.com", auth, "x-oauth-basic")
-    opener = urllib.request.build_opener(urllib.request.HTTPBasicAuthHandler(password_mgr))
+    headers = {"Authorization": "token {}".format(token)}
     if new_rc_version is not None:
-        response = opener.open(
+        response = requests.get(
             "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}{}".format(
                 repo, new_rc_version["v"], new_rc_version["major"]
-            )
+            ),
+            headers=headers,
         )
     else:
-        response = opener.open("https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo))
-    tags = json.load(response)
+        response = requests.get(
+            "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo), headers=headers
+        )
+    tags = response.json()
     highest_version = None
     for tag in tags:
         match = version_re.search(tag["ref"])
@@ -253,14 +267,14 @@ def _save_release_json(
     security_agent_policies_version,
     macos_build_version,
 ):
-    import urllib.request
+    import requests
 
-    jmxfetch = urllib.request.urlopen(
-        "https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar".format(
-            jmxfetch_version, jmxfetch_version
+    jmxfetch = requests.get(
+        "https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{0}%2Fjmxfetch-{0}-jar-with-dependencies.jar".format(
+            _stringify_version(jmxfetch_version),
         )
-    )
-    jmxfetch_sha256 = hashlib.sha256(jmxfetch.read()).hexdigest()
+    ).content
+    jmxfetch_sha256 = hashlib.sha256(jmxfetch).hexdigest()
 
     print("Jmxfetch's SHA256 is {}".format(jmxfetch_sha256))
 
@@ -286,7 +300,10 @@ def _save_release_json(
     for version in list_major_versions:
         highest_version["major"] = version
         new_version = _stringify_version(highest_version)
-        new_release_json[new_version] = new_version_config
+
+        # Exception of datadog-agent-macos-build: we need one tag per major version
+        new_version_config["MACOS_BUILD_VERSION"]["major"] = version
+        new_release_json[new_version] = _stringify_config(new_version_config)
 
     # Then the rest of the versions
     for key, value in release_json.items():
@@ -388,8 +405,7 @@ def finish(
             else:
                 print("Aborting.")
                 return Exit(code=1)
-        integration_version = _stringify_version(integration_version)
-    print("integrations-core's tag is {}".format(integration_version))
+    print("integrations-core's tag is {}".format(_stringify_version(integration_version)))
 
     if not omnibus_software_version:
         omnibus_software_version = _get_highest_repo_version(
@@ -407,13 +423,11 @@ def finish(
             else:
                 print("Aborting.")
                 return Exit(code=1)
-        omnibus_software_version = _stringify_version(omnibus_software_version)
-    print("omnibus-software's tag is {}".format(omnibus_software_version))
+    print("omnibus-software's tag is {}".format(_stringify_version(omnibus_software_version)))
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
-        jmxfetch_version = _stringify_version(jmxfetch_version)
-    print("jmxfetch's tag is {}".format(jmxfetch_version))
+    print("jmxfetch's tag is {}".format(_stringify_version(jmxfetch_version)))
 
     if not omnibus_ruby_version:
         omnibus_ruby_version = _get_highest_repo_version(github_token, "omnibus-ruby", highest_version, version_re)
@@ -429,15 +443,13 @@ def finish(
             else:
                 print("Aborting.")
                 return Exit(code=1)
-        omnibus_ruby_version = _stringify_version(omnibus_ruby_version)
-    print("omnibus-ruby's tag is {}".format(omnibus_ruby_version))
+    print("omnibus-ruby's tag is {}".format(_stringify_version(omnibus_ruby_version)))
 
     if not security_agent_policies_version:
         security_agent_policies_version = _get_highest_repo_version(
             github_token, "security-agent-policies", highest_security_agent_policies_version, version_re
         )
-        security_agent_policies_version = _stringify_version(security_agent_policies_version)
-    print("security-agent-policies' tag is {}".format(security_agent_policies_version))
+    print("security-agent-policies' tag is {}".format(_stringify_version(security_agent_policies_version)))
 
     if not macos_build_version:
         macos_build_version = _get_highest_repo_version(
@@ -455,8 +467,7 @@ def finish(
             else:
                 print("Aborting.")
                 return Exit(code=1)
-        macos_build_version = _stringify_version(macos_build_version)
-    print("datadog-agent-macos-build' tag is {}".format(macos_build_version))
+    print("datadog-agent-macos-build' tag is {}".format(_stringify_version(macos_build_version)))
 
     _save_release_json(
         release_json,
@@ -541,39 +552,33 @@ def create_rc(
 
     if not integration_version:
         integration_version = _get_highest_repo_version(github_token, "integrations-core", highest_version, version_re)
-        integration_version = _stringify_version(integration_version)
-    print("integrations-core's tag is {}".format(integration_version))
+    print("integrations-core's tag is {}".format(_stringify_version(integration_version)))
 
     if not omnibus_software_version:
         omnibus_software_version = _get_highest_repo_version(
             github_token, "omnibus-software", highest_version, version_re
         )
-        omnibus_software_version = _stringify_version(omnibus_software_version)
-    print("omnibus-software's tag is {}".format(omnibus_software_version))
+    print("omnibus-software's tag is {}".format(_stringify_version(omnibus_software_version)))
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
-        jmxfetch_version = _stringify_version(jmxfetch_version)
-    print("jmxfetch's tag is {}".format(jmxfetch_version))
+    print("jmxfetch's tag is {}".format(_stringify_version(jmxfetch_version)))
 
     if not omnibus_ruby_version:
         omnibus_ruby_version = _get_highest_repo_version(github_token, "omnibus-ruby", highest_version, version_re)
-        omnibus_ruby_version = _stringify_version(omnibus_ruby_version)
-    print("omnibus-ruby's tag is {}".format(omnibus_ruby_version))
+    print("omnibus-ruby's tag is {}".format(_stringify_version(omnibus_ruby_version)))
 
     if not security_agent_policies_version:
         security_agent_policies_version = _get_highest_repo_version(
             github_token, "security-agent-policies", highest_security_agent_policies_version, version_re
         )
-        security_agent_policies_version = _stringify_version(security_agent_policies_version)
-    print("security-agent-policies' tag is {}".format(security_agent_policies_version))
+    print("security-agent-policies' tag is {}".format(_stringify_version(security_agent_policies_version)))
 
     if not macos_build_version:
         macos_build_version = _get_highest_repo_version(
             github_token, "datadog-agent-macos-build", highest_version, version_re
         )
-        macos_build_version = _stringify_version(macos_build_version)
-    print("datadog-agent-macos-build's tag is {}".format(macos_build_version))
+    print("datadog-agent-macos-build's tag is {}".format(_stringify_version(macos_build_version)))
 
     _save_release_json(
         release_json,
