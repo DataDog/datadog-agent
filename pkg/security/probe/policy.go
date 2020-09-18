@@ -3,14 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
 import (
 	"errors"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
+
+var allPolicyTables = make(map[eval.EventType]string)
 
 // PolicyMode represents the policy mode (accept or deny)
 type PolicyMode uint8
@@ -76,4 +80,8 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 		flags = append(flags, `"name"`)
 	}
 	return []byte("[" + strings.Join(flags, ",") + "]"), nil
+}
+
+func init() {
+	allPolicyTables["open"] = "open_policy"
 }

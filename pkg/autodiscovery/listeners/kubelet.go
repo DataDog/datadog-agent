@@ -219,15 +219,28 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	var containerName string
 	for _, container := range pod.Status.GetAllContainers() {
 		if container.ID == svc.entity {
+			// Get the ImageName from the `spec` because the one in `status` isn’t reliable
+			containerImage := ""
+			for _, containerSpec := range pod.Spec.Containers {
+				if containerSpec.Name == container.Name {
+					containerImage = containerSpec.Image
+					break
+				}
+			}
+			if containerImage == "" {
+				log.Debugf("couldn't find the container %s (%s) in the spec of pod %s", container.Name, container.ID, pod.Metadata.Name)
+				containerImage = container.Image
+			}
+
 			// Detect AD exclusion
-			if l.filters.IsExcluded(containers.GlobalFilter, container.Name, container.Image, pod.Metadata.Namespace) {
-				log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image, pod.Metadata.Namespace)
+			if l.filters.IsExcluded(containers.GlobalFilter, container.Name, containerImage, pod.Metadata.Namespace) {
+				log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, containerImage, pod.Metadata.Namespace)
 				return
 			}
 
 			// Detect metrics or logs exclusion
-			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, container.Image, pod.Metadata.Namespace)
-			svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, container.Image, pod.Metadata.Namespace)
+			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, containerImage, pod.Metadata.Namespace)
+			svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, containerImage, pod.Metadata.Namespace)
 
 			containerName = container.Name
 
@@ -244,12 +257,12 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 			}
 
 			// Add other identifiers if no template found
-			svc.adIdentifiers = append(svc.adIdentifiers, container.Image)
-			_, short, _, err := containers.SplitImageName(container.Image)
+			svc.adIdentifiers = append(svc.adIdentifiers, containerImage)
+			_, short, _, err := containers.SplitImageName(containerImage)
 			if err != nil {
 				log.Warnf("Error while spliting image name: %s", err)
 			}
-			if len(short) > 0 && short != container.Image {
+			if len(short) > 0 && short != containerImage {
 				svc.adIdentifiers = append(svc.adIdentifiers, short)
 			}
 			break

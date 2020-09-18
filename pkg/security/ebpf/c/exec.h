@@ -52,11 +52,11 @@ int __attribute__((always_inline)) trace__sys_execveat() {
     return 0;
 }
 
-SYSCALL_KPROBE(execve) {
+SYSCALL_KPROBE0(execve) {
     return trace__sys_execveat();
 }
 
-SYSCALL_KPROBE(execveat) {
+SYSCALL_KPROBE0(execveat) {
     return trace__sys_execveat();
 }
 

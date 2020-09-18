@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -120,8 +119,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PUdpDestroySockMisses",
 			"PUdpRecvmsgHits",
 			"PUdpRecvmsgMisses",
-			"PUdpSendmsgHits",
-			"PUdpSendmsgMisses",
+			"PIpMakeSkbHits",
+			"PIpMakeSkbMisses",
 			"RXSysBindHits",
 			"RXSysBindMisses",
 			"RXSysSocketHits",
@@ -564,7 +563,9 @@ type AddrPair struct {
 
 func TestTCPShortlived(t *testing.T) {
 	// Enable BPF-based system probe
-	tr, err := NewTracer(NewDefaultConfig())
+	cfg := NewDefaultConfig()
+	cfg.TCPClosedTimeout = 10 * time.Millisecond
+	tr, err := NewTracer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -584,62 +585,27 @@ func TestTCPShortlived(t *testing.T) {
 	server.Run(doneChan)
 	defer close(doneChan)
 
-	// determine the total number of messages that will guarantee a perf batch flush
-	numConns := runtime.NumCPU() * 5
-	addrs := make([]AddrPair, 0, numConns)
-	addrChan := make(chan AddrPair)
-	wg := sync.WaitGroup{}
-	wg.Add(numConns)
-	// create x number of connections and record their addresses
-	for i := 0; i < numConns; i++ {
-		go func() {
-			defer wg.Done()
-			// Connect to server
-			c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			// Write clientMessageSize to server, and read response
-			if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-				t.Fatal(err)
-			}
-			r := bufio.NewReader(c)
-			r.ReadBytes(byte('\n'))
-
-			// Explicitly close this TCP connection
-			c.Close()
-
-			addrChan <- AddrPair{local: c.LocalAddr(), remote: c.RemoteAddr()}
-		}()
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	go func() {
-		for a := range addrChan {
-			addrs = append(addrs, a)
-		}
-	}()
+	// Write clientMessageSize to server, and read response
+	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
 
-	wg.Wait()
-	close(addrChan)
+	// Explicitly close this TCP connection
+	c.Close()
 
 	// Wait for the message to be sent from the perf buffer
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(2 * cfg.TCPClosedTimeout)
 
 	connections := getConnections(t, tr)
-
-	var conn *network.ConnectionStats
-	var ok bool
-	var pair AddrPair
-	// find one of the address pairs
-	for _, a := range addrs {
-		// Confirm that we can retrieve the shortlived connection
-		conn, ok = findConnection(a.local, a.remote, connections)
-		if ok {
-			pair = a
-			break
-		}
-	}
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
 	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
@@ -656,7 +622,7 @@ func TestTCPShortlived(t *testing.T) {
 	// Confirm that the connection has been cleaned up since the last get
 	connections = getConnections(t, tr)
 
-	conn, ok = findConnection(pair.local, pair.remote, connections)
+	conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.False(t, ok)
 }
 
@@ -1547,7 +1513,6 @@ const (
 func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
 	config := NewDefaultConfig()
 	config.CollectDNSStats = true
-	config.CollectLocalDNS = true
 	config.DNSTimeout = 1 * time.Second
 	tr, err := NewTracer(config)
 	require.NoError(t, err)
@@ -1731,4 +1696,55 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, uint32(0), conn.MonotonicTCPEstablished)
 	assert.Equal(t, uint32(1), conn.MonotonicTCPClosed)
+}
+
+func TestUnconnectedUDPSendIPv4(t *testing.T) {
+	cfg := NewDefaultConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	remotePort := rand.Int()%5000 + 15000
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: remotePort}
+	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
+	conn, err := net.ListenUDP("udp", nil)
+	require.NoError(t, err)
+	defer conn.Close()
+	message := []byte("payload")
+	bytesSent, err := conn.WriteTo(message, remoteAddr)
+	require.NoError(t, err)
+
+	connections := getConnections(t, tr)
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+		return cs.DPort == uint16(remotePort)
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+}
+
+func TestConnectedUDPSendIPv6(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.CollectIPv6Conns = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	remotePort := rand.Int()%5000 + 15000
+	remoteAddr := &net.UDPAddr{IP: net.IPv6loopback, Port: remotePort}
+	conn, err := net.DialUDP("udp6", nil, remoteAddr)
+	require.NoError(t, err)
+	defer conn.Close()
+	message := []byte("payload")
+	bytesSent, err := conn.Write(message)
+	require.NoError(t, err)
+
+	connections := getConnections(t, tr)
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+		return cs.DPort == uint16(remotePort)
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
 }

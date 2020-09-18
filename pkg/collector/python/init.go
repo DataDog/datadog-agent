@@ -106,7 +106,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 // aggregator module
 //
 
-void SubmitMetric(char *, metric_type_t, char *, float, char **, int, char *);
+void SubmitMetric(char *, metric_type_t, char *, double, char **, int, char *);
 void SubmitServiceCheck(char *, char *, int, char **, int, char *, char *);
 void SubmitEvent(char *, event_t *, int);
 void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);

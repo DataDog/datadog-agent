@@ -3,11 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//go:generate stringer -type=Syscall
+// +build linux
+
+//go:generate stringer -type Syscall -output syscalls_string_linux.go
 
 package probe
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+)
 
 // Syscall represents a syscall identifier
 type Syscall int
@@ -322,4 +328,60 @@ const (
 // MarshalText maps the syscall identifier to UTF-8-encoded text and returns the result
 func (s Syscall) MarshalText() ([]byte, error) {
 	return []byte(strings.ToLower(strings.TrimPrefix(s.String(), "Sys"))), nil
+}
+
+// cache of the syscall prefix depending on kernel version
+var syscallPrefix string
+var ia32SyscallPrefix string
+
+func getSyscallFnName(name string) string {
+	if syscallPrefix == "" {
+		syscall, err := ebpf.GetSyscallFnName("open")
+		if err != nil {
+			panic(err)
+		}
+		syscallPrefix = strings.TrimSuffix(syscall, "open")
+		if syscallPrefix != "SyS_" {
+			ia32SyscallPrefix = "__ia32_"
+		} else {
+			ia32SyscallPrefix = "compat_"
+		}
+	}
+
+	return strings.ToLower(syscallPrefix) + name
+}
+
+func getIA32SyscallFnName(name string) string {
+	return ia32SyscallPrefix + "sys_" + name
+}
+
+func getCompatSyscallFnName(name string) string {
+	return ia32SyscallPrefix + "compat_sys_" + name
+}
+
+func syscallKprobe(name string, compat ...bool) []*ebpf.KProbe {
+	kprobes := []*ebpf.KProbe{
+		{
+			Name:      getSyscallFnName(name),
+			EntryFunc: "kprobe/" + getSyscallFnName(name),
+			ExitFunc:  "kretprobe/" + getSyscallFnName(name),
+		},
+	}
+
+	if ebpf.RuntimeArch == "x64" {
+		if len(compat) > 0 && syscallPrefix != "SyS_" {
+			kprobes = append(kprobes, &ebpf.KProbe{
+				Name:      getCompatSyscallFnName(name),
+				EntryFunc: "kprobe/" + getCompatSyscallFnName(name),
+				ExitFunc:  "kretprobe/" + getCompatSyscallFnName(name),
+			})
+		}
+		kprobes = append(kprobes, &ebpf.KProbe{
+			Name:      getIA32SyscallFnName(name),
+			EntryFunc: "kprobe/" + getIA32SyscallFnName(name),
+			ExitFunc:  "kretprobe/" + getIA32SyscallFnName(name),
+		})
+	}
+
+	return kprobes
 }

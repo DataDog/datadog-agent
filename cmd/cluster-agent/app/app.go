@@ -333,7 +333,7 @@ func start(cmd *cobra.Command, args []string) error {
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx); err != nil {
+			if err := runCompliance(mainCtx, apiCl, le.IsLeader); err != nil {
 				log.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

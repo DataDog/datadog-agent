@@ -6,8 +6,8 @@
 # Description: Datadog Agent
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
-# Should-Start: datadog-agent-process datadog-agent-trace datadog-agent-security
-# Should-Stop: datadog-agent-process datadog-agent-trace datadog-agent-security
+# Should-Start: datadog-agent-process datadog-agent-trace
+# Should-Stop: datadog-agent-process datadog-agent-trace
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1 6
 ### END INIT INFO
@@ -73,7 +73,6 @@ start_and_wait()
 					log_end_msg 0
 					service datadog-agent-process start
 					service datadog-agent-trace start
-					service datadog-agent-security start
 					return 0
 				else
 					retries=$(($retries - 1))
@@ -115,7 +114,6 @@ stop_and_wait()
 			log_end_msg 0
 			service datadog-agent-process stop
 			service datadog-agent-trace stop
-			service datadog-agent-security stop
 			return 0
 			;;
 		*) log_end_msg 1 ;; # Failed to stop

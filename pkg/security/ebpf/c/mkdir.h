@@ -13,7 +13,7 @@ struct mkdir_event_t {
     u32 padding;
 };
 
-int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t mode) {
+long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
     struct syscall_cache_t syscall = {
         .type = EVENT_MKDIR,
         .mkdir = {
@@ -22,31 +22,17 @@ int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t
     };
 
     cache_syscall(&syscall);
-
     return 0;
 }
 
-SYSCALL_KPROBE(mkdir) {
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM2(ctx));
-#else
-    mode = (umode_t) PT_REGS_PARM2(ctx);
-#endif
-    return trace__sys_mkdir(ctx, mode);
+SYSCALL_KPROBE2(mkdir, const char*, filename, umode_t, mode)
+{
+    return trace__sys_mkdir(mode);
 }
 
-SYSCALL_KPROBE(mkdirat) {
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM3(ctx));
-#else
-    mode = (umode_t) PT_REGS_PARM3(ctx);
-#endif
-
-    return trace__sys_mkdir(ctx, mode);
+SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
+{
+    return trace__sys_mkdir(mode);
 }
 
 SEC("kprobe/vfs_mkdir")
@@ -99,7 +85,8 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(mkdir) {
+SYSCALL_KRETPROBE(mkdir)
+{
     return trace__sys_mkdir_ret(ctx);
 }
 

@@ -188,10 +188,10 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
     char *check_id = NULL;
     char **tags = NULL;
     int mt;
-    float value;
+    double value;
 
     // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname)
-    if (!PyArg_ParseTuple(args, "OsisfOs", &check, &check_id, &mt, &name, &value, &py_tags, &hostname)) {
+    if (!PyArg_ParseTuple(args, "OsisdOs", &check, &check_id, &mt, &name, &value, &py_tags, &hostname)) {
         goto error;
     }
 

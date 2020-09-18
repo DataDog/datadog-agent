@@ -58,6 +58,48 @@ func TestParsePods(t *testing.T) {
 			},
 		},
 	}
+	dockerContainerSpecWithInterpolatedEnv := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "dd-agent",
+				Image: "datadog/docker-dd-agent:latest5",
+				Env: []kubelet.EnvVar{
+					{
+						Name:  "PROD_ENV",
+						Value: "production",
+					},
+					{
+						Name:  "MY_ENV",
+						Value: "$(PROD_ENV)2",
+					},
+					{
+						Name:  "DD_ENV",
+						Value: "$(MY_ENV)",
+					},
+					{
+						Name:  "DD_SERVICE",
+						Value: "dd-agent",
+					},
+					{
+						Name:  "DD_VERSION_MAJOR",
+						Value: "1",
+					},
+					{
+						Name:  "DD_VERSION_MINOR",
+						Value: "2",
+					},
+					{
+						Name:  "DD_VERSION_PATCH",
+						Value: "3",
+					},
+					{
+						Name:  "DD_VERSION",
+						Value: "$(DD_VERSION_MAJOR).$(DD_VERSION_MINOR).$(DD_VERSION_PATCH)",
+					},
+				},
+			},
+		},
+	}
 
 	dockerEntityID2 := "container_id://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerTwoContainersStatus := kubelet.Status{
@@ -768,6 +810,61 @@ func TestParsePods(t *testing.T) {
 					"env:production",
 					"service:dd-agent",
 					"version:1.1.0",
+				},
+			}},
+		},
+		{
+			desc: "standard container env vars with interpolation",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Labels: map[string]string{
+						"component":         "kube-proxy",
+						"tier":              "node",
+						"k8s-app":           "kubernetes-dashboard",
+						"pod-template-hash": "490794276",
+					},
+					Annotations: map[string]string{
+						"noTag":     "don't collect",
+						"GitCommit": "ea38b55f07e40b68177111a2bff1e918132fd5fb",
+						"OwnerTeam": "Kenafeh",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpecWithInterpolatedEnv,
+			},
+			labelsAsTags: map[string]string{
+				"component": "component",
+				"tier":      "tier",
+			},
+			annotationsAsTags: map[string]string{
+				"ownerteam": "team",
+				"gitcommit": "+GitCommit",
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_container_name:dd-agent",
+					"team:Kenafeh",
+					"component:kube-proxy",
+					"tier:node",
+					"image_tag:latest5",
+					"image_name:datadog/docker-dd-agent",
+					"short_image:docker-dd-agent",
+					"env:production2",
+					"service:dd-agent",
+					"version:1.2.3",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
+				},
+				StandardTags: []string{
+					"env:production2",
+					"service:dd-agent",
+					"version:1.2.3",
 				},
 			}},
 		},

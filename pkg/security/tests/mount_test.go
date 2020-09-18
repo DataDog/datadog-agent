@@ -14,16 +14,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMount(t *testing.T) {
-	rule := &policy.RuleDefinition{
+	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `utimes.filename == "{{.Root}}/test-mount"`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{})
+	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}

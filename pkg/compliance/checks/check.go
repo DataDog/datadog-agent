@@ -77,6 +77,10 @@ func (c *complianceCheck) IsTelemetryEnabled() bool {
 }
 
 func (c *complianceCheck) Run() error {
+	if !c.IsLeader() {
+		return nil
+	}
+
 	report, err := c.checkable.check(c)
 	if err != nil {
 		log.Warnf("%s: check run failed: %v", c.ruleID, err)

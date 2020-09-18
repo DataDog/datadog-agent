@@ -2,6 +2,7 @@
     "deps": {
         "order": [
             "golang.org/x/lint/golint",
+            "gotest.tools/gotestsum",
             "github.com/fzipp/gocyclo",
             "github.com/gordonklaus/ineffassign",
             "github.com/client9/misspell/cmd/misspell",
@@ -31,6 +32,10 @@
         },
         "golang.org/x/lint/golint": {
             "version": "master",
+            "type": "go"
+        },
+        "gotest.tools/gotestsum": {
+            "version": "v0.5.3",
             "type": "go"
         },
         "github.com/fzipp/gocyclo": {

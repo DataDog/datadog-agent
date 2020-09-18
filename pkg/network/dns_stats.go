@@ -90,6 +90,14 @@ func microSecs(t time.Time) uint64 {
 	return uint64(t.UnixNano() / 1000)
 }
 
+func (d *dnsStatKeeper) getStats(key dnsKey) dnsStats {
+	stats, ok := d.stats[key]
+	if !ok {
+		stats.countByRcode = make(map[uint8]uint32)
+	}
+	return stats
+}
+
 func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -118,10 +126,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	latency := microSecs(ts) - start
 
-	stats, ok := d.stats[info.key]
-	if !ok {
-		stats.countByRcode = make(map[uint8]uint32)
-	}
+	stats := d.getStats(info.key)
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
@@ -155,7 +160,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 		if v < threshold {
 			delete(d.state, k)
 			d.deleteCount++
-			stats := d.stats[k.key]
+			stats := d.getStats(k.key)
 			stats.timeouts++
 			d.stats[k.key] = stats
 		}

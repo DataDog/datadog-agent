@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -26,6 +26,11 @@ func TestFlagsToString(t *testing.T) {
 
 	str = OpenFlags(syscall.O_EXCL | syscall.O_TRUNC | 1<<32).String()
 	if str != fmt.Sprintf("%d | O_EXCL | O_TRUNC", 1<<32) {
+		t.Errorf("expexted flags not found, got: %s", str)
+	}
+
+	str = OpenFlags(syscall.O_RDONLY).String()
+	if str != "O_RDONLY" {
 		t.Errorf("expexted flags not found, got: %s", str)
 	}
 }

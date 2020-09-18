@@ -141,6 +141,7 @@ func (a *Agent) loop() {
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
 			a.EventProcessor.Stop()
+			a.obfuscator.Stop()
 			return
 		}
 	}

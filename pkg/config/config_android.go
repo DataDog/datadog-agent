@@ -26,6 +26,8 @@ const (
 	defaultRunPath              = ""
 	defaultSyslogURI            = ""
 	defaultGuiPort              = 5002
+	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
+	defaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
 )
 
 func setAssetFs(config Config) {

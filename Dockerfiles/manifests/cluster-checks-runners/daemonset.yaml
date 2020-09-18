@@ -73,12 +73,15 @@ spec:
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: cgroups
               mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
               readOnly: true
           livenessProbe:
             failureThreshold: 6
@@ -120,9 +123,11 @@ spec:
               mountPath: /etc/datadog-agent
             - name: procdir
               mountPath: /host/proc
+              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
+              mountPropagation: None
               readOnly: true
           env:
             - name: DD_API_KEY
