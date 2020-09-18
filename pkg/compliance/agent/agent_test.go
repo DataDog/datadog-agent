@@ -8,6 +8,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -158,6 +159,20 @@ func TestRun(t *testing.T) {
 	err = agent.Run()
 	assert.NoError(err)
 	agent.Stop()
+
+	st := agent.builder.GetCheckStatus()
+	assert.Len(st, 2)
+	assert.Equal("cis-docker-1", st[0].RuleID)
+	assert.Equal("passed", st[0].LastEvent.Result)
+
+	assert.Equal("cis-kubernetes-1", st[1].RuleID)
+	assert.Equal("failed", st[1].LastEvent.Result)
+
+	v, err := json.Marshal(st)
+	assert.NoError(err)
+
+	// Check the expvar value
+	assert.JSONEq(string(v), status.Get("Checks").String())
 }
 
 func TestRunChecks(t *testing.T) {

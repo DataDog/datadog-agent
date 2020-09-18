@@ -23,7 +23,7 @@ import "C"
 
 // SubmitMetric is the method exposed to Python scripts to submit metrics
 //export SubmitMetric
-func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.float, tags **C.char, hostname *C.char) {
+func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char) {
 	goCheckID := C.GoString(checkID)
 
 	sender, err := aggregator.GetSender(chk.ID(goCheckID))

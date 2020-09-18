@@ -3,12 +3,12 @@
 package network
 
 /*
-//! These includes are needed to use constants defined in the ddfilterapi
+//! These includes are needed to use constants defined in the ddnpmapi
 #include <WinDef.h>
 #include <WinIoCtl.h>
 
 //! Defines the objects used to communicate with the driver as well as its control codes
-#include "../ebpf/c/ddfilterapi.h"
+#include "ddnpmapi.h"
 */
 import "C"
 import (
@@ -28,7 +28,7 @@ type HandleType string
 
 const (
 	// deviceName identifies the name and location of the windows driver
-	deviceName = `\\.\ddfilter`
+	deviceName = `\\.\ddnpm`
 
 	// FlowHandle is keyed to return 5-tuples from the driver that represents a flow. Used with: (#define FILTER_LAYER_TRANSPORT ((uint64_t) 1)
 	FlowHandle HandleType = "Flow"
@@ -41,8 +41,8 @@ const (
 )
 
 var (
-	// Buffer holding datadog driver filterapi (ddfilterapi) signature to ensure consistency with driver.
-	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_FILTER_SIGNATURE)
+	// Buffer holding datadog driver filterapi (ddnpmapi) signature to ensure consistency with driver.
+	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_NPMDRIVER_SIGNATURE)
 )
 
 // Creates a buffer that Driver will use to verify proper versions are communicating
@@ -56,19 +56,27 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 
 // DriverInterface holds all necessary information for interacting with the windows driver
 type DriverInterface struct {
-	driverFlowHandle      *DriverHandle
-	driverStatsHandle     *DriverHandle
-	enableMonotonicCounts bool
+	// declare totalFlows first so it remains on a 64 bit boundary since it is used by atomic functions
+	totalFlows     int64
+	closedFlows    int64
+	openFlows      int64
+	moreDataErrors int64
 
-	path       string
-	totalFlows int64
+	driverBufferSize int
+
+	driverFlowHandle  *DriverHandle
+	driverStatsHandle *DriverHandle
+
+	path                  string
+	enableMonotonicCounts bool
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool, driverBufferSize int) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
+		driverBufferSize:      driverBufferSize,
 	}
 
 	err := dc.setupFlowHandle()
@@ -179,6 +187,9 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 		return nil, err
 	}
 	totalFlows := atomic.LoadInt64(&di.totalFlows)
+	openFlows := atomic.SwapInt64(&di.openFlows, 0)
+	closedFlows := atomic.SwapInt64(&di.closedFlows, 0)
+	moreDataErrors := atomic.SwapInt64(&di.moreDataErrors, 0)
 
 	return map[string]interface{}{
 		"driver_total_flow_stats":  totalDriverStats,
@@ -186,14 +197,21 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 		"total_flows": map[string]int64{
 			"total": totalFlows,
 		},
+		"open_flows": map[string]int64{
+			"open": openFlows,
+		},
+		"closed_flows": map[string]int64{
+			"closed": closedFlows,
+		},
+		"more_data_errors": map[string]int64{
+			"more_data_errors": moreDataErrors,
+		},
 	}, nil
 }
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
-func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []ConnectionStats, error) {
-	readbuffer := make([]uint8, 1024)
-	connStatsActive := make([]ConnectionStats, 0)
-	connStatsClosed := make([]ConnectionStats, 0)
+func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed []ConnectionStats) ([]ConnectionStats, []ConnectionStats, error) {
+	readbuffer := make([]uint8, di.driverBufferSize)
 
 	for {
 		var count uint32
@@ -202,15 +220,22 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 		if err != nil && err != windows.ERROR_MORE_DATA {
 			return nil, nil, err
 		}
+
+		if err == windows.ERROR_MORE_DATA {
+			atomic.AddInt64(&di.moreDataErrors, 1)
+		}
+
 		var buf []byte
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
 			buf = readbuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 			if isFlowClosed(pfd.flags) {
 				// Closed Connection
-				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd, di.enableMonotonicCounts))
+				closed = append(closed, FlowToConnStat(pfd, di.enableMonotonicCounts))
+				atomic.AddInt64(&di.closedFlows, 1)
 			} else {
-				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.enableMonotonicCounts))
+				active = append(active, FlowToConnStat(pfd, di.enableMonotonicCounts))
+				atomic.AddInt64(&di.openFlows, 1)
 			}
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
@@ -218,7 +243,7 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 			break
 		}
 	}
-	return connStatsActive, connStatsClosed, nil
+	return active, closed, nil
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
@@ -236,7 +261,7 @@ func (dh *DriverHandle) setFilters(filters []C.struct__filterDefinition) error {
 	var id int64
 	for _, filter := range filters {
 		err := windows.DeviceIoControl(dh.handle,
-			C.DDFILTER_IOCTL_SET_FLOW_FILTER,
+			C.DDNPMDRIVER_IOCTL_SET_FLOW_FILTER,
 			(*byte)(unsafe.Pointer(&filter)),
 			uint32(unsafe.Sizeof(filter)),
 			(*byte)(unsafe.Pointer(&id)),
@@ -254,7 +279,7 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 		statbuf       = make([]byte, C.sizeof_struct_driver_stats)
 	)
 
-	err := windows.DeviceIoControl(dh.handle, C.DDFILTER_IOCTL_GETSTATS, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	err := windows.DeviceIoControl(dh.handle, C.DDNPMDRIVER_IOCTL_GETSTATS, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
 	}
@@ -344,7 +369,7 @@ func createFlowHandleFilters() (filters []C.struct__filterDefinition, err error)
 // NewDDAPIFilter returns a filter we can apply to the driver
 func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.struct__filterDefinition {
 	var fd C.struct__filterDefinition
-	fd.filterVersion = C.DD_FILTER_SIGNATURE
+	fd.filterVersion = C.DD_NPMDRIVER_SIGNATURE
 	fd.size = C.sizeof_struct__filterDefinition
 	// TODO Remove direction setting for flow filters once all verification code has been removed from driver
 	fd.direction = direction

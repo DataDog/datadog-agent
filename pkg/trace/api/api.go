@@ -43,28 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Version is a dumb way to version our collector handlers
-type Version string
-
-const (
-	// v01 DEPRECATED, FIXME[1.x]
-	// Traces: JSON, slice of spans
-	// Services: deprecated
-	v01 Version = "v0.1"
-	// v02 DEPRECATED, FIXME[1.x]
-	// Traces: JSON, slice of traces
-	// Services: deprecated
-	v02 Version = "v0.2"
-	// v03
-	// Traces: msgpack/JSON (Content-Type) slice of traces
-	// Services: deprecated
-	v03 Version = "v0.3"
-	// v04
-	// Traces: msgpack/JSON (Content-Type) slice of traces + returns service sampling ratios
-	// Services: deprecated
-	v04 Version = "v0.4"
-)
-
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
@@ -120,6 +98,7 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
 	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	timeout := 5 * time.Second
@@ -267,7 +246,7 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
-		// TODO(x): replace with httpt.MaxBytesReader
+		// TODO(x): replace with http.MaxBytesReader?
 		req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
 		f(v, w, req)
@@ -319,49 +298,66 @@ const (
 	headerTracerVersion = "Datadog-Meta-Tracer-Version"
 )
 
-func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
+func (r *HTTPReceiver) tagStats(v Version, req *http.Request) *info.TagStats {
 	return r.Stats.GetTagStats(info.Tags{
-		Lang:          req.Header.Get(headerLang),
-		LangVersion:   req.Header.Get(headerLangVersion),
-		Interpreter:   req.Header.Get(headerLangInterpreter),
-		LangVendor:    req.Header.Get(headerLangInterpreterVendor),
-		TracerVersion: req.Header.Get(headerTracerVersion),
+		Lang:            req.Header.Get(headerLang),
+		LangVersion:     req.Header.Get(headerLangVersion),
+		Interpreter:     req.Header.Get(headerLangInterpreter),
+		LangVendor:      req.Header.Get(headerLangInterpreterVendor),
+		TracerVersion:   req.Header.Get(headerTracerVersion),
+		EndpointVersion: string(v),
 	})
 }
 
-func (r *HTTPReceiver) decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
-	if v == v01 {
+func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+	switch v {
+	case v01:
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, err
 		}
 		return tracesFromSpans(spans), nil
+	case v05:
+		var traces pb.Traces
+		rd := pb.NewMsgpReader(req.Body)
+		err := traces.DecodeMsgDictionary(rd)
+		pb.FreeMsgpReader(rd)
+		return traces, err
+	default:
+		var traces pb.Traces
+		if err := decodeRequest(req, &traces); err != nil {
+			return nil, err
+		}
+		return traces, nil
 	}
-	var traces pb.Traces
-	if err := decodeRequest(req, &traces); err != nil {
-		return nil, err
-	}
-	return traces, nil
 }
 
 func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 	switch v {
 	case v01, v02, v03:
 		httpOK(w)
-	case v04:
+	default:
 		httpRateByService(w, r.dynConf)
 	}
 }
 
+// rateLimited reports whether n number of traces should be rejected by the API.
+func (r *HTTPReceiver) rateLimited(n int64) bool {
+	if n == 0 {
+		return false
+	}
+	if r.conf.MaxMemory == 0 && r.conf.MaxCPU == 0 {
+		// rate limiting is off
+		return false
+	}
+	return !r.RateLimiter.Permits(n)
+}
+
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	ts := r.tagStats(req)
-	traceCount, err := traceCount(req)
-	if err != nil {
-		log.Warnf("Error getting trace count: %q. Functionality may be limited.", err)
-	}
-
-	if !r.RateLimiter.Permits(traceCount) {
+	ts := r.tagStats(v, req)
+	tracen, err := traceCount(req)
+	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(r.rateLimiterResponse)
@@ -370,13 +366,20 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	traces, err := r.decodeTraces(v, req)
+	traces, err := decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
-		if err == ErrLimitedReaderLimitReached {
-			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, traceCount)
-		} else {
-			atomic.AddInt64(&ts.TracesDropped.DecodingError, traceCount)
+		switch err {
+		case ErrLimitedReaderLimitReached:
+			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
+		case io.EOF, io.ErrUnexpectedEOF:
+			atomic.AddInt64(&ts.TracesDropped.EOF, tracen)
+		default:
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				atomic.AddInt64(&ts.TracesDropped.Timeout, tracen)
+			} else {
+				atomic.AddInt64(&ts.TracesDropped.DecodingError, tracen)
+			}
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return

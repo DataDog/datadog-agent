@@ -55,6 +55,7 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 	tracerConfig.MaxTrackedConnections = cfg.MaxTrackedConnections
 	tracerConfig.ProcRoot = util.GetProcRoot()
 	tracerConfig.BPFDebug = cfg.SysProbeBPFDebug
+	tracerConfig.BPFDir = cfg.SystemProbeBPFDir
 	tracerConfig.EnableConntrack = cfg.EnableConntrack
 	tracerConfig.ConntrackMaxStateSize = cfg.ConntrackMaxStateSize
 	tracerConfig.DebugPort = cfg.SystemProbeDebugPort
@@ -75,7 +76,12 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 		tracerConfig.OffsetGuessThreshold = th
 	}
 
+	if cfg.EnableTracepoints {
+		tracerConfig.EnableTracepoints = true
+	}
+
 	tracerConfig.EnableMonotonicCount = cfg.Windows.EnableMonotonicCount
+	tracerConfig.DriverBufferSize = cfg.Windows.DriverBufferSize
 
 	return tracerConfig
 }

@@ -5,9 +5,10 @@
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.38.2",
         "JMXFETCH_HASH": "9a344b7cc76c9e9ab1171073e3e46656a8c1097273f72aee30f3564ed815b681",
-        "WINDOWS_DDFILTER_DRIVER": "testsigned",
-        "WINDOWS_DDFILTER_VERSION": "0.98.2.git.4.901ba6b",
-        "WINDOWS_DDFILTER_SHASUM": "167517d03c13adee9dd05deb670f974d9c478eebf697ce6565ecc0913c692896"
+        "MACOS_BUILD_VERSION": "master",
+        "WINDOWS_DDNPM_DRIVER": "testsigned",
+        "WINDOWS_DDNPM_VERSION": "0.98.2.git.19.3cde204",
+        "WINDOWS_DDNPM_SHASUM": "6b5a1b1fb5aad64a23c119501cddfc16a98a6d1ad5b3f8cc91a603284627af19"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
@@ -15,9 +16,25 @@
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.38.2",
         "JMXFETCH_HASH": "9a344b7cc76c9e9ab1171073e3e46656a8c1097273f72aee30f3564ed815b681",
-        "WINDOWS_DDFILTER_DRIVER": "testsigned",
-        "WINDOWS_DDFILTER_VERSION": "0.98.2.git.4.901ba6b",
-        "WINDOWS_DDFILTER_SHASUM": "167517d03c13adee9dd05deb670f974d9c478eebf697ce6565ecc0913c692896"
+        "MACOS_BUILD_VERSION": "master",
+        "WINDOWS_DDNPM_DRIVER": "testsigned",
+        "WINDOWS_DDNPM_VERSION": "0.98.2.git.19.3cde204",
+        "WINDOWS_DDNPM_SHASUM": "6b5a1b1fb5aad64a23c119501cddfc16a98a6d1ad5b3f8cc91a603284627af19",
+        "SECURITY_AGENT_POLICIES_VERSION": "master"
+    },
+    "6.22.0": {
+        "INTEGRATIONS_CORE_VERSION": "7.22.0",
+        "OMNIBUS_SOFTWARE_VERSION": "7.22.0",
+        "OMNIBUS_RUBY_VERSION": "7.22.0",
+        "JMXFETCH_VERSION": "0.38.2",
+        "JMXFETCH_HASH": "9a344b7cc76c9e9ab1171073e3e46656a8c1097273f72aee30f3564ed815b681"
+    },
+    "7.22.0": {
+        "INTEGRATIONS_CORE_VERSION": "7.22.0",
+        "OMNIBUS_SOFTWARE_VERSION": "7.22.0",
+        "OMNIBUS_RUBY_VERSION": "7.22.0",
+        "JMXFETCH_VERSION": "0.38.2",
+        "JMXFETCH_HASH": "9a344b7cc76c9e9ab1171073e3e46656a8c1097273f72aee30f3564ed815b681"
     },
     "6.21.0": {
         "INTEGRATIONS_CORE_VERSION": "7.21.0",

@@ -78,8 +78,18 @@ if osx?
   # binaries were built with a MacOS SDK lower than 10.9.
   # This can be removed once a new lxml version with binaries built with a newer SDK is available.
   blacklist_packages.push(/^lxml==/)
+
   # Blacklist ibm_was, which depends on lxml
   blacklist_folders.push('ibm_was')
+
+  # Blacklist snowflake-connector-python as it makes MacOS notarization fail.
+  # It pulls the ijson package, which contains a _yajl2.so binary that was built with a
+  # MacOS SDK lower than 10.9. The Python 3 counterpart of the same package is not affected (it
+  # doesn't ship this file).
+  blacklist_packages.push(/^snowflake-connector-python==/)
+
+  # Blacklist snowflake, which depends on snowflake-connector-python
+  blacklist_folders.push('snowflake')
 
   # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
   blacklist_folders.push('aerospike')
@@ -126,7 +136,7 @@ build do
     # install the core integrations.
     #
     command "#{pip} install wheel==0.34.1"
-    command "#{pip} install pip-tools==4.2.0"
+    command "#{pip} install pip-tools==5.3.1"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -281,10 +291,8 @@ build do
     # Patch applies to only one file: set it explicitly as a target, no need for -p
     if windows?
       patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
-      patch :source => "jpype_0_7.patch", :target => "#{python_2_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
     else
       patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
-      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/jaydebeapi/__init__.py"
     end
 
   end

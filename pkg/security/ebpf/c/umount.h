@@ -4,12 +4,17 @@
 #include "syscalls.h"
 
 struct umount_event_t {
-    struct event_t event;
-    struct process_data_t process;
-    char container_id[CONTAINER_ID_LEN];
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    struct syscall_t syscall;
     int mount_id;
 
 };
+
+SYSCALL_KPROBE0(umount) {
+    return 0;
+}
 
 SEC("kprobe/security_sb_umount")
 int kprobe__security_sb_umount(struct pt_regs *ctx) {
@@ -29,20 +34,16 @@ SYSCALL_KRETPROBE(umount) {
         return 0;
 
     struct umount_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_UMOUNT,
-        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall = {
+            .retval = PT_REGS_RC(ctx),
+            .timestamp = bpf_ktime_get_ns(),
+        },
         .mount_id = get_vfsmount_mount_id(syscall->umount.vfs),
     };
 
-    fill_process_data(&event.process);
-
-    // add process cache data
-    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
-    if (entry) {
-        copy_container_id(event.container_id, entry->container_id);
-        event.process.numlower = entry->numlower;
-    }
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
     send_mountpoints_events(ctx, event);
 

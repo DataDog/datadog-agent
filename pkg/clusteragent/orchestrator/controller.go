@@ -8,7 +8,6 @@
 package orchestrator
 
 import (
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -56,6 +55,8 @@ type Controller struct {
 	rsListerSync            cache.InformerSynced
 	serviceLister           corelisters.ServiceLister
 	serviceListerSync       cache.InformerSynced
+	nodesLister             corelisters.NodeLister
+	nodesListerSync         cache.InformerSynced
 	groupID                 int32
 	hostName                string
 	clusterName             string
@@ -63,6 +64,7 @@ type Controller struct {
 	forwarder               forwarder.Forwarder
 	processConfig           *processcfg.AgentConfig
 	isLeaderFunc            func() bool
+	isScrubbingEnabled      bool
 }
 
 // StartController starts the orchestrator controller
@@ -91,6 +93,7 @@ func StartController(ctx ControllerContext) error {
 		apiserver.DeploysInformer:     ctx.InformerFactory.Apps().V1().Deployments().Informer(),
 		apiserver.ReplicaSetsInformer: ctx.InformerFactory.Apps().V1().ReplicaSets().Informer(),
 		apiserver.ServicesInformer:    ctx.InformerFactory.Core().V1().Services().Informer(),
+		apiserver.NodesInformer:       ctx.InformerFactory.Core().V1().Nodes().Informer(),
 	})
 }
 
@@ -104,6 +107,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	deployInformer := ctx.InformerFactory.Apps().V1().Deployments()
 	rsInformer := ctx.InformerFactory.Apps().V1().ReplicaSets()
 	serviceInformer := ctx.InformerFactory.Core().V1().Services()
+	nodesInformer := ctx.InformerFactory.Core().V1().Nodes()
 
 	cfg := processcfg.NewDefaultAgentConfig(true)
 	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
@@ -127,6 +131,8 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		rsListerSync:            rsInformer.Informer().HasSynced,
 		serviceLister:           serviceInformer.Lister(),
 		serviceListerSync:       serviceInformer.Informer().HasSynced,
+		nodesLister:             nodesInformer.Lister(),
+		nodesListerSync:         nodesInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
@@ -134,6 +140,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		processConfig:           cfg,
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		isLeaderFunc:            ctx.IsLeaderFunc,
+		isScrubbingEnabled:      config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled"),
 	}
 
 	oc.processConfig = cfg
@@ -150,7 +157,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync) {
+	if !cache.WaitForCacheSync(stopCh, o.unassignedPodListerSync, o.deployListerSync, o.rsListerSync, o.serviceListerSync, o.nodesListerSync) {
 		return
 	}
 
@@ -159,6 +166,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 		o.processReplicaSets,
 		o.processDeploys,
 		o.processServices,
+		o.processNodes,
 	}
 
 	spreadProcessors(processors, 2*time.Second, 10*time.Second, stopCh)
@@ -179,9 +187,9 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
-		log.Errorf("Unable to process deployments list: %v", err)
+		log.Errorf("Unable to process deployment list: %v", err)
 		return
 	}
 
@@ -199,9 +207,9 @@ func (o *Controller) processReplicaSets() {
 		return
 	}
 
-	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
-		log.Errorf("Unable to process replica sets list: %v", err)
+		log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
 
@@ -220,7 +228,7 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID)
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
@@ -249,6 +257,26 @@ func (o *Controller) processServices() {
 	o.sendMessages(messages, forwarder.PayloadTypeService)
 }
 
+func (o *Controller) processNodes() {
+	if !o.isLeaderFunc() {
+		return
+	}
+
+	nodesList, err := o.nodesLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("Unable to list nodes: %s", err)
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processNodesList(nodesList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	if err != nil {
+		log.Errorf("Unable to process node list: %s", err)
+		return
+	}
+
+	o.sendMessages(messages, forwarder.PayloadTypeNode)
+}
+
 func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 	for _, m := range msg {
 		extraHeaders := make(http.Header)
@@ -256,7 +284,7 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 		extraHeaders.Set(api.ClusterIDHeader, o.clusterID)
 		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
 
-		body, err := encodePayload(m)
+		body, err := api.EncodePayload(m)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
 			continue
@@ -277,20 +305,6 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 	}
 }
 
-func encodePayload(m model.MessageBody) ([]byte, error) {
-	msgType, err := model.DetectMessageType(m)
-	if err != nil {
-		return nil, fmt.Errorf("unable to detect message type: %s", err)
-	}
-
-	return model.EncodeMessage(model.Message{
-		Header: model.MessageHeader{
-			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingZstdPB,
-			Type:     msgType,
-		}, Body: m})
-}
-
 func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.Duration, stopCh <-chan struct{}) {
 	for idx, p := range processors {
 		processor := p
@@ -298,5 +312,4 @@ func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.
 			go wait.Until(processor, processorPeriod, stopCh)
 		})
 	}
-
 }

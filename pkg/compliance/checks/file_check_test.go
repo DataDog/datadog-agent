@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
 	"github.com/stretchr/testify/mock"
@@ -287,10 +286,10 @@ func TestFileCheck(t *testing.T) {
 				test.setup(t, env, test.resource.File)
 			}
 
-			expr, err := eval.ParseIterable(test.resource.Condition)
+			fileCheck, err := newResourceCheck(env, "rule-id", test.resource)
 			assert.NoError(err)
 
-			report, err := checkFile(env, "rule-id", test.resource, expr)
+			report, err := fileCheck.check(env)
 
 			if test.expectError != nil {
 				assert.EqualError(err, test.expectError.Error())

@@ -26,7 +26,7 @@ char **get_tags(char *id, int highCard)
     return data;
 }
 
-void submitMetric(char *id, metric_type_t mt, char *name, float val, char **tags,  char *hostname)
+void submitMetric(char *id, metric_type_t mt, char *name, double val, char **tags,  char *hostname)
 {
     printf("I'm extending Python providing aggregator.submit_metric:\n");
     printf("Check id: %s\n", id);

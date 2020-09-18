@@ -25,32 +25,36 @@ const (
 	defaultBurst int = 40
 )
 
-// RuleLimiter describes an object that applies limits on
+// Limiter describes an object that applies limits on
 // the rate of triggering of a rule to ensure we don't overflow
 // with too permissive rules
-type RuleLimiter struct {
+type Limiter struct {
 	limiter *rate.Limiter
+
+	// https://github.com/golang/go/issues/36606
+	padding int32
 	dropped int64
+	align   int64
 	allowed int64
 }
 
-// NewRuleLimiter returns a new rule limiter
-func NewRuleLimiter(limit rate.Limit, burst int) *RuleLimiter {
-	return &RuleLimiter{
+// NewLimiter returns a new rule limiter
+func NewLimiter(limit rate.Limit, burst int) *Limiter {
+	return &Limiter{
 		limiter: rate.NewLimiter(limit, burst),
 	}
 }
 
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
-	limiters map[string]*RuleLimiter
+	limiters map[string]*Limiter
 }
 
 // NewRateLimiter initializes an empty rate limiter
 func NewRateLimiter(ids []string) *RateLimiter {
-	limiters := make(map[string]*RuleLimiter)
+	limiters := make(map[string]*Limiter)
 	for _, id := range ids {
-		limiters[id] = NewRuleLimiter(defaultLimit, defaultBurst)
+		limiters[id] = NewLimiter(defaultLimit, defaultBurst)
 	}
 	return &RateLimiter{
 		limiters: limiters,

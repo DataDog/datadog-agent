@@ -12,15 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetEnv returns the meta value for the "env" key for
-// the first trace it finds or an empty string
+// GetEnv returns the first "env" tag found in trace t.
 func GetEnv(t pb.Trace) string {
-	// exit this on first success
 	for _, s := range t {
-		for k, v := range s.Meta {
-			if k == "env" {
-				return v
-			}
+		if v, ok := s.Meta["env"]; ok {
+			// exit this on first success
+			return v
 		}
 	}
 	return ""

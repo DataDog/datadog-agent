@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
@@ -57,10 +56,10 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 }
 
 func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
-	var ruleDefs []*policy.RuleDefinition
+	var ruleDefs []*RuleDefinition
 
 	for i, expr := range exprs {
-		ruleDef := &policy.RuleDefinition{
+		ruleDef := &RuleDefinition{
 			ID:         fmt.Sprintf("ID%d", i),
 			Expression: expr,
 			Tags:       make(map[string]string),

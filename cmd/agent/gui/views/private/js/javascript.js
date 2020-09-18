@@ -711,7 +711,7 @@ function seeRunningChecks() {
 function loadFlare() {
   $(".page").css("display", "none");
   $("#flare, .flare_input").css("display", "block");
-  $("#flare_description").html("Your logs and configuration files will be collected and sent to DataDog Support.");
+  $("#flare_description").html("Your logs and configuration files will be collected and sent to Datadog Support.");
 }
 
 // Handler for the 'submit flare' button, validates the email address & then
@@ -772,7 +772,7 @@ function restartAgent() {
         $("#general_status").css("display", "block");
         $('#general_status').html("<span class='center'>Error restarting agent: " + data + "</span>");
       } else loadStatus("general");
-    }, 2000);
+    }, 10000);
   }, function() {
     $(".loading_spinner").remove();
     $("#general_status").css("display", "block");

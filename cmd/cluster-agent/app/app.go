@@ -218,29 +218,33 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Generate and persist a cluster ID
-	// this must be a UUID, and ideally be stable for the lifetime of a cluster
-	// so we store it in a configmap that we try and read before generating a new one.
-	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
-	_, err = apicommon.GetOrCreateClusterID(coreClient)
-	if err != nil {
-		log.Errorf("Failed to generate or retrieve the cluster ID")
-	}
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		// Generate and persist a cluster ID
+		// this must be a UUID, and ideally be stable for the lifetime of a cluster
+		// so we store it in a configmap that we try and read before generating a new one.
+		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+		_, err = apicommon.GetOrCreateClusterID(coreClient)
+		if err != nil {
+			log.Errorf("Failed to generate or retrieve the cluster ID")
+		}
 
-	// TODO: move rest of the controllers out of the apiserver package
-	orchestratorCtx := orchestrator.ControllerContext{
-		IsLeaderFunc:                 le.IsLeader,
-		UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
-		InformerFactory:              apiCl.InformerFactory,
-		Client:                       apiCl.Cl,
-		StopCh:                       stopCh,
-		Hostname:                     hostname,
-		ClusterName:                  clustername.GetClusterName(),
-		ConfigPath:                   confPath,
-	}
-	err = orchestrator.StartController(orchestratorCtx)
-	if err != nil {
-		log.Errorf("Could not start orchestrator controller: %v", err)
+		// TODO: move rest of the controllers out of the apiserver package
+		orchestratorCtx := orchestrator.ControllerContext{
+			IsLeaderFunc:                 le.IsLeader,
+			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			InformerFactory:              apiCl.InformerFactory,
+			Client:                       apiCl.Cl,
+			StopCh:                       stopCh,
+			Hostname:                     hostname,
+			ClusterName:                  clustername.GetClusterName(),
+			ConfigPath:                   confPath,
+		}
+		err = orchestrator.StartController(orchestratorCtx)
+		if err != nil {
+			log.Errorf("Could not start orchestrator controller: %v", err)
+		}
+	} else {
+		log.Info("Orchestrator explorer is disabled")
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
@@ -329,7 +333,7 @@ func start(cmd *cobra.Command, args []string) error {
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx); err != nil {
+			if err := runCompliance(mainCtx, apiCl, le.IsLeader); err != nil {
 				log.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

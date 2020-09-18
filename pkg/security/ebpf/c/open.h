@@ -1,6 +1,6 @@
 #ifndef _OPEN_H_
 #define _OPEN_H_
-
+#include "defs.h"
 #include "filters.h"
 #include "syscalls.h"
 #include "process.h"
@@ -61,14 +61,13 @@ struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discar
 };
 
 struct open_event_t {
-    struct event_t event;
-    struct process_data_t process;
-    char container_id[CONTAINER_ID_LEN];
-    int flags;
-    int mode;
-    unsigned long inode;
-    int mount_id;
-    int overlay_numlower;
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t file;
+    u32 flags;
+    u32 mode;
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
@@ -93,31 +92,27 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     return 0;
 }
 
-SYSCALL_KPROBE(open) {
-    int flags;
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM2(ctx));
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM3(ctx));
-#else
-    flags = (int) PT_REGS_PARM2(ctx);
-    mode = (umode_t) PT_REGS_PARM3(ctx);
-#endif
+SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
+    int flags = O_CREAT|O_WRONLY|O_TRUNC;
     return trace__sys_openat(flags, mode);
 }
 
-SYSCALL_KPROBE(openat) {
-    int flags;
-    umode_t mode;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&flags, sizeof(flags), &PT_REGS_PARM3(ctx));
-    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM4(ctx));
-#else
-    flags = (int) PT_REGS_PARM3(ctx);
-    mode = (umode_t) PT_REGS_PARM4(ctx);
-#endif
+SYSCALL_COMPAT_KPROBE3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
+    umode_t mode = 0;
+    return trace__sys_openat(flags, mode);
+}
+
+SYSCALL_COMPAT_KPROBE0(truncate) {
+    int flags = O_CREAT|O_WRONLY|O_TRUNC;
+    umode_t mode = 0;
+    return trace__sys_openat(flags, mode);
+}
+
+SYSCALL_COMPAT_KPROBE3(open, const char*, filename, int, flags, umode_t, mode) {
+    return trace__sys_openat(flags, mode);
+}
+
+SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(flags, mode);
 }
 
@@ -160,15 +155,18 @@ int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *sysc
 }
 
 int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache_t *syscall) {
-    struct proc_cache_t *proc = get_pid_cache(syscall->pid);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    struct proc_cache_t *proc = get_pid_cache(tgid);
     if (!proc) {
         return 0;
     }
-    u64 inode = proc->inode;
+    u64 inode = proc->executable.inode;
     struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_approvers, &inode);
     if (filter) {
 #ifdef DEBUG
-        bpf_printk("kprobe/vfs_open pid %d with inode %d approved\n", syscall->pid, inode);
+        bpf_printk("kprobe/vfs_open pid %d with inode %d approved\n", tgid, inode);
 #endif
         return 1;
     }
@@ -213,6 +211,19 @@ no_filter:
     return 0;
 }
 
+SEC("kprobe/vfs_truncate")
+int kprobe__vfs_truncate(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
+
+    if (syscall->type == EVENT_OPEN) {
+        return vfs_handle_open_event(ctx, syscall);
+    }
+
+    return 0;
+}
+
 SEC("kprobe/vfs_open")
 int kprobe__vfs_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
@@ -239,17 +250,19 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         return 0;
 
     struct open_event_t event = {
-        .event.retval = retval,
         .event.type = EVENT_OPEN,
-        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall = {
+            .retval = retval,
+            .timestamp = bpf_ktime_get_ns(),
+        },
+        .file = {
+            .inode = syscall->open.path_key.ino,
+            .mount_id = syscall->open.path_key.mount_id,
+            .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
+        },
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
-        .mount_id = syscall->open.path_key.mount_id,
-        .inode = syscall->open.path_key.ino,
-        .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
     };
-
-    fill_process_data(&event.process);
 
     int ret = 0;
     if (syscall->policy.mode == NO_FILTER) {
@@ -261,23 +274,31 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    // add process cache data
-    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
-    if (entry) {
-        copy_container_id(event.container_id, entry->container_id);
-        event.process.numlower = entry->numlower;
-    }
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
     send_event(ctx, event);
 
     return 0;
 }
 
-SYSCALL_KRETPROBE(open) {
+SYSCALL_KRETPROBE(creat) {
     return trace__sys_open_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(openat) {
+SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
+    return trace__sys_open_ret(ctx);
+}
+
+SYSCALL_COMPAT_KRETPROBE(truncate) {
+    return trace__sys_open_ret(ctx);
+}
+
+SYSCALL_COMPAT_KRETPROBE(open) {
+    return trace__sys_open_ret(ctx);
+}
+
+SYSCALL_COMPAT_KRETPROBE(openat) {
     return trace__sys_open_ret(ctx);
 }
 

@@ -29,6 +29,7 @@ if [ "$DISTRIBUTION_FAMILY" = "SUSE" ]; then
         rm -f /etc/init.d/datadog-agent
         rm -f /etc/init.d/datadog-agent-process
         rm -f /etc/init.d/datadog-agent-trace
+        rm -f /etc/init.d/datadog-agent-security
     fi
 fi
 

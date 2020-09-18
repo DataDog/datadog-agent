@@ -29,14 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func runCompliance(ctx context.Context) error {
-	apiCl, err := apiserver.WaitForAPIClient(ctx)
-	if err != nil {
-		return err
-	}
-
+func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	stopper := restart.NewSerialStopper()
-	if err := startCompliance(stopper, apiCl); err != nil {
+	if err := startCompliance(stopper, apiCl, isLeader); err != nil {
 		return err
 	}
 
@@ -47,7 +42,7 @@ func runCompliance(ctx context.Context) error {
 }
 
 // TODO: Factorize code with pkg/compliance
-func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error {
+func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
@@ -65,7 +60,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 	health := health.RegisterLiveness("compliance")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-cluster-registry.json", health)
 	auditor.Start()
 	stopper.Add(auditor)
 
@@ -105,6 +100,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient) error 
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),
 		checks.WithKubernetesClient(apiCl.DynamicCl),
+		checks.WithIsLeader(isLeader),
 	)
 	if err != nil {
 		return err

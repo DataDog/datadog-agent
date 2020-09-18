@@ -7,6 +7,7 @@ package config
 
 import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // Policy represents a policy file in the configuration file
@@ -20,16 +21,19 @@ type Policy struct {
 type Config struct {
 	Enabled             bool
 	Debug               bool
+	BPFDir              string
 	PoliciesDir         string
 	EnableKernelFilters bool
 	EnableApprovers     bool
 	EnableDiscarders    bool
 	SocketPath          string
 	SyscallMonitor      bool
+	EventServerBurst    int
+	EventServerRate     int
 }
 
 // NewConfig returns a new Config object
-func NewConfig() (*Config, error) {
+func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 	c := &Config{
 		Enabled:             aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		Debug:               aconfig.Datadog.GetBool("runtime_security_config.debug"),
@@ -39,6 +43,12 @@ func NewConfig() (*Config, error) {
 		SocketPath:          aconfig.Datadog.GetString("runtime_security_config.socket"),
 		SyscallMonitor:      aconfig.Datadog.GetBool("runtime_security_config.syscall_monitor.enabled"),
 		PoliciesDir:         aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
+		EventServerBurst:    aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
+		EventServerRate:     aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
+	}
+
+	if cfg != nil {
+		c.BPFDir = cfg.SystemProbeBPFDir
 	}
 
 	if !c.Enabled {

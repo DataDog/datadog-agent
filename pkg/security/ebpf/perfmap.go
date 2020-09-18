@@ -31,10 +31,13 @@ type PerfMapLostHandler func(uint64)
 type PerfMap struct {
 	*bpflib.PerfMap
 
-	handler       func([]byte)
-	lostHandler   func(uint64)
-	eventChannel  chan []byte
-	lostChannel   chan uint64
+	handler      func([]byte)
+	lostHandler  func(uint64)
+	eventChannel chan []byte
+	lostChannel  chan uint64
+
+	// https://github.com/golang/go/issues/36606
+	padding       int32
 	receivedCount int64
 	lostCount     int64
 }

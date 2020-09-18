@@ -9,9 +9,15 @@ package module
 
 import (
 	"encoding/json"
+	"fmt"
+	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
+	"golang.org/x/time/rate"
+
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -21,12 +27,17 @@ import (
 // EventServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type EventServer struct {
-	msgs chan *api.SecurityEventMessage
+	msgs          chan *api.SecurityEventMessage
+	expiredEvents map[string]*int64
+	rate          *Limiter
 }
 
 // GetEvents waits for security events
 func (e *EventServer) GetEvents(params *api.GetParams, stream api.SecurityModule_GetEventsServer) error {
 	msgs := 10
+	if !e.rate.limiter.AllowN(time.Now(), msgs) {
+		return nil
+	}
 LOOP:
 	for {
 		select {
@@ -68,15 +79,65 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	case e.msgs <- msg:
 		break
 	default:
-		// Do not wait for the channel to free up, we don't want to delay the processing pipeline further
-		log.Warnf("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
+		// The channel is full, consume the oldest event
+		oldestMsg := <-e.msgs
+		// Try to send the send the event again
+		select {
+		case e.msgs <- msg:
+			break
+		default:
+			// Looks like the channel is full again, expire the current message too
+			e.expireEvent(msg)
+			break
+		}
+		e.expireEvent(oldestMsg)
 		break
 	}
 }
 
-// NewEventServer returns a new gRPC event server
-func NewEventServer() *EventServer {
-	return &EventServer{
-		msgs: make(chan *api.SecurityEventMessage, 5),
+// expireEvent updates the count of expired messages for the appropriate rule
+func (e *EventServer) expireEvent(msg *api.SecurityEventMessage) {
+	// Update metric
+	count, ok := e.expiredEvents[msg.RuleID]
+	if ok {
+		atomic.AddInt64(count, 1)
 	}
+	log.Tracef("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
+}
+
+// GetStats returns a map indexed by ruleIDs that describes the amount of events
+// that were expired or rate limited before reaching
+func (e *EventServer) GetStats() map[string]int64 {
+	stats := make(map[string]int64)
+	for ruleID, val := range e.expiredEvents {
+		stats[ruleID] = atomic.SwapInt64(val, 0)
+	}
+	return stats
+}
+
+// SendStats sends statistics about the number of dropped events
+func (e *EventServer) SendStats(client *statsd.Client) error {
+	for ruleID, val := range e.GetStats() {
+		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
+		if val > 0 {
+			if err := client.Count(sprobe.MetricPrefix+".rules.event_server.expired", val, tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// NewEventServer returns a new gRPC event server
+func NewEventServer(ids []string, cfg *config.Config) *EventServer {
+	es := &EventServer{
+		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		expiredEvents: make(map[string]*int64),
+		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+	}
+	for _, id := range ids {
+		var val int64
+		es.expiredEvents[id] = &val
+	}
+	return es
 }

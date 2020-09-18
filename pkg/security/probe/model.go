@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux_bpf -output model_accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux -output model_accessors.go
 
 package probe
 
@@ -22,36 +22,40 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
-var dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+var (
+	byteOrder              = ebpf.ByteOrder
+	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+)
 
 // InvalidDiscarders exposes list of values that are not discarders
 var InvalidDiscarders = map[eval.Field][]interface{}{
-	"open.filename":       dentryInvalidDiscarder,
-	"unlink.filename":     dentryInvalidDiscarder,
-	"chmod.filename":      dentryInvalidDiscarder,
-	"chown.filename":      dentryInvalidDiscarder,
-	"mkdir.filename":      dentryInvalidDiscarder,
-	"rmdir.filename":      dentryInvalidDiscarder,
-	"rename.old_filename": dentryInvalidDiscarder,
-	"rename.new_filename": dentryInvalidDiscarder,
-	"utimes.filename":     dentryInvalidDiscarder,
-	"link.src_filename":   dentryInvalidDiscarder,
-	"link.new_filename":   dentryInvalidDiscarder,
-	"process.filename":    dentryInvalidDiscarder,
+	"open.filename":        dentryInvalidDiscarder,
+	"unlink.filename":      dentryInvalidDiscarder,
+	"chmod.filename":       dentryInvalidDiscarder,
+	"chown.filename":       dentryInvalidDiscarder,
+	"mkdir.filename":       dentryInvalidDiscarder,
+	"rmdir.filename":       dentryInvalidDiscarder,
+	"rename.old.filename":  dentryInvalidDiscarder,
+	"rename.new.filename":  dentryInvalidDiscarder,
+	"utimes.filename":      dentryInvalidDiscarder,
+	"link.source.filename": dentryInvalidDiscarder,
+	"link.target.filename": dentryInvalidDiscarder,
+	"process.filename":     dentryInvalidDiscarder,
+	"setxattr.filename":    dentryInvalidDiscarder,
+	"removexattr.filename": dentryInvalidDiscarder,
 }
 
 // ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
 var ErrNotEnoughData = errors.New("not enough data")
 
 // Model describes the data model for the runtime security agent events
-type Model struct {
-	event *Event
-}
+type Model struct{}
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
@@ -64,7 +68,7 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	if strings.HasSuffix(key, "filename") || strings.HasSuffix(key, "_path") {
 		value, ok := field.Value.(string)
 		if ok {
-			if value != path.Clean(value) || strings.HasPrefix(value, "..") {
+			if value != path.Clean(value) || !path.IsAbs(value) {
 				return fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
 			}
 		}
@@ -81,44 +85,59 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 	return nil
 }
 
-// ChmodEvent represents a chmod event
-type ChmodEvent struct {
-	Mode            int32  `field:"mode"`
-	MountID         uint32 `field:"-"`
-	Inode           uint64 `field:"inode"`
-	OverlayNumLower int32  `field:"overlay_numlower"`
-	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
-	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
+// BaseEvent contains common fields for all the event
+type BaseEvent struct {
+	TimestampRaw uint64    `field:"-"`
+	Timestamp    time.Time `field:"-"`
+	Retval       int64     `field:"retval"`
 }
 
-func (e *ChmodEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *BaseEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	e.TimestampRaw = byteOrder.Uint64(data[0:8])
+	e.Retval = int64(byteOrder.Uint64(data[8:16]))
+	return 16, nil
+}
+
+func (e *BaseEvent) marshalJSON(eventType EventType, resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"mode":"%s"`, ChmodMode(e.Mode))
+	fmt.Fprintf(&buf, `"type":"%s",`, eventType.String())
+	fmt.Fprintf(&buf, `"timestamp":"%s",`, e.ResolveMonotonicTimestamp(resolvers))
+	fmt.Fprintf(&buf, `"retval":%d`, e.Retval)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
-func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 20 {
-		return 0, ErrNotEnoughData
+// ResolveMonotonicTimestamp resolves the monolitic kernel timestamp to an absolute time
+func (e *BaseEvent) ResolveMonotonicTimestamp(resolvers *Resolvers) time.Time {
+	if (e.Timestamp.Equal(time.Time{})) {
+		e.Timestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(e.TimestampRaw)
 	}
-	e.Mode = int32(byteOrder.Uint32(data[0:4]))
-	e.MountID = byteOrder.Uint32(data[4:8])
-	e.Inode = byteOrder.Uint64(data[8:16])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[16:20]))
-	return 20, nil
+	return e.Timestamp
+}
+
+// BinaryUnmarshaler interface implemented by every event type
+type BinaryUnmarshaler interface {
+	UnmarshalBinary(data []byte) (int, error)
+}
+
+// FileEvent is the common file event type
+type FileEvent struct {
+	MountID         uint32 `field:"-"`
+	Inode           uint64 `field:"inode"`
+	OverlayNumLower int32  `field:"overlay_numlower"`
+	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
+	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
+	BasenameStr     string `field:"basename" handler:"ResolveBasename,string"`
 }
 
 // ResolveInode resolves the inode to a full path
-func (e *ChmodEvent) ResolveInode(resolvers *Resolvers) string {
+func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
 		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
@@ -133,25 +152,107 @@ func (e *ChmodEvent) ResolveInode(resolvers *Resolvers) string {
 }
 
 // ResolveContainerPath resolves the inode to a path relative to the container
-func (e *ChmodEvent) ResolveContainerPath(resolvers *Resolvers) string {
+func (e *FileEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
 		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
+		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
+			// The container path might be included in the pathname. The container path will be set there.
+			_ = e.ResolveInode(resolvers)
+		}
 	}
 	return e.ContainerPath
 }
 
+// ResolveBasename resolves the inode to a filename
+func (e *FileEvent) ResolveBasename(resolvers *Resolvers) string {
+	if len(e.BasenameStr) == 0 {
+		e.BasenameStr = resolvers.DentryResolver.GetName(e.MountID, e.Inode)
+	}
+	return e.BasenameStr
+}
+
+func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	e.Inode = byteOrder.Uint64(data[0:8])
+	e.MountID = byteOrder.Uint32(data[8:12])
+	e.OverlayNumLower = int32(byteOrder.Uint32(data[12:16]))
+	return 16, nil
+}
+
+func unmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int, error) {
+	read := 0
+	for _, marshaler := range binaryUnmarshalers {
+		n, err := marshaler.UnmarshalBinary(data[read:])
+		read += n
+		if err != nil {
+			return read, err
+		}
+	}
+	return read, nil
+}
+
+// ChmodEvent represents a chmod event
+type ChmodEvent struct {
+	BaseEvent
+	FileEvent
+	Mode uint32 `field:"mode"`
+}
+
+func (e *ChmodEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
+	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 4 {
+		return n, ErrNotEnoughData
+	}
+
+	e.Mode = byteOrder.Uint32(data[0:4])
+	return n + 4, nil
+}
+
 // ChownEvent represents a chown event
 type ChownEvent struct {
-	UID             int32  `field:"uid"`
-	GID             int32  `field:"gid"`
-	MountID         uint32 `field:"-"`
-	Inode           uint64 `field:"inode"`
-	OverlayNumLower int32  `field:"overlay_numlower"`
-	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
-	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
+	BaseEvent
+	FileEvent
+	UID int32 `field:"uid"`
+	GID int32 `field:"gid"`
 }
 
 func (e *ChownEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -171,57 +272,88 @@ func (e *ChownEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 28 {
-		return 0, ErrNotEnoughData
+	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
 	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return n, ErrNotEnoughData
+	}
+
 	e.UID = int32(byteOrder.Uint32(data[0:4]))
 	e.GID = int32(byteOrder.Uint32(data[4:8]))
-	e.MountID = byteOrder.Uint32(data[12:16])
-	e.Inode = byteOrder.Uint64(data[16:24])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[24:28]))
-	return 28, nil
+	return n + 8, nil
 }
 
-// ResolveInode resolves the inode to a full path
-func (e *ChownEvent) ResolveInode(resolvers *Resolvers) string {
-	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
-				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
-			}
-			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-	}
-	return e.PathnameStr
+// SetXAttrEvent represents an extended attributes event
+type SetXAttrEvent struct {
+	BaseEvent
+	FileEvent
+	Namespace string `field:"namespace" handler:"GetNamespace,string"`
+	Name      string `field:"name" handler:"GetName,string"`
+
+	NameRaw [200]byte
 }
 
-// ResolveContainerPath resolves the inode to a path relative to the container
-func (e *ChownEvent) ResolveContainerPath(resolvers *Resolvers) string {
-	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.ContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
+func (e *SetXAttrEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
+	fmt.Fprintf(&buf, `"attribute_name":"%s",`, e.GetName(resolvers))
+	fmt.Fprintf(&buf, `"attribute_namespace":"%s"`, e.GetNamespace(resolvers))
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 200 {
+		return n, ErrNotEnoughData
+	}
+	if err := binary.Read(bytes.NewBuffer(data[0:200]), byteOrder, &e.NameRaw); err != nil {
+		return 0, err
+	}
+	return n + 200, nil
+}
+
+// GetName returns the string representation of the extended attribute name
+func (e *SetXAttrEvent) GetName(resolvers *Resolvers) string {
+	if len(e.Name) == 0 {
+		e.Name = string(bytes.Trim(e.NameRaw[:], "\x00"))
+	}
+	return e.Name
+}
+
+// GetNamespace returns the string representation of the extended attribute namespace
+func (e *SetXAttrEvent) GetNamespace(resolvers *Resolvers) string {
+	if len(e.Namespace) == 0 {
+		fragments := strings.Split(e.GetName(resolvers), ".")
+		if len(fragments) > 0 {
+			e.Namespace = fragments[0]
 		}
 	}
-	return e.ContainerPath
+	return e.Namespace
 }
 
 // OpenEvent represents an open event
 type OpenEvent struct {
-	Flags           uint32 `field:"flags"`
-	Mode            uint32 `field:"mode"`
-	Inode           uint64 `field:"inode"`
-	MountID         uint32 `field:"-"`
-	OverlayNumLower int32  `field:"overlay_numlower"`
-	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
-	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
-	BasenameStr     string `field:"basename" handler:"ResolveBasename,string"`
+	BaseEvent
+	FileEvent
+	Flags uint32 `field:"flags"`
+	Mode  uint32 `field:"mode"`
 }
 
 func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -239,65 +371,28 @@ func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// ResolveInode resolves the inode to a full path
-func (e *OpenEvent) ResolveInode(resolvers *Resolvers) string {
-	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
-				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
-			}
-			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-	}
-	return e.PathnameStr
-}
-
-// ResolveContainerPath resolves the inode to a path relative to the container
-func (e *OpenEvent) ResolveContainerPath(resolvers *Resolvers) string {
-	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.ContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
-		}
-	}
-	return e.ContainerPath
-}
-
-// ResolveBasename resolves the inode to a filename
-func (e *OpenEvent) ResolveBasename(resolvers *Resolvers) string {
-	if len(e.BasenameStr) == 0 {
-		e.BasenameStr = resolvers.DentryResolver.GetName(e.MountID, e.Inode)
-	}
-	return e.BasenameStr
-}
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
-		return 0, ErrNotEnoughData
+	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
 	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return n, ErrNotEnoughData
+	}
+
 	e.Flags = byteOrder.Uint32(data[0:4])
 	e.Mode = byteOrder.Uint32(data[4:8])
-	e.Inode = byteOrder.Uint64(data[8:16])
-	e.MountID = byteOrder.Uint32(data[16:20])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[20:24]))
-	return 24, nil
+	return n + 8, nil
 }
 
 // MkdirEvent represents a mkdir event
 type MkdirEvent struct {
-	Mode            int32  `field:"mode"`
-	MountID         uint32 `field:"-"`
-	Inode           uint64 `field:"inode"`
-	OverlayNumLower int32  `field:"overlay_numlower"`
-	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
-	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
+	BaseEvent
+	FileEvent
+	Mode int32 `field:"mode"`
 }
 
 func (e *MkdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -316,117 +411,40 @@ func (e *MkdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 20 {
-		return 0, ErrNotEnoughData
+	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
 	}
+
+	data = data[n:]
+	if len(data) < 4 {
+		return n, ErrNotEnoughData
+	}
+
 	e.Mode = int32(byteOrder.Uint32(data[0:4]))
-	e.MountID = byteOrder.Uint32(data[4:8])
-	e.Inode = byteOrder.Uint64(data[8:16])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[16:20]))
-	return 20, nil
-}
-
-// ResolveInode resolves the inode to a full path
-func (e *MkdirEvent) ResolveInode(resolvers *Resolvers) string {
-	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
-				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
-			}
-			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-	}
-	return e.PathnameStr
-}
-
-// ResolveContainerPath resolves the inode to a path relative to the container
-func (e *MkdirEvent) ResolveContainerPath(resolvers *Resolvers) string {
-	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.ContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
-		}
-	}
-	return e.ContainerPath
+	return n + 4, nil
 }
 
 // RmdirEvent represents a rmdir event
 type RmdirEvent struct {
-	MountID         uint32 `field:"-"`
-	Inode           uint64 `field:"inode"`
-	OverlayNumLower int32  `field:"overlay_numlower"`
-	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
-	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
+	BaseEvent
+	FileEvent
 }
 
 func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
-// ResolveInode resolves the inode to a full path
-func (e *RmdirEvent) ResolveInode(resolvers *Resolvers) string {
-	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
-				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
-			}
-			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-	}
-	return e.PathnameStr
-}
-
-// ResolveContainerPath resolves the inode to a path relative to the container
-func (e *RmdirEvent) ResolveContainerPath(resolvers *Resolvers) string {
-	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.ContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
-		}
-	}
-	return e.ContainerPath
+	return e.FileEvent.marshalJSON(resolvers)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
-		return 0, ErrNotEnoughData
-	}
-	e.Inode = byteOrder.Uint64(data[0:8])
-	e.MountID = byteOrder.Uint32(data[8:12])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[12:16]))
-	return 16, nil
+	return unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
 }
 
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
-	Inode           uint64 `field:"inode"`
-	MountID         uint32 `field:"-"`
-	OverlayNumLower int32  `field:"overlay_numlower"`
-	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
-	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
-	Flags           uint32 `field:"flags"`
+	BaseEvent
+	FileEvent
+	Flags uint32 `field:"flags"`
 }
 
 func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -445,166 +463,38 @@ func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 20 {
+	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
-	e.Inode = byteOrder.Uint64(data[0:8])
-	e.MountID = byteOrder.Uint32(data[8:12])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[12:16]))
-	e.Flags = byteOrder.Uint32(data[16:20])
 
-	return 20, nil
-}
-
-// ResolveInode resolves the inode to a full path
-func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
-	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
-				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
-			}
-			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-	}
-	return e.PathnameStr
-}
-
-// ResolveContainerPath resolves the inode to a path relative to the container
-func (e *UnlinkEvent) ResolveContainerPath(resolvers *Resolvers) string {
-	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.ContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
-		}
-	}
-	return e.ContainerPath
+	e.Flags = byteOrder.Uint32(data[0:4])
+	return n + 4, nil
 }
 
 // RenameEvent represents a rename event
 type RenameEvent struct {
-	SrcMountID            uint32 `field:"-"`
-	SrcInode              uint64 `field:"old_inode"`
-	SrcRandomInode        uint64 `field:"-"`
-	SrcPathnameStr        string `field:"old_filename" handler:"ResolveSrcInode,string"`
-	SrcContainerPath      string `field:"src_container_path" handler:"ResolveSrcContainerPath,string"`
-	SrcOverlayNumLower    int32  `field:"src_overlay_numlower"`
-	TargetMountID         uint32 `field:"-"`
-	TargetInode           uint64 `field:"new_inode"`
-	TargetPathnameStr     string `field:"new_filename" handler:"ResolveTargetInode,string"`
-	TargetContainerPath   string `field:"target_container_path" handler:"ResolveTargetContainerPath,string"`
-	TargetOverlayNumLower int32  `field:"target_overlay_numlower"`
-}
-
-func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"old_mount_id":%d,`, e.SrcMountID)
-	fmt.Fprintf(&buf, `"old_inode":%d,`, e.SrcInode)
-	fmt.Fprintf(&buf, `"old_random_inode":%d,`, e.SrcRandomInode)
-	fmt.Fprintf(&buf, `"old_filename":"%s",`, e.ResolveSrcInode(resolvers))
-	fmt.Fprintf(&buf, `"old_container_path":"%s",`, e.ResolveSrcContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"old_overlay_numlower":%d,`, e.SrcOverlayNumLower)
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.TargetMountID)
-	fmt.Fprintf(&buf, `"new_inode":%d,`, e.TargetInode)
-	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.ResolveTargetInode(resolvers))
-	fmt.Fprintf(&buf, `"new_container_path":"%s",`, e.ResolveTargetContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"new_overlay_numlower":%d`, e.TargetOverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
+	BaseEvent
+	Old FileEvent `field:"old"`
+	New FileEvent `field:"new"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 44 {
-		return 0, ErrNotEnoughData
-	}
-	e.SrcMountID = byteOrder.Uint32(data[0:4])
-	// padding
-	e.SrcInode = byteOrder.Uint64(data[8:16])
-	e.SrcRandomInode = byteOrder.Uint64(data[16:24])
-	e.TargetInode = byteOrder.Uint64(data[24:32])
-	e.TargetMountID = byteOrder.Uint32(data[32:36])
-	e.SrcOverlayNumLower = int32(byteOrder.Uint32(data[36:40]))
-	e.TargetOverlayNumLower = int32(byteOrder.Uint32(data[40:44]))
-	return 44, nil
-}
-
-// ResolveSrcInode resolves the source inode to a full path
-func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
-	if len(e.SrcPathnameStr) == 0 {
-		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcMountID, e.SrcRandomInode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.SrcPathnameStr, rootPath) && rootPath != "/" {
-				e.SrcPathnameStr = strings.Replace(e.SrcPathnameStr, rootPath, "", 1)
-			}
-			e.SrcPathnameStr = path.Join(mountPath, e.SrcPathnameStr)
-		}
-	}
-	return e.SrcPathnameStr
-}
-
-// ResolveSrcContainerPath resolves the source inode to a path relative to the container
-func (e *RenameEvent) ResolveSrcContainerPath(resolvers *Resolvers) string {
-	if len(e.SrcContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
-		if err == nil {
-			e.SrcContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.SrcPathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveSrcInode(resolvers)
-		}
-	}
-	return e.SrcContainerPath
-}
-
-// ResolveTargetInode resolves the target inode to a full path
-func (e *RenameEvent) ResolveTargetInode(resolvers *Resolvers) string {
-	if len(e.TargetPathnameStr) == 0 {
-		e.TargetPathnameStr = resolvers.DentryResolver.Resolve(e.TargetMountID, e.TargetInode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.TargetPathnameStr, rootPath) && rootPath != "/" {
-				e.TargetPathnameStr = strings.Replace(e.TargetPathnameStr, rootPath, "", 1)
-			}
-			e.TargetPathnameStr = path.Join(mountPath, e.TargetPathnameStr)
-		}
-	}
-	return e.TargetPathnameStr
-}
-
-// ResolveTargetContainerPath resolves the inode to a path relative to the container
-func (e *RenameEvent) ResolveTargetContainerPath(resolvers *Resolvers) string {
-	if len(e.TargetContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.TargetMountID, e.TargetOverlayNumLower)
-		if err == nil {
-			e.TargetContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.TargetPathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveTargetInode(resolvers)
-		}
-	}
-	return e.TargetContainerPath
+	return unmarshalBinary(data, &e.BaseEvent, &e.Old, &e.New)
 }
 
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
-	Atime           time.Time
-	Mtime           time.Time
-	Inode           uint64 `field:"inode"`
-	MountID         uint32 `field:"-"`
-	OverlayNumLower int32  `field:"overlay_numlower"`
-	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
-	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
+	BaseEvent
+	FileEvent
+	Atime time.Time
+	Mtime time.Time
 }
 
 func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -614,7 +504,9 @@ func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
 	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
+	fmt.Fprintf(&buf, `"access_time":"%s",`, e.Atime)
+	fmt.Fprintf(&buf, `"modification_time":"%s"`, e.Mtime)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
@@ -622,7 +514,13 @@ func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 52 {
+	n, err := unmarshalBinary(data, &e.BaseEvent, &e.FileEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 32 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -634,152 +532,24 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 	timeNsec = byteOrder.Uint64(data[24:32])
 	e.Mtime = time.Unix(int64(timeSec), int64(timeNsec))
 
-	e.MountID = byteOrder.Uint32(data[36:40])
-	e.Inode = byteOrder.Uint64(data[40:48])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[48:52]))
-
-	return 52, nil
-}
-
-// ResolveInode resolves the inode to a full path
-func (e *UtimesEvent) ResolveInode(resolvers *Resolvers) string {
-	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
-				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
-			}
-			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
-		}
-	}
-	return e.PathnameStr
-}
-
-// ResolveContainerPath resolves the inode to a path relative to the container
-func (e *UtimesEvent) ResolveContainerPath(resolvers *Resolvers) string {
-	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
-		if err == nil {
-			e.ContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
-		}
-	}
-	return e.ContainerPath
+	return n + 32, nil
 }
 
 // LinkEvent represents a link event
 type LinkEvent struct {
-	SrcMountID         uint32 `field:"-"`
-	SrcInode           uint64 `field:"src_inode"`
-	SrcPathnameStr     string `field:"src_filename" handler:"ResolveSrcInode,string"`
-	SrcContainerPath   string `field:"src_container_path" handler:"ResolveSrcContainerPath,string"`
-	SrcOverlayNumLower int32  `field:"src_overlay_numlower"`
-	NewMountID         uint32 `field:"-"`
-	NewInode           uint64 `field:"new_inode"`
-	NewPathnameStr     string `field:"new_filename" handler:"ResolveNewInode,string"`
-	NewContainerPath   string `field:"new_container_path" handler:"ResolveNewContainerPath,string"`
-	NewOverlayNumLower int32  `field:"new_overlay_numlower"`
-}
-
-func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"src_mount_id":%d,`, e.SrcMountID)
-	fmt.Fprintf(&buf, `"src_inode":%d,`, e.SrcInode)
-	fmt.Fprintf(&buf, `"src_filename":"%s",`, e.ResolveSrcInode(resolvers))
-	fmt.Fprintf(&buf, `"src_container_path":"%s",`, e.ResolveSrcContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"src_overlay_numlower":%d,`, e.SrcOverlayNumLower)
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.NewMountID)
-	fmt.Fprintf(&buf, `"new_inode":%d,`, e.SrcInode)
-	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.ResolveNewInode(resolvers))
-	fmt.Fprintf(&buf, `"new_container_path":"%s",`, e.ResolveNewContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"new_overlay_numlower":%d`, e.NewOverlayNumLower)
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
+	BaseEvent
+	Source FileEvent `field:"source"`
+	Target FileEvent `field:"target"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 36 {
-		return 0, ErrNotEnoughData
-	}
-	e.SrcMountID = byteOrder.Uint32(data[0:4])
-	// padding
-	e.SrcInode = byteOrder.Uint64(data[8:16])
-	e.NewInode = byteOrder.Uint64(data[16:24])
-	e.NewMountID = byteOrder.Uint32(data[24:28])
-	e.SrcOverlayNumLower = int32(byteOrder.Uint32(data[28:32]))
-	e.NewOverlayNumLower = int32(byteOrder.Uint32(data[32:36]))
-	return 36, nil
-}
-
-// ResolveSrcInode resolves the source inode to a full path
-func (e *LinkEvent) ResolveSrcInode(resolvers *Resolvers) string {
-	if len(e.SrcPathnameStr) == 0 {
-		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcMountID, e.SrcInode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.SrcPathnameStr, rootPath) && rootPath != "/" {
-				e.SrcPathnameStr = strings.Replace(e.SrcPathnameStr, rootPath, "", 1)
-			}
-			e.SrcPathnameStr = path.Join(mountPath, e.SrcPathnameStr)
-		}
-	}
-	return e.SrcPathnameStr
-}
-
-// ResolveSrcContainerPath resolves the source inode to a path relative to the container
-func (e *LinkEvent) ResolveSrcContainerPath(resolvers *Resolvers) string {
-	if len(e.SrcContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.SrcMountID, e.SrcOverlayNumLower)
-		if err == nil {
-			e.SrcContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.SrcPathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveSrcInode(resolvers)
-		}
-	}
-	return e.SrcContainerPath
-}
-
-// ResolveNewInode resolves the target inode to a full path
-func (e *LinkEvent) ResolveNewInode(resolvers *Resolvers) string {
-	if len(e.NewPathnameStr) == 0 {
-		e.NewPathnameStr = resolvers.DentryResolver.Resolve(e.NewMountID, e.NewInode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.NewMountID, e.NewOverlayNumLower)
-		if err == nil {
-			if strings.HasPrefix(e.NewPathnameStr, rootPath) && rootPath != "/" {
-				e.NewPathnameStr = strings.Replace(e.NewPathnameStr, rootPath, "", 1)
-			}
-			e.NewPathnameStr = path.Join(mountPath, e.NewPathnameStr)
-		}
-	}
-	return e.NewPathnameStr
-}
-
-// ResolveNewContainerPath resolves the target inode to a path relative to the container
-func (e *LinkEvent) ResolveNewContainerPath(resolvers *Resolvers) string {
-	if len(e.NewContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.NewMountID, e.NewOverlayNumLower)
-		if err == nil {
-			e.NewContainerPath = containerPath
-		}
-		if len(containerPath) == 0 && len(e.NewPathnameStr) == 0 {
-			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveNewInode(resolvers)
-		}
-	}
-	return e.NewContainerPath
+	return unmarshalBinary(data, &e.BaseEvent, &e.Source, &e.Target)
 }
 
 // MountEvent represents a mount event
 type MountEvent struct {
+	BaseEvent
 	NewMountID    uint32
 	NewGroupID    uint32
 	NewDevice     uint32
@@ -814,6 +584,12 @@ func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.BaseEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
 	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
@@ -859,6 +635,7 @@ func (e *MountEvent) GetFSType() string {
 
 // UmountEvent represents an umount event
 type UmountEvent struct {
+	BaseEvent
 	MountID uint32
 }
 
@@ -873,13 +650,18 @@ func (e *UmountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := unmarshalBinary(data, &e.BaseEvent)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
 	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.MountID = byteOrder.Uint32(data[0:4])
-
-	return 8, nil
+	return 4, nil
 }
 
 // ContainerEvent holds the container context of an event
@@ -901,7 +683,7 @@ func (e *ContainerEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *ContainerEvent) UnmarshalBinary(data []byte, resolvers *Resolvers) (int, error) {
+func (e *ContainerEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
@@ -927,77 +709,21 @@ func (e *ContainerEvent) GetContainerID() string {
 	return e.ID
 }
 
-// KernelEvent describes an event sent from the kernel
-type KernelEvent struct {
-	Type         uint64    `field:"type" handler:"ResolveType,string"`
-	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"-"`
-	Retval       int64     `field:"retval"`
-}
-
-// ResolveType resolves the type of the event to a name
-func (k *KernelEvent) ResolveType(resolvers *Resolvers) string {
-	return EventType(k.Type).String()
-}
-
-func (k *KernelEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"type":"%s",`, k.ResolveType(resolvers))
-	fmt.Fprintf(&buf, `"timestamp":"%s",`, k.ResolveMonoliticTimestamp(resolvers))
-	fmt.Fprintf(&buf, `"retval":%d`, k.Retval)
-	if k.Retval < 0 {
-		fmt.Fprintf(&buf, `,"error":"%s"`, RetValError(k.Retval))
-	}
-	buf.WriteRune('}')
-
-	return buf.Bytes(), nil
-}
-
-// ResolveMonoliticTimestamp resolves the monolitic kernel timestamp to an absolute time
-func (k *KernelEvent) ResolveMonoliticTimestamp(resolvers *Resolvers) time.Time {
-	if (k.Timestamp.Equal(time.Time{})) {
-		k.Timestamp = resolvers.TimeResolver.ResolveMonotonicTimestamp(k.TimestampRaw)
-	}
-	return k.Timestamp
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
-func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
-		return 0, ErrNotEnoughData
-	}
-	k.Type = byteOrder.Uint64(data[0:8])
-	k.TimestampRaw = byteOrder.Uint64(data[8:16])
-	k.Retval = int64(byteOrder.Uint64(data[16:24]))
-	return 24, nil
-}
-
 // ProcessEvent holds the process context of an event
 type ProcessEvent struct {
-	Pidns           uint64 `field:"pidns"`
-	Comm            string `field:"name" handler:"ResolveComm,string"`
-	TTYName         string `field:"tty_name" handler:"ResolveTTY,string"`
-	Pid             uint32 `field:"pid"`
-	Tid             uint32 `field:"tid"`
-	UID             uint32 `field:"uid"`
-	GID             uint32 `field:"gid"`
-	OverlayNumlower uint32 `field:"overlay_numlower"`
-	User            string `field:"user" handler:"ResolveUser,string"`
-	Group           string `field:"group" handler:"ResolveGroup,string"`
-	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
+	FileEvent
+	Pidns   uint64 `field:"pidns"`
+	Comm    string `field:"name" handler:"ResolveComm,string"`
+	TTYName string `field:"tty_name" handler:"ResolveTTY,string"`
+	Pid     uint32 `field:"pid"`
+	Tid     uint32 `field:"tid"`
+	UID     uint32 `field:"uid"`
+	GID     uint32 `field:"gid"`
+	User    string `field:"user" handler:"ResolveUser,string"`
+	Group   string `field:"group" handler:"ResolveGroup,string"`
 
 	CommRaw    [16]byte `field:"-"`
 	TTYNameRaw [64]byte `field:"-"`
-	Inode      uint64   `field:"-"`
-}
-
-// ResolveInode resolves the executable inode to a path
-func (p *ProcessEvent) ResolveInode(resolvers *Resolvers) string {
-	if len(p.PathnameStr) == 0 {
-		p.PathnameStr = resolvers.DentryResolver.Resolve(0xffffffff, p.Inode)
-	}
-	return p.PathnameStr
 }
 
 func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -1011,8 +737,7 @@ func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"pid":%d,`, p.Pid)
 	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
 	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
-	fmt.Fprintf(&buf, `"gid":%d,`, p.GID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, p.OverlayNumlower)
+	fmt.Fprintf(&buf, `"gid":%d`, p.GID)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
@@ -1078,29 +803,35 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 	p.Tid = byteOrder.Uint32(data[92:96])
 	p.UID = byteOrder.Uint32(data[96:100])
 	p.GID = byteOrder.Uint32(data[100:104])
-	p.OverlayNumlower = byteOrder.Uint32(data[104:108])
-	// padding
-	return 112, nil
+
+	read, err := p.FileEvent.UnmarshalBinary(data[104:])
+	if err != nil {
+		return 104 + read, err
+	}
+	return 104 + read, nil
 }
 
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
-	ID        string         `yaml:"id" field:"-"`
-	Event     KernelEvent    `yaml:"event" field:"event" event:"*"`
-	Process   ProcessEvent   `yaml:"process" field:"process" event:"*"`
-	Container ContainerEvent `yaml:"container" field:"container"`
-	Chmod     ChmodEvent     `yaml:"chmod" field:"chmod" event:"chmod"`
-	Chown     ChownEvent     `yaml:"chown" field:"chown" event:"chown"`
-	Open      OpenEvent      `yaml:"open" field:"open" event:"open"`
-	Mkdir     MkdirEvent     `yaml:"mkdir" field:"mkdir" event:"mkdir"`
-	Rmdir     RmdirEvent     `yaml:"rmdir" field:"rmdir" event:"rmdir"`
-	Rename    RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
-	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
-	Utimes    UtimesEvent    `yaml:"utimes" field:"utimes" event:"utimes"`
-	Link      LinkEvent      `yaml:"link" field:"link" event:"link"`
-	Mount     MountEvent     `yaml:"mount" field:"-"`
-	Umount    UmountEvent    `yaml:"umount" field:"-"`
+	ID   string `field:"-"`
+	Type uint64 `field:"-"`
+
+	Process     ProcessEvent   `yaml:"process" field:"process" event:"*"`
+	Container   ContainerEvent `yaml:"container" field:"container"`
+	Chmod       ChmodEvent     `yaml:"chmod" field:"chmod" event:"chmod"`
+	Chown       ChownEvent     `yaml:"chown" field:"chown" event:"chown"`
+	Open        OpenEvent      `yaml:"open" field:"open" event:"open"`
+	Mkdir       MkdirEvent     `yaml:"mkdir" field:"mkdir" event:"mkdir"`
+	Rmdir       RmdirEvent     `yaml:"rmdir" field:"rmdir" event:"rmdir"`
+	Rename      RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
+	Unlink      UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
+	Utimes      UtimesEvent    `yaml:"utimes" field:"utimes" event:"utimes"`
+	Link        LinkEvent      `yaml:"link" field:"link" event:"link"`
+	SetXAttr    SetXAttrEvent  `yaml:"setxattr" field:"setxattr" event:"setxattr"`
+	RemoveXAttr SetXAttrEvent  `yaml:"removexattr" field:"removexattr" event:"removexattr"`
+	Mount       MountEvent     `yaml:"mount" field:"-"`
+	Umount      UmountEvent    `yaml:"umount" field:"-"`
 
 	resolvers *Resolvers `field:"-"`
 }
@@ -1120,29 +851,41 @@ type eventMarshaler struct {
 
 // MarshalJSON returns the JSON encoding of the event
 func (e *Event) MarshalJSON() ([]byte, error) {
+	eventID, _ := uuid.NewRandom()
+
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"id":"%s",`, e.ID)
+	fmt.Fprintf(&buf, `"id":"%s",`, eventID)
 
 	entries := []eventMarshaler{
-		{
-			field:      "event",
-			marshalFnc: e.Event.marshalJSON,
-		},
 		{
 			field:      "process",
 			marshalFnc: e.Process.marshalJSON,
 		},
 	}
+
 	if len(e.Container.GetContainerID()) > 0 {
 		entries = append(entries, eventMarshaler{
 			field:      "container",
 			marshalFnc: e.Container.marshalJSON,
 		})
 	}
-	switch EventType(e.Event.Type) {
+
+	eventType := EventType(e.Type)
+
+	eventMarshalJSON := func(e *BaseEvent) func(*Resolvers) ([]byte, error) {
+		return func(resolvers *Resolvers) ([]byte, error) {
+			return e.marshalJSON(eventType, resolvers)
+		}
+	}
+
+	switch eventType {
 	case FileChmodEventType:
 		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Chmod.BaseEvent),
+			},
 			eventMarshaler{
 				field:      "file",
 				marshalFnc: e.Chmod.marshalJSON,
@@ -1150,11 +893,19 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	case FileChownEventType:
 		entries = append(entries,
 			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Chown.BaseEvent),
+			},
+			eventMarshaler{
 				field:      "file",
 				marshalFnc: e.Chown.marshalJSON,
 			})
 	case FileOpenEventType:
 		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Open.BaseEvent),
+			},
 			eventMarshaler{
 				field:      "file",
 				marshalFnc: e.Open.marshalJSON,
@@ -1162,11 +913,19 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	case FileMkdirEventType:
 		entries = append(entries,
 			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Mkdir.BaseEvent),
+			},
+			eventMarshaler{
 				field:      "file",
 				marshalFnc: e.Mkdir.marshalJSON,
 			})
 	case FileRmdirEventType:
 		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Rmdir.BaseEvent),
+			},
 			eventMarshaler{
 				field:      "file",
 				marshalFnc: e.Rmdir.marshalJSON,
@@ -1174,17 +933,33 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	case FileUnlinkEventType:
 		entries = append(entries,
 			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Unlink.BaseEvent),
+			},
+			eventMarshaler{
 				field:      "file",
 				marshalFnc: e.Unlink.marshalJSON,
 			})
 	case FileRenameEventType:
 		entries = append(entries,
 			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Rename.marshalJSON,
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Rename.BaseEvent),
+			},
+			eventMarshaler{
+				field:      "old",
+				marshalFnc: e.Rename.Old.marshalJSON,
+			},
+			eventMarshaler{
+				field:      "new",
+				marshalFnc: e.Rename.New.marshalJSON,
 			})
 	case FileUtimeEventType:
 		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Utimes.BaseEvent),
+			},
 			eventMarshaler{
 				field:      "file",
 				marshalFnc: e.Utimes.marshalJSON,
@@ -1192,11 +967,23 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	case FileLinkEventType:
 		entries = append(entries,
 			eventMarshaler{
-				field:      "file",
-				marshalFnc: e.Link.marshalJSON,
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Link.BaseEvent),
+			},
+			eventMarshaler{
+				field:      "source",
+				marshalFnc: e.Link.Source.marshalJSON,
+			},
+			eventMarshaler{
+				field:      "target",
+				marshalFnc: e.Link.Target.marshalJSON,
 			})
 	case FileMountEventType:
 		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Mount.BaseEvent),
+			},
 			eventMarshaler{
 				field:      "mount",
 				marshalFnc: e.Mount.marshalJSON,
@@ -1204,8 +991,32 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	case FileUmountEventType:
 		entries = append(entries,
 			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.Umount.BaseEvent),
+			},
+			eventMarshaler{
 				field:      "umount",
 				marshalFnc: e.Umount.marshalJSON,
+			})
+	case FileSetXAttrEventType:
+		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.SetXAttr.BaseEvent),
+			},
+			eventMarshaler{
+				field:      "file",
+				marshalFnc: e.SetXAttr.marshalJSON,
+			})
+	case FileRemoveXAttrEventType:
+		entries = append(entries,
+			eventMarshaler{
+				field:      "syscall",
+				marshalFnc: eventMarshalJSON(&e.RemoveXAttr.BaseEvent),
+			},
+			eventMarshaler{
+				field:      "file",
+				marshalFnc: e.RemoveXAttr.marshalJSON,
 			})
 	}
 
@@ -1231,18 +1042,13 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 
 // GetType returns the event type
 func (e *Event) GetType() string {
-	return EventType(e.Event.Type).String()
+	return EventType(e.Type).String()
 }
 
 // GetTags returns the list of tags specific to this event
 func (e *Event) GetTags() []string {
 	// TODO: add container tags once we collect them
 	return []string{"type:" + e.GetType()}
-}
-
-// GetID returns the event identifier
-func (e *Event) GetID() string {
-	return e.ID
 }
 
 // GetPointer return an unsafe.Pointer of the Event
@@ -1252,19 +1058,18 @@ func (e *Event) GetPointer() unsafe.Pointer {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
-	offset, err := e.Process.UnmarshalBinary(data)
-	if err != nil {
-		return offset, err
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
 	}
+	e.Type = byteOrder.Uint64(data[0:8])
 
-	return offset, nil
+	n, err := unmarshalBinary(data[8:], &e.Process, &e.Container)
+	return n + 8, err
 }
 
 // NewEvent returns a new event
 func NewEvent(resolvers *Resolvers) *Event {
-	id, _ := uuid.NewRandom()
 	return &Event{
-		ID:        id.String(),
 		resolvers: resolvers,
 	}
 }

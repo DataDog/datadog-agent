@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -149,9 +148,9 @@ func parsePortString(port string) (uint64, error) {
 	return p, nil
 }
 
-// IsBlacklistedConnection returns true if a given connection should be excluded
+// IsExcludedConnection returns true if a given connection should be excluded
 // by the tracer based on user defined filters
-func IsBlacklistedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn *ConnectionStats) bool {
+func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn *ConnectionStats) bool {
 	// No filters so short-circuit
 	if len(scf) == 0 && len(dcf) == 0 {
 		return false

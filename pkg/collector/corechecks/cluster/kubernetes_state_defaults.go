@@ -20,7 +20,7 @@ var (
 	// defaultLabelsMapper contains the default label to tag names mapping
 	defaultLabelsMapper = map[string]string{
 		"namespace":                        "kube_namespace",
-		"job":                              "kube_job",
+		"job_name":                         "kube_job",
 		"cronjob":                          "kube_cronjob",
 		"pod":                              "pod_name",
 		"phase":                            "pod_phase",
@@ -32,7 +32,6 @@ var (
 		"container":                        "kube_container_name",
 		"container_id":                     "container_id",
 		"image":                            "image_name",
-		"node":                             "host",
 		"label_tags_datadoghq_com_env":     "env",
 		"label_tags_datadoghq_com_service": "service",
 		"label_tags_datadoghq_com_version": "version",
@@ -140,6 +139,12 @@ var (
 		"kube_pod_container_status_last_terminated_reason": {},
 	}
 
+	defaultStandardLabels = []string{
+		"label_tags_datadoghq_com_env",
+		"label_tags_datadoghq_com_service",
+		"label_tags_datadoghq_com_version",
+	}
+
 	// defaultLabelJoins contains the default label joins configuration
 	defaultLabelJoins = map[string]*JoinsConfig{
 		"kube_pod_status_phase": {
@@ -160,27 +165,27 @@ var (
 		},
 		"kube_pod_labels": {
 			LabelsToMatch: []string{"pod", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_deployment_labels": {
 			LabelsToMatch: []string{"deployment", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_replicaset_labels": {
 			LabelsToMatch: []string{"replicaset", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_daemonset_labels": {
 			LabelsToMatch: []string{"daemonset", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_statefulset_labels": {
 			LabelsToMatch: []string{"statefulset", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_job_labels": {
 			LabelsToMatch: []string{"job_name", "namespace"},
-			GetAllLabels:  true,
+			LabelsToGet:   defaultStandardLabels,
 		},
 	}
 )

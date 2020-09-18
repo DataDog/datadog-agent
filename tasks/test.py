@@ -41,6 +41,13 @@ DEFAULT_TEST_TARGETS = [
 ]
 
 
+def ensure_bytes(s):
+    if not isinstance(s, bytes):
+        return s.encode('utf-8')
+
+    return s
+
+
 @task()
 def test(
     ctx,
@@ -96,12 +103,12 @@ def test(
     print("--- go generating:")
     generate(ctx)
 
-    print("--- Linting licenses:")
-    lint_licenses(ctx)
-
     if skip_linters:
         print("--- [skipping linters]")
     else:
+        print("--- Linting licenses:")
+        lint_licenses(ctx)
+
         print("--- Linting filenames:")
         lint_filenames(ctx)
 
@@ -173,7 +180,7 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go test {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'gotestsum --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
@@ -405,7 +412,8 @@ class TestProfiler:
 
     def write(self, txt):
         # Output to stdout
-        sys.stdout.write(txt)
+        # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
+        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
         # Extract the run time
         for result in self.parser.finditer(txt):
             self.times.append((result.group(1), float(result.group(2))))

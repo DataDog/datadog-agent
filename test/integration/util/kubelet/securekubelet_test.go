@@ -89,7 +89,7 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 
 	_, err := kubelet.GetKubeUtil()
 	require.NotNil(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "Get https://127.0.0.1:10250/pods: x509: ")
+	assert.Contains(suite.T(), err.Error(), "Get \"https://127.0.0.1:10250/pods\": x509: ")
 	assert.Regexp(suite.T(), "10255: \\w+: connection refused", err.Error())
 }
 

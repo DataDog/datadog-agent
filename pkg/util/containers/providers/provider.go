@@ -31,3 +31,9 @@ func Register(impl containers.ContainerImplementation) {
 		log.Critical("Trying to set multiple ContainerImplementation")
 	}
 }
+
+// Deregister allows to unset a ContainerImplementation
+// this should only be used in tests to clean the global state
+func Deregister() {
+	containerImpl = nil
+}

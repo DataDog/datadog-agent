@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -29,7 +30,7 @@ var kubeResourceReportedFields = []string{
 	compliance.KubeResourceFieldKind,
 }
 
-func checkKubeapiserver(e env.Env, ruleID string, res compliance.Resource, expr *eval.IterableExpression) (*compliance.Report, error) {
+func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
@@ -76,7 +77,6 @@ func checkKubeapiserver(e env.Env, ruleID string, res compliance.Resource, expr 
 		}
 		resources = []unstructured.Unstructured{*resource}
 	case "list":
-
 		list, err := resourceAPI.List(metav1.ListOptions{
 			LabelSelector: kubeResource.LabelSelector,
 			FieldSelector: kubeResource.FieldSelector,
@@ -89,16 +89,9 @@ func checkKubeapiserver(e env.Env, ruleID string, res compliance.Resource, expr 
 
 	log.Debugf("%s: Got %d resources", ruleID, len(resources))
 
-	it := &kubeResourceIterator{
+	return &kubeResourceIterator{
 		resources: resources,
-	}
-
-	result, err := expr.EvaluateIterator(it, globalInstance)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceResultToReport(result, kubeResourceReportedFields), nil
+	}, nil
 }
 
 type kubeResourceIterator struct {

@@ -4,15 +4,14 @@
 #include "syscalls.h"
 
 struct rmdir_event_t {
-    struct event_t event;
-    struct process_data_t process;
-    char container_id[CONTAINER_ID_LEN];
-    unsigned long inode;
-    int mount_id;
-    int overlay_numlower;
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t file;
 };
 
-SYSCALL_KPROBE(rmdir) {
+SYSCALL_KPROBE0(rmdir) {
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
     };
@@ -21,15 +20,15 @@ SYSCALL_KPROBE(rmdir) {
     return 0;
 }
 
-SEC("kprobe/vfs_rmdir")
-int kprobe__vfs_rmdir(struct pt_regs *ctx) {
+SEC("kprobe/security_inode_rmdir")
+int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
     if (!syscall)
         return 0;
     struct path_key_t key = {};
     struct dentry *dentry = NULL;
     if (syscall->type == EVENT_RMDIR) {
-        // In a container, vfs_rmdir can be called multiple times to handle the different layers of the overlay filesystem.
+        // In a container, security_inode_rmdir can be called multiple times to handle the different layers of the overlay filesystem.
         // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
         if (syscall->rmdir.path_key.ino)
             return 0;
@@ -70,22 +69,20 @@ SYSCALL_KRETPROBE(rmdir) {
         return 0;
 
     struct rmdir_event_t event = {
-        .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_RMDIR,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .inode = syscall->rmdir.path_key.ino,
-        .mount_id = syscall->rmdir.path_key.mount_id,
-        .overlay_numlower = syscall->rmdir.overlay_numlower,
+        .syscall = {
+            .retval = retval,
+            .timestamp = bpf_ktime_get_ns(),
+        },
+        .file = {
+            .inode = syscall->rmdir.path_key.ino,
+            .mount_id = syscall->rmdir.path_key.mount_id,
+            .overlay_numlower = syscall->rmdir.overlay_numlower,
+        }
     };
 
-    fill_process_data(&event.process);
-
-    // add process cache data
-    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
-    if (entry) {
-        copy_container_id(event.container_id, entry->container_id);
-        event.process.numlower = entry->numlower;
-    }
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
     send_event(ctx, event);
 

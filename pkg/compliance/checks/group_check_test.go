@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 
@@ -72,10 +71,10 @@ func TestGroupCheck(t *testing.T) {
 			env := &mocks.Env{}
 			env.On("EtcGroupPath").Return(test.etcGroupFile)
 
-			expr, err := eval.ParseIterable(test.resource.Condition)
+			groupCheck, err := newResourceCheck(env, "rule-id", test.resource)
 			assert.NoError(err)
 
-			result, err := checkGroup(env, "rule-id", test.resource, expr)
+			result, err := groupCheck.check(env)
 			assert.Equal(test.expectReport, result)
 			assert.Equal(test.expectError, err)
 		})

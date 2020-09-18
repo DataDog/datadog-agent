@@ -4,17 +4,12 @@
 #include "syscalls.h"
 
 struct link_event_t {
-    struct event_t event;
-    struct process_data_t process;
-    char container_id[CONTAINER_ID_LEN];
-    int src_mount_id;
-    u32 padding;
-    unsigned long src_inode;
-    unsigned long target_inode;
-    int target_mount_id;
-    int src_overlay_numlower;
-    int target_overlay_numlower;
-    u32 padding2;
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t source;
+    struct file_t target;
 };
 
 int __attribute__((always_inline)) trace__sys_link() {
@@ -26,11 +21,11 @@ int __attribute__((always_inline)) trace__sys_link() {
     return 0;
 }
 
-SYSCALL_KPROBE(link) {
+SYSCALL_KPROBE0(link) {
     return trace__sys_link();
 }
 
-SYSCALL_KPROBE(linkat) {
+SYSCALL_KPROBE0(linkat) {
     return trace__sys_link();
 }
 
@@ -69,26 +64,27 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
         return 0;
 
     struct link_event_t event = {
-        .event.retval = retval,
         .event.type = EVENT_LINK,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .src_inode = syscall->link.src_key.ino,
-        .src_mount_id = syscall->link.src_key.mount_id,
-        .target_inode = syscall->link.target_key.ino,
-        .target_mount_id = syscall->link.target_key.mount_id,
-        .src_overlay_numlower = syscall->link.src_overlay_numlower,
-        .target_overlay_numlower = get_overlay_numlower(syscall->link.target_dentry),
+        .syscall = {
+            .retval = retval,
+            .timestamp = bpf_ktime_get_ns(),
+        },
+        .source = {
+            .inode = syscall->link.src_key.ino,
+            .mount_id = syscall->link.src_key.mount_id,
+            .overlay_numlower = syscall->link.src_overlay_numlower,
+        },
+        .target = {
+            .inode = syscall->link.target_key.ino,
+            .mount_id = syscall->link.target_key.mount_id,
+            .overlay_numlower = get_overlay_numlower(syscall->link.target_dentry),
+        }
     };
 
-    fill_process_data(&event.process);
-    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, NULL);
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
 
-    // add process cache data
-    struct proc_cache_t *entry = get_pid_cache(syscall->pid);
-    if (entry) {
-        copy_container_id(event.container_id, entry->container_id);
-        event.process.numlower = entry->numlower;
-    }
+    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, NULL);
 
     send_event(ctx, event);
 

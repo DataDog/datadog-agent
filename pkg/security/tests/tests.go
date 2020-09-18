@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
@@ -91,6 +92,7 @@ type testOpts struct {
 	enableFilters     bool
 	disableApprovers  bool
 	disableDiscarders bool
+	testDir           string
 }
 
 type testModule struct {
@@ -130,13 +132,13 @@ func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Eve
 	h.discarders <- &testDiscarder{event: event, field: field}
 }
 
-func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
+func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return "", err
 	}
 
-	testPolicyFile, err := ioutil.TempFile("", "secagent-policy.*.policy")
+	testPolicyFile, err := ioutil.TempFile(dir, "secagent-policy.*.policy")
 	if err != nil {
 		return "", err
 	}
@@ -186,19 +188,19 @@ func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	return testPolicyFile.Name(), nil
 }
 
-func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testModule, error) {
-	st, err := newSimpleTest(macros, rules)
+func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
+	st, err := newSimpleTest(macros, rules, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(cfgFilename)
 
-	mod, err := module.NewModule(nil)
+	mod, err := module.NewModule(pconfig.NewDefaultAgentConfig(false))
 	if err != nil {
 		return nil, err
 	}
@@ -213,10 +215,6 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	rs.AddListener(testMod)
 
 	if err := mod.Register(nil); err != nil {
-		return nil, err
-	}
-
-	if err := log.ChangeLogLevel(logger, "debug"); err != nil {
 		return nil, err
 	}
 
@@ -258,7 +256,7 @@ func (tm *testModule) Close() {
 	time.Sleep(time.Second)
 }
 
-func waitProcScan(test *testProbe) error {
+func waitProcScan(test *testProbe) {
 	// Consume test.events so that testEventHandler.HandleEvent doesn't block
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -274,22 +272,21 @@ func waitProcScan(test *testProbe) error {
 	}()
 	time.Sleep(5 * time.Second)
 	cancel()
-	return log.ChangeLogLevel(logger, "debug")
 }
 
-func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testProbe, error) {
-	st, err := newSimpleTest(macros, rules)
+func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
+	st, err := newSimpleTest(macrosDef, rulesDef, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules, opts)
+	cfgFilename, err := setTestConfig(st.root, macrosDef, rulesDef, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(cfgFilename)
 
-	config, err := config.NewConfig()
+	config, err := config.NewConfig(pconfig.NewDefaultAgentConfig(false))
 	if err != nil {
 		return nil, err
 	}
@@ -299,8 +296,9 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	ruleSet, err := module.LoadPolicies(config, probe)
-	if err != nil {
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(false, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+
+	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err
 	}
 
@@ -315,7 +313,9 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	if _, err := probe.ApplyRuleSet(ruleSet, false); err != nil {
+	rsa := sprobe.NewRuleSetApplier(config)
+
+	if _, err := rsa.Apply(ruleSet, probe); err != nil {
 		return nil, err
 	}
 
@@ -331,9 +331,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		rs:         ruleSet,
 	}
 
-	if err := waitProcScan(test); err != nil {
-		return nil, err
-	}
+	waitProcScan(test)
 
 	return test, nil
 }
@@ -362,11 +360,14 @@ func (tp *testProbe) Close() {
 }
 
 type simpleTest struct {
-	root string
+	root     string
+	toRemove bool
 }
 
 func (t *simpleTest) Close() {
-	os.RemoveAll(t.root)
+	if t.toRemove {
+		os.RemoveAll(t.root)
+	}
 }
 
 func (t *simpleTest) Root() string {
@@ -382,27 +383,33 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	return filename, unsafe.Pointer(filenamePtr), nil
 }
 
-func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
+	var logLevel seelog.LogLevel = seelog.InfoLvl
 	if testing.Verbose() {
-		var err error
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, seelog.DebugLvl, "%Ns [%LEVEL] %Msg\n")
-		if err != nil {
-			return nil, err
-		}
-		err = seelog.ReplaceLogger(logger)
-		if err != nil {
-			return nil, err
-		}
-		log.SetupDatadogLogger(logger, "info")
+		logLevel = seelog.TraceLvl
 	}
 
-	root, err := ioutil.TempDir("", "test-secagent-root")
+	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
 	if err != nil {
 		return nil, err
 	}
 
+	err = seelog.ReplaceLogger(logger)
+	if err != nil {
+		return nil, err
+	}
+	log.SetupDatadogLogger(logger, logLevel.String())
+
 	t := &simpleTest{
-		root: root,
+		root: testDir,
+	}
+
+	if testDir == "" {
+		t.root, err = ioutil.TempDir("", "test-secagent-root")
+		if err != nil {
+			return nil, err
+		}
+		t.toRemove = true
 	}
 
 	executeExpressionTemplate := func(expression string) (string, error) {

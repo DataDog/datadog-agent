@@ -32,9 +32,9 @@ const defaultBackendAddress = "localhost:8888"
 const defaultChannelSize = 100
 
 type fakeBackend struct {
-	srv     http.Server
-	out     chan interface{} // payload output
 	started uint64           // 0 if server is stopped
+	out     chan interface{} // payload output
+	srv     http.Server
 }
 
 func newFakeBackend(channelSize int) *fakeBackend {

@@ -30,7 +30,7 @@ const maxVersionHistoryEntries = 60
 // LogVersionHistory loads version history file, append new entry if agent version is different than the last entry in the
 // JSON file, trim the file if too many entries then save the file.
 func LogVersionHistory() {
-	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "version-history.json")
+	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
 	logVersionHistoryToFile(versionHistoryFilePath, version.AgentVersion, time.Now().UTC())
 }
 
@@ -40,7 +40,7 @@ func logVersionHistoryToFile(versionHistoryFilePath, agentVersion string, timest
 	history := versionHistoryEntries{}
 
 	if err != nil {
-		log.Warnf("Cannot read file: %s, will create a new one. %v", versionHistoryFilePath, err)
+		log.Infof("Cannot read file: %s, will create a new one. %v", versionHistoryFilePath, err)
 	} else {
 		err = json.Unmarshal(file, &history)
 		if err != nil {

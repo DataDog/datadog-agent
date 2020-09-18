@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -35,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -279,13 +281,27 @@ func StartAgent() error {
 	}
 	log.Debugf("statsd started")
 
+	// Start SNMP trap server
+	if traps.IsEnabled() {
+		if config.Datadog.GetBool("logs_enabled") {
+			err = traps.StartServer()
+			if err != nil {
+				log.Errorf("Failed to start snmp-traps server: %s", err)
+			}
+		} else {
+			log.Warn(
+				"snmp-traps server did not start, as log collection is disabled. " +
+					"Please enable log collection to collect and forward traps.",
+			)
+		}
+	}
+
 	// start logs-agent
 	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
 		if config.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
-		err := logs.Start()
-		if err != nil {
+		if err := logs.Start(func() *autodiscovery.AutoConfig { return common.AC }); err != nil {
 			log.Error("Could not start logs-agent: ", err)
 		}
 	} else {
@@ -347,6 +363,7 @@ func StopAgent() {
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
+	traps.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
