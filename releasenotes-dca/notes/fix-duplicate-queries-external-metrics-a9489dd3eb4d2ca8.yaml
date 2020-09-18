@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix issue in Cluster Agent when using external metrics without DatadogMetrics where multiple HPAs using the same metricName + Labels would prevent all HPAs (except 1st one) to get values from Datadog
