@@ -706,6 +706,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_tracepoints")
 	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
 	config.SetKnown("system_probe_config.windows.driver_buffer_size")
+	config.SetKnown("network_config.enabled")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
