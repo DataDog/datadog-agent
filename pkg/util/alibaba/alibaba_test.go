@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -31,13 +33,10 @@ func TestGetHostname(t *testing.T) {
 	assert.Equal(t, lastRequest.URL.Path, "/latest/meta-data/instance-id")
 }
 
-/*
 func TestGetNTPHosts(t *testing.T) {
 	expectedHosts := []string{
-		"ntp.cloud.aliyuncs.com", "ntp1.cloud.aliyuncs.com", "ntp2.cloud.aliyuncs.com", "ntp3.cloud.aliyuncs.com",
-		"ntp4.cloud.aliyuncs.com", "ntp5.cloud.aliyuncs.com", "ntp6.cloud.aliyuncs.com", "ntp7.cloud.aliyuncs.com",
-		"ntp8.cloud.aliyuncs.com", "ntp9.cloud.aliyuncs.com", "ntp10.cloud.aliyuncs.com", "ntp11.cloud.aliyuncs.com",
-		"ntp12.cloud.aliyuncs.com",
+		"ntp.aliyun.com", "ntp1.aliyun.com", "ntp2.aliyun.com", "ntp3.aliyun.com",
+		"ntp4.aliyun.com", "ntp5.aliyun.com", "ntp6.aliyun.com", "ntp7.aliyun.com",
 	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,4 +51,3 @@ func TestGetNTPHosts(t *testing.T) {
 
 	assert.Equal(t, expectedHosts, actualHosts)
 }
-*/

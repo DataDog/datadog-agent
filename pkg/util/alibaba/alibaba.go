@@ -49,8 +49,8 @@ func GetHostAlias() (string, error) {
 func GetNTPHosts() []string {
 	if IsRunningOn() {
 		return []string{
-			"ntp.cloud.aliyuncs.com", "ntp7.cloud.aliyuncs.com", "ntp8.cloud.aliyuncs.com", "ntp9.cloud.aliyuncs.com",
-			"ntp10.cloud.aliyuncs.com", "ntp11.cloud.aliyuncs.com", "ntp12.cloud.aliyuncs.com",
+			"ntp.aliyun.com", "ntp1.aliyun.com", "ntp2.aliyun.com", "ntp3.aliyun.com",
+			"ntp4.aliyun.com", "ntp5.aliyun.com", "ntp6.aliyun.com",
 		}
 	}
 

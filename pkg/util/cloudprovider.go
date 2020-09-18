@@ -65,10 +65,10 @@ func GetCloudProviderNTPHosts() []string {
 		{name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
 	}
 
-	for _, cloudNTPdetector := range detectors {
-		if cloudNTPserver := cloudNTPdetector.callback(); cloudNTPserver != nil {
-			log.Debug("Using NTP servers from %s cloud provider", cloudNTPdetector.name)
-			return cloudNTPserver
+	for _, cloudNTPDetector := range detectors {
+		if cloudNTPServer := cloudNTPDetector.callback(); cloudNTPServer != nil {
+			log.Debug("Using NTP servers from %s cloud provider", cloudNTPDetector.name)
+			return cloudNTPServer
 		}
 	}
 
