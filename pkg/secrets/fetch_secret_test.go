@@ -46,6 +46,7 @@ func TestMain(m *testing.M) {
 	build(m, "./test/response_too_long/response_too_long", "./test/response_too_long")
 	build(m, "./test/simple/simple", "./test/simple")
 	build(m, "./test/timeout/timeout", "./test/timeout")
+	build(m, "./test/smarttimeout/smarttimeout", "./test/smarttimeout")
 
 	res := m.Run()
 
@@ -55,6 +56,7 @@ func TestMain(m *testing.M) {
 	os.Remove("test/response_too_long/response_too_long" + binExtension)
 	os.Remove("test/simple/simple" + binExtension)
 	os.Remove("test/timeout/timeout" + binExtension)
+	os.Remove("test/smarttimeout/smarttimeout" + binExtension)
 
 	os.Exit(res)
 }
@@ -85,7 +87,8 @@ func TestExecCommandError(t *testing.T) {
 	defer func() {
 		secretBackendCommand = ""
 		secretBackendArguments = []string{}
-		secretBackendTimeout = 0
+		secretBackendTermTimeout = 0
+		secretBackendKillTimeout = 0
 	}()
 
 	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
@@ -98,7 +101,7 @@ func TestExecCommandError(t *testing.T) {
 	// test timeout
 	secretBackendCommand = "./test/timeout/timeout" + binExtension
 	setCorrectRight(secretBackendCommand)
-	secretBackendTimeout = 2
+	secretBackendKillTimeout = 2
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 	require.Equal(t, "error while running './test/timeout/timeout"+binExtension+"': command timeout", err.Error())
@@ -141,6 +144,15 @@ func TestExecCommandError(t *testing.T) {
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 	assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())
+
+	// test TERM signal
+	secretBackendCommand = "./test/smarttimeout/smarttimeout" + binExtension
+	setCorrectRight(secretBackendCommand)
+	secretBackendTermTimeout = 2
+	secretBackendKillTimeout = 3
+	_, err = execCommand(inputPayload)
+	require.NotNil(t, err)
+	require.Equal(t, "error while running './test/smarttimeout/smarttimeout"+binExtension+"': exit status 1", err.Error())
 }
 
 func TestFetchSecretExecError(t *testing.T) {
