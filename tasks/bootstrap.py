@@ -47,6 +47,8 @@ def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
         if step == "checkout":
             # download tools
             path = os.path.join(get_gopath(ctx), 'src', target)
+            if os.path.exists(path):
+                ctx.run("ls -la {}".format(path))
             if not os.path.exists(path):
                 ctx.run("go get{} -d -u {}".format(verbosity, target), env={'GO111MODULE': 'off'})
 

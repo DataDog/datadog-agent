@@ -235,6 +235,8 @@ build_libbcc_arm64:
   stage: deps_fetch
   needs: []
   script:
+    - ls -la $GOPATH/src/golang.org/ || true
+    - ls -la $GOPATH/src/github.com/ || true
     - inv -e deps --verbose
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
