@@ -101,7 +101,7 @@ disabled.
 For pre 7.23, start the Agent executable in the interactive session.
 
 For 7.23 or later version, find the file in the debug package. For agent.exe, the file in debug package is under
-\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin\agent\agent.exe.debug. You might find the same file under
+`\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin\agent\agent.exe.debug`. You might find the same file under
 \omnibus-ruby\src\cf-root\bin. Use either one is fine. Copy the file to replace the executable file you want to debug,
 start the agent executable in the interactive session.
 
