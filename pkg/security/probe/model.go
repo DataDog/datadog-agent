@@ -504,8 +504,8 @@ func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
 	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"access_time":"%s"`, e.Atime)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
+	fmt.Fprintf(&buf, `"access_time":"%s",`, e.Atime)
 	fmt.Fprintf(&buf, `"modification_time":"%s"`, e.Mtime)
 	buf.WriteRune('}')
 
