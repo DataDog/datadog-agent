@@ -150,7 +150,7 @@ def _is_version_higher(version_1, version_2):
         return True
 
     for part in ["major", "minor", "patch"]:
-        # Consider that a None part version is equivalent to a 0 part version
+        # Consider that a None version part is equivalent to a 0 version part
         version_1_part = version_1[part] if version_1[part] is not None else 0
         version_2_part = version_2[part] if version_2[part] is not None else 0
 
@@ -182,6 +182,7 @@ def _stringify_config(config_dict):
     {
         "xxx_VERSION": { "major": x, "minor": y, "patch": z, "rc": t },
         "xxx_HASH": "hashvalue",
+        ...
     }
 
     and transforms all VERSIONs into their string representation.
@@ -201,6 +202,7 @@ def _stringify_version(version_dict):
 def _get_highest_repo_version(token, repo, new_rc_version, version_re):
     import requests
 
+    # Basic auth doesn't seem to work with private repos, so we use token auth here
     headers = {"Authorization": "token {}".format(token)}
     if new_rc_version is not None:
         response = requests.get(
@@ -211,7 +213,7 @@ def _get_highest_repo_version(token, repo, new_rc_version, version_re):
         )
     else:
         response = requests.get(
-            "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo), headers=headers
+            "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo), headers=headers,
         )
     tags = response.json()
     highest_version = None
@@ -227,7 +229,7 @@ def _get_highest_repo_version(token, repo, new_rc_version, version_re):
 def _get_highest_version_from_release_json(release_json, release_json_key, highest_major, version_re):
     """
     If release_json_key is None, returns the highest version entry in release.json.
-    If release_json_key is set, returns the version entry for this key of the highest version entry in release.json.
+    If release_json_key is set, returns the entry for release_json_key of the highest version entry in release.json.
     """
 
     highest_version = None

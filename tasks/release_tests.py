@@ -131,9 +131,10 @@ class TestIsHigherMethod(unittest.TestCase):
 
     def test_absent_patch_less_than_any(self):
         version = self._get_random_version()
+        increment = random.randint(1, 99)
         self.assertTrue(
             release._is_version_higher(
-                self._get_version(version["major"], version["minor"], version["patch"] + 1, None),
+                self._get_version(version["major"], version["minor"], version["patch"] + increment, None),
                 self._get_version(version["major"], version["minor"], None, None),
             )
         )
