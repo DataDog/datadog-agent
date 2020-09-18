@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
@@ -98,6 +99,15 @@ func getHostTags() *tags {
 			log.Debugf("No GCE host tags %v", err)
 		} else {
 			gceTags = appendToHostTags(gceTags, rawGceTags)
+		}
+	}
+
+	if config.Datadog.GetBool("collect_azure_tags") {
+		azureTags, err := azure.GetTags()
+		if err != nil {
+			log.Debugf("No Azure host tags %v", err)
+		} else {
+			hostTags = appendToHostTags(hostTags, azureTags)
 		}
 	}
 
