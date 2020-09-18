@@ -70,8 +70,8 @@ func getClusterName(data *clusterNameData, hostname string) string {
 		data.clusterName = config.Datadog.GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
-			// the host alias "clusterName-hostName" must not exceed 255 chars
-			hostAlias := data.clusterName + "-" + hostname
+			// the host alias "hostname-clustername" must not exceed 255 chars
+			hostAlias := hostname + "-" + data.clusterName
 			if !validClusterName.MatchString(data.clusterName) || len(hostAlias) > 255 {
 				log.Errorf("\"%s\" isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
 					"start with a lowercase letter followed by lowercase letters, numbers, or "+
