@@ -54,7 +54,7 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.44.0+incompatible
 	github.com/DataDog/datadog-go v3.5.0+incompatible
-	github.com/DataDog/datadog-operator v0.2.1-0.20200527110245-7850164045c8
+	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
 	github.com/DataDog/ebpf v0.0.0-20200825200022-7a8f7d072a50
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
@@ -121,7 +121,6 @@ require (
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/miekg/dns v1.1.31
 	github.com/moby/sys/mountinfo v0.1.3
-	github.com/munnerz/goautoneg v0.0.0-20190414153302-2ae31c8b6b30 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
@@ -214,3 +213,6 @@ replace (
 
 // Pinned so it includes fix for Windows Nano
 replace k8s.io/klog => k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4
+
+// bitbucket.org/ww/goautoneg has disappeard
+replace bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20190414153302-2ae31c8b6b30
