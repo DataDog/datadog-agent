@@ -58,6 +58,16 @@ func HostnameProvider() (string, error) {
 	return GetInstanceID()
 }
 
+// GetNTPHosts returns the NTP hosts for Tencent if it is detected as the cloud provider, otherwise an empty array.
+// Demo: https://intl.cloud.tencent.com/document/product/213/32379
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"ntpupdate.tencentyun.com"}
+	}
+
+	return nil
+}
+
 func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {
 	result, err := getMetadataItem(endpoint)
 	if err != nil {
