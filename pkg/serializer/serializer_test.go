@@ -361,17 +361,17 @@ func TestSendMetadata(t *testing.T) {
 	s := NewSerializer(f)
 
 	payload := &testPayload{}
-	err := s.SendMetadata(payload, forwarder.TransactionPriorityNormal)
+	err := s.SendMetadata(payload)
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 
 	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression, forwarder.TransactionPriorityNormal).Return(fmt.Errorf("some error")).Times(1)
-	err = s.SendMetadata(payload, forwarder.TransactionPriorityNormal)
+	err = s.SendMetadata(payload)
 	require.NotNil(t, err)
 	f.AssertExpectations(t)
 
 	errPayload := &testErrorPayload{}
-	err = s.SendMetadata(errPayload, forwarder.TransactionPriorityNormal)
+	err = s.SendMetadata(errPayload)
 	require.NotNil(t, err)
 }
 
@@ -437,6 +437,6 @@ func TestSendWithDisabledKind(t *testing.T) {
 
 	// We never disable metadata
 	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression, forwarder.TransactionPriorityNormal).Return(nil).Times(1)
-	s.SendMetadata(payload, forwarder.TransactionPriorityNormal)
+	s.SendMetadata(payload)
 	f.AssertNumberOfCalls(t, "SubmitV1Intake", 1) // called once for the metadata
 }

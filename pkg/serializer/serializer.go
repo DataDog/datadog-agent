@@ -95,7 +95,8 @@ type MetricSerializer interface {
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
-	SendMetadata(m marshaler.Marshaler, priority forwarder.TransactionPriority) error
+	SendMetadata(m marshaler.Marshaler) error
+	SendHostMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
 }
 
@@ -327,7 +328,16 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendMetadata(m marshaler.Marshaler, priority forwarder.TransactionPriority) error {
+func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
+	return s.sendMetadata(m, forwarder.TransactionPriorityNormal)
+}
+
+// SendMetadata serializes a metadata payload and sends it to the forwarder
+func (s *Serializer) SendHostMetadata(m marshaler.Marshaler) error {
+	return s.sendMetadata(m, forwarder.TransactionPriorityHigh)
+}
+
+func (s *Serializer) sendMetadata(m marshaler.Marshaler, priority forwarder.TransactionPriority) error {
 	smallEnough, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.MarshalJSON)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)

@@ -8,7 +8,6 @@ package metadata
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -23,7 +22,7 @@ func (hp *HostCollector) Send(s *serializer.Serializer) error {
 	hostnameData, _ := util.GetHostnameData()
 
 	payload := v5.GetPayload(hostnameData)
-	if err := s.SendMetadata(payload, forwarder.TransactionPriorityHigh); err != nil {
+	if err := s.SendHostMetadata(payload); err != nil {
 		return fmt.Errorf("unable to submit host metadata payload, %s", err)
 	}
 	return nil

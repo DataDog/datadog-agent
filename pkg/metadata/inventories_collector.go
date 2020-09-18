@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -40,7 +39,7 @@ func (c inventoriesCollector) Send(s *serializer.Serializer) error {
 		return err
 	}
 
-	if err := s.SendMetadata(payload, forwarder.TransactionPriorityNormal); err != nil {
+	if err := s.SendMetadata(payload); err != nil {
 		return fmt.Errorf("unable to submit inventories payload, %s", err)
 	}
 	return nil

@@ -8,7 +8,6 @@ package serializer
 import (
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -38,7 +37,12 @@ func (s *MockSerializer) SendSketch(sketches marshaler.Marshaler) error {
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
-func (s *MockSerializer) SendMetadata(m marshaler.Marshaler, priority forwarder.TransactionPriority) error {
+func (s *MockSerializer) SendMetadata(m marshaler.Marshaler) error {
+	return s.Called(m).Error(0)
+}
+
+// SendHostMetadata serializes a host metadata payload and sends it to the forwarder
+func (s *MockSerializer) SendHostMetadata(m marshaler.Marshaler) error {
 	return s.Called(m).Error(0)
 }
 
