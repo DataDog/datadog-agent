@@ -338,15 +338,15 @@ func (s *Serializer) SendHostMetadata(m marshaler.Marshaler) error {
 }
 
 func (s *Serializer) sendMetadata(m marshaler.Marshaler, priority forwarder.TransactionPriority) error {
-	smallEnough, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.MarshalJSON)
+	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.MarshalJSON)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
 	log.Debugf("Sending metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
 
-	if !smallEnough {
-		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed), metadata payloads cannot be split", len(compressedPayload))
+	if mustSplit {
+		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
 	}
 
 	if err := s.Forwarder.SubmitV1Intake(forwarder.Payloads{&compressedPayload}, jsonExtraHeadersWithCompression, priority); err != nil {
