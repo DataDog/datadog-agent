@@ -81,7 +81,7 @@ and running the agent in the foreground.
 
 ## Debugging on Windows
 
-Prior to 7.23, agent binaries (Datadog Agent, Process Agent, Trace Agent, etc.) on Windows contain symbol information.
+Prior to 7.23, Agent binaries (Datadog Agent, Process Agent, Trace Agent, etc.) on Windows contain symbol information.
 
 Starting from 7.23, agent binaries on Windows have debugging information stripped. The original files are packed in a
 file called debug package.
