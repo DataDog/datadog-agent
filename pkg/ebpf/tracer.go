@@ -299,7 +299,7 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 	start := time.Now()
 	editors, err := guessOffsets(offsetMgr, config)
 	if err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %v", err)
+		return nil, err
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 	return editors, nil
