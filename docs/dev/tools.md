@@ -88,7 +88,7 @@ file called debug package.
 
 ### Prerequisite
 
-To debug agent process, Golang Runtime, Git and Golang Delve must be installed.
+To debug Agent process, Golang Runtime, Git and Golang Delve must be installed.
 
 Download the matching debug package. If the MSI file is datadog-agent-7.23.0-x86_64.msi, the debug package should be
 datadog-agent-7.23.0-x86_64.debug.zip.
