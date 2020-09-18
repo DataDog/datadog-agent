@@ -37,6 +37,7 @@ type CRIConfig struct {
 type CRICheck struct {
 	core.CheckBase
 	instance *CRIConfig
+	filter   *containers.Filter
 }
 
 func init() {
@@ -68,6 +69,12 @@ func (c *CRICheck) Configure(config, initConfig integration.Data, source string)
 	if err != nil {
 		return err
 	}
+
+	filter, err := containers.GetSharedMetricFilter()
+	if err != nil {
+		return err
+	}
+	c.filter = filter
 
 	return c.instance.Parse(config)
 }
@@ -110,13 +117,17 @@ func (c *CRICheck) generateMetrics(sender aggregator.Sender, containerStats map[
 		}
 		tags = append(tags, "runtime:"+criUtil.GetRuntime())
 
-		c.processContainerStats(sender, *stats, tags)
-
 		ctnStatus, err := criUtil.GetContainerStatus(cid)
 		if err == nil && ctnStatus != nil {
+			if c.isExcluded(ctnStatus) {
+				continue
+			}
+
 			currentUnixTime := time.Now().UnixNano()
 			c.computeContainerUptime(sender, currentUnixTime, *ctnStatus, tags)
 		}
+
+		c.processContainerStats(sender, *stats, tags)
 	}
 }
 
@@ -135,4 +146,19 @@ func (c *CRICheck) computeContainerUptime(sender aggregator.Sender, currentTime 
 	if ctnStatus.StartedAt != 0 && currentTime-ctnStatus.StartedAt > 0 {
 		sender.Gauge("cri.uptime", float64((currentTime-ctnStatus.StartedAt)/int64(time.Second)), "", tags)
 	}
+}
+
+// isExcluded returns whether a container should be excluded based on its image, name and namespace
+func (c *CRICheck) isExcluded(ctr *pb.ContainerStatus) bool {
+	name := ""
+	if meta := ctr.GetMetadata(); meta != nil {
+		name = meta.GetName()
+	}
+
+	image := ""
+	if imSpec := ctr.GetImage(); imSpec != nil {
+		image = imSpec.GetImage()
+	}
+
+	return c.filter.IsExcluded(name, image, ctr.GetLabels()["io.kubernetes.pod.namespace"])
 }

@@ -28,7 +28,7 @@ var (
 	logsBuffer           = []func(){}
 	bufferLogsBeforeInit = true
 	bufferMutex          sync.Mutex
-	defaultStackDepth    = 2
+	defaultStackDepth    = 3
 )
 
 // DatadogLogger wrapper structure for seelog

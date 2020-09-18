@@ -15,8 +15,8 @@ WORKDIR /output
 ENV S6_VERSION v1.22.1.0
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-aarch64.tar.gz /output/s6.tgz
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-aarch64.tar.gz.sig /tmp/s6.tgz.sig
-RUN apt-get update \
- && apt-get install --no-install-recommends -y gpg gpg-agent curl ca-certificates \
+RUN apt update \
+ && apt install --no-install-recommends -y gpg gpg-agent curl ca-certificates \
  && curl https://keybase.io/justcontainers/key.asc | gpg --import \
  && gpg --verify /tmp/s6.tgz.sig /output/s6.tgz
 
@@ -94,24 +94,24 @@ ENV DOCKER_DD_AGENT=true \
     S6_READ_ONLY_ROOT=1
 
 # make sure we have recent dependencies
-RUN apt-get update \
+RUN apt update \
   # CVE-fixing time!
   && apt full-upgrade -y \
+  # Install iproute2 package for the ss utility that is used by the network check.
+  # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
+  # this can be removed
+  && apt install -y iproute2 \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
   && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so
 
 # Install openjdk-11-jre-headless on jmx flavor
-# Due to this bug https://bugs.openjdk.java.net/browse/JDK-8217766, we need to be able to
-# pull from testing since this is the only place for now where a version > 11.0.4 is available.
-# we leave testing in the sources to avoid dependencies conflict in custom images
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
- && echo "deb http://deb.debian.org/debian testing main" > /etc/apt/sources.list.d/testing.list \
- && apt-get update \
+ && apt update \
  && mkdir /usr/share/man/man1 \
- && apt-get install --no-install-recommends -y openjdk-11-jre-headless \
- && apt-get clean; fi
+ && apt install --no-install-recommends -y openjdk-11-jre-headless \
+ && apt clean; fi
 
 # cleaning up
 RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

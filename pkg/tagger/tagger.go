@@ -228,6 +228,8 @@ func (t *Tagger) GetEntityHash(entity string) string {
 
 // Tag returns tags for a given entity
 func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+	queries.Inc(tagCardinalityToString(cardinality))
+
 	if entity == "" {
 		return nil, fmt.Errorf("empty entity ID")
 	}
