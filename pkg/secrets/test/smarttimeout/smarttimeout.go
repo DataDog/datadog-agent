@@ -14,8 +14,12 @@ import (
 
 func main() {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM)
-	<-c
+	signal.Notify(c)
+	s := <-c
+	if s != syscall.SIGTERM {
+		fmt.Errorf("Wrong signal: %v, expected: %v", s, syscall.SIGTERM)
+		os.Exit(2)
+	}
 	fmt.Println("I've been terminated!")
 	os.Exit(1)
 }
