@@ -508,6 +508,7 @@ func BenchmarkNormalization(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		ts := newTagStats()
 		span := newTestSpan()
+		ts.Lang = "go"
 
 		normalize(ts, span)
 	}
