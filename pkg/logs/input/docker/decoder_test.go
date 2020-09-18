@@ -19,7 +19,7 @@ import (
 )
 
 func TestDecoderWithHeaderSingleline(t *testing.T) {
-	var output *decoder.Output
+	var output *decoder.Message
 	var line []byte
 	var lineLen int
 
@@ -62,7 +62,7 @@ func TestDecoderWithHeaderSingleline(t *testing.T) {
 }
 
 func TestDecoderWithHeaderMultiline(t *testing.T) {
-	var output *decoder.Output
+	var output *decoder.Message
 	var line []byte
 	var lineLen int
 
@@ -106,7 +106,7 @@ func TestDecoderWithHeaderMultiline(t *testing.T) {
 }
 
 func TestDecoderWithJSONSingleline(t *testing.T) {
-	var output *decoder.Output
+	var output *decoder.Message
 	var line []byte
 	var lineLen int
 
@@ -136,7 +136,7 @@ func TestDecoderWithJSONSingleline(t *testing.T) {
 }
 
 func TestDecoderWithJSONMultiline(t *testing.T) {
-	var output *decoder.Output
+	var output *decoder.Message
 	var line []byte
 	var lineLen int
 
@@ -180,7 +180,7 @@ func TestDecoderWithJSONMultiline(t *testing.T) {
 }
 
 func TestDecoderWithJSONSplittedByDocker(t *testing.T) {
-	var output *decoder.Output
+	var output *decoder.Message
 	var line []byte
 	var lineLen int
 
