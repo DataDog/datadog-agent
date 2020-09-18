@@ -206,6 +206,7 @@ core,"github.com/coreos/go-systemd/journal",Apache-2.0
 core,"github.com/coreos/go-systemd/sdjournal",Apache-2.0
 core,"github.com/coreos/pkg/capnslog",Apache-2.0
 core,"github.com/coreos/pkg/dlopen",Apache-2.0
+core,"github.com/datadog/extendeddaemonset/pkg/apis/datadoghq/v1alpha1",Apache-2.0
 core,"github.com/davecgh/go-spew/spew",ISC
 core,"github.com/dgraph-io/ristretto",Apache-2.0
 core,"github.com/dgraph-io/ristretto/z",Apache-2.0

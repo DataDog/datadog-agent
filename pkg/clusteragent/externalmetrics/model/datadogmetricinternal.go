@@ -27,28 +27,30 @@ const (
 
 // DatadogMetricInternal is a flatten, easier to use, representation of `DatadogMetric` CRD
 type DatadogMetricInternal struct {
-	ID                 string
-	Query              string
-	Valid              bool
-	Active             bool
-	Deleted            bool
-	Autogen            bool
-	ExternalMetricName string
-	Value              float64
-	UpdateTime         time.Time
-	Error              error
+	ID                   string
+	Query                string
+	Valid                bool
+	Active               bool
+	Deleted              bool
+	Autogen              bool
+	ExternalMetricName   string
+	Value                float64
+	AutoscalerReferences string
+	UpdateTime           time.Time
+	Error                error
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
 // `id` is expected to be unique and should correspond to `namespace/name`
 func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) DatadogMetricInternal {
 	internal := DatadogMetricInternal{
-		ID:      id,
-		Query:   datadogMetric.Spec.Query,
-		Valid:   false,
-		Active:  false,
-		Deleted: false,
-		Autogen: false,
+		ID:                   id,
+		Query:                datadogMetric.Spec.Query,
+		Valid:                false,
+		Active:               false,
+		Deleted:              false,
+		Autogen:              false,
+		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
@@ -90,16 +92,17 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 
 // NewDatadogMetricInternalFromExternalMetric returns a `DatadogMetricInternal` object
 // that is auto-generated from a standard ExternalMetric query (non-DatadogMetric reference)
-func NewDatadogMetricInternalFromExternalMetric(id, query, metricName string) DatadogMetricInternal {
+func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscalerReference string) DatadogMetricInternal {
 	return DatadogMetricInternal{
-		ID:                 id,
-		Query:              query,
-		Valid:              false,
-		Active:             true,
-		Deleted:            false,
-		Autogen:            true,
-		ExternalMetricName: metricName,
-		UpdateTime:         time.Now().UTC(),
+		ID:                   id,
+		Query:                query,
+		Valid:                false,
+		Active:               true,
+		Deleted:              false,
+		Autogen:              true,
+		ExternalMetricName:   metricName,
+		AutoscalerReferences: autoscalerReference,
+		UpdateTime:           time.Now().UTC(),
 	}
 }
 
@@ -156,8 +159,9 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetr
 	}
 
 	newStatus := datadoghq.DatadogMetricStatus{
-		Value:      formatDatadogMetricValue(d.Value),
-		Conditions: []datadoghq.DatadogMetricCondition{activeCondition, validCondition, updatedCondition, errorCondition},
+		Value:                formatDatadogMetricValue(d.Value),
+		Conditions:           []datadoghq.DatadogMetricCondition{activeCondition, validCondition, updatedCondition, errorCondition},
+		AutoscalerReferences: d.AutoscalerReferences,
 	}
 
 	return &newStatus

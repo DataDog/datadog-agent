@@ -54,7 +54,7 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.44.0+incompatible
 	github.com/DataDog/datadog-go v3.5.0+incompatible
-	github.com/DataDog/datadog-operator v0.2.1-0.20200527110245-7850164045c8
+	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
 	github.com/DataDog/ebpf v0.0.0-20200825200022-7a8f7d072a50
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
