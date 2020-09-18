@@ -48,7 +48,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
-	if err := checkRights(cmd.Path); err != nil {
+	if err := checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {
 		return nil, err
 	}
 

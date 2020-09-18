@@ -24,7 +24,12 @@ var (
 
 // checkRights check that the given filename has access controls set only for
 // Administrator, Local System and the datadog user.
-func checkRights(filename string) error {
+func checkRights(filename string, allowGroupExec bool) error {
+	// this function ignore `allowGroupExec` since it was design for the cluster-agent,
+	// but the cluster-agent is not delivered for windows.
+	if allowGroupExec {
+		return fmt.Errorf("the option 'allowGroupExec=true' is not allowed on windows")
+	}
 	if _, err := os.Stat(filename); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("secretBackendCommand %s does not exist", filename)
