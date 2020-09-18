@@ -179,9 +179,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	// The network check won't be run if sysprobe isn't enabled so there's no need to check
 	// EnableSystemProbe here.
 	networkEnabled := true
-	if config.Datadog.IsSet(key(spNS, "network_config")) {
+	// network_config is a top-level config, not a subconfig of system_probe_config
+	if config.Datadog.IsSet("network_config") {
 		// System probe can be run without the network module as determined on the network_config.enabled value
-		networkEnabled = config.Datadog.GetBool(key(spNS, "network_config.enabled"))
+		networkEnabled = config.Datadog.GetBool("network_config.enabled")
 		log.Info(fmt.Sprintf("network_config found, enabled = %v", networkEnabled))
 	} else {
 		log.Info("network_config not found, enabling network check by default")
