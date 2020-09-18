@@ -11,4 +11,4 @@ features:
     Add basic support for UTF16 (BE and LE) encoding.
     It should be manually enabled in a log configuration using
     ``encoding: utf-16-be`` or ``encoding: utf-16-le`` other
-    value are unsupported and will be ignored by the agent.
+    values are unsupported and ignored by the agent.
