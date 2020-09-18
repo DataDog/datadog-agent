@@ -196,7 +196,7 @@ def _is_version_higher(version_1, version_2):
 def _create_version_dict_from_match(match):
     groups = match.groups()
     version = {
-        "v": groups[0] if groups[0] else "",
+        "prefix": groups[0] if groups[0] else "",
         "major": int(groups[1]),
         "minor": int(groups[2]),
         "patch": int(groups[4]) if groups[4] and groups[4] != 0 else None,
@@ -220,7 +220,7 @@ def _stringify_config(config_dict):
 
 
 def _stringify_version(version_dict):
-    version = "{}{}.{}".format(version_dict["v"], version_dict["major"], version_dict["minor"])
+    version = "{}{}.{}".format(version_dict["prefix"], version_dict["major"], version_dict["minor"])
     if version_dict["patch"] is not None:
         version = "{}.{}".format(version, version_dict["patch"])
     if version_dict["rc"] is not None and version_dict["rc"] != 0:
@@ -240,7 +240,7 @@ def _query_github_api(auth_token, url):
 def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
     if new_rc_version is not None:
         url = "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}{}".format(
-            repo, new_rc_version["v"], new_rc_version["major"]
+            repo, new_rc_version["prefix"], new_rc_version["major"]
         )
     else:
         url = "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/".format(repo)
@@ -257,7 +257,7 @@ def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
     return highest_version
 
 
-def _get_highest_version_from_release_json(release_json, release_json_key, highest_major, version_re):
+def _get_highest_version_from_release_json(release_json, highest_major, version_re, release_json_key=None):
     """
     If release_json_key is None, returns the highest version entry in release.json.
     If release_json_key is set, returns the entry for release_json_key of the highest version entry in release.json.
@@ -395,15 +395,15 @@ def finish(
     with open("release.json", "r") as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
-    highest_version = _get_highest_version_from_release_json(release_json, None, highest_major, version_re)
+    highest_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
 
     # jmxfetch and security-agent-policies follow their own version scheme
     highest_jmxfetch_version = _get_highest_version_from_release_json(
-        release_json, "JMXFETCH_VERSION", highest_major, version_re
+        release_json, highest_major, version_re, release_json_key="JMXFETCH_VERSION",
     )
 
     highest_security_agent_policies_version = _get_highest_version_from_release_json(
-        release_json, "SECURITY_AGENT_POLICIES_VERSION", highest_major, version_re
+        release_json, highest_major, version_re, release_json_key="SECURITY_AGENT_POLICIES_VERSION",
     )
 
     # Erase RCs
@@ -562,15 +562,15 @@ def create_rc(
     with open("release.json", "r") as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
-    highest_version = _get_highest_version_from_release_json(release_json, None, highest_major, version_re)
+    highest_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
 
     # jmxfetch and security-agent-policies follow their own version scheme
     highest_jmxfetch_version = _get_highest_version_from_release_json(
-        release_json, "JMXFETCH_VERSION", highest_major, version_re
+        release_json, highest_major, version_re, release_json_key="JMXFETCH_VERSION",
     )
 
     highest_security_agent_policies_version = _get_highest_version_from_release_json(
-        release_json, "SECURITY_AGENT_POLICIES_VERSION", highest_major, version_re
+        release_json, highest_major, version_re, release_json_key="SECURITY_AGENT_POLICIES_VERSION",
     )
 
     if highest_version["rc"] is None:
