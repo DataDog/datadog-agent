@@ -45,6 +45,8 @@ func GetHostAlias() (string, error) {
 }
 
 // GetNTPHosts returns the NTP hosts for Alibaba if it is detected as the cloud provider, otherwise an empty array.
+// These are their public NTP servers, as Alibaba uses two different types of private/internal networks for their cloud
+// machines and we can't be sure those servers are always accessible for every customer on every network type.
 // Docs: https://www.alibabacloud.com/help/doc-detail/92704.htm
 func GetNTPHosts() []string {
 	if IsRunningOn() {
