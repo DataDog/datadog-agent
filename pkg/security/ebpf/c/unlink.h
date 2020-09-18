@@ -81,13 +81,8 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    u64 event_type = EVENT_UNLINK;
-    if ((syscall->unlink.flags&AT_REMOVEDIR) == AT_REMOVEDIR) {
-        event_type = EVENT_RMDIR;
-    }
-
     struct unlink_event_t event = {
-        .event.type = event_type,
+        .event.type = syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK,
         .syscall = {
             .retval = retval,
             .timestamp = bpf_ktime_get_ns(),
