@@ -12,6 +12,10 @@ struct umount_event_t {
 
 };
 
+SYSCALL_KPROBE0(umount) {
+    return 0;
+}
+
 SEC("kprobe/security_sb_umount")
 int kprobe__security_sb_umount(struct pt_regs *ctx) {
     struct syscall_cache_t syscall = {

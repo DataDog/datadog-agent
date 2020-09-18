@@ -223,6 +223,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ConntrackRateLimit:    500,
 		OffsetGuessThreshold:  400,
 		EnableTracepoints:     false,
+		CollectDNSStats:       true,
 
 		// Check config
 		EnabledChecks: enabledChecks,

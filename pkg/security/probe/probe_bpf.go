@@ -55,9 +55,10 @@ type Probe struct {
 	resolvers        *Resolvers
 	onDiscardersFncs map[eval.EventType][]onDiscarderFnc
 	tables           map[string]*ebpf.Table
-	eventsStats      EventsStats
 	syscallMonitor   *SyscallMonitor
 	kernelVersion    uint32
+	_                uint32 // padding for goarch=386
+	eventsStats      EventsStats
 }
 
 func (p *Probe) getTableNames() []string {

@@ -1,4 +1,4 @@
-package telemetry
+package utils
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"

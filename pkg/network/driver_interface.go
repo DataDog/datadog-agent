@@ -210,10 +210,8 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 }
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
-func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []ConnectionStats, error) {
+func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed []ConnectionStats) ([]ConnectionStats, []ConnectionStats, error) {
 	readbuffer := make([]uint8, di.driverBufferSize)
-	connStatsActive := make([]ConnectionStats, 0)
-	connStatsClosed := make([]ConnectionStats, 0)
 
 	for {
 		var count uint32
@@ -233,10 +231,10 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 			if isFlowClosed(pfd.flags) {
 				// Closed Connection
-				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd, di.enableMonotonicCounts))
+				closed = append(closed, FlowToConnStat(pfd, di.enableMonotonicCounts))
 				atomic.AddInt64(&di.closedFlows, 1)
 			} else {
-				connStatsActive = append(connStatsActive, FlowToConnStat(pfd, di.enableMonotonicCounts))
+				active = append(active, FlowToConnStat(pfd, di.enableMonotonicCounts))
 				atomic.AddInt64(&di.openFlows, 1)
 			}
 			atomic.AddInt64(&di.totalFlows, 1)
@@ -245,7 +243,7 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 			break
 		}
 	}
-	return connStatsActive, connStatsClosed, nil
+	return active, closed, nil
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set

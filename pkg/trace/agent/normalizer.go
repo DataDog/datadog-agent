@@ -12,6 +12,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode"
@@ -41,13 +42,30 @@ var (
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 )
 
+// fallbackServiceNames is a cache of default service names to use
+// when the span's service is unset or invalid.
+var fallbackServiceNames sync.Map
+
+// fallbackService returns the fallback service name for a service
+// belonging to language lang.
+func fallbackService(lang string) string {
+	if lang == "" {
+		return DefaultServiceName
+	}
+	if v, ok := fallbackServiceNames.Load(lang); ok {
+		return v.(string)
+	}
+	var str strings.Builder
+	str.WriteString("unnamed-")
+	str.WriteString(lang)
+	str.WriteString("-service")
+	fallbackServiceNames.Store(lang, str.String())
+	return str.String()
+}
+
 // normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
 // is invalid beyond repair
 func normalize(ts *info.TagStats, s *pb.Span) error {
-	fallbackServiceName := DefaultServiceName
-	if ts.Lang != "" {
-		fallbackServiceName = fmt.Sprintf("unnamed-%s-service", ts.Lang)
-	}
 	if s.TraceID == 0 {
 		atomic.AddInt64(&ts.TracesDropped.TraceIDZero, 1)
 		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
@@ -58,8 +76,8 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 	if s.Service == "" {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
-		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", fallbackServiceName, s)
-		s.Service = fallbackServiceName
+		s.Service = fallbackService(ts.Lang)
+		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", s.Service, s)
 	}
 	if len(s.Service) > MaxServiceLen {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
@@ -70,8 +88,8 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	svc := normalizeTag(s.Service)
 	if svc == "" {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceInvalid, 1)
-		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, fallbackServiceName, s)
-		svc = fallbackServiceName
+		svc = fallbackService(ts.Lang)
+		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
 	s.Service = svc
 

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelog "github.com/cihub/seelog"
@@ -103,6 +104,11 @@ func onExit() {
 }
 
 func main() {
+	// Following https://github.com/lxn/win/commit/d9566253ae00d0a7dc7e4c9bda651dcfee029001
+	// it's up to the caller to lock OS threads
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	flag.BoolVar(&launchgui, "launch-gui", false, "Launch browser configuration and exit")
 	flag.Parse()
 	log.Debugf("launch-gui is %v", launchgui)

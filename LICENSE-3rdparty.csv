@@ -254,6 +254,7 @@ core,"github.com/emicklei/go-restful/log",MIT
 core,"github.com/evanphx/json-patch",NewBSD
 core,"github.com/fatih/color",MIT
 core,"github.com/florianl/go-conntrack",MIT
+core,"github.com/florianl/go-conntrack/internal/unix",MIT
 core,"github.com/florianl/go-tc",MIT
 core,"github.com/frapposelli/wwhrd",MIT
 core,"github.com/freddierice/go-losetup",MIT
@@ -314,6 +315,9 @@ core,"github.com/googleapis/gnostic/OpenAPIv2",Apache-2.0
 core,"github.com/googleapis/gnostic/compiler",Apache-2.0
 core,"github.com/googleapis/gnostic/extensions",Apache-2.0
 core,"github.com/gorilla/mux",NewBSD
+core,"github.com/grpc-ecosystem/go-grpc-middleware",Apache-2.0
+core,"github.com/grpc-ecosystem/go-grpc-middleware/auth",Apache-2.0
+core,"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils",Apache-2.0
 core,"github.com/grpc-ecosystem/go-grpc-prometheus",Apache-2.0
 core,"github.com/grpc-ecosystem/grpc-gateway/codegenerator",NewBSD
 core,"github.com/grpc-ecosystem/grpc-gateway/internal",NewBSD
