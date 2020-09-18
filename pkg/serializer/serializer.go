@@ -332,7 +332,7 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 	return s.sendMetadata(m, forwarder.TransactionPriorityNormal)
 }
 
-// SendMetadata serializes a metadata payload and sends it to the forwarder
+// SendHostMetadata serializes a metadata payload and sends it to the forwarder
 func (s *Serializer) SendHostMetadata(m marshaler.Marshaler) error {
 	return s.sendMetadata(m, forwarder.TransactionPriorityHigh)
 }
