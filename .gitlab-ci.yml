@@ -66,6 +66,7 @@ variables:
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
+  MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
   ANDROID_S3_BUCKET: dd-agent-androidtesting
@@ -1280,6 +1281,61 @@ windows_dsd_msi_x64-a7:
     OMNIBUS_TARGET: dogstatsd
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
+
+.agent_build_common_dmg: &agent_build_common_dmg
+  script:
+    - echo "About to build for $RELEASE_VERSION"
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - export GITHUB_KEY_B64=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_key_b64 --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_APP_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_app_id --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_INSTALLATION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_installation_id --with-decryption --query "Parameter.Value" --out text)
+    - python3 -m pip install -r requirements.txt
+    - python3 -m pip install -r tasks/deploy/requirements-github.txt
+    - inv -e github.trigger-macos-build --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --destination "$OMNIBUS_PACKAGE_DIR"
+  timeout: 3h # MacOS builds can take 1h~2h, increase the timeout to avoid timeout flakes
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+# build Agent package for dmg-x64
+agent_dmg-x64-a6:
+  rules:
+    - <<: *if_not_version_6
+      when: never
+    - <<: *if_deploy
+  allow_failure: true
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  needs: [ "go_mod_tidy_check" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 6
+    PYTHON_RUNTIMES: '2,3'
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_6
+  <<: *agent_build_common_dmg
+
+agent_dmg-x64-a7:
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_deploy
+  allow_failure: true
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  needs: [ "go_mod_tidy_check" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: '3'
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+  <<: *agent_build_common_dmg
 
 # The online version fetches the package from S3 so
 # it is created only when the package is pushed
@@ -3541,6 +3597,39 @@ deploy_staging_windows_tags-a7:
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.debug.zip" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# Deploy MacOS dmg builds
+deploy_staging_dmg-a6:
+  rules:
+    - <<: *if_not_version_6
+      when: never
+    - <<: *if_deploy
+  allow_failure: true
+  stage: deploy6
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  dependencies:
+    - agent_dmg-x64-a6
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.dmg" $OMNIBUS_PACKAGE_DIR s3://$MACOS_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_staging_dmg-a7:
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_deploy
+  allow_failure: true
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  dependencies:
+    - agent_dmg-x64-a7
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.dmg" $OMNIBUS_PACKAGE_DIR s3://$MACOS_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy android packages to a public s3 bucket when tagged
 deploy_staging_android_tags:
