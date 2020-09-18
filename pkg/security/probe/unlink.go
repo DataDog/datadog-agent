@@ -29,6 +29,6 @@ var UnlinkHookPoints = []*HookPoint{
 	{
 		Name:       "sys_unlinkat",
 		KProbes:    syscallKprobe("unlinkat"),
-		EventTypes: []eval.EventType{"unlink"},
+		EventTypes: []eval.EventType{"unlink", "rmdir"},
 	},
 }

@@ -203,7 +203,7 @@ var allHookPoints = []*HookPoint{
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/security_inode_rmdir",
 		}},
-		EventTypes: []eval.EventType{"rmdir", "unlink"},
+		EventTypes: []eval.EventType{"rmdir"},
 	},
 	{
 		Name:       "sys_rmdir",
