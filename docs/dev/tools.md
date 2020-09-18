@@ -98,7 +98,7 @@ datadog-agent-7.23.0-x86_64.debug.zip.
 Delve debugger on Windows cannot attach to the service process. The corresponding Windows service must be stopped and
 disabled.
 
-For pre 7.23, start the agent executable in the interactive session.
+For pre 7.23, start the Agent executable in the interactive session.
 
 For 7.23 or later version, find the file in the debug package. For agent.exe, the file in debug package is under
 \src\datadog-agent\src\github.com\DataDog\datadog-agent\bin\agent\agent.exe.debug. You might find the same file under
