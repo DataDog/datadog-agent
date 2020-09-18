@@ -6,10 +6,11 @@
 package decoder
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -40,7 +41,7 @@ const contentLenLimit = 100
 
 func TestDecodeIncomingData(t *testing.T) {
 	h := NewMockLineHandler()
-	d := New(nil, nil, h, contentLenLimit, &newLineMatcher{})
+	d := New(nil, nil, h, contentLenLimit, &NewLineMatcher{})
 
 	var line []byte
 
@@ -102,9 +103,93 @@ func TestDecodeIncomingData(t *testing.T) {
 	assert.Equal(t, "", d.lineBuffer.String())
 }
 
+func TestDecodeIncomingDataWithCustomSequence(t *testing.T) {
+	h := NewMockLineHandler()
+	d := New(nil, nil, h, contentLenLimit, &BytesSequenceMatcher{[]byte("SEPARATOR")})
+
+	var line []byte
+
+	// one line in one raw should be sent
+	d.decodeIncomingData([]byte("helloworldSEPARATOR"))
+	line = <-h.lineChan
+	assert.Equal(t, "helloworld", string(line))
+	assert.Equal(t, "", d.lineBuffer.String())
+
+	// multiple lines in one raw should be sent
+	d.decodeIncomingData([]byte("helloworldSEPARATORhowayouSEPARATORgoodandyou"))
+	line = <-h.lineChan
+	assert.Equal(t, "helloworld", string(line))
+	line = <-h.lineChan
+	assert.Equal(t, "howayou", string(line))
+	assert.Equal(t, "goodandyou", d.lineBuffer.String())
+	d.lineBuffer.Reset()
+
+	// Line separartor may be cut by sending party
+	d.decodeIncomingData([]byte("helloworldSEPAR"))
+	d.decodeIncomingData([]byte("ATORhowayouSEPARATO"))
+	d.decodeIncomingData([]byte("Rgoodandyou"))
+	line = <-h.lineChan
+	assert.Equal(t, "helloworld", string(line))
+	line = <-h.lineChan
+	assert.Equal(t, "howayou", string(line))
+	assert.Equal(t, "goodandyou", d.lineBuffer.String())
+	d.lineBuffer.Reset()
+
+	// empty lines should be sent
+	d.decodeIncomingData([]byte("SEPARATOR"))
+	line = <-h.lineChan
+	assert.Equal(t, "", string(line))
+	assert.Equal(t, "", d.lineBuffer.String())
+
+	// empty message should not change anything
+	d.decodeIncomingData([]byte(""))
+	assert.Equal(t, "", d.lineBuffer.String())
+}
+
+func TestDecodeIncomingDataWithSingleByteCustomSequence(t *testing.T) {
+	h := NewMockLineHandler()
+	d := New(nil, nil, h, contentLenLimit, &BytesSequenceMatcher{[]byte("&")})
+
+	var line []byte
+
+	// one line in one raw should be sent
+	d.decodeIncomingData([]byte("helloworld&"))
+	line = <-h.lineChan
+	assert.Equal(t, "helloworld", string(line))
+	assert.Equal(t, "", d.lineBuffer.String())
+
+	// multiple blank lines
+	n := 10
+	d.decodeIncomingData([]byte(strings.Repeat("&", n)))
+	for i := 0; i < n; i++ {
+		line = <-h.lineChan
+		assert.Equal(t, "", string(line))
+	}
+	assert.Equal(t, "", d.lineBuffer.String())
+	d.lineBuffer.Reset()
+
+	// Mix empty & non-empty lines
+	d.decodeIncomingData([]byte("helloworld&&"))
+	d.decodeIncomingData([]byte("&howayou&"))
+	line = <-h.lineChan
+	assert.Equal(t, "helloworld", string(line))
+	line = <-h.lineChan
+	assert.Equal(t, "", string(line))
+	line = <-h.lineChan
+	assert.Equal(t, "", string(line))
+	line = <-h.lineChan
+	assert.Equal(t, "howayou", string(line))
+	assert.Equal(t, "", d.lineBuffer.String())
+	d.lineBuffer.Reset()
+
+	// empty message should not change anything
+	d.decodeIncomingData([]byte(""))
+	assert.Equal(t, "", d.lineBuffer.String())
+}
+
 func TestDecoderLifeCycle(t *testing.T) {
 	h := NewMockLineHandler()
-	d := New(nil, nil, h, contentLenLimit, &newLineMatcher{})
+	d := New(nil, nil, h, contentLenLimit, &NewLineMatcher{})
 
 	// lineHandler should not receive any lines
 	d.Start()
@@ -128,7 +213,7 @@ func TestDecoderLifeCycle(t *testing.T) {
 func TestDecoderInputNotDockerHeader(t *testing.T) {
 	inputChan := make(chan *Input)
 	h := NewMockLineHandler()
-	d := New(inputChan, nil, h, 100, &newLineMatcher{})
+	d := New(inputChan, nil, h, 100, &NewLineMatcher{})
 	d.Start()
 
 	input := []byte("hello")

@@ -82,7 +82,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         return 0;
 
     struct unlink_event_t event = {
-        .event.type = EVENT_UNLINK,
+        .event.type = syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK,
         .syscall = {
             .retval = retval,
             .timestamp = bpf_ktime_get_ns(),
