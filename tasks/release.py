@@ -251,6 +251,7 @@ def _save_release_json(
     omnibus_ruby_version,
     jmxfetch_version,
     security_agent_policies_version,
+    macos_build_version,
 ):
     import urllib.request
 
@@ -270,6 +271,7 @@ def _save_release_json(
     new_version_config["JMXFETCH_VERSION"] = jmxfetch_version
     new_version_config["JMXFETCH_HASH"] = jmxfetch_sha256
     new_version_config["SECURITY_AGENT_POLICIES_VERSION"] = security_agent_policies_version
+    new_version_config["MACOS_BUILD_VERSION"] = macos_build_version
 
     # Necessary if we want to maintain the JSON order, so that humans don't get confused
     new_release_json = OrderedDict()
@@ -305,6 +307,7 @@ def finish(
     jmxfetch_version=None,
     omnibus_ruby_version=None,
     security_agent_policies_version=None,
+    macos_build_version=None,
     ignore_rc_tag=False,
 ):
 
@@ -344,6 +347,7 @@ def finish(
 
     highest_version = _get_highest_version_from_release_json(release_json, None, highest_major, version_re)
 
+    # jmxfetch and security-agent-policies follow their own version scheme
     highest_jmxfetch_version = _get_highest_version_from_release_json(
         release_json, "JMXFETCH_VERSION", highest_major, version_re
     )
@@ -432,20 +436,27 @@ def finish(
         security_agent_policies_version = _get_highest_repo_version(
             github_token, "security-agent-policies", highest_security_agent_policies_version, version_re
         )
-        if security_agent_policies_version is None:
-            print("ERROR: No version found for security-agent-policies - did you create the tag?")
+        security_agent_policies_version = _stringify_version(security_agent_policies_version)
+    print("security-agent-policies' tag is {}".format(security_agent_policies_version))
+
+    if not macos_build_version:
+        macos_build_version = _get_highest_repo_version(
+            github_token, "datadog-agent-macos-build", highest_version, version_re
+        )
+        if macos_build_version is None:
+            print("ERROR: No version found for datadog-agent-macos-build - did you create the tag?")
             return Exit(code=1)
-        if security_agent_policies_version["rc"] is not None:
+        if macos_build_version["rc"] is not None:
             print(
-                "ERROR: security-agent-policies tag is still an RC tag. That's probably NOT what you want in the final artifact."
+                "ERROR: datadog-agent-macos-build tag is still an RC tag. That's probably NOT what you want in the final artifact."
             )
             if ignore_rc_tag:
-                print("Continuing with RC tag on security-agent-policies.")
+                print("Continuing with RC tag on datadog-agent-macos-build.")
             else:
                 print("Aborting.")
                 return Exit(code=1)
-        security_agent_policies_version = _stringify_version(security_agent_policies_version)
-    print("security-agent-policies' tag is {}".format(security_agent_policies_version))
+        macos_build_version = _stringify_version(macos_build_version)
+    print("datadog-agent-macos-build' tag is {}".format(macos_build_version))
 
     _save_release_json(
         release_json,
@@ -456,6 +467,7 @@ def finish(
         omnibus_ruby_version,
         jmxfetch_version,
         security_agent_policies_version,
+        macos_build_version,
     )
 
 
@@ -468,6 +480,7 @@ def create_rc(
     jmxfetch_version=None,
     omnibus_ruby_version=None,
     security_agent_policies_version=None,
+    macos_build_version=None,
 ):
 
     """
@@ -507,6 +520,7 @@ def create_rc(
 
     highest_version = _get_highest_version_from_release_json(release_json, None, highest_major, version_re)
 
+    # jmxfetch and security-agent-policies follow their own version scheme
     highest_jmxfetch_version = _get_highest_version_from_release_json(
         release_json, "JMXFETCH_VERSION", highest_major, version_re
     )
@@ -554,6 +568,13 @@ def create_rc(
         security_agent_policies_version = _stringify_version(security_agent_policies_version)
     print("security-agent-policies' tag is {}".format(security_agent_policies_version))
 
+    if not macos_build_version:
+        macos_build_version = _get_highest_repo_version(
+            github_token, "datadog-agent-macos-build", highest_version, version_re
+        )
+        macos_build_version = _stringify_version(macos_build_version)
+    print("datadog-agent-macos-build's tag is {}".format(macos_build_version))
+
     _save_release_json(
         release_json,
         list_major_versions,
@@ -563,4 +584,5 @@ def create_rc(
         omnibus_ruby_version,
         jmxfetch_version,
         security_agent_policies_version,
+        macos_build_version,
     )
