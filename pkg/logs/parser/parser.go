@@ -50,6 +50,7 @@ type DecodingParser struct {
 	Parser
 }
 
+// Parse pases the incoming message with the decoder
 func (p *DecodingParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	decoded, _, err := transform.Bytes(p.decoder, msg)
 	return decoded, "", "", false, err
