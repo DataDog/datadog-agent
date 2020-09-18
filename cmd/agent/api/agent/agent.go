@@ -99,6 +99,13 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	tracerId := r.PostFormValue("tracer_id")
+	tracerEnv := r.PostFormValue("environment")
+	tracerSvc := r.PostFormValue("service")
+	if tracerId != "" || tracerEnv != "" || tracerSvc != "" {
+		remote_flare.CreateRemoteFlareArchive(tracerId, tracerEnv, tracerSvc)
+	}
+
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile

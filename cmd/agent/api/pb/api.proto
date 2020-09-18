@@ -103,29 +103,18 @@ message FlareHeartbeatResponse {
 message FlareLogRequest {
     string flare_identifier = 1;
     string tracer_identifier = 2;
+
     message LogLine {
         // relevant?
         FlareLogLevel log_level = 1;
         string message = 2;
     }
-    bool finished = 3;                        // Is this the last one?
-    repeated LogLine initialization_logs = 4; // Initialization logs
-                                              // if any that the
-                                              // tracer has kept
-                                              // around.
-    repeated LogLine exception_logs = 5;      // Error/Warn logs if
-                                              // any that the tracer
-                                              // has kept around.
-    repeated LogLine dump_logs = 6;           // Dump logs that were
-                                              // triggered by this
-                                              // flare.
+    repeated LogLine logs = 3; // log messages
 
 }
 
 message FlareLogResponse {
-    bool continue = 1;      // Should the tracer continue to
-                            // send logs?
-    string stop_reason = 2; // Human readable reason why the
+    string stop_reason = 1; // Human readable reason why the
                             // tracer should stop sending
                             // logs.
 }

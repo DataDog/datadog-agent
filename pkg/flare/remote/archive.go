@@ -168,5 +168,4 @@ func LogEntry(flareId, tracerId string, data io.ReadCloser) error {
 	// + writes from tracers should be serialized by nature.
 	_, err = io.Copy(fp, data)
 	return err
-
 }

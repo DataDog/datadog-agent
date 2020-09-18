@@ -27,6 +27,17 @@ var (
 	autoconfirm   bool
 	forceLocal    bool
 	profiling     int
+
+	tracerId string
+	service  string
+	env      string
+	tracing  int
+)
+
+const (
+	// TODO: this 50MB upper bound should perhaps be defined elsewhere
+	maxFlareSize         = 50 * 1024 * 1024
+	traceDurationDefault = 30
 )
 
 func init() {
@@ -37,11 +48,58 @@ func init() {
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
 	flareCmd.Flags().IntVarP(&profiling, "profile", "p", -1, "Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s")
 	flareCmd.SetArgs([]string{"caseID"})
+
+	flareCmd.AddCommand(traceFlareCmd)
+	traceFlareCmd.Flags().StringVarP(&tracerId, "tracer", "t", "", "Tracer identifier (use the tracer commands if unsure). (optional)")
+	traceFlareCmd.Flags().StringVarP(&service, "service", "s", "", "Service you wish to collect trace logs for. (optional)")
+	traceFlareCmd.Flags().StringVarP(&env, "env", "e", "", "Environment you wish to collect trace logs for. (optional)")
+	traceFlareCmd.Flags().IntVarP(&tracing, "duration", "d", traceDurationDefault, "Duration in seconds of tracing logs collection. (optional)")
+	traceFlareCmd.SetArgs([]string{"caseID"})
 }
 
 var flareCmd = &cobra.Command{
 	Use:   "flare [caseID]",
 	Short: "Collect a flare and send it to Datadog",
+	Long:  ``,
+	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+
+		// The flare command should not log anything, all errors should be reported directly to the console without the log format
+		err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
+		caseID := ""
+		if len(args) > 0 {
+			caseID = args[0]
+		}
+
+		if customerEmail == "" {
+			var err error
+			customerEmail, err = input.AskForEmail()
+			if err != nil {
+				fmt.Println("Error reading email, please retry or contact support")
+				return err
+			}
+		}
+
+		return makeFlare(caseID)
+	},
+}
+
+var traceFlareCmd = &cobra.Command{
+	Use:   "trace [caseID]",
+	Short: "Collect a trace flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -111,9 +169,17 @@ func makeFlare(caseID string) error {
 		return err
 	}
 
-	if _, err := os.Stat(filePath); err != nil {
+	stat, err := os.Stat(filePath)
+	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
+		return err
+	}
+
+	// check for max size
+	if stat.Size() > maxFlareSize {
+		warn := fmt.Sprintf("The flare \"%s\" is too large (%d bytes) to upload, please submit manually to our support team", filePath, stat.Size())
+		fmt.Fprintln(color.Output, color.RedString(warn))
 		return err
 	}
 
@@ -134,7 +200,7 @@ func makeFlare(caseID string) error {
 	return nil
 }
 
-func requestArchive(logFile string, profile *flare.Profile) (string, error) {
+func requestArchive(logFile string, profile *flare.Profile, trace bool) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
