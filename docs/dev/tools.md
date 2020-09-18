@@ -109,7 +109,7 @@ Use `dlv attach PID` to attach to the running process and start debugging.
 
 ### Non-live Debugging
 
-Use "dlv core DUMPFILE EXEFILE" to debug against a dump file.
+Use `dlv core DUMPFILE EXEFILE` to debug against a dump file.
 
 For 7.23 or newer, the EXEFILE is the .debug file in the debug package.
 
