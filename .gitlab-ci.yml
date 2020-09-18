@@ -4164,6 +4164,9 @@ pupernetes-dev:
     - when: manual
       allow_failure: true
   <<: *pupernetes_template
+  needs: 
+  - dev_branch_docker_hub-a6
+  - dev_branch_docker_hub-a7
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -4172,6 +4175,9 @@ pupernetes-master:
   <<: *pupernetes_template
   rules:
     - <<: *if_master_branch
+  needs: 
+  - dev_master_docker_hub-a6
+  - dev_master_docker_hub-a7
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:master-py2
   - inv -e e2e-tests --image=datadog/agent-dev:master-py3
