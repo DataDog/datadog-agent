@@ -19,6 +19,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -406,7 +407,8 @@ func (k *KSMCheck) initTags() {
 	if k.instance.Tags == nil {
 		k.instance.Tags = []string{}
 	}
-	if clusterName := clustername.GetClusterName(); clusterName != "" {
+	hostname, _ := util.GetHostname()
+	if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
 		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+clusterName)
 	}
 }
