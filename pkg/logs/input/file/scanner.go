@@ -112,7 +112,7 @@ func (s *Scanner) scan() {
 		// If it has been found while scanning for a regular integration config,
 		// its format will be:
 		//   <filepath>
-		// It is a hack to let two containers tail the same file (it's happening
+		// It is a hack to let two tailers tail the same file (it's happening
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
 		tailerKey := buildTailerKey(file)
