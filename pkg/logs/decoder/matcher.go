@@ -45,7 +45,7 @@ func NewBytesSequenceMatcher(sequence []byte) *BytesSequenceMatcher {
 	return &BytesSequenceMatcher{sequence}
 }
 
-// Match returns true whenever it finds a matching sequence at appender[end+1-len(b.sequence):end+1]
+// Match returns true whenever it finds a matching sequence at the end of append(exists, appender[start:end+1])
 func (b *BytesSequenceMatcher) Match(exists []byte, appender []byte, start int, end int) bool {
 	// Total read message is append(exists,appender[start:end]) and the decoder just read appender[end]
 	// Thus the separator sequence is checked against append(exists, appender[start:end+1])
