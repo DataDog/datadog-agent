@@ -591,6 +591,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.use_datadogmetric_crd", false) // Use DatadogMetric CRD with custom Datadog Queries instead of ConfigMap
 	config.BindEnvAndSetDefault("kubernetes_event_collection_timeout", 100)               // timeout between two successful event collections in milliseconds.
 	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)               // value in seconds. Default to 5 minutes
+	config.BindEnvAndSetDefault("external_metrics_provider.config", map[string]string{})  // list of options that can be used to configure the external metrics server
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30)  // value in seconds
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
