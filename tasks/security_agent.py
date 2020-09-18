@@ -108,9 +108,6 @@ def build(
         if not os.path.exists(dist_folder):
             os.makedirs(dist_folder)
 
-        cmd = 'go run ./pkg/security/config/genconfig -output {default_policy}'
-        ctx.run(cmd.format(default_policy=os.path.join(dist_folder, "default.policy")), env=env)
-
 
 @task()
 def gen_mocks(ctx):
