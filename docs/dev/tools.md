@@ -105,7 +105,7 @@ For 7.23 or later version, find the file in the debug package. For agent.exe, th
 \omnibus-ruby\src\cf-root\bin. Use either one is fine. Copy the file to replace the executable file you want to debug,
 start the agent executable in the interactive session.
 
-Use "dlv attach PID" to attach to the running process and start debugging.
+Use `dlv attach PID` to attach to the running process and start debugging.
 
 ### Non-live Debugging
 
