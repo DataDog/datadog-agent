@@ -62,7 +62,7 @@ func init() {
 	}
 }
 
-func getClusterName(data *clusterNameData) string {
+func getClusterName(data *clusterNameData, hostname string) string {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
@@ -70,10 +70,13 @@ func getClusterName(data *clusterNameData) string {
 		data.clusterName = config.Datadog.GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
-			if !validClusterName.MatchString(data.clusterName) || len(data.clusterName) > 40 {
-				log.Errorf("%q isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
-					"start with a lowercase letter followed by up to 39 lowercase letters, numbers, or "+
-					"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen.", data.clusterName)
+			// the host alias "hostname-clustername" must not exceed 255 chars
+			hostAlias := hostname + "-" + data.clusterName
+			if !validClusterName.MatchString(data.clusterName) || len(hostAlias) > 255 {
+				log.Errorf("\"%s\" isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
+					"start with a lowercase letter followed by lowercase letters, numbers, or "+
+					"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen and \"%s\" must not "+
+					"exceed 255 chars", data.clusterName, hostAlias)
 				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
 				data.clusterName = ""
 			}
@@ -111,8 +114,8 @@ func getClusterName(data *clusterNameData) string {
 }
 
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
-func GetClusterName() string {
-	return getClusterName(defaultClusterNameData)
+func GetClusterName(hostname string) string {
+	return getClusterName(defaultClusterNameData, hostname)
 }
 
 func resetClusterName(data *clusterNameData) {

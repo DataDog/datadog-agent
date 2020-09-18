@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -165,7 +165,7 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 	}
 
 	c.source = source
-	c.telemetry = telemetry.IsCheckEnabled("process_agent")
+	c.telemetry = telemetry_utils.IsCheckEnabled("process_agent")
 	return nil
 }
 

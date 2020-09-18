@@ -11,12 +11,15 @@ import (
 	"testing"
 	"time"
 
-	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	containers "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock"
+
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 func TestCriGenerateMetrics(t *testing.T) {
@@ -26,6 +29,11 @@ func TestCriGenerateMetrics(t *testing.T) {
 			CollectDisk: true,
 		},
 	}
+
+	var err error
+	defer containers.ResetSharedFilter()
+	criCheck.filter, err = containers.GetSharedMetricFilter()
+	require.NoError(t, err)
 
 	stats := make(map[string]*pb.ContainerStats)
 	stats["cri://foobar"] = &pb.ContainerStats{
@@ -45,4 +53,43 @@ func TestCriGenerateMetrics(t *testing.T) {
 	mockedSender.On("Gauge", "cri.disk.inodes", float64(0), "", []string{"runtime:fakeruntime"})
 	mockedSender.On("Gauge", "cri.uptime", mock.MatchedBy(func(uptime float64) bool { return uptime >= 42.0 }), "", []string{"runtime:fakeruntime"})
 	criCheck.generateMetrics(mockedSender, stats, mockedCriUtil)
+}
+
+func TestExcludedContainers(t *testing.T) {
+	criCheck := &CRICheck{
+		CheckBase: core.NewCheckBase(criCheckName),
+		instance: &CRIConfig{
+			CollectDisk: true,
+		},
+	}
+
+	ctr := &pb.ContainerStatus{
+		Labels:   map[string]string{"io.kubernetes.pod.namespace": "foo-ns"},
+		Image:    &pb.ImageSpec{Image: "foo-image"},
+		Metadata: &pb.ContainerMetadata{Name: "foo-name"},
+	}
+
+	// Namespace based exclusion
+	config.Datadog.Set("container_exclude", "kube_namespace:foo*")
+	containers.ResetSharedFilter()
+	criCheck.filter, _ = containers.GetSharedMetricFilter()
+	require.True(t, criCheck.isExcluded(ctr))
+
+	// Container name based exclusion
+	config.Datadog.Set("container_exclude", "name:foo*")
+	containers.ResetSharedFilter()
+	criCheck.filter, _ = containers.GetSharedMetricFilter()
+	require.True(t, criCheck.isExcluded(ctr))
+
+	// Image based exclusion
+	config.Datadog.Set("container_exclude", "image:foo*")
+	containers.ResetSharedFilter()
+	criCheck.filter, _ = containers.GetSharedMetricFilter()
+	require.True(t, criCheck.isExcluded(ctr))
+
+	// Container not excluded
+	config.Datadog.Set("container_exclude", "image:bar* name:bar* kube_namespace:bar*")
+	containers.ResetSharedFilter()
+	criCheck.filter, _ = containers.GetSharedMetricFilter()
+	require.False(t, criCheck.isExcluded(ctr))
 }

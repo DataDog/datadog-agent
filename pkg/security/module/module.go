@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/pkg/errors"
@@ -182,7 +183,9 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 	}
 
 	var statsdClient *statsd.Client
-	if cfg != nil {
+	// statsd segfaults on 386 because of atomic primitive usage with wrong alignment
+	// https://github.com/golang/go/issues/37262
+	if runtime.GOARCH != "386" && cfg != nil {
 		statsdAddr := os.Getenv("STATSD_URL")
 		if statsdAddr == "" {
 			statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
@@ -190,6 +193,8 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		if statsdClient, err = statsd.New(statsdAddr); err != nil {
 			return nil, err
 		}
+	} else {
+		log.Warn("Logs won't be send to DataDog")
 	}
 
 	probe, err := sprobe.NewProbe(config)

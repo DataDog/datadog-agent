@@ -255,6 +255,12 @@ api_key:
 #   - "google-container-manifest"
 #   - "bosh_settings"
 
+## @param gce_send_project_id_tag - bool - optional - default: false
+## Send the project ID host tag with the `project_id:` tag key in addition to
+## the `project:` tag key.
+#
+# gce_send_project_id_tag: false
+
 ## @param gce_metadata_timeout - integer - optional - default: 1000
 ## Timeout in milliseconds on calls to the GCE metadata endpoints.
 #

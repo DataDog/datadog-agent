@@ -444,3 +444,19 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
 }
+
+func TestGetNTPHosts(t *testing.T) {
+	expectedHosts := []string{"169.254.169.123"}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, "test")
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
+	actualHosts := GetNTPHosts()
+
+	assert.Equal(t, expectedHosts, actualHosts)
+}
