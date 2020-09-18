@@ -235,8 +235,11 @@ build_libbcc_arm64:
   stage: deps_fetch
   needs: []
   script:
-    - find "$GOPATH" ! -path '*DataDog/datadog-agent*' -depth
-    - find "$GOPATH" ! -path '*DataDog/datadog-agent*' -delete || true # Allow failure, we can't remove parent folders of datadog-agent
+    # HACK: empty the build directory cache (that can come from previous runs)
+    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
+    # TODO: remove this once we switch to k8s runners, they won't have this problem
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth # -delete implies -depth
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps --verbose
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
@@ -673,8 +676,11 @@ dogstatsd_arm64_size_test:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
     - cd $SRC_PATH
-    - find "$GOPATH" ! -path '*DataDog/datadog-agent*' -depth
-    - find "$GOPATH" ! -path '*DataDog/datadog-agent*' -delete || true # Allow failure, we can't remove parent folders of datadog-agent
+    # HACK: empty the build directory cache (that can come from previous runs)
+    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
+    # TODO: remove this once we switch to k8s runners, they won't have this problem
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth # -delete implies -depth
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps --verbose
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
