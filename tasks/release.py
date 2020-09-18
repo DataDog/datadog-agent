@@ -390,7 +390,7 @@ def finish(
     # - X.Y.Z
     # - X.Y.Z-rc.t
     # - vX.Y(.Z) (security-agent-policies repo)
-    version_re = re.compile('(v)?(\\d+)[.](\\d+)([.](\\d+))?(-rc\\.(\\d+))?')
+    version_re = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
 
     with open("release.json", "r") as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
@@ -557,7 +557,7 @@ def create_rc(
     # - X.Y.Z
     # - X.Y.Z-rc.t
     # - vX.Y(.Z) (security-agent-policies repo)
-    version_re = re.compile('(v)?(\\d+)[.](\\d+)([.](\\d+))?(-rc\\.(\\d+))?')
+    version_re = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
 
     with open("release.json", "r") as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
