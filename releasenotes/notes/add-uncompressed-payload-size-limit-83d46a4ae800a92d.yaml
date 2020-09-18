@@ -8,6 +8,5 @@
 ---
 enhancements:
   - |
-    Adds a size limit of 64MB to uncompressed metrics payloads. Uncompressed
-    mertics payloads above this size will be split into smaller payloads before
-    being sent.
+    Enforces a size limit of 64MB to uncompressed sketch payloads (distribution metrics).
+    Payloads above this size will be split into smaller payloads before being sent.
