@@ -1,0 +1,5 @@
+
+---
+fixes:
+  - |
+    Fix logs tagging inconsistency for restarted containers.

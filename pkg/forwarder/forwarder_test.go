@@ -6,6 +6,7 @@
 package forwarder
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -101,9 +102,9 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitServiceChecks(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitSketchSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header), TransactionPriorityNormal))
 	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
-	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header), TransactionPriorityNormal))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
 
@@ -177,7 +178,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	defer func() { df.highPrio = bk }()
 
 	p := []byte("test")
-	assert.Nil(t, forwarder.SubmitV1Intake(Payloads{&p}, make(http.Header)))
+	assert.Nil(t, forwarder.SubmitV1Intake(Payloads{&p}, make(http.Header), TransactionPriorityNormal))
 
 	select {
 	case tr := <-df.highPrio:
@@ -222,14 +223,14 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	headers.Set("key", "value")
 
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
-	assert.Nil(t, f.SubmitV1Intake(payload, headers))
+	assert.Nil(t, f.SubmitV1Intake(payload, headers, TransactionPriorityNormal))
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
 	assert.Nil(t, f.SubmitSeries(payload, headers))
 	assert.Nil(t, f.SubmitEvents(payload, headers))
 	assert.Nil(t, f.SubmitServiceChecks(payload, headers))
 	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
 	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
-	assert.Nil(t, f.SubmitMetadata(payload, headers))
+	assert.Nil(t, f.SubmitMetadata(payload, headers, TransactionPriorityNormal))
 
 	// let's wait a second for every channel communication to trigger
 	<-time.After(1 * time.Second)
@@ -444,4 +445,53 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 
 	_, ok := <-responses
 	require.False(t, ok) // channel should have been closed without receiving any responses
+}
+
+func TestHighPriorityTransaction(t *testing.T) {
+	var requestCount int32 = 0
+	var requestChan = make(chan (string))
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// First 3 requests failed
+		if atomic.AddInt32(&requestCount, 1) < 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			defer r.Body.Close()
+			body, err := ioutil.ReadAll(r.Body)
+			assert.NoError(t, err)
+			w.WriteHeader(http.StatusOK)
+			requestChan <- string(body)
+		}
+	}))
+
+	config.Datadog.Set("forwarder_backoff_max", 0.5)
+	defer config.Datadog.Set("forwarder_backoff_max", nil)
+
+	config.Datadog.Set("forwarder_retry_queue_max_size", 1)
+	defer config.Datadog.Set("forwarder_retry_queue_max_size", nil)
+
+	oldFlushInterval := flushInterval
+	flushInterval = 500 * time.Millisecond
+	defer func() { flushInterval = oldFlushInterval }()
+
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
+		ts.URL: {"api_key1"},
+	}))
+
+	f.Start()
+	defer f.Stop()
+
+	data1 := []byte("data payload 1")
+	data2 := []byte("data payload 2")
+	dataHighPrio := []byte("data payload high Prio")
+	headers := http.Header{}
+	headers.Set("key", "value")
+
+	assert.Nil(t, f.SubmitMetadata(Payloads{&data1}, headers, TransactionPriorityNormal))
+	assert.Nil(t, f.SubmitMetadata(Payloads{&dataHighPrio}, headers, TransactionPriorityHigh))
+	assert.Nil(t, f.SubmitMetadata(Payloads{&data2}, headers, TransactionPriorityNormal))
+
+	assert.Equal(t, string(dataHighPrio), <-requestChan)
+	assert.Equal(t, string(data2), <-requestChan)
+	assert.Equal(t, string(data1), <-requestChan)
 }

@@ -19,6 +19,11 @@ const (
 	JournaldType     = "journald"
 	WindowsEventType = "windows_event"
 	SnmpTrapsType    = "snmp_traps"
+
+	// UTF16BE for UTF-16 Big endian encoding
+	UTF16BE string = "utf-16-be"
+	// UTF16LE for UTF-16 Little Endian encoding
+	UTF16LE string = "utf-16-le"
 )
 
 // LogsConfig represents a log source config, which can be for instance
@@ -29,6 +34,7 @@ type LogsConfig struct {
 	Port int    // Network
 	Path string // File, Journald
 
+	Encoding     string   `mapstructure:"encoding" json:"encoding"`             // File
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
 	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
 
@@ -36,9 +42,11 @@ type LogsConfig struct {
 	ExcludeUnits  []string `mapstructure:"exclude_units" json:"exclude_units"`   // Journald
 	ContainerMode bool     `mapstructure:"container_mode" json:"container_mode"` // Journald
 
-	Image      string // Docker
-	Label      string // Docker
-	Name       string // Docker
+	Image string // Docker
+	Label string // Docker
+	// Name contains the container name
+	Name string // Docker
+	// Identifier contains the container ID
 	Identifier string // Docker
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event

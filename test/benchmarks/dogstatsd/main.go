@@ -79,7 +79,7 @@ func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHe
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	f.computeStats(payloads)
 	return nil
 }
@@ -107,7 +107,7 @@ func (f *forwarderBenchStub) SubmitHostMetadata(payloads forwarder.Payloads, ext
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	f.computeStats(payloads)
 	return nil
 }
