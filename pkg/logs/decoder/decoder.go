@@ -62,7 +62,7 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 
 // Decoder splits raw data into lines and passes them to a lineParser that passes them to
 // a lineHandler that emits outputs
-// Input->[decoder]->[parser]->[handler]->Output
+// Input->[decoder]->[parser]->[handler]->Message
 type Decoder struct {
 	InputChan       chan *Input
 	OutputChan      chan *Message
