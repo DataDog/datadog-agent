@@ -289,7 +289,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 
 func TestDNATIntraHostIntegration(t *testing.T) {
 	t.SkipNow()
-	cmd := exec.Command("../network/netlink/testdata/setup_dnat.sh")
+	cmd := exec.Command("./testdata/setup_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("setup command output: %s", string(out))
 	}
@@ -1543,7 +1543,7 @@ func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 }
 
 func teardown(t *testing.T) {
-	cmd := exec.Command("../network/netlink/testdata/teardown_dnat.sh")
+	cmd := exec.Command("./testdata/teardown_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		fmt.Printf("teardown command output: %s", string(out))
 		t.Errorf("error tearing down: %s", err)
@@ -1625,7 +1625,7 @@ func TestDNSStatsForTimeout(t *testing.T) {
 }
 
 func TestConntrackExpiration(t *testing.T) {
-	cmd := exec.Command("../network/netlink/testdata/setup_dnat.sh")
+	cmd := exec.Command("./testdata/setup_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("setup command output: %s", string(out))
 	}
