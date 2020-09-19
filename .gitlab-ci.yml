@@ -1431,6 +1431,11 @@ agent_android_apk:
     - echo running android before_script
     - cd $SRC_PATH
     - python3 -m pip install -r requirements.txt
+    # HACK: empty the build directory cache (that can come from previous runs)
+    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
+    # TODO: remove this once we switch to k8s runners, they won't have this problem
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth # -delete implies -depth
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps --android
     # Some Android license has changed, we have to accept the new version.
     # But on top of that, there is a bug in sdkmanager not updating correctly
