@@ -129,7 +129,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
 
-	activeConnStats, closedConnStats, err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0], t.driverBuffer[:0])
+	activeConnStats, closedConnStats, bytesRead ,err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0], t.driverBuffer[:1])
 	if err != nil {
 		log.Errorf("failed to get connnections")
 		return nil, err
@@ -144,7 +144,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
 	t.connStatsActive = t.resizeConnectionStatBuffer(len(activeConnStats), t.connStatsActive)
 	t.connStatsClosed = t.resizeConnectionStatBuffer(len(closedConnStats), t.connStatsClosed)
-	t.driverBuffer = t.resizeDriverBuffer(len(closedConnStats)+len(activeConnStats), t.driverBuffer)
+	t.driverBuffer = t.resizeDriverBuffer(bytesRead, t.driverBuffer)
 	return &network.Connections{Conns: conns}, nil
 }
 
@@ -159,7 +159,6 @@ func (t *Tracer) resizeConnectionStatBuffer(compareSize int, buffer []network.Co
 }
 
 func (t *Tracer) resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
-	log.Info("Called buffer resizing")
 	if compareSize >= cap(buffer)*2 {
 		return make([]uint8, 0, cap(buffer)*2)
 	} else if compareSize <= cap(buffer)/2 {
