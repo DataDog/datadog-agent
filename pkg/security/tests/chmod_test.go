@@ -39,56 +39,60 @@ func TestChmod(t *testing.T) {
 	defer os.Remove(testFile)
 	defer f.Close()
 
-	if _, _, errno := syscall.Syscall(syscall.SYS_CHMOD, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "chmod" {
-			t.Errorf("expected chmod event, got %s", event.GetType())
+	t.Run("chmod", func(t *testing.T) {
+		if _, _, errno := syscall.Syscall(syscall.SYS_CHMOD, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
+			t.Fatal(err)
 		}
 
-		if mode := event.Chmod.Mode; mode != 0707 {
-			t.Errorf("expected chmod mode 0707, got %#o", mode)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "chmod" {
+				t.Errorf("expected chmod event, got %s", event.GetType())
+			}
+
+			if mode := event.Chmod.Mode; mode != 0707 {
+				t.Errorf("expected chmod mode 0707, got %#o", mode)
+			}
 		}
-	}
+	})
 
-	// fchmod syscall
-	if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0717), 0); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "chmod" {
-			t.Errorf("expected chmod event, got %s", event.GetType())
-		}
-
-		if mode := event.Chmod.Mode; mode != 0717 {
-			t.Errorf("expected chmod mode 0717, got %#o", mode)
-		}
-	}
-
-	// fchmodat syscall
-	if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0757), 0, 0, 0); errno != 0 {
-		t.Fatal(err)
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "chmod" {
-			t.Errorf("expected chmod event, got %s", event.GetType())
+	t.Run("fchmod", func(t *testing.T) {
+		if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0707), 0); errno != 0 {
+			t.Fatal(err)
 		}
 
-		if mode := event.Chmod.Mode; mode != 0757 {
-			t.Errorf("expected chmod mode 0757, got %#o", mode)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "chmod" {
+				t.Errorf("expected chmod event, got %s", event.GetType())
+			}
+
+			if mode := event.Chmod.Mode; mode != 0707 {
+				t.Errorf("expected chmod mode 0707, got %#o", mode)
+			}
 		}
-	}
+	})
+
+	t.Run("fchmodat", func(t *testing.T) {
+		if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0757), 0, 0, 0); errno != 0 {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "chmod" {
+				t.Errorf("expected chmod event, got %s", event.GetType())
+			}
+
+			if mode := event.Chmod.Mode; mode != 0757 {
+				t.Errorf("expected chmod mode 0757, got %#o", mode)
+			}
+		}
+	})
 }

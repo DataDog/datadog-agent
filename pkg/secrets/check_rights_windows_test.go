@@ -26,15 +26,18 @@ func setCorrectRight(path string) {
 }
 
 func TestWrongPath(t *testing.T) {
-	require.NotNil(t, checkRights("does not exists"))
+	require.NotNil(t, checkRights("does not exists", false))
 }
 
 func TestCheckRights(t *testing.T) {
 	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
 	require.Nil(t, err)
 
+	// default options
+	allowGroupExec := false
+
 	// file does not exist
-	require.NotNil(t, checkRights("/does not exists"))
+	require.NotNil(t, checkRights("/does not exists", allowGroupExec))
 
 	// missing ddagentuser
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -47,7 +50,7 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
-	require.NotNil(t, checkRights(tmpfile.Name()))
+	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -59,7 +62,7 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "1",
 		"-addDDuser", "0").Run()
-	require.NotNil(t, checkRights(tmpfile.Name()))
+	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing Administrator
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -71,7 +74,7 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "1",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
-	require.NotNil(t, checkRights(tmpfile.Name()))
+	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// extra rights for someone else
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -83,7 +86,7 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
-	require.NotNil(t, checkRights(tmpfile.Name()))
+	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem or Administrator
 	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
@@ -95,5 +98,5 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
-	require.Nil(t, checkRights(tmpfile.Name()))
+	require.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 }

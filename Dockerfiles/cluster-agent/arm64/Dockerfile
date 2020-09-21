@@ -15,7 +15,7 @@ COPY readsecret.sh .
 
 RUN chmod 755 entrypoint.sh \
     && chown root:root readsecret.sh \
-    && chmod 555 readsecret.sh \
+    && chmod 550 readsecret.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent

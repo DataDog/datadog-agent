@@ -79,7 +79,7 @@ func (f *forwarderBenchStub) Stop()        {}
 func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	return nil
 }
 func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
@@ -100,7 +100,7 @@ func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extr
 func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	return nil
 }
 

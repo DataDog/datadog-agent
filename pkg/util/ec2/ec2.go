@@ -140,6 +140,16 @@ func GetNetworkID() (string, error) {
 	}
 }
 
+// GetNTPHosts returns the NTP hosts for EC2 if it is detected as the cloud provider, otherwise an empty array.
+// Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html#configure_ntp
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"169.254.169.123"}
+	}
+
+	return nil
+}
+
 func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {
 	result, err := getMetadataItem(endpoint)
 	if err != nil {

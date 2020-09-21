@@ -38,7 +38,8 @@ var (
 		"google-compute-enable-pcid:true",
 		"instance-template:projects/111111111111/global/instanceTemplates/gke-test-cluster-default-pool-0012834b",
 	}
-	expectedExcludedTags = []string{
+	expectedTagsWithProjectID = append(expectedFullTags, "project_id:test-project")
+	expectedExcludedTags      = []string{
 		"tag",
 		"zone:us-east1-b",
 		"instance-type:n1-standard-1",
@@ -95,6 +96,17 @@ func TestGetHostTags(t *testing.T) {
 	tags, err := GetTags()
 	require.Nil(t, err)
 	testTags(t, tags, expectedFullTags)
+}
+
+func TestGetHostTagsWithProjectID(t *testing.T) {
+	server := mockMetadataRequest(t)
+	defer server.Close()
+	defer cache.Cache.Delete(tagsCacheKey)
+	config.Datadog.Set("gce_send_project_id_tag", true)
+	defer config.Datadog.Set("gce_send_project_id_tag", false)
+	tags, err := GetTags()
+	require.Nil(t, err)
+	testTags(t, tags, expectedTagsWithProjectID)
 }
 
 func TestGetHostTagsSuccessThenError(t *testing.T) {

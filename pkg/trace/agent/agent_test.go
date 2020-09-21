@@ -296,6 +296,62 @@ func TestProcess(t *testing.T) {
 		// without missing a trace
 		assert.Equal(t, gotCount, len(traces))
 	})
+
+	t.Run("sublayer", func(t *testing.T) {
+		for _, tt := range []struct {
+			trace pb.Trace
+			f     func(t *testing.T, spans []*pb.Span)
+		}{
+			{
+				trace: pb.Trace{
+					{
+						TraceID: 1,
+						SpanID:  1,
+						Metrics: map[string]float64{sampler.KeySamplingPriority: 2},
+					},
+					{
+						TraceID:  1,
+						SpanID:   2,
+						ParentID: 1,
+						Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
+					},
+				},
+				f: func(t *testing.T, spans []*pb.Span) { assert.Equal(t, 2.0, spans[0].Metrics["_sublayers.span_count"]) },
+			},
+			{
+				trace: pb.Trace{
+					{
+						TraceID: 1,
+						SpanID:  1,
+						Metrics: map[string]float64{sampler.KeySamplingPriority: -1},
+					},
+					{
+						TraceID:  1,
+						SpanID:   2,
+						ParentID: 1,
+						Metrics:  map[string]float64{sampler.KeySamplingPriority: -1},
+					},
+				},
+				f: func(t *testing.T, spans []*pb.Span) { assert.NotContains(t, spans[0].Metrics, "_sublayers.span_count") },
+			},
+		} {
+			t.Run("", func(t *testing.T) {
+				cfg := config.New()
+				cfg.Endpoints[0].APIKey = "test"
+				ctx, cancel := context.WithCancel(context.Background())
+				agnt := NewAgent(ctx, cfg)
+				cancel()
+
+				traces := pb.Traces{tt.trace}
+				traceutil.SetTopLevel(tt.trace[0], true)
+				agnt.Process(&api.Payload{
+					Traces: traces,
+					Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+				}, stats.NewSublayerCalculator())
+				tt.f(t, tt.trace)
+			})
+		}
+	})
 }
 
 func TestSampling(t *testing.T) {

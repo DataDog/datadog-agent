@@ -281,7 +281,7 @@ func (c *Config) Digest() string {
 		inst := RawMap{}
 		err := yaml.Unmarshal(i, &inst)
 		if err != nil {
-			log.Debugf("Error while calculating config digest for %s, skipping: %v", c.Name, err)
+			log.Infof("Error while calculating config digest for %s, skipping: %v", c.Name, err)
 			continue
 		}
 		if val, found := inst["tags"]; found {
@@ -289,7 +289,7 @@ func (c *Config) Digest() string {
 			// identical configs with the same tags but with different order
 			tagsInterface, ok := val.([]interface{})
 			if !ok {
-				log.Debug("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
+				log.Infof("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
 				continue
 			}
 			tags := make([]string, len(tagsInterface))
@@ -301,7 +301,7 @@ func (c *Config) Digest() string {
 		}
 		out, err := yaml.Marshal(&inst)
 		if err != nil {
-			log.Debugf("Error while calculating config digest for %s, skipping: %v", c.Name, err)
+			log.Infof("Error while calculating config digest for %s, skipping: %v", c.Name, err)
 			continue
 		}
 		h.Write(out) //nolint:errcheck

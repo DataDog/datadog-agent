@@ -57,7 +57,8 @@ func GetHostname(hostname **C.char) {
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
-	goClusterName := clustername.GetClusterName()
+	goHostname, _ := util.GetHostname()
+	goClusterName := clustername.GetClusterName(goHostname)
 	// clusterName will be free by rtloader when it's done with it
 	*clusterName = TrackedCString(goClusterName)
 }

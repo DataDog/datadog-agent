@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gopacket/layers"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,6 +17,11 @@ var (
 const (
 	// DEBUGCLIENT is the ClientID for debugging
 	DEBUGCLIENT = "-1"
+
+	// DNSResponseCodeNoError is the value that indicates that the DNS reply contains no errors.
+	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
+	// constant is not worth the increased memory cost.
+	DNSResponseCodeNoError = 0
 )
 
 // State takes care of handling the logic for:
@@ -204,7 +207,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
 			conn.DNSTimeouts = dnsStats.timeouts
-			conn.DNSSuccessfulResponses = dnsStats.countByRcode[uint8(layers.DNSResponseCodeNoErr)]
+			conn.DNSSuccessfulResponses = dnsStats.countByRcode[DNSResponseCodeNoError]
 			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
 			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
 			conn.DNSCountByRcode = make(map[uint32]uint32)

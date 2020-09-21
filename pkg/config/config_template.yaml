@@ -255,6 +255,12 @@ api_key:
 #   - "google-container-manifest"
 #   - "bosh_settings"
 
+## @param gce_send_project_id_tag - bool - optional - default: false
+## Send the project ID host tag with the `project_id:` tag key in addition to
+## the `project:` tag key.
+#
+# gce_send_project_id_tag: false
+
 ## @param gce_metadata_timeout - integer - optional - default: 1000
 ## Timeout in milliseconds on calls to the GCE metadata endpoints.
 #
@@ -909,6 +915,20 @@ api_key:
   ## The full path to the file where system-probe logs are written.
   #
   # log_file: /var/log/datadog/system-probe.log
+
+{{- if .NetworkModule }}
+
+########################################
+## System Probe Network Configuration ##
+########################################
+
+# network_config:
+  ## @param enabled - boolean - optional - default: true
+  ## Set to true to enable the Network Module of the System Probe
+  #
+  # enabled: true
+
+{{ end -}}
 
 {{- if .SecurityModule }}
 

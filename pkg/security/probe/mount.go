@@ -45,7 +45,7 @@ var mountHookPoints = []*HookPoint{
 	},
 	{
 		Name:       "sys_mount",
-		KProbes:    syscallKprobe("mount"),
+		KProbes:    syscallKprobe("mount", true),
 		EventTypes: []eval.EventType{"*"},
 	},
 	{
@@ -56,10 +56,8 @@ var mountHookPoints = []*HookPoint{
 		EventTypes: []eval.EventType{"*"},
 	},
 	{
-		Name: "sys_umount",
-		KProbes: []*ebpf.KProbe{{
-			ExitFunc: "kretprobe/" + getSyscallFnName("umount"),
-		}},
+		Name:       "sys_umount",
+		KProbes:    syscallKprobe("umount"),
 		EventTypes: []eval.EventType{"*"},
 	},
 }
@@ -275,6 +273,7 @@ func newFSDevice() *FSDevice {
 
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
+	probe   *Probe
 	lock    sync.RWMutex
 	devices map[uint32]*FSDevice
 	mounts  map[uint32]*Mount
@@ -391,8 +390,9 @@ func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, s
 }
 
 // NewMountResolver instantiates a new mount resolver
-func NewMountResolver() *MountResolver {
+func NewMountResolver(probe *Probe) *MountResolver {
 	return &MountResolver{
+		probe:   probe,
 		lock:    sync.RWMutex{},
 		devices: make(map[uint32]*FSDevice),
 		mounts:  make(map[uint32]*Mount),

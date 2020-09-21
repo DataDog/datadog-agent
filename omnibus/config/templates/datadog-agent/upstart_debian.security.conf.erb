@@ -1,7 +1,6 @@
 description "Datadog Security Agent"
 
-start on started datadog-agent
-stop on (runlevel [!2345] or stopping datadog-agent)
+stop on runlevel [!2345]
 
 respawn
 respawn limit 10 5

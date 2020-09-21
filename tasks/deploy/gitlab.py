@@ -107,6 +107,15 @@ class Gitlab(object):
         )
         return self.make_request(path, json=True)
 
+    def find_tag(self, project_name, tag_name):
+        """
+        Look up a tag by its name.
+        """
+        from urllib.parse import quote
+
+        path = "/projects/{}/repository/tags/{}".format(quote(project_name, safe=""), tag_name)
+        return self.make_request(path, json=True)
+
     def make_request(self, path, headers=None, data=None, json=False):
         """
         Utility to make a request to the Gitlab API.

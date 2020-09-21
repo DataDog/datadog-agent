@@ -122,6 +122,14 @@ func WithKubernetesClient(cli env.KubeClient) BuilderOption {
 	}
 }
 
+// WithIsLeader allows check runner to know if its a leader instance or not (DCA)
+func WithIsLeader(isLeader func() bool) BuilderOption {
+	return func(b *builder) error {
+		b.isLeaderFunc = isLeader
+		return nil
+	}
+}
+
 // SuiteMatcher checks if a compliance suite is included
 type SuiteMatcher func(*compliance.SuiteMeta) bool
 
@@ -220,6 +228,7 @@ type builder struct {
 	dockerClient env.DockerClient
 	auditClient  env.AuditClient
 	kubeClient   env.KubeClient
+	isLeaderFunc func() bool
 
 	status *status
 }
@@ -504,6 +513,13 @@ func (b *builder) RelativeToHostRoot(path string) string {
 		return path
 	}
 	return b.pathMapper.relativeToHostRoot(path)
+}
+
+func (b *builder) IsLeader() bool {
+	if b.isLeaderFunc != nil {
+		return b.isLeaderFunc()
+	}
+	return true
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {

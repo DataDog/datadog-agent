@@ -30,6 +30,11 @@ var inactivityLogDuration = 10 * time.Minute
 var NetworkTracer = api.Factory{
 	Name: "network_tracer",
 	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
+		if !cfg.CheckIsEnabled("Network") {
+			log.Infof("Network tracer disabled")
+			return nil, api.ErrNotEnabled
+		}
+
 		// Checking whether the current OS + kernel version is supported by the tracer
 		if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
 			return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)

@@ -21,15 +21,15 @@ int __attribute__((always_inline)) trace__sys_rename() {
     return 0;
 }
 
-SYSCALL_KPROBE(rename) {
+SYSCALL_KPROBE0(rename) {
     return trace__sys_rename();
 }
 
-SYSCALL_KPROBE(renameat) {
+SYSCALL_KPROBE0(renameat) {
     return trace__sys_rename();
 }
 
-SYSCALL_KPROBE(renameat2) {
+SYSCALL_KPROBE0(renameat2) {
     return trace__sys_rename();
 }
 

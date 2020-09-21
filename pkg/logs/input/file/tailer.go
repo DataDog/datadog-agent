@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -28,8 +29,6 @@ import (
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
 const DefaultSleepDuration = 1 * time.Second
-
-const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
@@ -63,14 +62,28 @@ type Tailer struct {
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var parser lineParser.Parser
+	var matcher decoder.EndLineMatcher
 	switch source.GetSourceType() {
 	case config.KubernetesSourceType:
 		parser = kubernetes.Parser
+		matcher = &decoder.NewLineMatcher{}
 	case config.DockerSourceType:
 		parser = docker.JSONParser
+		matcher = &decoder.NewLineMatcher{}
 	default:
-		parser = lineParser.NoopParser
+		switch source.Config.Encoding {
+		case config.UTF16BE:
+			parser = lineParser.NewDecodingParser(lineParser.UTF16BE)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
+		case config.UTF16LE:
+			parser = lineParser.NewDecodingParser(lineParser.UTF16LE)
+			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL)
+		default:
+			parser = lineParser.NoopParser
+			matcher = &decoder.NewLineMatcher{}
+		}
 	}
+
 	var tagProvider tag.Provider
 	if source.Config.Identifier != "" {
 		tagProvider = tag.NewProvider(source.Config.Identifier)
@@ -79,16 +92,17 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
+	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout")
 
 	return &Tailer{
 		path:           path,
 		outputChan:     outputChan,
-		decoder:        decoder.InitializeDecoder(source, parser),
+		decoder:        decoder.NewDecoderWithEndLineMatcher(source, parser, matcher),
 		source:         source,
 		tagProvider:    tagProvider,
 		readOffset:     0,
 		sleepDuration:  sleepDuration,
-		closeTimeout:   defaultCloseTimeout,
+		closeTimeout:   closeTimeout,
 		stop:           make(chan struct{}, 1),
 		done:           make(chan struct{}, 1),
 		isWildcardPath: isWildcardPath,
@@ -97,9 +111,27 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	}
 }
 
-// Identifier returns a string that uniquely identifies a source
+// Identifier returns a string that uniquely identifies a source.
+// This is the identifier used in the registry.
+// FIXME(remy): during container rotation, this Identifier() method could return
+// the same value for different tailers. It is happening during container rotation
+// where the dead container still has a tailer running on the log file, and the tailer
+// of the freshly spawned container starts tailing this file as well.
 func (t *Tailer) Identifier() string {
 	return fmt.Sprintf("file:%s", t.path)
+}
+
+// getPath returns the file path
+func (t *Tailer) getPath() string {
+	return t.path
+}
+
+// getSourceIdentifier returns the source config identifier
+func (t *Tailer) getSourceIdentifier() string {
+	if t.source != nil && t.source.Config != nil {
+		return t.source.Config.Identifier
+	}
+	return ""
 }
 
 // Start let's the tailer open a file and tail from whence
@@ -124,14 +156,20 @@ func (t *Tailer) Start(offset int64, whence int) error {
 func (t *Tailer) readForever() {
 	defer t.onStop()
 	for {
+		n, err := t.read()
+		if err != nil {
+			return
+		}
+
 		select {
 		case <-t.stop:
+			if n != 0 && t.didFileRotate == 1 {
+				log.Warn("Tailer stopped after rotation close timeout with remaining unread data")
+			}
 			// stop reading data from file
 			return
 		default:
-			if n, err := t.read(); err != nil {
-				return
-			} else if n == 0 {
+			if n == 0 {
 				// wait for new data to come
 				t.wait()
 			}
@@ -181,7 +219,7 @@ func (t *Tailer) startStopTimer() {
 
 // onStop finishes to stop the tailer
 func (t *Tailer) onStop() {
-	log.Info("Closing ", t.path)
+	log.Info("Closing", t.path, "for tailer key", buildTailerKey(t))
 	t.file.Close()
 	t.decoder.Stop()
 }
