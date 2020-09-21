@@ -28,7 +28,8 @@
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.39.1",
         "JMXFETCH_HASH": "dd5dd74f3d595430e06d31dbe6653b0fd1c4777df5eb699c6f0b6f9ba0d4d5be",
-        "MACOS_BUILD_VERSION": "6.23.0-rc.1"
+        "MACOS_BUILD_VERSION": "6.23.0-rc.1",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
     },
     "7.23.0-rc.1": {
         "INTEGRATIONS_CORE_VERSION": "7.23.0-rc.1",
@@ -37,6 +38,7 @@
         "JMXFETCH_VERSION": "0.39.1",
         "JMXFETCH_HASH": "dd5dd74f3d595430e06d31dbe6653b0fd1c4777df5eb699c6f0b6f9ba0d4d5be",
         "MACOS_BUILD_VERSION": "7.23.0-rc.1",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
     },
     "6.22.0": {
         "INTEGRATIONS_CORE_VERSION": "7.22.0",
