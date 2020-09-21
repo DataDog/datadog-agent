@@ -21,7 +21,7 @@ const (
 	agXSample = "RAM 1903/15692MB (lfb 3251x4MB) CPU [1%@1190,1%@1190,2%@1190,0%@1190,0%@1190,0%@1190,0%@1190,0%@1190] EMC_FREQ 0% GR3D_FREQ 0% AO@32.5C GPU@32C Tboard@32C Tdiode@34.75C AUX@31.5C CPU@33.5C thermal@32.9C PMIC@100C GPU 0/0 CPU 216/216 SOC 864/864 CV 0/0 VDDRQ 144/144 SYS5V 1889/1889"
 )
 
-func TestTegraCheckLinux(t *testing.T) {
+func testNanoTegraStats(t *testing.T) {
 
 	tegraCheck := new(TegraCheck)
 	tegraCheck.Configure(nil, nil, "test")
@@ -29,35 +29,19 @@ func TestTegraCheckLinux(t *testing.T) {
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	mock.On("Gauge", "system.gpu.mem.used", 613, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.gpu.mem.total", 3964, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.gpu.mem.n_lfb", 634, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.gpu.mem.lfb", 4, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.gpu.swap.used", 0, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.gpu.swap.total", 1982, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.gpu.swap.cached", 0, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.gpu.emc.usage", 0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.used", 613.0 * mb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.total", 3964.0 * mb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.n_lfb", 634.0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.lfb", 4.0 * mb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.swap.used", 0.0 * mb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.swap.total", 1982.0 * mb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.swap.cached", 0.0 * mb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.emc.usage", 0.0, "", []string(nil)).Return().Times(1)
 	// Freq is not sent if not found
-	//mock.On("Gauge", "system.gpu.emc.freq", 0, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.gpu.usage", 0, "", []string(nil)).Return().Times(1)
+	//mock.On("Gauge", "system.gpu.emc.freq", 0.0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.usage", 0.0, "", []string(nil)).Return().Times(1)
 	// Freq is not sent if not found
-	//mock.On("Gauge", "system.gpu.freq", 39, "", []string(nil)).Return().Times(1)
-
-	// Duplicated with temperature check ?
-	mock.On("Gauge", "system.gpu.temp", 39, "", []string{"PLL"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.temp", 40.5, "", []string{"CPU"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.temp", 100, "", []string{"PMIC"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.temp", 41, "", []string{"GPU"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.temp", 46, "", []string{"AO"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.temp", 41, "", []string{"thermal"}).Return().Times(1)
-
-	// Duplicated with voltage check ?
-	mock.On("Gauge", "system.gpu.vdd.current", 900, "", []string{"POM_5V_IN"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.vdd.average", 943, "", []string{"POM_5V_IN"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.vdd.current", 0, "", []string{"POM_5V_GPU"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.vdd.average", 0, "", []string{"POM_5V_GPU"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.vdd.current", 123, "", []string{"POM_5V_CPU"}).Return().Times(1)
-	mock.On("Gauge", "system.gpu.vdd.average", 123, "", []string{"POM_5V_CPU"}).Return().Times(1)
+	//mock.On("Gauge", "system.gpu.freq", 39.0, "", []string(nil)).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 
@@ -65,6 +49,36 @@ func TestTegraCheckLinux(t *testing.T) {
 	assert.Equal(t, err, nil)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 21)
+	mock.AssertNumberOfCalls(t, "Gauge", 9)
+	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func testTx1TegraStats(t *testing.T) {
+
+	tegraCheck := new(TegraCheck)
+	tegraCheck.Configure(nil, nil, "test")
+
+	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
+
+	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock.On("Gauge", "system.gpu.mem.used", 1179.0 * mb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.total", 3983.0 * mb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.n_lfb", 120.0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.mem.lfb", 4.0 * mb, "", []string(nil)).Return().Times(1)
+	//mock.On("Gauge", "system.gpu.iram.used", 0.0 * kb, "", []string(nil)).Return().Times(1)
+	//mock.On("Gauge", "system.gpu.iram.total", 252.0 * kb, "", []string(nil)).Return().Times(1)
+	//mock.On("Gauge", "system.gpu.iram.lfb", 252.0 * kb, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.emc.usage", 7.0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.emc.freq", 408, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.usage", 0.0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.gpu.freq", 76.0, "", []string(nil)).Return().Times(1)
+
+	mock.On("Commit").Return().Times(1)
+
+	err := tegraCheck.processTegraStatsOutput(tx1Sample)
+	assert.Equal(t, err, nil)
+
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Gauge", 8)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
