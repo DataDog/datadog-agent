@@ -129,9 +129,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
 
-	activeConnStats, closedConnStats, bytesRead ,err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0], t.driverBuffer[:1])
+	activeConnStats, closedConnStats, bytesRead ,err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0], t.driverBuffer)
 	if err != nil {
-		log.Errorf("failed to get connnections")
+		log.Errorf("failed to get connections")
 		return nil, err
 	}
 
