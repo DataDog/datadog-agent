@@ -62,8 +62,6 @@ type DriverInterface struct {
 	openFlows      int64
 	moreDataErrors int64
 
-	driverReadBuffer []uint8
-
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
 
@@ -72,11 +70,10 @@ type DriverInterface struct {
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCounts bool, driverBufferSize int) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
-		driverReadBuffer:      make([]uint8, driverBufferSize),
 	}
 
 	err := dc.setupFlowHandle()
@@ -174,18 +171,6 @@ func (di *DriverInterface) closeDriverHandle(handle windows.Handle) error {
 	return windows.CloseHandle(handle)
 }
 
-// CheckBufferResize will check how many connections we have pulled from the driver and double or halve the buffer passed as necessary
-func (di *DriverInterface) CheckBufferResize(connectionsRetrieved int) {
-	// Take number of connections, multiply it by size of the flow to get bytes retrieved from buffer
-	bytesRetrieved := connectionsRetrieved * C.sizeof_struct__perFlowData
-
-	if bytesRetrieved >= cap(di.driverReadBuffer)*2 {
-		di.driverReadBuffer = make([]uint8, 0, cap(di.driverReadBuffer)*2)
-	} else if bytesRetrieved <= cap(di.driverReadBuffer) {
-		di.driverReadBuffer = make([]uint8, 0, cap(di.driverReadBuffer)/2)
-	}
-}
-
 // GetStats returns statistics for the driver interface used by the windows tracer
 func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 
@@ -222,12 +207,11 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 }
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
-func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed []ConnectionStats) ([]ConnectionStats, []ConnectionStats, error) {
-
+func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed []ConnectionStats, driverReadBuffer []byte) ([]ConnectionStats, []ConnectionStats, error) {
 	for {
 		var count uint32
 		var bytesused int
-		err := windows.ReadFile(di.driverFlowHandle.handle, di.driverReadBuffer, &count, nil)
+		err := windows.ReadFile(di.driverFlowHandle.handle, driverReadBuffer, &count, nil)
 		if err != nil && err != windows.ERROR_MORE_DATA {
 			return nil, nil, err
 		}
@@ -238,7 +222,7 @@ func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed [
 
 		var buf []byte
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
-			buf = di.driverReadBuffer[bytesused:]
+			buf = driverReadBuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 			if isFlowClosed(pfd.flags) {
 				// Closed Connection
