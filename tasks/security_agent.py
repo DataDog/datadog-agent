@@ -136,6 +136,7 @@ def functional_tests(
     output='',
     build_tags='',
     one_by_one=False,
+    bundle_ebpf=True,
 ):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
@@ -145,6 +146,9 @@ def functional_tests(
     env["CGO_ENABLED"] = "1"
     if arch == "x86":
         env["GOARCH"] = "386"
+
+    if bundle_ebpf:
+        build_tags = "ebpf_bindata," + build_tags
 
     cmd = 'go test -tags functionaltests,linux_bpf,{build_tags} {output_opt} {verbose_opt} {run_opt} {repo_path}/pkg/security/tests'
     if os.getuid() != 0 and not output:
@@ -185,6 +189,7 @@ def docker_functional_tests(ctx, race=False, verbose=False, go_version=None, arc
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
+        build_tags="ebpf_bindata",
     )
 
     container_name = 'security-agent-tests'
