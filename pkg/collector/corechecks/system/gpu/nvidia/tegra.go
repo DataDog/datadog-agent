@@ -39,7 +39,21 @@ const (
 	regexRAMIdx				= 0
 	regexSwapCacheIdx		= 1
 	regexIRamIdx			= 2
+
+	// Regex used to parse the GPU usage and frequency => e.g. EMC_FREQ 7%@408 GR3D_FREQ 0%@76
 	regexGpuUsageIdx		= 3
+
+	// Regex used to parse the CPU usage section => e.g. CPU [2%@102,1%@102,0%@102,0%@102]
+	regexCpuUsageIdx		= 4
+
+	// Regex used to parse the temperature information => e.g. thermal@41C
+	regexTemperatureIdx		= 5
+
+	// Regex used to parse the voltage information => e.g. POM_5V_IN 900/943
+	regexVoltageIdx			= 6
+
+	// Regex used to parse cpu and freq => e.g. 2%@102
+	regexCpuFreqIdx			= 7
 
 	// Indices of the matched fields by the RAM regex
 	ramUsed          = 1
@@ -60,9 +74,19 @@ const (
 
 	// Indices of the matched fields by the GPU usage regex
 	emcPct		= 1
-	emcFreq		= 3
-	gpuPct		= 4
-	gpuFreq		= 6
+	emcFreq		= 2
+	gpuPct		= 3
+	gpuFreq		= 4
+
+	voltageProbeName = 1
+	currentVoltage 	 = 2
+	averageVoltage   = 3
+
+	tempZone	= 1
+	tempValue	= 2
+
+	cpuUsage = 1
+	cpuFreq  = 2
 )
 
 var regexes	= [...]string {
@@ -89,16 +113,25 @@ var regexes	= [...]string {
 	`IRAM\s*(\d+)\/(\d+)([kKmMgG][bB])\s*\(lfb\s*(\d+)([kKmMgG][bB])\)`,
 
 	// Group 1.	-> EMC %
-	// Group 2.	-> @EMC Freq (opt)
-	// Group 3.	-> EMC Freq (opt)
-	// Group 4.	-> GPU %
-	// Group 5.	-> @GPU Freq (opt)
-	// Group 6.	-> GPU Freq (opt)
-	`EMC_FREQ\s*(\d+)%(@(\d+))?\s*GR3D_FREQ\s*(\d+)%(@(\d+))?`,
-}
+	// Group 2.	-> EMC Freq (opt)
+	// Group 3.	-> GPU %
+	// Group 4.	-> GPU Freq (opt)
+	`EMC_FREQ\s*(\d+)%(?:@(\d+))?\s*GR3D_FREQ\s*(\d+)%(?:@(\d+))?`,
 
-func execTegraStats() (string, error) {
-	return "", nil
+	`CPU\s*\[((?:\d+%@\d+,?)+)\]`,
+
+	// Group 1.	-> Zone name
+	// Group 2.	-> Temperature
+	`(\w+)@(\d+(?:[.]\d+)?)C`,
+
+	// Group 1.	-> Voltage probe name
+	// Group 2.	-> Current voltage
+	// Group 2.	-> Average voltage
+	`(\w+)\s+(\d+)\/(\d+)(?:\s+|$)`,
+
+	// Group 1. -> CPU usage
+	// Group 2. -> CPU freq
+	`(\d+)%@(\d+)`,
 }
 
 // retryExitError converts `exec.ExitError`s to `check.RetryableError`s, so that checks using this
@@ -161,13 +194,13 @@ func (c *TegraCheck) sendRamMetrics(sender aggregator.Sender, field string) erro
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.mem.used", usedRam * ramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.used", usedRam * ramMultiplier, "", nil)
 
 	totalRam, err := strconv.ParseFloat(ramFields[0][totalRam], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.mem.total", totalRam * ramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.total", totalRam * ramMultiplier, "", nil)
 
 	// lfb NxXMB, X is the largest free block. N is the number of free blocks of this size.
 	lfbMultiplier := getSizeMultiplier(ramFields[0][lfbUnit])
@@ -176,13 +209,13 @@ func (c *TegraCheck) sendRamMetrics(sender aggregator.Sender, field string) erro
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.mem.lfb", largestFreeBlock * lfbMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.lfb", largestFreeBlock * lfbMultiplier, "", nil)
 
 	numFreeBlocks, err := strconv.ParseFloat(ramFields[0][numFreeBlock], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.mem.n_lfb", numFreeBlocks, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.n_lfb", numFreeBlocks, "", nil)
 
 	return nil
 }
@@ -199,20 +232,20 @@ func (c *TegraCheck) sendSwapMetrics(sender aggregator.Sender, field string) err
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.swap.used", swapUsed * swapMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.swap.used", swapUsed * swapMultiplier, "", nil)
 
 	totalSwap, err := strconv.ParseFloat(swapFields[0][totalSwap], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.swap.total", totalSwap * swapMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.swap.total", totalSwap * swapMultiplier, "", nil)
 
 	cacheMultiplier := getSizeMultiplier(swapFields[0][cacheUnit])
 	cached, err := strconv.ParseFloat(swapFields[0][cached], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.swap.cached", cached * cacheMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.swap.cached", cached * cacheMultiplier, "", nil)
 
 	return nil
 }
@@ -227,28 +260,95 @@ func (c *TegraCheck) sendGpuUsageMetrics(sender aggregator.Sender, field string)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.emc.usage", emcPct, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.emc.usage", emcPct, "", nil)
 
 	if len(gpuFields[0][emcFreq]) > 0 {
 		emcFreq, err := strconv.ParseFloat(gpuFields[0][emcFreq], 64)
 		if err != nil{
 			return err
 		}
-		sender.Gauge("system.gpu.emc.freq", emcFreq, "", nil)
+		sender.Gauge("nvidia.jetson.gpu.emc.freq", emcFreq, "", nil)
 	}
 
 	gpuPct, err := strconv.ParseFloat(gpuFields[0][gpuPct], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("system.gpu.usage", gpuPct, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.usage", gpuPct, "", nil)
 
 	if len(gpuFields[0][gpuFreq]) > 0 {
 		gpuFreq, err := strconv.ParseFloat(gpuFields[0][gpuFreq], 64)
 		if err != nil {
 			return err
 		}
-		sender.Gauge("system.gpu.freq", gpuFreq, "", nil)
+		sender.Gauge("nvidia.jetson.gpu.freq", gpuFreq, "", nil)
+	}
+
+	return nil
+}
+
+func (c *TegraCheck) sendCpuUsageMetrics(sender aggregator.Sender, field string) error {
+	cpuFields := c.regexes[regexCpuUsageIdx].FindAllStringSubmatch(field, -1)
+	if len(cpuFields) <= 0 {
+		return errors.New("could not parse CPU usage fields")
+	}
+	cpus := strings.Split(cpuFields[0][1], ",")
+
+	for i := 0; i < len(cpus); i++ {
+		cpuAndFreqFields := c.regexes[regexCpuFreqIdx].FindAllStringSubmatch(cpus[i], -1)
+		cpuUsage, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuUsage], 64)
+		if err != nil {
+			return err
+		}
+		sender.Gauge("nvidia.jetson.cpu.usage", cpuUsage, "", []string{strconv.Itoa(i)})
+
+		cpuFreq, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuFreq], 64)
+		if err != nil {
+			return err
+		}
+		sender.Gauge("nvidia.jetson.cpu.freq", cpuFreq, "", []string{strconv.Itoa(i)})
+	}
+
+	return nil
+}
+
+func (c *TegraCheck) sendTemperatureMetrics(sender aggregator.Sender, field string) error {
+	temperatureFields := c.regexes[regexTemperatureIdx].FindAllStringSubmatch(field, -1)
+	if len(temperatureFields) <= 0 {
+		return errors.New("could not parse temperature fields")
+	}
+
+	for i := 0; i < len(temperatureFields); i++ {
+		tempValue, err := strconv.ParseFloat(temperatureFields[i][tempValue], 64)
+		if err != nil {
+			return err
+		}
+		sender.Gauge("nvidia.jetson.gpu.temp", tempValue, "", []string{temperatureFields[i][tempZone]})
+	}
+
+	return nil
+}
+
+func (c *TegraCheck) sendVoltageMetrics(sender aggregator.Sender, field string) error {
+	voltageFields := c.regexes[regexVoltageIdx].FindAllStringSubmatch(field, -1)
+	if len(voltageFields) <= 0 {
+		return errors.New("could not parse voltage fields")
+	}
+
+	for i := 0; i < len(voltageFields); i++ {
+		voltageProbeName := voltageFields[i][voltageProbeName]
+
+		currentVoltage, err := strconv.ParseFloat(voltageFields[i][currentVoltage], 64)
+		if err != nil {
+			return err
+		}
+		sender.Gauge("nvidia.jetson.gpu.vdd.current", currentVoltage, "", []string{voltageProbeName})
+
+		averageVoltage, err := strconv.ParseFloat(voltageFields[i][averageVoltage], 64)
+		if err != nil {
+			return err
+		}
+		sender.Gauge("nvidia.jetson.gpu.vdd.average", averageVoltage, "", []string{voltageProbeName})
 	}
 
 	return nil
@@ -281,7 +381,18 @@ func (c *TegraCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	if err != nil {
 		return nil
 	}
-
+	err = c.sendCpuUsageMetrics(sender, tegraStatsOuptut)
+	if err != nil {
+		return nil
+	}
+	err = c.sendTemperatureMetrics(sender, tegraStatsOuptut)
+	if err != nil {
+		return nil
+	}
+	err = c.sendVoltageMetrics(sender, tegraStatsOuptut)
+	if err != nil {
+		return nil
+	}
 	sender.Commit()
 	return nil
 }
