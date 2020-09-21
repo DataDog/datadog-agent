@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Updates the logs package to get the short image name from Kubernetes ContainerSpec, rather than ContainerStatus.
+    This works around a known issue where the image name in the ContainerStatus may be incorrect.

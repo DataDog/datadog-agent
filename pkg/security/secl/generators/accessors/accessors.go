@@ -261,7 +261,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 
 	program, err = conf.Load()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load %s(%s): %s", filename, pkgName, err)
+		return nil, fmt.Errorf("Failed to load %s (%s): %s", filename, pkgName, err)
 	}
 
 	packages = make(map[string]*types.Package, len(program.AllPackages))

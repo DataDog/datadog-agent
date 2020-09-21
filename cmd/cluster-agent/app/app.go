@@ -236,7 +236,7 @@ func start(cmd *cobra.Command, args []string) error {
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			Hostname:                     hostname,
-			ClusterName:                  clustername.GetClusterName(),
+			ClusterName:                  clustername.GetClusterName(hostname),
 			ConfigPath:                   confPath,
 		}
 		err = orchestrator.StartController(orchestratorCtx)
@@ -333,7 +333,7 @@ func start(cmd *cobra.Command, args []string) error {
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx); err != nil {
+			if err := runCompliance(mainCtx, apiCl, le.IsLeader); err != nil {
 				log.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

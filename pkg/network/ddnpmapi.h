@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x05
+#define DD_NPMDRIVER_VERSION       0x06
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -48,6 +48,7 @@ typedef unsigned char       uint8_t;
                                               0x805, \
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
+
 #pragma pack(1)
 
 /*!
@@ -127,7 +128,6 @@ typedef struct _filterAddress
 #define     DIRECTION_INBOUND    ((uint64_t)0)
 #define     DIRECTION_OUTBOUND   ((uint64_t)1)
 
-#define     FILTER_LAYER_IPPACKET       ((uint64_t) 0)
 #define     FILTER_LAYER_TRANSPORT      ((uint64_t) 1)
 
 typedef struct _filterDefinition
@@ -194,6 +194,8 @@ typedef struct _perFlowData {
     uint64_t packetsIn;
     uint64_t monotonicRecvBytes;
     uint64_t transportBytesIn;
+
+    uint64_t timestamp;             // last activity on this flow.  ns since system boot
 
     uint16_t        localPort;      // host byte order
     uint16_t        remotePort;     // host byte order

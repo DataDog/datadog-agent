@@ -3,8 +3,8 @@
 
 #include <linux/types.h>
 
-static const __u64 TRACER_IPV6_DISABLED = 0;
-static const __u64 TRACER_IPV6_ENABLED = 1;
+static const __u64 DISABLED = 0;
+static const __u64 ENABLED = 1;
 
 typedef struct {
     __u64 sent_bytes;

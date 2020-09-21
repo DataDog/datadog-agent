@@ -46,12 +46,12 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name:       "sys_chown",
-		KProbes:    syscallKprobe("chown"),
+		KProbes:    append(syscallKprobe("chown"), syscallKprobe("chown16")...),
 		EventTypes: []eval.EventType{"chown"},
 	},
 	{
 		Name:       "sys_fchown",
-		KProbes:    syscallKprobe("fchown"),
+		KProbes:    append(syscallKprobe("fchown"), syscallKprobe("fchown16")...),
 		EventTypes: []eval.EventType{"chown"},
 	},
 	{
@@ -61,35 +61,85 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name:       "sys_lchown",
-		KProbes:    syscallKprobe("lchown"),
+		KProbes:    append(syscallKprobe("lchown"), syscallKprobe("lchown16")...),
 		EventTypes: []eval.EventType{"chown"},
+	},
+	{
+		Name:       "sys_setxattr",
+		KProbes:    syscallKprobe("setxattr"),
+		EventTypes: []eval.EventType{"setxattr"},
+	},
+	{
+		Name:       "sys_fsetxattr",
+		KProbes:    syscallKprobe("fsetxattr"),
+		EventTypes: []eval.EventType{"setxattr"},
+	},
+	{
+		Name:       "sys_lsetxattr",
+		KProbes:    syscallKprobe("lsetxattr"),
+		EventTypes: []eval.EventType{"setxattr"},
+	},
+	{
+		Name: "vfs_setxattr",
+		KProbes: []*ebpf.KProbe{{
+			EntryFunc: "kprobe/vfs_setxattr",
+		}},
+		EventTypes: []eval.EventType{"setxattr"},
+	},
+	{
+		Name:       "sys_removexattr",
+		KProbes:    syscallKprobe("removexattr"),
+		EventTypes: []eval.EventType{"removexattr"},
+	},
+	{
+		Name:       "sys_fremovexattr",
+		KProbes:    syscallKprobe("fremovexattr"),
+		EventTypes: []eval.EventType{"removexattr"},
+	},
+	{
+		Name:       "sys_lremovexattr",
+		KProbes:    syscallKprobe("lremovexattr"),
+		EventTypes: []eval.EventType{"removexattr"},
+	},
+	{
+		Name: "vfs_removexattr",
+		KProbes: []*ebpf.KProbe{{
+			EntryFunc: "kprobe/vfs_removexattr",
+		}},
+		EventTypes: []eval.EventType{"removexattr"},
 	},
 	{
 		Name: "mnt_want_write",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write",
 		}},
-		EventTypes: []eval.EventType{"utimes", "chmod", "chown", "rmdir", "unlink", "rename"},
+		EventTypes: []eval.EventType{"utimes", "chmod", "chown", "rmdir", "unlink", "rename", "setxattr", "removexattr"},
 	},
 	{
 		Name: "mnt_want_write_file",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write_file",
 		}},
-		EventTypes: []eval.EventType{"chown"},
+		EventTypes: []eval.EventType{"chown", "setxattr", "removexattr"},
 	},
 	{
 		Name: "mnt_want_write_file_path", // used on old kernels (RHEL 7)
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/mnt_want_write_file_path",
 		}},
-		EventTypes: []eval.EventType{"chown"},
+		EventTypes: []eval.EventType{"chown", "setxattr", "removexattr"},
 		Optional:   true,
 	},
 	{
 		Name:       "sys_utime",
 		KProbes:    syscallKprobe("utime"),
 		EventTypes: []eval.EventType{"utimes"},
+	},
+	{
+		Name:       "sys_utime32",
+		KProbes:    syscallKprobe("utime32"),
+		EventTypes: []eval.EventType{"utimes"},
+		Optional:   true,
 	},
 	{
 		Name:       "sys_utimes",
@@ -105,6 +155,24 @@ var allHookPoints = []*HookPoint{
 		Name:       "sys_futimesat",
 		KProbes:    syscallKprobe("futimesat"),
 		EventTypes: []eval.EventType{"utimes"},
+	},
+	{
+		Name:       "sys_utimes_time32",
+		KProbes:    syscallKprobe("utimes_time32"),
+		EventTypes: []eval.EventType{"utimes"},
+		Optional:   true,
+	},
+	{
+		Name:       "sys_utimensat_time32",
+		KProbes:    syscallKprobe("utimensat_time32"),
+		EventTypes: []eval.EventType{"utimes"},
+		Optional:   true,
+	},
+	{
+		Name:       "sys_futimesat_time32",
+		KProbes:    syscallKprobe("futimesat_time32"),
+		EventTypes: []eval.EventType{"utimes"},
+		Optional:   true,
 	},
 	{
 		Name: "vfs_mkdir",
@@ -131,11 +199,11 @@ var allHookPoints = []*HookPoint{
 		EventTypes: []eval.EventType{"mkdir"},
 	},
 	{
-		Name: "vfs_rmdir",
+		Name: "security_inode_rmdir",
 		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/vfs_rmdir",
+			EntryFunc: "kprobe/security_inode_rmdir",
 		}},
-		EventTypes: []eval.EventType{"rmdir", "unlink"},
+		EventTypes: []eval.EventType{"rmdir"},
 	},
 	{
 		Name:       "sys_rmdir",

@@ -122,10 +122,14 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 	var err error
 	updated = make(map[string]custommetrics.ExternalMetricValue)
 
-	batch := []string{}
+	uniqueQueries := make(map[string]struct{}, len(emList))
+	batch := make([]string, 0, len(emList))
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels, aggregator, rollup)
-		batch = append(batch, q)
+		if _, found := uniqueQueries[q]; !found {
+			uniqueQueries[q] = struct{}{}
+			batch = append(batch, q)
+		}
 	}
 
 	metrics, err := p.QueryExternalMetric(batch)

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,7 +48,11 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
-	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
+
+	if config.Datadog.IsSet(key(spNS, "collect_dns_stats")) {
+		a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "dns_timeout_in_s")) {
 		a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
 	}
@@ -168,6 +173,24 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Windows.DriverBufferSize = driverBufferSize
 	}
 
+	// If there is no network_config, assume it is an old version of the config, and enable
+	// the network check. This has the downside that if the network_config is deleted, network
+	// check will be enabled.  However, this seems like the best option for backwards compatibility.
+	//
+	// The network check won't be run if sysprobe isn't enabled so there's no need to check
+	// EnableSystemProbe here.
+	networkEnabled := true
+	// network_config is a top-level config, not a subconfig of system_probe_config
+	if config.Datadog.IsSet("network_config") {
+		// System probe can be run without the network module as determined on the network_config.enabled value
+		networkEnabled = config.Datadog.GetBool("network_config.enabled")
+		log.Info(fmt.Sprintf("network_config found, enabled = %v", networkEnabled))
+	} else {
+		log.Info("network_config not found, enabling network check by default")
+	}
+	if networkEnabled {
+		a.EnabledChecks = append(a.EnabledChecks, "Network")
+	}
 	return nil
 }
 
@@ -380,7 +403,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		a.OrchestrationCollectionEnabled = true
 		// Set clustername
-		if clusterName := clustername.GetClusterName(); clusterName != "" {
+		hostname, _ := coreutil.GetHostname()
+		if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
 			a.KubeClusterName = clusterName
 		}
 	}

@@ -3,22 +3,42 @@
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-        "JMXFETCH_VERSION": "0.38.2",
-        "JMXFETCH_HASH": "9a344b7cc76c9e9ab1171073e3e46656a8c1097273f72aee30f3564ed815b681",
+        "JMXFETCH_VERSION": "0.39.1",
+        "JMXFETCH_HASH": "dd5dd74f3d595430e06d31dbe6653b0fd1c4777df5eb699c6f0b6f9ba0d4d5be",
+        "MACOS_BUILD_VERSION": "master",
         "WINDOWS_DDNPM_DRIVER": "testsigned",
-        "WINDOWS_DDNPM_VERSION": "0.98.2.git.12.54ae2bc",
-        "WINDOWS_DDNPM_SHASUM": "ded26e4905378dbc18173635d3366eaa4cbf94eb0da172353b3c7eef3145824f"
+        "WINDOWS_DDNPM_VERSION": "0.98.2.git.19.3cde204",
+        "WINDOWS_DDNPM_SHASUM": "6b5a1b1fb5aad64a23c119501cddfc16a98a6d1ad5b3f8cc91a603284627af19"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-        "JMXFETCH_VERSION": "0.38.2",
-        "JMXFETCH_HASH": "9a344b7cc76c9e9ab1171073e3e46656a8c1097273f72aee30f3564ed815b681",
+        "JMXFETCH_VERSION": "0.39.1",
+        "JMXFETCH_HASH": "dd5dd74f3d595430e06d31dbe6653b0fd1c4777df5eb699c6f0b6f9ba0d4d5be",
+        "MACOS_BUILD_VERSION": "master",
         "WINDOWS_DDNPM_DRIVER": "testsigned",
-        "WINDOWS_DDNPM_VERSION": "0.98.2.git.12.54ae2bc",
-        "WINDOWS_DDNPM_SHASUM": "ded26e4905378dbc18173635d3366eaa4cbf94eb0da172353b3c7eef3145824f",
+        "WINDOWS_DDNPM_VERSION": "0.98.2.git.19.3cde204",
+        "WINDOWS_DDNPM_SHASUM": "6b5a1b1fb5aad64a23c119501cddfc16a98a6d1ad5b3f8cc91a603284627af19",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
+    },
+    "6.23.0-rc.1": {
+        "INTEGRATIONS_CORE_VERSION": "7.23.0-rc.1",
+        "OMNIBUS_SOFTWARE_VERSION": "7.23.0-rc.1",
+        "OMNIBUS_RUBY_VERSION": "7.23.0-rc.1",
+        "JMXFETCH_VERSION": "0.39.1",
+        "JMXFETCH_HASH": "dd5dd74f3d595430e06d31dbe6653b0fd1c4777df5eb699c6f0b6f9ba0d4d5be",
+        "MACOS_BUILD_VERSION": "6.23.0-rc.1",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
+    },
+    "7.23.0-rc.1": {
+        "INTEGRATIONS_CORE_VERSION": "7.23.0-rc.1",
+        "OMNIBUS_SOFTWARE_VERSION": "7.23.0-rc.1",
+        "OMNIBUS_RUBY_VERSION": "7.23.0-rc.1",
+        "JMXFETCH_VERSION": "0.39.1",
+        "JMXFETCH_HASH": "dd5dd74f3d595430e06d31dbe6653b0fd1c4777df5eb699c6f0b6f9ba0d4d5be",
+        "MACOS_BUILD_VERSION": "7.23.0-rc.1",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
     },
     "6.22.0": {
         "INTEGRATIONS_CORE_VERSION": "7.22.0",

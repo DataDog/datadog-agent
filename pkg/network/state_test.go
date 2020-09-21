@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/gopacket/layers"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/stretchr/testify/assert"
@@ -1151,7 +1149,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	getStats := func() map[dnsKey]dnsStats {
 		stats := make(map[dnsKey]dnsStats)
 		countByRcode := make(map[uint8]uint32)
-		countByRcode[uint8(layers.DNSResponseCodeNoErr)] = 1
+		countByRcode[uint8(DNSResponseCodeNoError)] = 1
 		stats[dKey] = dnsStats{countByRcode: countByRcode}
 		return stats
 	}
@@ -1198,7 +1196,7 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 	stats := make(map[dnsKey]dnsStats)
 	countByRcode := make(map[uint8]uint32)
-	countByRcode[uint8(layers.DNSResponseCodeNoErr)] = 1
+	countByRcode[DNSResponseCodeNoError] = 1
 	stats[dKey] = dnsStats{countByRcode: countByRcode}
 
 	client := "client"

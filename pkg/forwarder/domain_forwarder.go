@@ -72,11 +72,16 @@ func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int,
 	}
 }
 
-type byCreatedTime []Transaction
+type byCreatedTimeAndPriority []Transaction
 
-func (v byCreatedTime) Len() int           { return len(v) }
-func (v byCreatedTime) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
-func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[j].GetCreatedAt()) }
+func (v byCreatedTimeAndPriority) Len() int      { return len(v) }
+func (v byCreatedTimeAndPriority) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
+func (v byCreatedTimeAndPriority) Less(i, j int) bool {
+	if v[i].GetPriority() != v[j].GetPriority() {
+		return v[i].GetPriority() > v[j].GetPriority()
+	}
+	return v[i].GetCreatedAt().After(v[j].GetCreatedAt())
+}
 
 func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	// In case it takes more that flushInterval to sort and retry
@@ -91,7 +96,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	droppedRetryQueueFull := 0
 	droppedWorkerBusy := 0
 
-	sort.Sort(byCreatedTime(f.retryQueue))
+	sort.Sort(byCreatedTimeAndPriority(f.retryQueue))
 
 	for _, t := range f.retryQueue {
 		if !f.blockedList.isBlock(t.GetTarget()) {

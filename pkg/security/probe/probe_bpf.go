@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ebpflib "github.com/DataDog/ebpf"
 )
 
 const (
@@ -54,8 +55,10 @@ type Probe struct {
 	resolvers        *Resolvers
 	onDiscardersFncs map[eval.EventType][]onDiscarderFnc
 	tables           map[string]*ebpf.Table
-	eventsStats      EventsStats
 	syscallMonitor   *SyscallMonitor
+	kernelVersion    uint32
+	_                uint32 // padding for goarch=386
+	eventsStats      EventsStats
 }
 
 func (p *Probe) getTableNames() []string {
@@ -64,11 +67,13 @@ func (p *Probe) getTableNames() []string {
 		"noisy_processes_buffer",
 		"noisy_processes_fb",
 		"noisy_processes_bb",
+		"mount_id_offset",
 	}
 
 	tables = append(tables, openTables...)
 	tables = append(tables, execTables...)
 	tables = append(tables, unlinkTables...)
+	tables = append(tables, mountTables...)
 
 	return tables
 }
@@ -97,8 +102,18 @@ func (p *Probe) getPerfMaps() []*ebpf.PerfMapDefinition {
 	}
 }
 
+func (p *Probe) detectKernelVersion() {
+	if kernelVersion, err := ebpflib.CurrentKernelVersion(); err != nil {
+		log.Warn("unable to detect the kernel version")
+	} else {
+		p.kernelVersion = kernelVersion
+	}
+}
+
 // Start the runtime security probe
 func (p *Probe) Start() error {
+	p.detectKernelVersion()
+
 	asset := "pkg/security/ebpf/c/runtime-security"
 	openSyscall := getSyscallFnName("open")
 	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
@@ -257,7 +272,6 @@ func (p *Probe) handleEvent(data []byte) {
 			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		event.Open.ResolveInode(p.resolvers)
 	case FileMkdirEventType:
 		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, len(data))
@@ -317,6 +331,16 @@ func (p *Probe) handleEvent(data []byte) {
 		// Delete new mount point from cache
 		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
 			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
+		}
+	case FileSetXAttrEventType:
+		if _, err := event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileRemoveXAttrEventType:
+		if _, err := event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, len(data))
+			return
 		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)

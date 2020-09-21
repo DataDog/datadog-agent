@@ -17,6 +17,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const (
+	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+	kernel4_13 = (4 << 16) + (13 << 8) //nolint:deadcode,unused
+)
+
 // EventType describes the type of an event sent from the kernel
 type EventType uint64
 
@@ -45,6 +50,10 @@ const (
 	FileMountEventType
 	// FileUmountEventType - Umount event
 	FileUmountEventType
+	// FileSetXAttrEventType - Setxattr event
+	FileSetXAttrEventType
+	// FileRemoveXAttrEventType - Removexattr event
+	FileRemoveXAttrEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
 	maxEventType
 )
@@ -73,6 +82,10 @@ func (t EventType) String() string {
 		return "mount"
 	case FileUmountEventType:
 		return "umount"
+	case FileSetXAttrEventType:
+		return "setxattr"
+	case FileRemoveXAttrEventType:
+		return "removexattr"
 	}
 	return "unknown"
 }
@@ -230,13 +243,13 @@ var (
 		"O_DIRECTORY": syscall.O_DIRECTORY,
 		"O_DSYNC":     syscall.O_DSYNC,
 		"O_FSYNC":     syscall.O_FSYNC,
-		"O_LARGEFILE": syscall.O_LARGEFILE,
-		"O_NDELAY":    syscall.O_NDELAY,
-		"O_NOATIME":   syscall.O_NOATIME,
-		"O_NOCTTY":    syscall.O_NOCTTY,
-		"O_NOFOLLOW":  syscall.O_NOFOLLOW,
-		"O_NONBLOCK":  syscall.O_NONBLOCK,
-		"O_RSYNC":     syscall.O_RSYNC,
+		//"O_LARGEFILE": syscall.O_LARGEFILE, golang defines this as 0
+		"O_NDELAY":   syscall.O_NDELAY,
+		"O_NOATIME":  syscall.O_NOATIME,
+		"O_NOCTTY":   syscall.O_NOCTTY,
+		"O_NOFOLLOW": syscall.O_NOFOLLOW,
+		"O_NONBLOCK": syscall.O_NONBLOCK,
+		"O_RSYNC":    syscall.O_RSYNC,
 	}
 
 	chmodModeConstants = map[string]int{
@@ -357,6 +370,9 @@ func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
 type OpenFlags int
 
 func (f OpenFlags) String() string {
+	if int(f) == syscall.O_RDONLY {
+		return openFlagsStrings[syscall.O_RDONLY]
+	}
 	return bitmaskToString(int(f), openFlagsStrings)
 }
 

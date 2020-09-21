@@ -20,7 +20,7 @@ func NewResolvers(probe *Probe) (*Resolvers, error) {
 	return &Resolvers{
 		probe:          probe,
 		DentryResolver: dentryResolver,
-		MountResolver:  NewMountResolver(),
+		MountResolver:  NewMountResolver(probe),
 		TimeResolver:   timeResolver,
 	}, nil
 }

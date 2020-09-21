@@ -20,6 +20,7 @@ import (
 
 	"path/filepath"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -90,6 +91,18 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 	case <-time.After(closeTimeout + 10*time.Second):
 		suite.Fail("timeout")
 	}
+}
+
+func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
+	// To satisfy the suite level tailer
+	suite.tailer.StartFromBeginning()
+
+	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
+	tailer := NewTailer(suite.outputChan, suite.source, suite.testPath, 10*time.Millisecond, false)
+	tailer.StartFromBeginning()
+
+	suite.Equal(tailer.closeTimeout, time.Duration(42))
+	tailer.Stop()
 }
 
 func (suite *TailerTestSuite) TestTailFromBeginning() {

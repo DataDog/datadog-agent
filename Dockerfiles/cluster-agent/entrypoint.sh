@@ -16,6 +16,9 @@ fi
 ##### Copy the custom confs #####
 find /conf.d -name '*.yaml' -exec cp --parents -fv {} /etc/datadog-agent/ \;
 
+##### Allow User Group to exec the secret backend script.
+export DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+
 ##### Starting up #####
 export PATH="/opt/datadog-agent/bin/datadog-cluster-agent/:/opt/datadog-agent/embedded/bin/":$PATH
 

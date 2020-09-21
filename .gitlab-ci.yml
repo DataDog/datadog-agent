@@ -66,6 +66,7 @@ variables:
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
+  MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
   ANDROID_S3_BUCKET: dd-agent-androidtesting
@@ -234,6 +235,11 @@ build_libbcc_arm64:
   stage: deps_fetch
   needs: []
   script:
+    # HACK: empty the build directory cache (that can come from previous runs)
+    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
+    # TODO: remove this once we switch to k8s runners, they won't have this problem
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth # -delete implies -depth
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps --verbose
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
@@ -267,7 +273,7 @@ linux_armhf_go_deps:
   mkdir vendor && tar xzf vendor.tar.gz -C vendor
   rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
 
-.run_tests_windows_base:
+.tests_windows_base:
   stage: source_test
   needs: []
   tags: ["runner:windows-docker", "windowsversion:1809"]
@@ -276,22 +282,22 @@ linux_armhf_go_deps:
   variables:
     NEW_BUILDER: "true"
 
-run_tests_windows-x64:
-  extends: .run_tests_windows_base
+tests_windows-x64:
+  extends: .tests_windows_base
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
 
-run_tests_windows-x86:
+tests_windows-x86:
   rules:
     - <<: *if_not_deploy
   # temporarily allow failure for tests
-  extends: .run_tests_windows_base
+  extends: .tests_windows_base
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x86"
 
-.run_tests_preparation: &run_tests_preparation
+.tests_preparation: &tests_preparation
   needs: ["linux_x64_go_deps"]
   before_script:
     - *retrieve_linux_go_deps
@@ -306,51 +312,51 @@ run_tests_windows-x86:
     - inv -e rtloader.test
 
 # run tests for deb-x64
-run_tests_deb-x64-py2:
+tests_deb-x64-py2:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
-  <<: *run_tests_preparation
+  <<: *tests_preparation
   script:
     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
 
-run_tests_deb-x64-py3:
+tests_deb-x64-py3:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-  <<: *run_tests_preparation
+  <<: *tests_preparation
   script:
     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4
 
 # run tests for rpm-x64
-run_tests_rpm-x64-py2:
+tests_rpm-x64-py2:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
-  <<: *run_tests_preparation
+  <<: *tests_preparation
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
     # This is OK because the test on systemd still runs on the debian image above
     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
 
-run_tests_rpm-x64-py3:
+tests_rpm-x64-py3:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-  <<: *run_tests_preparation
+  <<: *tests_preparation
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -358,7 +364,7 @@ run_tests_rpm-x64-py3:
     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
 
 # run tests for eBPF code
-run_tests_ebpf:
+tests_ebpf:
   stage: source_test
   needs: ["build_libbcc_x64", "linux_x64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -388,7 +394,7 @@ run_tests_ebpf:
       - $CI_PROJECT_DIR/.tmp/binary-ebpf
 
 # scan the dependencies for security vulnerabilities with snyk
-run_security_scan_test:
+security_scan_test:
   rules:
     - <<: *if_master_branch
   stage: source_test
@@ -412,7 +418,7 @@ run_security_scan_test:
       snyk monitor --project-name=datadog-agent-go.sum --file=go.mod
 
 # check consistency of go.mod file with project imports
-run_go_tidy_check:
+go_mod_tidy_check:
   stage: source_test
   needs: ["linux_x64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
@@ -435,7 +441,7 @@ build_dogstatsd_static-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: ["run_tests_deb-x64-py3", "linux_x64_go_deps"]
+  needs: ["tests_deb-x64-py3", "linux_x64_go_deps"]
   before_script:
     - *retrieve_linux_go_deps
     - source /root/.bashrc && conda activate ddpy3
@@ -448,7 +454,7 @@ build_dogstatsd-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: ["run_tests_deb-x64-py3", "linux_x64_go_deps"]
+  needs: ["tests_deb-x64-py3", "linux_x64_go_deps"]
   before_script:
     - *retrieve_linux_go_deps
     - source /root/.bashrc && conda activate ddpy3
@@ -461,7 +467,7 @@ build_dogstatsd_static-deb_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["run_tests_deb-x64-py3", "linux_arm64_go_deps"]
+  needs: ["tests_deb-x64-py3", "linux_arm64_go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -480,7 +486,7 @@ build_dogstatsd-deb_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["run_tests_deb-x64-py3", "linux_arm64_go_deps"]
+  needs: ["tests_deb-x64-py3", "linux_arm64_go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -499,7 +505,7 @@ build_iot_agent-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: ["run_tests_deb-x64-py3", "linux_x64_go_deps"]
+  needs: ["tests_deb-x64-py3", "linux_x64_go_deps"]
   before_script:
     - *retrieve_linux_go_deps
   script:
@@ -511,7 +517,7 @@ build_iot_agent-deb_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["run_tests_deb-x64-py3", "linux_arm64_go_deps"]
+  needs: ["tests_deb-x64-py3", "linux_arm64_go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -525,7 +531,7 @@ build_iot_agent-deb_arm64:
 
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
-  needs: ["run_go_tidy_check"]
+  needs: ["go_mod_tidy_check"]
   script:
     # Assuming that by default, the RELEASE_VERSION_7 entry will get used (ie. nightly-a7)
     - if [[ "$CI_COMMIT_TAG" =~ ^dca- ]]; then export RELEASE_VERSION="$CI_COMMIT_TAG"; else export RELEASE_VERSION="$RELEASE_VERSION_7"; fi
@@ -542,7 +548,7 @@ build_windows_container_entrypoint:
   stage: binary_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs:
-    - run_tests_windows-x64
+    - tests_windows-x64
   variables:
     ARCH: "x64"
   script:
@@ -561,7 +567,7 @@ cluster_agent-build_amd64:
   <<: *cluster_agent-build_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: ["run_go_tidy_check", "linux_x64_go_deps"]
+  needs: ["go_mod_tidy_check", "linux_x64_go_deps"]
   variables:
     ARCH: amd64
   before_script:
@@ -572,7 +578,7 @@ cluster_agent-build_arm64:
   <<: *cluster_agent-build_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["run_go_tidy_check", "linux_arm64_go_deps"]
+  needs: ["go_mod_tidy_check", "linux_arm64_go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -588,7 +594,7 @@ cluster_agent_cloudfoundry-build_amd64:
   rules:
     - <<: *if_version_7
   stage: binary_build
-  needs: ["run_go_tidy_check", "linux_x64_go_deps"]
+  needs: ["go_mod_tidy_check", "linux_x64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   artifacts:
@@ -612,7 +618,7 @@ cluster_agent_cloudfoundry-build_amd64:
 #
 
 # run benchmarks on deb
-# run_benchmarks-deb_x64:
+# benchmarks-deb_x64:
 #   stage: integration_test
 #   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
 #   allow_failure: true  # FIXME: this was set to true to temporarily unblock the pipeline
@@ -635,7 +641,7 @@ cluster_agent_cloudfoundry-build_amd64:
 #       - benchmarks
 
 # check the size of the static dogstatsd binary
-run_dogstatsd_size_test:
+dogstatsd_x64_size_test:
   stage: integration_test
   needs: ["build_dogstatsd_static-deb_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
@@ -649,7 +655,7 @@ run_dogstatsd_size_test:
     - inv -e dogstatsd.size-test --skip-build
 
 # check the size of the static dogstatsd binary
-run_dogstatsd_arm_size_test:
+dogstatsd_arm64_size_test:
   stage: integration_test
   needs: ["build_dogstatsd_static-deb_arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -670,6 +676,11 @@ run_dogstatsd_arm_size_test:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
     - cd $SRC_PATH
+    # HACK: empty the build directory cache (that can come from previous runs)
+    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
+    # TODO: remove this once we switch to k8s runners, they won't have this problem
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth # -delete implies -depth
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps --verbose
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
@@ -690,7 +701,7 @@ run_dogstatsd_arm_size_test:
 build_system-probe-x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  needs: ["build_libbcc_x64", "run_tests_deb-x64-py3"]
+  needs: ["build_libbcc_x64", "tests_deb-x64-py3"]
   tags: [ "runner:main", "size:large" ]
   extends: .system-probe_build_common
   variables:
@@ -699,7 +710,7 @@ build_system-probe-x64:
 build_system-probe-arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  needs: ["build_libbcc_arm64", "run_go_tidy_check"]
+  needs: ["build_libbcc_arm64", "go_mod_tidy_check"]
   tags: ["runner:docker-arm", "platform:arm64"]
   extends: .system-probe_build_common
   variables:
@@ -749,7 +760,7 @@ agent_deb-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_deb-x64-py2", "run_tests_deb-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
+  needs: ["tests_deb-x64-py2", "tests_deb-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -770,7 +781,7 @@ agent_deb-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_deb-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
+  needs: ["tests_deb-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -789,7 +800,7 @@ agent_deb-arm64-a6:
   rules:
     - <<: *if_version_6
   stage: package_build
-  needs: ["run_go_tidy_check", "build_system-probe-arm64", "linux_arm64_go_deps"]
+  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "linux_arm64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -808,7 +819,7 @@ agent_deb-arm64-a7:
   rules:
     - <<: *if_version_7
   stage: package_build
-  needs: ["run_go_tidy_check", "build_system-probe-arm64", "linux_arm64_go_deps"]
+  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "linux_arm64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -930,7 +941,7 @@ agent_rpm-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
+  needs: ["tests_rpm-x64-py2", "tests_rpm-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
@@ -950,7 +961,7 @@ agent_rpm-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_rpm-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
+  needs: ["tests_rpm-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
@@ -968,7 +979,7 @@ agent_rpm-arm64-a6:
   rules:
     - <<: *if_version_6
   stage: package_build
-  needs: ["run_go_tidy_check", "build_system-probe-arm64", "linux_arm64_go_deps"]
+  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "linux_arm64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -986,7 +997,7 @@ agent_rpm-arm64-a7:
   rules:
     - <<: *if_version_7
   stage: package_build
-  needs: ["run_go_tidy_check", "build_system-probe-arm64", "linux_arm64_go_deps"]
+  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "linux_arm64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -1097,7 +1108,7 @@ agent_suse-x64-a6:
   rules:
     - <<: *if_version_6
   stage: package_build
-  needs: ["run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
+  needs: ["tests_rpm-x64-py2", "tests_rpm-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
@@ -1115,7 +1126,7 @@ agent_suse-x64-a7:
   rules:
     - <<: *if_version_7
   stage: package_build
-  needs: ["run_tests_rpm-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
+  needs: ["tests_rpm-x64-py3", "build_system-probe-x64", "linux_x64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
@@ -1166,7 +1177,7 @@ windows_zip_agent_binaries_x64-a7:
     - <<: *if_version_7
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["run_go_tidy_check"]
+  needs: ["go_mod_tidy_check"]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
@@ -1190,7 +1201,7 @@ windows_zip_agent_binaries_x64-a7:
 
 .windows_msi_base:
   stage: package_build
-  needs: ["run_go_tidy_check"]
+  needs: ["go_mod_tidy_check"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   # Unavailable on gitlab < 12.3
   # timeout: 2h 00m
@@ -1214,7 +1225,7 @@ windows_zip_agent_binaries_x64-a7:
   variables:
     OMNIBUS_TARGET: main
 
-windows_msi_x64-a7:
+windows_msi_and_bosh_zip_x64-a7:
   rules:
     - <<: *if_version_7
   extends: .windows_main_agent_base
@@ -1281,6 +1292,61 @@ windows_dsd_msi_x64-a7:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
 
+.agent_build_common_dmg: &agent_build_common_dmg
+  script:
+    - echo "About to build for $RELEASE_VERSION"
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - export GITHUB_KEY_B64=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_key_b64 --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_APP_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_app_id --with-decryption --query "Parameter.Value" --out text)
+    - export GITHUB_INSTALLATION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_installation_id --with-decryption --query "Parameter.Value" --out text)
+    - python3 -m pip install -r requirements.txt
+    - python3 -m pip install -r tasks/deploy/requirements-github.txt
+    - inv -e github.trigger-macos-build --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --destination "$OMNIBUS_PACKAGE_DIR"
+  timeout: 3h # MacOS builds can take 1h~2h, increase the timeout to avoid timeout flakes
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+# build Agent package for dmg-x64
+agent_dmg-x64-a6:
+  rules:
+    - <<: *if_not_version_6
+      when: never
+    - <<: *if_deploy
+  allow_failure: true
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  needs: [ "go_mod_tidy_check" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 6
+    PYTHON_RUNTIMES: '2,3'
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_6
+  <<: *agent_build_common_dmg
+
+agent_dmg-x64-a7:
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_deploy
+  allow_failure: true
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  needs: [ "go_mod_tidy_check" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: '3'
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+  <<: *agent_build_common_dmg
+
 # The online version fetches the package from S3 so
 # it is created only when the package is pushed
 windows_choco_online_7_x64:
@@ -1311,7 +1377,7 @@ windows_choco_offline_7_x64:
       allow_failure: true
   stage: image_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["windows_msi_x64-a7"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
   variables:
     ARCH: "x64"
   script:
@@ -1365,6 +1431,11 @@ agent_android_apk:
     - echo running android before_script
     - cd $SRC_PATH
     - python3 -m pip install -r requirements.txt
+    # HACK: empty the build directory cache (that can come from previous runs)
+    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
+    # TODO: remove this once we switch to k8s runners, they won't have this problem
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth # -delete implies -depth
+    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps --android
     # Some Android license has changed, we have to accept the new version.
     # But on top of that, there is a bug in sdkmanager not updating correctly
@@ -1639,7 +1710,7 @@ deploy_windows_testing-a7:
       when: never
     - <<: *if_test_kitchen_deploy
   stage: testkitchen_deploy
-  needs: ["windows_msi_x64-a7"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -2701,7 +2772,7 @@ docker_build_agent7_windows1809:
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs:
-    - windows_msi_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
@@ -2730,7 +2801,7 @@ docker_build_agent7_windows1809_jmx:
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs:
-    - windows_msi_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
@@ -2760,7 +2831,7 @@ docker_build_agent7_windows1909:
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs:
-    - windows_msi_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
@@ -2789,7 +2860,7 @@ docker_build_agent7_windows1909_jmx:
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs:
-    - windows_msi_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - build_windows_container_entrypoint
   tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
@@ -2812,7 +2883,7 @@ docker_build_agent7_windows1909_jmx:
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 # build the cluster-agent image
-build_cluster_agent_amd64:
+docker_build_cluster_agent_amd64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs:
@@ -2822,7 +2893,7 @@ build_cluster_agent_amd64:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
 
-build_cluster_agent_arm64:
+docker_build_cluster_agent_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
@@ -3183,7 +3254,7 @@ dca_dev_branch_docker_hub:
       allow_failure: true
   <<: *docker_tag_job_definition
   needs:
-    - build_cluster_agent_amd64
+    - docker_build_cluster_agent_amd64
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
@@ -3194,8 +3265,8 @@ dca_dev_branch_multiarch_docker_hub:
       allow_failure: true
   <<: *docker_tag_job_definition
   needs:
-    - build_cluster_agent_amd64
-    - build_cluster_agent_arm64
+    - docker_build_cluster_agent_amd64
+    - docker_build_cluster_agent_arm64
   script:
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_DCA}:${SRC_TAG}-ARCH --dst-template datadog/cluster-agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
     - inv -e docker.publish-manifest --signed-push --name datadog/cluster-agent-dev --tag ${CI_COMMIT_REF_SLUG} --image datadog/cluster-agent-dev-amd64:${CI_COMMIT_REF_SLUG},linux/amd64 --image datadog/cluster-agent-dev-arm64:${CI_COMMIT_REF_SLUG},linux/arm64
@@ -3204,7 +3275,7 @@ dca_dev_master_docker_hub:
   rules:
     - <<: *if_master_branch
   <<: *docker_tag_job_definition
-  needs: ["build_cluster_agent_amd64"]
+  needs: ["docker_build_cluster_agent_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:master
 
@@ -3457,6 +3528,7 @@ deploy_staging_windows_master-a6:
     - windows_msi_x64-a6
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.debug.zip" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # nightlies (7 and dogstatsd), deployed to bucket/master
 deploy_staging_windows_master-a7:
@@ -3470,10 +3542,11 @@ deploy_staging_windows_master-a7:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   dependencies:
-    - windows_msi_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - windows_dsd_msi_x64-a7
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.debug.zip" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-dogstatsd-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # nightlies latest (6), deployed to bucket/master
@@ -3504,7 +3577,7 @@ deploy_staging_windows_master-latest-a7:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   dependencies:
-    - windows_msi_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - windows_dsd_msi_x64-a7
   script:
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-7-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -3522,6 +3595,7 @@ deploy_staging_windows_tags-a6:
     - windows_msi_x64-a6
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.debug.zip" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy builds (7), deployed to bucket/tagged
 deploy_staging_windows_tags-a7:
@@ -3533,10 +3607,44 @@ deploy_staging_windows_tags-a7:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   dependencies:
-    - windows_msi_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - windows_dsd_msi_x64-a7
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.debug.zip" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# Deploy MacOS dmg builds
+deploy_staging_dmg-a6:
+  rules:
+    - <<: *if_not_version_6
+      when: never
+    - <<: *if_deploy
+  allow_failure: true
+  stage: deploy6
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  dependencies:
+    - agent_dmg-x64-a6
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.dmg" $OMNIBUS_PACKAGE_DIR s3://$MACOS_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_staging_dmg-a7:
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_deploy
+  allow_failure: true
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  dependencies:
+    - agent_dmg-x64-a7
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.dmg" $OMNIBUS_PACKAGE_DIR s3://$MACOS_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy android packages to a public s3 bucket when tagged
 deploy_staging_android_tags:
@@ -3669,7 +3777,7 @@ deploy_staging_datadog_agent_windows_zip:
   rules:
     - <<: *if_deploy_on_tag_7
   stage: deploy7
-  dependencies: [ "windows_msi_x64-a7"]
+  dependencies: [ "windows_msi_and_bosh_zip_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -4071,6 +4179,9 @@ pupernetes-dev:
     - when: manual
       allow_failure: true
   <<: *pupernetes_template
+  needs: 
+  - dev_branch_docker_hub-a6
+  - dev_branch_docker_hub-a7
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -4079,6 +4190,9 @@ pupernetes-master:
   <<: *pupernetes_template
   rules:
     - <<: *if_master_branch
+  needs: 
+  - dev_master_docker_hub-a6
+  - dev_master_docker_hub-a7
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:master-py2
   - inv -e e2e-tests --image=datadog/agent-dev:master-py3

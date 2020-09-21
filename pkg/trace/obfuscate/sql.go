@@ -165,6 +165,18 @@ func (f *groupingFilter) Reset() {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
+	if v, ok := o.queryCache.Get(in); ok {
+		return v.(*ObfuscatedQuery), nil
+	}
+	oq, err := o.obfuscateSQLString(in)
+	if err != nil {
+		return oq, err
+	}
+	o.queryCache.Set(in, oq, oq.Cost())
+	return oq, nil
+}
+
+func (o *Obfuscator) obfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
 	tok := NewSQLTokenizer(in, lesc)
 	out, err := attemptObfuscation(tok)
@@ -242,6 +254,12 @@ func (f *tableFinderFilter) Reset() {
 type ObfuscatedQuery struct {
 	Query     string // the obfuscated SQL query
 	TablesCSV string // comma-separated list of tables that the query addresses
+}
+
+// Cost returns the number of bytes needed to store all the fields
+// of this ObfuscatedQuery.
+func (oq *ObfuscatedQuery) Cost() int64 {
+	return int64(len(oq.Query) + len(oq.TablesCSV))
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the

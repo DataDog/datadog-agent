@@ -6,85 +6,59 @@
 package decoder
 
 import (
-	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/stretchr/testify/assert"
 )
 
 // All valid whitespace characters
 const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 
-// MockParser mocks the logic of a Parser
-type MockParser struct {
-	header []byte
+func getDummyMessage(content string) *Message {
+	return NewMessage([]byte(content), "info", len(content), "2018-06-14T18:27:03.246999277Z")
 }
 
-func NewMockParser(header string) parser.Parser {
-	return &MockParser{header: []byte(header)}
-}
-
-// Parse removes header from line and returns a message
-func (u *MockParser) Parse(msg []byte) ([]byte, string, string, error) {
-	return bytes.Replace(msg, u.header, []byte(""), 1), "", "", nil
-}
-
-type MockFailingParser struct {
-	header []byte
-}
-
-func NewMockFailingParser(header string) parser.Parser {
-	return &MockFailingParser{header: []byte(header)}
-}
-
-// Parse removes header from line and returns a message if its header matches the Parser header
-// or returns an error
-func (u *MockFailingParser) Parse(msg []byte) ([]byte, string, string, error) {
-	if bytes.HasPrefix(msg, u.header) {
-		return bytes.Replace(msg, u.header, []byte(""), 1), "", "", nil
-	}
-	return msg, "", "", fmt.Errorf("error")
+func getDummyMessageWithLF(content string) *Message {
+	return NewMessage([]byte(content), "info", len(content)+1, "2018-06-14T18:27:03.246999277Z")
 }
 
 func TestSingleLineHandler(t *testing.T) {
-	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan, parser.NoopParser, 100)
+	outputChan := make(chan *Message, 10)
+	h := NewSingleLineHandler(outputChan, 100)
 	h.Start()
 
-	var output *Output
+	var output *Message
 	var line string
 
 	// valid line should be sent
 	line = "hello world"
-	h.Handle([]byte(line))
+	h.Handle(getDummyMessageWithLF(line))
 	output = <-outputChan
 	assert.Equal(t, line, string(output.Content))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 
 	// empty line should be dropped
-	h.Handle([]byte(""))
+	h.Handle(getDummyMessage(""))
 	assert.Equal(t, 0, len(outputChan))
 
 	// too long line should be truncated
 	line = strings.Repeat("a", contentLenLimit+10)
-	h.Handle([]byte(line))
+	h.Handle(getDummyMessage(line))
 	output = <-outputChan
 	assert.Equal(t, len(line)+len(truncatedFlag), len(output.Content))
 	assert.Equal(t, len(line), output.RawDataLen)
 
 	line = strings.Repeat("a", contentLenLimit+10)
-	h.Handle([]byte(line))
+	h.Handle(getDummyMessage(line))
 	output = <-outputChan
 	assert.Equal(t, len(truncatedFlag)+len(line)+len(truncatedFlag), len(output.Content))
 	assert.Equal(t, len(line), output.RawDataLen)
 
 	line = strings.Repeat("a", 10)
-	h.Handle([]byte(line))
+	h.Handle(getDummyMessageWithLF(line))
 	output = <-outputChan
 	assert.Equal(t, string(truncatedFlag)+line, string(output.Content))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
@@ -93,16 +67,16 @@ func TestSingleLineHandler(t *testing.T) {
 }
 
 func TestTrimSingleLine(t *testing.T) {
-	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan, parser.NoopParser, 100)
+	outputChan := make(chan *Message, 10)
+	h := NewSingleLineHandler(outputChan, 100)
 	h.Start()
 
-	var output *Output
+	var output *Message
 	var line string
 
 	// All leading and trailing whitespace characters should be trimmed
 	line = whitespace + "foo" + whitespace + "bar" + whitespace
-	h.Handle([]byte(line))
+	h.Handle(getDummyMessageWithLF(line))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
@@ -112,18 +86,18 @@ func TestTrimSingleLine(t *testing.T) {
 
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
-	outputChan := make(chan *Output, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser, 20)
+	outputChan := make(chan *Message, 10)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, 20)
 	h.Start()
 
-	var output *Output
+	var output *Message
 
 	// two lines long message should be sent
-	h.Handle([]byte("1.first"))
-	h.Handle([]byte("second"))
+	h.Handle(getDummyMessageWithLF("1.first"))
+	h.Handle(getDummyMessageWithLF("second"))
 
 	// one line long message should be sent
-	h.Handle([]byte("2. first line"))
+	h.Handle(getDummyMessageWithLF("2. first line"))
 
 	output = <-outputChan
 	var expectedContent = "1.first\\nsecond"
@@ -135,8 +109,8 @@ func TestMultiLineHandler(t *testing.T) {
 	assert.Equal(t, len("2. first line")+1, output.RawDataLen)
 
 	// too long line should be truncated
-	h.Handle([]byte("3. stringssssssize20"))
-	h.Handle([]byte("con"))
+	h.Handle(getDummyMessage("3. stringssssssize20"))
+	h.Handle(getDummyMessageWithLF("con"))
 
 	output = <-outputChan
 	assert.Equal(t, "3. stringssssssize20...TRUNCATED...", string(output.Content))
@@ -147,8 +121,8 @@ func TestMultiLineHandler(t *testing.T) {
 	assert.Equal(t, 4, output.RawDataLen)
 
 	// second line + TRUNCATED too long
-	h.Handle([]byte("4. stringssssssize20"))
-	h.Handle([]byte("continue"))
+	h.Handle(getDummyMessage("4. stringssssssize20"))
+	h.Handle(getDummyMessageWithLF("continue"))
 
 	output = <-outputChan
 	assert.Equal(t, "4. stringssssssize20...TRUNCATED...", string(output.Content))
@@ -159,12 +133,12 @@ func TestMultiLineHandler(t *testing.T) {
 	assert.Equal(t, 9, output.RawDataLen)
 
 	// continuous too long lines
-	h.Handle([]byte("5. stringssssssize20"))
+	h.Handle(getDummyMessage("5. stringssssssize20"))
 	longLineTracingSpaces := "continu             "
-	h.Handle([]byte(longLineTracingSpaces))
-	h.Handle([]byte("end"))
+	h.Handle(getDummyMessage(longLineTracingSpaces))
+	h.Handle(getDummyMessageWithLF("end"))
 	shortLineTracingSpaces := "6. next line      "
-	h.Handle([]byte(shortLineTracingSpaces))
+	h.Handle(getDummyMessageWithLF(shortLineTracingSpaces))
 
 	output = <-outputChan
 	assert.Equal(t, "5. stringssssssize20...TRUNCATED...", string(output.Content))
@@ -187,21 +161,21 @@ func TestMultiLineHandler(t *testing.T) {
 
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
-	outputChan := make(chan *Output, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser, 100)
+	outputChan := make(chan *Message, 10)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, 100)
 	h.Start()
 
-	var output *Output
+	var output *Message
 
 	// All leading and trailing whitespace characters should be trimmed
-	h.Handle([]byte(whitespace + "foo" + whitespace + "bar" + whitespace))
+	h.Handle(getDummyMessageWithLF(whitespace + "foo" + whitespace + "bar" + whitespace))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
 	assert.Equal(t, len(whitespace+"foo"+whitespace+"bar"+whitespace)+1, output.RawDataLen)
 
 	// With line break
-	h.Handle([]byte(whitespace + "foo" + whitespace))
-	h.Handle([]byte("bar" + whitespace))
+	h.Handle(getDummyMessageWithLF(whitespace + "foo" + whitespace))
+	h.Handle(getDummyMessageWithLF("bar" + whitespace))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(output.Content))
 	assert.Equal(t, len(whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
@@ -210,64 +184,63 @@ func TestTrimMultiLine(t *testing.T) {
 }
 
 func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
-	const header = "HEADER"
-	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan, NewMockParser(header), 100)
+	outputChan := make(chan *Message, 10)
+	h := NewSingleLineHandler(outputChan, 100)
 	h.Start()
 
-	line := header
-	h.Handle([]byte(line))
-	h.Handle([]byte(line + "one message"))
+	h.Handle(getDummyMessageWithLF(""))
+	h.Handle(getDummyMessageWithLF("one message"))
 
-	var output *Output
+	var output *Message
 
 	output = <-outputChan
 	assert.Equal(t, "one message", string(output.Content))
+
+	h.Stop()
 }
 
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
-	const header = "HEADER"
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header), 100)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, 100)
 	h.Start()
 
-	h.Handle([]byte(header))
+	h.Handle(getDummyMessage(""))
 
-	h.Handle([]byte(header + "1.third line"))
-	h.Handle([]byte("fourth line"))
+	h.Handle(getDummyMessage("1.third line"))
+	h.Handle(getDummyMessage("fourth line"))
 
-	var output *Output
+	var output *Message
 
 	output = <-outputChan
 	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
+
+	h.Stop()
 }
 
 func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
-	const header = "HEADER"
-	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan, NewMockFailingParser(header), 100)
+	outputChan := make(chan *Message, 10)
+	h := NewSingleLineHandler(outputChan, 100)
 	h.Start()
 
-	h.Handle([]byte("one message"))
+	h.Handle(getDummyMessage("one message"))
 
-	var output *Output
+	var output *Message
 
 	output = <-outputChan
 	assert.Equal(t, "one message", string(output.Content))
 }
 
 func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
-	const header = "HEADER"
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *Message, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockFailingParser(header), 100)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, 100)
 	h.Start()
 
-	h.Handle([]byte("1.third line"))
-	h.Handle([]byte("fourth line"))
+	h.Handle(getDummyMessage("1.third line"))
+	h.Handle(getDummyMessage("fourth line"))
 
-	var output *Output
+	var output *Message
 
 	output = <-outputChan
 	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))

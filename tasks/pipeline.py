@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+import re
+
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -18,8 +20,49 @@ def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_
     Example:
     inv pipeline.trigger --git-ref 7.22.0 --release-version-6 "6.22.0" --release-version-7 "7.22.0" --repo-branch "stable"
     """
+
+    #
+    # Create gitlab instance and make sure we have access.
+    project_name = "DataDog/datadog-agent"
+    gitlab = Gitlab()
+    gitlab.test_project_found(project_name)
+
+    #
+    # If git_ref matches v7 pattern and release_version_6 is not empty, make sure Gitlab has v6 tag.
+    # If git_ref matches v6 pattern and release_version_7 is not empty, make sure Gitlab has v7 tag.
+    # v7 version pattern should be able to match 7.12.24-rc2 and 7.12.34
+    #
+    v7_pattern = r'^7\.(\d+\.\d+)(-.+|)$'
+    v6_pattern = r'^6\.(\d+\.\d+)(-.+|)$'
+
+    match = re.match(v7_pattern, git_ref)
+
+    if release_version_6 and match:
+        # release_version_6 is not empty and git_ref matches v7 pattern, construct v6 tag and check.
+        tag_name = "6." + "".join(match.groups())
+        gitlab_tag = gitlab.find_tag(project_name, tag_name)
+
+        if ("name" not in gitlab_tag) or gitlab_tag["name"] != tag_name:
+            print("Cannot find GitLab v6 tag {} while trying to build git ref {}".format(tag_name, git_ref))
+            raise Exit(code=1)
+
+        print("Successfully cross checked v6 tag {} and git ref {}".format(tag_name, git_ref))
+    else:
+        match = re.match(v6_pattern, git_ref)
+
+        if release_version_7 and match:
+            # release_version_7 is not empty and git_ref matches v6 pattern, construct v7 tag and check.
+            tag_name = "7." + "".join(match.groups())
+            gitlab_tag = gitlab.find_tag(project_name, tag_name)
+
+            if ("name" not in gitlab_tag) or gitlab_tag["name"] != tag_name:
+                print("Cannot find GitLab v7 tag {} while trying to build git ref {}".format(tag_name, git_ref))
+                raise Exit(code=1)
+
+            print("Successfully cross checked v7 tag {} and git ref {}".format(tag_name, git_ref))
+
     pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, repo_branch, deploy=True)
-    wait_for_pipeline("DataDog/datadog-agent", pipeline_id)
+    wait_for_pipeline(project_name, pipeline_id)
 
 
 @task

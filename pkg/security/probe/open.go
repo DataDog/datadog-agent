@@ -35,18 +35,40 @@ var openCapabilities = Capabilities{
 var openHookPoints = []*HookPoint{
 	{
 		Name:       "sys_open",
-		KProbes:    syscallKprobe("open"),
+		KProbes:    syscallKprobe("open", true),
+		EventTypes: []eval.EventType{"open"},
+	},
+	{
+		Name:       "sys_creat",
+		KProbes:    syscallKprobe("creat"),
+		EventTypes: []eval.EventType{"open"},
+	},
+	{
+		Name:       "sys_open_by_handle_at",
+		KProbes:    syscallKprobe("open_by_handle_at", true),
+		EventTypes: []eval.EventType{"open"},
+	},
+	{
+		Name:       "sys_truncate",
+		KProbes:    syscallKprobe("truncate", true),
 		EventTypes: []eval.EventType{"open"},
 	},
 	{
 		Name:       "sys_openat",
-		KProbes:    syscallKprobe("openat"),
+		KProbes:    syscallKprobe("openat", true),
 		EventTypes: []eval.EventType{"open"},
 	},
 	{
 		Name: "vfs_open",
 		KProbes: []*ebpf.KProbe{{
 			EntryFunc: "kprobe/vfs_open",
+		}},
+		EventTypes: []eval.EventType{"open"},
+	},
+	{
+		Name: "vfs_truncate",
+		KProbes: []*ebpf.KProbe{{
+			EntryFunc: "kprobe/vfs_truncate",
 		}},
 		EventTypes: []eval.EventType{"open"},
 	},
