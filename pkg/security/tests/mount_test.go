@@ -41,47 +41,51 @@ func TestMount(t *testing.T) {
 	}
 	os.MkdirAll(dstMntPath, 0755)
 
-	// Test mount
-	if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
-		t.Fatalf("could not create bind mount: %s", err)
-	}
 	var mntID uint32
-
-	event, err := test.GetEvent(3 * time.Second)
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "mount" {
-			t.Errorf("expected mount event, got %s", event.GetType())
+	t.Run("mount", func(t *testing.T) {
+		// Test mount
+		if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
+			t.Fatalf("could not create bind mount: %s", err)
 		}
 
-		p := event.Mount.MountPointStr
-		p = strings.Replace(p, "/tmp", "", 1)
-		if p != strings.Replace(dstMntPath, "/tmp", "", 1) {
-			t.Errorf("expected %v for ParentPathStr, got %v", mntPath, p)
+		event, err := test.GetEvent(3 * time.Second)
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "mount" {
+				t.Errorf("expected mount event, got %s", event.GetType())
+			}
+
+			p := event.Mount.MountPointStr
+			p = strings.Replace(p, "/tmp", "", 1)
+			if p != strings.Replace(dstMntPath, "/tmp", "", 1) {
+				t.Errorf("expected %v for ParentPathStr, got %v", mntPath, p)
+			}
+
+			if fs := event.Mount.FSType; fs != "bind" {
+				t.Errorf("expected a bind mount, got %v", fs)
+			}
+			mntID = event.Mount.NewMountID
+		}
+	})
+
+	t.Run("umount", func(t *testing.T) {
+		// Test umount
+		if err := syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
+			t.Fatalf("could not unmount test-mount: %s", err)
 		}
 
-		if fs := event.Mount.FSType; fs != "bind" {
-			t.Errorf("expected a bind mount, got %v", fs)
-		}
-		mntID = event.Mount.NewMountID
-	}
+		event, err := test.GetEvent(3 * time.Second)
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "umount" {
+				t.Errorf("expected umount event, got %s", event.GetType())
+			}
 
-	// Test umount
-	if err := syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
-		t.Fatalf("could not unmount test-mount: %s", err)
-	}
-
-	event, err = test.GetEvent(3 * time.Second)
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "umount" {
-			t.Errorf("expected umount event, got %s", event.GetType())
+			if uMntID := event.Umount.MountID; uMntID != mntID {
+				t.Errorf("expected mount_id %v, got %v", mntID, uMntID)
+			}
 		}
-
-		if uMntID := event.Umount.MountID; uMntID != mntID {
-			t.Errorf("expected mount_id %v, got %v", mntID, uMntID)
-		}
-	}
+	})
 }
