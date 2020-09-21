@@ -41,7 +41,7 @@ type Tracer struct {
 	// buffers
 	connStatsActive []network.ConnectionStats
 	connStatsClosed []network.ConnectionStats
-	driverBuffer []uint8
+	driverBuffer    []uint8
 
 	timerInterval int
 
@@ -144,7 +144,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
 	t.connStatsActive = t.resizeConnectionStatBuffer(len(activeConnStats), t.connStatsActive)
 	t.connStatsClosed = t.resizeConnectionStatBuffer(len(closedConnStats), t.connStatsClosed)
-	t.driverBuffer = t.resizeDriverBuffer(len(closedConnStats) + len(activeConnStats), t.driverBuffer)
+	t.driverBuffer = t.resizeDriverBuffer(len(closedConnStats)+len(activeConnStats), t.driverBuffer)
 	return &network.Connections{Conns: conns}, nil
 }
 
@@ -158,7 +158,8 @@ func (t *Tracer) resizeConnectionStatBuffer(compareSize int, buffer []network.Co
 	return buffer
 }
 
-func (t *Tracer) resizeDriverBuffer(compareSize int, buffer []uint8) []byte{
+func (t *Tracer) resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
+	log.Info("Called buffer resizing")
 	if compareSize >= cap(buffer)*2 {
 		return make([]uint8, 0, cap(buffer)*2)
 	} else if compareSize <= cap(buffer)/2 {
