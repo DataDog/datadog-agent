@@ -44,7 +44,7 @@ const (
 	regexGpuUsageIdx = 3
 
 	// Regex used to parse the CPU usage section => e.g. CPU [2%@102,1%@102,0%@102,0%@102]
-	regexCpuUsageIdx = 4
+	regexCPUUsageIdx = 4
 
 	// Regex used to parse the temperature information => e.g. thermal@41C
 	regexTemperatureIdx = 5
@@ -53,11 +53,11 @@ const (
 	regexVoltageIdx = 6
 
 	// Regex used to parse cpu and freq => e.g. 2%@102
-	regexCpuFreqIdx = 7
+	regexCPUFreqIdx = 7
 
 	// Indices of the matched fields by the RAM regex
 	ramUsed          = 1
-	totalRam         = 2
+	totalRAM         = 2
 	ramUnit          = 3
 	numFreeBlock     = 4
 	largestFreeBlock = 5
@@ -182,7 +182,7 @@ func getSizeMultiplier(unit string) float64 {
 	return 1
 }
 
-func (c *TegraCheck) sendRamMetrics(sender aggregator.Sender, field string) error {
+func (c *TegraCheck) sendRAMMetrics(sender aggregator.Sender, field string) error {
 	ramFields := c.regexes[regexRAMIdx].FindAllStringSubmatch(field, -1)
 	if len(ramFields) != 1 {
 		return errors.New("could not parse RAM fields")
@@ -190,17 +190,17 @@ func (c *TegraCheck) sendRamMetrics(sender aggregator.Sender, field string) erro
 
 	ramMultiplier := getSizeMultiplier(ramFields[0][ramUnit])
 
-	usedRam, err := strconv.ParseFloat(ramFields[0][ramUsed], 64)
+	usedRAM, err := strconv.ParseFloat(ramFields[0][ramUsed], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.used", usedRam*ramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.used", usedRAM*ramMultiplier, "", nil)
 
-	totalRam, err := strconv.ParseFloat(ramFields[0][totalRam], 64)
+	totalRAM, err := strconv.ParseFloat(ramFields[0][totalRAM], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.total", totalRam*ramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.total", totalRAM*ramMultiplier, "", nil)
 
 	// lfb NxXMB, X is the largest free block. N is the number of free blocks of this size.
 	lfbMultiplier := getSizeMultiplier(ramFields[0][lfbUnit])
@@ -287,15 +287,15 @@ func (c *TegraCheck) sendGpuUsageMetrics(sender aggregator.Sender, field string)
 	return nil
 }
 
-func (c *TegraCheck) sendCpuUsageMetrics(sender aggregator.Sender, field string) error {
-	cpuFields := c.regexes[regexCpuUsageIdx].FindAllStringSubmatch(field, -1)
+func (c *TegraCheck) sendCPUUsageMetrics(sender aggregator.Sender, field string) error {
+	cpuFields := c.regexes[regexCPUUsageIdx].FindAllStringSubmatch(field, -1)
 	if len(cpuFields) <= 0 {
 		return errors.New("could not parse CPU usage fields")
 	}
 	cpus := strings.Split(cpuFields[0][1], ",")
 
 	for i := 0; i < len(cpus); i++ {
-		cpuAndFreqFields := c.regexes[regexCpuFreqIdx].FindAllStringSubmatch(cpus[i], -1)
+		cpuAndFreqFields := c.regexes[regexCPUFreqIdx].FindAllStringSubmatch(cpus[i], -1)
 		cpuUsage, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuUsage], 64)
 		if err != nil {
 			return err
