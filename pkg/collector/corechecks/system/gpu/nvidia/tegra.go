@@ -27,33 +27,33 @@ import (
 )
 
 const (
-	tegraCheckName			= "tegra"
-	defaultRetryDuration	= 5 * time.Second
-	defaultRetries			= 3
+	tegraCheckName       = "tegra"
+	defaultRetryDuration = 5 * time.Second
+	defaultRetries       = 3
 
-	kb						= 1024
-	mb						= kb * 1024
-	gb						= mb * 1024
+	kb = 1024
+	mb = kb * 1024
+	gb = mb * 1024
 
 	// Indices of the regex in the 'regexes' variable below
-	regexRAMIdx				= 0
-	regexSwapCacheIdx		= 1
-	regexIRamIdx			= 2
+	regexRAMIdx       = 0
+	regexSwapCacheIdx = 1
+	regexIRamIdx      = 2
 
 	// Regex used to parse the GPU usage and frequency => e.g. EMC_FREQ 7%@408 GR3D_FREQ 0%@76
-	regexGpuUsageIdx		= 3
+	regexGpuUsageIdx = 3
 
 	// Regex used to parse the CPU usage section => e.g. CPU [2%@102,1%@102,0%@102,0%@102]
-	regexCpuUsageIdx		= 4
+	regexCpuUsageIdx = 4
 
 	// Regex used to parse the temperature information => e.g. thermal@41C
-	regexTemperatureIdx		= 5
+	regexTemperatureIdx = 5
 
 	// Regex used to parse the voltage information => e.g. POM_5V_IN 900/943
-	regexVoltageIdx			= 6
+	regexVoltageIdx = 6
 
 	// Regex used to parse cpu and freq => e.g. 2%@102
-	regexCpuFreqIdx			= 7
+	regexCpuFreqIdx = 7
 
 	// Indices of the matched fields by the RAM regex
 	ramUsed          = 1
@@ -64,32 +64,32 @@ const (
 	lfbUnit          = 6
 
 	// Indices of the matched fields by the Swap/Cache regex
-	swapUsed		= 1
-	totalSwap		= 2
-	swapUnit		= 3
-	cached			= 4
-	cacheUnit		= 5
+	swapUsed  = 1
+	totalSwap = 2
+	swapUnit  = 3
+	cached    = 4
+	cacheUnit = 5
 
 	// Indices of the matched fields by the Icache regex
 
 	// Indices of the matched fields by the GPU usage regex
-	emcPct		= 1
-	emcFreq		= 2
-	gpuPct		= 3
-	gpuFreq		= 4
+	emcPct  = 1
+	emcFreq = 2
+	gpuPct  = 3
+	gpuFreq = 4
 
 	voltageProbeName = 1
-	currentVoltage 	 = 2
+	currentVoltage   = 2
 	averageVoltage   = 3
 
-	tempZone	= 1
-	tempValue	= 2
+	tempZone  = 1
+	tempValue = 2
 
 	cpuUsage = 1
 	cpuFreq  = 2
 )
 
-var regexes	= [...]string {
+var regexes = [...]string{
 	// Group 1.	-> Used
 	// Group 2.	-> Total
 	// Group 3.	-> Unit
@@ -150,18 +150,18 @@ type TegraCheck struct {
 	core.CheckBase
 
 	// Indicates that this check has been scheduled and is running.
-	running			uint32
+	running uint32
 
 	// The path to the tegrastats binary. Defaults to /usr/bin/tegrastats
-	tegraStatsPath	string
+	tegraStatsPath string
 
 	// The command line options for tegrastats
-	commandOpts		[]string
+	commandOpts []string
 
-	regexes			[]*regexp.Regexp
+	regexes []*regexp.Regexp
 
-	stop        chan struct{}
-	stopDone    chan struct{}
+	stop     chan struct{}
+	stopDone chan struct{}
 }
 
 // Interval returns the scheduling time for the check.
@@ -194,13 +194,13 @@ func (c *TegraCheck) sendRamMetrics(sender aggregator.Sender, field string) erro
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.used", usedRam * ramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.used", usedRam*ramMultiplier, "", nil)
 
 	totalRam, err := strconv.ParseFloat(ramFields[0][totalRam], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.total", totalRam * ramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.total", totalRam*ramMultiplier, "", nil)
 
 	// lfb NxXMB, X is the largest free block. N is the number of free blocks of this size.
 	lfbMultiplier := getSizeMultiplier(ramFields[0][lfbUnit])
@@ -209,7 +209,7 @@ func (c *TegraCheck) sendRamMetrics(sender aggregator.Sender, field string) erro
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.lfb", largestFreeBlock * lfbMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.mem.lfb", largestFreeBlock*lfbMultiplier, "", nil)
 
 	numFreeBlocks, err := strconv.ParseFloat(ramFields[0][numFreeBlock], 64)
 	if err != nil {
@@ -232,20 +232,20 @@ func (c *TegraCheck) sendSwapMetrics(sender aggregator.Sender, field string) err
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.swap.used", swapUsed * swapMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.swap.used", swapUsed*swapMultiplier, "", nil)
 
 	totalSwap, err := strconv.ParseFloat(swapFields[0][totalSwap], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.swap.total", totalSwap * swapMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.swap.total", totalSwap*swapMultiplier, "", nil)
 
 	cacheMultiplier := getSizeMultiplier(swapFields[0][cacheUnit])
 	cached, err := strconv.ParseFloat(swapFields[0][cached], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.swap.cached", cached * cacheMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.gpu.swap.cached", cached*cacheMultiplier, "", nil)
 
 	return nil
 }
@@ -264,7 +264,7 @@ func (c *TegraCheck) sendGpuUsageMetrics(sender aggregator.Sender, field string)
 
 	if len(gpuFields[0][emcFreq]) > 0 {
 		emcFreq, err := strconv.ParseFloat(gpuFields[0][emcFreq], 64)
-		if err != nil{
+		if err != nil {
 			return err
 		}
 		sender.Gauge("nvidia.jetson.gpu.emc.freq", emcFreq, "", nil)
@@ -472,7 +472,7 @@ func (c *TegraCheck) Configure(data integration.Data, initConfig integration.Dat
 	// Since our interval is 0 because we're a long running check, we can use the CheckBase.Interval() as
 	// the tegrastats reporting interval
 	c.commandOpts = []string{
-		fmt.Sprintf("--interval %d", int64(c.CheckBase.Interval() * time.Millisecond)),
+		fmt.Sprintf("--interval %d", int64(c.CheckBase.Interval()*time.Millisecond)),
 	}
 
 	c.regexes = make([]*regexp.Regexp, len(regexes))
