@@ -10,6 +10,7 @@ cookbook 'datadog', '~> 4.4.0'
 cookbook 'apt', '< 4.0'
 
 cookbook 'docker'
+cookbook 'selinux'
 
 cookbook 'dd-agent-install', path: './site-cookbooks/dd-agent-install'
 cookbook 'dd-agent-upgrade', path: './site-cookbooks/dd-agent-upgrade'

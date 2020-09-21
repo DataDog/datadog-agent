@@ -17,44 +17,64 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
-  cookbook_file "#{wrk_dir}/testsuite32" do
-    source "testsuite32"
-    mode '755'
-  end
-
-  docker_service 'default' do
-    action [:create, :start]
-  end
-
-  docker_image 'debian' do
-    tag 'bullseye'
-    action :pull
-  end
-
-  docker_container 'docker-testsuite' do
-    repo 'debian'
-    tag 'bullseye'
-    cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
-    command "sleep 3600"
-    volumes '/tmp/security-agent:/tmp/security-agent'
-    privileged true
-  end
-
-  docker_exec 'debug_fs' do
-    container 'docker-testsuite'
-    command ['mount', '-t', 'debugfs', 'none', '/sys/kernel/debug']
-  end
-
-  package 'Install i386 libc' do
-    case node[:platform]
-    when 'redhat', 'centos', 'suse', 'fedora'
-      package_name 'glibc.i686'
-    when 'ubuntu', 'debian'
-      package_name 'libc6-i386'
-    end
-  end
+  # To uncomment when gitlab runner are able to build with GOARCH=386
+  # cookbook_file "#{wrk_dir}/testsuite32" do
+  #   source "testsuite32"
+  #   mode '755'
+  # end
 
   kernel_module 'loop' do
     action :load
+  end
+
+  if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
+    docker_service 'default' do
+      action [:create, :start]
+    end
+
+    docker_image 'debian' do
+      tag 'bullseye'
+      action :pull
+    end
+
+    docker_container 'docker-testsuite' do
+      repo 'debian'
+      tag 'bullseye'
+      cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
+      command "sleep 3600"
+      volumes '/tmp/security-agent:/tmp/security-agent'
+      privileged true
+    end
+
+    docker_exec 'debug_fs' do
+      container 'docker-testsuite'
+      command ['mount', '-t', 'debugfs', 'none', '/sys/kernel/debug']
+    end
+
+    for i in 0..7 do
+      docker_exec 'create_loop' do
+        container 'docker-testsuite'
+        command ['bash', '-c', "mknod /dev/loop#{i} b 7 #{i} || true"]
+      end
+    end
+  end
+
+  if not platform_family?('suse')
+    package 'Install i386 libc' do
+      case node[:platform]
+      when 'redhat', 'centos', 'fedora'
+        package_name 'glibc.i686'
+      when 'ubuntu', 'debian'
+        package_name 'libc6-i386'
+      # when 'suse'
+      #   package_name 'glibc-32bit'
+      end
+    end
+  end
+
+  if platform_family?('centos', 'fedora', 'rhel')
+    selinux_state "SELinux Permissive" do
+      action :permissive
+    end
   end
 end

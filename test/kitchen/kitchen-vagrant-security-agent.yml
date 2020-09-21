@@ -10,13 +10,17 @@ provisioner:
 
 platforms:
 <%
-    ENV['TEST_PLATFORMS'] ||= "centos7:centos/7,centos8:centos/8"
-    test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(':') }
+    ENV['TEST_PLATFORMS'] ||= "centos7:roboxes/centos7,centos8:roboxes/centos8"
+    test_platforms = ENV['TEST_PLATFORMS'].split(',').map { |p| p.split(':') }
     test_platforms.each do |platform|
 %>
   - name: <%= platform[0] %>
     driver:
       box: <%= platform[1] %>
+      <% if platform[1].include?('opensuse') %>
+      customize:
+        disk_bus: sata
+      <% end %>
 <%
     end
 %>
