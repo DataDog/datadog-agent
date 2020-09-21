@@ -11,6 +11,11 @@ JMXFetch
     Date: {{ formatUnixTime .JMXStartupError.Timestamp }}
 {{ end -}}
 {{ with .JMXStatus }}
+  Information
+  ==================
+  {{- range $k,$v := .info }}
+    {{ $k }} : {{ $v }}
+  {{- end }}
   {{- if and (not .timestamp) (not .checks) }}
   no JMX status available
   {{- else }}
