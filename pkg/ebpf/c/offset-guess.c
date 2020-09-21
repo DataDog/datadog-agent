@@ -57,8 +57,9 @@ static __always_inline int guess_offsets(tracer_status_t* status, struct sock* s
     proc_t proc = {};
     bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
 
-    if (!proc_t_comm_equals(status->proc, proc))
+    if (!proc_t_comm_equals(status->proc, proc)) {
         return 0;
+    }
 
     tracer_status_t new_status = {};
     // Copy values from status to new_status
@@ -146,15 +147,21 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
 }
 
 /* Used exclusively for offset guessing */
-SEC("kprobe/tcp_get_info")
-int kprobe__tcp_get_info(struct pt_regs* ctx) {
+SEC("kprobe/tcp_getsockopt")
+int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
+    int level = (int)PT_REGS_PARM2(ctx);
+    int optname = (int)PT_REGS_PARM3(ctx);
+    if (level != SOL_TCP || optname != TCP_INFO) {
+        return 0;
+    }
+
     u64 zero = 0;
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
     if (status == NULL) {
         return 0;
     }
 
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     status->tcp_info_kprobe_status = 1;
     guess_offsets(status, sk, NULL);
 
