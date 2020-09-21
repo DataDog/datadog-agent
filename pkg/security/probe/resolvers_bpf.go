@@ -76,6 +76,10 @@ func (r *Resolvers) Start() error {
 		return errors.New("pid_cookie BPF_HASH table doesn't exist")
 	}
 
+	if err := r.MountResolver.Start(); err != nil {
+		return err
+	}
+
 	return r.DentryResolver.Start()
 }
 

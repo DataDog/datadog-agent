@@ -28,15 +28,16 @@ var (
 	logsBuffer           = []func(){}
 	bufferLogsBeforeInit = true
 	bufferMutex          sync.Mutex
-	defaultStackDepth    = 2
+	defaultStackDepth    = 3
 )
 
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
-	inner seelog.LoggerInterface
-	level seelog.LogLevel
-	extra map[string]seelog.LoggerInterface
-	l     sync.RWMutex
+	inner       seelog.LoggerInterface
+	level       seelog.LogLevel
+	extra       map[string]seelog.LoggerInterface
+	l           sync.RWMutex
+	contextLock sync.Mutex
 }
 
 // SetupDatadogLogger configure logger singleton with seelog interface
@@ -366,87 +367,140 @@ func formatError(v ...interface{}) error {
 	return errors.New(msg)
 }
 
+func log(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), v ...interface{}) {
+	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
+		s := buildLogEntry(v...)
+		logFunc(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(bufferFunc)
+	}
+}
+
+func logWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, v ...interface{}) error {
+	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
+		s := buildLogEntry(v...)
+		return logFunc(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(bufferFunc)
+	}
+	err := formatError(v...)
+	fmt.Fprintf(os.Stderr, "%s: %s\n", err.Error(), logLevel.String())
+	return err
+}
+
+func logFormat(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string, ...interface{}), format string, params ...interface{}) {
+	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
+		logFunc(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(bufferFunc)
+	}
+}
+
+func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string, ...interface{}) error, format string, params ...interface{}) error {
+	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
+		return logFunc(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(bufferFunc)
+	}
+	err := formatErrorf(format, params...)
+	fmt.Fprintf(os.Stderr, "%s: %s\n", err.Error(), logLevel.String())
+	return err
+}
+
+func logContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), message string, context ...interface{}) {
+	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
+		msg := logger.scrub(message)
+		logger.contextLock.Lock()
+		logger.inner.SetContext(context)
+		logFunc(msg)
+		logger.inner.SetContext(nil)
+		// Not using defer to make sure we release lock as fast as possible
+		logger.contextLock.Unlock()
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(bufferFunc)
+	}
+}
+
 // Trace logs at the trace level
 func Trace(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
-		s := buildLogEntry(v...)
-		logger.trace(logger.scrub(s))
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Trace(v...) })
-	}
+	log(seelog.TraceLvl, func() { Trace(v...) }, logger.trace, v...)
+}
+
+// Tracef logs with format at the trace level
+func Tracef(format string, params ...interface{}) {
+	logFormat(seelog.TraceLvl, func() { Tracef(format, params...) }, logger.tracef, format, params...)
+}
+
+// Tracec logs at the trace level with context
+func Tracec(message string, context ...interface{}) {
+	logContext(seelog.TraceLvl, func() { Tracec(message, context...) }, logger.trace, message, context...)
 }
 
 // Debug logs at the debug level
 func Debug(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
-		s := buildLogEntry(v...)
-		logger.debug(logger.scrub(s))
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Debug(v...) })
-	}
+	log(seelog.DebugLvl, func() { Debug(v...) }, logger.debug, v...)
+}
+
+// Debugf logs with format at the debug level
+func Debugf(format string, params ...interface{}) {
+	logFormat(seelog.DebugLvl, func() { Debugf(format, params...) }, logger.debugf, format, params...)
+}
+
+// Debugc logs at the debug level with context
+func Debugc(message string, context ...interface{}) {
+	logContext(seelog.DebugLvl, func() { Debugc(message, context...) }, logger.debug, message, context...)
 }
 
 // Info logs at the info level
 func Info(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
-		s := buildLogEntry(v...)
-		logger.info(logger.scrub(s))
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Info(v...) })
-	}
+	log(seelog.InfoLvl, func() { Info(v...) }, logger.info, v...)
+}
+
+// Infof logs with format at the info level
+func Infof(format string, params ...interface{}) {
+	logFormat(seelog.InfoLvl, func() { Infof(format, params...) }, logger.infof, format, params...)
+}
+
+// Infoc logs at the info level with context
+func Infoc(message string, context ...interface{}) {
+	logContext(seelog.InfoLvl, func() { Infoc(message, context...) }, logger.info, message, context...)
 }
 
 // Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
-		s := buildLogEntry(v...)
-		return logger.warn(logger.scrub(s))
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Warn(v...) })
-	}
-	return formatError(v...)
+	return logWithError(seelog.WarnLvl, func() { Warn(v...) }, logger.warn, v...)
+}
+
+// Warnf logs with format at the warn level and returns an error containing the formated log message
+func Warnf(format string, params ...interface{}) error {
+	return logFormatWithError(seelog.WarnLvl, func() { Warnf(format, params...) }, logger.warnf, format, params...)
 }
 
 // Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
-		s := buildLogEntry(v...)
-		return logger.error(logger.scrub(s))
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Error(v...) })
-	}
-	// We print the error to Stderr in case the agent exit before initializing the log module
-	err := formatError(v...)
-	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
-	return err
+	return logWithError(seelog.ErrorLvl, func() { Error(v...) }, logger.error, v...)
 }
 
-// ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
-func ErrorStackDepth(depth int, v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
-		s := buildLogEntry(v...)
-		return logger.errorStackDepth(logger.scrub(s), depth)
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { ErrorStackDepth(depth, v...) })
-	}
-	// We print the error to Stderr in case the agent exit before initializing the log module
-	err := formatError(v...)
-	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
-	return err
+// Errorf logs with format at the error level and returns an error containing the formated log message
+func Errorf(format string, params ...interface{}) error {
+	return logFormatWithError(seelog.ErrorLvl, func() { Errorf(format, params...) }, logger.errorf, format, params...)
 }
 
 // Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
-		s := buildLogEntry(v...)
-		return logger.critical(logger.scrub(s))
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Critical(v...) })
-	}
-	// We print the error to Stderr in case the agent exit before initializing the log module
-	err := formatError(v...)
-	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
-	return err
+	return logWithError(seelog.CriticalLvl, func() { Critical(v...) }, logger.critical, v...)
+}
+
+// Criticalf logs with format at the critical level and returns an error containing the formated log message
+func Criticalf(format string, params ...interface{}) error {
+	return logFormatWithError(seelog.ErrorLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, params...)
+}
+
+// ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
+func ErrorStackDepth(depth int, v ...interface{}) error {
+	return logWithError(seelog.ErrorLvl, func() { ErrorStackDepth(depth, v...) }, func(s string) error {
+		return logger.errorStackDepth(s, depth)
+	}, v...)
 }
 
 // Flush flushes the underlying inner log
@@ -454,69 +508,6 @@ func Flush() {
 	if logger != nil && logger.inner != nil {
 		logger.inner.Flush()
 	}
-}
-
-// Tracef logs with format at the trace level
-func Tracef(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
-		logger.tracef(format, params...)
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Tracef(format, params...) })
-	}
-}
-
-// Debugf logs with format at the debug level
-func Debugf(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
-		logger.debugf(format, params...)
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Debugf(format, params...) })
-	}
-}
-
-// Infof logs with format at the info level
-func Infof(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
-		logger.infof(format, params...)
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Infof(format, params...) })
-	}
-}
-
-// Warnf logs with format at the warn level and returns an error containing the formated log message
-func Warnf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
-		return logger.warnf(format, params...)
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Warnf(format, params...) })
-	}
-	return formatErrorf(format, params...)
-}
-
-// Errorf logs with format at the error level and returns an error containing the formated log message
-func Errorf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
-		return logger.errorf(format, params...)
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Errorf(format, params...) })
-	}
-	// We print the error to Stderr in case the agent exit before initializing the log module
-	err := formatErrorf(format, params...)
-	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
-	return err
-}
-
-// Criticalf logs with format at the critical level and returns an error containing the formated log message
-func Criticalf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
-		return logger.criticalf(format, params...)
-	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
-		addLogToBuffer(func() { Criticalf(format, params...) })
-	}
-	// We print the error to Stderr in case the agent exit before initializing the log module
-	err := formatErrorf(format, params...)
-	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
-	return err
 }
 
 // ReplaceLogger allows replacing the internal logger, returns old logger

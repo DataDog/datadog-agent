@@ -22,8 +22,9 @@ func NewOffsetManager() *manager.Manager {
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
-			{Section: string(TCPGetInfo)},
+			{Section: string(TCPGetSockOpt)},
 			{Section: string(TCPv6Connect)},
+			{Section: string(IPMakeSkb)},
 			{Section: string(TCPv6ConnectReturn), KProbeMaxActive: maxActive},
 		},
 	}
@@ -62,8 +63,8 @@ func NewManager(closedHandler *PerfHandler) *manager.Manager {
 			{Section: string(TCPClose)},
 			{Section: string(TCPCloseReturn), KProbeMaxActive: maxActive},
 			{Section: string(TCPSetState)},
-			{Section: string(UDPSendMsg)},
-			{Section: string(UDPSendMsgPre410)},
+			{Section: string(IPMakeSkb)},
+			{Section: string(IP6MakeSkb)},
 			{Section: string(UDPRecvMsg)},
 			{Section: string(UDPRecvMsgPre410)},
 			{Section: string(UDPRecvMsgReturn), KProbeMaxActive: maxActive},

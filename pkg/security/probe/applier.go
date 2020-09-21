@@ -164,7 +164,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, e
 					}
 
 					if err := rsa.registerKProbe(kprobe, applier); err != nil {
-						if !hookPoint.Optional {
+						if !hookPoint.Optional && len(hookPoint.KProbes) == 1 {
 							return nil, err
 						}
 					}

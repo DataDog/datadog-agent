@@ -104,6 +104,16 @@ func HasFargateResourceTags() bool {
 	})
 }
 
+// GetNTPHosts returns the NTP hosts for ECS/Fargate if it is detected as the cloud provider, otherwise an empty array.
+// Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html#configure_ntp
+func GetNTPHosts() []string {
+	if IsRunningOn() {
+		return []string{"169.254.169.123"}
+	}
+
+	return nil
+}
+
 func queryCacheBool(cacheKey string, cacheMissEvalFunc func() (bool, time.Duration)) bool {
 	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return false

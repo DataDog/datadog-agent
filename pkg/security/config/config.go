@@ -28,6 +28,8 @@ type Config struct {
 	EnableDiscarders    bool
 	SocketPath          string
 	SyscallMonitor      bool
+	EventServerBurst    int
+	EventServerRate     int
 }
 
 // NewConfig returns a new Config object
@@ -41,6 +43,8 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		SocketPath:          aconfig.Datadog.GetString("runtime_security_config.socket"),
 		SyscallMonitor:      aconfig.Datadog.GetBool("runtime_security_config.syscall_monitor.enabled"),
 		PoliciesDir:         aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
+		EventServerBurst:    aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
+		EventServerRate:     aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 	}
 
 	if cfg != nil {

@@ -38,4 +38,6 @@ const (
 	ReplicaSetsInformer InformerName = "replicaSets"
 	// ServicesInformer holds the name of the informer
 	ServicesInformer InformerName = "services"
+	// NodesInformer holds the name of the informer
+	NodesInformer InformerName = "nodes"
 )

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probe
 
@@ -11,16 +11,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 func addRuleExpr(t *testing.T, rs *rules.RuleSet, exprs ...string) {
-	var ruleDefs []*policy.RuleDefinition
+	var ruleDefs []*rules.RuleDefinition
 
 	for i, expr := range exprs {
-		ruleDef := &policy.RuleDefinition{
+		ruleDef := &rules.RuleDefinition{
 			ID:         fmt.Sprintf("ID%d", i),
 			Expression: expr,
 			Tags:       make(map[string]string),

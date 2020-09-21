@@ -92,6 +92,7 @@ type testOpts struct {
 	enableFilters     bool
 	disableApprovers  bool
 	disableDiscarders bool
+	testDir           string
 }
 
 type testModule struct {
@@ -188,7 +189,7 @@ func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 }
 
 func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
-	st, err := newSimpleTest(macros, rules)
+	st, err := newSimpleTest(macros, rules, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +275,7 @@ func waitProcScan(test *testProbe) {
 }
 
 func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
-	st, err := newSimpleTest(macrosDef, rulesDef)
+	st, err := newSimpleTest(macrosDef, rulesDef, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -359,11 +360,14 @@ func (tp *testProbe) Close() {
 }
 
 type simpleTest struct {
-	root string
+	root     string
+	toRemove bool
 }
 
 func (t *simpleTest) Close() {
-	os.RemoveAll(t.root)
+	if t.toRemove {
+		os.RemoveAll(t.root)
+	}
 }
 
 func (t *simpleTest) Root() string {
@@ -379,7 +383,7 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	return filename, unsafe.Pointer(filenamePtr), nil
 }
 
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (*simpleTest, error) {
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
 	var logLevel seelog.LogLevel = seelog.InfoLvl
 	if testing.Verbose() {
 		logLevel = seelog.TraceLvl
@@ -396,13 +400,16 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 	log.SetupDatadogLogger(logger, logLevel.String())
 
-	root, err := ioutil.TempDir("", "test-secagent-root")
-	if err != nil {
-		return nil, err
+	t := &simpleTest{
+		root: testDir,
 	}
 
-	t := &simpleTest{
-		root: root,
+	if testDir == "" {
+		t.root, err = ioutil.TempDir("", "test-secagent-root")
+		if err != nil {
+			return nil, err
+		}
+		t.toRemove = true
 	}
 
 	executeExpressionTemplate := func(expression string) (string, error) {

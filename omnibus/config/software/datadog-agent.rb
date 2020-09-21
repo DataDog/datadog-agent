@@ -78,9 +78,6 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
   mkdir conf_dir
-  if linux?
-    mkdir "#{conf_dir}/runtime-security.d"
-  end
   mkdir "#{install_dir}/bin"
   unless windows?
     mkdir "#{install_dir}/run/"
@@ -153,7 +150,6 @@ build do
   else
     command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
     copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
-    copy 'bin/security-agent/dist/runtime-security.d/default.policy', "#{conf_dir}/runtime-security.d"
   end
 
   if linux?
@@ -188,10 +184,6 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.trace.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.security.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat? || suse?
@@ -229,10 +221,6 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_suse.trace.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_suse.security.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end

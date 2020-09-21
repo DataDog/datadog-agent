@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 
 from invoke import task
 
@@ -107,9 +108,6 @@ def build(
         if not os.path.exists(dist_folder):
             os.makedirs(dist_folder)
 
-        cmd = 'go run ./pkg/security/config/genconfig -output {default_policy}'
-        ctx.run(cmd.format(default_policy=os.path.join(dist_folder, "default.policy")), env=env)
-
 
 @task()
 def gen_mocks(ctx):
@@ -128,12 +126,25 @@ def gen_mocks(ctx):
 
 @task
 def functional_tests(
-    ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern='', output='', build_tags=''
+    ctx,
+    race=False,
+    verbose=False,
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    pattern='',
+    output='',
+    build_tags='',
+    one_by_one=False,
 ):
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
+
+    env["CGO_ENABLED"] = "1"
+    if arch == "x86":
+        env["GOARCH"] = "386"
 
     cmd = 'sudo -E go test -tags functionaltests,linux_bpf,{build_tags} {output_opt} {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
 
@@ -146,7 +157,19 @@ def functional_tests(
         "REPO_PATH": REPO_PATH,
     }
 
-    ctx.run(cmd.format(**args), env=env)
+    if one_by_one:
+        all_tests = ctx.run(
+            "grep -e 'func Test' pkg/security/tests/*.go | perl -pe 's|.*func (.*?)\\(.*|\\1|g'"
+        ).stdout.split()
+
+        for i, test in enumerate(all_tests):
+            args["run_opt"] = "-run ^{test}$".format(test=test)
+            ctx.run(cmd.format(**args), env=env)
+            if i != len(all_tests) - 1:
+                time.sleep(2)
+
+    else:
+        ctx.run(cmd.format(**args), env=env)
 
 
 @task

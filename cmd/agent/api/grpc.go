@@ -19,7 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+// EnableExperimentalEndpoints enables experimental endpoints (set via -X)
+var EnableExperimentalEndpoints bool
 
 type server struct {
 	pb.UnimplementedAgentServer
@@ -66,12 +71,20 @@ func (s *server) FlareLogEvent(ctx context.Context, in *pb.FlareLogRequest) (*pb
 	return response, nil
 }
 
-// AuthFuncOverride will override the AuthFunc registered with the unary interceptor
+// AuthFuncOverride implements the `grpc_auth.ServiceAuthFuncOverride` interface which allows
+// override of the AuthFunc registered with the unary interceptor.
+//
+// see: https://godoc.org/github.com/grpc-ecosystem/go-grpc-middleware/auth#ServiceAuthFuncOverride
 func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
 	return ctx, nil
 }
 
 func (s *serverSecure) GetTags(ctx context.Context, in *pb.TagRequest) (*pb.TagReply, error) {
-	tags, _ := tagger.Tag(in.GetEntity(), collectors.HighCardinality)
-	return &pb.TagReply{Tags: tags}, nil
+	if EnableExperimentalEndpoints {
+		tags, _ := tagger.Tag(in.GetEntity(), collectors.HighCardinality)
+		return &pb.TagReply{Tags: tags}, nil
+	}
+
+	return nil, status.Errorf(codes.PermissionDenied,
+		"This is an experimental endpoint and has been disabled in this build")
 }

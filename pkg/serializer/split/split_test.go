@@ -14,11 +14,36 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 func TestSplitPayloadsSeries(t *testing.T) {
+	// Override size limits to avoid test timeouts
+	prevMaxPayloadSizeCompressed := maxPayloadSizeCompressed
+	maxPayloadSizeCompressed = 1024
+	defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
+
+	prevMaxPayloadSizeUnCompressed := maxPayloadSizeUnCompressed
+	maxPayloadSizeUnCompressed = 2 * 1024
+	defer func() { maxPayloadSizeUnCompressed = prevMaxPayloadSizeUnCompressed }()
+
+	t.Run("both compressed and uncompressed series payload under limits", func(t *testing.T) {
+		testSplitPayloadsSeries(t, 2, false)
+	})
+	t.Run("compressed series payload over limit but uncompressed under limit", func(t *testing.T) {
+		testSplitPayloadsSeries(t, 5, false)
+	})
+	t.Run("both compressed and uncompressed series payload over limits", func(t *testing.T) {
+		testSplitPayloadsSeries(t, 8, false)
+	})
+	t.Run("compressed series payload under limit and uncompressed series payload over limit", func(t *testing.T) {
+		testSplitPayloadsSeries(t, 8, true)
+	})
+}
+
+func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 	testSeries := metrics.Series{}
-	for i := 0; i < 30000; i++ {
+	for i := 0; i < numPoints; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
@@ -42,12 +67,19 @@ func TestSplitPayloadsSeries(t *testing.T) {
 		testSeries = append(testSeries, &point)
 	}
 
-	originalLength := len(testSeries)
-	payloads, err := Payloads(testSeries, false, MarshalJSON)
+	payloads, err := Payloads(testSeries, compress, MarshalJSON)
 	require.Nil(t, err)
+
+	originalLength := len(testSeries)
 	var splitSeries = []metrics.Series{}
 	for _, payload := range payloads {
 		var s = map[string]metrics.Series{}
+
+		if compress {
+			*payload, err = compression.Decompress(nil, *payload)
+			require.Nil(t, err)
+		}
+
 		err = json.Unmarshal(*payload, &s)
 		require.Nil(t, err)
 		splitSeries = append(splitSeries, s["series"])
@@ -59,7 +91,6 @@ func TestSplitPayloadsSeries(t *testing.T) {
 			unrolledSeries = append(unrolledSeries, s)
 		}
 	}
-
 	newLength := len(unrolledSeries)
 	require.Equal(t, originalLength, newLength)
 }
@@ -110,8 +141,32 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 }
 
 func TestSplitPayloadsEvents(t *testing.T) {
+	// Override size limits to avoid test timeouts
+	prevMaxPayloadSizeCompressed := maxPayloadSizeCompressed
+	maxPayloadSizeCompressed = 1024
+	defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
+
+	prevMaxPayloadSizeUnCompressed := maxPayloadSizeUnCompressed
+	maxPayloadSizeUnCompressed = 2 * 1024
+	defer func() { maxPayloadSizeUnCompressed = prevMaxPayloadSizeUnCompressed }()
+
+	t.Run("both compressed and uncompressed event payload under limits", func(t *testing.T) {
+		testSplitPayloadsEvents(t, 2, false)
+	})
+	t.Run("compressed event payload over limit but uncompressed under limit", func(t *testing.T) {
+		testSplitPayloadsEvents(t, 6, false)
+	})
+	t.Run("both compressed and uncompressed event payload over limits", func(t *testing.T) {
+		testSplitPayloadsEvents(t, 15, false)
+	})
+	t.Run("compressed event payload under limit and uncompressed event payload over limit", func(t *testing.T) {
+		testSplitPayloadsEvents(t, 15, true)
+	})
+}
+
+func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	testEvent := metrics.Events{}
-	for i := 0; i < 30000; i++ {
+	for i := 0; i < numPoints; i++ {
 		event := metrics.Event{
 			Title:          "test title",
 			Text:           "test text",
@@ -124,14 +179,22 @@ func TestSplitPayloadsEvents(t *testing.T) {
 		testEvent = append(testEvent, &event)
 	}
 
-	originalLength := len(testEvent)
-	payloads, err := Payloads(testEvent, false, MarshalJSON)
+	payloads, err := Payloads(testEvent, compress, MarshalJSON)
 	require.Nil(t, err)
+
+	originalLength := len(testEvent)
 	unrolledEvents := []interface{}{}
 	for _, payload := range payloads {
 		var s map[string]interface{}
+
+		if compress {
+			*payload, err = compression.Decompress(nil, *payload)
+			require.Nil(t, err)
+		}
+
 		err = json.Unmarshal(*payload, &s)
 		require.Nil(t, err)
+
 		for _, events := range s["events"].(map[string]interface{}) {
 			for _, evt := range events.([]interface{}) {
 				unrolledEvents = append(unrolledEvents, &evt)
@@ -144,8 +207,32 @@ func TestSplitPayloadsEvents(t *testing.T) {
 }
 
 func TestSplitPayloadsServiceChecks(t *testing.T) {
+	// Override size limits to avoid test timeouts
+	prevMaxPayloadSizeCompressed := maxPayloadSizeCompressed
+	maxPayloadSizeCompressed = 1024
+	defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
+
+	prevMaxPayloadSizeUnCompressed := maxPayloadSizeUnCompressed
+	maxPayloadSizeUnCompressed = 2 * 1024
+	defer func() { maxPayloadSizeUnCompressed = prevMaxPayloadSizeUnCompressed }()
+
+	t.Run("both compressed and uncompressed service checks payload under limits", func(t *testing.T) {
+		testSplitPayloadsServiceChecks(t, 5, false)
+	})
+	t.Run("compressed service checks payload over limit but uncompressed under limit", func(t *testing.T) {
+		testSplitPayloadsServiceChecks(t, 10, false)
+	})
+	t.Run("both compressed and uncompressed service checks payload over limits", func(t *testing.T) {
+		testSplitPayloadsServiceChecks(t, 20, false)
+	})
+	t.Run("compressed service checks payload under limit and uncompressed service checks payload over limit", func(t *testing.T) {
+		testSplitPayloadsServiceChecks(t, 20, true)
+	})
+}
+
+func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
 	testServiceChecks := metrics.ServiceChecks{}
-	for i := 0; i < 30000; i++ {
+	for i := 0; i < numPoints; i++ {
 		sc := metrics.ServiceCheck{
 			CheckName: "test.check",
 			Host:      "test.localhost",
@@ -157,19 +244,87 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 		testServiceChecks = append(testServiceChecks, &sc)
 	}
 
-	originalLength := len(testServiceChecks)
-	payloads, err := Payloads(testServiceChecks, false, MarshalJSON)
+	payloads, err := Payloads(testServiceChecks, compress, MarshalJSON)
 	require.Nil(t, err)
+
+	originalLength := len(testServiceChecks)
 	unrolledServiceChecks := []interface{}{}
 	for _, payload := range payloads {
 		var s []interface{}
+
+		if compress {
+			*payload, err = compression.Decompress(nil, *payload)
+			require.Nil(t, err)
+		}
+
 		err = json.Unmarshal(*payload, &s)
 		require.Nil(t, err)
+
 		for _, sc := range s {
 			unrolledServiceChecks = append(unrolledServiceChecks, &sc)
 		}
 	}
 
-	newLength := len(testServiceChecks)
+	newLength := len(unrolledServiceChecks)
+	require.Equal(t, originalLength, newLength)
+}
+
+func TestSplitPayloadsSketches(t *testing.T) {
+	// Override size limits to avoid test timeouts
+	prevMaxPayloadSizeCompressed := maxPayloadSizeCompressed
+	maxPayloadSizeCompressed = 1024
+	defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
+
+	prevMaxPayloadSizeUnCompressed := maxPayloadSizeUnCompressed
+	maxPayloadSizeUnCompressed = 2 * 1024
+	defer func() { maxPayloadSizeUnCompressed = prevMaxPayloadSizeUnCompressed }()
+
+	t.Run("both compressed and uncompressed sketch payload under limits", func(t *testing.T) {
+		testSplitPayloadsSketches(t, 2, false)
+	})
+	t.Run("compressed sketch payload over limit but uncompressed under limit", func(t *testing.T) {
+		testSplitPayloadsSketches(t, 3, false)
+	})
+	t.Run("both compressed and uncompressed sketch payload over limits", func(t *testing.T) {
+		testSplitPayloadsSketches(t, 8, false)
+	})
+	t.Run("compressed sketch payload under limit and uncompressed sketch payload over limit", func(t *testing.T) {
+		testSplitPayloadsSketches(t, 8, true)
+	})
+}
+
+func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
+	testSketchSeries := make(metrics.SketchSeriesList, numPoints)
+	for i := 0; i < numPoints; i++ {
+		testSketchSeries[i] = metrics.Makeseries(i)
+	}
+
+	payloads, err := Payloads(testSketchSeries, compress, MarshalJSON)
+	require.Nil(t, err)
+
+	var splitSketches = []metrics.SketchSeriesList{}
+	for _, payload := range payloads {
+		var s = map[string]metrics.SketchSeriesList{}
+
+		if compress {
+			*payload, err = compression.Decompress(nil, *payload)
+			require.Nil(t, err)
+		}
+
+		err = json.Unmarshal(*payload, &s)
+		require.Nil(t, err)
+
+		splitSketches = append(splitSketches, s["sketches"])
+	}
+
+	originalLength := len(testSketchSeries)
+	unrolledSketches := []metrics.SketchSeries{}
+	for _, sketches := range splitSketches {
+		for _, s := range sketches {
+			unrolledSketches = append(unrolledSketches, s)
+		}
+	}
+
+	newLength := len(unrolledSketches)
 	require.Equal(t, originalLength, newLength)
 }

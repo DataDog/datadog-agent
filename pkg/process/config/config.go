@@ -223,6 +223,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ConntrackRateLimit:    500,
 		OffsetGuessThreshold:  400,
 		EnableTracepoints:     false,
+		CollectDNSStats:       true,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -480,6 +481,7 @@ func loadEnvVariables() {
 func loadSysProbeEnvVariables() {
 	for _, variable := range []struct{ env, cfg string }{
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
+		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "network_config.enabled"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},

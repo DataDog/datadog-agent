@@ -25,7 +25,13 @@ import (
 // LoggerName specifies the name of an instantiated logger.
 type LoggerName string
 
-const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
+type contextFormat uint8
+
+const (
+	jsonFormat = contextFormat(iota)
+	textFormat
+	logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
+)
 
 var syslogTLSConfig *tls.Config
 
@@ -38,21 +44,21 @@ func getLogDateFormat() string {
 	return logDateFormat
 }
 
-// buildCommonFormat returns the log common format seelog string
-func buildCommonFormat(loggerName LoggerName) string {
-	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", getLogDateFormat(), loggerName)
-}
-
 func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
 }
 
+// buildCommonFormat returns the log common format seelog string
+func buildCommonFormat(loggerName LoggerName) string {
+	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%ExtraTextContext%%Msg%%n", getLogDateFormat(), loggerName)
+}
+
 // buildJSONFormat returns the log JSON format seelog string
 func buildJSONFormat(loggerName LoggerName) string {
 	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter) //nolint:errcheck
-	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat())
+	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg%%ExtraJSONContext}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat())
 }
 
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
@@ -323,6 +329,76 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return slices[len(slices)-1]
 }
 
+func createExtraJSONContext(params string) seelog.FormatterFunc {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		contextList, ok := context.CustomContext().([]interface{})
+		if len(contextList) == 0 || !ok {
+			return ""
+		}
+		return extractContextString(jsonFormat, contextList)
+	}
+}
+
+func createExtraTextContext(params string) seelog.FormatterFunc {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		contextList, ok := context.CustomContext().([]interface{})
+		if len(contextList) == 0 || !ok {
+			return ""
+		}
+		return extractContextString(textFormat, contextList)
+	}
+}
+
+func extractContextString(format contextFormat, contextList []interface{}) string {
+	if len(contextList) == 0 || len(contextList)%2 != 0 {
+		return ""
+	}
+
+	builder := strings.Builder{}
+	if format == jsonFormat {
+		builder.WriteString(",")
+	}
+
+	for i := 0; i < len(contextList); i += 2 {
+		key, val := contextList[i], contextList[i+1]
+		// Only add if key is string
+		if keyStr, ok := key.(string); ok {
+			addToBuilder(&builder, keyStr, val, format, i == len(contextList)-2)
+		}
+	}
+
+	if format != jsonFormat {
+		builder.WriteString(" | ")
+	}
+
+	return builder.String()
+}
+
+func addToBuilder(builder *strings.Builder, key string, value interface{}, format contextFormat, isLast bool) {
+	var buf []byte
+	appendFmt(builder, format, key, buf)
+	builder.WriteString(":")
+	switch val := value.(type) {
+	case string:
+		appendFmt(builder, format, val, buf)
+	default:
+		appendFmt(builder, format, fmt.Sprintf("%v", val), buf)
+	}
+	if !isLast {
+		builder.WriteString(",")
+	}
+}
+
+func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []byte) {
+	if format == jsonFormat {
+		buf = buf[:0]
+		buf = strconv.AppendQuote(buf, s)
+		builder.Write(buf)
+	} else {
+		builder.WriteString(s)
+	}
+}
+
 // ChangeLogLevel immediately changes the log level to the given one.
 func ChangeLogLevel(level string) error {
 	seelogLogLevel, err := validateLogLevel(level)
@@ -361,5 +437,7 @@ func validateLogLevel(logLevel string) (string, error) {
 func init() {
 	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter) //nolint:errcheck
 	seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)               //nolint:errcheck
-	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
+	seelog.RegisterCustomFormatter("ExtraJSONContext", createExtraJSONContext)        //nolint:errcheck
+	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)        //nolint:errcheck
+	seelog.RegisterReceiver("syslog", &SyslogReceiver{})                              //nolint:errcheck
 }

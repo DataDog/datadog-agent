@@ -22,6 +22,11 @@ type cloudProviderDetector struct {
 	callback func() bool
 }
 
+type cloudProviderNTPDetector struct {
+	name     string
+	callback func() []string
+}
+
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
 // * AWS ECS/Fargate
 // * AWS EC2
@@ -47,4 +52,25 @@ func DetectCloudProvider() {
 		}
 	}
 	log.Info("No cloud provider detected")
+}
+
+// GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
+func GetCloudProviderNTPHosts() []string {
+	detectors := []cloudProviderNTPDetector{
+		{name: ecscommon.CloudProviderName, callback: ecs.GetNTPHosts},
+		{name: ec2.CloudProviderName, callback: ec2.GetNTPHosts},
+		{name: gce.CloudProviderName, callback: gce.GetNTPHosts},
+		{name: azure.CloudProviderName, callback: azure.GetNTPHosts},
+		{name: alibaba.CloudProviderName, callback: alibaba.GetNTPHosts},
+		{name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
+	}
+
+	for _, cloudNTPDetector := range detectors {
+		if cloudNTPServer := cloudNTPDetector.callback(); cloudNTPServer != nil {
+			log.Debug("Using NTP servers from %s cloud provider", cloudNTPDetector.name)
+			return cloudNTPServer
+		}
+	}
+
+	return nil
 }

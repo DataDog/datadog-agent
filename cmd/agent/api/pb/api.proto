@@ -39,6 +39,7 @@ service AgentSecure {
     }
 }
 
+
 // Hostname
 
 message HostnameRequest {}
@@ -47,6 +48,7 @@ message HostnameRequest {}
 message HostnameReply {
     string hostname = 1;
 }
+
 
 // Tagger
 
@@ -59,6 +61,7 @@ message TagRequest {
 message TagReply {
     repeated string tags = 1;
 }
+
 
 // Flare
 

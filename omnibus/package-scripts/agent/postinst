@@ -82,7 +82,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with systemctl"
             SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-process || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with systemctl"
             SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-trace || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with systemctl"
-            SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-security || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-security with systemctl"
         elif command -v initctl >/dev/null 2>&1; then
             # Nothing to do, this is defined directly in the upstart job file
             :
@@ -90,7 +89,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             update-rc.d $SERVICE_NAME defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with update-rc.d"
             update-rc.d $SERVICE_NAME-process defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with update-rc.d"
             update-rc.d $SERVICE_NAME-trace defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with update-rc.d"
-            update-rc.d $SERVICE_NAME-security defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-security with update-rc.d"
         else
             echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
         fi
