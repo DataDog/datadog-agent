@@ -17,6 +17,17 @@ type MonotonicCount struct {
 	sampledSinceLastFlush bool
 	hasPreviousSample     bool
 	value                 float64
+	// With flushFirstValue enabled (passed in MetricSample), these 2 differences apply:
+	// 1. the sampled value will be flushed as-is if it's the first value sampled (and no other
+	//    values are flushed until the flush). The assumption is that the underlying raw counter
+	//    started from 0 and that any earlier value of the raw counter would'be been sampled
+	//    earlier, so it's safe to flush the raw value as-is.
+	// 2. a sample that has a lower value than the previous sample is not ignored, instead its
+	//    value is used as the value to flush. The assumption is that the underlying raw counter was
+	//    reset from 0.
+	// This flag is used (for example) by the openmetrics check after its first run, to better
+	// support openmetrics monotonic counters.
+	flushFirstValue bool
 }
 
 func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
@@ -28,16 +39,20 @@ func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
 		mc.hasPreviousSample = true
 	}
 
+	mc.flushFirstValue = sample.FlushFirstValue
+
 	// To handle cases where the samples are not monotonically increasing, we always add the difference
 	// between 2 consecutive samples to the value that'll be flushed (if the difference is >0).
 	diff := mc.currentSample - mc.previousSample
-	if mc.hasPreviousSample && diff > 0. {
+	if (mc.hasPreviousSample || mc.flushFirstValue) && diff > 0. {
 		mc.value += diff
+	} else if mc.flushFirstValue {
+		mc.value = mc.currentSample
 	}
 }
 
 func (mc *MonotonicCount) flush(timestamp float64) ([]*Serie, error) {
-	if !mc.sampledSinceLastFlush || !mc.hasPreviousSample {
+	if !mc.sampledSinceLastFlush || !(mc.hasPreviousSample || mc.flushFirstValue) {
 		return []*Serie{}, NoSerieError{}
 	}
 
@@ -46,6 +61,7 @@ func (mc *MonotonicCount) flush(timestamp float64) ([]*Serie, error) {
 	mc.previousSample, mc.currentSample, mc.value = mc.currentSample, 0., 0.
 	mc.hasPreviousSample = true
 	mc.sampledSinceLastFlush = false
+	mc.flushFirstValue = false
 
 	return []*Serie{
 		{
