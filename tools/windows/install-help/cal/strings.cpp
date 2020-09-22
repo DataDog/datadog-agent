@@ -218,11 +218,14 @@ void getHostInformation() {
             isDomainJoined = true;
             break;
     }
-    if(isDomainJoined) {
-        if(domain != joined_domain) {
+    if (isDomainJoined) {
+        if (domain != joined_domain) {
             WcaLog(LOGMSG_STANDARD, "DNS domain name %S doesn't match the joined domain %S", domain.c_str(), joined_domain.c_str());
+            domainname = joined_domain;
         }
-        domainname = domain;
+        else {
+            domainname = domain;
+        }
     }
 }
 

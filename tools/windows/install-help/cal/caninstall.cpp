@@ -70,9 +70,9 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
         {
             // on a domain controller, we can only create a user in this controller's domain.
             // check and reject an attempt to create a user not in this domain
-            WcaLog(LOGMSG_STANDARD, "WARNING: Creating a user that's not in this domain: %S (asked for %S)",
+            WcaLog(LOGMSG_STANDARD, "Can't create a user that's not in this domain: %S (asked for %S)",
                 domainname.c_str(), data.Domain().c_str());
-                return true;
+                return false;
         }
     }
     else {
