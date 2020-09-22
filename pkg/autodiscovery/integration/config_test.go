@@ -54,7 +54,35 @@ func TestConfigEqual(t *testing.T) {
 		Instances:  []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")},
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
+
 	assert.Equal(t, checkConfigWithOrderedTags.Digest(), checkConfigWithUnorderedTags.Digest())
+}
+
+func TestConfigTagsEqual(t *testing.T) {
+
+	checkConfigWithTagsInList := &Config{
+		Name:       "test",
+		InitConfig: Data("{foo}"),
+		Instances:  []Data{Data("tags: [\"bar:foo\", \"baz\", \"foo:bar\"]")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+
+	checkConfigWithTagsInMap := &Config{
+		Name:       "test",
+		InitConfig: Data("{foo}"),
+		Instances:  []Data{Data("tags: { foo: bar, bar: foo, baz: \"\" }")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+
+	checkConfigWithTagsReorderedInMap := &Config{
+		Name:       "test",
+		InitConfig: Data("{foo}"),
+		Instances:  []Data{Data("tags: { bar: foo, foo: bar, baz: \"\" }")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+
+	assert.Equal(t, checkConfigWithTagsInList.Digest(), checkConfigWithTagsInMap.Digest())
+	assert.Equal(t, checkConfigWithTagsInList.Digest(), checkConfigWithTagsReorderedInMap.Digest())
 }
 
 func TestIsLogConfig(t *testing.T) {

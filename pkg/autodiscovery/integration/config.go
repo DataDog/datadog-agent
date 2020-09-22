@@ -285,16 +285,22 @@ func (c *Config) Digest() string {
 			continue
 		}
 		if val, found := inst["tags"]; found {
-			// sort the list of tags so the digest stays stable for
-			// identical configs with the same tags but with different order
-			tagsInterface, ok := val.([]interface{})
-			if !ok {
+			tags := []string{}
+			if tagsInterface, ok := val.([]interface{}); ok {
+				for _, tag := range tagsInterface {
+					tags = append(tags, fmt.Sprint(tag))
+				}
+			} else if tagsInterface, ok := val.(RawMap); ok {
+				for k, v := range tagsInterface {
+					if valueStr := fmt.Sprint(v); len(valueStr) > 0 {
+						tags = append(tags, fmt.Sprintf("%v:%s", k, valueStr))
+					} else {
+						tags = append(tags, fmt.Sprintf("%s", k))
+					}
+				}
+			} else {
 				log.Infof("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
 				continue
-			}
-			tags := make([]string, len(tagsInterface))
-			for i, tag := range tagsInterface {
-				tags[i] = fmt.Sprint(tag)
 			}
 			sort.Strings(tags)
 			inst["tags"] = tags
