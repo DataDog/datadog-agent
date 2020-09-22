@@ -15,6 +15,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sort"
+	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -56,7 +58,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
 	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
 	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/flare/{type}", makeFlare).Methods("POST")
 	r.HandleFunc("/flare/log/{flare_id}/{tracer_id}/{type}", flareLogHandler).Methods("POST")
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
@@ -84,6 +86,41 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	flareType := vars["type"]
+
+	switch flareType {
+	case "tracer":
+		tracerFlare(w, r)
+	case "core":
+	case "vanilla":
+	default:
+		vanillaFlare(w, r)
+	}
+
+}
+
+func tracerFlare(w http.ResponseWriter, r *http.Request) {
+	tracerId := r.PostFormValue("tracer_id")
+	tracerEnv := r.PostFormValue("environment")
+	tracerSvc := r.PostFormValue("service")
+
+	duration, err := strconv.Atoi(r.PostFormValue("duration"))
+	if err != nil {
+		http.Error(w, log.Errorf("error parsing flare duration interval: %s", err).Error(), 500)
+		return
+	}
+
+	if tracerId != "" || tracerEnv != "" || tracerSvc != "" {
+		remote_flare.CreateRemoteFlareArchive(tracerId, tracerEnv, tracerSvc, time.Duration(duration)*time.Second)
+	}
+
+	//async or what?
+
+}
+
+func vanillaFlare(w http.ResponseWriter, r *http.Request) {
 	var profile flare.ProfileData
 
 	if r.Body != http.NoBody {
@@ -97,13 +134,6 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
 			return
 		}
-	}
-
-	tracerId := r.PostFormValue("tracer_id")
-	tracerEnv := r.PostFormValue("environment")
-	tracerSvc := r.PostFormValue("service")
-	if tracerId != "" || tracerEnv != "" || tracerSvc != "" {
-		remote_flare.CreateRemoteFlareArchive(tracerId, tracerEnv, tracerSvc)
 	}
 
 	logFile := config.Datadog.GetString("log_file")
@@ -122,6 +152,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+
 }
 
 func flareLogHandler(w http.ResponseWriter, r *http.Request) {

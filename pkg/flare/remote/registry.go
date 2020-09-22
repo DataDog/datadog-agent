@@ -6,6 +6,7 @@
 package remote
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -17,6 +18,8 @@ const (
 	maxTracers         = 10
 )
 
+var registrationMap = cache.NewCache(expirationInterval, purgeInterval)
+
 // Questions: should this schema be looser?
 type RegisteredSource struct {
 	Id      string
@@ -25,7 +28,9 @@ type RegisteredSource struct {
 	Env     string
 }
 
-var registrationMap = cache.NewCache(expirationInterval, purgeInterval)
+func (rs *RegisteredSource) String() string {
+	return fmt.Sprintf("id:%s\tsource:%s\tservice:%s\tenv:%s", rs.Id, rs.Source, rs.Service, rs.Env)
+}
 
 func RegisterSource(id, source, service, env string) *RegisteredSource {
 	//idempotent

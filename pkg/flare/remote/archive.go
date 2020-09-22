@@ -6,6 +6,7 @@
 package remote
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +34,10 @@ type RemoteFlare struct {
 var (
 	currentFlare *RemoteFlare = nil
 	mutex        sync.RWMutex
+)
+
+const (
+	sourcesLogfile = "sources.log"
 )
 
 func NewRemoteFlare(path, zip string, d time.Duration) *RemoteFlare {
@@ -89,7 +94,20 @@ func (f RemoteFlare) wrapUp() error {
 		fp.Close()
 	}
 
-	err := archiver.Zip.Make(f.zipPath, []string{f.tempDir})
+	logPath := path.Join(f.tempDir, sourcesLogfile)
+	fp, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+
+	w := bufio.NewWriter(fp)
+	for _, source := range f.sources {
+		w.WriteString(source.String())
+	}
+	w.Flush()
+	fp.Close()
+
+	err = archiver.Zip.Make(f.zipPath, []string{f.tempDir})
 	if err != nil {
 		return err
 	}

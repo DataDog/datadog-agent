@@ -232,7 +232,7 @@ func requestArchive(logFile string, pdata flare.ProfileData) (string, error) {
 		return createArchive(logFile, pdata)
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare/core", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()

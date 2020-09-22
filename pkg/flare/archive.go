@@ -125,7 +125,7 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 
 // CreateArchive packages up the files
 func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, pdata ProfileData) (string, error) {
-	zipFilePath := getArchivePath()
+	zipFilePath := GetArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
@@ -135,7 +135,7 @@ func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string, pdata
 }
 
 func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath, logFilePath string, pdata ProfileData) (string, error) {
-	tempDir, err := createTempDir()
+	tempDir, err := CreateTempDir()
 	if err != nil {
 		return "", err
 	}
