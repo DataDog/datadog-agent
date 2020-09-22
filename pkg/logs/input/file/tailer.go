@@ -92,7 +92,7 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
-	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout")
+	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout") * time.Second
 
 	return &Tailer{
 		path:           path,
