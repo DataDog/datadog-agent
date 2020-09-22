@@ -56,6 +56,10 @@ func TestMkdir(t *testing.T) {
 			if mode := event.Mkdir.Mode; mode != 0707 {
 				t.Errorf("expected mkdir mode 0707, got %#o (%+v)", mode, event)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Mkdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
+			}
 		}
 	})
 
@@ -79,6 +83,10 @@ func TestMkdir(t *testing.T) {
 
 			if mode := event.Mkdir.Mode; mode != 0777 {
 				t.Errorf("expected mkdir mode 0777, got %#o", mode)
+			}
+
+			if inode := getInode(t, testatFile); inode != event.Mkdir.Inode {
+				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
 			}
 		}
 

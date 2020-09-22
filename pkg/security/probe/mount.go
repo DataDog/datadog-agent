@@ -57,188 +57,16 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*MountEvent, error) {
 	}, nil
 }
 
-// Mount represents a mount point on the system.
-type Mount struct {
-	*MountEvent
-
-	containerMountPath string
-	mountPath          string
-	parent             *Mount
-	children           []*Mount
-	peerGroup          *OverlayGroup
-}
-
-// DFS performs a Depth-First Search of the mount point tree used to compute
-// the list of inter dependent mount points
-func (m *Mount) DFS(mask map[uint32]bool) []*Mount {
-	var mounts []*Mount
-	if mask == nil {
-		mask = map[uint32]bool{}
-	}
-	if !mask[m.NewMountID] {
-		mounts = append(mounts, m)
-		mask[m.NewMountID] = true
-	}
-	for _, child := range m.children {
-		if !mask[child.NewMountID] {
-			mask[child.NewMountID] = true
-			mounts = append(mounts, child)
-			mounts = append(mounts, child.DFS(mask)...)
-		}
-	}
-	return mounts
-}
-
-// newMount creates a new Mount from a mount event and sets / updates its parent
-func newMount(e *MountEvent, parent *Mount, group *OverlayGroup) *Mount {
-	m := Mount{
-		MountEvent: e,
-		parent:     parent,
-		peerGroup:  group,
-	}
-	eventPath := e.MountPointStr
-	if e.GetFSType() == "overlay" && eventPath != "/" {
-		m.containerMountPath = eventPath
-	}
-	if parent != nil {
-		if strings.HasPrefix(eventPath, parent.mountPath) {
-			m.mountPath = eventPath
-		} else {
-			m.mountPath = path.Join(parent.mountPath, eventPath)
-		}
-		if m.containerMountPath == "" {
-			m.containerMountPath = parent.containerMountPath
-		}
-		parent.children = append(parent.children, &m)
-	}
-	if m.containerMountPath == "" {
-		if group != nil && group.parent != nil && group.parent.NewMountID != e.NewMountID && group.parent.GetFSType() == "overlay" && group.parent.mountPath != "/" {
-			m.containerMountPath = group.parent.mountPath
-		}
-	}
-	return &m
-}
-
-// OverlayGroup groups the mount points of an overlay filesystem
-type OverlayGroup struct {
-	parent   *Mount
-	children map[uint32]*Mount
-}
-
-// dryDelete - If the provided mount was deleted, dryDeletes returns the list of mounts that should be deleted as well
-func (g *OverlayGroup) dryDelete(m *Mount) []*Mount {
-	var mounts []*Mount
-	mask := map[uint32]bool{}
-
-	// Mark the immediate children of the mount for deletion
-	mounts = append(mounts, m.DFS(mask)...)
-
-	// Mark the children of the overlay group for deletion
-	if g.parent != nil && m.NewMountID == g.parent.NewMountID {
-		for _, v := range g.children {
-			mounts = append(mounts, v.DFS(mask)...)
-		}
-	}
-	return mounts
-}
-
-// Delete a mount point in the peer group. Returns true if the PeerGroup is empty after the deletion (a peer
-// group is empty if its master is nil and its list of slaves is empty).
-func (g *OverlayGroup) Delete(m *Mount) bool {
-	if g.parent != nil && g.parent.NewMountID == m.NewMountID {
-		g.parent = nil
-	}
-	delete(g.children, m.NewMountID)
-	return g.IsEmpty()
-}
-
-// IsEmpty returns true if the overlay group is empty and should therefore be deleted
-func (g *OverlayGroup) IsEmpty() bool {
-	return g.parent == nil && len(g.children) == 0
-}
-
-// Insert a new mount in the peer group form the provided parameters
-func (g *OverlayGroup) Insert(e *MountEvent, parent *Mount) *Mount {
-	// create new mount
-	m := newMount(e, parent, g)
-
-	// Check if this is a slave mount
-	if m.GetFSType() == "overlay" {
-		g.parent = m
-	} else {
-		g.children[m.NewMountID] = m
-	}
-	return m
-}
-
-func newPeerGroup() *OverlayGroup {
-	return &OverlayGroup{
-		children: make(map[uint32]*Mount),
-	}
-}
-
-// FSDevice represents a peer group
-type FSDevice struct {
-	OverlayGroupID uint32
-	peerGroups     map[uint32]*OverlayGroup
-}
-
-// dryDelete - If the provided mount was deleted, dryDeletes returns the list of mounts that should be deleted as well
-func (d *FSDevice) dryDelete(m *Mount) []*Mount {
-	g, ok := d.peerGroups[m.NewGroupID]
-	if !ok {
-		return []*Mount{m}
-	}
-	return g.dryDelete(m)
-}
-
-// Delete a mount from the device
-func (d *FSDevice) Delete(m *Mount) bool {
-	g, ok := d.peerGroups[m.NewGroupID]
-	if ok {
-		if g.Delete(m) {
-			// delete the group as well
-			delete(d.peerGroups, m.NewGroupID)
-		}
-	}
-	return d.IsEmpty()
-}
-
-// IsEmpty returns true if the device is empty and should therefore be deleted
-func (d *FSDevice) IsEmpty() bool {
-	return len(d.peerGroups) == 0
-}
-
-// Insert a new mount in the list of mount groups of the device
-func (d *FSDevice) Insert(e *MountEvent, parent *Mount) *Mount {
-	// The first mount of the overlay inside the container is technically a bind. Map it to its rightful overlay
-	// group ID if there is one.
-	if e.GetFSType() == "bind" && d.OverlayGroupID != 0 && e.NewGroupID == 0 {
-		e.NewGroupID = d.OverlayGroupID
-	}
-	// Select overlay group
-	pg, ok := d.peerGroups[e.NewGroupID]
-	if !ok {
-		pg = newPeerGroup()
-		d.peerGroups[e.NewGroupID] = pg
-	}
-
-	// Insert mount in peer group
-	return pg.Insert(e, parent)
-}
-
-func newFSDevice() *FSDevice {
-	return &FSDevice{
-		peerGroups: make(map[uint32]*OverlayGroup),
-	}
+func (m *MountEvent) IsOverlayFS() bool {
+	return m.GetFSType() == "overlay"
 }
 
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
 	probe   *Probe
 	lock    sync.RWMutex
-	devices map[uint32]*FSDevice
-	mounts  map[uint32]*Mount
+	mounts  map[uint32]*MountEvent
+	devices map[uint32]map[uint32]*MountEvent
 }
 
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
@@ -268,37 +96,22 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	return nil
 }
 
-// dryDelete - If the provided mount was deleted, dryDeletes returns the list of mounts that should be deleted as well
-func (mr *MountResolver) dryDelete(m *Mount) []*Mount {
-	d, ok := mr.devices[m.NewDevice]
-	if !ok {
-		return []*Mount{m}
-	}
-	return d.dryDelete(m)
-}
-
 // Delete a mount from the cache
 func (mr *MountResolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
+
 	m, ok := mr.mounts[mountID]
 	if !ok {
 		return ErrMountNotFound
 	}
+	delete(mr.mounts, mountID)
 
-	// computes the list of mounts that should be deleted if m is deleted
-	mnts := mr.dryDelete(m)
-
-	// delete m and all the mounts that depend on it
-	for _, mnt := range mnts {
-		d, ok := mr.devices[mnt.NewDevice]
-		if ok {
-			if d.Delete(mnt) {
-				delete(mr.devices, mnt.NewDevice)
-			}
-		}
-		delete(mr.mounts, mnt.NewMountID)
+	mounts, ok := mr.devices[m.NewDevice]
+	if mounts != nil {
+		delete(mounts, mountID)
 	}
+
 	return nil
 }
 
@@ -310,45 +123,70 @@ func (mr *MountResolver) Insert(e *MountEvent) {
 }
 
 func (mr *MountResolver) insert(e *MountEvent) {
-	// Fetch the device of the new mount point
-	d, ok := mr.devices[e.NewDevice]
+	mounts := mr.devices[e.NewDevice]
+	if mounts == nil {
+		mounts = make(map[uint32]*MountEvent)
+		mr.devices[e.NewDevice] = mounts
+	}
+	mounts[e.NewMountID] = e
+
+	mr.mounts[e.NewMountID] = e
+}
+
+func (mr *MountResolver) getParentPath(mountID uint32) string {
+	mount, ok := mr.mounts[mountID]
 	if !ok {
-		d = newFSDevice()
-		// Set the overlay group ID if necessary
-		if e.GetFSType() == "overlay" {
-			d.OverlayGroupID = e.NewGroupID
-		}
-		mr.devices[e.NewDevice] = d
+		return ""
 	}
 
-	// Fetch the new mount point parent
-	parent, _ := mr.mounts[e.ParentMountID]
+	mountPointStr := mount.MountPointStr
 
-	// Insert the new mount point in the device cache
-	m := d.Insert(e, parent)
+	if mount.ParentMountID != 0 {
+		p := mr.getParentPath(mount.ParentMountID)
+		if p == "" {
+			return ""
+		}
 
-	// Insert the mount point in the top level list of mounts
-	mr.mounts[e.NewMountID] = m
+		if p != "/" && !strings.HasPrefix(mount.MountPointStr, p) {
+			mountPointStr = path.Join(p, mount.MountPointStr)
+		}
+	}
+
+	return mountPointStr
 }
 
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
 // it exists
 func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, error) {
+	if mountID == 0 {
+		return "", "", "", nil
+	}
 	mr.lock.RLock()
 	defer mr.lock.RUnlock()
-	m, ok := mr.mounts[mountID]
+
+	mount, ok := mr.mounts[mountID]
 	if !ok {
-		if mountID == 0 {
-			return "", "", "", nil
-		}
-		if !ok {
-			return "", "", "", ErrMountNotFound
+		return "", "", "", nil
+	}
+
+	if mount.IsOverlayFS() || mount.GetFSType() == "bind" {
+		for _, deviceMount := range mr.devices[mount.NewDevice] {
+			if mount.NewDevice == deviceMount.NewDevice && deviceMount.IsOverlayFS() {
+				if p := mr.getParentPath(deviceMount.NewMountID); p != "" {
+					return p, mount.MountPointStr, mount.RootStr, nil
+				}
+			}
 		}
 	}
-	// The containerMountPath will always refer to the merged layer of the overlay filesystem (when there is one)
-	// Look at the numlower field of the event to differentiate merged / diff layers
-	// (numlower == 0 => diff | numlower > 0 => merged, therefore the file is from the original container)
-	return m.containerMountPath, m.mountPath, m.RootStr, nil
+
+	var containerMountPath string
+	if mount.ParentMountID != 0 {
+		if p := mr.getParentPath(mount.ParentMountID); !strings.HasPrefix(mount.MountPointStr, p) {
+			containerMountPath = p
+		}
+	}
+
+	return containerMountPath, mount.MountPointStr, mount.RootStr, nil
 }
 
 // NewMountResolver instantiates a new mount resolver
@@ -356,7 +194,7 @@ func NewMountResolver(probe *Probe) *MountResolver {
 	return &MountResolver{
 		probe:   probe,
 		lock:    sync.RWMutex{},
-		devices: make(map[uint32]*FSDevice),
-		mounts:  make(map[uint32]*Mount),
+		devices: make(map[uint32]map[uint32]*MountEvent),
+		mounts:  make(map[uint32]*MountEvent),
 	}
 }
