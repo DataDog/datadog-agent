@@ -129,7 +129,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
 
-	activeConnStats, closedConnStats, bytesRead ,err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0], t.driverBuffer)
+	activeConnStats, closedConnStats, bytesRead, err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0], t.driverBuffer)
 	if err != nil {
 		log.Errorf("failed to get connections")
 		return nil, err
@@ -159,11 +159,12 @@ func (t *Tracer) resizeConnectionStatBuffer(compareSize int, buffer []network.Co
 }
 
 func (t *Tracer) resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
+	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
 	if compareSize >= cap(buffer)*2 {
-		return make([]uint8, 0, cap(buffer)*2)
+		return make([]uint8, cap(buffer)*2)
 	} else if compareSize <= cap(buffer)/2 {
 		// Take the max of buffer/2 and compareSize to limit future array resizes
-		return make([]uint8, 0, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
+		return make([]uint8, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
 	}
 	return buffer
 }
