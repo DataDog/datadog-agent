@@ -132,26 +132,15 @@ UINT doFinalizeInstall(CustomActionData &data)
     }
     hr = 0;
 
-    if (data.GetTargetMachine().IsBackupDomainController())
-    {
-        WcaLog(LOGMSG_STANDARD, "Machine is a BACKUP DC");
-    }
-    else
-    {
-        WcaLog(LOGMSG_STANDARD, "Machine is NOT a BACKUP DC");
-    }
-
-    DWORD errCode = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
-    if (errCode != NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
-        if (!data.GetTargetMachine().IsBackupDomainController()) {
+    if (!data.GetTargetMachine().IsBackupDomainController()) {
+        DWORD errCode = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+        if (errCode != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
             goto LExit;
         }
-    }
-    errCode = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
-    if (errCode != NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
-        if (!data.GetTargetMachine().IsBackupDomainController()) {
+        errCode = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+        if (errCode != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
             goto LExit;
         }
     }
