@@ -271,40 +271,6 @@ DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
     return (DWORD)ret;
 }
 
-
-
-bool isDomainController()
-{
-    bool ret = false;
-    DWORD status = 0;
-    SERVER_INFO_101 *si = NULL;
-    DWORD le = 0;
-    status = NetServerGetInfo(NULL, 101, (LPBYTE *)&si);
-    if (NERR_Success != status) {
-        le = GetLastError();
-        WcaLog(LOGMSG_STANDARD, "Failed to get server info");
-        return false;
-    }
-    if (SV_TYPE_WORKSTATION & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_WORKSTATION");
-    }
-    if (SV_TYPE_SERVER & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_SERVER");
-    }
-    if (SV_TYPE_DOMAIN_CTRL & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_CTRL");
-        ret = true;
-    }
-    if (SV_TYPE_DOMAIN_BAKCTRL & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_BAKCTRL");
-        ret = true;
-    }
-    if (si) {
-        NetApiBufferFree((LPVOID)si);
-    }
-    return ret;
-}
-
 int doesUserExist(const CustomActionData& data, bool isDC)
 {
     int retval = 0;
@@ -342,7 +308,7 @@ int doesUserExist(const CustomActionData& data, bool isDC)
                 // the domain authority
                 if (data.isUserLocalUser() == NULL) {
                     WcaLog(LOGMSG_STANDARD, "trying fully qualified local account");
-                    bRet = LookupAccountName(computername.c_str(), data.Username().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+                    bRet = LookupAccountName(data.GetTargetMachine().GetMachineName().c_str(), data.Username().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
                     if (bRet) {
                         // this should *never* happen, because we didn't pass in a buffer large enough for
                         // the sid or the domain name.
@@ -369,7 +335,7 @@ int doesUserExist(const CustomActionData& data, bool isDC)
                 WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
                 return -1;
             }
-            hostToTry = computername.c_str();
+            hostToTry = data.GetTargetMachine().GetMachineName().c_str();
 
         }
         else {        // we don't know what happened

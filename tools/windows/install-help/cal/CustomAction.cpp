@@ -10,6 +10,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     // need the dd-agent-password (if provided)
     hr = WcaInitialize(hInstall, "CA: FinalizeInstall");
     ExitOnFailure(hr, "Failed to initialize");
+    ExitOnFailure(HRESULT_FROM_WIN32(data.GetTargetMachine().GetLastError()), "Failed to gather target machine information");
     WcaLog(LOGMSG_STANDARD, "Initialized.");
 
 #ifdef _DEBUG

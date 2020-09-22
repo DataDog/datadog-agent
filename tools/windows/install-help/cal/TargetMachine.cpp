@@ -1,0 +1,208 @@
+#include "stdafx.h"
+#include "TargetMachine.h"
+
+DWORD TargetMachine::DetectMachineType()
+{
+    SERVER_INFO_101* serverInfo;
+    DWORD status = NetServerGetInfo(nullptr, 101, reinterpret_cast<LPBYTE*>(&serverInfo));
+    if (NERR_Success != status)
+    {
+        WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d", status, GetLastError());
+    }
+    _serverType = serverInfo->sv101_type;
+    if (SV_TYPE_WORKSTATION & _serverType) {
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_WORKSTATION");
+    }
+    if (SV_TYPE_SERVER & _serverType) {
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_SERVER");
+    }
+    if (SV_TYPE_DOMAIN_CTRL & _serverType) {
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_CTRL");
+    }
+    if (SV_TYPE_DOMAIN_BAKCTRL & _serverType) {
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_BAKCTRL");
+    }
+    if (serverInfo != nullptr)
+    {
+        NetApiBufferFree(serverInfo);
+    }
+    return status;
+}
+
+bool TargetMachine::DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring& result)
+{
+    wchar_t* buffer = nullptr;
+    DWORD sz = 0;
+    BOOL res = GetComputerNameExW(fmt, buffer, &sz);
+    if (res) {
+        // this should never succeed
+        WcaLog(LOGMSG_STANDARD, "Unexpected.  Didn't get buffer size for computer name %d", static_cast<int>(fmt));
+        return false;
+    }
+    DWORD err = GetLastError();
+    if (ERROR_MORE_DATA != err) {
+        WcaLog(LOGMSG_STANDARD, "Unable to get computername info %d", err);
+        return false;
+    }
+    buffer = new wchar_t[sz + 1];
+    sz = sz + 1;
+    res = GetComputerNameExW(fmt, buffer, &sz);
+    if (res) {
+        _wcslwr_s(buffer, sz + 1);
+        result = buffer;
+    }
+    else {
+        err = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Unable to get computername info %d", err);
+    }
+
+    delete[] buffer;
+
+    return res;
+}
+
+DWORD TargetMachine::DetectDomainInformation()
+{
+    // check if it's actually domain joined or not
+    std::wstring joined_domain;
+    LPWSTR name = nullptr;
+    NETSETUP_JOIN_STATUS st;
+    DWORD nErr = NetGetJoinInformation(nullptr, &name, &st);
+    if (nErr == NERR_Success)
+    {
+        _wcslwr_s(name, wcslen(name) + 1);
+        joined_domain = name;
+        NetApiBufferFree(name);
+    }
+    else
+    {
+        WcaLog(LOGMSG_STANDARD, "Error getting domain joining information %d", GetLastError());
+        return nErr;
+    }
+
+    switch (st)
+    {
+        case NetSetupUnknownStatus:
+            WcaLog(LOGMSG_STANDARD, "Unknown domain joining status, assuming not joined");
+            break;
+        case NetSetupUnjoined:
+            WcaLog(LOGMSG_STANDARD, "Computer explicitly not joined to domain");
+            break;
+        case NetSetupWorkgroupName:
+            WcaLog(LOGMSG_STANDARD, "Computer is joined to a workgroup");
+            break;
+        case NetSetupDomainName:
+            WcaLog(LOGMSG_STANDARD, "Computer is domain-joined");
+            _isDomainJoined = true;
+            break;
+    }
+
+    if (_isDomainJoined)
+    {
+        if (_domain != joined_domain)
+        {
+            WcaLog(LOGMSG_STANDARD, "DNS domain name %S doesn't match the joined domain %S", _domain.c_str(), joined_domain.c_str());
+            _domain = joined_domain;
+        }
+    }
+
+    return ERROR_SUCCESS;
+}
+
+TargetMachine::TargetMachine(const TargetMachine& tm)
+: _serverType(tm._serverType)
+, _machineName(tm._machineName)
+, _domain(tm._domain)
+, _lastError(tm._lastError)
+, _isDomainJoined(tm._isDomainJoined)
+{
+    
+}
+
+TargetMachine::TargetMachine()
+: _serverType(0)
+, _machineName(L"")
+, _domain(L"")
+, _lastError(ERROR_SUCCESS)
+{
+    _lastError = DetectMachineType();
+    if (_lastError != ERROR_SUCCESS)
+    {
+        return;
+    }
+
+    wchar_t buf[MAX_COMPUTERNAME_LENGTH + 1];
+    DWORD sz = MAX_COMPUTERNAME_LENGTH + 1;
+    if (!GetComputerNameW(buf, &sz))
+    {
+        _lastError = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Failed to get computername %d", _lastError);
+        return;
+    }
+
+    _wcslwr_s(buf, MAX_COMPUTERNAME_LENGTH + 1);
+    _machineName = buf;
+    WcaLog(LOGMSG_STANDARD, "Computername is %S (%d)", _machineName.c_str(), sz);
+
+    // get the computername again and compare, just to make sure
+    std::wstring compare_computer;
+    if (DetectComputerName(ComputerNameDnsHostname, compare_computer))
+    {
+        if (_machineName != compare_computer) {
+            WcaLog(LOGMSG_STANDARD, "Got two different computer names %S %S", _machineName.c_str(), compare_computer.c_str());
+        }
+    }
+
+    // Retrieves a NetBIOS or DNS name associated with the local computer.
+    if (DetectComputerName(ComputerNameDnsDomain, _domain))
+    {
+        // newer domains will look like DNS domains.  (i.e. domain.local)
+        // just take the domain portion, which is all we're interested in.
+        size_t pos = _domain.find(L'.');
+        if (pos != std::wstring::npos) {
+            _domain = _domain.substr(0, pos);
+        }
+    }
+
+    _lastError = DetectDomainInformation();
+}
+
+TargetMachine::~TargetMachine()
+{
+
+}
+
+DWORD TargetMachine::GetLastError() const
+{
+    return _lastError;
+}
+
+std::wstring TargetMachine::GetMachineName() const
+{
+    return _machineName;
+}
+
+std::wstring TargetMachine::GetDomain() const
+{
+    return _domain;
+}
+
+bool TargetMachine::IsDomainJoined() const
+{
+    return _isDomainJoined;
+}
+
+bool TargetMachine::IsServer() const
+{
+    return SV_TYPE_SERVER & _serverType;
+}
+
+bool TargetMachine::IsDomainController() const
+{
+    return SV_TYPE_DOMAIN_CTRL & _serverType;
+}
+
+bool TargetMachine::IsBackupDomainController() const
+{
+    return SV_TYPE_DOMAIN_BAKCTRL & _serverType;
+}

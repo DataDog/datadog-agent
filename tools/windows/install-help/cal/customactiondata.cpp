@@ -102,6 +102,7 @@ bool CustomActionData::parseSysprobeData()
     }
     return true;
 }
+
 bool CustomActionData::parseUsernameData()
 {
     std::wstring tmpName = ddAgentUserName;
@@ -125,7 +126,7 @@ bool CustomActionData::parseUsernameData()
 
     if (computed_domain == L".") {
         WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-        computed_domain = computername;
+        computed_domain = machine.GetDomain();
         this->domainUser = false;
     } else {
         WCHAR netBiosDomainName[256];
@@ -138,14 +139,14 @@ bool CustomActionData::parseUsernameData()
             WcaLog(LOGMSG_STANDARD, "Warning: DnsHostnameToComputerName(%S) did not return success: %d", computed_domain.c_str(), GetLastError());
         }
 
-        if(0 == _wcsicmp(computed_domain.c_str(), computername.c_str())){
+        if(0 == _wcsicmp(computed_domain.c_str(), machine.GetMachineName().c_str())){
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
             this->domainUser = false;
-        } else if(0 == _wcsicmp(computed_domain.c_str(), domainname.c_str())){
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), domainname.c_str());
+        } else if(0 == _wcsicmp(computed_domain.c_str(), machine.GetDomain().c_str())){
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.GetDomain().c_str());
             this->domainUser = true;
         } else {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), domainname.c_str());
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.GetDomain().c_str());
             this->domainUser = true;
         }
     }

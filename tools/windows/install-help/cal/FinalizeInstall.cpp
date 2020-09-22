@@ -1,19 +1,5 @@
 #include "stdafx.h"
-
-bool AddUserToRequiredGroups(PSID userSid)
-{
-    DWORD errCode = AddUserToGroup(userSid, L"S-1-5-32-558", L"Performance Monitor Users");
-    if (errCode != NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
-        return false;
-    }
-    errCode = AddUserToGroup(userSid, L"S-1-5-32-573", L"Event Log Readers");
-    if (errCode != NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
-        return false;
-    }
-    return true;
-}
+#include "TargetMachine.h"
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
@@ -22,7 +8,6 @@ UINT doFinalizeInstall(CustomActionData &data)
 
     int ddUserExists = 0;
     int ddServiceExists = 0;
-    bool isDC = false;
     int passbuflen = 0;
     wchar_t *passbuf = NULL;
     const wchar_t * passToUse = NULL;
@@ -44,11 +29,10 @@ UINT doFinalizeInstall(CustomActionData &data)
 
     // check to see if we're a domain controller.
     WcaLog(LOGMSG_STANDARD, "checking if this is a domain controller");
-    isDC = isDomainController();
 
     // check to see if the supplied dd-agent-user exists
     WcaLog(LOGMSG_STANDARD, "checking to see if the user is already present");
-    if ((ddUserExists = doesUserExist(data, isDC)) == -1) {
+    if ((ddUserExists = doesUserExist(data, data.GetTargetMachine().IsDomainController())) == -1) {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
@@ -63,7 +47,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     // new installation or an upgrade, and what steps need to be taken
 
 
-    if (!canInstall(isDC, ddUserExists, ddServiceExists, data, bResetPassword)) {
+    if (!canInstall(data.GetTargetMachine().IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword)) {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
@@ -148,9 +132,28 @@ UINT doFinalizeInstall(CustomActionData &data)
     }
     hr = 0;
 
-    if (!AddUserToRequiredGroups(sid))
+    if (data.GetTargetMachine().IsBackupDomainController())
     {
-        goto LExit;
+        WcaLog(LOGMSG_STANDARD, "Machine is a BACKUP DC");
+    }
+    else
+    {
+        WcaLog(LOGMSG_STANDARD, "Machine is NOT a BACKUP DC");
+    }
+
+    DWORD errCode = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+    if (errCode != NERR_Success) {
+        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
+        if (!data.GetTargetMachine().IsBackupDomainController()) {
+            goto LExit;
+        }
+    }
+    errCode = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+    if (errCode != NERR_Success) {
+        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
+        if (!data.GetTargetMachine().IsBackupDomainController()) {
+            goto LExit;
+        }
     }
 
     if (!ddServiceExists) {
