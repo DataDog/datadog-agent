@@ -101,7 +101,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	tailer := NewTailer(suite.outputChan, suite.source, suite.testPath, 10*time.Millisecond, false)
 	tailer.StartFromBeginning()
 
-	suite.Equal(tailer.closeTimeout, time.Duration(42))
+	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
 	tailer.Stop()
 }
 
