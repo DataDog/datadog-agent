@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -491,6 +490,5 @@ func jetsonCheckFactory() check.Check {
 }
 
 func init() {
-	debug.PrintStack()
 	core.RegisterCheck(checkName, jetsonCheckFactory)
 }
