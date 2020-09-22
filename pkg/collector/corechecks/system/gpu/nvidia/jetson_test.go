@@ -21,9 +21,9 @@ const (
 	agXSample  = "RAM 1903/15692MB (lfb 3251x4MB) CPU [1%@1190,1%@1190,2%@1190,0%@1190,0%@1190,0%@1190,0%@1190,0%@1190] EMC_FREQ 0% GR3D_FREQ 0% AO@32.5C GPU@32C Tboard@32C Tdiode@34.75C AUX@31.5C CPU@33.5C thermal@32.9C PMIC@100C GPU 0/0 CPU 216/216 SOC 864/864 CV 0/0 VDDRQ 144/144 SYS5V 1889/1889"
 )
 
-func TestNanoTegraStats(t *testing.T) {
+func TestNano(t *testing.T) {
 
-	tegraCheck := new(TegraCheck)
+	tegraCheck := new(JetsonCheck)
 	tegraCheck.Configure(nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
@@ -76,9 +76,9 @@ func TestNanoTegraStats(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
-func TestTx1TegraStats(t *testing.T) {
+func TestTX1(t *testing.T) {
 
-	tegraCheck := new(TegraCheck)
+	tegraCheck := new(JetsonCheck)
 	tegraCheck.Configure(nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")

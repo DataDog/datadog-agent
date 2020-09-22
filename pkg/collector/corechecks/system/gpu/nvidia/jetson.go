@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -27,7 +28,7 @@ import (
 )
 
 const (
-	tegraCheckName       = "tegra"
+	checkName            = "jetson"
 	defaultRetryDuration = 5 * time.Second
 	defaultRetries       = 3
 
@@ -145,8 +146,8 @@ func retryExitError(err error) error { // nolint Used only on some architectures
 	}
 }
 
-// TegraCheck contains the field for the TegraCheck
-type TegraCheck struct {
+// JetsonCheck contains the field for the JetsonCheck
+type JetsonCheck struct {
 	core.CheckBase
 
 	// Indicates that this check has been scheduled and is running.
@@ -166,7 +167,7 @@ type TegraCheck struct {
 
 // Interval returns the scheduling time for the check.
 // Returns 0 since we're a long-running check.
-func (c *TegraCheck) Interval() time.Duration {
+func (c *JetsonCheck) Interval() time.Duration {
 	return 0
 }
 
@@ -182,7 +183,7 @@ func getSizeMultiplier(unit string) float64 {
 	return 1
 }
 
-func (c *TegraCheck) sendRAMMetrics(sender aggregator.Sender, field string) error {
+func (c *JetsonCheck) sendRAMMetrics(sender aggregator.Sender, field string) error {
 	ramFields := c.regexes[regexRAMIdx].FindAllStringSubmatch(field, -1)
 	if len(ramFields) != 1 {
 		return errors.New("could not parse RAM fields")
@@ -220,7 +221,7 @@ func (c *TegraCheck) sendRAMMetrics(sender aggregator.Sender, field string) erro
 	return nil
 }
 
-func (c *TegraCheck) sendSwapMetrics(sender aggregator.Sender, field string) error {
+func (c *JetsonCheck) sendSwapMetrics(sender aggregator.Sender, field string) error {
 	swapFields := c.regexes[regexSwapCacheIdx].FindAllStringSubmatch(field, -1)
 	if len(swapFields) != 1 {
 		return errors.New("could not parse SWAP fields")
@@ -250,7 +251,7 @@ func (c *TegraCheck) sendSwapMetrics(sender aggregator.Sender, field string) err
 	return nil
 }
 
-func (c *TegraCheck) sendGpuUsageMetrics(sender aggregator.Sender, field string) error {
+func (c *JetsonCheck) sendGpuUsageMetrics(sender aggregator.Sender, field string) error {
 	gpuFields := c.regexes[regexGpuUsageIdx].FindAllStringSubmatch(field, -1)
 	if len(gpuFields) != 1 {
 		return errors.New("could not parse GPU usage fields")
@@ -287,7 +288,7 @@ func (c *TegraCheck) sendGpuUsageMetrics(sender aggregator.Sender, field string)
 	return nil
 }
 
-func (c *TegraCheck) sendCPUUsageMetrics(sender aggregator.Sender, field string) error {
+func (c *JetsonCheck) sendCPUUsageMetrics(sender aggregator.Sender, field string) error {
 	cpuFields := c.regexes[regexCPUUsageIdx].FindAllStringSubmatch(field, -1)
 	if len(cpuFields) <= 0 {
 		return errors.New("could not parse CPU usage fields")
@@ -312,7 +313,7 @@ func (c *TegraCheck) sendCPUUsageMetrics(sender aggregator.Sender, field string)
 	return nil
 }
 
-func (c *TegraCheck) sendTemperatureMetrics(sender aggregator.Sender, field string) error {
+func (c *JetsonCheck) sendTemperatureMetrics(sender aggregator.Sender, field string) error {
 	temperatureFields := c.regexes[regexTemperatureIdx].FindAllStringSubmatch(field, -1)
 	if len(temperatureFields) <= 0 {
 		return errors.New("could not parse temperature fields")
@@ -329,7 +330,7 @@ func (c *TegraCheck) sendTemperatureMetrics(sender aggregator.Sender, field stri
 	return nil
 }
 
-func (c *TegraCheck) sendVoltageMetrics(sender aggregator.Sender, field string) error {
+func (c *JetsonCheck) sendVoltageMetrics(sender aggregator.Sender, field string) error {
 	voltageFields := c.regexes[regexVoltageIdx].FindAllStringSubmatch(field, -1)
 	if len(voltageFields) <= 0 {
 		return errors.New("could not parse voltage fields")
@@ -355,7 +356,7 @@ func (c *TegraCheck) sendVoltageMetrics(sender aggregator.Sender, field string) 
 }
 
 // Run executes the check
-func (c *TegraCheck) Run() error {
+func (c *JetsonCheck) Run() error {
 	atomic.StoreUint32(&c.running, 1)
 	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
 	atomic.StoreUint32(&c.running, 0)
@@ -363,13 +364,13 @@ func (c *TegraCheck) Run() error {
 	return err
 }
 
-func (c *TegraCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
+func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
 
-	err = c.sendRamMetrics(sender, tegraStatsOuptut)
+	err = c.sendRAMMetrics(sender, tegraStatsOuptut)
 	if err != nil {
 		return nil
 	}
@@ -381,7 +382,7 @@ func (c *TegraCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	if err != nil {
 		return nil
 	}
-	err = c.sendCpuUsageMetrics(sender, tegraStatsOuptut)
+	err = c.sendCPUUsageMetrics(sender, tegraStatsOuptut)
 	if err != nil {
 		return nil
 	}
@@ -397,11 +398,11 @@ func (c *TegraCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	return nil
 }
 
-func (c *TegraCheck) run() error {
+func (c *JetsonCheck) run() error {
 	select {
 	// poll the stop channel once to make sure no stop was requested since the last call to `run`
 	case <-c.stop:
-		log.Info("Not starting %s check: stop requested", tegraCheckName)
+		log.Info("Not starting %s check: stop requested", checkName)
 		c.stopDone <- struct{}{}
 		return nil
 	default:
@@ -450,7 +451,7 @@ func (c *TegraCheck) run() error {
 	case <-c.stop:
 		err = cmd.Process.Signal(os.Kill)
 		if err != nil {
-			_ = log.Errorf("unable to stop %s check: %s", tegraCheckName, err)
+			_ = log.Errorf("unable to stop %s check: %s", checkName, err)
 		}
 	}
 
@@ -460,7 +461,7 @@ func (c *TegraCheck) run() error {
 }
 
 // Configure the GPU check
-func (c *TegraCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
@@ -483,12 +484,13 @@ func (c *TegraCheck) Configure(data integration.Data, initConfig integration.Dat
 	return nil
 }
 
-func tegraCheckFactory() check.Check {
-	return &TegraCheck{
-		CheckBase: core.NewCheckBase(tegraCheckName),
+func jetsonCheckFactory() check.Check {
+	return &JetsonCheck{
+		CheckBase: core.NewCheckBase(checkName),
 	}
 }
 
 func init() {
-	core.RegisterCheck(tegraCheckName, tegraCheckFactory)
+	debug.PrintStack()
+	core.RegisterCheck(checkName, jetsonCheckFactory)
 }

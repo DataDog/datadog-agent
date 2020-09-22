@@ -59,6 +59,7 @@ IOT_AGENT_CORECHECKS = [
     "cpu",
     "disk",
     "io",
+    "jetson",
     "load",
     "memory",
     "network",
