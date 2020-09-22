@@ -295,13 +295,15 @@ func (c *Config) Digest() string {
 					if valueStr := fmt.Sprint(v); len(valueStr) > 0 {
 						tags = append(tags, fmt.Sprintf("%v:%s", k, valueStr))
 					} else {
-						tags = append(tags, fmt.Sprintf("%s", k))
+						tags = append(tags, fmt.Sprint(k))
 					}
 				}
 			} else {
 				log.Infof("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
 				continue
 			}
+			// sort the list of tags so the digest stays stable for
+			// identical configs with the same tags but with different order
 			sort.Strings(tags)
 			inst["tags"] = tags
 		}
