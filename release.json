@@ -22,6 +22,9 @@
         "WINDOWS_DDNPM_SHASUM": "6b5a1b1fb5aad64a23c119501cddfc16a98a6d1ad5b3f8cc91a603284627af19",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
+    "dca-1.9.0-rc1": {
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
+    },
     "6.23.0-rc.1": {
         "INTEGRATIONS_CORE_VERSION": "7.23.0-rc.1",
         "OMNIBUS_SOFTWARE_VERSION": "7.23.0-rc.1",
