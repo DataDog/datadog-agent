@@ -52,6 +52,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/gpu/nvidia"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
 	// register metadata providers
