@@ -14,7 +14,7 @@ struct link_event_t {
 
 int __attribute__((always_inline)) trace__sys_link() {
     struct syscall_cache_t syscall = {
-        .type = EVENT_LINK,
+        .type = SYSCALL_LINK,
     };
     cache_syscall(&syscall);
 
@@ -31,7 +31,7 @@ SYSCALL_KPROBE0(linkat) {
 
 SEC("kprobe/vfs_link")
 int kprobe__vfs_link(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_LINK);
     if (!syscall)
         return 0;
 
@@ -58,7 +58,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_LINK);
     if (!syscall)
         return 0;
 

@@ -23,7 +23,7 @@ struct utime_event_t {
 
 int __attribute__((always_inline)) trace__sys_utimes() {
     struct syscall_cache_t syscall = {
-        .type = EVENT_UTIME,
+        .type = SYSCALL_UTIME,
     };
     cache_syscall(&syscall);
 
@@ -53,7 +53,7 @@ SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
 }
 
 int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_UTIME);
     if (!syscall)
         return 0;
 

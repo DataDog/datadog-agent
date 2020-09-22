@@ -15,7 +15,7 @@ struct chmod_event_t {
 
 int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
     struct syscall_cache_t syscall = {
-        .type = EVENT_CHMOD,
+        .type = SYSCALL_CHMOD,
         .setattr = {
             .mode = mode
         }
@@ -38,7 +38,7 @@ SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
 }
 
 int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_CHMOD);
     if (!syscall)
         return 0;
 

@@ -3,6 +3,8 @@
 
 #include "filters.h"
 
+#define FSTYPE_LEN 16
+
 struct ktimeval {
     long tv_sec;
     long tv_nsec;
@@ -74,6 +76,7 @@ struct syscall_cache_t {
             struct mount *dest_mnt;
             struct mountpoint *dest_mountpoint;
             struct path_key_t root_key;
+            u32 padding;
             const char *fstype;
         } mount;
 
@@ -113,17 +116,22 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) peek_syscall() {
+struct syscall_cache_t * __attribute__((always_inline)) peek_syscall(u16 type) {
     u64 key = bpf_get_current_pid_tgid();
-    return (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    if (syscall && (syscall->type & type) > 0)
+        return syscall;
+    return NULL;
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) pop_syscall() {
+struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u16 type) {
     u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t*) bpf_map_lookup_elem(&syscalls, &key);
-    if (syscall)
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    if (syscall && (syscall->type & type) > 0) {
         bpf_map_delete_elem(&syscalls, &key);
-    return syscall;
+        return syscall;
+    }
+    return NULL;
 }
 
 #endif

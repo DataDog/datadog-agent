@@ -25,7 +25,7 @@ struct unlink_event_t {
 
 int __attribute__((always_inline)) trace__sys_unlink(int flags) {
     struct syscall_cache_t syscall = {
-        .type = EVENT_UNLINK,
+        .type = SYSCALL_UNLINK,
         .unlink = {
             .flags = flags,
         }
@@ -45,7 +45,7 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
 
 SEC("kprobe/vfs_unlink")
 int kprobe__vfs_unlink(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_UNLINK);
     if (!syscall)
         return 0;
 
@@ -69,14 +69,14 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
         ret = resolve_dentry(dentry, syscall->unlink.path_key, &unlink_path_inode_discarders);
     }
     if (ret < 0) {
-        pop_syscall();
+        pop_syscall(SYSCALL_UNLINK);
     }
 
     return 0;
 }
 
 int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_UNLINK);
     if (!syscall)
         return 0;
 

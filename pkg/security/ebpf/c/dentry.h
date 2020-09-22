@@ -23,8 +23,8 @@ struct bpf_map_def SEC("maps/mount_id_offset") mount_id_offset = {
 };
 
 struct path_key_t {
-    unsigned long ino;
-    int mount_id;
+    u64 ino;
+    u32 mount_id;
     u32 padding;
 };
 
@@ -50,7 +50,7 @@ unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) 
     return ino;
 }
 
-void __attribute__((always_inline)) write_inode_ino(struct inode *inode, unsigned long *ino) {
+void __attribute__((always_inline)) write_inode_ino(struct inode *inode, u64 *ino) {
     bpf_probe_read(ino, sizeof(inode), &inode->i_ino);
 }
 

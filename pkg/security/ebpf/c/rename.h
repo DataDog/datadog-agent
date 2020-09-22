@@ -14,7 +14,7 @@ struct rename_event_t {
 
 int __attribute__((always_inline)) trace__sys_rename() {
     struct syscall_cache_t syscall = {
-        .type = EVENT_RENAME,
+        .type = SYSCALL_RENAME,
     };
     cache_syscall(&syscall);
 
@@ -35,7 +35,7 @@ SYSCALL_KPROBE0(renameat2) {
 
 SEC("kprobe/vfs_rename")
 int kprobe__vfs_rename(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_RENAME);
     if (!syscall)
         return 0;
 
@@ -60,7 +60,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_RENAME);
     if (!syscall)
         return 0;
 

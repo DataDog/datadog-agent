@@ -26,48 +26,46 @@ int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u
 }
 
 SYSCALL_KPROBE2(setxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, EVENT_SETXATTR);
+    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
 }
 
 SYSCALL_KPROBE2(lsetxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, EVENT_SETXATTR);
+    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
 }
 
 SYSCALL_KPROBE2(fsetxattr, int, fd, const char *, name) {
-    return trace__sys_setxattr(name, EVENT_SETXATTR);
+    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
 }
 
 SYSCALL_KPROBE2(removexattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, EVENT_REMOVEXATTR);
+    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
 }
 
 SYSCALL_KPROBE2(lremovexattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, EVENT_REMOVEXATTR);
+    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
 }
 
 SYSCALL_KPROBE2(fremovexattr, int, fd, const char *, name) {
-    return trace__sys_setxattr(name, EVENT_REMOVEXATTR);
+    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
 }
 
 int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_SETXATTR | SYSCALL_REMOVEXATTR);
     if (!syscall)
         return 0;
 
-    if (syscall->type == EVENT_SETXATTR || syscall->type == EVENT_REMOVEXATTR) {
-        struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
 
-        // if second pass, ex: overlayfs, just cache the inode that will be used in ret
-        if (syscall->setxattr.dentry) {
-            syscall->setxattr.inode = get_dentry_ino(dentry);
-            return 0;
-        }
-
-        syscall->setxattr.dentry = dentry;
-        syscall->setxattr.path_key.ino = get_dentry_ino(syscall->setxattr.dentry);
-        // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-        resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, NULL);
+    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+    if (syscall->setxattr.dentry) {
+        syscall->setxattr.inode = get_dentry_ino(dentry);
+        return 0;
     }
+
+    syscall->setxattr.dentry = dentry;
+    syscall->setxattr.path_key.ino = get_dentry_ino(syscall->setxattr.dentry);
+    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+    resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, NULL);
 
     return 0;
 }
@@ -83,7 +81,7 @@ int kprobe__vfs_removexattr(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, u64 type) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(1 << type);
     if (!syscall)
         return 0;
 

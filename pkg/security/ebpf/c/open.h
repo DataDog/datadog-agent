@@ -72,7 +72,7 @@ struct open_event_t {
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     struct syscall_cache_t syscall = {
-        .type = EVENT_OPEN,
+        .type = SYSCALL_OPEN,
         .policy = {.mode = ACCEPT},
         .open = {
             .flags = flags,
@@ -197,7 +197,7 @@ int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) 
     }
 
     if (!pass_to_userspace) {
-        pop_syscall();
+        pop_syscall(SYSCALL_OPEN);
     }
 
 no_filter:
@@ -217,11 +217,11 @@ int __attribute__((always_inline)) handle_open_event(struct pt_regs *ctx, struct
 
 SEC("kprobe/vfs_truncate")
 int kprobe__vfs_truncate(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
 
-    if (syscall->type == EVENT_OPEN) {
+    if (syscall->type == SYSCALL_OPEN) {
         struct path *path = (struct path *)PT_REGS_PARM1(ctx);
 
         syscall->open.dentry = get_path_dentry(path);
@@ -235,11 +235,11 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
 
 SEC("kretprobe/ovl_d_real")
 int kretprobe__ovl_d_real(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
 
-    if (syscall->type == EVENT_OPEN) {
+    if (syscall->type == SYSCALL_OPEN) {
         struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
         syscall->open.path_key.ino = get_dentry_ino(dentry);
     }
@@ -249,14 +249,14 @@ int kretprobe__ovl_d_real(struct pt_regs *ctx) {
 
 SEC("kprobe/do_dentry_open")
 int kprobe__do_dentry_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;   
 
     switch(syscall->type) {
-        case EVENT_OPEN:
+        case SYSCALL_OPEN:
             return handle_open_event(ctx, syscall);
-        case EVENT_EXEC:
+        case SYSCALL_EXEC:
             return handle_exec_event(ctx, syscall);
     }
 
@@ -264,7 +264,7 @@ int kprobe__do_dentry_open(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
 

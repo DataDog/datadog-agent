@@ -23,17 +23,17 @@ struct mount_event_t {
 
 SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
-        .mount = {
-            .fstype = fstype
-        }
+        .type = SYSCALL_MOUNT,
+        .mount.fstype = fstype,
     };
+
     cache_syscall(&syscall);
     return 0;
 }
 
 SEC("kprobe/attach_recursive_mnt")
 int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MOUNT);
     if (!syscall)
         return 0;
 
@@ -52,7 +52,7 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
 
 SEC("kprobe/propagate_mnt")
 int kprobe__propagate_mnt(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MOUNT);
     if (!syscall)
         return 0;
 
@@ -70,7 +70,7 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
 }
 
 SYSCALL_COMPAT_KRETPROBE(mount) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_MOUNT);
     if (!syscall)
         return 0;
 

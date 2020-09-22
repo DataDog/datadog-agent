@@ -15,7 +15,7 @@ struct chown_event_t {
 
 int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
     struct syscall_cache_t syscall = {
-        .type = EVENT_CHOWN,
+        .type = SYSCALL_CHOWN,
         .setattr = {
             .user = user,
             .group = group
@@ -55,7 +55,7 @@ SYSCALL_KPROBE4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t,
 }
 
 int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_CHOWN);
     if (!syscall)
         return 0;
 

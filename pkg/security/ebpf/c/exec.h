@@ -44,7 +44,7 @@ struct bpf_map_def SEC("maps/pid_cookie") pid_cookie = {
 
 int __attribute__((always_inline)) trace__sys_execveat() {
     struct syscall_cache_t syscall = {
-        .type = EVENT_EXEC,
+        .type = SYSCALL_EXEC,
     };
 
     cache_syscall(&syscall);
@@ -107,14 +107,13 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     // insert pid <-> cookie mapping
     bpf_map_update_elem(&pid_cookie, &tgid, &cookie, BPF_ANY);
 
-    pop_syscall();
+    pop_syscall(SYSCALL_EXEC);
 
     return 0;
 }
 
 SEC("tracepoint/sched/sched_process_fork")
-int sched_process_fork(struct _tracepoint_sched_process_fork *args)
-{
+int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     u32 pid = 0;
     u32 ppid = 0;
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
