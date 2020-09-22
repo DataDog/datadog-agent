@@ -20,6 +20,12 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
     BOOL isDC = isDomainController();
     if (t == UNINSTALL_UNINSTALL) {
         regkey.createSubKey(strUninstallKeyName.c_str(), installState);
+        //
+        // Make best effort to delete versionhistory.json file on uninstallation. We only attempt
+        // to delete the file from the default location. If customer changed the default location,
+        // the file will not be deleted.
+        //
+        (void)DeleteFileW(versionhistoryfilename.c_str());
     }
     else {
         regkey.createSubKey(strRollbackKeyName.c_str(), installState);
@@ -111,14 +117,6 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
         }
     }
     // remove the auth token file altogether
-
-    //
-    // Make best effort to delete versionhistory.json file on uninstallation. We only attempt
-    // to delete the file from the default location. If customer changed the default location,
-    // the file will not be deleted.
-    //
-    (void)DeleteFileW(versionhistoryfilename.c_str());
-
     DeleteFile(authtokenfilename.c_str());
     std::wstring svcsInstalled;
     if (installState.getStringValue(installInstalledServices.c_str(), svcsInstalled))
