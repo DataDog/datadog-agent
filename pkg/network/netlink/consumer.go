@@ -362,6 +362,10 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 		log.Debugf("rcv buffer size for netlink socket is %d bytes", size)
 	}
 
+	if err := c.socket.SetSockoptInt(unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, 1); err != nil {
+		log.Errorf("error enabling listen for all namespaces on netlink socket: %s", err)
+	}
+
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
 	atomic.StoreInt64(&c.samplingPct, int64(samplingRate*100.0))
