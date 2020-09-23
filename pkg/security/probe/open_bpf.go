@@ -87,10 +87,16 @@ func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder
 		table := "open_path_inode_discarders"
 		value := discarder.Value.(string)
 
+		if value == "" {
+			return nil
+		}
+
 		isDiscarded, err := discardParentInode(probe, rs, "open", value, fsEvent.MountID, fsEvent.Inode, table)
-		if !isDiscarded || err != nil {
-			// not able to discard the parent then only discard the filename
-			_, err = discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
+		if !isDiscarded {
+			if _, ok := err.(*ErrInvalidKeyPath); !ok {
+				// not able to discard the parent then only discard the filename
+				_, err = discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
+			}
 		}
 
 		if err != nil {
