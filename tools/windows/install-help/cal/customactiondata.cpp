@@ -126,7 +126,7 @@ bool CustomActionData::parseUsernameData()
 
     if (computed_domain == L".") {
         WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-        computed_domain = machine.GetDomain();
+        computed_domain = machine.GetMachineName();
         this->domainUser = false;
     } else {
         WCHAR netBiosDomainName[256];
