@@ -57,6 +57,9 @@
         "JMXFETCH_HASH": "c59021fa9a02102ffb8a28e9083007aed5e11f6eef2b199f5446533d3a89ede4",
         "MACOS_BUILD_VERSION": "7.23.0-rc.1",
     },
+    "dca-1.9.0-rc2": {
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
+    },
     "dca-1.9.0-rc1": {
         "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
     },
