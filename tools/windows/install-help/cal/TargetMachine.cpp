@@ -1,13 +1,26 @@
 #include "stdafx.h"
 #include "TargetMachine.h"
+#include "lmerr_str.h"
 
 DWORD TargetMachine::DetectMachineType()
 {
     SERVER_INFO_101* serverInfo;
     DWORD status = NetServerGetInfo(nullptr, 101, reinterpret_cast<LPBYTE*>(&serverInfo));
-    if (NERR_Success != status)
+    if (status != NERR_Success)
     {
+        /*
+         * If the function fails, the return value can be one of the following error codes.
+         *   - ERROR_ACCESS_DENIED
+         *  The user does not have access to the requested information.
+         *  -  ERROR_INVALID_LEVEL
+         *  The value specified for the level parameter is invalid.
+         *  - ERROR_INVALID_PARAMETER
+         *  The specified parameter is invalid.
+         *  - ERROR_NOT_ENOUGH_MEMORY
+         *  Insufficient memory is available.
+         */
         WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d", status, GetLastError());
+        return status;
     }
     _serverType = serverInfo->sv101_type;
     if (SV_TYPE_WORKSTATION & _serverType) {
@@ -24,9 +37,9 @@ DWORD TargetMachine::DetectMachineType()
     }
     if (serverInfo != nullptr)
     {
-        NetApiBufferFree(serverInfo);
+        (void)NetApiBufferFree(serverInfo);
     }
-    return status;
+    return ERROR_SUCCESS;
 }
 
 bool TargetMachine::DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring& result)
@@ -72,11 +85,17 @@ DWORD TargetMachine::DetectDomainInformation()
     {
         _wcslwr_s(name, wcslen(name) + 1);
         joined_domain = name;
-        NetApiBufferFree(name);
+        (void)NetApiBufferFree(name);
     }
     else
     {
-        WcaLog(LOGMSG_STANDARD, "Error getting domain joining information %d", GetLastError());
+        /*
+         * If the function fails, the return value can be the following error code or one of the system error codes.
+         *
+         * - ERROR_NOT_ENOUGH_MEMORY
+         * Not enough storage is available to process this command.
+         */
+        WcaLog(LOGMSG_STANDARD, "Error getting domain joining information %d %d", nErr, GetLastError());
         return nErr;
     }
 
@@ -109,20 +128,11 @@ DWORD TargetMachine::DetectDomainInformation()
     return ERROR_SUCCESS;
 }
 
-TargetMachine::TargetMachine(const TargetMachine& tm)
-: _serverType(tm._serverType)
-, _machineName(tm._machineName)
-, _domain(tm._domain)
-, _lastError(tm._lastError)
-, _isDomainJoined(tm._isDomainJoined)
-{
-    
-}
-
 TargetMachine::TargetMachine()
 : _serverType(0)
 , _machineName(L"")
 , _domain(L"")
+, _isDomainJoined(false)
 , _lastError(ERROR_SUCCESS)
 {
     _lastError = DetectMachineType();

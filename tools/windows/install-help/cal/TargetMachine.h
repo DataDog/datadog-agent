@@ -14,7 +14,7 @@ private:
     DWORD DetectDomainInformation();
 public:
     TargetMachine();
-    TargetMachine(const TargetMachine&);
+    TargetMachine(const TargetMachine&) = default;
     ~TargetMachine();
 
     DWORD GetLastError() const;
