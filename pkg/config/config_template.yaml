@@ -170,6 +170,13 @@ api_key:
 #
 # forwarder_retry_queue_max_size: 30
 
+## @param forwarder_retry_queue_all_payloads_max_size - integer - optional - default: 0
+## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
+## If "forwarder_retry_queue_all_payloads_max_size" is greater than 0, 
+## "forwarder_retry_queue_max_size" is ignored.
+#
+# forwarder_retry_queue_all_payloads_max_size: 0
+
 ## @param forwarder_num_workers - integer - optional - default: 1
 ## The number of workers used by the forwarder.
 #
