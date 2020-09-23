@@ -268,8 +268,8 @@ func extractNode(n *corev1.Node) *model.Node {
 
 func extractCapacitiesAndAllocatables(n *corev1.Node, mn *model.Node) {
 	// Milli Value ceil(q * 1000), which fits to be the lowest value. CPU -> Millicore and Memory -> byte
-	supportedResourcesMilli := []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
-	supportedResources := []corev1.ResourceName{corev1.ResourcePods}
+	supportedResourcesMilli := []corev1.ResourceName{corev1.ResourceCPU}
+	supportedResources := []corev1.ResourceName{corev1.ResourcePods, corev1.ResourceMemory}
 	setSupportedResources(n, mn, supportedResources, false)
 	setSupportedResources(n, mn, supportedResourcesMilli, true)
 }
