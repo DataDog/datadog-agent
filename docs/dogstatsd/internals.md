@@ -41,7 +41,7 @@ or
 
 The PacketBuffer sends it in a Go buffered channel to the worker / parser, meaning that the channels can buffer the Packets on their own while waiting for the worker to read and process them.
 
-In theory, the max memory usage of the PacketBuffer is:
+In theory, the max memory usage of this Go buffered channel is:
 * packet buffer size * packet size * channel buffer size
 * `dogstatsd_packer_buffer_size` * `dogstatsd_buffer_size` * `dogstatsd_queue_size`
 * 32 * 8192 * 1024 =  256MB
