@@ -5,6 +5,7 @@ package util
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"runtime"
 	"strconv"
 
@@ -68,7 +69,11 @@ func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 
 		ns, err := netns.GetFromPath(fmt.Sprintf("%s/%s/ns/net", procRoot, f.Name()))
 		if err != nil {
-			return nil, err
+			if !os.IsNotExist(err) {
+				return nil, err
+			}
+
+			continue
 		}
 
 		uid := ns.UniqueId()
