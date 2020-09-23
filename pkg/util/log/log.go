@@ -493,7 +493,7 @@ func Critical(v ...interface{}) error {
 
 // Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
-	return logFormatWithError(seelog.ErrorLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, params...)
+	return logFormatWithError(seelog.CriticalLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, params...)
 }
 
 // ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
