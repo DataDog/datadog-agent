@@ -378,10 +378,11 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 }
 
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
-func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.SketchSeriesList) {
+// The parameter `before` is used as an end interval while retrieving series and sketches
+// from the time sampler. Metrics and sketches before this timestamp should be returned.
+func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
 	agg.mu.Lock()
-	series, sketches := agg.statsdSampler.flush(timeNowNano())
-
+	series, sketches := agg.statsdSampler.flush(float64(before.UnixNano()) / float64(time.Second))
 	for _, checkSampler := range agg.checkSamplers {
 		s, sk := checkSampler.flush()
 		series = append(series, s...)
@@ -502,7 +503,7 @@ func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.Sk
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSerializer bool) {
-	series, sketches := agg.GetSeriesAndSketches()
+	series, sketches := agg.GetSeriesAndSketches(start)
 
 	agg.sendSketches(start, sketches, waitForSerializer)
 	agg.sendSeries(start, series, waitForSerializer)
@@ -604,7 +605,7 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 	}
 }
 
-func (agg *BufferedAggregator) flush(start time.Time, waitForSerializer bool) {
+func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	agg.flushSeriesAndSketches(start, waitForSerializer)
 	agg.flushServiceChecks(start, waitForSerializer)
 	agg.flushEvents(start, waitForSerializer)
@@ -619,7 +620,7 @@ func (agg *BufferedAggregator) Stop() {
 	if timeout > 0 {
 		done := make(chan struct{})
 		go func() {
-			agg.flush(time.Now(), true)
+			agg.Flush(time.Now(), true)
 			done <- struct{}{}
 		}()
 
@@ -649,7 +650,7 @@ func (agg *BufferedAggregator) run() {
 		case <-agg.health.C:
 		case <-agg.TickerChan:
 			start := time.Now()
-			agg.flush(start, false)
+			agg.Flush(start, false)
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
 		case checkMetric := <-agg.checkMetricIn:
