@@ -27,9 +27,6 @@ UINT doFinalizeInstall(CustomActionData &data)
     regkeybase.createSubKey(strRollbackKeyName.c_str(), keyRollback, REG_OPTION_VOLATILE);
     regkeybase.createSubKey(strUninstallKeyName.c_str(), keyInstall);
 
-    // check to see if we're a domain controller.
-    WcaLog(LOGMSG_STANDARD, "checking if this is a domain controller");
-
     // check to see if the supplied dd-agent-user exists
     WcaLog(LOGMSG_STANDARD, "checking to see if the user is already present");
     if ((ddUserExists = doesUserExist(data, data.GetTargetMachine().IsDomainController())) == -1) {

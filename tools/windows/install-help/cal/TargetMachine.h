@@ -7,7 +7,6 @@ private:
     std::wstring _machineName;
     std::wstring _domain;
     bool _isDomainJoined;
-    DWORD _lastError;
 
     DWORD DetectMachineType();
     bool DetectComputerName(COMPUTER_NAME_FORMAT fmt, std::wstring& result);
@@ -17,7 +16,8 @@ public:
     TargetMachine(const TargetMachine&) = default;
     ~TargetMachine();
 
-    DWORD GetLastError() const;
+    DWORD Detect();
+
     std::wstring GetMachineName() const;
     std::wstring GetDomain() const;
     bool IsDomainJoined() const;

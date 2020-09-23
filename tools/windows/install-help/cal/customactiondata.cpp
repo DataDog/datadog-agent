@@ -11,6 +11,7 @@ CustomActionData::~CustomActionData()
 {
 
 }
+
 bool CustomActionData::init(MSIHANDLE hi) 
 {
     this->hInstall = hi;
@@ -24,6 +25,13 @@ bool CustomActionData::init(MSIHANDLE hi)
 
 bool CustomActionData::init(const std::wstring& data)
 {
+    DWORD errCode = machine.Detect();
+    if (errCode != ERROR_SUCCESS)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %d", errCode);
+        return false;
+    }
+
     // first, the string is KEY=VAL;KEY=VAL....
     // first split into key/value pairs
     std::wstringstream ss(data);

@@ -1,6 +1,77 @@
 #include "stdafx.h"
 #include "TargetMachine.h"
-#include "lmerr_str.h"
+
+TargetMachine::TargetMachine()
+: _serverType(0)
+, _machineName(L"")
+, _domain(L"")
+, _isDomainJoined(false)
+{
+
+}
+
+TargetMachine::~TargetMachine()
+{
+
+}
+
+DWORD TargetMachine::Detect()
+{
+    DWORD lastError = DetectMachineType();
+    if (lastError != ERROR_SUCCESS)
+    {
+        return lastError;
+    }
+
+    wchar_t buf[MAX_COMPUTERNAME_LENGTH + 1];
+    DWORD sz = MAX_COMPUTERNAME_LENGTH + 1;
+    if (!GetComputerNameW(buf, &sz))
+    {
+        lastError = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Failed to get computername %d", lastError);
+        return lastError;
+    }
+
+    _wcslwr_s(buf, MAX_COMPUTERNAME_LENGTH + 1);
+    _machineName = buf;
+    WcaLog(LOGMSG_STANDARD, "Computername is %S (%d)", _machineName.c_str(), sz);
+
+    // get the computername again and compare, just to make sure
+    std::wstring compare_computer;
+    if (DetectComputerName(ComputerNameDnsHostname, compare_computer))
+    {
+        if (_machineName != compare_computer) {
+            WcaLog(LOGMSG_STANDARD, "Got two different computer names %S %S", _machineName.c_str(), compare_computer.c_str());
+        }
+    }
+    else
+    {
+        lastError = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Failed to get ComputerNameDnsHostname %d", lastError);
+        return lastError;
+    }
+
+    // Retrieves a NetBIOS or DNS name associated with the local computer.
+    if (DetectComputerName(ComputerNameDnsDomain, _domain))
+    {
+        // newer domains will look like DNS domains.  (i.e. domain.local)
+        // just take the domain portion, which is all we're interested in.
+        size_t pos = _domain.find(L'.');
+        if (pos != std::wstring::npos) {
+            _domain = _domain.substr(0, pos);
+        }
+    }
+    else
+    {
+        lastError = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Failed to get ComputerNameDnsDomain %d", lastError);
+        return lastError;
+    }
+
+    lastError = DetectDomainInformation();
+
+    return lastError;
+}
 
 DWORD TargetMachine::DetectMachineType()
 {
@@ -128,65 +199,6 @@ DWORD TargetMachine::DetectDomainInformation()
     return ERROR_SUCCESS;
 }
 
-TargetMachine::TargetMachine()
-: _serverType(0)
-, _machineName(L"")
-, _domain(L"")
-, _isDomainJoined(false)
-, _lastError(ERROR_SUCCESS)
-{
-    _lastError = DetectMachineType();
-    if (_lastError != ERROR_SUCCESS)
-    {
-        return;
-    }
-
-    wchar_t buf[MAX_COMPUTERNAME_LENGTH + 1];
-    DWORD sz = MAX_COMPUTERNAME_LENGTH + 1;
-    if (!GetComputerNameW(buf, &sz))
-    {
-        _lastError = GetLastError();
-        WcaLog(LOGMSG_STANDARD, "Failed to get computername %d", _lastError);
-        return;
-    }
-
-    _wcslwr_s(buf, MAX_COMPUTERNAME_LENGTH + 1);
-    _machineName = buf;
-    WcaLog(LOGMSG_STANDARD, "Computername is %S (%d)", _machineName.c_str(), sz);
-
-    // get the computername again and compare, just to make sure
-    std::wstring compare_computer;
-    if (DetectComputerName(ComputerNameDnsHostname, compare_computer))
-    {
-        if (_machineName != compare_computer) {
-            WcaLog(LOGMSG_STANDARD, "Got two different computer names %S %S", _machineName.c_str(), compare_computer.c_str());
-        }
-    }
-
-    // Retrieves a NetBIOS or DNS name associated with the local computer.
-    if (DetectComputerName(ComputerNameDnsDomain, _domain))
-    {
-        // newer domains will look like DNS domains.  (i.e. domain.local)
-        // just take the domain portion, which is all we're interested in.
-        size_t pos = _domain.find(L'.');
-        if (pos != std::wstring::npos) {
-            _domain = _domain.substr(0, pos);
-        }
-    }
-
-    _lastError = DetectDomainInformation();
-}
-
-TargetMachine::~TargetMachine()
-{
-
-}
-
-DWORD TargetMachine::GetLastError() const
-{
-    return _lastError;
-}
-
 std::wstring TargetMachine::GetMachineName() const
 {
     return _machineName;
@@ -209,7 +221,7 @@ bool TargetMachine::IsServer() const
 
 bool TargetMachine::IsDomainController() const
 {
-    return SV_TYPE_DOMAIN_CTRL & _serverType;
+    return IsBackupDomainController() || (SV_TYPE_DOMAIN_CTRL & _serverType);
 }
 
 bool TargetMachine::IsBackupDomainController() const
