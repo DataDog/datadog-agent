@@ -34,7 +34,7 @@ func TestConnTrackerCrossNamespace(t *testing.T) {
 	defer func() {
 		cmd := exec.Command("testdata/teardown_cross_ns_dnat.sh")
 		if out, err := cmd.CombinedOutput(); err != nil {
-			require.NoError(t, err, "teardown command output %s", string(out))
+			assert.NoError(t, err, "teardown command output %s", string(out))
 		}
 	}()
 
