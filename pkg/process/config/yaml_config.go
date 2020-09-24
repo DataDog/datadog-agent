@@ -89,8 +89,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "conntrack_rate_limit")) {
 		a.ConntrackRateLimit = config.Datadog.GetInt(key(spNS, "conntrack_rate_limit"))
 	}
-	if config.Datadog.IsSet(key(spNS, "enable_conntrack_listen_all_namespaces")) {
-		a.EnableConntrackListenAllNamespaces = config.Datadog.GetBool(key(spNS, "enable_conntrack_listen_all_namespaces"))
+	if config.Datadog.IsSet(key(spNS, "enable_conntrack_all_namespaces")) {
+		a.EnableConntrackAllNamespaces = config.Datadog.GetBool(key(spNS, "enable_conntrack_all_namespaces"))
 	}
 
 	// When reading kernel structs at different offsets, don't go over the threshold

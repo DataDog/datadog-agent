@@ -79,30 +79,30 @@ type AgentConfig struct {
 	ContainerHostType model.ContainerHostType
 
 	// System probe collection configuration
-	EnableSystemProbe                  bool
-	DisableTCPTracing                  bool
-	DisableUDPTracing                  bool
-	DisableIPv6Tracing                 bool
-	DisableDNSInspection               bool
-	CollectLocalDNS                    bool
-	SystemProbeAddress                 string
-	SystemProbeLogFile                 string
-	SystemProbeBPFDir                  string
-	MaxTrackedConnections              uint
-	SysProbeBPFDebug                   bool
-	ExcludedBPFLinuxVersions           []string
-	ExcludedSourceConnections          map[string][]string
-	ExcludedDestinationConnections     map[string][]string
-	EnableConntrack                    bool
-	ConntrackMaxStateSize              int
-	ConntrackRateLimit                 int
-	EnableConntrackListenAllNamespaces bool
-	SystemProbeDebugPort               int
-	ClosedChannelSize                  int
-	MaxClosedConnectionsBuffered       int
-	MaxConnectionsStateBuffered        int
-	OffsetGuessThreshold               uint64
-	EnableTracepoints                  bool
+	EnableSystemProbe              bool
+	DisableTCPTracing              bool
+	DisableUDPTracing              bool
+	DisableIPv6Tracing             bool
+	DisableDNSInspection           bool
+	CollectLocalDNS                bool
+	SystemProbeAddress             string
+	SystemProbeLogFile             string
+	SystemProbeBPFDir              string
+	MaxTrackedConnections          uint
+	SysProbeBPFDebug               bool
+	ExcludedBPFLinuxVersions       []string
+	ExcludedSourceConnections      map[string][]string
+	ExcludedDestinationConnections map[string][]string
+	EnableConntrack                bool
+	ConntrackMaxStateSize          int
+	ConntrackRateLimit             int
+	EnableConntrackAllNamespaces   bool
+	SystemProbeDebugPort           int
+	ClosedChannelSize              int
+	MaxClosedConnectionsBuffered   int
+	MaxConnectionsStateBuffered    int
+	OffsetGuessThreshold           uint64
+	EnableTracepoints              bool
 
 	// DNS stats configuration
 	CollectDNSStats bool
@@ -209,23 +209,23 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:                  false,
-		DisableTCPTracing:                  false,
-		DisableUDPTracing:                  false,
-		DisableIPv6Tracing:                 false,
-		DisableDNSInspection:               false,
-		SystemProbeAddress:                 defaultSystemProbeAddress,
-		SystemProbeLogFile:                 defaultSystemProbeLogFilePath,
-		SystemProbeBPFDir:                  defaultSystemProbeBPFDir,
-		MaxTrackedConnections:              defaultMaxTrackedConnections,
-		EnableConntrack:                    true,
-		ClosedChannelSize:                  500,
-		ConntrackMaxStateSize:              defaultMaxTrackedConnections * 2,
-		ConntrackRateLimit:                 500,
-		EnableConntrackListenAllNamespaces: false,
-		OffsetGuessThreshold:               400,
-		EnableTracepoints:                  false,
-		CollectDNSStats:                    true,
+		EnableSystemProbe:            false,
+		DisableTCPTracing:            false,
+		DisableUDPTracing:            false,
+		DisableIPv6Tracing:           false,
+		DisableDNSInspection:         false,
+		SystemProbeAddress:           defaultSystemProbeAddress,
+		SystemProbeLogFile:           defaultSystemProbeLogFilePath,
+		SystemProbeBPFDir:            defaultSystemProbeBPFDir,
+		MaxTrackedConnections:        defaultMaxTrackedConnections,
+		EnableConntrack:              true,
+		ClosedChannelSize:            500,
+		ConntrackMaxStateSize:        defaultMaxTrackedConnections * 2,
+		ConntrackRateLimit:           500,
+		EnableConntrackAllNamespaces: false,
+		OffsetGuessThreshold:         400,
+		EnableTracepoints:            false,
+		CollectDNSStats:              true,
 
 		// Check config
 		EnabledChecks: enabledChecks,
