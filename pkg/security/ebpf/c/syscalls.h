@@ -26,7 +26,7 @@ struct syscall_cache_t {
         struct {
             umode_t mode;
             struct dentry *dentry;
-            struct dentry *dentry2;
+            struct dentry *real_dentry;
             struct path *path;
             struct path_key_t path_key;
         } mkdir;
@@ -35,20 +35,20 @@ struct syscall_cache_t {
             struct path_key_t path_key;
             int overlay_numlower;
             int flags;
-            u64 inode;
+            u64 real_inode;
         } unlink;
 
         struct {
             struct path_key_t path_key;
             int overlay_numlower;
-            u64 inode;
+            u64 real_inode;
         } rmdir;
 
         struct {
             struct path_key_t src_key;
             unsigned long src_inode;
             struct dentry *src_dentry;
-            struct dentry *src_dentry2;
+            struct dentry *real_src_dentry;
             struct path_key_t target_key;
             int src_overlay_numlower;
         } rename;
@@ -68,7 +68,7 @@ struct syscall_cache_t {
                     struct ktimeval mtime;
                 };
             };
-            u64 inode;
+            u64 real_inode;
         } setattr;
 
         struct {
@@ -76,7 +76,6 @@ struct syscall_cache_t {
             struct mount *dest_mnt;
             struct mountpoint *dest_mountpoint;
             struct path_key_t root_key;
-            u32 padding;
             const char *fstype;
         } mount;
 
@@ -90,14 +89,14 @@ struct syscall_cache_t {
             struct dentry *target_dentry;
             struct path_key_t target_key;
             int src_overlay_numlower;
-            u64 src_inode;
+            u64 real_src_inode;
         } link;
 
         struct {
             struct dentry *dentry;
             struct path_key_t path_key;
             const char *name;
-            u64 inode;
+            u64 real_inode;
         } setxattr;
     };
 };

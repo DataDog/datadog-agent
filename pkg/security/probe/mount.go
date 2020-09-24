@@ -144,7 +144,7 @@ func (mr *MountResolver) getParentPath(mountID uint32) string {
 	if mount.ParentMountID != 0 {
 		p := mr.getParentPath(mount.ParentMountID)
 		if p == "" {
-			return ""
+			return mountPointStr
 		}
 
 		if p != "/" && !strings.HasPrefix(mount.MountPointStr, p) {

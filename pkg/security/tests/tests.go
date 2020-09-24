@@ -9,6 +9,7 @@ package tests
 
 import (
 	"bytes"
+	"flag"
 	"io/ioutil"
 	"net"
 	"os"
@@ -81,6 +82,8 @@ rules:
       {{$Rule.Expression}}
 {{end}}
 `
+
+var testEnvironment string
 
 type testEvent struct {
 	event eval.Event
@@ -478,4 +481,18 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 
 	return t, nil
+}
+
+func TestEnv(t *testing.T) {
+	if testEnvironment != "" && testEnvironment != "host" && testEnvironment != "docker" {
+		t.Fatal("invalid environment")
+	}
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+}
+
+func init() {
+	flag.StringVar(&testEnvironment, "env", "", "environment used to run the test suite: ex: host, docker")
 }

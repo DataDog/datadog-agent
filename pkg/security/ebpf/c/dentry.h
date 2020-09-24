@@ -200,8 +200,8 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
-static __attribute__((always_inline)) void add_dentry_inode(struct path_key_t key, u64 inode) {
-    // avoid a infinite loop 
+static __attribute__((always_inline)) void link_dentry_inode(struct path_key_t key, u64 inode) {
+    // avoid a infinite loop, parent a child have the same inode
     if (key.ino == inode) {
         return;
     }

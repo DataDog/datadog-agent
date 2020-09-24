@@ -45,7 +45,7 @@ int kprobe__security_path_mkdir(struct pt_regs *ctx) {
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->mkdir.dentry) {
-        syscall->mkdir.dentry2 = dentry;
+        syscall->mkdir.real_dentry = dentry;
         return 0;
     }
 
@@ -69,11 +69,11 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, NULL);
 
-    // add an fake entry to reach the first dentry with the proper inode
+    // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->mkdir.path_key.ino;
-    if (syscall->mkdir.dentry2) {
-        inode = get_dentry_ino(syscall->mkdir.dentry2);
-        add_dentry_inode(syscall->mkdir.path_key, inode);
+    if (syscall->mkdir.dentry) {
+        inode = get_dentry_ino(syscall->mkdir.real_dentry);
+        link_dentry_inode(syscall->mkdir.path_key, inode);
     }
 
     struct mkdir_event_t event = {

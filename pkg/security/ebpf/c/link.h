@@ -39,7 +39,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->link.target_dentry) {
-        syscall->link.src_inode = get_dentry_ino(dentry);
+        syscall->link.real_src_inode = get_dentry_ino(dentry);
         return 0;
     }
 
@@ -66,11 +66,11 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an fake entry to reach the first dentry with the proper inode
+    // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->link.src_key.ino;
-    if (syscall->link.src_inode) {
-        inode = syscall->link.src_inode;
-        add_dentry_inode(syscall->link.src_key, inode);
+    if (syscall->link.real_src_inode) {
+        inode = syscall->link.real_src_inode;
+        link_dentry_inode(syscall->link.src_key, inode);
     }
 
     struct link_event_t event = {

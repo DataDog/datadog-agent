@@ -63,11 +63,11 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an fake entry to reach the first dentry with the proper inode
+    // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->setattr.path_key.ino;
-    if (syscall->setattr.inode) {
-        inode = syscall->setattr.inode;
-        add_dentry_inode(syscall->setattr.path_key, inode);
+    if (syscall->setattr.real_inode) {
+        inode = syscall->setattr.real_inode;
+        link_dentry_inode(syscall->setattr.path_key, inode);
     }
 
     struct chown_event_t event = {

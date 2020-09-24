@@ -36,7 +36,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 
             // if second pass, ex: overlayfs, just cache the inode that will be used in ret
             if (syscall->rmdir.path_key.ino) {
-                syscall->rmdir.inode = get_dentry_ino(dentry);
+                syscall->rmdir.real_inode = get_dentry_ino(dentry);
                 return 0;
             }
 
@@ -52,7 +52,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 
             // if second pass, ex: overlayfs, just cache the inode that will be used in ret
             if (syscall->unlink.path_key.ino) {
-                syscall->unlink.inode = get_dentry_ino(dentry);
+                syscall->unlink.real_inode = get_dentry_ino(dentry);
                 return 0;
             }
 
@@ -80,11 +80,11 @@ SYSCALL_KRETPROBE(rmdir) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an fake entry to reach the first dentry with the proper inode
+    // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->rmdir.path_key.ino;
-    if (syscall->rmdir.inode) {
-        inode = syscall->rmdir.inode;
-        add_dentry_inode(syscall->rmdir.path_key, inode);
+    if (syscall->rmdir.real_inode) {
+        inode = syscall->rmdir.real_inode;
+        link_dentry_inode(syscall->rmdir.path_key, inode);
     }
 
     struct rmdir_event_t event = {

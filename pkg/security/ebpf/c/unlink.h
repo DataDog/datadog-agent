@@ -54,7 +54,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->unlink.path_key.ino) {
-        syscall->unlink.inode = get_dentry_ino(dentry);
+        syscall->unlink.real_inode = get_dentry_ino(dentry);
         return 0;
     }
 
@@ -84,11 +84,11 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an fake entry to reach the first dentry with the proper inode
+    // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->unlink.path_key.ino;
-    if (syscall->unlink.inode) {
-        inode = syscall->unlink.inode;
-        add_dentry_inode(syscall->unlink.path_key, inode);
+    if (syscall->unlink.real_inode) {
+        inode = syscall->unlink.real_inode;
+        link_dentry_inode(syscall->unlink.path_key, inode);
     }
 
     struct unlink_event_t event = {

@@ -43,7 +43,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->rename.src_dentry) {
-        syscall->rename.src_dentry2 = dentry;
+        syscall->rename.real_src_dentry = dentry;
         return 0;
     }
 
@@ -70,7 +70,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
     // Warning: we use the src_dentry twice for compatibility with CentOS. Do not change it :)
     // (the mount id was set by kprobe/mnt_want_write)
-    syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.src_dentry2);
+    syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.real_src_dentry);
     struct rename_event_t event = {
         .event.type = EVENT_RENAME,
         .syscall = {
