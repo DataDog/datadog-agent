@@ -17,12 +17,60 @@ import (
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 )
 
 const (
 	natPort    = 5432
 	nonNatPort = 9876
 )
+
+func TestConnTrackerCrossNamespace(t *testing.T) {
+	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		require.NoError(t, err, "setup command output %s", string(out))
+	}
+
+	defer func() {
+		cmd := exec.Command("testdata/teardown_cross_ns_dnat.sh")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			assert.NoError(t, err, "teardown command output %s", string(out))
+		}
+	}()
+
+	ct, err := NewConntracker("/proc", 100, 500)
+	require.NoError(t, err)
+	defer ct.Close()
+
+	time.Sleep(time.Second)
+
+	closer := startServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	defer closer.Close()
+
+	laddr := pingTCP(t, net.ParseIP("2.2.2.4"), 80)
+
+	var trans *network.IPTranslation
+	require.Eventually(t, func() bool {
+		trans = ct.GetTranslationForConn(
+			network.ConnectionStats{
+				Source: util.AddressFromNetIP(laddr.IP),
+				SPort:  uint16(laddr.Port),
+				Dest:   util.AddressFromString("2.2.2.4"),
+				DPort:  uint16(80),
+				Type:   network.TCP,
+			},
+		)
+
+		if trans != nil {
+			return true
+		}
+
+		return false
+
+	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry")
+
+	assert.Equal(t, uint16(8080), trans.ReplSrcPort)
+}
 
 func TestConntracker(t *testing.T) {
 	cmd := exec.Command("testdata/setup_dnat.sh")
@@ -193,6 +241,18 @@ func writeMsgToFile(f *os.File, m netlink.Message) {
 	binary.LittleEndian.PutUint32(length, uint32(len(m.Data)))
 	payload := append(length, m.Data...)
 	f.Write(payload)
+}
+
+func startServerTCPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
+	h, err := netns.GetFromName(ns)
+	require.NoError(t, err)
+
+	var closer io.Closer
+	util.WithNS("/proc", h, func() {
+		closer = startServerTCP(t, ip, port)
+	})
+
+	return closer
 }
 
 func startServerTCP(t *testing.T, ip net.IP, port int) io.Closer {

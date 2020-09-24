@@ -154,7 +154,7 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 
 	msg := netlink.Message{
 		Header: netlink.Header{
-			Flags:    netlink.Request | netlink.Acknowledge,
+			Flags:    netlink.Request,
 			Type:     unix.RTM_GETNSID,
 			Sequence: c.netlinkSeqNumber,
 		},
@@ -189,7 +189,7 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 
 	for {
 		if decoder.Type() == unix.NETNSA_NSID {
-			return decoder.Uint32() >= 0
+			return int32(decoder.Uint32()) >= 0
 		}
 		if !decoder.Next() {
 			break
@@ -237,6 +237,7 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	for _, ns := range nss {
 
 		if !rootNS.Equal(ns) && !c.isPeerNS(conn, ns) {
+			log.Tracef("not dumping ns %s since it is not a peer of the root ns", ns)
 			_ = ns.Close()
 			continue
 		}
@@ -360,6 +361,10 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	if size, err := c.socket.GetSockoptInt(syscall.SOL_SOCKET, syscall.SO_RCVBUF); err == nil {
 		log.Debugf("rcv buffer size for netlink socket is %d bytes", size)
+	}
+
+	if err := c.socket.SetSockoptInt(unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, 1); err != nil {
+		log.Errorf("error enabling listen for all namespaces on netlink socket: %s", err)
 	}
 
 	// Attach BPF sampling filter if necessary
