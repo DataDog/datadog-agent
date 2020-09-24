@@ -90,6 +90,9 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
     resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, NULL);
 
+    // as old and new have are the same files, only one is needed
+    remove_inode_discarders(&event.new);
+
     send_event(ctx, event);
 
     return 0;
