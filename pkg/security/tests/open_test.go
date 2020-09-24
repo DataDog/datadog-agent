@@ -46,8 +46,8 @@ func TestOpen(t *testing.T) {
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
-		defer syscall.Close(int(fd))
 		defer os.Remove(testFile)
+		defer syscall.Close(int(fd))
 
 		event, _, err := test.GetEvent()
 		if err != nil {
@@ -72,8 +72,8 @@ func TestOpen(t *testing.T) {
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
-		defer syscall.Close(int(fd))
 		defer os.Remove(testFile)
+		defer syscall.Close(int(fd))
 
 		event, _, err := test.GetEvent()
 		if err != nil {
