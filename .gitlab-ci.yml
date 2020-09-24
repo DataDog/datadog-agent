@@ -1350,11 +1350,8 @@ agent_dmg-x64-a7:
 # The online version fetches the package from S3 so
 # it is created only when the package is pushed
 windows_choco_online_7_x64:
-  rules:
-    - <<: *if_deploy_on_tag_7
   stage: choco_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["deploy_staging_windows_tags-a7"]
   variables:
     ARCH: "x64"
   script:
@@ -4179,7 +4176,7 @@ pupernetes-dev:
     - when: manual
       allow_failure: true
   <<: *pupernetes_template
-  needs: 
+  needs:
   - dev_branch_docker_hub-a6
   - dev_branch_docker_hub-a7
   script:
@@ -4190,7 +4187,7 @@ pupernetes-master:
   <<: *pupernetes_template
   rules:
     - <<: *if_master_branch
-  needs: 
+  needs:
   - dev_master_docker_hub-a6
   - dev_master_docker_hub-a7
   script:
