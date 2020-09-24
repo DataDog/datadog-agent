@@ -1,0 +1,44 @@
+{{/*
+NOTE: Changes made to this template should be reflected on the following templates, if applicable:
+*/}}=====================
+Orchestrator Explorer
+=====================
+
+{{- if .Error }}
+  Error: {{ .Error }}
+{{- end }}
+{{- if .Disabled }}
+  Disabled: {{ .Disabled }}
+{{- end }}
+{{- if .ClusterIDError }}
+  ClusterIDError: {{.ClusterIDError}}
+{{- end }}
+
+{{- if .ClusterID }}
+  ClusterID: {{.ClusterID}}
+{{- end }}
+{{- if .ClusterNameError }}
+  ClusterIDError: {{.ClusterNameError}}
+{{- end }}
+
+{{- if .ClusterName }}
+  ClusterName: {{.ClusterName}}
+{{- end }}
+
+  Orchestrator Endpoints
+  ======================
+{{- if .OrchestratorEndpoint }}
+    OrchestratorEndpoint: {{.OrchestratorEndpoint}}
+{{- end }}
+{{- if .OrchestratorAdditionalEndpoints }}
+    OrchestratorAdditionalEndpoints: {{.OrchestratorAdditionalEndpoints}}
+{{- end }}
+
+  Forwarder Stats
+  ===============
+    Pods: {{.forwarderStatsPods}}
+    Deployments: {{.forwarderStatsDeployment}}
+    ReplicaSets: {{.forwarderStatsReplicaSets}}
+    Services: {{.forwarderStatsServices}}
+    Nodes: {{.forwarderStatsNodes}}
+{{/* this line intentionally left blank */}}

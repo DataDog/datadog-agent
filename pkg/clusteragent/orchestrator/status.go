@@ -3,11 +3,13 @@ package orchestrator
 import (
 	"encoding/json"
 	"expvar"
+
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"k8s.io/client-go/kubernetes"
 )
 
 // GetStatus returns status info for the secret and webhook controllers.
@@ -33,13 +35,20 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["ClusterName"] = clustername.GetClusterName(hostname)
 	}
 
-	// get orchestrator endpoints
+	// get orchestrator endpoints, check for old keys
 	orchestratorEndpoints := config.Datadog.GetString("orchestrator_explorer.orchestrator_additional_endpoints")
-	if orchestratorEndpoints != "" {
+	orchestratorEndpointsOldKey := config.Datadog.GetString("process_config.orchestrator_additional_endpoints")
+	if orchestratorEndpointsOldKey != "" {
+		status["OrchestratorAdditionalEndpoints"] = orchestratorEndpointsOldKey
+	} else if orchestratorEndpoints != "" {
 		status["OrchestratorAdditionalEndpoints"] = orchestratorEndpoints
 	}
+
 	orchestratorEndpoint := config.Datadog.GetString("orchestrator_explorer.orchestrator_dd_url")
-	if orchestratorEndpoint != "" {
+	orchestratorOldEndpoint := config.Datadog.GetString("process_config.orchestrator_dd_url")
+	if orchestratorOldEndpoint != "" {
+		status["OrchestratorEndpoint"] = orchestratorOldEndpoint
+	} else if orchestratorEndpoint != "" {
 		status["OrchestratorEndpoint"] = orchestratorEndpoint
 	}
 
@@ -47,11 +56,13 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
-	status["forwarderStatsPods"] = forwarderStats["Pods"]
-	status["forwarderStatsDeployment"] = forwarderStats["Deployments"]
-	status["forwarderStatsReplicaSets"] = forwarderStats["ReplicaSets"]
-	status["forwarderStatsServices"] = forwarderStats["Services"]
-	status["forwarderStatsNodes"] = forwarderStats["Nodes"]
+	transactions := forwarderStats["Transactions"].(map[string]interface{})
+	// has Transactions prefix key
+	status["forwarderStatsPods"] = transactions["Pods"]
+	status["forwarderStatsDeployment"] = transactions["Deployments"]
+	status["forwarderStatsReplicaSets"] = transactions["ReplicaSets"]
+	status["forwarderStatsServices"] = transactions["Services"]
+	status["forwarderStatsNodes"] = transactions["Nodes"]
 
 	// get informer status
 
