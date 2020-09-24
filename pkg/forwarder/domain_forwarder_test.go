@@ -243,12 +243,13 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 	defer forwarder.Stop(true)
-	forwarder.Start()
 
 	// Disable flush
 	flushIntervalOld := flushInterval
 	defer func() { flushInterval = flushIntervalOld }()
 	flushInterval = 10 * time.Minute
+
+	forwarder.Start()
 
 	for _, payloadSize := range []int{4, 3, 2, 1} {
 		tr := newTestTransaction()
