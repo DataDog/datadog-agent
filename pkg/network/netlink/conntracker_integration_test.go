@@ -38,7 +38,7 @@ func TestConnTrackerCrossNamespace(t *testing.T) {
 		}
 	}()
 
-	ct, err := NewConntracker("/proc", 100, 500)
+	ct, err := NewConntracker("/proc", 100, 500, true)
 	require.NoError(t, err)
 	defer ct.Close()
 
@@ -96,7 +96,7 @@ func TestConntracker6(t *testing.T) {
 }
 
 func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
-	ct, err := NewConntracker("/proc", 100, 500)
+	ct, err := NewConntracker("/proc", 100, 500, false)
 	require.NoError(t, err)
 	defer ct.Close()
 	time.Sleep(100 * time.Millisecond)
@@ -189,7 +189,7 @@ func TestMessageDump6(t *testing.T) {
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
-	consumer, err := NewConsumer("/proc", 500)
+	consumer, err := NewConsumer("/proc", 500, false)
 	require.NoError(t, err)
 	events := consumer.Events()
 
