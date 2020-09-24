@@ -233,10 +233,25 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
     DWORD ret = 0;
     
     WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
-    ret = NetUserAdd(NULL, // LOCAL_MACHINE
-        1, // indicates we're using a USER_INFO_1
-        (LPBYTE)&ui,
-        NULL);
+    ret = NetUserAdd(nullptr, // LOCAL_MACHINE
+                     1, // indicates we're using a USER_INFO_1
+                     reinterpret_cast<LPBYTE>(&ui),
+                     nullptr);
+    /*
+     * If the function fails, the return value can be one of the following error codes.
+     *   - ERROR_ACCESS_DENIED
+     *   The user does not have access to the requested information.
+     *   - NERR_InvalidComputer
+     *   The computer name is invalid.
+     *   - NERR_NotPrimary
+     *   The operation is allowed only on the primary domain controller of the domain.
+     *   - NERR_GroupExists
+     *   The group already exists.
+     *   - NERR_UserExists
+     *   The user account already exists.
+     *   - NERR_PasswordTooShort
+     *   The password is shorter than required. (The password could also be too long, be too recent in its change history, not have enough unique characters, or not meet another password policy requirement.)
+     */
     if (ret == NERR_Success)
     {
         WcaLog(LOGMSG_STANDARD, "Successfully added user.");
@@ -252,6 +267,10 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
         if (lmErrIt != lmerrors.end())
         {
             WcaLog(LOGMSG_STANDARD, "NetUserAdd: %d = %S", ret, lmErrIt->second.c_str());
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "NetUserAdd: %d", ret);
         }
     }
     return ret;
