@@ -53,5 +53,8 @@ Write-Host "Generating Chocolatey $installMethod package version $agentVersion i
 if (!(Test-Path $outputDirectory)) {
     New-Item -ItemType Directory -Path $outputDirectory
 }
-
+if ($installMethod -eq "online") {
+    (Get-Content $nuspecFile).replace('$($env:chocolateyPackageVersion)', $agentVersion)
+                             .replace('$env:chocolateyPackageVersion', $agentVersion) | Set-Content $nuspecFile
+}
 choco pack --out=$outputDirectory $nuspecFile package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
