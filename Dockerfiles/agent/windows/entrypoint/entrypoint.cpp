@@ -68,7 +68,7 @@ void ExecuteInitScripts()
         {
             std::stringstream sstream;
             sstream << script.path() << " exited with code [" << std::hex << exitCode << "]";
-            throw std::exception(sstream.str());
+            throw std::exception(sstream.str().c_str());
         }
     }
 }
