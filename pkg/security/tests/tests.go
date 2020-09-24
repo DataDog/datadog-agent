@@ -383,22 +383,30 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	return filename, unsafe.Pointer(filenamePtr), nil
 }
 
+var logInitilialized bool
+
 func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	var logLevel seelog.LogLevel = seelog.InfoLvl
-	if testing.Verbose() {
-		logLevel = seelog.TraceLvl
-	}
+	var err error
 
-	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
-	if err != nil {
-		return nil, err
-	}
+	if !logInitilialized {
+		var logLevel seelog.LogLevel = seelog.InfoLvl
+		if testing.Verbose() {
+			logLevel = seelog.TraceLvl
+		}
 
-	err = seelog.ReplaceLogger(logger)
-	if err != nil {
-		return nil, err
+		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
+		if err != nil {
+			return nil, err
+		}
+
+		err = seelog.ReplaceLogger(logger)
+		if err != nil {
+			return nil, err
+		}
+		log.SetupDatadogLogger(logger, logLevel.String())
+
+		logInitilialized = true
 	}
-	log.SetupDatadogLogger(logger, logLevel.String())
 
 	t := &simpleTest{
 		root: testDir,
