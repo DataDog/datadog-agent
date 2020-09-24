@@ -78,7 +78,8 @@ type Consumer struct {
 	readErrors  int64
 	msgErrors   int64
 
-	netlinkSeqNumber uint32
+	netlinkSeqNumber    uint32
+	listenAllNamespaces bool
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -103,14 +104,15 @@ func (e *Event) Done() {
 
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
-func NewConsumer(procRoot string, targetRateLimit int) (*Consumer, error) {
+func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) (*Consumer, error) {
 	c := &Consumer{
-		procRoot:         procRoot,
-		pool:             newBufferPool(),
-		workQueue:        make(chan func()),
-		targetRateLimit:  targetRateLimit,
-		breaker:          NewCircuitBreaker(int64(targetRateLimit)),
-		netlinkSeqNumber: 1,
+		procRoot:            procRoot,
+		pool:                newBufferPool(),
+		workQueue:           make(chan func()),
+		targetRateLimit:     targetRateLimit,
+		breaker:             NewCircuitBreaker(int64(targetRateLimit)),
+		netlinkSeqNumber:    1,
+		listenAllNamespaces: listenAllNamespaces,
 	}
 	c.initWorker(procRoot)
 
@@ -206,10 +208,14 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	output := make(chan Event, outputBuffer)
 	defer close(output)
 
-	nss, err := util.GetNetNamespaces(c.procRoot)
-	if err != nil {
-		log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
-		return output
+	var nss []netns.NsHandle
+	var err error
+	if c.listenAllNamespaces {
+		nss, err = util.GetNetNamespaces(c.procRoot)
+		if err != nil {
+			log.Errorf("error dumping conntrack table, could not get network namespaces: %s", err)
+			return output
+		}
 	}
 
 	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", c.procRoot))
@@ -234,9 +240,18 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 		_ = conn.Close()
 	}()
 
-	for _, ns := range nss {
+	// root ns first
+	if c.dumpTable(family, output, rootNS); err != nil {
+		log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
+	}
 
-		if !rootNS.Equal(ns) && !c.isPeerNS(conn, ns) {
+	for _, ns := range nss {
+		if rootNS.Equal(ns) {
+			// we've already dumped the table for the root ns above
+			continue
+		}
+
+		if !c.isPeerNS(conn, ns) {
 			log.Tracef("not dumping ns %s since it is not a peer of the root ns", ns)
 			_ = ns.Close()
 			continue
@@ -363,8 +378,10 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 		log.Debugf("rcv buffer size for netlink socket is %d bytes", size)
 	}
 
-	if err := c.socket.SetSockoptInt(unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, 1); err != nil {
-		log.Errorf("error enabling listen for all namespaces on netlink socket: %s", err)
+	if c.listenAllNamespaces {
+		if err := c.socket.SetSockoptInt(unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, 1); err != nil {
+			log.Errorf("error enabling listen for all namespaces on netlink socket: %s", err)
+		}
 	}
 
 	// Attach BPF sampling filter if necessary

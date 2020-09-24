@@ -81,6 +81,10 @@ type Config struct {
 	// Setting it to -1 disables the limit and can result in a high CPU usage.
 	ConntrackRateLimit int
 
+	// EnableConntrackListenAllNamespaces enables network address translation via netlink for all namespaces that are peers of the root namespace.
+	// default is false
+	EnableConntrackListenAllNamespaces bool
+
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
 
@@ -109,20 +113,21 @@ type Config struct {
 // NewDefaultConfig enables traffic collection for all connection types
 func NewDefaultConfig() *Config {
 	return &Config{
-		CollectTCPConns:       true,
-		CollectUDPConns:       true,
-		CollectIPv6Conns:      true,
-		CollectLocalDNS:       false,
-		DNSInspection:         true,
-		UDPConnTimeout:        30 * time.Second,
-		TCPConnTimeout:        2 * time.Minute,
-		TCPClosedTimeout:      time.Second,
-		MaxTrackedConnections: 65536,
-		ConntrackMaxStateSize: 65536,
-		ConntrackRateLimit:    500,
-		ProcRoot:              "/proc",
-		BPFDebug:              false,
-		EnableConntrack:       true,
+		CollectTCPConns:                    true,
+		CollectUDPConns:                    true,
+		CollectIPv6Conns:                   true,
+		CollectLocalDNS:                    false,
+		DNSInspection:                      true,
+		UDPConnTimeout:                     30 * time.Second,
+		TCPConnTimeout:                     2 * time.Minute,
+		TCPClosedTimeout:                   time.Second,
+		MaxTrackedConnections:              65536,
+		ConntrackMaxStateSize:              65536,
+		ConntrackRateLimit:                 500,
+		EnableConntrackListenAllNamespaces: false,
+		ProcRoot:                           "/proc",
+		BPFDebug:                           false,
+		EnableConntrack:                    true,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
