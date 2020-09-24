@@ -94,6 +94,7 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 	err := forwarder.sendHTTPTransactions(tr)
 	assert.NotNil(t, err)
 
+	defer forwarder.Stop(false)
 	forwarder.Start()
 	// Stopping the worker for the TestRequeueTransaction
 	forwarder.workers[0].Stop(false)
@@ -102,6 +103,9 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 	assert.Nil(t, err)
 	transactionToProcess := <-forwarder.highPrio
 	assert.Equal(t, tr, transactionToProcess)
+
+	// Reset `forwarder.workers` otherwise `defer forwarder.Stop(false)` will timeout.
+	forwarder.workers = nil
 }
 
 func TestRequeueTransaction(t *testing.T) {
@@ -239,6 +243,10 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 }
 
 func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
+	oldFlushInterval := flushInterval
+	defer func() { flushInterval = oldFlushInterval }()
+	flushInterval = 1 * time.Minute
+
 	forwarder := newDomainForwarder("test", 0, 10, 1+2, 0)
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
