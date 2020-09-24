@@ -8,6 +8,7 @@ package status
 import (
 	"encoding/json"
 	"expvar"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"os"
 	"runtime"
 	"strconv"
@@ -146,10 +147,10 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		stats["endpointsInfos"] = nil
 	}
 
-	apiCl, err := apiserver.GetAPIClient()
-	if err != nil {
-		stats["custommetrics"] = map[string]string{"Error": err.Error()}
-		stats["admissionWebhook"] = map[string]string{"Error": err.Error()}
+	apiCl, apiErr := apiserver.GetAPIClient()
+	if apiErr != nil {
+		stats["custommetrics"] = map[string]string{"Error": apiErr.Error()}
+		stats["admissionWebhook"] = map[string]string{"Error": apiErr.Error()}
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
@@ -161,6 +162,15 @@ func GetDCAStatus() (map[string]interface{}, error) {
 			log.Errorf("Error grabbing clusterchecks stats: %s", err)
 		} else {
 			stats["clusterchecks"] = cchecks
+		}
+	}
+
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		if apiErr != nil {
+			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
+		} else {
+			orchestratorStats := orchestrator.GetStatus(apiCl.Cl)
+			stats["orchestrator"] = orchestratorStats
 		}
 	}
 
