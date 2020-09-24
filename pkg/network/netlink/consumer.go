@@ -241,7 +241,7 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	}()
 
 	// root ns first
-	if c.dumpTable(family, output, rootNS); err != nil {
+	if err := c.dumpTable(family, output, rootNS); err != nil {
 		log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
 	}
 
