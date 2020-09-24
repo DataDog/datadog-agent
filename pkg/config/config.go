@@ -352,6 +352,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
 	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
+	config.BindEnvAndSetDefault("dogstatsd_telemetry_listener", "")
 
 	_ = config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {

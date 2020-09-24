@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -47,15 +48,15 @@ type UDPListener struct {
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPListener, error) {
+func NewUDPListener(portNumber int, packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPListener, error) {
 	var err error
 	var url string
 
 	if config.Datadog.GetBool("dogstatsd_non_local_traffic") == true {
 		// Listen to all network interfaces
-		url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
+		url = fmt.Sprintf(":%d", portNumber)
 	} else {
-		url = net.JoinHostPort(config.Datadog.GetString("bind_host"), config.Datadog.GetString("dogstatsd_port"))
+		url = net.JoinHostPort(config.Datadog.GetString("bind_host"), strconv.Itoa(portNumber))
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)

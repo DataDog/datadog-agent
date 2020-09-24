@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -52,8 +53,11 @@ func newNamedPipeListener(
 		InputBufferSize:  int32(bufferSize),
 		OutputBufferSize: 0,
 	}
-	pipePath := pipeNamePrefix + pipeName
-	pipe, err := winio.ListenPipe(pipePath, &config)
+
+	if !strings.HasPrefix(pipeName, pipeNamePrefix) {
+		pipeName = pipeNamePrefix + pipeName
+	}
+	pipe, err := winio.ListenPipe(pipeName, &config)
 
 	if err != nil {
 		return nil, err
@@ -73,6 +77,11 @@ func newNamedPipeListener(
 
 	log.Debugf("dogstatsd-named-pipes: %s successfully initialized", pipe.Addr())
 	return listener, nil
+}
+
+// IsNamedPipeEndpoint detects if the endpoint has the named pipe prefix
+func IsNamedPipeEndpoint(endpoint string) bool {
+	return strings.HasPrefix(endpoint, pipeNamePrefix)
 }
 
 type namedPipeConnections struct {

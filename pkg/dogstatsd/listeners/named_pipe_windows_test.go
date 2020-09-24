@@ -21,6 +21,12 @@ const pipeName = "TestPipeName"
 const maxPipeMessageCount = 1000
 const namedPipeBufferSize = 13
 
+func TestIsNamedPipeEndpoint(t *testing.T) {
+	assert.False(t, IsNamedPipeEndpoint(""))
+	assert.False(t, IsNamedPipeEndpoint("some_pipe"))
+	assert.True(t, IsNamedPipeEndpoint(`\\.\pipe\`+"some_pipe"))
+}
+
 func TestNamedPipeListen(t *testing.T) {
 	listener := newNamedPipeListenerTest(t)
 	defer listener.Stop()

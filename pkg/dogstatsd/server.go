@@ -14,6 +14,7 @@ import (
 	"net"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -120,6 +121,22 @@ type metricsCountBuckets struct {
 	closeChan  chan struct{}
 }
 
+func getTelemetryEndpoint(endpoint string, originDetection bool, packetsChannel chan listeners.Packets, sharedPacketPool *listeners.PacketPool) (listeners.StatsdListener, error) {
+	if isUDS, socketPath := listeners.IsUDSEndpoint(endpoint); isUDS {
+		log.Debugf("enabling telemetry on UDS socket %s", socketPath)
+		return listeners.NewUDSListener(socketPath, originDetection, packetsChannel, sharedPacketPool)
+	} else if listeners.IsNamedPipeEndpoint(endpoint) {
+		log.Debugf("enabling telemetry on named pipe %s", endpoint)
+		return listeners.NewNamedPipeListener(endpoint, packetsChannel, sharedPacketPool)
+	}
+	portNumber, err := strconv.Atoi(endpoint)
+	if err != nil || portNumber <= 0 {
+		return nil, fmt.Errorf("invalid telemetry udp port '%s': %s", endpoint, err.Error())
+	}
+	log.Debugf("enabling telemetry on UDP port %d", portNumber)
+	return listeners.NewUDPListener(portNumber, packetsChannel, sharedPacketPool)
+}
+
 // NewServer returns a running Dogstatsd server
 func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	var stats *util.Stats
@@ -147,16 +164,27 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	sharedPacketPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
-	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPool)
+	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
+	if socketPath != "" {
+		unixListener, err := listeners.NewUDSListener(socketPath, originDetection, packetsChannel, sharedPacketPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
 		}
 	}
-	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPool)
+	telemetryEndpoint := config.Datadog.GetString("dogstatsd_telemetry_listener")
+	if telemetryEndpoint != "" {
+		telemetryListener, err := getTelemetryEndpoint(telemetryEndpoint, originDetection, packetsChannel, sharedPacketPool)
+		if err != nil {
+			log.Errorf("fail to start telemetry endoint: %s", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, telemetryListener)
+		}
+	}
+	portNumber := config.Datadog.GetInt("dogstatsd_port")
+	if portNumber > 0 {
+		udpListener, err := listeners.NewUDPListener(portNumber, packetsChannel, sharedPacketPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {

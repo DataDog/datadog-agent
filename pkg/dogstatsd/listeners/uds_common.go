@@ -34,6 +34,8 @@ var (
 
 	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
 		nil, "Dogstatsd UDS packets bytes")
+
+	udsSocketPrefix = "unix://"
 )
 
 func init() {
@@ -41,6 +43,17 @@ func init() {
 	udsExpvars.Set("PacketReadingErrors", &udsPacketReadingErrors)
 	udsExpvars.Set("Packets", &udsPackets)
 	udsExpvars.Set("Bytes", &udsBytes)
+}
+
+// IsUDSEndpoint detects if endpoint has the UDS prefix and returns the socket path
+func IsUDSEndpoint(endpoint string) (bool, string) {
+	if strings.HasPrefix(endpoint, udsSocketPrefix) {
+		path := endpoint[len(udsSocketPrefix):]
+		if path != "" {
+			return true, path
+		}
+	}
+	return false, endpoint
 }
 
 // UDSListener implements the StatsdListener interface for Unix Domain
@@ -56,10 +69,7 @@ type UDSListener struct {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDSListener, error) {
-	socketPath := config.Datadog.GetString("dogstatsd_socket")
-	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
-
+func NewUDSListener(socketPath string, originDetection bool, packetOut chan Packets, sharedPacketPool *PacketPool) (*UDSListener, error) {
 	address, addrErr := net.ResolveUnixAddr("unixgram", socketPath)
 	if addrErr != nil {
 		return nil, fmt.Errorf("dogstatsd-uds: can't ResolveUnixAddr: %v", addrErr)

@@ -13,6 +13,9 @@ import (
 // NamedPipeListener implements the StatsdListener interface for named pipe protocol.
 type NamedPipeListener struct{}
 
+// IsNamedPipeEndpoint detects if the endpoint has the named pipe prefix
+func IsNamedPipeEndpoint(endpoint string) bool { return false }
+
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketPool *PacketPool) (*NamedPipeListener, error) {
 	return nil, errors.New("named pipe is only supported on Windows")

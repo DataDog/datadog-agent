@@ -1013,6 +1013,20 @@ api_key:
 #
 # dogstatsd_socket: ""
 
+## @param dogstatsd_telemetry_listener - string - optional - default: ""
+## Add an extra listener for the telemetry from DogStatsD clients. By default,
+## clients send telemetry to the main dogstatsd destination, but some clients can
+## be configured to send their telemetry to another destination than the main
+## data. This option allows the Agent to listen to the telemetry from those
+## clients.
+## This is useful in high throughput scenarios to avoid dropping telemetry metrics
+## which prevents users from troubleshooting issues. See each client
+## configuration to know how to send their telemetry to a different destination.
+##
+## Use "unix://<path_to_socket>" for UDS or "<port_number>" for UDP.
+#
+# dogstatsd_telemetry_listener: ""
+
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## When using Unix Socket, DogStatsD can tag metrics with container metadata.
 ## If running DogStatsD in a container, host PID mode (e.g. with --pid=host) is required.

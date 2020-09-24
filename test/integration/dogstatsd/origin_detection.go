@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -33,8 +32,6 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
-	mockConfig := config.Mock()
-
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
 	var composeFile string
@@ -52,13 +49,11 @@ func testUDSOriginDetection(t *testing.T) {
 		composeFile = "mount_volume.compose"
 	}
 	socketPath := filepath.Join(dir, "dsd.socket")
-	mockConfig.Set("dogstatsd_socket", socketPath)
-	mockConfig.Set("dogstatsd_origin_detection", true)
 
 	// Start DSD
 	packetsChannel := make(chan listeners.Packets)
 	sharedPacketPool := listeners.NewPacketPool(32)
-	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPool)
+	s, err := listeners.NewUDSListener(socketPath, true, packetsChannel, sharedPacketPool)
 	require.Nil(t, err)
 
 	go s.Listen()

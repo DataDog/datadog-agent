@@ -24,11 +24,26 @@ import (
 
 var packetPoolUDS = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 
+func TestIsUDSEndpoint(t *testing.T) {
+	res, _ := IsUDSEndpoint("")
+	assert.False(t, res)
+
+	res, _ = IsUDSEndpoint("/tmp/file.socket")
+	assert.False(t, res)
+
+	res, _ = IsUDSEndpoint("unix://")
+	assert.False(t, res)
+
+	ok, endpoint := IsUDSEndpoint("unix:///tmp/file.socket")
+	assert.True(t, ok)
+	assert.Equal(t, endpoint, "/tmp/file.socket")
+}
+
 func testFileExistsNewUDSListener(t *testing.T, socketPath string) {
 	_, err := os.Create(socketPath)
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
-	_, err = NewUDSListener(nil, packetPoolUDS)
+	_, err = NewUDSListener(socketPath, false, nil, packetPoolUDS)
 	assert.Error(t, err)
 }
 
@@ -41,7 +56,7 @@ func testSocketExistsNewUSDListener(t *testing.T, socketPath string) {
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewUDSListener(nil, packetPoolUDS)
+	s, err := NewUDSListener(socketPath, false, nil, packetPoolUDS)
 	defer s.Stop()
 
 	assert.Nil(t, err)
@@ -56,8 +71,6 @@ func TestNewUDSListener(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
-	mockConfig := config.Mock()
-	mockConfig.Set("dogstatsd_socket", socketPath)
 
 	t.Run("fail_file_exists", func(tt *testing.T) {
 		testFileExistsNewUDSListener(tt, socketPath)
@@ -76,10 +89,7 @@ func TestStartStopUDSListener(t *testing.T) {
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock()
-	mockConfig.Set("dogstatsd_socket", socketPath)
-	mockConfig.Set("dogstatsd_origin_detection", false)
-	s, err := NewUDSListener(nil, packetPoolUDS)
+	s, err := NewUDSListener(socketPath, false, nil, packetPoolUDS)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -99,14 +109,10 @@ func TestUDSReceive(t *testing.T) {
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock()
-	mockConfig.Set("dogstatsd_socket", socketPath)
-	mockConfig.Set("dogstatsd_origin_detection", false)
-
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
 	packetsChannel := make(chan Packets)
-	s, err := NewUDSListener(packetsChannel, packetPoolUDS)
+	s, err := NewUDSListener(socketPath, false, packetsChannel, packetPoolUDS)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
