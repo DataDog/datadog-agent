@@ -4179,9 +4179,13 @@ pupernetes-dev:
     - when: manual
       allow_failure: true
   <<: *pupernetes_template
-  needs: 
-  - dev_branch_docker_hub-a6
-  - dev_branch_docker_hub-a7
+  # Note: pupernetes-dev requires the below jobs to work. However,
+  # we can't explicitly define the dependencies because the required jobs are manual.
+  # Adding these lines would result in pipelines remaining in a "Running" state forever,
+  # as the pupernetes-dev job waits for jobs that may never be triggered.
+  # needs:
+  #   - dev_branch_docker_hub-a6
+  #   - dev_branch_docker_hub-a7
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
