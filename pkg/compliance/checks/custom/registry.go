@@ -24,7 +24,7 @@ func GetCustomCheck(name string) CheckFunc {
 	return nil
 }
 
-var customCheckRegistry map[string]CheckFunc = make(map[string]CheckFunc)
+var customCheckRegistry = make(map[string]CheckFunc)
 
 func registerCustomCheck(name string, f CheckFunc) {
 	customCheckRegistry[name] = f
