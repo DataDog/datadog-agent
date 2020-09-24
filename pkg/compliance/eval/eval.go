@@ -53,7 +53,7 @@ const (
 )
 
 var (
-	builtInVars VarMap = VarMap{
+	builtInVars = VarMap{
 		"_": true,
 	}
 )
