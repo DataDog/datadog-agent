@@ -33,7 +33,7 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     $agentVersion = "{0}-rc-{1}" -f $agentVersionMatches.Matches.Groups[1], $agentVersionMatches.Matches.Groups[2].Value
     # We don't have release notes for RCs but this way the user can always see what commits are included in this RC
     $releaseNotes = "https://github.com/DataDog/datadog-agent/releases/tag/{0}-rc.{1}" -f $agentVersionMatches.Matches.Groups[1], $agentVersionMatches.Matches.Groups[2]
-    $url = "`"https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/datadog-agent-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2])-1-x86_64.msi`""
+    $url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/datadog-agent-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2])-1-x86_64.msi"
 } elseif ($rawAgentVersion -match $develPattern) {
     if ($installMethod -eq "online") {
         # We don't publish online chocolatey packages for dev branches, error out
@@ -48,7 +48,7 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     $agentVersionMatches = $rawAgentVersion | Select-String -Pattern $releasePattern
     $agentVersion = $agentVersionMatches.Matches.Groups[1].Value
     $releaseNotes = "https://github.com/DataDog/datadog-agent/releases/tag/$agentVersion"
-    $url = "`"https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($agentVersion).msi`""
+    $url = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($agentVersion).msi"
 } else {
     Write-Host "Unknown agent version '$rawAgentVersion', aborting"
     exit 3
@@ -64,7 +64,7 @@ if (!(Test-Path $outputDirectory)) {
 
 if ($installMethod -eq "online") {
     # Set the $url in the install script
-    (Get-Content $installScript).replace('$url', $url) | Set-Content $installScript
+    (Get-Content $installScript).replace('__url_from_ci__', '"' +  $url  + '"') | Set-Content $installScript
 }
 
 choco pack --out=$outputDirectory $nuspecFile package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
