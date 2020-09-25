@@ -139,8 +139,15 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
-		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
-			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.retryQueueLimit, droppedWorkerBusy)
+		var errorMessage string
+		if f.retryQueueAllPayloadsMaxSize > 0 {
+			errorMessage = fmt.Sprintf("the retry queue payloads size limit of %d", f.retryQueueAllPayloadsMaxSize)
+		} else {
+			errorMessage = fmt.Sprintf("the retry queue size limit of %d", f.retryQueueLimit)
+		}
+
+		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding %s, %d because the workers are too busy",
+			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, errorMessage, droppedWorkerBusy)
 	}
 }
 
