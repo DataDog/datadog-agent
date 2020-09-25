@@ -10,15 +10,16 @@ struct bpf_map_def SEC("maps/inode_numlower") inode_numlower = {
     .namespace = "",
 };
 
-SEC("kprobe/vfs_getattr")
-int kprobe__getattr(struct pt_regs *ctx) {
+SEC("kprobe/security_inode_getattr")
+int kprobe__security_inode_getattr(struct pt_regs *ctx) {
     struct path *path = (struct path *)PT_REGS_PARM1(ctx);
     struct dentry *dentry = get_path_dentry(path);
 
     u64 inode = get_dentry_ino(dentry);
     int numlower = get_overlay_numlower(dentry);
+    bpf_printk("security_inode_getattr numlower: %d, pid: %d, inode: %ld\n", numlower, (int) (bpf_get_current_pid_tgid() >> 32), inode);
 
-    // vfs_getattr might be called multiple times on overlay filesystem, we only care about the first call
+    // security_inode_getattr might be called multiple times on overlay filesystem, we only care about the first call
     int *current_numlower = bpf_map_lookup_elem(&inode_numlower, &inode);
     if (!current_numlower) {
         bpf_map_update_elem(&inode_numlower, &inode, &numlower, BPF_ANY);
