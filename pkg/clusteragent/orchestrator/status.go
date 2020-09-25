@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
-// GetStatus returns status info for the secret and webhook controllers.
+// GetStatus returns status info for the orchestrator explorer.
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
 	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
