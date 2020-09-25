@@ -596,9 +596,9 @@ func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 // MountEvent represents a mount event
 type MountEvent struct {
 	BaseEvent
-	NewMountID    uint32
-	NewGroupID    uint32
-	NewDevice     uint32
+	MountID       uint32
+	GroupID       uint32
+	Device        uint32
 	ParentMountID uint32
 	ParentInode   uint64
 	FSType        string
@@ -619,9 +619,9 @@ func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"root_inode":%d,`, e.RootInode)
 	fmt.Fprintf(&buf, `"root_mount_id":%d,`, e.RootInode)
 	fmt.Fprintf(&buf, `"root":"%s",`, e.ResolveRoot(resolvers))
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.NewMountID)
-	fmt.Fprintf(&buf, `"new_group_id":%d,`, e.NewGroupID)
-	fmt.Fprintf(&buf, `"new_device":%d,`, e.NewDevice)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"group_id":%d,`, e.GroupID)
+	fmt.Fprintf(&buf, `"device":%d,`, e.Device)
 	fmt.Fprintf(&buf, `"fstype":"%s"`, e.GetFSType())
 	buf.WriteRune('}')
 
@@ -640,9 +640,9 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.NewMountID = ebpf.ByteOrder.Uint32(data[0:4])
-	e.NewGroupID = ebpf.ByteOrder.Uint32(data[4:8])
-	e.NewDevice = ebpf.ByteOrder.Uint32(data[8:12])
+	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
+	e.GroupID = ebpf.ByteOrder.Uint32(data[4:8])
+	e.Device = ebpf.ByteOrder.Uint32(data[8:12])
 	e.ParentMountID = ebpf.ByteOrder.Uint32(data[12:16])
 	e.ParentInode = ebpf.ByteOrder.Uint64(data[16:24])
 	e.RootInode = ebpf.ByteOrder.Uint64(data[24:32])

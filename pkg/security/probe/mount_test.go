@@ -40,9 +40,9 @@ func TestMountResolver(t *testing.T) {
 					{
 						mount: &MountEvent{
 							BaseEvent:     BaseEvent{},
-							NewMountID:    127,
-							NewGroupID:    71,
-							NewDevice:     52,
+							MountID:       127,
+							GroupID:       71,
+							Device:        52,
 							ParentMountID: 27,
 							ParentInode:   0,
 							FSType:        "overlay",
@@ -110,9 +110,9 @@ func TestMountResolver(t *testing.T) {
 					{
 						mount: &MountEvent{
 							BaseEvent:     BaseEvent{},
-							NewMountID:    27,
-							NewGroupID:    0,
-							NewDevice:     1,
+							MountID:       27,
+							GroupID:       0,
+							Device:        1,
 							ParentMountID: 1,
 							ParentInode:   0,
 							FSType:        "ext4",
@@ -126,9 +126,9 @@ func TestMountResolver(t *testing.T) {
 					{
 						mount: &MountEvent{
 							BaseEvent:     BaseEvent{},
-							NewMountID:    22,
-							NewGroupID:    0,
-							NewDevice:     21,
+							MountID:       22,
+							GroupID:       0,
+							Device:        21,
 							ParentMountID: 27,
 							ParentInode:   0,
 							FSType:        "sysfs",
@@ -142,9 +142,9 @@ func TestMountResolver(t *testing.T) {
 					{
 						mount: &MountEvent{
 							BaseEvent:     BaseEvent{},
-							NewMountID:    31,
-							NewGroupID:    0,
-							NewDevice:     26,
+							MountID:       31,
+							GroupID:       0,
+							Device:        26,
 							ParentMountID: 22,
 							ParentInode:   0,
 							FSType:        "tmpfs",
@@ -218,9 +218,9 @@ func TestMountResolver(t *testing.T) {
 					{
 						mount: &MountEvent{
 							BaseEvent:     BaseEvent{},
-							NewMountID:    27,
-							NewGroupID:    0,
-							NewDevice:     1,
+							MountID:       27,
+							GroupID:       0,
+							Device:        1,
 							ParentMountID: 1,
 							ParentInode:   0,
 							FSType:        "ext4",
@@ -234,9 +234,9 @@ func TestMountResolver(t *testing.T) {
 					{
 						mount: &MountEvent{
 							BaseEvent:     BaseEvent{},
-							NewMountID:    176,
-							NewGroupID:    71,
-							NewDevice:     52,
+							MountID:       176,
+							GroupID:       71,
+							Device:        52,
 							ParentMountID: 27,
 							ParentInode:   0,
 							FSType:        "overlay",
@@ -250,9 +250,9 @@ func TestMountResolver(t *testing.T) {
 					{
 						mount: &MountEvent{
 							BaseEvent:     BaseEvent{},
-							NewMountID:    638,
-							NewGroupID:    0,
-							NewDevice:     52,
+							MountID:       638,
+							GroupID:       0,
+							Device:        52,
 							ParentMountID: 635,
 							ParentInode:   0,
 							FSType:        "bind",
@@ -266,9 +266,9 @@ func TestMountResolver(t *testing.T) {
 					{
 						mount: &MountEvent{
 							BaseEvent:     BaseEvent{},
-							NewMountID:    639,
-							NewGroupID:    0,
-							NewDevice:     54,
+							MountID:       639,
+							GroupID:       0,
+							Device:        54,
 							ParentMountID: 638,
 							ParentInode:   0,
 							FSType:        "proc",

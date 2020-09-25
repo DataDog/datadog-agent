@@ -61,7 +61,7 @@ func TestMkdir(t *testing.T) {
 				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
 			}
 
-			testContainerPath(t, event, event.GetType())
+			testContainerPath(t, event, "mkdir.container_path")
 		}
 	})
 
@@ -91,7 +91,7 @@ func TestMkdir(t *testing.T) {
 				t.Errorf("expected inode %d, got %d", event.Mkdir.Inode, inode)
 			}
 
-			testContainerPath(t, event, event.GetType())
+			testContainerPath(t, event, "mkdir.container_path")
 		}
 
 		if err := syscall.Rmdir(testatFile); err != nil {

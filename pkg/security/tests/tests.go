@@ -10,7 +10,6 @@ package tests
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -141,7 +140,7 @@ func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Eve
 }
 
 func getInode(t *testing.T, path string) uint64 {
-	fileInfo, err := os.Stat(path)
+	fileInfo, err := os.Lstat(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,12 +488,12 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	return t, nil
 }
 
-func testContainerPath(t *testing.T, event *sprobe.Event, eventType eval.EventType) {
+func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	if testEnvironment != DockerEnvironment {
 		return
 	}
 
-	path, err := event.GetFieldValue(fmt.Sprintf("%s.container_path", eventType))
+	path, err := event.GetFieldValue(fieldPath)
 	if err != nil {
 		t.Fatal(err)
 	}

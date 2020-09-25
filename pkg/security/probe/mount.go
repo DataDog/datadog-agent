@@ -52,13 +52,14 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*MountEvent, error) {
 		ParentMountID: uint32(mnt.Parent),
 		MountPointStr: mnt.Mountpoint,
 		RootStr:       mnt.Root,
-		NewMountID:    uint32(mnt.ID),
-		NewGroupID:    uint32(groupID),
-		NewDevice:     uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
+		MountID:       uint32(mnt.ID),
+		GroupID:       uint32(groupID),
+		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
 		FSType:        mnt.Fstype,
 	}, nil
 }
 
+// IsOverlayFS returns whether it is an overlay fs
 func (m *MountEvent) IsOverlayFS() bool {
 	return m.GetFSType() == "overlay"
 }
@@ -102,14 +103,14 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	m, ok := mr.mounts[mountID]
-	if !ok {
+	m, exists := mr.mounts[mountID]
+	if !exists {
 		return ErrMountNotFound
 	}
 	delete(mr.mounts, mountID)
 
-	mounts, ok := mr.devices[m.NewDevice]
-	if mounts != nil {
+	mounts, exists := mr.devices[m.Device]
+	if exists {
 		delete(mounts, mountID)
 	}
 
@@ -124,14 +125,14 @@ func (mr *MountResolver) Insert(e *MountEvent) {
 }
 
 func (mr *MountResolver) insert(e *MountEvent) {
-	mounts := mr.devices[e.NewDevice]
+	mounts := mr.devices[e.Device]
 	if mounts == nil {
 		mounts = make(map[uint32]*MountEvent)
-		mr.devices[e.NewDevice] = mounts
+		mr.devices[e.Device] = mounts
 	}
-	mounts[e.NewMountID] = e
+	mounts[e.MountID] = e
 
-	mr.mounts[e.NewMountID] = e
+	mr.mounts[e.MountID] = e
 }
 
 func (mr *MountResolver) getParentPath(mountID uint32) string {
@@ -171,9 +172,9 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 	}
 
 	if mount.IsOverlayFS() || mount.GetFSType() == "bind" {
-		for _, deviceMount := range mr.devices[mount.NewDevice] {
-			if mount.NewDevice == deviceMount.NewDevice && deviceMount.IsOverlayFS() {
-				if p := mr.getParentPath(deviceMount.NewMountID); p != "" {
+		for _, deviceMount := range mr.devices[mount.Device] {
+			if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
+				if p := mr.getParentPath(deviceMount.MountID); p != "" {
 					return p, mount.MountPointStr, mount.RootStr, nil
 				}
 			}

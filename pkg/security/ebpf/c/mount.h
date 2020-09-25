@@ -10,9 +10,9 @@ struct mount_event_t {
     struct process_context_t process;
     struct container_context_t container;
     struct syscall_t syscall;
-    int new_mount_id;
-    int new_group_id;
-    dev_t new_device;
+    int mount_id;
+    int group_id;
+    dev_t device;
     int parent_mount_id;
     unsigned long parent_ino;
     unsigned long root_ino;
@@ -86,9 +86,9 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
             .retval = PT_REGS_RC(ctx),
             .timestamp = bpf_ktime_get_ns(),
         },
-        .new_mount_id = get_mount_mount_id(syscall->mount.src_mnt),
-        .new_group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
-        .new_device = get_mount_dev(syscall->mount.src_mnt),
+        .mount_id = get_mount_mount_id(syscall->mount.src_mnt),
+        .group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
+        .device = get_mount_dev(syscall->mount.src_mnt),
         .parent_mount_id = path_key.mount_id,
         .parent_ino = path_key.ino,
         .root_ino = syscall->mount.root_key.ino,
@@ -96,7 +96,7 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
     };
     bpf_probe_read_str(&event.fstype, FSTYPE_LEN, (void*) syscall->mount.fstype);
 
-    if (event.new_mount_id == 0 && event.new_device == 0) {
+    if (event.mount_id == 0 && event.device == 0) {
         return 0;
     }
 
