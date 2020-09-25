@@ -1,0 +1,3 @@
+features:
+  - |
+    Add a check for the Nvidia Jetson device family in the IoT Agent.
