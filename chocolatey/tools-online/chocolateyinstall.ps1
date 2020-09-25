@@ -1,14 +1,5 @@
 $ErrorActionPreference = 'Stop';
 
-$url = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($env:chocolateyPackageVersion).msi"
-# Note: match x.x.x-rc-x nuspec version format
-$releaseCandidatePattern = "(\d+\.\d+\.\d+)-rc\-(\d+)"
-if ($env:chocolateyPackageVersion -match $releaseCandidatePattern) {
-  # and turn it back into Datadog version format x.x.x-rc.x
-  $agentVersionMatches = $env:chocolateyPackageVersion | Select-String -Pattern $releaseCandidatePattern
-  $url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/datadog-agent-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2])-1-x86_64.msi"
-}
-
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
