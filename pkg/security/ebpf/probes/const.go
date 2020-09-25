@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
-package probe
+package probes
 
-// execTables holds the list of eBPF tables used by the process kprobes
-var execTables = []string{
-	"proc_cache",
-	"pid_cookie",
-}
+const (
+	// SecurityAgentUID is the UID used for all the runtime security module probes
+	SecurityAgentUID = "security"
+)

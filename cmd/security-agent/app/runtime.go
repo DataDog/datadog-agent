@@ -72,7 +72,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 
 	rsa := sprobe.NewRuleSetApplier(cfg)
 
-	report, err := rsa.Apply(ruleSet, nil)
+	report, err := rsa.GetPolicyReport(ruleSet, nil)
 	if err != nil {
 		return err
 	}
