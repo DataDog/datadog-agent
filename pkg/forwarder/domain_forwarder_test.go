@@ -258,7 +258,7 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 		tr := newTestTransaction()
 		tr.On("GetPayloadSize").Return(payloadSize)
 		tr.On("GetTarget").Return("blocked")
-		tr.On("GetCreatedAt").Return(time.Now())
+		tr.On("GetCreatedAt").Return(time.Now().Add(time.Duration(-payloadSize) * time.Second))
 		forwarder.retryQueue = append(forwarder.retryQueue, tr)
 	}
 
