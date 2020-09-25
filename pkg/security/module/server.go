@@ -81,7 +81,7 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	default:
 		// The channel is full, consume the oldest event
 		oldestMsg := <-e.msgs
-		// Try to send the send the event again
+		// Try to send the event again
 		select {
 		case e.msgs <- msg:
 			break
