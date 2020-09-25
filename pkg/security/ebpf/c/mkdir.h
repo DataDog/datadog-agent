@@ -71,7 +71,7 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->mkdir.path_key.ino;
-    if (syscall->mkdir.dentry) {
+    if (syscall->mkdir.real_dentry) {
         inode = get_dentry_ino(syscall->mkdir.real_dentry);
         link_dentry_inode(syscall->mkdir.path_key, inode);
     }

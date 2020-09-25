@@ -253,7 +253,7 @@ def docker_functional_tests(ctx, race=False, verbose=False, go_version=None, arc
     cmd = 'docker exec {container_name} mount -t debugfs none /sys/kernel/debug'
     ctx.run(cmd.format(**args))
 
-    cmd = 'docker exec {container_name} /tests/testsuite {pattern}'
+    cmd = 'docker exec {container_name} /tests/testsuite --env docker {pattern}'
     if verbose:
         cmd += ' -test.v'
     try:
