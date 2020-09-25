@@ -46,13 +46,13 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
+	// _ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	// _ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	// _ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
+	// _ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
+	// _ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
+	// _ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+	// _ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
