@@ -10,12 +10,16 @@ git clean -fdx .
 
 # Generate ssh-key and ignition files
 ./01-ignition.sh
-IGNITION_BASE64=$(cat ignition.json | base64 -w 0)
+IGNITION_BASE64=$(base64 -w 0 ignition.json)
+
+REGION="${REGION:-us-east-1}"
+UPDATE_STREAM="${UPDATE_STREAM:-stable}"
+AMI="$(curl "https://builds.coreos.fedoraproject.org/streams/${UPDATE_STREAM}.json" | jq -r ".architectures.x86_64.images.aws.regions.\"$REGION\".image")"
 
 # TODO remove the IamInstanceProfile
 tee specification.json << EOF
 {
-  "ImageId": "ami-0a9e4c122b56383bf",
+  "ImageId": "${AMI}",
   "InstanceType": "t2.medium",
   "Monitoring": {
     "Enabled": false

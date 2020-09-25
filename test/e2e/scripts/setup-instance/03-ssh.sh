@@ -31,6 +31,11 @@ do
     sleep 5
 done
 
+until _ssh systemctl is-system-running
+do
+    sleep 5
+done
+
 
 _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-agent || {
     # To be able to retry
