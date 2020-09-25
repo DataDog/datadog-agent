@@ -157,6 +157,32 @@ func (mr *MountResolver) getParentPath(mountID uint32) string {
 	return mountPointStr
 }
 
+func (mr *MountResolver) getAncestor(mount *MountEvent) *MountEvent {
+	parent, ok := mr.mounts[mount.ParentMountID]
+	if !ok {
+		return nil
+	}
+
+	if grandParent := mr.getAncestor(parent); grandParent != nil {
+		return grandParent
+	}
+
+	return parent
+}
+
+// getOverlayPath uses deviceID to find overlay path
+func (mr *MountResolver) getOverlayPath(mount *MountEvent) string {
+	for _, deviceMount := range mr.devices[mount.Device] {
+		if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
+			if p := mr.getParentPath(deviceMount.MountID); p != "" {
+				return p
+			}
+		}
+	}
+
+	return ""
+}
+
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
 // it exists
 func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, error) {
@@ -171,24 +197,12 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 		return "", "", "", nil
 	}
 
-	if mount.IsOverlayFS() || mount.GetFSType() == "bind" {
-		for _, deviceMount := range mr.devices[mount.Device] {
-			if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
-				if p := mr.getParentPath(deviceMount.MountID); p != "" {
-					return p, mount.MountPointStr, mount.RootStr, nil
-				}
-			}
-		}
+	ref := mount
+	if ancestor := mr.getAncestor(mount); ancestor != nil {
+		ref = ancestor
 	}
 
-	var containerMountPath string
-	if mount.ParentMountID != 0 {
-		if p := mr.getParentPath(mount.ParentMountID); !strings.HasPrefix(mount.MountPointStr, p) {
-			containerMountPath = p
-		}
-	}
-
-	return containerMountPath, mount.MountPointStr, mount.RootStr, nil
+	return mr.getOverlayPath(ref), mount.MountPointStr, mount.RootStr, nil
 }
 
 // NewMountResolver instantiates a new mount resolver
