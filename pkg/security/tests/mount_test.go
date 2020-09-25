@@ -9,6 +9,7 @@ package tests
 
 import (
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -67,7 +68,7 @@ func TestMount(t *testing.T) {
 			if fs := event.Mount.GetFSType(); fs != "bind" {
 				t.Errorf("expected a bind mount, got %v", fs)
 			}
-			mntID = event.Mount.NewMountID
+			mntID = event.Mount.MountID
 		}
 	})
 

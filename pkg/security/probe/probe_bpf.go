@@ -309,6 +309,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
 		// Resolve mount point
 		event.Mount.ResolveMountPoint(p.resolvers)
 		// Resolve root

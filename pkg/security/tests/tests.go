@@ -51,7 +51,6 @@ system_probe_config:
 
 runtime_security_config:
   enabled: true
-  debug: false
   socket: /tmp/test-security-probe.sock
 {{if not .EnableFilters}}
   enable_kernel_filters: false

@@ -17,6 +17,8 @@ import (
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -73,8 +75,8 @@ type MountResolver struct {
 func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
-	// Parse /proc/[pid]/moutinfo
-	mnts, err := mountinfo.PidMountInfo(int(pid))
+
+	mnts, err := utils.ParseMountInfoFile(pid)
 	if err != nil {
 		pErr, ok := err.(*os.PathError)
 		if !ok {
@@ -83,16 +85,15 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 		return pErr
 	}
 
-	// Insert each mount in cache
 	for _, mnt := range mnts {
 		e, err := newMountEventFromMountInfo(mnt)
 		if err != nil {
 			return err
 		}
 
-		// Insert mount point
 		mr.insert(e)
 	}
+
 	return nil
 }
 
