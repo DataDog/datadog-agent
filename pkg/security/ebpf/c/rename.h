@@ -70,7 +70,11 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
     // Warning: we use the src_dentry twice for compatibility with CentOS. Do not change it :)
     // (the mount id was set by kprobe/mnt_want_write)
-    syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.real_src_dentry);
+    syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.src_dentry);
+    if (syscall->rename.real_src_dentry) {
+        syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.real_src_dentry);
+    }
+
     struct rename_event_t event = {
         .event.type = EVENT_RENAME,
         .syscall = {
