@@ -37,7 +37,8 @@ const (
 	// Indices of the regex in the 'regexes' variable below
 	regexRAMIdx       = 0
 	regexSwapCacheIdx = 1
-	regexIRamIdx      = 2
+	//  TODO: Add IRAM support for TX1
+	//  regexIRamIdx      = 2
 
 	// Regex used to parse the GPU usage and frequency => e.g. EMC_FREQ 7%@408 GR3D_FREQ 0%@76
 	regexGpuUsageIdx = 3
