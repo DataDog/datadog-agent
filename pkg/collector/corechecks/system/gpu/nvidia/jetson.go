@@ -10,15 +10,14 @@ package nvidia
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/yaml.v2"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -134,23 +133,13 @@ var regexes = [...]string{
 	`(\d+)%@(\d+)`,
 }
 
-// retryExitError converts `exec.ExitError`s to `check.RetryableError`s, so that checks using this
-// are retried.
-func retryExitError(err error) error { // nolint Used only on some architectures
-	switch err.(type) {
-	case *exec.ExitError: // error type returned when the process exits with non-zero status
-		return check.RetryableError{Err: err}
-	default:
-		return err
-	}
+type checkCfg struct {
+	TegraStatsPath	string	`yaml:"tegra_stats_path,omitempty"`
 }
 
 // JetsonCheck contains the field for the JetsonCheck
 type JetsonCheck struct {
 	core.CheckBase
-
-	// Indicates that this check has been scheduled and is running.
-	running uint32
 
 	// The path to the tegrastats binary. Defaults to /usr/bin/tegrastats
 	tegraStatsPath string
@@ -159,15 +148,6 @@ type JetsonCheck struct {
 	commandOpts []string
 
 	regexes []*regexp.Regexp
-
-	stop     chan struct{}
-	stopDone chan struct{}
-}
-
-// Interval returns the scheduling time for the check.
-// Returns 0 since we're a long-running check.
-func (c *JetsonCheck) Interval() time.Duration {
-	return 0
 }
 
 func getSizeMultiplier(unit string) float64 {
@@ -354,15 +334,6 @@ func (c *JetsonCheck) sendVoltageMetrics(sender aggregator.Sender, field string)
 	return nil
 }
 
-// Run executes the check
-func (c *JetsonCheck) Run() error {
-	atomic.StoreUint32(&c.running, 1)
-	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
-	atomic.StoreUint32(&c.running, 0)
-
-	return err
-}
-
 func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
@@ -397,16 +368,8 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	return nil
 }
 
-func (c *JetsonCheck) run() error {
-	select {
-	// poll the stop channel once to make sure no stop was requested since the last call to `run`
-	case <-c.stop:
-		log.Info("Not starting %s check: stop requested", checkName)
-		c.stopDone <- struct{}{}
-		return nil
-	default:
-	}
-
+// Run executes the check
+func (c *JetsonCheck) Run() error {
 	cmd := exec.Command(c.tegraStatsPath, c.commandOpts...)
 
 	// Parse the standard output for the stats
@@ -416,10 +379,15 @@ func (c *JetsonCheck) run() error {
 	}
 	go func() {
 		in := bufio.NewScanner(stdout)
-		for in.Scan() {
+		if in.Scan() {
+			// We only need to read one line
 			if err = c.processTegraStatsOutput(in.Text()); err != nil {
 				_ = log.Error(err)
 			}
+		}
+		err = cmd.Process.Signal(os.Kill)
+		if err != nil {
+			_ = log.Errorf("unable to stop %s check: %s", checkName, err)
 		}
 	}()
 
@@ -436,27 +404,10 @@ func (c *JetsonCheck) run() error {
 	}()
 
 	if err := cmd.Start(); err != nil {
-		return retryExitError(err)
+		return err
 	}
-
-	processDone := make(chan error)
-	go func() {
-		processDone <- cmd.Wait()
-	}()
-
-	select {
-	case err = <-processDone:
-		return retryExitError(err)
-	case <-c.stop:
-		err = cmd.Process.Signal(os.Kill)
-		if err != nil {
-			_ = log.Errorf("unable to stop %s check: %s", checkName, err)
-		}
-	}
-
-	err = <-processDone
-	c.stopDone <- struct{}{}
-	return err
+	_ = cmd.Wait()
+	return nil
 }
 
 // Configure the GPU check
@@ -466,13 +417,18 @@ func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Da
 		return err
 	}
 
-	// TODO: Make this configurable
-	c.tegraStatsPath = "/usr/bin/tegrastats"
+	var conf checkCfg
+	if err := yaml.Unmarshal(initConfig, &conf); err != nil {
+		return err
+	}
+	if conf.TegraStatsPath != "" {
+		c.tegraStatsPath = conf.TegraStatsPath
+	} else {
+		c.tegraStatsPath = "/usr/bin/tegrastats"
+	}
 
-	// Since our interval is 0 because we're a long running check, we can use the CheckBase.Interval() as
-	// the tegrastats reporting interval
 	c.commandOpts = []string{
-		fmt.Sprintf("--interval %d", int64(c.CheckBase.Interval()*time.Millisecond)),
+		"--interval 500", // ms
 	}
 
 	c.regexes = make([]*regexp.Regexp, len(regexes))
