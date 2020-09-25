@@ -9,6 +9,8 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+
     struct iattr *iattr = (struct iattr *)PT_REGS_PARM2(ctx);
     if (iattr != NULL) {
         int valid;
@@ -18,14 +20,14 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
         }
 
         if (valid & (ATTR_TOUCH | ATTR_ATIME_SET | ATTR_MTIME_SET)) {
-            if (syscall->setattr.dentry)
+            if (syscall->setattr.dentry) {
+                syscall->setattr.real_inode = get_dentry_ino(dentry);
                 return 0;
+            }
             bpf_probe_read(&syscall->setattr.atime, sizeof(syscall->setattr.atime), &iattr->ia_atime);
             bpf_probe_read(&syscall->setattr.mtime, sizeof(syscall->setattr.mtime), &iattr->ia_mtime);
         }
     }
-
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->setattr.dentry) {
