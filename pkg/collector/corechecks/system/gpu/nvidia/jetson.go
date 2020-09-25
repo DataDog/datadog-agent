@@ -134,7 +134,7 @@ var regexes = [...]string{
 }
 
 type checkCfg struct {
-	TegraStatsPath	string	`yaml:"tegra_stats_path,omitempty"`
+	TegraStatsPath string `yaml:"tegra_stats_path,omitempty"`
 }
 
 // JetsonCheck contains the field for the JetsonCheck
