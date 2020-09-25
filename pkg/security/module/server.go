@@ -34,12 +34,16 @@ type EventServer struct {
 
 // GetEvents waits for security events
 func (e *EventServer) GetEvents(params *api.GetParams, stream api.SecurityModule_GetEventsServer) error {
+	// Read 10 security events per call
 	msgs := 10
-	if !e.rate.limiter.AllowN(time.Now(), msgs) {
-		return nil
-	}
 LOOP:
 	for {
+		// Check that the limit is not reached
+		if !e.rate.limiter.Allow() {
+			return nil
+		}
+
+		// Read on message
 		select {
 		case msg := <-e.msgs:
 			if err := stream.Send(msg); err != nil {
@@ -50,6 +54,7 @@ LOOP:
 			break LOOP
 		}
 
+		// Stop the loop when 10 messages were retrieved
 		if msgs <= 0 {
 			break
 		}
