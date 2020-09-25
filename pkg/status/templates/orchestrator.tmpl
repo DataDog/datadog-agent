@@ -24,6 +24,12 @@ Orchestrator Explorer
   ClusterName: {{.ClusterName}}
 {{- end }}
 
+  ====================
+  Orchestrator Options
+  ====================
+    {{ .ContainerScrubbing }}
+
+  ======================
   Orchestrator Endpoints
   ======================
 {{- if .OrchestratorEndpoint }}
@@ -33,6 +39,7 @@ Orchestrator Explorer
     OrchestratorAdditionalEndpoints: {{.OrchestratorAdditionalEndpoints}}
 {{- end }}
 
+  ===============
   Forwarder Stats
   ===============
     Pods: {{.forwarderStatsPods}}

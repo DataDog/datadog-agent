@@ -71,7 +71,12 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status["forwarderStatsServices"] = transactions["Services"]
 	status["forwarderStatsNodes"] = transactions["Nodes"]
 
-	// get informer status
+	// get options
+	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
+		status["ContainerScrubbing"] = "Enabled: ContainerScrubbing"
+	} else {
+		status["ContainerScrubbing"] = "Disabled: ContainerScrubbing"
+	}
 
 	return status
 }
