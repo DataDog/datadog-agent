@@ -67,7 +67,7 @@ void ExecuteInitScripts()
         if (exitCode != 0)
         {
             std::stringstream sstream;
-            sstream << script.path() << " exited with code [" << std::hex << exitCode << "]";
+            sstream << script.path() << " exited with code " << FormatErrorCode(exitCode);
             throw std::exception(sstream.str().c_str());
         }
     }
