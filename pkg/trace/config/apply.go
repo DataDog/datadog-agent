@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	featuresconfig "github.com/StackVista/stackstate-agent/pkg/features/config"
 	interpreterconfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config"
 	"net/url"
 	"regexp"
@@ -115,12 +114,6 @@ type queueablePayloadSender struct {
 	BackoffDuration   int   `mapstructure:"exp_backoff_max_duration_seconds"`
 	BackoffBase       int   `mapstructure:"exp_backoff_base_milliseconds"`
 	BackoffGrowth     int   `mapstructure:"exp_backoff_growth_base"`
-}
-
-type features struct {
-	HTTPRequestTimeoutSecs int `mapstructure:"http_request_timeout_secs"`
-	RetryIntervalSecs      int `mapstructure:"retry_interval_secs"`
-	MaxRetries             int `mapstructure:"max_retries"`
 }
 
 func (c *AgentConfig) applyDatadogConfig() error {
@@ -244,7 +237,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	c.InterpreterConfig = readInterpreterConfigYaml()
-	c.FeaturesConfig = readFeaturesConfigYaml()
 
 	// undocumented
 	if config.Datadog.IsSet("apm_config.max_cpu_percent") {
@@ -412,24 +404,6 @@ func readTraceWriterConfigYaml() writerconfig.TraceWriterConfig {
 			c.UpdateInfoPeriod = getDuration(w.UpdateInfoPeriod)
 		}
 		c.SenderConfig = readQueueablePayloadSenderConfigYaml(w.QueueablePayloadSender)
-	}
-	return c
-}
-
-func readFeaturesConfigYaml() featuresconfig.FeaturesConfig {
-	w := features{}
-	c := featuresconfig.DefaultFeaturesConfig()
-
-	if err := config.Datadog.UnmarshalKey("apm_config.features", &w); err == nil {
-		if w.MaxRetries > 0 {
-			c.MaxRetries = w.MaxRetries
-		}
-		if w.HTTPRequestTimeoutSecs > 0 {
-			c.HTTPRequestTimeoutDuration = time.Duration(w.HTTPRequestTimeoutSecs) * time.Second
-		}
-		if w.RetryIntervalSecs > 0 {
-			c.FeatureRequestTickerDuration = time.Duration(w.RetryIntervalSecs) * time.Second
-		}
 	}
 	return c
 }

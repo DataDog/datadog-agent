@@ -10,13 +10,16 @@ package py
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 	"syscall"
 	"unsafe"
 
 	"github.com/StackVista/stackstate-agent/pkg/metadata/externalhost"
 
+	collectorutils "github.com/StackVista/stackstate-agent/pkg/collector/util"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
@@ -68,6 +71,38 @@ func GetClusterName(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	clusterName := clustername.GetClusterName()
 
 	cStr := C.CString(clusterName)
+	pyStr := C.PyString_FromString(cStr)
+	C.free(unsafe.Pointer(cStr))
+	return pyStr
+}
+
+// GetPid exposes the current pid of the agent to Python checks.
+// Used as a PyCFunction of type METH_VARARGS mapped to `datadog_agent.get_pid`.
+// `self` is the module object.
+//export GetPid
+func GetPid(self *C.PyObject, args *C.PyObject) *C.PyObject {
+	pid := os.Getpid()
+
+	cStr := C.CString(strconv.Itoa(pid))
+	pyStr := C.PyString_FromString(cStr)
+	C.free(unsafe.Pointer(cStr))
+	return pyStr
+}
+
+// GetCreateTime exposes the current pid of the agent to Python checks.
+// Used as a PyCFunction of type METH_VARARGS mapped to `datadog_agent.get_create_time`.
+// `self` is the module object.
+//export GetCreateTime
+func GetCreateTime(self *C.PyObject, args *C.PyObject) *C.PyObject {
+	pid := os.Getpid()
+	var createTime int64
+	if ct, err := collectorutils.GetProcessCreateTime(int32(pid)); err != nil {
+		log.Errorf("datadog_agent: could not get create time for process %d: %s", pid, err)
+	} else {
+		createTime = ct
+	}
+
+	cStr := C.CString(strconv.FormatInt(createTime, 10))
 	pyStr := C.PyString_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr

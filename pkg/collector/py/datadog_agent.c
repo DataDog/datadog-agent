@@ -20,6 +20,8 @@ PyObject* GetVersion(PyObject *self, PyObject *args);
 PyObject* Headers(PyObject *self, PyObject *args);
 PyObject* GetHostname(PyObject *self, PyObject *args);
 PyObject* GetClusterName(PyObject *self, PyObject *args);
+PyObject* GetPid(PyObject *self, PyObject *args);
+PyObject* GetCreateTime(PyObject *self, PyObject *args);
 PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 PyObject* GetSubprocessOutput(char **args, int argc, int raise);
@@ -238,6 +240,8 @@ static PyMethodDef datadogAgentMethods[] = {
   {"get_clustername", GetClusterName, METH_VARARGS, "Get the agent cluster name."},
   {"log", log_message, METH_VARARGS, "Log a message through the agent logger."},
   {"set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags."},
+  {"get_pid", GetPid, METH_VARARGS, "Get the agent pid."},
+  {"get_create_time", GetCreateTime, METH_VARARGS, "Get the agent create time."},
   {NULL, NULL}
 };
 

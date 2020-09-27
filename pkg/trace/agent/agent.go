@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"github.com/StackVista/stackstate-agent/pkg/features"
 	"github.com/StackVista/stackstate-agent/pkg/trace/interpreter"
 	"sync/atomic"
 	"time"
@@ -56,9 +55,6 @@ type Agent struct {
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
-
-	// Features Supported by the StackState Backend
-	SupportedFeatures *features.Features
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -92,7 +88,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	sw := writer.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
 	sie := interpreter.NewSpanInterpreterEngine(conf)
-	sf := features.NewFeatures(conf)
 
 	return &Agent{
 		Receiver:              r,
@@ -109,7 +104,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ServiceExtractor:      se,
 		ServiceMapper:         sm,
 		SpanInterpreterEngine: sie,
-		SupportedFeatures:     sf,
 		obfuscator:            obf,
 		tracePkgChan:          tracePkgChan,
 		conf:                  conf,
@@ -141,7 +135,6 @@ func (a *Agent) Run() {
 	a.ErrorsScoreSampler.Run()
 	a.PrioritySampler.Run()
 	a.EventProcessor.Start()
-	a.SupportedFeatures.Start()
 
 	for {
 		select {
@@ -163,7 +156,6 @@ func (a *Agent) Run() {
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
 			a.EventProcessor.Stop()
-			a.SupportedFeatures.Stop()
 			return
 		}
 	}
