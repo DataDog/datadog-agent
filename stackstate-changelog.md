@@ -1,5 +1,24 @@
 # StackState Agent v2 releases
 
+## 2.8.0 (2020-09-27)
+
+**Features**
+
+- Nagios integration: adds support for Nagios ITRS OP5 [(STAC-8598)](https://stackstate.atlassian.net/browse/STAC-8598)
+- SAP integration: support tags, domain and environment coming from instance config [(STAC-10659)](https://stackstate.atlassian.net/browse/STAC-10659)
+- Zabbix integration: support for maintenance mode [(STAC-10430)](https://stackstate.atlassian.net/browse/STAC-10430)
+- SAP integration: Simplify and remove querying SAPHostAgent (Dennis Loos - CTAC)
+- Agent integrations [(STAC-9816)](https://stackstate.atlassian.net/browse/STAC-9816)
+  - Adds the AgentIntegrationInstance which is a type of TopologyInstance that is synchronized by the Agent StackPack.
+  - Allows mapping streams and health checks onto Agent Integration components.
+  - Publish Agent Integration components for all running integrations in an agent on which the service checks produced by the integration is mapped and monitored.
+  - Added the utility function that allow you to create identifiers in the format that is used in StackState for merging topology.
+- Ensure that cluster name tag is present when running on kubernetes [(STAC-10046)](https://stackstate.atlassian.net/browse/STAC-10046)
+
+**Bugfix**
+
+- Nagios integration: adds missing data to events generated from Nagios log [(STAC-10614)](https://stackstate.atlassian.net/browse/STAC-10614)
+
 ## 2.7.0 (2020-07-27)
 
 **Features**

@@ -17,6 +17,7 @@ venv/
 .DS_Store
 .vscode
 .env
+.envrc
 *.cov
 *.pyc
 *.swp
