@@ -165,7 +165,7 @@ func TestAgentIntegration(t *testing.T) {
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	t.Logf("ExpectedTopology: %v\n", expectedTopology)
 	instance := topology.Instance{Type: "type", URL: "url"}
-	var hostCPUUsageIdentifier, responses2xxIdentifier, responses5xxIdentifier string
+	var hostCPUUsageIdentifier, responses2xxIdentifier, responses5xxIdentifier, healthIdentifier string
 	for _, e := range expectedTopology["testcheck_agent_integration:c3d960f8ff8a5c55"].Components[3].Data["metrics"].([]interface{}) {
 		hostCPUUsageIdentifier = e.(map[string]interface{})["identifier"].(string)
 	}
@@ -177,6 +177,9 @@ func TestAgentIntegration(t *testing.T) {
 		if i == 1 {
 			responses5xxIdentifier = e.(map[string]interface{})["identifier"].(string)
 		}
+	}
+	for _, e := range expectedTopology["testcheck_agent_integration:c3d960f8ff8a5c55"].Components[4].Data["events"].([]interface{}) {
+		healthIdentifier = e.(map[string]interface{})["identifier"].(string)
 	}
 
 	components, relations := getAgentIntegrationTopology(t, "testcheck_agent_integration:c3d960f8ff8a5c55", instance, expectedTopology)
@@ -204,9 +207,9 @@ func TestAgentIntegration(t *testing.T) {
 								"stream_id":                       int64(-1),
 								"max_window":                      int64(300000),
 								"name":                            "Max CPU Usage (Average)",
-								"deviating_value":                 int64(75),
+								"deviating_value":                 int64(65),
 								"is_metric_maximum_average_check": int64(1),
-								"critical_value":                  int64(90),
+								"critical_value":                  int64(80),
 							},
 							map[string]interface{}{
 								"name":                         "Max CPU Usage (Last)",
@@ -226,11 +229,11 @@ func TestAgentIntegration(t *testing.T) {
 							},
 							map[string]interface{}{
 								"is_metric_minimum_last_check": int64(1),
-								"critical_value":               int64(5),
+								"critical_value":               int64(15),
 								"stream_id":                    int64(-1),
 								"max_window":                   int64(300000),
 								"name":                         "Min CPU Usage (Last)",
-								"deviating_value":              int64(10),
+								"deviating_value":              int64(20),
 							},
 						},
 						"metrics": []interface{}{
@@ -299,6 +302,23 @@ func TestAgentIntegration(t *testing.T) {
 								"is_metric_minimum_percentile_check": int64(1),
 								"percentile":                         int64(99),
 								"critical_value":                     int64(5),
+							},
+							map[string]interface{}{
+								"is_event_tag_as_health_check": int64(1),
+								"name":                         "Health Check",
+								"stream_id":                    int64(-3),
+								"tag_name":                     "status",
+							},
+						},
+						"events": []interface{}{
+							map[string]interface{}{
+								"conditions": []interface{}{
+									map[string]interface{}{"key": "status", "value": "RUNNING"},
+									map[string]interface{}{"key": "tags.application", "value": "some-application"},
+								},
+								"identifier": healthIdentifier,
+								"name":       "Health",
+								"stream_id":  int64(-3),
 							},
 						},
 						"metrics": []interface{}{

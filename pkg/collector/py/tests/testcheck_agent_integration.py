@@ -2,8 +2,7 @@
 # All rights reserved
 # Licensed under a 3-clause BSD style license (see LICENSE)
 
-# project
-from stackstate_checks.base import AgentCheck, AgentIntegrationInstance, MetricStream, MetricHealthChecks
+from stackstate_checks.base import AgentCheck, AgentIntegrationInstance, MetricStream, MetricHealthChecks, EventStream, EventHealthChecks
 import time
 from random import seed
 from random import randint
@@ -29,13 +28,13 @@ class AgentIntegrationSampleCheck(AgentCheck):
                                            aggregation="MEAN",
                                            priority="HIGH")
         cpu_max_average_check = MetricHealthChecks.maximum_average(this_host_cpu_usage.identifier,
-                                                                   "Max CPU Usage (Average)", 75, 90)
+                                                                   "Max CPU Usage (Average)", 65, 80)
         cpu_max_last_check = MetricHealthChecks.maximum_last(this_host_cpu_usage.identifier,
                                                              "Max CPU Usage (Last)", 75, 90)
         cpu_min_average_check = MetricHealthChecks.minimum_average(this_host_cpu_usage.identifier,
                                                                    "Min CPU Usage (Average)", 10, 5)
         cpu_min_last_check = MetricHealthChecks.minimum_last(this_host_cpu_usage.identifier,
-                                                             "Min CPU Usage (Last)", 10, 5)
+                                                             "Min CPU Usage (Last)", 20, 15)
         self.component("urn:example:/host:this_host", "Host",
                        data={
                            "name": "this-host",
@@ -82,6 +81,12 @@ class AgentIntegrationSampleCheck(AgentCheck):
         min_percentile_response_check = MetricHealthChecks.minimum_percentile(some_application_2xx_responses.identifier,
                                                                               "Success Response 99th Percentile",
                                                                               10, 5, 99)
+
+        some_application_health = EventStream("Health",
+                                              conditions={"tags.application": "some-application",
+                                                          "status": "RUNNING"})
+        health_check = EventHealthChecks.use_tag_as_health(some_application_health.identifier, "Health Check", "status")
+
         self.component("urn:example:/application:some_application", "Application",
                        data={
                            "name": "some-application",
@@ -92,9 +97,9 @@ class AgentIntegrationSampleCheck(AgentCheck):
                            "environment": "Production",
                            "version": "0.2.0"
                        },
-                       streams=[some_application_2xx_responses, some_application_5xx_responses],
+                       streams=[some_application_2xx_responses, some_application_5xx_responses, some_application_health],
                        checks=[max_response_ratio_check, max_percentile_response_check, failed_response_ratio_check,
-                               min_percentile_response_check])
+                               min_percentile_response_check, health_check])
 
         self.relation("urn:example:/application:some_application", "urn:example:/host:this_host", "IS_HOSTED_ON", {})
 
