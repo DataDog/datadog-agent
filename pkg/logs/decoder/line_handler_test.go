@@ -40,10 +40,6 @@ func TestSingleLineHandler(t *testing.T) {
 	assert.Equal(t, line, string(output.Content))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 
-	// empty line should be dropped
-	h.Handle(getDummyMessage(""))
-	assert.Equal(t, 0, len(outputChan))
-
 	// too long line should be truncated
 	line = strings.Repeat("a", contentLenLimit+10)
 	h.Handle(getDummyMessage(line))
@@ -179,22 +175,6 @@ func TestTrimMultiLine(t *testing.T) {
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(output.Content))
 	assert.Equal(t, len(whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
-
-	h.Stop()
-}
-
-func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
-	outputChan := make(chan *Message, 10)
-	h := NewSingleLineHandler(outputChan, 100)
-	h.Start()
-
-	h.Handle(getDummyMessageWithLF(""))
-	h.Handle(getDummyMessageWithLF("one message"))
-
-	var output *Message
-
-	output = <-outputChan
-	assert.Equal(t, "one message", string(output.Content))
 
 	h.Stop()
 }
