@@ -24,7 +24,7 @@ func TestMkdir(t *testing.T) {
 		},
 		{
 			ID:         "test_rule2",
-			Expression: `mkdir.retval == EACCES`,
+			Expression: `process.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
 		},
 	}
 

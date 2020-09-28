@@ -374,6 +374,11 @@ func (t *simpleTest) Root() string {
 	return t.root
 }
 
+func (t *simpleTest) ProcessName() string {
+	executable, _ := os.Executable()
+	return path.Base(executable)
+}
+
 func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	filename = path.Join(t.root, filename)
 	filenamePtr, err := syscall.BytePtrFromString(filename)
