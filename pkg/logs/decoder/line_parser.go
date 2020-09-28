@@ -126,12 +126,12 @@ func (p *MultiLineParser) run() {
 		select {
 		case message, isOpen := <-p.inputChan:
 			if !isOpen {
-				//  inputChan has been closed, no more lines are expected
+				// inputChan has been closed, no more lines are expected
 				return
 			}
 			// process the new line and restart the timeout
 			if !flushTimer.Stop() {
-				// timer stop doesn't not prevent the timer to tick,
+				// flushTimer.stop() doesn't prevent the timer to tick,
 				// makes sure the event is consumed to avoid sending
 				// just one piece of the content.
 				select {

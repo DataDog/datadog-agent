@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+features:
   - |
-    Windows Docker image is now based on Windows Server Nano instead of Windows Server Core.
+    Added JMX version and java runtime version to agent status page

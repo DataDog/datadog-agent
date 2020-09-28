@@ -25,7 +25,7 @@ spec:
       imagePullSecrets: []
       initContainers:
         - name: init-volume
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -35,7 +35,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -46,7 +46,7 @@ spec:
           resources: {}
       containers:
         - name: agent
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           command: ["bash", "-c"]
           args:
             - rm -rf /etc/datadog-agent/conf.d && touch /etc/datadog-agent/datadog.yaml && exec agent run
@@ -104,6 +104,8 @@ spec:
               subPath: install_info
               mountPath: /etc/datadog-agent/install_info
               readOnly: true
+            - name: config
+              mountPath: /etc/datadog-agent
           livenessProbe:
             failureThreshold: 6
             httpGet:
