@@ -164,8 +164,8 @@ func ImportRegistryConfig() error {
 	datadogYamlPath := config.Datadog.ConfigFileUsed()
 
 	if config.Datadog.GetString("api_key") != "" {
-		return fmt.Errorf("%s seems to contain a valid configuration, not overwriting config",
-			datadogYamlPath)
+		log.Infof("%s seems to contain a valid configuration, not overwriting config", datadogYamlPath)
+		return nil
 	}
 
 	overrides := make(map[string]interface{})
