@@ -21,6 +21,7 @@ struct syscall_cache_t {
             umode_t mode;
             struct dentry *dentry;
             struct path_key_t path_key;
+            u64 real_inode;
         } open;
 
         struct {

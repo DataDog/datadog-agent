@@ -69,6 +69,8 @@ func TestOpen(t *testing.T) {
 			if inode := getInode(t, testFile); inode != event.Open.Inode {
 				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
 			}
+
+			testContainerPath(t, event, "open.container_path")
 		}
 	})
 
@@ -95,10 +97,11 @@ func TestOpen(t *testing.T) {
 			if mode := event.Open.Mode; mode != 0711 {
 				t.Errorf("expected open mode 0711, got %#o", mode)
 			}
-
 			if inode := getInode(t, testFile); inode != event.Open.Inode {
 				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
 			}
+
+			testContainerPath(t, event, "open.container_path")
 		}
 	})
 
@@ -125,6 +128,8 @@ func TestOpen(t *testing.T) {
 			if inode := getInode(t, testFile); inode != event.Open.Inode {
 				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
 			}
+
+			testContainerPath(t, event, "open.container_path")
 		}
 	})
 
@@ -160,6 +165,12 @@ func TestOpen(t *testing.T) {
 			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
 				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %s", probe.OpenFlags(flags))
 			}
+
+			if inode := getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+			}
+
+			testContainerPath(t, event, "open.container_path")
 		}
 	})
 
@@ -197,6 +208,12 @@ func TestOpen(t *testing.T) {
 			if flags := event.Open.Flags; flags != syscall.O_CREAT {
 				t.Errorf("expected open mode O_RDWR, got %d", flags)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Open.Inode {
+				t.Errorf("expected inode %d, got %d", event.Open.Inode, inode)
+			}
+
+			testContainerPath(t, event, "open.container_path")
 		}
 	})
 
