@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
@@ -20,13 +21,16 @@ const (
 	defaultPurge  = 30 * time.Second
 )
 
+// TODO: get cache size
+// TODO: get cache efficiency
+
 // KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 var KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
 // It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 // 0 == defaultDuration
-func SkipKubernetesResource(uid types.UID, resourceVersion string) bool {
+func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType orchestrator.NodeType) bool {
 	cacheKey := string(uid)
 	value, hit := KubernetesResourceCache.Get(cacheKey)
 
