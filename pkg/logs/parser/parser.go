@@ -50,12 +50,13 @@ type DecodingParser struct {
 	Parser
 }
 
-// Parse pases the incoming message with the decoder
+// Parse parses the incoming message with the decoder
 func (p *DecodingParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	decoded, _, err := transform.Bytes(p.decoder, msg)
 	return decoded, "", "", false, err
 }
 
+// SupportsPartialLine returns false as it does not support partial lines
 func (p *DecodingParser) SupportsPartialLine() bool {
 	return false
 }
