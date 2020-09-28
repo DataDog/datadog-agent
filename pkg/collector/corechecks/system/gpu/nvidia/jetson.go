@@ -171,6 +171,8 @@ func getSizeMultiplier(unit string) float64 {
 	return 1
 }
 
+type sendMetric func(sender aggregator.Sender, field string) error
+
 func (c *JetsonCheck) sendIRAMMetrics(sender aggregator.Sender, field string) error {
 	iramFields := c.regexes[regexIRamIdx].FindAllStringSubmatch(field, -1)
 	if len(iramFields) != 1 {
@@ -382,33 +384,20 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 		return err
 	}
 
-	err = c.sendRAMMetrics(sender, tegraStatsOuptut)
-	if err != nil {
-		return nil
+	var metricSenders = []sendMetric{
+		c.sendRAMMetrics,
+		c.sendIRAMMetrics,
+		c.sendSwapMetrics,
+		c.sendGpuUsageMetrics,
+		c.sendCPUUsageMetrics,
+		c.sendTemperatureMetrics,
+		c.sendVoltageMetrics,
 	}
-	err = c.sendIRAMMetrics(sender, tegraStatsOuptut)
-	if err != nil {
-		return nil
-	}
-	err = c.sendSwapMetrics(sender, tegraStatsOuptut)
-	if err != nil {
-		return nil
-	}
-	err = c.sendGpuUsageMetrics(sender, tegraStatsOuptut)
-	if err != nil {
-		return nil
-	}
-	err = c.sendCPUUsageMetrics(sender, tegraStatsOuptut)
-	if err != nil {
-		return nil
-	}
-	err = c.sendTemperatureMetrics(sender, tegraStatsOuptut)
-	if err != nil {
-		return nil
-	}
-	err = c.sendVoltageMetrics(sender, tegraStatsOuptut)
-	if err != nil {
-		return nil
+	for _, metricSender := range metricSenders {
+		err = metricSender(sender, tegraStatsOuptut)
+		if err != nil {
+			return err
+		}
 	}
 	sender.Commit()
 	return nil
