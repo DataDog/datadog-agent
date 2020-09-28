@@ -31,9 +31,7 @@ type Parser interface {
 	SupportsPartialLine() bool
 }
 
-type noopParser struct {
-	Parser
-}
+type noopParser struct{}
 
 // Parse does nothing for NoopParser
 func (p *noopParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
@@ -47,7 +45,6 @@ func (p *noopParser) SupportsPartialLine() bool {
 // DecodingParser a generic decoding Parser
 type DecodingParser struct {
 	decoder *encoding.Decoder
-	Parser
 }
 
 // Parse parses the incoming message with the decoder
