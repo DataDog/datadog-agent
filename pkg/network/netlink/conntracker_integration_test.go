@@ -26,6 +26,8 @@ const (
 )
 
 func TestConnTrackerCrossNamespace(t *testing.T) {
+	skipUnless(t, "all_nsid")
+
 	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		require.NoError(t, err, "setup command output %s", string(out))
