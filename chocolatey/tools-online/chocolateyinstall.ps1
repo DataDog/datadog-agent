@@ -5,7 +5,7 @@ $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
   unzipLocation = $toolsDir
   fileType      = 'msi'
-  # Note: $__url_from_ci__ is replaced at build time with the full URL to the MSI
+  # Note: Url is replaced at build time with the full URL to the MSI
   url64bit      = $__url_from_ci__
   softwareName  = 'Datadog Agent'
   silentArgs    = "/qn /norestart /l*v `"$($env:TEMP)\$($packageName).$($env:chocolateyPackageVersion).MsiInstall.log`""
