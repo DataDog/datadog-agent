@@ -160,7 +160,7 @@ func (e *FileEvent) ResolveContainerPath(resolvers *Resolvers) string {
 		}
 		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
 			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
+			e.ResolveInode(resolvers)
 		}
 	}
 	return e.ContainerPath

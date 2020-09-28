@@ -198,6 +198,34 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset))
 }
 
+func (suite *TailerTestSuite) TestWithBlanklines() {
+	lines := "\t\t\t     \t\t\n    \n\n   \n\n\r\n\r\n\r\n"
+	lines += "message 1\n"
+	lines += "\n\n\n\n\n\n\n\n\n\t\n"
+	lines += "message 2\n"
+	lines += "\n\t\r\n"
+	lines += "message 3\n"
+
+	var msg *message.Message
+	var err error
+
+	_, err = suite.testFile.WriteString(lines)
+	suite.Nil(err)
+
+	suite.tailer.Start(0, io.SeekStart)
+
+	msg = <-suite.outputChan
+	suite.Equal("message 1", string(msg.Content))
+
+	msg = <-suite.outputChan
+	suite.Equal("message 2", string(msg.Content))
+
+	msg = <-suite.outputChan
+	suite.Equal("message 3", string(msg.Content))
+
+	suite.Equal(len(lines), int(suite.tailer.decodedOffset))
+}
+
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
 	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tailer.Identifier())
