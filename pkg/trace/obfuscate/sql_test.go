@@ -148,9 +148,11 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
 		},
 	} {
-		oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
-		assert.NoError(err)
-		assert.Equal(tt.out, oq.Query)
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
+		})
 	}
 }
 
@@ -233,6 +235,10 @@ func TestSQLQuantizer(t *testing.T) {
 		{
 			"select * from users where id = 42",
 			"select * from users where id = ?",
+		},
+		{
+			"select * from users where float = .43422",
+			"select * from users where float = ?",
 		},
 		{
 			"SELECT host, status FROM ec2_status WHERE org_id = 42",
@@ -1007,6 +1013,69 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 	}
 }
 
+var query1 = `SELECT '%c%' as Chapter,
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status IN ('new','assigned') ) AS 'New',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='document_interface' ) AS 'Document\
+ Interface',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='interface_development' ) AS 'Inter\
+face Development',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='interface_check' ) AS 'Interface C\
+heck',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='document_routine' ) AS 'Document R\
+outine',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='full_development' ) AS 'Full Devel\
+opment',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='peer_review_1' ) AS 'Peer Review O\
+ne',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%'AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='peer_review_2' ) AS 'Peer Review Tw\
+o',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='qa' ) AS 'QA',
+(SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%'AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status='closed' ) AS 'Closed',
+count(id) AS Total,
+ticket.id AS _id
+FROM engine.ticket
+INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
+WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine'`
+
+var query3 = `WITH
+ sales AS
+ (SELECT sf.*
+  FROM gosalesdw.sls_order_method_dim AS md,
+       gosalesdw.sls_product_dim AS pd, 
+       gosalesdw.emp_employee_dim AS ed,
+       gosalesdw.sls_sales_fact AS sf
+  WHERE pd.product_key = sf.product_key  
+    AND pd.product_number > 10000
+    AND pd.base_product_key > 30 
+    AND md.order_method_key = sf.order_method_key 
+    AND md.order_method_code > 5 
+    AND ed.employee_key = sf.employee_key 
+    AND ed.manager_code1 > 20),
+ inventory AS
+ (SELECT if.*
+  FROM gosalesdw.go_branch_dim AS bd, 
+    gosalesdw.dist_inventory_fact AS if
+  WHERE if.branch_key = bd.branch_key 
+    AND bd.branch_code > 20)
+SELECT sales.product_key AS PROD_KEY, 
+ SUM(CAST (inventory.quantity_shipped AS BIGINT)) AS INV_SHIPPED,
+ SUM(CAST (sales.quantity AS BIGINT)) AS PROD_QUANTITY, 
+ RANK() OVER ( ORDER BY SUM(CAST (sales.quantity AS BIGINT)) DESC) AS PROD_RANK
+FROM sales, inventory
+ WHERE sales.product_key = inventory.product_key
+GROUP BY sales.product_key;
+`
+
 // Benchmark the Tokenizer using a SQL statement
 func BenchmarkObfuscateSQLString(b *testing.B) {
 	benchmarks := []struct {
@@ -1015,6 +1084,8 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 	}{
 		{"Escaping", `INSERT INTO delayed_jobs (attempts, created_at, failed_at, handler, last_error, locked_at, locked_by, priority, queue, run_at, updated_at) VALUES (0, '2016-12-04 17:09:59', NULL, '--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/object:Item\n  store:\n  - a simple string\n  - an \'escaped \' string\n  - another \'escaped\' string\n  - 42\n  string: a string with many \\\\\'escapes\\\\\'\nmethod_name: :show_store\nargs: []\n', NULL, NULL, NULL, 0, NULL, '2016-12-04 17:09:59', '2016-12-04 17:09:59')`},
 		{"Grouping", `INSERT INTO delayed_jobs (created_at, failed_at, handler) VALUES (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL)`},
+		{"query1", query1},
+		{"query3", query3},
 	}
 	obf := NewObfuscator(nil)
 	for _, bm := range benchmarks {
