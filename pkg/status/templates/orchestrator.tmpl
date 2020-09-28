@@ -42,9 +42,9 @@ Orchestrator Explorer
   ===============
   Forwarder Stats
   ===============
-    Pods: {{.forwarderStatsPods}}
-    Deployments: {{.forwarderStatsDeployment}}
-    ReplicaSets: {{.forwarderStatsReplicaSets}}
-    Services: {{.forwarderStatsServices}}
-    Nodes: {{.forwarderStatsNodes}}
+    Pods: {{.forwarderStatsPods}} (Cache hits: {{.podCacheHits}}) (Cache Size: {{.podCacheSize}})
+    Deployments: {{.forwarderStatsDeployment}} (Cache hits: {{.deploymentCacheHits}}) (Cache Size: {{.deploymentCacheSize}})
+    ReplicaSets: {{.forwarderStatsReplicaSets}} (Cache hits: {{.replicaSetCacheHits}}) (Cache Size: {{.replicaSetCacheSize}})
+    Services: {{.forwarderStatsServices}} (Cache hits: {{.serviceCacheHits}}) (Cache Size: {{.serviceCacheSize}})
+    Nodes: {{.forwarderStatsNodes}} (Cache hits: {{.nodesCacheHits}}) (Cache Size: {{.nodesCacheSize}})
 {{/* this line intentionally left blank */}}

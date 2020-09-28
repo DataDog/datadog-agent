@@ -8,7 +8,9 @@
 package orchestrator
 
 import (
+	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"hash/fnv"
 	"strconv"
 	"strings"
@@ -34,6 +36,10 @@ const (
 	nodeUnreachablePodReason = "NodeLost"
 )
 
+var (
+	orchestratorPodCacheHits = expvar.Int{}
+)
+
 // ProcessPodlist processes a pod list into process messages
 func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
@@ -53,7 +59,8 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		}
 
 		pd := podList[p]
-		if SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
+			orchestratorPodCacheHits.Add(1)
 			continue
 		}
 

@@ -1,14 +1,15 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+/*
+ * Unless explicitly stated otherwise all files in this repository are licensed
+ * under the Apache License Version 2.0.
+ * This product includes software developed at Datadog (https://www.datadoghq.com/).
+ * Copyright 2016-2020 Datadog, Inc.
+ */
 
 // +build orchestrator
 
 package orchestrator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
@@ -25,12 +26,17 @@ const (
 // TODO: get cache efficiency
 
 // KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
-var KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
+var (
+	KubernetesResourceDeploymentCache = cache.New(defaultExpire, defaultPurge)
+	KubernetesResourceReplicaSetCache = cache.New(defaultExpire, defaultPurge)
+	KubernetesResourcePodCache        = cache.New(defaultExpire, defaultPurge)
+	KubernetesResourceNodeCache       = cache.New(defaultExpire, defaultPurge)
+)
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
 // It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 // 0 == defaultDuration
-func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType orchestrator.NodeType) bool {
+func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType orchestrator2.NodeType) bool {
 	cacheKey := string(uid)
 	value, hit := KubernetesResourceCache.Get(cacheKey)
 
