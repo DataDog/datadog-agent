@@ -8,9 +8,7 @@
 package orchestrator
 
 import (
-	"expvar"
 	"fmt"
-	orchestrator2 "github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"strings"
 	"time"
 
@@ -24,21 +22,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var (
-	orchestratorDeploymentCacheHits = expvar.Int{}
-	orchestratorReplicaSetCacheHits = expvar.Int{}
-	orchestratorNodeCacheHits       = expvar.Int{}
-	orchestratorServiceCacheHits    = expvar.Int{}
-)
-
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
-		if orchestrator2.SkipKubernetesResource(depl.UID, depl.ResourceVersion) {
-			orchestratorDeploymentCacheHits.Add(1)
+		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion) {
+			orchestrator.DeploymentCacheHits.Add(1)
 			continue
 		}
 
@@ -110,8 +101,8 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 
 	for rs := 0; rs < len(rsList); rs++ {
 		r := rsList[rs]
-		if orchestrator2.SkipKubernetesResource(r.UID, r.ResourceVersion) {
-			orchestratorReplicaSetCacheHits.Add(1)
+		if orchestrator.SkipKubernetesResource(r.UID, r.ResourceVersion) {
+			orchestrator.ReplicaSetCacheHits.Add(1)
 			continue
 		}
 
@@ -186,8 +177,8 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 
 	for s := 0; s < len(serviceList); s++ {
 		svc := serviceList[s]
-		if orchestrator2.SkipKubernetesResource(svc.UID, svc.ResourceVersion) {
-			orchestratorServiceCacheHits.Add(1)
+		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion) {
+			orchestrator.ServiceCacheHits.Add(1)
 			continue
 		}
 
@@ -254,8 +245,8 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 
 	for s := 0; s < len(nodesList); s++ {
 		node := nodesList[s]
-		if orchestrator2.SkipKubernetesResource(node.UID, node.ResourceVersion) {
-			orchestratorNodeCacheHits.Add(1)
+		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion) {
+			orchestrator.NodeCacheHits.Add(1)
 			continue
 		}
 

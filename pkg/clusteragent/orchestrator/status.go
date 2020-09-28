@@ -64,14 +64,14 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
 	transactions := forwarderStats["Transactions"].(map[string]interface{})
-	status["forwarderStatsPods"] = transactions["Pods"].(float64)
-	status["forwarderStatsDeployment"] = transactions["Deployments"].(float64)
-	status["forwarderStatsReplicaSets"] = transactions["ReplicaSets"].(float64)
-	status["forwarderStatsServices"] = transactions["Services"].(float64)
-	status["forwarderStatsNodes"] = transactions["Nodes"].(float64)
+	status["Transactions"] = transactions
 
 	// get cache size
 	// get cache hits
+	cacheStatsJSON := []byte(expvar.Get("orchestrator-cache").String())
+	cacheStats := make(map[string]interface{})
+	json.Unmarshal(cacheStatsJSON, &cacheStats) //nolint:errcheck
+	status["cacheStats"] = cacheStats
 
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
