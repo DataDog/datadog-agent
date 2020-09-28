@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 const (
@@ -28,9 +27,7 @@ var (
 // Parser parses Kubernetes log lines
 var Parser *parser
 
-type parser struct {
-	lineParser.Parser
-}
+type parser struct{}
 
 // Parse parses a Kubernetes log line.
 // Kubernetes log lines follow this pattern '<timestamp> <stream> <flag> <content>',
