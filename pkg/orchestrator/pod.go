@@ -53,8 +53,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		}
 
 		pd := podList[p]
-		if SkipKubernetesResource(pd.UID, pd.ResourceVersion) {
-			PodCacheHits.Add(1)
+		if SkipKubernetesResource(pd.UID, pd.ResourceVersion, K8sPod) {
 			continue
 		}
 
