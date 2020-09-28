@@ -64,7 +64,7 @@ if (!(Test-Path $outputDirectory)) {
 
 if ($installMethod -eq "online") {
     # Set the $url in the install script
-    (Get-Content $installScript).replace('__url_from_ci__', '"' +  $url  + '"') | Set-Content $installScript
+    (Get-Content $installScript).replace('$__url_from_ci__', '"' +  $url  + '"') | Set-Content $installScript
 }
 
 choco pack --out=$outputDirectory $nuspecFile package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
