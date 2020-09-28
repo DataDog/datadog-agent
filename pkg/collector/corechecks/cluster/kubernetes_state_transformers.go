@@ -32,6 +32,7 @@ var (
 		"kube_pod_container_status_waiting_reason":    containerWaitingReasonTransformer,
 		"kube_pod_container_status_terminated_reason": containerTerminatedReasonTransformer,
 		"kube_cronjob_next_schedule_time":             cronJobNextScheduleTransformer,
+		"kube_cronjob_status_last_schedule_time":      cronJobLastScheduleTransformer,
 		"kube_job_complete":                           jobCompleteTransformer,
 		"kube_job_failed":                             jobFailedTransformer,
 		"kube_job_status_failed":                      jobStatusFailedTransformer,
@@ -192,6 +193,11 @@ func cronJobNextScheduleTransformer(s aggregator.Sender, name string, metric ksm
 		message = fmt.Sprintf("The cron job check scheduled at %s is %d seconds late", time.Unix(int64(metric.Val), 0).UTC(), -timeDiff)
 	}
 	s.ServiceCheck(ksmMetricPrefix+"cronjob.on_schedule_check", status, hostname, tags, message)
+}
+
+// cronJobLastScheduleTransformer sends the duration since the last time the cronjob was scheduled
+func cronJobLastScheduleTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(now().Unix())-metric.Val, hostname, tags)
 }
 
 // jobCompleteTransformer sends a service check based on kube_job_complete
