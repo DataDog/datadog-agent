@@ -9,7 +9,7 @@
 features:
   - |
     Added new configuration flag,
-    system_probe_config.enable_conntrack_listen_all_namespaces,
+    system_probe_config.enable_conntrack_all_namespaces,
     false by default. When set to true, this will allow system
     probe to monitor conntrack entries (for NAT info) in all
     namespaces that are peers of the root namespace.
