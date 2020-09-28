@@ -37,8 +37,7 @@ const (
 	// Indices of the regex in the 'regexes' variable below
 	regexRAMIdx       = 0
 	regexSwapCacheIdx = 1
-	//  TODO: Add IRAM support for TX1
-	//  regexIRamIdx      = 2
+	regexIRamIdx      = 2
 
 	// Regex used to parse the GPU usage and frequency => e.g. EMC_FREQ 7%@408 GR3D_FREQ 0%@76
 	regexGpuUsageIdx = 3
@@ -71,6 +70,11 @@ const (
 	cacheUnit = 5
 
 	// Indices of the matched fields by the Icache regex
+	iramUsed    = 1
+	iramTotal   = 2
+	iramUnit    = 3
+	iramLfb     = 4
+	iramLfbUnit = 5
 
 	// Indices of the matched fields by the GPU usage regex
 	emcPct  = 1
@@ -78,13 +82,16 @@ const (
 	gpuPct  = 3
 	gpuFreq = 4
 
+	// Indices of the matched fields by the voltage regex
 	voltageProbeName = 1
 	currentVoltage   = 2
 	averageVoltage   = 3
 
+	// Indices of the matched fields by the temperature regex
 	tempZone  = 1
 	tempValue = 2
 
+	// Indices of the matched fields by the CPU regex
 	cpuUsage = 1
 	cpuFreq  = 2
 )
@@ -163,6 +170,37 @@ func getSizeMultiplier(unit string) float64 {
 	return 1
 }
 
+func (c *JetsonCheck) sendIRAMMetrics(sender aggregator.Sender, field string) error {
+	iramFields := c.regexes[regexIRamIdx].FindAllStringSubmatch(field, -1)
+	if len(iramFields) != 1 {
+		// IRAM is not present on all devices
+		return nil
+	}
+
+	iramMultiplier := getSizeMultiplier(iramFields[0][iramUnit])
+
+	usedIRAM, err := strconv.ParseFloat(iramFields[0][iramUsed], 64)
+	if err != nil {
+		return err
+	}
+	sender.Gauge("nvidia.jetson.gpu.iram.used", usedIRAM*iramMultiplier, "", nil)
+
+	totalIRAM, err := strconv.ParseFloat(iramFields[0][iramTotal], 64)
+	if err != nil {
+		return err
+	}
+	sender.Gauge("nvidia.jetson.gpu.iram.total", totalIRAM*iramMultiplier, "", nil)
+
+	iramLfbMultiplier := getSizeMultiplier(iramFields[0][iramLfbUnit])
+	iramLfb, err := strconv.ParseFloat(iramFields[0][iramLfb], 64)
+	if err != nil {
+		return err
+	}
+	sender.Gauge("nvidia.jetson.gpu.iram.lfb", iramLfb*iramLfbMultiplier, "", nil)
+
+	return nil
+}
+
 func (c *JetsonCheck) sendRAMMetrics(sender aggregator.Sender, field string) error {
 	ramFields := c.regexes[regexRAMIdx].FindAllStringSubmatch(field, -1)
 	if len(ramFields) != 1 {
@@ -204,7 +242,8 @@ func (c *JetsonCheck) sendRAMMetrics(sender aggregator.Sender, field string) err
 func (c *JetsonCheck) sendSwapMetrics(sender aggregator.Sender, field string) error {
 	swapFields := c.regexes[regexSwapCacheIdx].FindAllStringSubmatch(field, -1)
 	if len(swapFields) != 1 {
-		return errors.New("could not parse SWAP fields")
+		// SWAP is not present on all devices
+		return nil
 	}
 
 	swapMultiplier := getSizeMultiplier(swapFields[0][swapUnit])
@@ -342,6 +381,10 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	}
 
 	err = c.sendRAMMetrics(sender, tegraStatsOuptut)
+	if err != nil {
+		return nil
+	}
+	err = c.sendIRAMMetrics(sender, tegraStatsOuptut)
 	if err != nil {
 		return nil
 	}

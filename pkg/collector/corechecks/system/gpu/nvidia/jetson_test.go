@@ -93,9 +93,34 @@ func TestTX1(t *testing.T) {
 	mock.On("Gauge", "nvidia.jetson.gpu.iram.total", 252.0*kb, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "nvidia.jetson.gpu.iram.lfb", 252.0*kb, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "nvidia.jetson.gpu.emc.usage", 7.0, "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "nvidia.jetson.gpu.emc.freq", 408, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.emc.freq", 408.0, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "nvidia.jetson.gpu.usage", 0.0, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "nvidia.jetson.gpu.freq", 76.0, "", []string(nil)).Return().Times(1)
+
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 1.0, "", []string{"0"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 102.0, "", []string{"0"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 4.0, "", []string{"1"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 102.0, "", []string{"1"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"2"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 102.0, "", []string{"2"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"3"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 102.0, "", []string{"3"}).Return().Times(1)
+
+	mock.On("Gauge", "nvidia.jetson.gpu.temp", 42.5, "", []string{"AO"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.temp", 37.5, "", []string{"CPU"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.temp", 39.0, "", []string{"GPU"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.temp", 37.0, "", []string{"PLL"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.temp", 42.75, "", []string{"Tdiode"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.temp", 100.0, "", []string{"PMIC"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.temp", 42.0, "", []string{"Tboard"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.temp", 38.5, "", []string{"thermal"}).Return().Times(1)
+
+	mock.On("Gauge", "nvidia.jetson.gpu.vdd.current", 2532.0, "", []string{"VDD_IN"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.vdd.average", 2698.0, "", []string{"VDD_IN"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.vdd.current", 76.0, "", []string{"VDD_CPU"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.vdd.average", 178.0, "", []string{"VDD_CPU"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.vdd.current", 19.0, "", []string{"VDD_GPU"}).Return().Times(1)
+	mock.On("Gauge", "nvidia.jetson.gpu.vdd.average", 19.0, "", []string{"VDD_GPU"}).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 
@@ -103,6 +128,6 @@ func TestTX1(t *testing.T) {
 	assert.Equal(t, err, nil)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 8)
+	mock.AssertNumberOfCalls(t, "Gauge", 33)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
