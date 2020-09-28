@@ -394,10 +394,26 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			logLevel = seelog.TraceLvl
 		}
 
-		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
+		constraints, err := seelog.NewMinMaxConstraints(logLevel, seelog.CriticalLvl)
 		if err != nil {
 			return nil, err
 		}
+
+		formatter, err := seelog.NewFormatter("%Ns [%LEVEL] %Func %Line %Msg\n")
+		if err != nil {
+			return nil, err
+		}
+
+		dispatcher, err := seelog.NewSplitDispatcher(formatter, []interface{}{os.Stderr})
+		if err != nil {
+			return nil, err
+		}
+
+		specificConstraints, _ := seelog.NewListConstraints([]seelog.LogLevel{})
+		ex, _ := seelog.NewLogLevelException("*.Snapshot", "*", specificConstraints)
+		exceptions := []*seelog.LogLevelException{ex}
+
+		logger := seelog.NewAsyncLoopLogger(seelog.NewLoggerConfig(constraints, exceptions, dispatcher))
 
 		err = seelog.ReplaceLogger(logger)
 		if err != nil {
