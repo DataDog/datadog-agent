@@ -10,6 +10,7 @@ package nvidia
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
@@ -317,16 +318,17 @@ func (c *JetsonCheck) sendCPUUsageMetrics(sender aggregator.Sender, field string
 	for i := 0; i < len(cpus); i++ {
 		cpuAndFreqFields := c.regexes[regexCPUFreqIdx].FindAllStringSubmatch(cpus[i], -1)
 		cpuUsage, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuUsage], 64)
+		cpuTags := []string{fmt.Sprintf("cpu:%d",i)}
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.cpu.usage", cpuUsage, "", []string{strconv.Itoa(i)})
+		sender.Gauge("nvidia.jetson.cpu.usage", cpuUsage, "", cpuTags)
 
 		cpuFreq, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuFreq], 64)
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.cpu.freq", cpuFreq, "", []string{strconv.Itoa(i)})
+		sender.Gauge("nvidia.jetson.cpu.freq", cpuFreq, "", cpuTags)
 	}
 
 	return nil
@@ -343,7 +345,8 @@ func (c *JetsonCheck) sendTemperatureMetrics(sender aggregator.Sender, field str
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.gpu.temp", tempValue, "", []string{temperatureFields[i][tempZone]})
+		temperatureZoneTags := []string{fmt.Sprintf("zone:%s",temperatureFields[i][tempZone])}
+		sender.Gauge("nvidia.jetson.gpu.temp", tempValue, "", temperatureZoneTags)
 	}
 
 	return nil
@@ -356,19 +359,18 @@ func (c *JetsonCheck) sendVoltageMetrics(sender aggregator.Sender, field string)
 	}
 
 	for i := 0; i < len(voltageFields); i++ {
-		voltageProbeName := voltageFields[i][voltageProbeName]
-
-		currentVoltage, err := strconv.ParseFloat(voltageFields[i][currentVoltage], 64)
+		voltageProbeTags := []string{fmt.Sprintf("probe:%s", voltageFields[i][voltageProbeName])}
+		instantVoltage, err := strconv.ParseFloat(voltageFields[i][currentVoltage], 64)
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.gpu.vdd.current", currentVoltage, "", []string{voltageProbeName})
+		sender.Gauge("nvidia.jetson.gpu.vdd.instant", instantVoltage, "", voltageProbeTags)
 
 		averageVoltage, err := strconv.ParseFloat(voltageFields[i][averageVoltage], 64)
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.gpu.vdd.average", averageVoltage, "", []string{voltageProbeName})
+		sender.Gauge("nvidia.jetson.gpu.vdd.average", averageVoltage, "", voltageProbeTags)
 	}
 
 	return nil
@@ -425,9 +427,13 @@ func (c *JetsonCheck) Run() error {
 		in := bufio.NewScanner(stdout)
 		if in.Scan() {
 			// We only need to read one line
-			if err = c.processTegraStatsOutput(in.Text()); err != nil {
+			line := in.Text()
+			log.Debugf("tegrastats: %s", line)
+			if err = c.processTegraStatsOutput(line); err != nil {
 				_ = log.Error(err)
 			}
+		} else {
+			_ = log.Warnf("tegrastats did not produce any output")
 		}
 		err = cmd.Process.Signal(os.Kill)
 		if err != nil {
@@ -450,7 +456,7 @@ func (c *JetsonCheck) Run() error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	_ = cmd.Wait()
+
 	return nil
 }
 
@@ -462,7 +468,7 @@ func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Da
 	}
 
 	var conf checkCfg
-	if err := yaml.Unmarshal(initConfig, &conf); err != nil {
+	if err := yaml.Unmarshal(data, &conf); err != nil {
 		return err
 	}
 	if conf.TegraStatsPath != "" {
@@ -471,8 +477,11 @@ func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Da
 		c.tegraStatsPath = "/usr/bin/tegrastats"
 	}
 
+	// We run tegrastats once and then kill the process. However, we set the interval to 500ms
+	// because it will take tegrastats <interval> to produce its first output.
 	c.commandOpts = []string{
-		"--interval 500", // ms
+		"--interval",
+		"500", // ms
 	}
 
 	c.regexes = make([]*regexp.Regexp, len(regexes))
