@@ -98,21 +98,51 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	return nil
 }
 
+func (mr *MountResolver) deleteChildren(parent *MountEvent) {
+	for _, mount := range mr.mounts {
+		if mount.ParentMountID == parent.MountID {
+			if _, exists := mr.mounts[mount.MountID]; exists {
+				mr.delete(mount)
+			}
+		}
+	}
+}
+
+// deleteDevice deletes MountEvent sharing the same device id for overlay fs mount
+func (mr *MountResolver) deleteDevice(mount *MountEvent) {
+	if !mount.IsOverlayFS() {
+		return
+	}
+
+	for _, deviceMount := range mr.devices[mount.Device] {
+		if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID {
+			mr.delete(deviceMount)
+		}
+	}
+}
+
+func (mr *MountResolver) delete(mount *MountEvent) {
+	delete(mr.mounts, mount.MountID)
+
+	mounts, exists := mr.devices[mount.Device]
+	if exists {
+		delete(mounts, mount.MountID)
+	}
+
+	mr.deleteChildren(mount)
+	mr.deleteDevice(mount)
+}
+
 // Delete a mount from the cache
 func (mr *MountResolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	m, exists := mr.mounts[mountID]
+	mount, exists := mr.mounts[mountID]
 	if !exists {
 		return ErrMountNotFound
 	}
-	delete(mr.mounts, mountID)
-
-	mounts, exists := mr.devices[m.Device]
-	if exists {
-		delete(mounts, mountID)
-	}
+	mr.delete(mount)
 
 	return nil
 }
@@ -136,8 +166,8 @@ func (mr *MountResolver) insert(e *MountEvent) {
 }
 
 func (mr *MountResolver) getParentPath(mountID uint32) string {
-	mount, ok := mr.mounts[mountID]
-	if !ok {
+	mount, exists := mr.mounts[mountID]
+	if !exists {
 		return ""
 	}
 
