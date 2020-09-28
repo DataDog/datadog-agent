@@ -18,7 +18,7 @@ var NoopParser *noopParser
 type Encoding int
 
 const (
-	// UTF16LE UTF16 little endian, most commong (windows)
+	// UTF16LE UTF16 little endian, most common (windows)
 	UTF16LE = iota
 	// UTF16BE UTF16 big endian
 	UTF16BE
@@ -31,9 +31,7 @@ type Parser interface {
 	SupportsPartialLine() bool
 }
 
-type noopParser struct {
-	Parser
-}
+type noopParser struct{}
 
 // Parse does nothing for NoopParser
 func (p *noopParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
@@ -47,13 +45,17 @@ func (p *noopParser) SupportsPartialLine() bool {
 // DecodingParser a generic decoding Parser
 type DecodingParser struct {
 	decoder *encoding.Decoder
-	Parser
 }
 
-// Parse pases the incoming message with the decoder
+// Parse parses the incoming message with the decoder
 func (p *DecodingParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	decoded, _, err := transform.Bytes(p.decoder, msg)
 	return decoded, "", "", false, err
+}
+
+// SupportsPartialLine returns false as it does not support partial lines
+func (p *DecodingParser) SupportsPartialLine() bool {
+	return false
 }
 
 // NewDecodingParser build a new DecodingParser
