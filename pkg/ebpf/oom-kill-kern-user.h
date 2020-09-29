@@ -8,7 +8,7 @@
 #endif
 
 struct oom_stats {
-  char cgroup_name[65];
+  char cgroup_name[129];
   // Pid of triggering process
   __u32 pid;
   // Pid of killed process
