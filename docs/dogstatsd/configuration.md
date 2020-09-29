@@ -11,17 +11,9 @@ Information on DogStatsD, configuration and troubleshooting is available in the 
 
 ## `dogstatsd_buffer_size`
 
-The `dogstatsd_buffer_size` parameter configures two things in Dogstatsd:
+The `dogstatsd_buffer_size` parameter configures how many bytes maximum the PacketAssembler should put into one packet.
 
-* How many bytes must be read each time the socket is read
-* How many bytes maximum the PacketAssembler should put into one packet
-
-If you have reports of malformed or incomplete packets received by the Dogstatsd server, it could mean
-that the clients that are sending packets are larger than the size of this buffer. If the maximum size of the
-packets sent by the clients can't be changed, consider increasing the size of `dogstatsd_buffer_size`
-as a fallback.
-
-Please note that increasing this buffer size has a huge impact on the maximum memory usage:
+Please note that increasing this buffer size, together with `dogstatsd_queue_size`, has a huge impact on the maximum memory usage:
 doubling its size double the maximum memory usage.
 
 The default value of this field is `8192`.
@@ -51,9 +43,9 @@ are an issue.
 
 This parameter represents how many packet sets flushed from the packets buffer to the parser could be
 buffered. The idea is to read as fast as possible on the socket and to store packets here if the rest
-of the pipeline is having slow-down for any reasons.
+of the pipeline is having slow-down for any reasons. Each packet is of size `dogstatsd_buffer_size`.
 
-This is where most of the memory usage of Dogstatsd resides. It means that if you decrease the size of
+This queue is where most of the memory usage of Dogstatsd resides. It means that if you decrease the size of
 this queue, the maximum memory usage of Dogstatsd should decrease, however, the amount of drops can
 increase.
 
