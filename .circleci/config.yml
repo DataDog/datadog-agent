@@ -49,11 +49,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen1-macosdeps-{{ .Branch }}-{{ .Revision }}
-          - gen1-macosdeps-{{ .Branch }}-
-          - gen1-macosdeps-master-
+          - gen2-macosdeps-{{ .Branch }}-{{ .Revision }}
+          - gen2-macosdeps-{{ .Branch }}-
+          - gen2-macosdeps-master-
     - save_cache: &save_macos_deps
-        key: gen1-macosdeps-{{ .Branch }}-{{ .Revision }}
+        key: gen2-macosdeps-{{ .Branch }}-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -245,7 +245,7 @@ jobs:
     macos:
       xcode: 10.1.0
     environment:
-      BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
@@ -298,7 +298,7 @@ jobs:
     macos:
       xcode: 10.1.0
     environment:
-      BUILDIMAGES_VERSION: "f43e0e081e9a54fea3241ef0efde28374981f7a0" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
       RELEASE_VERSION: "nightly-a7"
       AGENT_MAJOR_VERSION: "7"
       PYTHON_RUNTIMES: "3"
