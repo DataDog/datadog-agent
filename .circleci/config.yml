@@ -49,11 +49,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen2-macosdeps-{{ .Branch }}-{{ .Revision }}
-          - gen2-macosdeps-{{ .Branch }}-
-          - gen2-macosdeps-master-
+          - gen3-macosdeps-{{ .Branch }}-{{ .Revision }}
+          - gen3-macosdeps-{{ .Branch }}-
+          - gen3-macosdeps-master-
     - save_cache: &save_macos_deps
-        key: gen2-macosdeps-{{ .Branch }}-{{ .Revision }}
+        key: gen3-macosdeps-{{ .Branch }}-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -258,8 +258,7 @@ jobs:
       - save_cache:
           <<: *save_macos_deps
           paths:
-            - /usr/local/Homebrew # Brew
-            - /usr/local/Cellar # Brew formulae
+            - /usr/local
             - ~/Library/Caches/Homebrew # Bottles & downloads cache
       - run:
           name: Install python deps & clang-format
