@@ -243,7 +243,7 @@ jobs:
 
   macos_tests:
     macos:
-      xcode: 10.1.0
+      xcode: 11.0.0
     environment:
       BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
@@ -258,10 +258,9 @@ jobs:
       - save_cache:
           <<: *save_macos_deps
           paths:
-            - /usr/local/Homebrew
-            - /usr/local/Cellar
-            - /usr/local/bin
-            - ~/Library/Caches/Homebrew
+            - /usr/local/Homebrew # Brew
+            - /usr/local/Cellar # Brew formulae
+            - ~/Library/Caches/Homebrew # Bottles & downloads cache
       - run:
           name: Install python deps & clang-format
           command: |
@@ -296,7 +295,7 @@ jobs:
 
   macos_build:
     macos:
-      xcode: 10.1.0
+      xcode: 11.0.0
     environment:
       BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
       RELEASE_VERSION: "nightly-a7"
