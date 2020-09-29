@@ -47,13 +47,12 @@ templates:
           # use master's cache but don't pollute it back.
           #
           # If incremental dep fails, increase the cache gen number
-          # in restore_deps AND save_deps
-          # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen3-macosdeps-{{ .Branch }}-{{ .Revision }}
-          - gen3-macosdeps-{{ .Branch }}-
-          - gen3-macosdeps-master-
+          # in restore_macos_deps AND save_macos_deps
+          - gen4-macosdeps-{{ .Branch }}-{{ .Revision }}
+          - gen4-macosdeps-{{ .Branch }}-
+          - gen4-macosdeps-master-
     - save_cache: &save_macos_deps
-        key: gen3-macosdeps-{{ .Branch }}-{{ .Revision }}
+        key: gen4-macosdeps-{{ .Branch }}-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -243,7 +242,7 @@ jobs:
 
   macos_tests:
     macos:
-      xcode: 11.0.0
+      xcode: 11.3.1
     environment:
       BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
@@ -258,8 +257,10 @@ jobs:
       - save_cache:
           <<: *save_macos_deps
           paths:
-            - /usr/local
-            - ~/Library/Caches/Homebrew # Bottles & downloads cache
+            - /usr/local/Cellar
+            - /usr/local/Homebrew
+            - /usr/local/Frameworks
+            - /usr/local/bin
       - run:
           name: Install python deps & clang-format
           command: |
@@ -294,7 +295,7 @@ jobs:
 
   macos_build:
     macos:
-      xcode: 11.0.0
+      xcode: 11.3.1
     environment:
       BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
       RELEASE_VERSION: "nightly-a7"
