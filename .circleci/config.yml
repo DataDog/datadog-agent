@@ -307,6 +307,14 @@ jobs:
       - restore_cache:
           <<: *restore_macos_deps
       - run:
+          name: Check things
+          command: |
+            ls -la /usr/local/bin || true
+            ls -la /usr/local/Cellar/python@3.8.5/3.8.5/bin/ || true
+            which python3 || true
+            which pip3 || true
+            python3 -m pip install requirements.txt || true
+      - run:
           name: Setup builder
           command: |
             bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
