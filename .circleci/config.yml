@@ -316,6 +316,8 @@ jobs:
             source ~/.build_setup
             ls -la /usr/local/bin
             ls -la /usr/local/Cellar/python@3.8.5/3.8.5/bin/
+            which python3
+            which pip3
       - run:
           name: Run omnibus build
           no_output_timeout: 30m
