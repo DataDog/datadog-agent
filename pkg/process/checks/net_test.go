@@ -101,7 +101,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	p := makeConnections(4)
 
-	p[0].Raddr.Ip = "1.1.2.3"
+	p[3].Raddr.Ip = "1.1.2.3"
 	dns := map[string]*model.DNSEntry{
 		"1.1.2.3": {Names: []string{"datacat.edu"}},
 	}
