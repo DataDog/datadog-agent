@@ -1013,6 +1013,7 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 	}
 }
 
+// query1 is sourced from https://stackoverflow.com/questions/12607667/issues-with-a-very-large-sql-query/12711494
 var query1 = `SELECT '%c%' as Chapter,
 (SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
 WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status IN ('new','assigned') ) AS 'New',
@@ -1047,6 +1048,7 @@ FROM engine.ticket
 INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
 WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine'`
 
+// query3 is sourced from https://www.ibm.com/support/knowledgecenter/SSCRJT_6.0.0/com.ibm.swg.im.bigsql.doc/doc/tut_bsql_uc_complex_query.html
 var query3 = `WITH
  sales AS
  (SELECT sf.*
