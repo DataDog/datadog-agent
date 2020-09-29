@@ -1786,7 +1786,7 @@ deploy_windows_testing-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="sles-12,urn,SUSE:SLES-BYOS:12-SP4:2019.11.13"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:SLES-BYOS:15:2019.11.15"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -4198,7 +4198,7 @@ pupernetes-master:
   <<: *pupernetes_template
   rules:
     - <<: *if_master_branch
-  needs: 
+  needs:
   - dev_master_docker_hub-a6
   - dev_master_docker_hub-a7
   script:
