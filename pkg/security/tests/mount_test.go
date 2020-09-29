@@ -34,12 +34,14 @@ func TestMount(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.MkdirAll(mntPath, 0755)
+	defer os.RemoveAll(mntPath)
 
 	dstMntPath, _, err := test.Path("test-dest-mount")
 	if err != nil {
 		t.Fatal(err)
 	}
 	os.MkdirAll(dstMntPath, 0755)
+	defer os.RemoveAll(dstMntPath)
 
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
