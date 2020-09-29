@@ -104,6 +104,12 @@ jobs:
           name: go version
           command: go version
       - run:
+          name: cat ./pkg/compliance/checks/process_utils.go
+          command: cat ./pkg/compliance/checks/process_utils.go
+      - run:
+          name: golint process
+          command: golint ./pkg/compliance/checks/process_utils.go
+      - run:
           name: run unit tests
           command: inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
       - run:
