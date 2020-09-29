@@ -101,6 +101,9 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          name: go version
+          command: go version
+      - run:
           name: run unit tests
           command: inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
       - run:

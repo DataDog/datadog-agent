@@ -98,9 +98,11 @@ def lint(ctx, targets):
     targets_list = ["{}/...".format(t) for t in targets]
     result = ctx.run("golint {}".format(' '.join(targets_list)))
     if result.stdout:
+        print("found issues")
         files = []
         skipped_files = set()
         for line in (out for out in result.stdout.split('\n') if out):
+            print("=== %s", line)
             fname = os.path.basename(line.split(":")[0])
             if fname in MODULE_WHITELIST:
                 skipped_files.add(fname)
