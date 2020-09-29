@@ -224,6 +224,10 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     struct dentry *d_parent;
     struct inode *d_inode = NULL;
 
+    if (key.ino == 0 || key.mount_id == 0) {
+        return -1;
+    }
+
 #pragma unroll
     for (int i = 0; i < DENTRY_MAX_DEPTH; i++)
     {

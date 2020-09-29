@@ -172,9 +172,10 @@ int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache
     }
     return 0;
 }
+
 int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) {
     if (syscall->policy.mode == NO_FILTER)
-        goto no_filter;
+        return 0;
 
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 
@@ -199,8 +200,6 @@ int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) 
     if (!pass_to_userspace) {
         pop_syscall(SYSCALL_OPEN);
     }
-
-no_filter:
 
     return 0;
 }
