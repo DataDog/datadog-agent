@@ -48,11 +48,11 @@ templates:
           #
           # If incremental dep fails, increase the cache gen number
           # in restore_macos_deps AND save_macos_deps
-          - gen4-macosdeps-{{ .Branch }}-{{ .Revision }}
-          - gen4-macosdeps-{{ .Branch }}-
-          - gen4-macosdeps-master-
+          - gen5-macosdeps-{{ .Branch }}-{{ .Revision }}
+          - gen5-macosdeps-{{ .Branch }}-
+          - gen5-macosdeps-master-
     - save_cache: &save_macos_deps
-        key: gen4-macosdeps-{{ .Branch }}-{{ .Revision }}
+        key: gen5-macosdeps-{{ .Branch }}-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -261,6 +261,9 @@ jobs:
             - /usr/local/Homebrew
             - /usr/local/Frameworks
             - /usr/local/bin
+            - /usr/lib/python3.8
+            - /usr/local/opt
+            - /usr/local/lib
       - run:
           name: Install python deps & clang-format
           command: |
