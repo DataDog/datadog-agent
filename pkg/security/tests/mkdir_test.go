@@ -99,7 +99,7 @@ func TestMkdir(t *testing.T) {
 
 		go func() {
 			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
+			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
 				t.Fatal(err)
