@@ -81,6 +81,7 @@ core,"github.com/alecthomas/participle/lexer/ebnf",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf/internal",MIT
 core,"github.com/alecthomas/repr",MIT
 core,"github.com/armon/go-metrics",MIT
+core,"github.com/avast/retry-go",MIT
 core,"github.com/aws/aws-sdk-go/aws",Apache-2.0
 core,"github.com/aws/aws-sdk-go/aws/awserr",Apache-2.0
 core,"github.com/aws/aws-sdk-go/aws/awsutil",Apache-2.0

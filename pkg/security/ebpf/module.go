@@ -8,12 +8,14 @@
 package ebpf
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/avast/retry-go"
+	"github.com/pkg/errors"
 
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -87,12 +89,9 @@ func detach(kprobe *bpflib.Kprobe) error {
 func (m *Module) Close() error {
 	for kprobe := range m.IterKprobes() {
 		if err := kprobe.Detach(); err != nil {
-			for i := 0; i != maxDetachRetry; i++ {
-				if err = detach(kprobe); err == nil {
-					break
-				}
-				time.Sleep(time.Second)
-			}
+			err := retry.Do(func() error {
+				return detach(kprobe)
+			}, retry.Attempts(maxDetachRetry), retry.Delay(time.Second))
 
 			if err != nil {
 				return err

@@ -66,6 +66,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5
 	github.com/alecthomas/participle v0.4.4
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+	github.com/avast/retry-go v2.6.1+incompatible
 	github.com/aws/aws-sdk-go v1.30.5
 	github.com/beevik/ntp v0.3.0
 	github.com/benesch/cgosymbolizer v0.0.0
