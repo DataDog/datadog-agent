@@ -165,6 +165,13 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 		for _, cc := range connections.Connections {
 			assert.Equal(t, rAddr, cc.Raddr.Ip)
 		}
+
+		// make sure the connections with the same remote address are ordered by PID
+		lastSeenPID := connections.Connections[0].Pid
+		for _, cc := range connections.Connections {
+			assert.LessOrEqual(t, lastSeenPID, cc.Pid)
+			lastSeenPID = cc.Pid
+		}
 	}
 	assert.Equal(t, 6, total)
 }
