@@ -96,13 +96,15 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("golint -set_exit_status {}".format(' '.join(targets_list)))
+    result = ctx.run("golint {}".format(' '.join(targets_list)))
+    if result.stderr:
+        print("found issues stderr")
     if result.stdout:
         print("found issues")
         files = []
         skipped_files = set()
         for line in (out for out in result.stdout.split('\n') if out):
-            print("=== %s", line)
+            print("=== {}".format(line))
             fname = os.path.basename(line.split(":")[0])
             if fname in MODULE_WHITELIST:
                 skipped_files.add(fname)

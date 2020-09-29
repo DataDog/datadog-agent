@@ -108,7 +108,10 @@ jobs:
           command: cat ./pkg/compliance/checks/process_utils.go
       - run:
           name: golint process
-          command: golint ./pkg/compliance/checks/process_utils.go
+          command: golint -set_exit_status ./pkg/compliance/checks/process_utils.go
+      - run:
+          name: run lint
+          command: inv -e lint ./pkg/...
       - run:
           name: run unit tests
           command: inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
