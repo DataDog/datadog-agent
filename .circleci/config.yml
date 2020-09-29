@@ -259,6 +259,9 @@ jobs:
           <<: *save_macos_deps
           paths:
             - /usr/local/Homebrew
+            - /usr/local/Cellar
+            - /usr/local/bin
+            - ~/Library/Caches/Homebrew
       - run:
           name: Install python deps & clang-format
           command: |
