@@ -96,7 +96,7 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("golint {}".format(' '.join(targets_list)))
+    result = ctx.run("golint -set_exit_status {}".format(' '.join(targets_list)))
     if result.stdout:
         print("found issues")
         files = []
