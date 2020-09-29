@@ -41,6 +41,20 @@ templates:
     - save_cache: &save_source
         key: v5-repo-{{ .Revision }}
 
+    - restore_cache: &restore_macos_deps
+        keys:
+          # The first match will be used. Doing that so new branches
+          # use master's cache but don't pollute it back.
+          #
+          # If incremental dep fails, increase the cache gen number
+          # in restore_deps AND save_deps
+          # See https://github.com/DataDog/datadog-agent/pull/2384
+          - gen1-macosdeps-{{ .Branch }}-{{ .Revision }}
+          - gen1-macosdeps-{{ .Branch }}-
+          - gen1-macosdeps-master-
+    - save_cache: &save_macos_deps
+        key: gen1-macosdeps-{{ .Branch }}-{{ .Revision }}
+
 jobs:
   checkout_code:
     docker:
@@ -235,10 +249,16 @@ jobs:
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
+      - restore_cache:
+          <<: *restore_macos_deps
       - run:
           name: Setup runner
           command: |
             bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
+      - save_cache:
+          <<: *save_macos_deps
+          paths:
+            - /usr/local/Homebrew
       - run:
           name: Install python deps & clang-format
           command: |
@@ -282,6 +302,8 @@ jobs:
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
+      - restore_cache:
+          <<: *restore_macos_deps
       - run:
           name: Setup builder
           command: |
@@ -302,9 +324,7 @@ workflows:
     jobs:
       - checkout_code
       - macos_tests
-      - macos_build:
-          requires:
-            - macos_tests
+      - macos_build
       - dependencies:
           requires:
             - checkout_code
