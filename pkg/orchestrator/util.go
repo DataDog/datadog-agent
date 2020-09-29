@@ -1,13 +1,13 @@
-/*
- * Unless explicitly stated otherwise all files in this repository are licensed
- * under the Apache License Version 2.0.
- * This product includes software developed at Datadog (https://www.datadoghq.com/).
- * Copyright 2016-2020 Datadog, Inc.
- */
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver,orchestrator
 
 package orchestrator
+
+import "github.com/DataDog/datadog-agent/pkg/util/log"
 
 // NodeType represents a kind of resource used by a container orchestrator.
 type NodeType int
@@ -25,4 +25,20 @@ const (
 	K8sNode
 )
 
-
+func (n NodeType) String() string {
+	switch n {
+	case K8sNode:
+		return "Node"
+	case K8sService:
+		return "Service"
+	case K8sReplicaSet:
+		return "ReplicaSet"
+	case K8sDeployment:
+		return "Deployment"
+	case K8sPod:
+		return "Pod"
+	default:
+		log.Errorf("trying to convert unknown NodeType iota: %v", n)
+		return ""
+	}
+}

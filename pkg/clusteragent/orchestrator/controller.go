@@ -193,6 +193,14 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
+	stats := CheckStats{
+		CacheHits: len(deployList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sDeployment,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
+
 	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
 }
 
@@ -212,6 +220,14 @@ func (o *Controller) processReplicaSets() {
 		log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(rsList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sReplicaSet,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
 }
@@ -234,6 +250,14 @@ func (o *Controller) processPods() {
 		return
 	}
 
+	stats := CheckStats{
+		CacheHits: len(podList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sPod,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
+
 	o.sendMessages(msg, forwarder.PayloadTypePod)
 }
 
@@ -254,6 +278,14 @@ func (o *Controller) processServices() {
 		return
 	}
 
+	stats := CheckStats{
+		CacheHits: len(serviceList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sService,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
+
 	o.sendMessages(messages, forwarder.PayloadTypeService)
 }
 
@@ -273,6 +305,14 @@ func (o *Controller) processNodes() {
 		log.Errorf("Unable to process node list: %s", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(nodesList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sNode,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(messages, forwarder.PayloadTypeNode)
 }

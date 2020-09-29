@@ -9,20 +9,33 @@ package orchestrator
 
 import (
 	"expvar"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
-
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	defaultExpire = 3 * time.Minute
 	defaultPurge  = 30 * time.Second
+	// NoExpiration maps to go-cache corresponding value
+	NoExpiration = cache.NoExpiration
 )
 
 // TODO: make it possible to find information about single workloads
+
+// TODO: add efficiency per run e.g.
+/**
+  ======================
+  Cache Stats (Last Run)
+  ======================
+    Pods: 15 (30 cached)
+total pods send: 110000 Pods send
+total pods cache hits: 200000 cache hits
+total cache size: len(cache)
+*/
 
 var (
 	CacheExpVars        = expvar.NewMap("orchestrator-cache")
@@ -38,46 +51,40 @@ var (
 	NodeHits       = expvar.Int{}
 	ServiceHits    = expvar.Int{}
 	PodHits        = expvar.Int{}
+
+	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
+	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
 )
 
 func init() {
-	CacheExpVars.Set("PodsCacheHits", &PodCacheHits)
-	CacheExpVars.Set("DeploymentCacheHits", &DeploymentCacheHits)
-	CacheExpVars.Set("ReplicaSetsCacheHits", &ReplicaSetCacheHits)
-	CacheExpVars.Set("NodeCacheHits", &NodeCacheHits)
-	CacheExpVars.Set("ServiceCacheHits", &ServiceCacheHits)
+	CacheExpVars.Set("Pods", &PodCacheHits)
+	CacheExpVars.Set("Deployments", &DeploymentCacheHits)
+	CacheExpVars.Set("ReplicaSets", &ReplicaSetCacheHits)
+	CacheExpVars.Set("Nodes", &NodeCacheHits)
+	CacheExpVars.Set("Services", &ServiceCacheHits)
 
 	SendExpVars.Set("Pods", &PodHits)
-	SendExpVars.Set("Deployment", &DeploymentHits)
+	SendExpVars.Set("Deployments", &DeploymentHits)
 	SendExpVars.Set("ReplicaSets", &ReplicaSetHits)
-	SendExpVars.Set("Node", &NodeHits)
-	SendExpVars.Set("Service", &ServiceHits)
+	SendExpVars.Set("Nodes", &NodeHits)
+	SendExpVars.Set("Services", &ServiceHits)
 }
 
-// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
-var (
-	KubernetesResourceDeploymentCache = cache.New(defaultExpire, defaultPurge)
-	KubernetesResourceReplicaSetCache = cache.New(defaultExpire, defaultPurge)
-	KubernetesResourcePodCache        = cache.New(defaultExpire, defaultPurge)
-	KubernetesResourceNodeCache       = cache.New(defaultExpire, defaultPurge)
-	KubernetesResourceServiceCache    = cache.New(defaultExpire, defaultPurge)
-)
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
 // It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 // 0 == defaultDuration
 func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType NodeType) bool {
 	cacheKey := string(uid)
-	kubernetesResourceCache := getNodeTypeCache(nodeType)
-	value, hit := kubernetesResourceCache.Get(cacheKey)
+	value, hit := KubernetesResourceCache.Get(cacheKey)
 
 	if !hit {
-		kubernetesResourceCache.Set(cacheKey, resourceVersion, 0)
+		KubernetesResourceCache.Set(cacheKey, resourceVersion, 0)
 		incCacheMiss(nodeType)
 		return false
 	} else if value != resourceVersion {
 		incCacheMiss(nodeType)
-		kubernetesResourceCache.Set(cacheKey, resourceVersion, 0)
+		KubernetesResourceCache.Set(cacheKey, resourceVersion, 0)
 		return false
 	} else {
 		incCacheHit(nodeType)
@@ -85,25 +92,8 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType Node
 	}
 }
 
-// TODO: Refactor orchestrator related packaged to reduce those switch cases by using interfaces and types.
-func getNodeTypeCache(nodeType NodeType) *cache.Cache {
-	switch nodeType {
-	case K8sNode:
-		return KubernetesResourceNodeCache
-	case K8sService:
-		return KubernetesResourceServiceCache
-	case K8sReplicaSet:
-		return KubernetesResourceReplicaSetCache
-	case K8sDeployment:
-		return KubernetesResourceDeploymentCache
-	case K8sPod:
-		return KubernetesResourcePodCache
-	default:
-		log.Errorf("Cannot get cache of unknown nodeType, iota: %v", nodeType)
-	}
-	return nil
-}
 
+// TODO introduce proper interface and typing between different resources.
 func incCacheHit(nodeType NodeType) {
 	switch nodeType {
 	case K8sNode:
