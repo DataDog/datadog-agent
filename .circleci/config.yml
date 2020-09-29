@@ -48,11 +48,11 @@ templates:
           #
           # If incremental dep fails, increase the cache gen number
           # in restore_macos_deps AND save_macos_deps
-          - gen5-macosdeps-{{ .Branch }}-{{ .Revision }}
-          - gen5-macosdeps-{{ .Branch }}-
-          - gen5-macosdeps-master-
+          - gen6-macosdeps-{{ .Branch }}-{{ .Revision }}
+          - gen6-macosdeps-{{ .Branch }}-
+          - gen6-macosdeps-master-
     - save_cache: &save_macos_deps
-        key: gen5-macosdeps-{{ .Branch }}-{{ .Revision }}
+        key: gen6-macosdeps-{{ .Branch }}-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -242,7 +242,7 @@ jobs:
 
   macos_tests:
     macos:
-      xcode: 11.3.1
+      xcode: 10.1.0
     environment:
       BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
@@ -298,7 +298,7 @@ jobs:
 
   macos_build:
     macos:
-      xcode: 11.3.1
+      xcode: 10.1.0
     environment:
       BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
       RELEASE_VERSION: "nightly-a7"
