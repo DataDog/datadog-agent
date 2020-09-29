@@ -311,6 +311,12 @@ jobs:
           command: |
             bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
       - run:
+          name: Check things
+          command: |
+            source ~/.build_setup
+            ls -la /usr/local/bin
+            ls -la /usr/local/Cellar/python@3.8.5/3.8.5/bin/
+      - run:
           name: Run omnibus build
           no_output_timeout: 30m
           command: |
