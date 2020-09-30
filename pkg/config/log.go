@@ -100,7 +100,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	if err != nil {
 		return err
 	}
-	seelogConfig, err := buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
+	seelogConfig, err = buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func SetupJMXLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, 
 	if err != nil {
 		return err
 	}
-	jmxSeelogConfig, err := buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
+	jmxSeelogConfig, err = buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
 	if err != nil {
 		return err
 	}
