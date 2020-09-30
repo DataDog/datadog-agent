@@ -124,7 +124,7 @@ func SetupJMXLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, 
 		return err
 	}
 	jmxLoggerInterface, err := GenerateLoggerInterface(jmxSeelogConfig)
-	log.SetupJmxLogger(jmxLoggerInterface, seelogLogLevel)
+	log.SetupJMXLogger(jmxLoggerInterface, seelogLogLevel)
 	return err
 }
 

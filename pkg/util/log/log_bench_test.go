@@ -78,7 +78,7 @@ func BenchmarkLogWithContext(b *testing.B) {
 	w := bufio.NewWriter(&buff)
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "info")
+	SetupLogger(l, "info")
 
 	for n := 0; n < b.N; n++ {
 		Infoc("this is a credential encoding uri: %s", "http://user:password@host:port", "extra", "context")
