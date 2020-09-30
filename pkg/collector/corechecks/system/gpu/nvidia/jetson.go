@@ -108,14 +108,14 @@ var regexes = [...]string{
 	// Group 3.	-> Unit
 	// Group 4. -> Cached
 	// Group 5. -> Unit
-	`SWAP\s*(\d+)\/(\d+)([kKmMgG][bB])\s*\(cached\s*(\d+)([kKmMgG][bB])\)`,
+	`SWAP\s*(\d+)/(\d+)([kKmMgG][bB])\s*\(cached\s*(\d+)([kKmMgG][bB])\)`,
 
 	// Group 1.	-> Used
 	// Group 2.	-> Total
 	// Group 3.	-> Unit
 	// Group 4.	-> LFB
 	// Group 5.	-> Unit
-	`IRAM\s*(\d+)\/(\d+)([kKmMgG][bB])\s*\(lfb\s*(\d+)([kKmMgG][bB])\)`,
+	`IRAM\s*(\d+)/(\d+)([kKmMgG][bB])\s*\(lfb\s*(\d+)([kKmMgG][bB])\)`,
 
 	// Group 1.	-> EMC %
 	// Group 2.	-> EMC Freq (opt)
@@ -123,6 +123,7 @@ var regexes = [...]string{
 	// Group 4.	-> GPU Freq (opt)
 	`EMC_FREQ\s*(\d+)%(?:@(\d+))?\s*GR3D_FREQ\s*(\d+)%(?:@(\d+))?`,
 
+	// Group 1.	-> List of CPUs and their usage/frequency, e.g. 2%@102,1%@102,0%@102,0%@102
 	`CPU\s*\[((?:\d+%@\d+,?)+)\]`,
 
 	// Group 1.	-> Zone name
@@ -131,8 +132,8 @@ var regexes = [...]string{
 
 	// Group 1.	-> Voltage probe name
 	// Group 2.	-> Current voltage
-	// Group 2.	-> Average voltage
-	`(\w+)\s+(\d+)\/(\d+)(?:\s+|$)`,
+	// Group 3.	-> Average voltage
+	`(\w+)\s+(\d+)/(\d+)(?:\s+|$)`,
 
 	// Group 1. -> CPU usage
 	// Group 2. -> CPU freq
