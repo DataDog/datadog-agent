@@ -53,6 +53,9 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
 
 // buildCommonFormat returns the log common format seelog string
 func buildCommonFormat(loggerName LoggerName) string {
+	if loggerName == "JMX" {
+		return `%Msg%n`
+	}
 	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%ExtraTextContext%%Msg%%n", getLogDateFormat(), loggerName)
 }
 
@@ -97,32 +100,10 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	if err != nil {
 		return err
 	}
-
-	formatID := "common"
-	if jsonFormat {
-		formatID = "json"
+	seelogConfig, err := buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
+	if err != nil {
+		return err
 	}
-
-	seelogConfig = seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName), buildCommonFormat(loggerName), syslogRFC)
-	seelogConfig.EnableConsoleLog(logToConsole)
-	seelogConfig.EnableFileLogging(logFile, Datadog.GetSizeInBytes("log_file_max_size"), uint(Datadog.GetInt("log_file_max_rolls")))
-
-	if syslogURI != "" { // non-blank uri enables syslog
-		syslogTLSKeyPair, err := getSyslogTLSKeyPair()
-		if err != nil {
-			return err
-		}
-		var useTLS bool
-		if syslogTLSKeyPair != nil {
-			useTLS = true
-			syslogTLSConfig = &tls.Config{
-				Certificates:       []tls.Certificate{*syslogTLSKeyPair},
-				InsecureSkipVerify: Datadog.GetBool("syslog_tls_verify"),
-			}
-		}
-		seelogConfig.ConfigureSyslog(syslogURI, useTLS)
-	}
-
 	loggerInterface, err := GenerateLoggerInterface(seelogConfig)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
 	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
@@ -138,20 +119,29 @@ func SetupJMXLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, 
 	if err != nil {
 		return err
 	}
+	jmxSeelogConfig, err := buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
+	if err != nil {
+		return err
+	}
+	jmxLoggerInterface, err := GenerateLoggerInterface(jmxSeelogConfig)
+	log.SetupJmxLogger(jmxLoggerInterface, seelogLogLevel)
+	return err
+}
 
+func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) (*seelogCfg.Config, error) {
 	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
 	}
 
-	jmxSeelogConfig = seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName), buildCommonFormat(loggerName), syslogRFC)
-	jmxSeelogConfig.EnableConsoleLog(logToConsole)
-	jmxSeelogConfig.EnableFileLogging(logFile, Datadog.GetSizeInBytes("log_file_max_size"), uint(Datadog.GetInt("log_file_max_rolls")))
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName), buildCommonFormat(loggerName), syslogRFC)
+	config.EnableConsoleLog(logToConsole)
+	config.EnableFileLogging(logFile, Datadog.GetSizeInBytes("log_file_max_size"), uint(Datadog.GetInt("log_file_max_rolls")))
 
 	if syslogURI != "" { // non-blank uri enables syslog
 		syslogTLSKeyPair, err := getSyslogTLSKeyPair()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		var useTLS bool
 		if syslogTLSKeyPair != nil {
@@ -161,14 +151,9 @@ func SetupJMXLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, 
 				InsecureSkipVerify: Datadog.GetBool("syslog_tls_verify"),
 			}
 		}
-		jmxSeelogConfig.ConfigureSyslog(syslogURI, useTLS)
+		config.ConfigureSyslog(syslogURI, useTLS)
 	}
-
-	jmxLoggerInterface, err := GenerateLoggerInterface(jmxSeelogConfig)
-	log.SetupJmxLogger(jmxLoggerInterface, seelogLogLevel)
-	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
-	return err
-
+	return config, nil
 }
 
 //GenerateLoggerInterface return a logger Interface from a log config
