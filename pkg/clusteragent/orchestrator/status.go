@@ -13,6 +13,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -67,11 +68,26 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status["Transactions"] = transactions
 
 	// get cache size
+	status["CacheNumber"] = orchestrator.KubernetesResourceCache.ItemCount()
+
 	// get cache hits
-	cacheStatsJSON := []byte(expvar.Get("orchestrator-cache").String())
-	cacheStats := make(map[string]interface{})
-	json.Unmarshal(cacheStatsJSON, &cacheStats) //nolint:errcheck
-	status["cacheStats"] = cacheStats
+	cacheHitsJSON := []byte(expvar.Get("orchestrator-cache").String())
+	cacheHits := make(map[string]interface{})
+	json.Unmarshal(cacheHitsJSON, &cacheHits) //nolint:errcheck
+	status["CacheHits"] = cacheHits
+
+	// get cache Miss
+	cacheMissJSON := []byte(expvar.Get("orchestrator-sends").String())
+	cacheMiss := make(map[string]interface{})
+	json.Unmarshal(cacheMissJSON, &cacheMiss) //nolint:errcheck
+	status["CacheMiss"] = cacheMiss
+
+	// get cache efficiency
+	nodes := orchestrator.NodeTypes()
+	for _, node := range nodes {
+		statsKey := BuildStatsKey(node)
+		status[node.String()+"sStats"], _ = orchestrator.KubernetesResourceCache.Get(statsKey)
+	}
 
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {

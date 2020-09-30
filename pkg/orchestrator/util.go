@@ -25,6 +25,10 @@ const (
 	K8sNode
 )
 
+func NodeTypes() []NodeType {
+	return []NodeType{K8sNode, K8sPod, K8sReplicaSet, K8sDeployment, K8sService}
+}
+
 func (n NodeType) String() string {
 	switch n {
 	case K8sNode:

@@ -71,7 +71,6 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		})
 	}
 
-	// TODO: save information regarding last send and last cached for efficiency
 	log.Debugf("Collected & enriched %d out of %d deployments in %s", len(deployMsgs), len(deploymentList), time.Now().Sub(start))
 	return messages, nil
 }

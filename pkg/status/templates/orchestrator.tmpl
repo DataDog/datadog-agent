@@ -42,11 +42,23 @@ Orchestrator Explorer
   ===============
   Forwarder Stats
   ===============
+{{/* this line intentionally left blank */}}
 {{- with .Transactions -}}
-    Pods: {{.Pods}} (Cache hits: {{.podCacheHits}})
-    Deployments: {{.Deployments}} (Cache hits: {{.deploymentCacheHits}})
-    ReplicaSets: {{.ReplicaSets}} (Cache hits: {{.replicaSetCacheHits}})
-    Services: {{.Services}} (Cache hits: {{.serviceCacheHits}})
-    Nodes: {{.Nodes}} (Cache hits: {{.nodesCacheHits}})
+
+    Pods: {{.Pods}}
+    Deployments: {{.Deployments}}
+    ReplicaSets: {{.ReplicaSets}}
+    Services: {{.Services}}
+    Nodes: {{.Nodes}}
 {{- end -}}
+{{/* this line intentionally left blank */}}
+  ===========
+  Cache Stats
+  ===========
+  Elements in the cache: {{.CacheNumber}}
+  Pods: Last Run: {{.PodsStats}}, Total Hits: {{.CacheHits.Pods}}, Total Miss: {{.CacheMiss.Pods}}
+  Deployments: Last Run: {{.DeploymentsStats}}, Total: {{.CacheHits.Deployments}}, Total Miss: {{.CacheMiss.Deployments}}
+  ReplicaSets: Last Run: {{.ReplicaSetsStats}}, Total: {{.CacheHits.ReplicaSets}}, Total Miss: {{.CacheMiss.ReplicaSets}}
+  Services: Last Run: {{.ServicesStats}}, Total: {{.CacheHits.Services}}, Total Miss: {{.CacheMiss.Services}}
+  Nodes: Last Run: {{.NodesStats}}, Total: {{.CacheHits.Nodes}}, Total Miss: {{.CacheMiss.Nodes}}
 {{/* this line intentionally left blank */}}
