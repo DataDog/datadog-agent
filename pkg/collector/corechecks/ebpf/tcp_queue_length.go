@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -117,10 +116,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
 		var tags []string
 		if entityID != "" {
-			tags, err = tagger.Tag(entityID, collectors.OrchestratorCardinality)
-			if err != nil {
-				log.Errorf("Could not collect tags for container %s: %s", line.ContainerID, err)
-			}
+			tags, _ = tagger.Tag(entityID, tagger.ChecksCardinality)
 		}
 
 		tags = append(tags,

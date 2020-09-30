@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -114,10 +113,8 @@ func (m *OOMKillCheck) Run() error {
 			continue
 		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
-		tags, err := tagger.Tag(entityID, collectors.OrchestratorCardinality)
-		if err != nil {
-			log.Errorf("Could not collect tags for container %s: %s", line.ContainerID, err)
-		}
+		tags, _ := tagger.Tag(entityID, tagger.ChecksCardinality)
+
 		if line.MemCgOOM == 1 {
 			triggerType = "cgroup"
 			triggerTypeText = fmt.Sprintf("This OOM kill was invoked by a cgroup, containerID: %s.", line.ContainerID)
