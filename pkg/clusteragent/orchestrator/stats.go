@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	StatsKey = "orchestrator/last/run/stats"
+	// statsKey is the cache key for statistics related to orchestrator checks.
+	statsKey = "orchestrator/last/run/stats"
 )
 
 // CheckStats holds statistics for the DCA status command regarding the last run check. Information is saved in the KubernetesResourceCache.
@@ -26,7 +27,8 @@ type CheckStats struct {
 	orchestrator.NodeType
 }
 
+// BuildStatsKey builds a orchestrator statsKey prefixed key.
 func BuildStatsKey(nodeType orchestrator.NodeType) string {
-	keys := append([]string{StatsKey}, nodeType.String())
+	keys := append([]string{statsKey}, nodeType.String())
 	return path.Join(keys...)
 }

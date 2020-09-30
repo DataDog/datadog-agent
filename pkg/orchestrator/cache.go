@@ -23,36 +23,36 @@ const (
 )
 
 var (
-	CacheExpVars        = expvar.NewMap("orchestrator-cache")
-	DeploymentCacheHits = expvar.Int{}
-	ReplicaSetCacheHits = expvar.Int{}
-	NodeCacheHits       = expvar.Int{}
-	ServiceCacheHits    = expvar.Int{}
-	PodCacheHits        = expvar.Int{}
+	cacheExpVars        = expvar.NewMap("orchestrator-cache")
+	deploymentCacheHits = expvar.Int{}
+	replicaSetCacheHits = expvar.Int{}
+	nodeCacheHits       = expvar.Int{}
+	serviceCacheHits    = expvar.Int{}
+	podCacheHits        = expvar.Int{}
 
-	SendExpVars    = expvar.NewMap("orchestrator-sends")
-	DeploymentHits = expvar.Int{}
-	ReplicaSetHits = expvar.Int{}
-	NodeHits       = expvar.Int{}
-	ServiceHits    = expvar.Int{}
-	PodHits        = expvar.Int{}
+	sendExpVars    = expvar.NewMap("orchestrator-sends")
+	deploymentHits = expvar.Int{}
+	replicaSetHits = expvar.Int{}
+	nodeHits       = expvar.Int{}
+	serviceHits    = expvar.Int{}
+	podHits        = expvar.Int{}
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
 )
 
 func init() {
-	CacheExpVars.Set("Pods", &PodCacheHits)
-	CacheExpVars.Set("Deployments", &DeploymentCacheHits)
-	CacheExpVars.Set("ReplicaSets", &ReplicaSetCacheHits)
-	CacheExpVars.Set("Nodes", &NodeCacheHits)
-	CacheExpVars.Set("Services", &ServiceCacheHits)
+	cacheExpVars.Set("Pods", &podCacheHits)
+	cacheExpVars.Set("Deployments", &deploymentCacheHits)
+	cacheExpVars.Set("ReplicaSets", &replicaSetCacheHits)
+	cacheExpVars.Set("Nodes", &nodeCacheHits)
+	cacheExpVars.Set("Services", &serviceCacheHits)
 
-	SendExpVars.Set("Pods", &PodHits)
-	SendExpVars.Set("Deployments", &DeploymentHits)
-	SendExpVars.Set("ReplicaSets", &ReplicaSetHits)
-	SendExpVars.Set("Nodes", &NodeHits)
-	SendExpVars.Set("Services", &ServiceHits)
+	sendExpVars.Set("Pods", &podHits)
+	sendExpVars.Set("Deployments", &deploymentHits)
+	sendExpVars.Set("ReplicaSets", &replicaSetHits)
+	sendExpVars.Set("Nodes", &nodeHits)
+	sendExpVars.Set("Services", &serviceHits)
 }
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
@@ -80,15 +80,15 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType Node
 func incCacheHit(nodeType NodeType) {
 	switch nodeType {
 	case K8sNode:
-		NodeCacheHits.Add(1)
+		nodeCacheHits.Add(1)
 	case K8sService:
-		ServiceCacheHits.Add(1)
+		serviceCacheHits.Add(1)
 	case K8sReplicaSet:
-		ReplicaSetCacheHits.Add(1)
+		replicaSetCacheHits.Add(1)
 	case K8sDeployment:
-		DeploymentCacheHits.Add(1)
+		deploymentCacheHits.Add(1)
 	case K8sPod:
-		PodCacheHits.Add(1)
+		podCacheHits.Add(1)
 	default:
 		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
 	}
@@ -97,15 +97,15 @@ func incCacheHit(nodeType NodeType) {
 func incCacheMiss(nodeType NodeType) {
 	switch nodeType {
 	case K8sNode:
-		NodeHits.Add(1)
+		nodeHits.Add(1)
 	case K8sService:
-		ServiceHits.Add(1)
+		serviceHits.Add(1)
 	case K8sReplicaSet:
-		ReplicaSetHits.Add(1)
+		replicaSetHits.Add(1)
 	case K8sDeployment:
-		DeploymentHits.Add(1)
+		deploymentHits.Add(1)
 	case K8sPod:
-		PodHits.Add(1)
+		podHits.Add(1)
 	default:
 		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
 	}

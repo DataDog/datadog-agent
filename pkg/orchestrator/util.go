@@ -23,6 +23,7 @@ const (
 	K8sNode
 )
 
+// NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
 	return []NodeType{K8sNode, K8sPod, K8sReplicaSet, K8sDeployment, K8sService}
 }
