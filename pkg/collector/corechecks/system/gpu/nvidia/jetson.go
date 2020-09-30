@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	checkName            = "jetson"
+	checkName = "jetson"
 
 	kb = 1024
 	mb = kb * 1024
@@ -316,7 +316,7 @@ func (c *JetsonCheck) sendCPUUsageMetrics(sender aggregator.Sender, field string
 	for i := 0; i < len(cpus); i++ {
 		cpuAndFreqFields := c.regexes[regexCPUFreqIdx].FindAllStringSubmatch(cpus[i], -1)
 		cpuUsage, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuUsage], 64)
-		cpuTags := []string{fmt.Sprintf("cpu:%d",i)}
+		cpuTags := []string{fmt.Sprintf("cpu:%d", i)}
 		if err != nil {
 			return err
 		}
@@ -343,7 +343,7 @@ func (c *JetsonCheck) sendTemperatureMetrics(sender aggregator.Sender, field str
 		if err != nil {
 			return err
 		}
-		temperatureZoneTags := []string{fmt.Sprintf("zone:%s",temperatureFields[i][tempZone])}
+		temperatureZoneTags := []string{fmt.Sprintf("zone:%s", temperatureFields[i][tempZone])}
 		sender.Gauge("nvidia.jetson.gpu.temp", tempValue, "", temperatureZoneTags)
 	}
 
