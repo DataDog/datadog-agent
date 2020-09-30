@@ -91,9 +91,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
-		status["ContainerScrubbing"] = "Enabled: ContainerScrubbing"
-	} else {
-		status["ContainerScrubbing"] = "Disabled: ContainerScrubbing"
+		status["ContainerScrubbing"] = "ContainerScrubbing: Enabled"
 	}
 
 	return status

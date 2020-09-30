@@ -23,11 +23,9 @@ Orchestrator Explorer
 {{- if .ClusterName }}
   ClusterName: {{.ClusterName}}
 {{- end }}
-
-  ====================
-  Orchestrator Options
-  ====================
-    {{ .ContainerScrubbing }}
+{{- if .ContainerScrubbing }}
+  {{.ContainerScrubbing}}
+{{- end}}
 
   ======================
   Orchestrator Endpoints
@@ -42,9 +40,8 @@ Orchestrator Explorer
   ===============
   Forwarder Stats
   ===============
-{{/* this line intentionally left blank */}}
 {{- with .Transactions -}}
-
+    {{/* this line intentionally left blank */}}
     Pods: {{.Pods}}
     Deployments: {{.Deployments}}
     ReplicaSets: {{.ReplicaSets}}
@@ -52,13 +49,19 @@ Orchestrator Explorer
     Nodes: {{.Nodes}}
 {{- end -}}
 {{/* this line intentionally left blank */}}
+{{/* this line intentionally left blank */}}
   ===========
   Cache Stats
   ===========
-  Elements in the cache: {{.CacheNumber}}
-  Pods: Last Run: {{.PodsStats}}, Total Hits: {{.CacheHits.Pods}}, Total Miss: {{.CacheMiss.Pods}}
-  Deployments: Last Run: {{.DeploymentsStats}}, Total: {{.CacheHits.Deployments}}, Total Miss: {{.CacheMiss.Deployments}}
-  ReplicaSets: Last Run: {{.ReplicaSetsStats}}, Total: {{.CacheHits.ReplicaSets}}, Total Miss: {{.CacheMiss.ReplicaSets}}
-  Services: Last Run: {{.ServicesStats}}, Total: {{.CacheHits.Services}}, Total Miss: {{.CacheMiss.Services}}
-  Nodes: Last Run: {{.NodesStats}}, Total: {{.CacheHits.Nodes}}, Total Miss: {{.CacheMiss.Nodes}}
+    Elements in the cache: {{.CacheNumber}}
+    Pods:
+      Last Run: (CacheHits: {{.PodsStats.CacheHits}} CacheMiss: {{.PodsStats.CacheMiss}}), TotalHits: {{.CacheHits.Pods}} TotalMiss: {{.CacheMiss.Pods}}
+    Deployments:
+      Last Run: (CacheHits: {{.DeploymentsStats.CacheHits}} CacheMiss: {{.DeploymentsStats.CacheMiss}}), TotalHits: {{.CacheHits.Deployments}} TotalMiss: {{.CacheMiss.Deployments}}
+    ReplicaSets:
+      Last Run: (CacheHits: {{.ReplicaSetsStats.CacheHits}} CacheMiss: {{.ReplicaSetsStats.CacheMiss}}), TotalHits: {{.CacheHits.ReplicaSets}} TotalMiss: {{.CacheMiss.ReplicaSets}}
+    Services:
+      Last Run: (CacheHits: {{.ServicesStats.CacheHits}} CacheMiss: {{.ServicesStats.CacheMiss}}), TotalHits: {{.CacheHits.Services}} TotalMiss: {{.CacheMiss.Services}}
+    Nodes:
+      Last Run: (CacheHits: {{.NodesStats.CacheHits}} CacheMiss: {{.NodesStats.CacheMiss}}), TotalHits: {{.CacheHits.Nodes}} TotalMiss: {{.CacheMiss.Nodes}}
 {{/* this line intentionally left blank */}}
