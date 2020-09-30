@@ -602,6 +602,8 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.RootInode = byteOrder.Uint64(data[24:32])
 	e.RootMountID = byteOrder.Uint32(data[32:36])
 
+	// Notes: bytes 36 to 40 are used to pad the structure
+
 	if err := binary.Read(bytes.NewBuffer(data[40:56]), byteOrder, &e.FSTypeRaw); err != nil {
 		return 40, err
 	}
