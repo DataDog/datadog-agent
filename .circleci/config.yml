@@ -116,9 +116,6 @@ jobs:
           name: rm process
           command: rm /go/bin/golint
       - run:
-          name: golint process
-          command: golint -set_exit_status ./pkg/compliance/checks/process_utils.go
-      - run:
           name: go get
           command: go get -u golang.org/x/lint/golint
       - run:
