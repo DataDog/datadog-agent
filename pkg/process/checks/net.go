@@ -173,7 +173,7 @@ func batchConnections(
 	dnsEncoder := model.NewV1DNSEncoder()
 
 	if len(cxs) > cfg.MaxConnsPerMessage {
-		// Sort connections by remote IP/PID in order to be friendlier to network-resolver
+		// Sort connections by remote IP/PID for more efficient resolution
 		sort.Slice(cxs, func(i, j int) bool {
 			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
 				return cxs[i].Raddr.Ip < cxs[j].Raddr.Ip
