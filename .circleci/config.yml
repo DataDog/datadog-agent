@@ -107,6 +107,9 @@ jobs:
           name: cat ./pkg/compliance/checks/process_utils.go
           command: cat ./pkg/compliance/checks/process_utils.go
       - run:
+          name: which golint
+          command: which golint
+      - run:
           name: golint process
           command: golint -set_exit_status ./pkg/compliance/checks/process_utils.go
       - run:
