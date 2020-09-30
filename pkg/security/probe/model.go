@@ -791,7 +791,7 @@ func (p *ProcessEvent) ResolveGroup(resolvers *Resolvers) string {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 108 {
+	if len(data) < 120 {
 		return 0, ErrNotEnoughData
 	}
 	p.Pidns = byteOrder.Uint64(data[0:8])
