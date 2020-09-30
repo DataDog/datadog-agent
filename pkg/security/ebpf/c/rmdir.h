@@ -84,6 +84,8 @@ SYSCALL_KRETPROBE(rmdir) {
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
 
+    remove_inode_discarders(&event.file);
+
     send_event(ctx, event);
 
     return 0;

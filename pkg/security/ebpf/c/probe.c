@@ -29,6 +29,16 @@
 #include "getattr.h"
 #include "setxattr.h"
 
+void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file) {
+    struct path_key_t path_key = {
+        .ino = file->inode,
+        .mount_id = file->mount_id,
+    };
+
+    bpf_map_delete_elem(&open_path_inode_discarders, &path_key);
+    bpf_map_delete_elem(&unlink_path_inode_discarders, &path_key);
+}
+
 __u32 _version SEC("version") = 0xFFFFFFFE;
 
 char LICENSE[] SEC("license") = "GPL";

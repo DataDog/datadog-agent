@@ -233,7 +233,7 @@ BOOL DeleteHomeDirectory(const std::wstring &user, PSID userSID)
                     WcaLog(LOGMSG_STANDARD, "Failed to get acl size information %d", GetLastError());
                     continue;
                 }
-                for (int i = 0; i < aclsizeinfo.AceCount; i++)
+                for (DWORD i = 0; i < aclsizeinfo.AceCount; i++)
                 {
                     LPVOID pAce = NULL;
                     if (GetAce(fileDacl, i, &pAce))

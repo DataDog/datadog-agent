@@ -1,5 +1,5 @@
 #include "stdafx.h"
-
+#include "lmerr_str.h"
 #pragma comment(lib, "shlwapi.lib")
 
 
@@ -225,7 +225,6 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
     
     USER_INFO_1 ui;
     memset(&ui, 0, sizeof(USER_INFO_1));
-    WcaLog(LOGMSG_STANDARD, "entered createuser");
     ui.usri1_name = (LPWSTR)name.c_str();
     ui.usri1_password = (LPWSTR)passbuf;
     ui.usri1_priv = USER_PRIV_USER;
@@ -233,15 +232,48 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
     ui.usri1_flags = UF_DONT_EXPIRE_PASSWD;
     DWORD ret = 0;
     
-
     WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
-    ret = NetUserAdd(NULL, // LOCAL_MACHINE
-        1, // indicates we're using a USER_INFO_1
-        (LPBYTE)&ui,
-        NULL);
-    WcaLog(LOGMSG_STANDARD, "NetUserAdd. %d", ret);
+    ret = NetUserAdd(nullptr, // LOCAL_MACHINE
+                     1, // indicates we're using a USER_INFO_1
+                     reinterpret_cast<LPBYTE>(&ui),
+                     nullptr);
+    /*
+     * If the function fails, the return value can be one of the following error codes.
+     *   - ERROR_ACCESS_DENIED
+     *   The user does not have access to the requested information.
+     *   - NERR_InvalidComputer
+     *   The computer name is invalid.
+     *   - NERR_NotPrimary
+     *   The operation is allowed only on the primary domain controller of the domain.
+     *   - NERR_GroupExists
+     *   The group already exists.
+     *   - NERR_UserExists
+     *   The user account already exists.
+     *   - NERR_PasswordTooShort
+     *   The password is shorter than required. (The password could also be too long, be too recent in its change history, not have enough unique characters, or not meet another password policy requirement.)
+     */
+    if (ret == NERR_Success)
+    {
+        WcaLog(LOGMSG_STANDARD, "Successfully added user.");
+    }
+    else if (ret == NERR_UserExists)
+    {
+        WcaLog(LOGMSG_STANDARD, "Warning: the user already exists.");
+        ret = 0;
+    }
+    else
+    {
+        const auto lmErrIt = lmerrors.find(ret - NERR_BASE);
+        if (lmErrIt != lmerrors.end())
+        {
+            WcaLog(LOGMSG_STANDARD, "NetUserAdd: %d = %S", ret, lmErrIt->second.c_str());
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "NetUserAdd: %d", ret);
+        }
+    }
     return ret;
-
 }
 
 int doSetUserPassword(const std::wstring& name,  const wchar_t* passbuf)
@@ -258,40 +290,6 @@ DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
     return (DWORD)ret;
 }
 
-
-
-bool isDomainController()
-{
-    bool ret = false;
-    DWORD status = 0;
-    SERVER_INFO_101 *si = NULL;
-    DWORD le = 0;
-    status = NetServerGetInfo(NULL, 101, (LPBYTE *)&si);
-    if (NERR_Success != status) {
-        le = GetLastError();
-        WcaLog(LOGMSG_STANDARD, "Failed to get server info");
-        return false;
-    }
-    if (SV_TYPE_WORKSTATION & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_WORKSTATION");
-    }
-    if (SV_TYPE_SERVER & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_SERVER\n");
-    }
-    if (SV_TYPE_DOMAIN_CTRL & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_CTRL\n");
-        ret = true;
-    }
-    if (SV_TYPE_DOMAIN_BAKCTRL & si->sv101_type) {
-        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_BAKCTRL\n");
-        ret = true;
-    }
-    if (si) {
-        NetApiBufferFree((LPVOID)si);
-    }
-    return ret;
-}
-
 int doesUserExist(const CustomActionData& data, bool isDC)
 {
     int retval = 0;
@@ -304,6 +302,7 @@ int doesUserExist(const CustomActionData& data, bool isDC)
     const wchar_t * userToTry = data.Username().c_str();
     const wchar_t * hostToTry = NULL;
 
+    WcaLog(LOGMSG_STANDARD, "First lookup account name %S", data.Username().c_str());
     BOOL bRet = LookupAccountName(NULL, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
     if (bRet) {
         err = GetLastError();
@@ -313,9 +312,9 @@ int doesUserExist(const CustomActionData& data, bool isDC)
         return -1;
     }
     err = GetLastError();
-    WcaLog(LOGMSG_STANDARD, "First lookup acount name %d", err);
     if (ERROR_NONE_MAPPED == err) {
         // this user doesn't exist.  We're done
+        WcaLog(LOGMSG_STANDARD, "Account %S not found, continuing.", data.Username().c_str());
         return 0;
     }
     if (ERROR_INSUFFICIENT_BUFFER != err) {
@@ -328,7 +327,7 @@ int doesUserExist(const CustomActionData& data, bool isDC)
                 // the domain authority
                 if (data.isUserLocalUser() == NULL) {
                     WcaLog(LOGMSG_STANDARD, "trying fully qualified local account");
-                    bRet = LookupAccountName(computername.c_str(), data.Username().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+                    bRet = LookupAccountName(data.GetTargetMachine().GetMachineName().c_str(), data.Username().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
                     if (bRet) {
                         // this should *never* happen, because we didn't pass in a buffer large enough for
                         // the sid or the domain name.
@@ -355,7 +354,7 @@ int doesUserExist(const CustomActionData& data, bool isDC)
                 WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
                 return -1;
             }
-            hostToTry = computername.c_str();
+            hostToTry = data.GetTargetMachine().GetMachineName().c_str();
 
         }
         else {        // we don't know what happened

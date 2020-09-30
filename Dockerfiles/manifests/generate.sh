@@ -19,6 +19,7 @@ trap 'rm -r $TMPDIR' EXIT
 cat > "$TMPDIR/values-agent-only.yaml" <<EOF
 datadog:
   collectEvents: true
+  leaderElection: true
   processAgent:
     enabled: false
 EOF
@@ -26,6 +27,7 @@ EOF
 cat > "$TMPDIR/values-all-containers.yaml" <<EOF
 datadog:
   collectEvents: true
+  leaderElection: true
   logs:
     enabled: true
   apm:
