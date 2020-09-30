@@ -23,13 +23,14 @@ func TestCheckProcMountHidePid(t *testing.T) {
 		expectError string
 	}{
 		{
-			name: "missing file",
-			file: "./proc-mounts-not-here",
+			name:        "missing file",
+			file:        "./proc-mounts-not-here",
+			expectError: "failed to open ./proc-mounts-not-here: open ./proc-mounts-not-here: no such file or directory",
 		},
 		{
 			name:        "hidepid with no groups",
 			file:        "./tests/proc-mounts-hidepid-2",
-			expectError: "hidepid=2 option detected in ./tests/proc-mounts-hidepid-2 - will prevent inspection of procfs",
+			expectError: "hidepid=2 option detected in ./tests/proc-mounts-hidepid-2 - will prevent inspection of proc fs",
 		},
 		{
 			name:   "hidepid with no groups",

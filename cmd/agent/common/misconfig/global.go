@@ -7,6 +7,7 @@ package misconfig
 
 import "github.com/DataDog/datadog-agent/pkg/util/log"
 
+// ToLog outputs warnings about common misconfigurations in the logs
 func ToLog() {
 	for name, check := range checks {
 		if err := check(); err != nil {
@@ -17,6 +18,8 @@ func ToLog() {
 
 type checkFn func() error
 
-var checks = map[string]checkFn{
-	"proc mount": procMount,
+var checks = map[string]checkFn{}
+
+func registerCheck(name string, c checkFn) {
+	checks[name] = c
 }
