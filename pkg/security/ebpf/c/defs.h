@@ -249,6 +249,8 @@ struct proc_cache_t {
     struct file_t executable;
     struct container_context_t container;
     u64 timestamp;
+    u32 cookie;
+    u32 padding;
 };
 
 struct bpf_map_def SEC("maps/events") events = {
@@ -275,7 +277,6 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
 #define send_mountpoints_events(ctx, event) \
     bpf_perf_event_output(ctx, &mountpoints_events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
-// currently sending over the syscall event perf ring to avoid races
 #define send_process_events(ctx, event) \
     bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
 

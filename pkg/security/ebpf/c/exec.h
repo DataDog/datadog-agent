@@ -96,6 +96,8 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
+    u32 cookie = bpf_get_prandom_u32();
+
     struct exec_event_t event = {
         .event.type = EVENT_EXEC,
         .pid = tgid,
@@ -106,6 +108,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         },
         .cache_entry.container = {},
         .cache_entry.timestamp = bpf_ktime_get_ns(),
+        .cache_entry.cookie = cookie,
     };
 
     // select parent cache entry
@@ -116,7 +119,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     }
 
     // insert new proc cache entry
-    u32 cookie = bpf_get_prandom_u32();
     bpf_map_update_elem(&proc_cache, &cookie, &event.cache_entry, BPF_ANY);
 
     // insert pid <-> cookie mapping
@@ -142,13 +144,29 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
     bpf_probe_read(&ppid, sizeof(ppid), &args->parent_pid);
 
-    // Ensures pid and ppid point to the same cookie
-    u32 *cookie = (u32 *) bpf_map_lookup_elem(&pid_cookie, &ppid);
-    if (cookie) {
-        // Select the old cache entry
-        u32 cookie_key = *cookie;
-        bpf_map_update_elem(&pid_cookie, &pid, &cookie_key, BPF_ANY);
+    struct proc_cache_t *parent_entry = get_pid_cache(ppid);
+    if (parent_entry) {
+        // Ensures pid and ppid point to the same cookie
+        bpf_map_update_elem(&pid_cookie, &pid, &parent_entry->cookie, BPF_ANY);
+
+        struct exec_event_t event = {
+            .event.type = EVENT_EXEC,
+            .pid = pid,
+            .cache_entry.executable = {
+                .inode = parent_entry->executable.inode,
+                .overlay_numlower = parent_entry->executable.overlay_numlower,
+                .mount_id = parent_entry->executable.mount_id,
+            },
+            .cache_entry.timestamp = bpf_ktime_get_ns(),
+            .cache_entry.cookie = parent_entry->cookie,
+        };
+
+        copy_container_id(event.cache_entry.container.container_id, parent_entry->container.container_id);
+
+        // send the entry to maintain userspace cache
+        send_process_events(args, event);
     }
+
     return 0;
 }
 

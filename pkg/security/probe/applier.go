@@ -87,7 +87,7 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 
 	capabilities, exists := allCapabilities[eventType]
 	if !exists {
-		return &ErrCapabilityNotFound{EventType: eventType}
+		return nil
 	}
 
 	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())

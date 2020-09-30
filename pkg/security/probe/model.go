@@ -164,7 +164,11 @@ func (e *FileEvent) ResolveContainerPath(resolvers *Resolvers) string {
 // ResolveBasename resolves the inode to a filename
 func (e *FileEvent) ResolveBasename(resolvers *Resolvers) string {
 	if len(e.BasenameStr) == 0 {
-		e.BasenameStr = resolvers.DentryResolver.GetName(e.MountID, e.Inode)
+		if e.PathnameStr != "" {
+			e.BasenameStr = path.Base(e.PathnameStr)
+		} else {
+			e.BasenameStr = resolvers.DentryResolver.GetName(e.MountID, e.Inode)
+		}
 	}
 	return e.BasenameStr
 }
@@ -772,55 +776,43 @@ func (e *ContainerEvent) GetContainerID() string {
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
-	SyscallEvent
-	FileEvent
-	ContainerEvent
-	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"-"`
-	Pid          uint32    `field:"-"`
+	ProcessCacheEntry
+	Pid uint32 `field:"-"`
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 92 {
+	if len(data) < 96 {
 		return 0, ErrNotEnoughData
 	}
 
 	var offset int
-
-	read, err := e.FileEvent.UnmarshalBinary(data)
+	read, err := e.ProcessCacheEntry.UnmarshalBinary(data)
 	if err != nil {
 		return read, err
 	}
 	offset += read
 
-	read, err = e.ContainerEvent.UnmarshalBinary(data[offset:])
-	if err != nil {
-		return read, nil
-	}
-	offset += read
+	e.Pid = ebpf.ByteOrder.Uint32(data[offset : offset+4])
 
-	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[offset : offset+8])
-	e.Pid = ebpf.ByteOrder.Uint32(data[offset+8 : offset+12])
-
-	return 92, nil
+	// 4 of padding
+	return offset + 8, nil
 }
 
 // ExitEvent represents a exit event
 type ExitEvent struct {
-	SyscallEvent
 	Pid uint32
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Pid = ebpf.ByteOrder.Uint32(data[:4])
+	e.Pid = ebpf.ByteOrder.Uint32(data)
 
-	return 8, nil
+	return 4, nil
 }
 
 // ProcessEvent holds the process context of an event
@@ -852,6 +844,40 @@ func (p *ProcessEvent) ResolveTimestamp(resolvers *Resolvers) time.Time {
 	}
 
 	return p.Timestamp
+}
+
+// ResolveInode resolves the inode to a full path
+func (p *ProcessEvent) ResolveInode(resolvers *Resolvers) string {
+	if p.PathnameStr == "" {
+		if entry := resolvers.ProcessResolver.Resolve(p.Pid); entry != nil {
+			p.PathnameStr = entry.ResolveInode(resolvers)
+		}
+	}
+
+	return p.PathnameStr
+}
+
+// ResolveContainerPath resolves the inode to a path relative to the container
+func (p *ProcessEvent) ResolveContainerPath(resolvers *Resolvers) string {
+	if p.ContainerPath == "" {
+		if entry := resolvers.ProcessResolver.Resolve(p.Pid); entry != nil {
+			p.ContainerPath = entry.ResolveContainerPath(resolvers)
+		}
+	}
+
+	return p.ContainerPath
+}
+
+// ResolveBasename resolves the inode to a filename
+func (p *ProcessEvent) ResolveBasename(resolvers *Resolvers) string {
+	if len(p.BasenameStr) == 0 {
+		if p.PathnameStr == "" {
+			p.PathnameStr = p.ResolveInode(resolvers)
+		}
+
+		p.BasenameStr = path.Base(p.PathnameStr)
+	}
+	return p.BasenameStr
 }
 
 func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {

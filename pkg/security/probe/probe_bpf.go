@@ -536,20 +536,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 
-		fmt.Printf("IIIIIIIIIIIIIII: %d\n", event.Exec.FileEvent.Inode)
-
-		// resolve now, so that the dentry cache is up to date
-		event.Exec.FileEvent.ResolveInode(p.resolvers)
-		event.Exec.FileEvent.ResolveContainerPath(p.resolvers)
-		event.Exec.ContainerEvent.ResolveContainerID(p.resolvers)
-
-		entry := ProcessResolverEntry{
-			FileEvent:      event.Exec.FileEvent,
-			ContainerEvent: event.Exec.ContainerEvent,
-			Timestamp:      event.ResolveMonotonicTimestamp(p.resolvers),
-		}
-
-		p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &entry)
+		p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &event.Exec.ProcessCacheEntry)
 	case ExitEventType:
 		if _, err := event.Exit.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))

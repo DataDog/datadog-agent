@@ -52,7 +52,7 @@ func AllMaps() []*manager.Map {
 		// Dentry resolver table
 		{Name: "pathnames"},
 		// Snapshot table
-		{Name: "inode_numlower"},
+		{Name: "inode_info_cache"},
 		// Open tables
 		{Name: "open_policy"},
 		{Name: "open_basename_approvers"},
