@@ -95,44 +95,44 @@ const (
 )
 
 var regexes = [...]string{
-	// Group 1.	-> Used
-	// Group 2.	-> Total
-	// Group 3.	-> Unit
-	// Group 4.	-> Number of LFB
-	// Group 5.	-> LFB
-	// Group 6.	-> Unit
+	// Group 1. -> Used
+	// Group 2. -> Total
+	// Group 3. -> Unit
+	// Group 4. -> Number of LFB
+	// Group 5. -> LFB
+	// Group 6. -> Unit
 	`RAM\s*(\d+)/(\d+)([kKmMgG][bB])\s*\(lfb\s*(\d+)x(\d+)([kKmMgG][bB])\)`,
 
-	// Group 1.	-> Used
-	// Group 2.	-> Total
-	// Group 3.	-> Unit
+	// Group 1. -> Used
+	// Group 2. -> Total
+	// Group 3. -> Unit
 	// Group 4. -> Cached
 	// Group 5. -> Unit
 	`SWAP\s*(\d+)/(\d+)([kKmMgG][bB])\s*\(cached\s*(\d+)([kKmMgG][bB])\)`,
 
-	// Group 1.	-> Used
-	// Group 2.	-> Total
-	// Group 3.	-> Unit
-	// Group 4.	-> LFB
-	// Group 5.	-> Unit
+	// Group 1. -> Used
+	// Group 2. -> Total
+	// Group 3. -> Unit
+	// Group 4. -> LFB
+	// Group 5. -> Unit
 	`IRAM\s*(\d+)/(\d+)([kKmMgG][bB])\s*\(lfb\s*(\d+)([kKmMgG][bB])\)`,
 
-	// Group 1.	-> EMC %
-	// Group 2.	-> EMC Freq (opt)
-	// Group 3.	-> GPU %
-	// Group 4.	-> GPU Freq (opt)
+	// Group 1. -> EMC %
+	// Group 2. -> EMC Freq (opt)
+	// Group 3. -> GPU %
+	// Group 4. -> GPU Freq (opt)
 	`EMC_FREQ\s*(\d+)%(?:@(\d+))?\s*GR3D_FREQ\s*(\d+)%(?:@(\d+))?`,
 
-	// Group 1.	-> List of CPUs and their usage/frequency, e.g. 2%@102,1%@102,0%@102,0%@102
+	// Group 1. -> List of CPUs and their usage/frequency, e.g. 2%@102,1%@102,0%@102,0%@102
 	`CPU\s*\[((?:\d+%@\d+,?)+)\]`,
 
-	// Group 1.	-> Zone name
-	// Group 2.	-> Temperature
+	// Group 1. -> Zone name
+	// Group 2. -> Temperature
 	`(\w+)@(\d+(?:[.]\d+)?)C`,
 
-	// Group 1.	-> Voltage probe name
-	// Group 2.	-> Current voltage
-	// Group 3.	-> Average voltage
+	// Group 1. -> Voltage probe name
+	// Group 2. -> Current voltage
+	// Group 3. -> Average voltage
 	`(\w+)\s+(\d+)/(\d+)(?:\s+|$)`,
 
 	// Group 1. -> CPU usage
