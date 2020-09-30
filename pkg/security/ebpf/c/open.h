@@ -198,7 +198,7 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     }
 
     syscall->open.dentry = get_path_dentry(path);
-    syscall->open.path_key = get_key(syscall->open.dentry, path);
+    syscall->open.path_key = get_dentry_key_path(syscall->open.dentry, path);
 
     return filter_open(syscall);
 }

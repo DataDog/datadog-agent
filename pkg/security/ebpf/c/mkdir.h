@@ -50,7 +50,7 @@ int kprobe__security_path_mkdir(struct pt_regs *ctx) {
     }
 
     syscall->mkdir.dentry = dentry;
-    syscall->mkdir.path_key = get_key(syscall->mkdir.dentry, syscall->mkdir.path);
+    syscall->mkdir.path_key = get_dentry_key_path(syscall->mkdir.dentry, syscall->mkdir.path);
 
     return 0;
 }

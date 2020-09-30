@@ -124,8 +124,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 
     // cache dentry
     struct dentry *dentry = get_path_dentry(path);
-    struct path_key_t path_key = get_key2(inode, path);
-    resolve_dentry(dentry, path_key, NULL);
+    resolve_dentry(dentry, syscall->open.path_key, NULL);
 
     // send the entry to maintain userspace cache
     send_process_events(ctx, event);

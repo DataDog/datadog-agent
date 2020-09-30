@@ -70,4 +70,5 @@ func (e ErrCapabilityNotFound) Error() string {
 
 func init() {
 	allCapabilities["open"] = openCapabilities
+	allCapabilities["unlink"] = unklinkCapabilities
 }
