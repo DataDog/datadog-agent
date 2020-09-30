@@ -184,6 +184,8 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         };
 
         send_process_events(ctx, event);
+
+        remove_pid_discarders(tgid);
     }
     return 0;
 }

@@ -35,16 +35,9 @@ struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discarders = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(struct path_key_t),
-    .value_size = sizeof(struct filter_t),
-    .max_entries = 512,
-    .pinning = 0,
-    .namespace = "",
-};
+INODE_DISCARDERS_MAP(open, 512);
 
-PROCESS_DISCARDERS_MAP(open);
+PROCESS_DISCARDERS_MAP(open, 256);
 
 struct open_event_t {
     struct kevent_t event;
@@ -57,7 +50,6 @@ struct open_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
-
     struct syscall_cache_t syscall = {
         .type = SYSCALL_OPEN,
         .policy = {.mode = ACCEPT},
@@ -277,7 +269,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     if (syscall->policy.mode == NO_FILTER) {
         ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, NULL);
     } else {
-        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, &open_path_inode_discarders);
+        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, INODE_DISCARDERS_MAP_PTR(open));
     }
     if (ret < 0) {
         return 0;

@@ -6,16 +6,9 @@
 
 POLICY_MAP(unlink);
 
-struct bpf_map_def SEC("maps/unlink_path_inode_discarders") unlink_path_inode_discarders = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(struct path_key_t),
-    .value_size = sizeof(struct filter_t),
-    .max_entries = 512,
-    .pinning = 0,
-    .namespace = "",
-};
+INODE_DISCARDERS_MAP(unlink, 512);
 
-PROCESS_DISCARDERS_MAP(unlink);
+PROCESS_DISCARDERS_MAP(unlink, 256);
 
 struct unlink_event_t {
     struct kevent_t event;
@@ -77,7 +70,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     if (syscall->policy.mode == NO_FILTER) {
         ret = resolve_dentry(dentry, syscall->unlink.path_key, NULL);
     } else {
-        ret = resolve_dentry(dentry, syscall->unlink.path_key, &unlink_path_inode_discarders);
+        ret = resolve_dentry(dentry, syscall->unlink.path_key, INODE_DISCARDERS_MAP_PTR(unlink));
     }
     if (ret < 0) {
         pop_syscall(SYSCALL_UNLINK);

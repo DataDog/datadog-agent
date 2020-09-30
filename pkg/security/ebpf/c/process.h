@@ -4,31 +4,6 @@
 #include <linux/tty.h>
 #include <linux/sched.h>
 
-#define PROCESS_DISCARDERS_MAP_PTR(name) &name##_process_discarders
-
-#define PROCESS_DISCARDERS_MAP(name) struct bpf_map_def SEC("maps/"#name"_process_discarders") name##_process_discarders = { \
-    .type = BPF_MAP_TYPE_LRU_HASH, \
-    .key_size = sizeof(u32), \
-    .value_size = sizeof(struct filter_t), \
-    .max_entries = 1, \
-    .pinning = 0, \
-    .namespace = "", \
-}
-
-int __attribute__((always_inline)) discard_by_pid(struct bpf_map_def *discarders_map) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-
-    struct filter_t *filter = bpf_map_lookup_elem(discarders_map, &tgid);
-    if (filter) {
-#ifdef DEBUG
-        bpf_printk("process with pid %d discarded\n", tgid);
-#endif
-        return 1;
-    }
-    return 0;
-}
-
 static struct proc_cache_t * __attribute__((always_inline)) fill_process_data(struct process_context_t *data) {
 //    // Process data
 //    struct task_struct *task = (struct task_struct *)bpf_get_current_task();

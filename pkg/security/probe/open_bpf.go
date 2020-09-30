@@ -90,7 +90,7 @@ func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder
 		}
 
 		fsEvent := event.Open
-		table := "open_path_inode_discarders"
+		table := "open_inode_discarders"
 
 		isDiscarded, err := discardParentInode(probe, rs, "open", "open.filename", value, fsEvent.MountID, fsEvent.Inode, table)
 		if !isDiscarded {

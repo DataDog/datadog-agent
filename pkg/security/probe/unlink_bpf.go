@@ -13,7 +13,7 @@ import (
 
 var unlinkTables = []string{
 	"unlink_policy",
-	"unlink_path_inode_discarders",
+	"unlink_inode_discarders",
 }
 
 func unlinkOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
@@ -38,7 +38,7 @@ func unlinkOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discard
 		}
 
 		fsEvent := event.Unlink
-		table := "unlink_path_inode_discarders"
+		table := "unlink_inode_discarders"
 
 		_, err = discardParentInode(probe, rs, "unlink", "unlink.filename", value, fsEvent.MountID, fsEvent.Inode, table)
 		return err
