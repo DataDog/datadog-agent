@@ -24,19 +24,6 @@ const (
 	NoExpiration = cache.NoExpiration
 )
 
-// TODO: make it possible to find information about single workloads
-
-// TODO: add efficiency per run e.g.
-/**
-  ======================
-  Cache Stats (Last Run)
-  ======================
-    Pods: 15 (30 cached)
-total pods send: 110000 Pods send
-total pods cache hits: 200000 cache hits
-total cache size: len(cache)
-*/
-
 var (
 	CacheExpVars        = expvar.NewMap("orchestrator-cache")
 	DeploymentCacheHits = expvar.Int{}
@@ -70,7 +57,6 @@ func init() {
 	SendExpVars.Set("Services", &ServiceHits)
 }
 
-
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
 // It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 // 0 == defaultDuration
@@ -91,7 +77,6 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType Node
 		return true
 	}
 }
-
 
 // TODO introduce proper interface and typing between different resources.
 func incCacheHit(nodeType NodeType) {
