@@ -1,2 +1,6 @@
 instances:
-  - {}
+  ## @param tegrastats_path - string - optional
+  ## Path to the tegrastats binary.
+  ## Defaults to `/usr/bin/tegrastats`
+  #
+  # - tegrastats_path: <PATH_TO_TEGRASTATS_UTILITY>

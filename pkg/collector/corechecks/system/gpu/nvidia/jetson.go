@@ -11,17 +11,18 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
-	"os"
-	"os/exec"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -139,7 +140,7 @@ var regexes = [...]string{
 }
 
 type checkCfg struct {
-	TegraStatsPath string `yaml:"tegra_stats_path,omitempty"`
+	TegraStatsPath string `yaml:"tegrastats_path,omitempty"`
 }
 
 // JetsonCheck contains the field for the JetsonCheck
