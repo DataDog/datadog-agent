@@ -129,19 +129,46 @@ UINT doFinalizeInstall(CustomActionData &data)
     }
     hr = 0;
 
-    if (!data.GetTargetMachine().IsBackupDomainController()) {
-        DWORD errCode = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
-        if (errCode != NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
+    /*
+    Attempt to add the user to the performance monitor users and the event log readers.
+
+    Always do this even if we didn't create the user, b/c on domain-joined machines that
+    aren't *DCs, or if the user provided another use, we need to make sure that we're in
+    the right group.
+
+    The exception is an RODC.  There doesn't seem to be an indication that a DC is
+    specifically an RODC (it reports only as a BDC).  So, try to add to the group, and
+    then if we get ERROR_NOT_SUPPORTED (which is the error reported when trying to add
+    a user to a group on an RODC), and we're a BDC, then assume we're OK and move on.
+    */
+    er = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+    if (er != NERR_Success) {
+        if (ERROR_NOT_SUPPORTED == er && data.GetTargetMachine().IsBackupDomainController())
+        {
+            WcaLog(LOGMSG_STANDARD, "ERROR_NOT_SUPPORTED installing on backup controller, assuming RODC");
+            er = 0;
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
-        errCode = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
-        if (errCode != NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", errCode);
+    }
+    er = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+    if (er != NERR_Success) {
+        if (ERROR_NOT_SUPPORTED == er && data.GetTargetMachine().IsBackupDomainController())
+        {
+            WcaLog(LOGMSG_STANDARD, "ERROR_NOT_SUPPORTED installing on backup controller, assuming RODC");
+            er = 0;
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
     }
 
+    // begin service installation
     if (!ddServiceExists) {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
         if (!passToUse) {
