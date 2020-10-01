@@ -842,7 +842,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = { .pid = bpf_get_current_pid_tgid() << 32, .port = lport };
+    port_binding_t t = { .pid = bpf_get_current_pid_tgid() >> 32, .port = lport };
 
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
 
@@ -873,7 +873,7 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = { .pid = bpf_get_current_pid_tgid() << 32, .port = lport};
+    port_binding_t t = { .pid = bpf_get_current_pid_tgid() >> 32, .port = lport};
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
         __u8 state = PORT_CLOSED;
