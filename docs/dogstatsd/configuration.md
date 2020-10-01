@@ -11,7 +11,7 @@ Information on DogStatsD, configuration and troubleshooting is available in the 
 
 ## `dogstatsd_buffer_size`
 
-The `dogstatsd_buffer_size` parameter configures how many bytes maximum the PacketAssembler should put into one packet.
+The `dogstatsd_buffer_size` parameter configures the maximum number of bytes the PacketAssembler should put into one packet.
 
 Please note that increasing this buffer size, together with `dogstatsd_queue_size`, has a huge impact on the maximum memory usage:
 doubling its size double the maximum memory usage.
@@ -132,4 +132,3 @@ With UDS, a way to improve the CPU usage is to send the packets with a size of 8
 instance on a Dogstatsd server receiving 500k metrics per second, we can observe an
 improvement of -30% CPU usage by switching from clients sending 1.5kb packets to clients
 sending 8kb packets with the configuration above used for the server.
-
