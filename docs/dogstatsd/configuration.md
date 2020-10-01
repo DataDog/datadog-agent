@@ -43,7 +43,7 @@ are an issue.
 
 This parameter represents how many packet sets flushed from the packets buffer to the parser could be
 buffered. The idea is to read as fast as possible on the socket and to store packets here if the rest
-of the pipeline is having slow-down for any reasons. Each packet is of size `dogstatsd_buffer_size`.
+of the pipeline is slowing down for any reason. Each packet is of size `dogstatsd_buffer_size`.
 
 This queue is where most of the memory usage of Dogstatsd resides. It means that if you decrease the size of
 this queue, the maximum memory usage of Dogstatsd should decrease, however, the amount of drops can
