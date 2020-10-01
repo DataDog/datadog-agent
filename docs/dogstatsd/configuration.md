@@ -13,7 +13,7 @@ Information on DogStatsD, configuration and troubleshooting is available in the 
 
 The `dogstatsd_buffer_size` parameter configures the maximum number of bytes the PacketAssembler should put into one packet.
 
-Please note that increasing this buffer size, together with `dogstatsd_queue_size`, has a huge impact on the maximum memory usage:
+**Note**: Increasing this buffer size, together with `dogstatsd_queue_size`, has a huge impact on the maximum memory usage:
 doubling its size double the maximum memory usage.
 
 The default value of this field is `8192`.
