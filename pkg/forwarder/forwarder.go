@@ -38,6 +38,8 @@ const (
 var (
 	forwarderExpvars              = expvar.NewMap("forwarder")
 	connectionEvents              = expvar.Map{}
+	payloadInputSize              = expvar.Map{}
+	payloadOutputSize             = expvar.Map{}
 	transactionsExpvars           = expvar.Map{}
 	transactionsSeries            = expvar.Int{}
 	transactionsEvents            = expvar.Int{}
@@ -61,6 +63,10 @@ var (
 
 	tlm = telemetry.NewCounter("forwarder", "transactions",
 		[]string{"endpoint", "route"}, "Forwarder telemetry")
+	tlmPayloadInputSize = telemetry.NewGauge("forwarder", "payload_input_size",
+		[]string{"endpoint"}, "Payload Input Size")
+	tlmPayloadOutputSize = telemetry.NewGauge("forwarder", "payload_output_size",
+		[]string{"endpoint"}, "Payload Output Size")
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
@@ -86,8 +92,12 @@ var (
 func init() {
 	transactionsExpvars.Init()
 	connectionEvents.Init()
+	payloadInputSize.Init()
+	payloadOutputSize.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
 	forwarderExpvars.Set("ConnectionEvents", &connectionEvents)
+	forwarderExpvars.Set("PayloadInputSize", &payloadInputSize)
+	forwarderExpvars.Set("PayloadOutputSize", &payloadOutputSize)
 	transactionsExpvars.Set("Series", &transactionsSeries)
 	transactionsExpvars.Set("Events", &transactionsEvents)
 	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
