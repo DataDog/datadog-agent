@@ -70,7 +70,6 @@ variables: &globalvariables
   ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
 
 .configure_windows_ps1_environment: &configure_windows_ps1_environment |
-  dir env:
   Import-Module C:\tools\miniconda3\shell\condabin\conda-hook.ps1
   conda activate ddpy3
   $current_dir=Get-Location
@@ -423,29 +422,6 @@ build_rpm:
         - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
-old_win:
-  stage: build_and_test
-  needs:
-    - deps_win
-  before_script: []
-  script:
-    - set WIN_CI_PROJECT_DIR=%CD%
-    - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - call .gitlab-scripts/windows_build_env.cmd
-    - call ridk enable
-    - call ridk version
-    - echo "=====Environment vars:"
-    - call bundle config
-    - call bundle version
-    - call ruby --version
-    - call gem env
-    - cd omnibus && call bundle install
-    - where omnibus
-    - call omnibus --version
-    - where omnibus.bat
-  tags:
-    - sts_windows
-
 build_win:
   stage: build_and_test
   variables:
@@ -454,28 +430,11 @@ build_win:
   needs:
     - deps_win
   before_script:
-    - $Env:Path
-    - Write-Output "1 ==================================================================="
     - *configure_windows_ps1_environment
-  script:
     - Import-VisualStudioVars 2017 -Architecture amd64
-# pscx func ^^^
     - ridk enable
-    - $Env:Path
-    - Write-Output "2 ==================================================================="
-# todo: unpack deps here? --skip-deps
+  script: 
     - inv -e agent.omnibus-build --skip-sign --log-level debug --major-version 2
-#    - call .gitlab-scripts/setup_artifactory.cmd
-#    - set WIN_CI_PROJECT_DIR=%CD%
-#    - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-#    - type %APPDATA%\pip\pip.ini
-#    - call .gitlab-scripts/windows_build_env.cmd
-# debug
-#    - call .gitlab-scripts/windows_deps.cmd
-#    - inv version -u > version.txt
-#    - whoami
-# /debug
-#    - call .gitlab-scripts/windows_build.cmd
   after_script:
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
   artifacts:
@@ -528,19 +487,28 @@ pre_release_win:
   needs:
     - deps_win
     - build_win
-  before_script: []
+  variables:
+    <<: *globalvariables
+    OMNIBUS_BASE_DIR: c:\omnibus-ruby
+  before_script:
+    - *configure_windows_ps1_environment
+    - Import-VisualStudioVars 2017 -Architecture amd64
+    - ridk enable
   script:
-    - set WIN_CI_PROJECT_DIR=%CD%
-    - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - call %WORKON_HOME%\venv\Scripts\activate.bat
-    - call ridk enable
-    - set /P VERSION=< version.txt
-    - copy stackstate-agent-%VERSION%-1-x86_64.msi stackstate-agent-latest-1-x86_64.msi
-    - aws.exe s3 cp . s3://%STS_AWS_TEST_BUCKET_WIN%/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read
-    - cd %WIN_CI_PROJECT_DIR% && inv release.generate-install -t
-    - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET_WIN']).object('install.ps1').upload_file('./install.ps1', acl:'public-read')"
+    - ls
+    - $env:VERSION = Get-Content version.txt -First 1
+# //TODO: in Windows MSI is build with hash shorter on one character. Find where.
+    - $Env:VERSION=$Env:VERSION.Substring(0,$Env:VERSION.Length-1)
+    - $filename = "stackstate-agent-" + $Env:VERSION + "-1-x86_64.msi"
+    - $filename
+    - Copy-Item $filename -Destination stackstate-agent-latest-1-x86_64.msi
+    - cmd /c 'echo aws.exe s3 cp . s3://%STS_AWS_TEST_BUCKET_WIN%/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read'
+    - cmd /c 'aws.exe s3 cp . s3://%STS_AWS_TEST_BUCKET_WIN%/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read'
+    - inv release.generate-install -t
+    - cmd /c 'echo aws.exe s3 cp ./cmd/agent/install.ps1 s3://%STS_AWS_TEST_BUCKET_WIN%/install.ps1 --acl public-read'
+    - cmd /c 'aws.exe s3 cp ./cmd/agent/install.ps1 s3://%STS_AWS_TEST_BUCKET_WIN%/install.ps1 --acl public-read'
   tags:
-    - sts_windows
+    - windows_agent7_ps1
 
 pre_release_rpm:
   stage: pre_release
@@ -748,9 +716,11 @@ release_win:
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
     - call %WORKON_HOME%\venv\Scripts\activate.bat
     - call ridk enable
-    - set /P VERSION=< version.txt
-    - copy stackstate-agent-%VERSION%-1-x86_64.msi stackstate-agent-latest-1-x86_64.msi
-    - cd %WIN_CI_PROJECT_DIR% && inv release.generate-install
+    - $env:VERSION = Get-Content version.txt -First 1
+    - $filename = "stackstate-agent-" + $Env:VERSION + "-1-x86_64.msi"
+    - $filename
+    - Copy-Item $filename -Destination stackstate-agent-latest-1-x86_64.msi
+    - inv release.generate-install
     - aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN%/windows/stable --recursive --exclude "*" --include "*.msi" --acl public-read
     - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN% --recursive --exclude "*" --include "install.ps1" --acl public-read
   tags:

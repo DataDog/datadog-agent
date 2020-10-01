@@ -105,7 +105,7 @@
                       Name="ConfigRoot"
                       Type="string"
                       Value="[APPLICATIONDATADIRECTORY]"/>
-      </Component>      
+      </Component>
       <!-- Register variables that will be used by the agent at startup -->
       <Component Id="RegisterConfVariables" Guid="ff5b161a-1d5b-45e2-9cff-2f5ed205e9d0">
         <RegistryKey Root="HKLM"
@@ -143,7 +143,7 @@
                          Type="string"
                          Value="[PROXY_PASSWORD]" >
                        </RegistryValue>
-          
+
           <RegistryValue Name="site"
                          Type="string"
                          Value="[SITE]" />
@@ -171,7 +171,7 @@
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/dogstatsd.exe"/>
-          
+
           <ServiceInstall Id="DatadogServiceInstaller"
                 DisplayName="!(loc.ServiceDisplayName)"
                 Description="!(loc.ServiceDescription)"
@@ -182,10 +182,10 @@
                 Vital="yes"
                 Interactive="no"
                 Account="[WIX_ACCOUNT_LOCALSERVICE]">
-            <ServiceConfig 
-              DelayedAutoStart="yes" 
-              OnInstall="yes" 
-              OnReinstall ="yes" 
+            <ServiceConfig
+              DelayedAutoStart="yes"
+              OnInstall="yes"
+              OnReinstall ="yes"
               ServiceSid ="unrestricted"
               />
             <util:ServiceConfig
@@ -194,7 +194,7 @@
                 ThirdFailureActionType='restart'
                 RestartServiceDelayInSeconds='30'
                 ResetPeriodInDays='1'/>
-    
+
           </ServiceInstall>
           <ServiceControl Id="DatadogStartService"
                           Name="Datadog-dogstatsd"
@@ -202,8 +202,8 @@
                           Stop="both"
                           Remove="uninstall"
                           Wait="yes" />
-          
-          
+
+
           <!-- The "Name" field must match the argument to eventlog.Open() -->
           <util:EventSource Log="Application" Name="DatadogDogstatsd"
                 EventMessageFile="[DIST]dogstatsd.exe"
@@ -228,7 +228,7 @@
             Source="$(var.EtcFiles)\dogstatsd.yaml.example"/>
       </Component>
 
-      
+
       <Component Id="install_info"
                  Guid="260CEE46-E9E9-4EEF-A065-969524970B68"
                  Permanent="no">
@@ -267,13 +267,13 @@
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
             </CreateFolder>
-     
+
         </Component>
       </Directory>
     </DirectoryRef>
 
-    
-    
+
+
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
@@ -315,7 +315,7 @@
 
 
       <?include Resources\assets\apikeydlg.wxi ?>
-      <?include Resources\assets\sitedlg.wxi ?>
+      <?include Resources\assets\stsurldlg.wxi ?>
       <DialogRef Id="ErrorDlg" />
       <DialogRef Id="FatalError" />
       <DialogRef Id="FilesInUse" />
@@ -326,7 +326,7 @@
       <DialogRef Id="UserExit" />
       <DialogRef Id="WelcomeDlg" />
       <DialogRef Id="ApiKeyDlg"/>
-      <DialogRef Id="SiteDlg"/>
+      <DialogRef Id="StsUrlDlg"/>
       <DialogRef Id="LicenseAgreementDlg"/>
 
       <DialogRef Id="MaintenanceWelcomeDlg"/>
@@ -343,8 +343,8 @@
       <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">NOT Installed</Publish>
 
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
-      <Publish Dialog="SiteDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="SiteDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="StsUrlDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="StsUrlDlg">NOT PREVIOUSFOUND</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">PREVIOUSFOUND</Publish>
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
@@ -352,7 +352,7 @@
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
-      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="SiteDlg">APIKEY AND (NOT SITE)</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="StsUrlDlg">APIKEY AND (NOT SITE)</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY AND SITE</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
@@ -388,11 +388,11 @@
     <WixVariable Id="WixUILicenseRtf" Value="Resources\assets\LICENSE.rtf" />
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
-    <!-- the following custom action is a testing custom action.  Set WIXFAILWHENDEFERRED=1 on the command line, and it will FirstFailureActionType   
+    <!-- the following custom action is a testing custom action.  Set WIXFAILWHENDEFERRED=1 on the command line, and it will FirstFailureActionType
          the install at the end, to allow for testing of rollback -->
     <CustomActionRef Id="WixFailWhenDeferred" />
-  
-    
+
+
     <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />
     <Binary Id="BackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
     <Binary Id="PrepBackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />

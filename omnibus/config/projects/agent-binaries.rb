@@ -48,7 +48,7 @@ package :msi do
 end
 package :zip do
   extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
+      "#{Omnibus::Config.source_dir()}\\etc\\stackstate-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root",
     ]
 

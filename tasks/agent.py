@@ -309,6 +309,10 @@ def apply_branding(ctx):
     do_sed_rename(ctx, sts_camel_replace, "./cmd/agent/gui/views/templates/index.tmpl")
     do_sed_rename(ctx, sts_camel_replace, "./cmd/agent/gui/views/private/js/javascript.js")
 
+    # TODO: overbranding - fix either dll name or reference
+    do_sed_rename(ctx, 's/libstackstate-agent-three/libdatadog-agent-three/g', "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/libstackstate-agent-two/libdatadog-agent-three/g', "./omnibus/resources/agent/msi/source.wxs.erb")
+
     # stackstate_checks
     do_go_rename(ctx, '"\\"datadog_checks\\" -> \\"stackstate_checks\\""', "./cmd/agent/app")
     do_sed_rename(ctx, 's/datadog_checks_base/stackstate_checks_base/g', "./cmd/agent/app/integrations.go")
@@ -336,6 +340,12 @@ def apply_branding(ctx):
 
     # omnibus
     do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/projects/agent.rb")
+    do_sed_rename(ctx, 's/\\\\\\\\etc\\\\\\\\datadog-agent\\\\\\\\extra_package_files/\\\\\\\\etc\\\\\\\\stackstate-agent\\\\\\\\extra_package_files/g',
+                  "./omnibus/config/projects/agent.rb")
+    do_sed_rename(ctx, 's/\\\\\\\\etc\\\\\\\\datadog-agent\\\\\\\\extra_package_files/\\\\\\\\etc\\\\\\\\stackstate-agent\\\\\\\\extra_package_files/g',
+                  "./omnibus/config/projects/agent-binaries.rb")
+    do_sed_rename(ctx, 's/\\\\\\\\etc\\\\\\\\datadog-agent\\\\\\\\extra_package_files/\\\\\\\\etc\\\\\\\\stackstate-agent\\\\\\\\extra_package_files/g',
+                  "./omnibus/config/projects/iot-agent.rb")
     do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/projects/iot-agent.rb")
     do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/software/datadog-agent-finalize.rb")
     do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/templates/datadog-agent/sysvinit_debian.erb")

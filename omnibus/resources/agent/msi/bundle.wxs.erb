@@ -25,9 +25,7 @@
     <Variable Name="SITE" bal:Overridable="yes"/>
     <Variable Name="TAGS" bal:Overridable="yes"/>
     <Variable Name="HOSTNAME" bal:Overridable="yes"/>
-    <Variable Name="STS_URL" bal:Overridable="yes"/>
-    <Variable Name="SKIP_SSL_VALIDATION" bal:Overridable="yes"/>
-
+		
     <Chain>
       <ExePackage
         SourceFile="$(var.HelperDir)\upgrade-helper.exe"
@@ -49,8 +47,6 @@
         <MsiProperty Name="SITE" Value="[SITE]"/>
         <MsiProperty Name="TAGS" Value="[TAGS]"/>
         <MsiProperty Name="HOSTNAME" Value="[HOSTNAME]"/>
-        <MsiProperty Name="STS_URL" Value="[STS_URL]"/>
-        <MsiProperty Name="SKIP_SSL_VALIDATION" Value="[SKIP_SSL_VALIDATION]"/>
       </MsiPackage>
 		</Chain>
 	</Bundle>

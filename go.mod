@@ -15,6 +15,7 @@ replace (
 
 // Internal deps fix version
 replace (
+    bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/containerd/cgroups => github.com/containerd/cgroups v0.0.0-20200327175542-b44481373989
 	github.com/containerd/containerd => github.com/containerd/containerd v1.2.13
