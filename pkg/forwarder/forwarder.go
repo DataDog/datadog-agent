@@ -352,7 +352,7 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 				t.Domain = domain
 				t.Endpoint = transactionEndpoint
 				t.Payload = payload
-				t.priority = priority
+				t.Priority = priority
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
@@ -514,7 +514,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	expectedResponses := len(transactions)
 
 	for _, txn := range transactions {
-		txn.retryable = retryable
+		txn.Retryable = retryable
 		txn.attemptHandler = func(transaction *HTTPTransaction) {
 			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
 				transaction.Headers.Set("X-DD-Agent-Attempts", "1")

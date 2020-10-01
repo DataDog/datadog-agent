@@ -139,26 +139,27 @@ const (
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
-	Domain string
+	Domain string `json:"domain"`
 	// Endpoint is the API Endpoint used by the HTTPTransaction.
-	Endpoint string
+	Endpoint string `json:"end_point"`
 	// Headers are the HTTP headers used by the HTTPTransaction.
-	Headers http.Header
+	Headers http.Header `json:"headers"`
 	// Payload is the content delivered to the backend.
-	Payload *[]byte
+	Payload *[]byte `json:"payload"`
 	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
-	ErrorCount int
+	ErrorCount int `json:"error_count"`
 
-	createdAt time.Time
-	// retryable indicates whether this transaction can be retried
-	retryable bool
+	// CreatedAt is the creation time.
+	CreatedAt time.Time `json:"created_at"`
+	// Retryable indicates whether this transaction can be retried
+	Retryable bool `json:"retryable"`
 
 	// attemptHandler will be called with a transaction before the attempting to send the request
 	attemptHandler HTTPAttemptHandler
 	// completionHandler will be called with a transaction after it has been successfully sent
 	completionHandler HTTPCompletionHandler
 
-	priority TransactionPriority
+	Priority TransactionPriority `json:"priority"`
 }
 
 // Transaction represents the task to process for a Worker.
@@ -173,9 +174,9 @@ type Transaction interface {
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	return &HTTPTransaction{
-		createdAt:         time.Now(),
+		CreatedAt:         time.Now(),
 		ErrorCount:        0,
-		retryable:         true,
+		Retryable:         true,
 		Headers:           make(http.Header),
 		attemptHandler:    defaultAttemptHandler,
 		completionHandler: defaultCompletionHandler,
@@ -184,7 +185,7 @@ func NewHTTPTransaction() *HTTPTransaction {
 
 // GetCreatedAt returns the creation time of the HTTPTransaction.
 func (t *HTTPTransaction) GetCreatedAt() time.Time {
-	return t.createdAt
+	return t.CreatedAt
 }
 
 // GetTarget return the url used by the transaction
@@ -195,7 +196,7 @@ func (t *HTTPTransaction) GetTarget() string {
 
 // GetPriority returns the priorty
 func (t *HTTPTransaction) GetPriority() TransactionPriority {
-	return t.priority
+	return t.Priority
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
@@ -204,13 +205,13 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 
 	statusCode, body, err := t.internalProcess(ctx, client)
 
-	if err == nil || !t.retryable {
+	if err == nil || !t.Retryable {
 		t.completionHandler(t, statusCode, body, err)
 	}
 
 	// If the txn is retryable, return the error (if present) to the worker to allow it to be retried
 	// Otherwise, return nil so the txn won't be retried.
-	if t.retryable {
+	if t.Retryable {
 		return err
 	}
 

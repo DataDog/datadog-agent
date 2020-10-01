@@ -393,7 +393,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
-	transactions[0].retryable = false
+	transactions[0].Retryable = false
 
 	err := f.sendHTTPTransactions(transactions)
 	require.NoError(t, err)
