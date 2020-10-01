@@ -90,4 +90,9 @@ typedef struct {
     __u64 fd;
 } bind_syscall_args_t;
 
+typedef struct {
+    __u32 pid;
+    __u16 port;
+} port_binding_t;
+
 #endif

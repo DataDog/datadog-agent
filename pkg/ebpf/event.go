@@ -46,6 +46,12 @@ __u16 cpu;
 */
 type batch C.batch_t
 
+/* port_binding_t
+__u32 pid;
+__u16 port;
+*/
+type portBindingTuple C.port_binding_t
+
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
 		pid:      t.pid,
