@@ -775,10 +775,10 @@ func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping)
 
 	entries := mp.IterateFrom(unsafe.Pointer(&emptyKey))
 	for entries.Next(unsafe.Pointer(&key), unsafe.Pointer(&state)) {
-		pid := int(key.pid)
+		pid := uint32(key.pid)
 		port := uint16(key.port)
 		var ns netns.NsHandle
-		ns, err = util.GetNetNamespaceFromPid(t.config.ProcRoot, pid)
+		ns, err = util.GetNetNamespaceFromPid(t.config.ProcRoot, int(pid))
 		if err != nil {
 			log.Errorf("could not add port mapping (pid: %d port: %d), could not get net ns for pid %d: %s", pid, port, pid, err)
 			continue

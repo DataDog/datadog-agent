@@ -848,10 +848,10 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
 
     if (val == NULL) {
         __u8 state = PORT_LISTENING;
-
         bpf_map_update_elem(&port_bindings, &t, &state, BPF_ANY);
     }
 
+    log_debug("kretprobe/inet_csk_accept: pid: %d, lport: %d\n", t.pid, t.port);
     return 0;
 }
 
