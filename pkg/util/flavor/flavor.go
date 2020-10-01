@@ -22,7 +22,7 @@ const (
 	HerokuAgent = "heroku_agent"
 )
 
-var agentFlavor string = DefaultAgent
+var agentFlavor = DefaultAgent
 
 // SetFlavor sets the Agent flavor
 func SetFlavor(flavor string) {

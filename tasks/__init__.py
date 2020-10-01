@@ -14,6 +14,7 @@ from . import (
     customaction,
     docker,
     dogstatsd,
+    github,
     installcmd,
     pipeline,
     process_agent,
@@ -83,6 +84,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
+ns.add_collection(github)
 ns.add_collection(pipeline)
 ns.add_collection(pylauncher)
 ns.add_collection(selinux)

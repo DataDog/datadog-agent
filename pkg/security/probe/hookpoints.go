@@ -46,12 +46,12 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name:       "sys_chown",
-		KProbes:    syscallKprobe("chown"),
+		KProbes:    append(syscallKprobe("chown"), syscallKprobe("chown16")...),
 		EventTypes: []eval.EventType{"chown"},
 	},
 	{
 		Name:       "sys_fchown",
-		KProbes:    syscallKprobe("fchown"),
+		KProbes:    append(syscallKprobe("fchown"), syscallKprobe("fchown16")...),
 		EventTypes: []eval.EventType{"chown"},
 	},
 	{
@@ -61,7 +61,7 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name:       "sys_lchown",
-		KProbes:    syscallKprobe("lchown"),
+		KProbes:    append(syscallKprobe("lchown"), syscallKprobe("lchown16")...),
 		EventTypes: []eval.EventType{"chown"},
 	},
 	{
@@ -136,6 +136,12 @@ var allHookPoints = []*HookPoint{
 		EventTypes: []eval.EventType{"utimes"},
 	},
 	{
+		Name:       "sys_utime32",
+		KProbes:    syscallKprobe("utime32"),
+		EventTypes: []eval.EventType{"utimes"},
+		Optional:   true,
+	},
+	{
 		Name:       "sys_utimes",
 		KProbes:    syscallKprobe("utimes"),
 		EventTypes: []eval.EventType{"utimes"},
@@ -149,6 +155,24 @@ var allHookPoints = []*HookPoint{
 		Name:       "sys_futimesat",
 		KProbes:    syscallKprobe("futimesat"),
 		EventTypes: []eval.EventType{"utimes"},
+	},
+	{
+		Name:       "sys_utimes_time32",
+		KProbes:    syscallKprobe("utimes_time32"),
+		EventTypes: []eval.EventType{"utimes"},
+		Optional:   true,
+	},
+	{
+		Name:       "sys_utimensat_time32",
+		KProbes:    syscallKprobe("utimensat_time32"),
+		EventTypes: []eval.EventType{"utimes"},
+		Optional:   true,
+	},
+	{
+		Name:       "sys_futimesat_time32",
+		KProbes:    syscallKprobe("futimesat_time32"),
+		EventTypes: []eval.EventType{"utimes"},
+		Optional:   true,
 	},
 	{
 		Name: "vfs_mkdir",
@@ -175,11 +199,11 @@ var allHookPoints = []*HookPoint{
 		EventTypes: []eval.EventType{"mkdir"},
 	},
 	{
-		Name: "vfs_rmdir",
+		Name: "security_inode_rmdir",
 		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/vfs_rmdir",
+			EntryFunc: "kprobe/security_inode_rmdir",
 		}},
-		EventTypes: []eval.EventType{"rmdir", "unlink"},
+		EventTypes: []eval.EventType{"rmdir"},
 	},
 	{
 		Name:       "sys_rmdir",

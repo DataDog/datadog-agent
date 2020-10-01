@@ -10,3 +10,5 @@ Several examples are provided:
 * [`all-containers`](all-containers) Contains the DaemonSet with the core agent, the trace agent, the process agent and system-probe;
 * [`cluster-agent`](cluster-agent) Contains the agent DaemonSet as well as the cluster agent;
 * [`cluster-checks-runners`](cluster-checks-runners) Contains the agent DaemonSet as well as the cluster agent and the cluster check runners.
+
+**NOTE:** Manifests are generated in the `default` namespace. You will need to modify `namespace: default` occurences if you are installing in another namespace.

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 )
 
 /*
@@ -99,13 +100,13 @@ var whatString = map[C.__u64]string{
 }
 
 const (
-	tcpInfoKProbeNotCalled C.__u64 = 0
-	tcpInfoKProbeCalled            = 1
+	tcpGetSockOptKProbeNotCalled C.__u64 = 0
+	tcpGetSockOptKProbeCalled            = 1
 )
 
 var tcpKprobeCalledString = map[C.__u64]string{
-	tcpInfoKProbeNotCalled: "tcp_get_info kprobe not executed",
-	tcpInfoKProbeCalled:    "tcp_get_info kprobe executed",
+	tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
+	tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
 }
 
 const listenIP = "127.0.0.2"
@@ -213,8 +214,8 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 
 func offsetGuessProbes(c *Config) map[bytecode.ProbeName]struct{} {
 	probes := map[bytecode.ProbeName]struct{}{
-		bytecode.TCPGetInfo: {},
-		bytecode.IPMakeSkb:  {},
+		bytecode.TCPGetSockOpt: {},
+		bytecode.IPMakeSkb:     {},
 	}
 
 	if c.CollectIPv6Conns {
@@ -437,7 +438,7 @@ func setReadyState(mp *ebpf.Map, status *tracerStatus) error {
 // To guess the offsets, we create connections from localhost (127.0.0.1) to
 // 127.0.0.2:$PORT, where we have a server listening. We store the current
 // possible offset and expected value of each field in a eBPF map. In kernel-space
-// we rely on two different kprobes: `tcp_get_info` and `tcp_connect_v6`. When they're
+// we rely on two different kprobes: `tcp_getsockopt` and `tcp_connect_v6`. When they're
 // are triggered, we store the value of
 //     (struct sock *)skp + possible_offset
 // in the eBPF map. Then, back in userspace (checkAndUpdateCurrentOffset()), we
@@ -610,7 +611,7 @@ func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) e
 		return err
 	}
 
-	// This triggers the KProbe handler attached to `tcp_get_info`
+	// This triggers the KProbe handler attached to `tcp_getsockopt`
 	_, err := tcpGetInfo(e.conn)
 	return err
 }
@@ -656,7 +657,7 @@ func acceptHandler(l net.Listener) {
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
+func tcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		return nil, errors.New("not a TCPConn")
@@ -668,23 +669,12 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 	}
 	defer file.Close()
 
-	var tcpInfo syscall.TCPInfo
-	size := uint32(unsafe.Sizeof(tcpInfo))
-	_, _, errno := syscall.Syscall6(
-		syscall.SYS_GETSOCKOPT,
-		file.Fd(),
-		uintptr(syscall.SOL_TCP),
-		uintptr(syscall.TCP_INFO),
-		uintptr(unsafe.Pointer(&tcpInfo)),
-		uintptr(unsafe.Pointer(&size)),
-		0,
-	)
-
-	if errno != 0 {
-		return nil, errors.Wrap(errno, "error calling syscall.SYS_GETSOCKOPT")
+	tcpInfo, err := unix.GetsockoptTCPInfo(int(file.Fd()), syscall.SOL_TCP, syscall.TCP_INFO)
+	if err != nil {
+		return nil, errors.Wrap(err, "error calling syscall.SYS_GETSOCKOPT")
 	}
 
-	return &tcpInfo, nil
+	return tcpInfo, nil
 }
 
 func logAndAdvance(status *tracerStatus, offset C.__u64, next C.__u64) {

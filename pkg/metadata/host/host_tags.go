@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
@@ -67,7 +68,8 @@ func getHostTags() *tags {
 		}
 	}
 
-	clusterName := clustername.GetClusterName()
+	hostname, _ := util.GetHostname()
+	clusterName := clustername.GetClusterName(hostname)
 	if len(clusterName) != 0 {
 		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
 		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {

@@ -1,50 +1,14 @@
 package metrics
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func makesketch(n int) *quantile.Sketch {
-	s, c := &quantile.Sketch{}, quantile.Default()
-	for i := 0; i < n; i++ {
-		s.Insert(c, float64(i))
-	}
-	return s
-}
-
-// makeseries is deterministic so that we can test for mutation.
-func makeseries(i int) SketchSeries {
-	ss := SketchSeries{
-		Name: fmt.Sprintf("name.%d", i),
-		Tags: []string{
-			fmt.Sprintf("a:%d", i),
-			fmt.Sprintf("b:%d", i),
-		},
-		Host:     fmt.Sprintf("host.%d", i),
-		Interval: int64(i),
-	}
-
-	for j := 0; j < i+5; j++ {
-		ss.Points = append(ss.Points, SketchPoint{
-			Ts:     10 * int64(j),
-			Sketch: makesketch(j),
-		})
-	}
-
-	gen := ckey.NewKeyGenerator()
-	ss.ContextKey = gen.Generate(ss.Name, ss.Host, ss.Tags)
-
-	return ss
-}
 
 func check(t *testing.T, in SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {
 	t.Helper()
@@ -68,7 +32,7 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 	sl := make(SketchSeriesList, 2)
 
 	for i := range sl {
-		sl[i] = makeseries(i)
+		sl[i] = Makeseries(i)
 	}
 
 	b, err := sl.Marshal()
@@ -85,7 +49,7 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 
 	for i, pb := range pl.Sketches {
 		in := sl[i]
-		require.Equal(t, makeseries(i), in, "make sure we don't modify input")
+		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
 		assert.Equal(t, in.Name, pb.Metric)
@@ -108,7 +72,7 @@ func TestSketchSeriesListJSONMarshal(t *testing.T) {
 	sl := make(SketchSeriesList, 2)
 
 	for i := range sl {
-		sl[i] = makeseries(i)
+		sl[i] = Makeseries(i)
 	}
 
 	json, err := sl.MarshalJSON()

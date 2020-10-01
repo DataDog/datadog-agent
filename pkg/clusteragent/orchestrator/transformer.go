@@ -12,8 +12,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
-
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -268,8 +267,8 @@ func extractNode(n *corev1.Node) *model.Node {
 
 func extractCapacitiesAndAllocatables(n *corev1.Node, mn *model.Node) {
 	// Milli Value ceil(q * 1000), which fits to be the lowest value. CPU -> Millicore and Memory -> byte
-	supportedResourcesMilli := []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
-	supportedResources := []corev1.ResourceName{corev1.ResourcePods}
+	supportedResourcesMilli := []corev1.ResourceName{corev1.ResourceCPU}
+	supportedResources := []corev1.ResourceName{corev1.ResourcePods, corev1.ResourceMemory}
 	setSupportedResources(n, mn, supportedResources, false)
 	setSupportedResources(n, mn, supportedResourcesMilli, true)
 }

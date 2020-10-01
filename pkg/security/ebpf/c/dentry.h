@@ -10,9 +10,7 @@
 #include "filters.h"
 
 #define DENTRY_MAX_DEPTH 16
-
 #define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
-#define MNT_OFFSETOF_MNTID 284 // offsetof(struct mount, mnt_id)
 
 // temporary fix before constant edition
 struct bpf_map_def SEC("maps/mount_id_offset") mount_id_offset = {
@@ -72,19 +70,20 @@ dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
     return dev;
 }
 
-int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
+u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     u32 key = 0;
-    u32 id_offset = MNT_OFFSETOF_MNTID;
-
     // this will be done by constant edition in the future
     u32 *offset = bpf_map_lookup_elem(&mount_id_offset, &key);
     if (offset && *offset) {
-        id_offset = *offset;
+        return *offset;
     }
+    return 284; // offsetof(struct mount, mnt_id)
+}
 
+int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     int mount_id;
     // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + id_offset - MNT_OFFSETOF_MNT);
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + get_mount_offset_of_mount_id() - MNT_OFFSETOF_MNT);
     return mount_id;
 }
 
@@ -98,7 +97,7 @@ int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     int mount_id;
 
     // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + MNT_OFFSETOF_MNTID);
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + get_mount_offset_of_mount_id());
     return mount_id;
 }
 
@@ -106,7 +105,7 @@ int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
     int mount_id;
 
     // bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + offsetof(struct mount, mnt_group_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + MNT_OFFSETOF_MNTID + 4);
+    bpf_probe_read(&mount_id, sizeof(mount_id), (void *)mnt + get_mount_offset_of_mount_id() + 4);
     return mount_id;
 }
 

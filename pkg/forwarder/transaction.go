@@ -123,6 +123,19 @@ func initTransactionExpvars() {
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
 }
 
+// TransactionPriority defines the priority of a transaction
+// Transactions with priority `TransactionPriorityNormal` are dropped from the retry queue
+// before dropping transactions with priority `TransactionPriorityHigh`.
+type TransactionPriority int
+
+const (
+	// TransactionPriorityNormal defines a transaction with a normal priority
+	TransactionPriorityNormal TransactionPriority = 0
+
+	// TransactionPriorityHigh defines a transaction with an high priority
+	TransactionPriorityHigh TransactionPriority = 1
+)
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -144,6 +157,8 @@ type HTTPTransaction struct {
 	attemptHandler HTTPAttemptHandler
 	// completionHandler will be called with a transaction after it has been successfully sent
 	completionHandler HTTPCompletionHandler
+
+	priority TransactionPriority
 }
 
 // Transaction represents the task to process for a Worker.
@@ -151,6 +166,7 @@ type Transaction interface {
 	Process(ctx context.Context, client *http.Client) error
 	GetCreatedAt() time.Time
 	GetTarget() string
+	GetPriority() TransactionPriority
 }
 
 // NewHTTPTransaction returns a new HTTPTransaction.
@@ -174,6 +190,11 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 func (t *HTTPTransaction) GetTarget() string {
 	url := t.Domain + t.Endpoint
 	return httputils.SanitizeURL(url) // sanitized url that can be logged
+}
+
+// GetPriority returns the priorty
+func (t *HTTPTransaction) GetPriority() TransactionPriority {
+	return t.priority
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.

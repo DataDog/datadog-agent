@@ -25,6 +25,16 @@ type DentryResolver struct {
 	pathnames *ebpf.Table
 }
 
+// ErrInvalidKeyPath is returned when inode or mountid are not valid
+type ErrInvalidKeyPath struct {
+	Inode   uint64
+	MountID uint32
+}
+
+func (e *ErrInvalidKeyPath) Error() string {
+	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
+}
+
 type pathKey struct {
 	inode   uint64
 	mountID uint32
@@ -45,13 +55,9 @@ func (p *pathKey) IsNull() bool {
 	return p.inode == 0 && p.mountID == 0
 }
 
-func (p *pathKey) String() string {
-	return fmt.Sprintf("%x/%x", p.mountID, p.inode)
-}
-
 func (p *pathKey) Bytes() ([]byte, error) {
 	if p.IsNull() {
-		return nil, fmt.Errorf("invalid inode/mountID couple: %s", p.String())
+		return nil, &ErrInvalidKeyPath{Inode: p.inode, MountID: p.mountID}
 	}
 
 	b := make([]byte, 16)

@@ -73,7 +73,11 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 			standardTags:         make(map[string][]string),
 		}
 		s.store[info.Entity] = storedTags
+
+		storedEntities.Inc()
 	}
+
+	updatedEntities.Inc()
 
 	storedTags.Lock()
 	defer storedTags.Unlock()
@@ -125,10 +129,13 @@ func (s *tagStore) prune() error {
 		delete(s.store, entity)
 	}
 
-	log.Debugf("pruned %d removed entities, %d remaining", len(s.toDelete), len(s.store))
+	remainingEntities := len(s.store)
+	log.Debugf("pruned %d removed entities, %d remaining", len(s.toDelete), remainingEntities)
 
 	// Start fresh
 	s.toDelete = make(map[string]struct{})
+
+	storedEntities.Set(float64(remainingEntities))
 
 	return nil
 }

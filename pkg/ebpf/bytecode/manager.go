@@ -22,7 +22,7 @@ func NewOffsetManager() *manager.Manager {
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
-			{Section: string(TCPGetInfo)},
+			{Section: string(TCPGetSockOpt)},
 			{Section: string(TCPv6Connect)},
 			{Section: string(IPMakeSkb)},
 			{Section: string(TCPv6ConnectReturn), KProbeMaxActive: maxActive},

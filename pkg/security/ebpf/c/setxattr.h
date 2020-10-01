@@ -12,7 +12,7 @@ struct setxattr_event_t {
     char name[MAX_XATTR_NAME_LEN];
 };
 
-int __attribute__((always_inline)) trace__sys_setxattr(char *xattr_name, u64 type) {
+int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u64 type) {
     struct syscall_cache_t syscall = {
         .type = type,
         .setxattr = {
@@ -25,69 +25,27 @@ int __attribute__((always_inline)) trace__sys_setxattr(char *xattr_name, u64 typ
     return 0;
 }
 
-SYSCALL_KPROBE(setxattr) {
-    char *name;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&name, sizeof(name), &PT_REGS_PARM2(ctx));
-#else
-    name = (char *) PT_REGS_PARM2(ctx);
-#endif
+SYSCALL_KPROBE2(setxattr, const char *, filename, const char *, name) {
     return trace__sys_setxattr(name, EVENT_SETXATTR);
 }
 
-SYSCALL_KPROBE(lsetxattr) {
-    char *name;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&name, sizeof(name), &PT_REGS_PARM2(ctx));
-#else
-    name = (char *) PT_REGS_PARM2(ctx);
-#endif
+SYSCALL_KPROBE2(lsetxattr, const char *, filename, const char *, name) {
     return trace__sys_setxattr(name, EVENT_SETXATTR);
 }
 
-SYSCALL_KPROBE(fsetxattr) {
-    char *name;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&name, sizeof(name), &PT_REGS_PARM2(ctx));
-#else
-    name = (char *) PT_REGS_PARM2(ctx);
-#endif
+SYSCALL_KPROBE2(fsetxattr, int, fd, const char *, name) {
     return trace__sys_setxattr(name, EVENT_SETXATTR);
 }
 
-SYSCALL_KPROBE(removexattr) {
-    char *name;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&name, sizeof(name), &PT_REGS_PARM2(ctx));
-#else
-    name = (char *) PT_REGS_PARM2(ctx);
-#endif
+SYSCALL_KPROBE2(removexattr, const char *, filename, const char *, name) {
     return trace__sys_setxattr(name, EVENT_REMOVEXATTR);
 }
 
-SYSCALL_KPROBE(lremovexattr) {
-    char *name;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&name, sizeof(name), &PT_REGS_PARM2(ctx));
-#else
-    name = (char *) PT_REGS_PARM2(ctx);
-#endif
+SYSCALL_KPROBE2(lremovexattr, const char *, filename, const char *, name) {
     return trace__sys_setxattr(name, EVENT_REMOVEXATTR);
 }
 
-SYSCALL_KPROBE(fremovexattr) {
-    char *name;
-#if USE_SYSCALL_WRAPPER
-    ctx = (struct pt_regs *) PT_REGS_PARM1(ctx);
-    bpf_probe_read(&name, sizeof(name), &PT_REGS_PARM2(ctx));
-#else
-    name = (char *) PT_REGS_PARM2(ctx);
-#endif
+SYSCALL_KPROBE2(fremovexattr, int, fd, const char *, name) {
     return trace__sys_setxattr(name, EVENT_REMOVEXATTR);
 }
 
@@ -141,7 +99,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
     };
 
     // copy xattr name
-    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, syscall->setxattr.name);
+    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void*) syscall->setxattr.name);
 
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
@@ -165,7 +123,6 @@ SYSCALL_KRETPROBE(lsetxattr) {
 SYSCALL_KRETPROBE(removexattr) {
     return trace__sys_setxattr_ret(ctx, EVENT_REMOVEXATTR);
 }
-
 
 SYSCALL_KRETPROBE(lremovexattr) {
     return trace__sys_setxattr_ret(ctx, EVENT_REMOVEXATTR);
