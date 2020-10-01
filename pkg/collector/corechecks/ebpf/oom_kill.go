@@ -113,7 +113,13 @@ func (m *OOMKillCheck) Run() error {
 			continue
 		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
-		tags, _ := tagger.Tag(entityID, tagger.ChecksCardinality)
+		var tags []string
+		if entityID != "" {
+			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality)
+			if err != nil {
+				log.Errorf("Error collecting tags for container %s: %s", line.ContainerID, err)
+			}
+		}
 
 		if line.MemCgOOM == 1 {
 			triggerType = "cgroup"
