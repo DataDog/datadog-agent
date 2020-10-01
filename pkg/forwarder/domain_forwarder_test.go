@@ -14,7 +14,7 @@ import (
 )
 
 func TestNewDomainForwarder(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 120*time.Second)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 120*time.Second)
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.numberOfWorkers)
@@ -32,7 +32,7 @@ func TestNewDomainForwarder(t *testing.T) {
 }
 
 func TestDomainForwarderStart(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	err := forwarder.Start()
 
 	assert.Nil(t, err)
@@ -51,14 +51,14 @@ func TestDomainForwarderStart(t *testing.T) {
 }
 
 func TestDomainForwarderInit(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	forwarder.init()
 	assert.Len(t, forwarder.workers, 0)
 	assert.Len(t, forwarder.retryQueue, 0)
 }
 
 func TestDomainForwarderStop(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
@@ -69,7 +69,7 @@ func TestDomainForwarderStop(t *testing.T) {
 }
 
 func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 120*time.Second)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 120*time.Second)
 	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
@@ -80,14 +80,14 @@ func TestDomainForwarderStop_WithConnectionReset(t *testing.T) {
 }
 
 func TestDomainForwarderSubmitIfStopped(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 
 	require.NotNil(t, forwarder)
 	assert.NotNil(t, forwarder.sendHTTPTransactions(nil))
 }
 
 func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	tr := newTestTransaction()
 
 	// fw is stopped, we should get an error
@@ -109,7 +109,7 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 }
 
 func TestRequeueTransaction(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	tr := NewHTTPTransaction()
 	assert.Len(t, forwarder.retryQueue, 0)
 	forwarder.requeueTransaction(tr)
@@ -117,7 +117,7 @@ func TestRequeueTransaction(t *testing.T) {
 }
 
 func TestRetryTransactions(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	forwarder.init()
 	forwarder.retryQueueLimit = 1
 
@@ -148,7 +148,7 @@ func TestRetryTransactions(t *testing.T) {
 }
 
 func TestForwarderRetry(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	forwarder.Start()
 	defer forwarder.Stop(false)
 
@@ -167,7 +167,6 @@ func TestForwarderRetry(t *testing.T) {
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetTarget").Return("blocked").Times(1)
-	notReady.On("GetPayloadSize").Return(0).Times(1)
 
 	forwarder.retryTransactions(time.Now())
 	<-ready.processed
@@ -181,7 +180,7 @@ func TestForwarderRetry(t *testing.T) {
 }
 
 func TestForwarderRetryLifo(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	forwarder.init()
 
 	transaction1 := newTestTransaction()
@@ -210,7 +209,7 @@ func TestForwarderRetryLifo(t *testing.T) {
 }
 
 func TestForwarderRetryLimitQueue(t *testing.T) {
-	forwarder := newDomainForwarder("test", 1, 10, 0, 0)
+	forwarder := newDomainForwarderTest("test", 1, 10, 0, 0)
 	forwarder.init()
 
 	forwarder.retryQueueLimit = 1
@@ -225,11 +224,9 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
 	transaction1.On("GetTarget").Return("blocked").Times(1)
-	transaction1.On("GetPayloadSize").Return(0).Times(1)
 
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
 	transaction2.On("GetTarget").Return("blocked").Times(1)
-	transaction2.On("GetPayloadSize").Return(0).Times(1)
 
 	forwarder.retryTransactions(time.Now())
 
@@ -247,7 +244,7 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 	flushInterval = 1 * time.Minute
 
-	forwarder := newDomainForwarder("test", 0, 10, 1+2, 0)
+	forwarder := newDomainForwarderTest("test", 0, 10, 1+2, 0)
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -255,11 +252,12 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	forwarder.Start()
 
 	for _, payloadSize := range []int{4, 3, 2, 1} {
-		tr := newTestTransaction()
-		tr.On("GetPayloadSize").Return(payloadSize)
-		tr.On("GetTarget").Return("blocked")
-		tr.On("GetCreatedAt").Return(time.Now().Add(time.Duration(-payloadSize) * time.Second))
-		forwarder.retryQueue = append(forwarder.retryQueue, tr)
+		tr := NewHTTPTransaction()
+		payload := make([]byte, payloadSize)
+		tr.Payload = &payload
+		tr.Endpoint = "blocked"
+		tr.CreatedAt = time.Now().Add(time.Duration(-payloadSize) * time.Second)
+		forwarder.requeueTransaction(tr)
 	}
 
 	forwarder.retryTransactions(time.Now())
@@ -267,4 +265,18 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	require.Len(t, forwarder.retryQueue, 2)
 	require.Equal(t, 1, forwarder.retryQueue[0].GetPayloadSize())
 	require.Equal(t, 2, forwarder.retryQueue[1].GetPayloadSize())
+}
+
+func newDomainForwarderTest(
+	domain string,
+	numberOfWorkers int,
+	retryQueueLimit int,
+	retryQueueAllPayloadsMaxSize int,
+	connectionResetInterval time.Duration) *domainForwarder {
+	return newDomainForwarder(
+		domain,
+		numberOfWorkers,
+		retryQueueLimit,
+		retryQueueAllPayloadsMaxSize,
+		connectionResetInterval, "", 0)
 }

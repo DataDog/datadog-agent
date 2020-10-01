@@ -185,6 +185,8 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	KeysPerDomain                  map[string][]string
 	ConnectionResetInterval        time.Duration
+	RunPath                        string
+	RetryTransactionMaxStorage     int64
 }
 
 // NewOptions creates new Options with default values
@@ -207,6 +209,8 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		KeysPerDomain:                  keysPerDomain,
 		ConnectionResetInterval:        time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
+		RunPath:                        config.Datadog.GetString("run_path"),
+		RetryTransactionMaxStorage:     config.Datadog.GetInt64("forwarder_retry_transaction_max_storage"),
 	}
 }
 
@@ -242,7 +246,15 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.RetryQueuePayloadsTotalMaxSize, options.ConnectionResetInterval)
+			f.domainForwarders[domain] = newDomainForwarder(
+				domain,
+				options.NumberOfWorkers,
+				options.RetryQueueSize,
+				options.RetryQueuePayloadsTotalMaxSize,
+				options.ConnectionResetInterval,
+				options.RunPath,
+				options.RetryTransactionMaxStorage,
+			)
 		}
 	}
 
