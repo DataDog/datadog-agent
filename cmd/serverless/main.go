@@ -169,7 +169,10 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	if !config.Datadog.IsSet("api_key") {
-		serverless.ReportInitError(serverlessId, serverless.FatalNoApiKey)
+		// we're not reporting the error to AWS because we don't want the function
+		// execution to be stopped. TODO(remy): discuss with AWS if there is way
+		// of reporting non-critical init errors.
+		// serverless.ReportInitError(serverlessId, serverless.FatalNoApiKey)
 		log.Critical("No API key configured, exiting")
 		return
 	}
@@ -183,7 +186,10 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
-		serverless.ReportInitError(serverlessId, serverless.FatalBadEndpoint)
+		// we're not reporting the error to AWS because we don't want the function
+		// execution to be stopped. TODO(remy): discuss with AWS if there is way
+		// of reporting non-critical init errors.
+		// serverless.ReportInitError(serverlessId, serverless.FatalBadEndpoint)
 		log.Criticalf("Misconfiguration of agent endpoints: %s", err)
 		return
 	}
@@ -198,7 +204,10 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	statsdServer, err = dogstatsd.NewServer(aggregatorInstance)
 	if err != nil {
-		serverless.ReportInitError(serverlessId, serverless.FatalDogstatsdInit)
+		// we're not reporting the error to AWS because we don't want the function
+		// execution to be stopped. TODO(remy): discuss with AWS if there is way
+		// of reporting non-critical init errors.
+		// serverless.ReportInitError(serverlessId, serverless.FatalDogstatsdInit)
 		log.Criticalf("Unable to start the DogStatsD server: %s", err)
 		return
 	}
