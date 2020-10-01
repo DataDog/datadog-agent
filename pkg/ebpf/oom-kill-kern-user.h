@@ -4,7 +4,7 @@
 #include <linux/types.h>
 
 #ifndef TASK_COMM_LEN
-#define TASK_COMM_LEN 200
+#define TASK_COMM_LEN 16
 #endif
 
 struct oom_stats {
