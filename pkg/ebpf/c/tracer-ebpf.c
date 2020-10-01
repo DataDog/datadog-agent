@@ -842,7 +842,9 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = { .pid = bpf_get_current_pid_tgid() >> 32, .port = lport };
+    port_binding_t t = {};
+    t.pid = bpf_get_current_pid_tgid() >> 32;
+    t.port = lport;
 
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
 
@@ -873,7 +875,9 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = { .pid = bpf_get_current_pid_tgid() >> 32, .port = lport};
+    port_binding_t t = {};
+    t.pid = bpf_get_current_pid_tgid() >> 32;
+    t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
         __u8 state = PORT_CLOSED;
@@ -904,8 +908,9 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     }
 
     // decide if the port is bound, if not, do nothing
-    __u64 tid = bpf_get_current_pid_tgid();
-    port_binding_t t = { .pid = tid >> 32, .port = lport};
+    port_binding_t t = {};
+    t.pid = bpf_get_current_pid_tgid() >> 32;
+    t.port = lport;
     __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &t);
 
     if (state == NULL) {
@@ -1007,7 +1012,9 @@ static __always_inline int sys_exit_bind(__s64 ret) {
 
     __u16 sin_port = args->port;
     __u8 port_state = PORT_LISTENING;
-    port_binding_t t = { .pid = tid >> 32, .port = sin_port};
+    port_binding_t t = {};
+    t.pid = tid >> 32;
+    t.port = sin_port;
     bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
 
