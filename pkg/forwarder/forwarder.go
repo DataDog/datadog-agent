@@ -389,6 +389,10 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	}
 
 	for _, t := range transactions {
+		payloadInputs.Add(t.Endpoint, 1)
+		payloadInputSizes.Add(t.Endpoint, int64(len(*t.Payload)))
+		tlmPayloadInputs.Add(1, t.Endpoint)
+		tlmPayloadInputSizes.Add(float64(len(*t.Payload)), t.Endpoint)
 		if err := f.domainForwarders[t.Domain].sendHTTPTransactions(t); err != nil {
 			log.Errorf(err.Error())
 		}
