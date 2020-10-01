@@ -38,8 +38,10 @@ const (
 var (
 	forwarderExpvars              = expvar.NewMap("forwarder")
 	connectionEvents              = expvar.Map{}
-	payloadInputSize              = expvar.Map{}
-	payloadOutputSize             = expvar.Map{}
+	payloadInputs                 = expvar.Map{}
+	payloadInputSizes             = expvar.Map{}
+	payloadOutputs                = expvar.Map{}
+	payloadOutputSizes            = expvar.Map{}
 	transactionsExpvars           = expvar.Map{}
 	transactionsSeries            = expvar.Int{}
 	transactionsEvents            = expvar.Int{}
@@ -63,10 +65,14 @@ var (
 
 	tlm = telemetry.NewCounter("forwarder", "transactions",
 		[]string{"endpoint", "route"}, "Forwarder telemetry")
-	tlmPayloadInputSize = telemetry.NewGauge("forwarder", "payload_input_size",
-		[]string{"endpoint"}, "Payload Input Size")
-	tlmPayloadOutputSize = telemetry.NewGauge("forwarder", "payload_output_size",
-		[]string{"endpoint"}, "Payload Output Size")
+	tlmPayloadInputs = telemetry.NewCounter("forwarder", "payload_inputs",
+		[]string{"endpoint"}, "Payload Inputs")
+	tlmPayloadInputSizes = telemetry.NewCounter("forwarder", "payload_input_sizes",
+		[]string{"endpoint"}, "Payload Input Sizes")
+	tlmPayloadOutputs = telemetry.NewCounter("forwarder", "payload_outputs",
+		[]string{"endpoint"}, "Payload Outputs")
+	tlmPayloadOutputSizes = telemetry.NewCounter("forwarder", "payload_output_sizes",
+		[]string{"endpoint"}, "Payload Output Sizes")
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
@@ -92,12 +98,16 @@ var (
 func init() {
 	transactionsExpvars.Init()
 	connectionEvents.Init()
-	payloadInputSize.Init()
-	payloadOutputSize.Init()
+	payloadInputs.Init()
+	payloadInputSizes.Init()
+	payloadOutputs.Init()
+	payloadOutputSizes.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
 	forwarderExpvars.Set("ConnectionEvents", &connectionEvents)
-	forwarderExpvars.Set("PayloadInputSize", &payloadInputSize)
-	forwarderExpvars.Set("PayloadOutputSize", &payloadOutputSize)
+	forwarderExpvars.Set("PayloadInputs", &payloadInputs)
+	forwarderExpvars.Set("PayloadInputSizes", &payloadInputSizes)
+	forwarderExpvars.Set("PayloadOutputs", &payloadOutputs)
+	forwarderExpvars.Set("PayloadOutputSizes", &payloadOutputSizes)
 	transactionsExpvars.Set("Series", &transactionsSeries)
 	transactionsExpvars.Set("Events", &transactionsEvents)
 	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
