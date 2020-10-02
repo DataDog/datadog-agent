@@ -116,6 +116,12 @@
         {{- if and (not .timestamp) (not .checks)}}
           No JMX status available
         {{- else }}
+          <span class="stat_subtitle">Information</span>
+          <span class="stat_subdata">
+            {{- range $k,$v := .info }}
+              {{ $k }} : {{ $v }}<br>
+            {{- end }}
+          </span>
           <span class="stat_subtitle">Initialized Checks</span>
           <span class="stat_subdata">
             {{- if (not .checks.initialized_checks)}}

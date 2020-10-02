@@ -448,7 +448,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 }
 
 func TestHighPriorityTransaction(t *testing.T) {
-	var requestCount int32 = 0
+	var requestCount int32
 	var requestChan = make(chan (string))
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

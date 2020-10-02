@@ -871,7 +871,8 @@ int uninstallServices(CustomActionData& data) {
         WcaLog(LOGMSG_STANDARD, "deleting service service %d", i);
         DWORD rbret = services[i].destroy(hScManager);
         if (rbret != 0) {
-            WcaLog(LOGMSG_STANDARD, "Failed to uninstall service %d 0x%x", rbret, rbret);
+            std::string lastErrStr = GetErrorMessageStr(rbret);
+            WcaLog(LOGMSG_STANDARD, "Failed to uninstall service %s (%d)", lastErrStr.c_str(), rbret);
         }
     }
     WcaLog(LOGMSG_STANDARD, "done uinstalling services");

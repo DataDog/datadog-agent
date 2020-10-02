@@ -9,12 +9,22 @@ PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
 
 def trigger_agent_pipeline(
-    ref="master", release_version_6="nightly", release_version_7="nightly-a7", branch="nightly", deploy=True
+    gitlab,
+    project,
+    ref="master",
+    release_version_6="nightly",
+    release_version_7="nightly-a7",
+    branch="nightly",
+    deploy=True,
 ):
     """
     Trigger a pipeline to deploy an Agent to staging repos
     (as specified with the DEPLOY_AGENT arg).
     """
+
+    if gitlab is None:
+        gitlab = Gitlab()
+
     args = {}
 
     if deploy:
@@ -34,7 +44,7 @@ def trigger_agent_pipeline(
             ref, "\n".join(["  - {}: {}".format(k, args[k]) for k in args])
         )
     )
-    result = Gitlab().create_pipeline("DataDog/datadog-agent", ref, args)
+    result = gitlab.create_pipeline(project, ref, args)
 
     if result and "id" in result:
         return result["id"]
@@ -42,17 +52,15 @@ def trigger_agent_pipeline(
 
 
 def wait_for_pipeline(
-    project, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
+    gitlab, project, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
 ):
     """
     Follow a given pipeline, periodically checking the pipeline status
     and printing changes to the job statuses.
     """
 
-    gitlab = Gitlab()
-
-    # Check that the project can be found (if not, we probably don't have enough permissions)
-    gitlab.test_project_found(project)
+    if gitlab is None:
+        gitlab = Gitlab()
 
     commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, project, pipeline_id)
 

@@ -278,3 +278,28 @@ func TestDecoderWithDockerHeader(t *testing.T) {
 
 	d.Stop()
 }
+
+func TestDecoderWithDecodingParser(t *testing.T) {
+	source := config.NewLogSource("config", &config.LogsConfig{})
+
+	d := NewDecoderWithEndLineMatcher(source, parser.NewDecodingParser(parser.UTF16LE), NewBytesSequenceMatcher(Utf16leEOL))
+	d.Start()
+
+	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}
+	d.InputChan <- NewInput(input)
+
+	var output *Message
+	output = <-d.OutputChan
+	assert.Equal(t, "hello", string(output.Content))
+	assert.Equal(t, len(input), output.RawDataLen)
+
+	// Test with BOM
+	input = []byte{0xFF, 0xFE, 'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}
+	d.InputChan <- NewInput(input)
+
+	output = <-d.OutputChan
+	assert.Equal(t, "hello", string(output.Content))
+	assert.Equal(t, len(input), output.RawDataLen)
+
+	d.Stop()
+}

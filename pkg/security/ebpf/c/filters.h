@@ -26,4 +26,6 @@ struct filter_t {
     char value;
 };
 
+void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file);
+
 #endif
