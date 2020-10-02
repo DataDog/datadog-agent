@@ -68,11 +68,9 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	statsdServer *dogstatsd.Server
 
-	// envParameters are all the parameters that will be tried to be read from
-	// the serverless environment.
-	envParameters = []string{
-		"DD_API_KEY", "DD_SITE", "DD_LOG_LEVEL",
-	}
+	apiKeyEnvVar    = "DD_API_KEY"
+	kmsApiKeyEnvVar = "DD_KMS_API_KEY"
+	logLevelEnvVar  = "DD_LOG_LEVEL"
 )
 
 const (
@@ -165,15 +163,15 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// try to read apikey from KMS
 	// ---------------------------
 
-	var apikey string
-	if apikey, err = readApiKeyFromKMS(); err != nil {
+	var apiKey string
+	if apiKey, err = readApiKeyFromKMS(); err != nil {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
-	} else if apikey != "" {
-		if os.Getenv("DD_API_KEY") != "" {
+	} else if apiKey != "" {
+		if os.Getenv(apiKeyEnvVar) != "" {
 			log.Warn("An API Key has been set in both KMS and in the environment variable. Using the one set in KMS.")
 		}
 		log.Info("Using deciphered KMS API Key")
-		os.Setenv("DD_API_KEY", apikey) // it will be catched up by config.Load()
+		os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
 	}
 
 	// read configuration from the environment vars
@@ -197,7 +195,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		return
 	}
 
-	if logLevel := os.Getenv("DD_LOG_LEVEL"); len(logLevel) > 0 {
+	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
 		config.ChangeLogLevel(logLevel)
 	}
 
@@ -295,11 +293,11 @@ func decryptKMS(cipherText string) (string, error) {
 // readApiKeyFromKMS reads an API Key in KMS.
 // If none has been set, it is returning an empty string and a nil error.
 func readApiKeyFromKMS() (string, error) {
-	ciphered := os.Getenv("DD_KMS_API_KEY")
+	ciphered := os.Getenv(kmsApiKeyEnvVar)
 	if ciphered == "" {
 		return "", nil
 	}
-	log.Debug("Found DD_KMS_API_KEY value, trying to decipher to use it.")
+	log.Debug("Found DD_KMS_API_KEY value, trying to decipher it.")
 	if rv, err := decryptKMS(ciphered); err != nil {
 		return "", fmt.Errorf("decryptKMS error: %s", err)
 	} else {
