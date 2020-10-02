@@ -179,7 +179,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			log.Debugf("Trace rejected by blacklister. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
-			return
+			continue
 		}
 
 		// Extra sanitization steps of the trace.
