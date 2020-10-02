@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	_ "expvar"
 	"fmt"
 	"net/http"
@@ -17,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -159,6 +162,20 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		return
 	}
 
+	// try to read apikey from KMS
+	// ---------------------------
+
+	var apikey string
+	if apikey, err = readApiKeyFromKMS(); err != nil {
+		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
+	} else if apikey != "" {
+		if os.Getenv("DD_API_KEY") != "" {
+			log.Warn("An API Key has been set in both KMS and in the environment variable. Using the one set in KMS.")
+		}
+		log.Info("Using deciphered KMS API Key")
+		os.Setenv("DD_API_KEY", apikey) // it will be catched up by config.Load()
+	}
+
 	// read configuration from the environment vars
 	// --------------------------------------------
 
@@ -167,6 +184,9 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	} else {
 		log.Warn("A configuration file has been found, which should not happen in this mode.")
 	}
+
+	// validate that an apikey has been set, either by the env var or read from KMS
+	// ---------------------------
 
 	if !config.Datadog.IsSet("api_key") {
 		// we're not reporting the error to AWS because we don't want the function
@@ -246,6 +266,44 @@ func handleSignals(stopCh chan struct{}) {
 			stopCh <- struct{}{}
 			return
 		}
+	}
+}
+
+// decryptKMS deciphered the cipherText given as parameter.
+// Function stolen and adapted from datadog-lambda-go/internal/metrics/kms_decrypter.go
+func decryptKMS(cipherText string) (string, error) {
+	kmsClient := kms.New(session.New(nil))
+	decodedBytes, err := base64.StdEncoding.DecodeString(cipherText)
+	if err != nil {
+		return "", fmt.Errorf("Failed to encode cipher text to base64: %v", err)
+	}
+
+	params := &kms.DecryptInput{
+		CiphertextBlob: decodedBytes,
+	}
+
+	response, err := kmsClient.Decrypt(params)
+	if err != nil {
+		return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
+	}
+	// Plaintext is a byte array, so convert to string
+	decrypted := string(response.Plaintext[:])
+
+	return decrypted, nil
+}
+
+// readApiKeyFromKMS reads an API Key in KMS.
+// If none has been set, it is returning an empty string and a nil error.
+func readApiKeyFromKMS() (string, error) {
+	ciphered := os.Getenv("DD_KMS_API_KEY")
+	if ciphered == "" {
+		return "", nil
+	}
+	log.Debug("Found DD_KMS_API_KEY value, trying to decipher to use it.")
+	if rv, err := decryptKMS(ciphered); err != nil {
+		return "", fmt.Errorf("decryptKMS error: %s", err)
+	} else {
+		return rv, nil
 	}
 }
 
