@@ -132,7 +132,7 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name:       "sys_utime",
-		KProbes:    syscallKprobe("utime"),
+		KProbes:    syscallKprobe("utime", true),
 		EventTypes: []eval.EventType{"utimes"},
 	},
 	{
@@ -143,17 +143,17 @@ var allHookPoints = []*HookPoint{
 	},
 	{
 		Name:       "sys_utimes",
-		KProbes:    syscallKprobe("utimes"),
+		KProbes:    syscallKprobe("utimes", true),
 		EventTypes: []eval.EventType{"utimes"},
 	},
 	{
 		Name:       "sys_utimensat",
-		KProbes:    syscallKprobe("utimensat"),
+		KProbes:    syscallKprobe("utimensat", true),
 		EventTypes: []eval.EventType{"utimes"},
 	},
 	{
 		Name:       "sys_futimesat",
-		KProbes:    syscallKprobe("futimesat"),
+		KProbes:    syscallKprobe("futimesat", true),
 		EventTypes: []eval.EventType{"utimes"},
 	},
 	{

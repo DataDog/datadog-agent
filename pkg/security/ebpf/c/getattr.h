@@ -17,7 +17,6 @@ int kprobe__security_inode_getattr(struct pt_regs *ctx) {
 
     u64 inode = get_dentry_ino(dentry);
     int numlower = get_overlay_numlower(dentry);
-    bpf_printk("security_inode_getattr numlower: %d, pid: %d, inode: %ld\n", numlower, (int) (bpf_get_current_pid_tgid() >> 32), inode);
 
     // security_inode_getattr might be called multiple times on overlay filesystem, we only care about the first call
     int *current_numlower = bpf_map_lookup_elem(&inode_numlower, &inode);
