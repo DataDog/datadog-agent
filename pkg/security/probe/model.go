@@ -160,7 +160,7 @@ func (e *FileEvent) ResolveContainerPath(resolvers *Resolvers) string {
 		}
 		if len(containerPath) == 0 && len(e.PathnameStr) == 0 {
 			// The container path might be included in the pathname. The container path will be set there.
-			_ = e.ResolveInode(resolvers)
+			e.ResolveInode(resolvers)
 		}
 	}
 	return e.ContainerPath
@@ -504,8 +504,8 @@ func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
 	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
-	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
-	fmt.Fprintf(&buf, `"access_time":"%s"`, e.Atime)
+	fmt.Fprintf(&buf, `"overlay_numlower":%d,`, e.OverlayNumLower)
+	fmt.Fprintf(&buf, `"access_time":"%s",`, e.Atime)
 	fmt.Fprintf(&buf, `"modification_time":"%s"`, e.Mtime)
 	buf.WriteRune('}')
 

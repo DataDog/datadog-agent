@@ -24,6 +24,11 @@ type headerMatcher struct {
 	decoder.EndLineMatcher
 }
 
+// SeparatorLen returns the number of byte to skip at the end of each line
+func (s *headerMatcher) SeparatorLen() int {
+	return 1
+}
+
 // Match does an extra checking on matching docker header. The header should be
 // ignored for determine weather it's a end of line or not.
 func (s *headerMatcher) Match(exists []byte, appender []byte, start int, end int) bool {

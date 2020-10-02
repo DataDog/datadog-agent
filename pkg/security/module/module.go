@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/pkg/errors"
@@ -117,7 +118,7 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field); err != nil {
-		log.Debug(err)
+		log.Trace(err)
 	}
 }
 
@@ -140,6 +141,9 @@ func (m *Module) statsMonitor(ctx context.Context) {
 				log.Debug(err)
 			}
 			if err := m.rateLimiter.SendStats(m.statsdClient); err != nil {
+				log.Debug(err)
+			}
+			if err := m.eventServer.SendStats(m.statsdClient); err != nil {
 				log.Debug(err)
 			}
 		case <-ctx.Done():
@@ -179,7 +183,9 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 	}
 
 	var statsdClient *statsd.Client
-	if cfg != nil {
+	// statsd segfaults on 386 because of atomic primitive usage with wrong alignment
+	// https://github.com/golang/go/issues/37262
+	if runtime.GOARCH != "386" && cfg != nil {
 		statsdAddr := os.Getenv("STATSD_URL")
 		if statsdAddr == "" {
 			statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
@@ -187,6 +193,8 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		if statsdClient, err = statsd.New(statsdAddr); err != nil {
 			return nil, err
 		}
+	} else {
+		log.Warn("Logs won't be send to DataDog")
 	}
 
 	probe, err := sprobe.NewProbe(config)
@@ -203,7 +211,7 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		config:       config,
 		probe:        probe,
 		ruleSet:      ruleSet,
-		eventServer:  NewEventServer(),
+		eventServer:  NewEventServer(ruleSet.ListRuleIDs(), config),
 		grpcServer:   grpc.NewServer(),
 		statsdClient: statsdClient,
 		rateLimiter:  NewRateLimiter(ruleSet.ListRuleIDs()),

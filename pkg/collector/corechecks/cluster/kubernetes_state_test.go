@@ -164,6 +164,39 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
+			name:   "only consider datadog standard tags in label join",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_deployment_status_replicas": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_deployment_status_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_deployment_labels",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "ignore": "this_label"}}},
+				},
+			},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.deployment.replicas",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_deployment:redis", "env:dev"},
+					hostname: "",
+				},
+			},
+		},
+		{
 			name:   "honour metric transformers",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{

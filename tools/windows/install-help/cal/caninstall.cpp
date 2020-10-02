@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "TargetMachine.h"
 
 /**
  *  canInstall determines if the install can proceed based on the current
@@ -16,7 +17,7 @@
  * @param bResetPassword on return, set to true if the password needs to be reset based on configuration,
  *                       otherwise false.
  */
-bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword)
+bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data,  bool &bResetPassword)
 {
     bResetPassword = false;
     ///////////////////////////////////////////////////////////////////////////
@@ -66,12 +67,12 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
             }
         }
         if(!ddUserExists &&
-            (_wcsicmp(data.Domain().c_str(), domainname.c_str())))
+            (_wcsicmp(data.Domain().c_str(), data.GetTargetMachine().GetDomain().c_str())))
         {
             // on a domain controller, we can only create a user in this controller's domain.
             // check and reject an attempt to create a user not in this domain
             WcaLog(LOGMSG_STANDARD, "Can't create a user that's not in this domain: %S (asked for %S)",
-                domainname.c_str(), data.Domain().c_str());
+                data.GetTargetMachine().GetDomain().c_str(), data.Domain().c_str());
                 return false;
         }
     }

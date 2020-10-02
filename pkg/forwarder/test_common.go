@@ -50,6 +50,10 @@ func (t *testTransaction) GetTarget() string {
 	return t.Called().Get(0).(string)
 }
 
+func (t *testTransaction) GetPriority() TransactionPriority {
+	return TransactionPriorityNormal
+}
+
 // Compile-time checking to ensure that MockedForwarder implements Forwarder
 var _ Forwarder = &MockedForwarder{}
 
@@ -74,8 +78,8 @@ func (tf *MockedForwarder) SubmitV1Series(payload Payloads, extra http.Header) e
 }
 
 // SubmitV1Intake updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
+func (tf *MockedForwarder) SubmitV1Intake(payload Payloads, extra http.Header, priority TransactionPriority) error {
+	return tf.Called(payload, extra, priority).Error(0)
 }
 
 // SubmitV1CheckRuns updates the internal mock struct
@@ -109,8 +113,8 @@ func (tf *MockedForwarder) SubmitHostMetadata(payload Payloads, extra http.Heade
 }
 
 // SubmitMetadata updates the internal mock struct
-func (tf *MockedForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
+func (tf *MockedForwarder) SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error {
+	return tf.Called(payload, extra, priority).Error(0)
 }
 
 // SubmitProcessChecks mock

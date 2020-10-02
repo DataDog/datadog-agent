@@ -21,15 +21,15 @@ int __attribute__((always_inline)) trace__sys_rename() {
     return 0;
 }
 
-SYSCALL_KPROBE(rename) {
+SYSCALL_KPROBE0(rename) {
     return trace__sys_rename();
 }
 
-SYSCALL_KPROBE(renameat) {
+SYSCALL_KPROBE0(renameat) {
     return trace__sys_rename();
 }
 
-SYSCALL_KPROBE(renameat2) {
+SYSCALL_KPROBE0(renameat2) {
     return trace__sys_rename();
 }
 
@@ -89,6 +89,9 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     fill_container_data(entry, &event.container);
 
     resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, NULL);
+
+    // as old and new have are the same files, only one is needed
+    remove_inode_discarders(&event.new);
 
     send_event(ctx, event);
 

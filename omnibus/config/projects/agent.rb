@@ -130,11 +130,12 @@ package :msi do
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 
-  additional_sign_files [
+  additional_sign_files_list = [
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
+      "#{install_dir}\\bin\\agent\\ddtray.exe"
     ]
   #if ENV['SIGN_WINDOWS']
   #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
@@ -145,7 +146,9 @@ package :msi do
   include_sysprobe = "false"
   if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
     include_sysprobe = "true"
+    additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
   end
+  additional_sign_files additional_sign_files_list
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
@@ -234,13 +237,11 @@ if linux?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
   end
   if suse?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
   end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"

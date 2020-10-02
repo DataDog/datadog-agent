@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"golang.org/x/sys/unix"
 )
 
 func TestSetXAttr(t *testing.T) {
@@ -55,8 +56,7 @@ func TestSetXAttr(t *testing.T) {
 		defer f.Close()
 		defer os.Remove(testFile)
 
-		// XATTR_CREATE = 1
-		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, 1, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
@@ -97,8 +97,7 @@ func TestSetXAttr(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		// XATTR_CREATE = 1
-		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, 1, 0)
+		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 		// Linux and Android don't support xattrs on symlinks according
 		// to xattr(7), so just test that we get the proper error.
 		if errno != syscall.EACCES && errno != syscall.EPERM {
@@ -129,8 +128,7 @@ func TestSetXAttr(t *testing.T) {
 		defer f.Close()
 		defer os.Remove(testFile)
 
-		// XATTR_CREATE = 1
-		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, 1, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
@@ -162,7 +160,7 @@ func TestRemoveXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true, testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,12 +187,11 @@ func TestRemoveXAttr(t *testing.T) {
 		defer os.Remove(testFile)
 
 		// set xattr
-		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), 0, 1, 0, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), 0, 0, 1, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
 
-		// XATTR_CREATE = 1
 		_, _, errno = syscall.Syscall(syscall.SYS_REMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
@@ -244,7 +241,6 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		// XATTR_CREATE = 1
 		_, _, errno = syscall.Syscall(syscall.SYS_LREMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
 		// Linux and Android don't support xattrs on symlinks according
 		// to xattr(7), so just test that we get the proper error.
@@ -276,12 +272,11 @@ func TestRemoveXAttr(t *testing.T) {
 		defer os.Remove(testFile)
 
 		// set xattr
-		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), 0, 1, 0, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), 0, 0, 1, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
 
-		// XATTR_CREATE = 1
 		_, _, errno = syscall.Syscall(syscall.SYS_FREMOVEXATTR, f.Fd(), uintptr(xattrNamePtr), 0)
 		if errno != 0 {
 			t.Fatal(error(errno))

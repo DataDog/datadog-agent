@@ -85,11 +85,22 @@ func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder
 	case "open.filename":
 		fsEvent := event.Open
 		table := "open_path_inode_discarders"
+		value := discarder.Value.(string)
 
-		isDiscarded, err := discardParentInode(probe, rs, "open", discarder.Value.(string), fsEvent.MountID, fsEvent.Inode, table)
-		if !isDiscarded || err != nil {
-			// not able to discard the parent then only discard the filename
-			_, err = discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
+		if value == "" {
+			return nil
+		}
+
+		isDiscarded, err := discardParentInode(probe, rs, "open", value, fsEvent.MountID, fsEvent.Inode, table)
+		if !isDiscarded {
+			if _, ok := err.(*ErrInvalidKeyPath); !ok {
+				// not able to discard the parent then only discard the filename
+				_, err = discardInode(probe, fsEvent.MountID, fsEvent.Inode, table)
+			}
+		}
+
+		if err != nil {
+			err = errors.Wrapf(err, "unable to set inode discarders for `%s`", value)
 		}
 
 		return err

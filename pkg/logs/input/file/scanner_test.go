@@ -110,7 +110,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	s := suite.s
-	source := suite.source
+	//	source := suite.source
 
 	var tailer *Tailer
 	var newTailer *Tailer
@@ -122,30 +122,32 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content))
 
-	tailer = s.tailers[source.Config.Path]
+	tailer = s.tailers[suite.testPath]
 	os.Rename(suite.testPath, suite.testRotatedPath)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	s.scan()
-	newTailer = s.tailers[source.Config.Path]
+	newTailer = s.tailers[suite.testPath]
 	suite.True(tailer != newTailer)
 
 	_, err = f.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
 	suite.Equal("hello again", string(msg.Content))
+
+	// TODO(remy): add test for when a container ID is available in the source
 }
 
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	s := suite.s
-	source := suite.source
+	//	source := suite.source
 
 	var tailer *Tailer
 	var newTailer *Tailer
 	var err error
 	var msg *message.Message
 
-	tailer = s.tailers[source.Config.Path]
+	tailer = s.tailers[suite.testPath]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
@@ -158,11 +160,13 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	suite.Nil(err)
 
 	s.scan()
-	newTailer = s.tailers[source.Config.Path]
+	newTailer = s.tailers[suite.testPath]
 	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
 	suite.Equal("third", string(msg.Content))
+
+	// TODO(remy): add test for when a container ID is available in the source
 }
 
 func (suite *ScannerTestSuite) TestScannerScanWithFileRemovedAndCreated() {
@@ -238,6 +242,8 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	assert.Equal(t, "hello", string(msg.Content))
 	msg = <-tailer.outputChan
 	assert.Equal(t, "world", string(msg.Content))
+
+	// TODO(remy): add test for when a container ID is available in the source
 }
 
 func TestScannerTailFromTheBeginning(t *testing.T) {
@@ -290,6 +296,8 @@ func TestScannerTailFromTheBeginning(t *testing.T) {
 	assert.Equal(t, "A", string(msg.Content))
 	msg = <-tailer.outputChan
 	assert.Equal(t, "Time", string(msg.Content))
+
+	// TODO(remy): test with a container ID in the source
 }
 
 func TestScannerScanWithTooManyFiles(t *testing.T) {

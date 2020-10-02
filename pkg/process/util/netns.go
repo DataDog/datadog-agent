@@ -5,6 +5,7 @@ package util
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"runtime"
 	"strconv"
 
@@ -48,7 +49,7 @@ func WithNS(procRoot string, ns netns.NsHandle, fn func()) error {
 }
 
 // GetNetNamespaces returns a list of network namespaces on the machine. The caller
-// is responsible for calling Close() on ech of the returned NsHandle's.
+// is responsible for calling Close() on each of the returned NsHandle's.
 func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 	files, err := ioutil.ReadDir(procRoot)
 	if err != nil {
@@ -68,7 +69,11 @@ func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 
 		ns, err := netns.GetFromPath(fmt.Sprintf("%s/%s/ns/net", procRoot, f.Name()))
 		if err != nil {
-			return nil, err
+			if !os.IsNotExist(err) {
+				return nil, err
+			}
+
+			continue
 		}
 
 		uid := ns.UniqueId()

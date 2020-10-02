@@ -70,7 +70,7 @@ struct syscall_cache_t {
             struct mount *dest_mnt;
             struct mountpoint *dest_mountpoint;
             struct path_key_t root_key;
-            void *fstype;
+            const char *fstype;
         } mount;
 
         struct {
@@ -88,7 +88,7 @@ struct syscall_cache_t {
         struct {
             struct dentry *dentry;
             struct path_key_t path_key;
-            char *name;
+            const char *name;
         } setxattr;
     };
 };

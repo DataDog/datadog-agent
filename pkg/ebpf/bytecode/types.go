@@ -28,9 +28,9 @@ const (
 	// by the tcp_sendmsg func (so we can have a # of tcp sent bytes we miscounted)
 	TCPSendMsgReturn ProbeName = "kretprobe/tcp_sendmsg"
 
-	// TCPGetInfo traces the tcp_get_info() system call
+	// TCPGetSockOpt traces the tcp_getsockopt() kernel function
 	// This probe is used for offset guessing only
-	TCPGetInfo ProbeName = "kprobe/tcp_get_info"
+	TCPGetSockOpt ProbeName = "kprobe/tcp_getsockopt"
 
 	// TCPSetState traces the tcp_set_state() kernel function
 	TCPSetState ProbeName = "kprobe/tcp_set_state"
@@ -42,10 +42,10 @@ const (
 	// TCPCloseReturn traces the return of tcp_close() system call
 	TCPCloseReturn ProbeName = "kretprobe/tcp_close"
 
-	// UDPSendMsg traces the udp_sendmsg() system call
-	UDPSendMsg ProbeName = "kprobe/udp_sendmsg"
-	// UDPSendMsgPre410 traces the udp_sendmsg() system call on kernels prior to 4.1.0
-	UDPSendMsgPre410 ProbeName = "kprobe/udp_sendmsg/pre_4_1_0"
+	// We use the following two probes for UDP sends
+	IPMakeSkb  ProbeName = "kprobe/ip_make_skb"
+	IP6MakeSkb ProbeName = "kprobe/ip6_make_skb"
+
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg ProbeName = "kprobe/udp_recvmsg"
 	// UDPRecvMsgPre410 traces the udp_recvmsg() system call on kernels prior to 4.1.0
@@ -112,7 +112,6 @@ var (
 	// the actual eBPF function that it should bind to
 	KProbeOverrides = map[ProbeName]ProbeName{
 		TCPSendMsgPre410: TCPSendMsg,
-		UDPSendMsgPre410: UDPSendMsg,
 		UDPRecvMsgPre410: UDPRecvMsg,
 		SysBindX64:       SysBind,
 		SysSocketX64:     SysSocket,

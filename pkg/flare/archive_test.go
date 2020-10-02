@@ -283,10 +283,10 @@ func TestZipTaggerList(t *testing.T) {
 }
 
 func TestPerformanceProfile(t *testing.T) {
-	testProfile := &Profile{
-		FirstHeapProfile:  []byte{},
-		SecondHeapProfile: []byte{},
-		CPUProfile:        []byte{},
+	testProfile := ProfileData{
+		"first":  []byte{},
+		"second": []byte{},
+		"third":  []byte{},
 	}
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", testProfile)
@@ -305,11 +305,11 @@ func TestPerformanceProfile(t *testing.T) {
 	firstHeap, secondHeap, cpu := false, false, false
 	for _, f := range z.File {
 		switch path.Base(f.Name) {
-		case firstHeapProfileName:
+		case "first":
 			firstHeap = true
-		case secondHeapProfileName:
+		case "second":
 			secondHeap = true
-		case cpuProfileName:
+		case "third":
 			cpu = true
 		}
 	}

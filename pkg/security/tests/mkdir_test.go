@@ -39,86 +39,92 @@ func TestMkdir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
-		t.Fatal(err)
-	}
-	defer syscall.Rmdir(testFile)
-
-	event, _, err := test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "mkdir" {
-			t.Errorf("expected mkdir event, got %s", event.GetType())
+	t.Run("mkdir", func(t *testing.T) {
+		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(0707), 0); errno != 0 {
+			t.Fatal(err)
 		}
+		defer syscall.Rmdir(testFile)
 
-		if mode := event.Mkdir.Mode; mode != 0707 {
-			t.Errorf("expected mkdir mode 0707, got %#o", mode)
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "mkdir" {
+				t.Errorf("expected mkdir event, got %s", event.GetType())
+			}
+
+			if mode := event.Mkdir.Mode; mode != 0707 {
+				t.Errorf("expected mkdir mode 0707, got %#o (%+v)", mode, event)
+			}
 		}
-	}
+	})
 
-	testatFile, testatFilePtr, err := test.Path("testat-mkdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
-		t.Fatal(error(errno))
-	}
-
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "mkdir" {
-			t.Errorf("expected mkdir event, got %s", event.GetType())
-		}
-
-		if mode := event.Mkdir.Mode; mode != 0777 {
-			t.Errorf("expected mkdir mode 0777, got %#o", mode)
-		}
-	}
-
-	if err := syscall.Rmdir(testatFile); err != nil {
-		t.Fatal(err)
-	}
-
-	_, testatFilePtr, err = test.Path("testat2-mkdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.Chmod(test.Root(), 0711); err != nil {
-		t.Fatal(err)
-	}
-
-	go func() {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-
-		if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
+	t.Run("mkdirat", func(t *testing.T) {
+		testatFile, testatFilePtr, err := test.Path("testat-mkdir")
+		if err != nil {
 			t.Fatal(err)
 		}
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 10000, 10000, 0); errno != 0 {
-			t.Fatal(err)
-		}
-
-		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
+		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
 			t.Fatal(error(errno))
 		}
-	}()
 
-	event, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	} else {
-		if event.GetType() != "mkdir" {
-			t.Errorf("expected mkdir event, got %s", event.GetType())
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "mkdir" {
+				t.Errorf("expected mkdir event, got %s", event.GetType())
+			}
+
+			if mode := event.Mkdir.Mode; mode != 0777 {
+				t.Errorf("expected mkdir mode 0777, got %#o", mode)
+			}
 		}
 
-		if retval := event.Mkdir.Retval; retval != -int64(syscall.EACCES) {
-			t.Errorf("expected retval != EACCES, got %d", retval)
+		if err := syscall.Rmdir(testatFile); err != nil {
+			t.Fatal(err)
 		}
-	}
+	})
+
+	t.Run("mkdirat-error", func(t *testing.T) {
+		_, testatFilePtr, err := test.Path("testat2-mkdir")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Chmod(test.Root(), 0711); err != nil {
+			t.Fatal(err)
+		}
+
+		go func() {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
+				t.Fatal(err)
+			}
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 10000, 10000, 0); errno != 0 {
+				t.Fatal(err)
+			}
+
+			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
+				t.Fatal(error(errno))
+			}
+		}()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "mkdir" {
+				t.Errorf("expected mkdir event, got %s", event.GetType())
+			}
+
+			if retval := event.Mkdir.Retval; retval != -int64(syscall.EACCES) {
+				t.Errorf("expected retval != EACCES, got %d", retval)
+			}
+		}
+	})
 }

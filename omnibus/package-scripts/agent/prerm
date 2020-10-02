@@ -40,7 +40,7 @@ stop_agent()
     elif [ "$DISTRIBUTION_FAMILY" = "Debian" ] || [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ]; then
         if command -v service >/dev/null 2>&1; then
             service $SERVICE_NAME-process stop || true
-            # TODO: investigate if the following line could be used in other cases than with sysvinit systems (which don't support sysprobe).
+            # TODO: investigate if the following line could be used in other cases than with sysvinit systems (which don't support sysprobe/security-agent).
             # If not, remove it.
             service $SERVICE_NAME-sysprobe stop || true
             service $SERVICE_NAME-trace stop || true
@@ -71,7 +71,7 @@ deregister_agent()
     elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
         if command -v update-rc.d >/dev/null 2>&1; then
             update-rc.d -f $SERVICE_NAME-process remove || true
-            # TODO: investigate if the following line could be used in other cases than with sysvinit systems (which don't support sysprobe).
+            # TODO: investigate if the following line could be used in other cases than with sysvinit systems (which don't support sysprobe/security-agent).
             # If not, remove it.
             update-rc.d -f $SERVICE_NAME-sysprobe remove || true
             update-rc.d -f $SERVICE_NAME-trace remove || true
@@ -84,13 +84,11 @@ deregister_agent()
         if command -v update-rc.d >/dev/null 2>&1; then
             update-rc.d -f $SERVICE_NAME-process remove || true
             update-rc.d -f $SERVICE_NAME-trace remove || true
-            update-rc.d -f $SERVICE_NAME-security remove || true
             update-rc.d -f $SERVICE_NAME remove || true
         elif command -v chkconfig >/dev/null 2>&1; then
             chkconfig --set $SERVICE_NAME off || true
             chkconfig --set $SERVICE_NAME-process off || true
             chkconfig --set $SERVICE_NAME-trace off || true
-            chkconfig --set $SERVICE_NAME-security off || true
         fi
     else
         echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."

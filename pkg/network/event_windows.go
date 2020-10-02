@@ -126,7 +126,7 @@ func FlowToConnStat(flow *C.struct__perFlowData, enableMonotonicCounts bool) Con
 		// the linux probe only reports the raw transport data.  So do that by default.
 		MonotonicSentBytes: monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicSentBytes, flow.transportBytesOut),
 		MonotonicRecvBytes: monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicRecvBytes, flow.transportBytesIn),
-		LastUpdateEpoch:    0,
+		LastUpdateEpoch:    uint64(flow.timestamp),
 		Pid:                uint32(flow.processId),
 		SPort:              uint16(flow.localPort),
 		DPort:              uint16(flow.remotePort),

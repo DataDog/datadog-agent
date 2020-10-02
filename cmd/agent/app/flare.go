@@ -22,7 +22,6 @@ import (
 )
 
 var (
-	pprofURL      string
 	customerEmail string
 	autoconfirm   bool
 	forceLocal    bool
@@ -79,19 +78,42 @@ var flareCmd = &cobra.Command{
 	},
 }
 
+func readProfileData(pdata *flare.ProfileData) error {
+	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
+	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
+	if err := flare.CreatePerformanceProfile("core", coreDebugURL, profiling, pdata); err != nil {
+		return err
+	}
+
+	if k := "apm_config.enabled"; config.Datadog.IsSet(k) && !config.Datadog.GetBool(k) {
+		return nil
+	}
+	traceDebugURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", config.Datadog.GetInt("apm_config.receiver_port"))
+	cpusec := 4 // 5s is the default maximum connection timeout on the trace-agent HTTP server
+	if v := config.Datadog.GetInt("apm_config.receiver_timeout"); v > 0 {
+		if v > profiling {
+			// do not exceed requested duration
+			cpusec = profiling
+		} else {
+			// fit within set limit
+			cpusec = v - 1
+		}
+	}
+	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from trace.", cpusec))
+	return flare.CreatePerformanceProfile("trace", traceDebugURL, cpusec, pdata)
+}
+
 func makeFlare(caseID string) error {
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
-
-	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
-	var profile *flare.Profile
-	var err error
+	var (
+		profile flare.ProfileData
+		err     error
+	)
 	if profiling >= 30 {
-		fmt.Fprintln(color.Output, color.BlueString("Creating a %ds performance profile.", profiling))
-		profile, err = flare.CreatePerformanceProfile(pprofURL, profiling)
-		if err != nil {
+		if err := readProfileData(&profile); err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not collect performance profile: %s", err)))
 			return err
 		}
@@ -134,14 +156,14 @@ func makeFlare(caseID string) error {
 	return nil
 }
 
-func requestArchive(logFile string, profile *flare.Profile) (string, error) {
+func requestArchive(logFile string, pdata flare.ProfileData) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(logFile, profile)
+		return createArchive(logFile, pdata)
 	}
 
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
@@ -150,10 +172,10 @@ func requestArchive(logFile string, profile *flare.Profile) (string, error) {
 	e = util.SetAuthToken()
 	if e != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
-		return createArchive(logFile, profile)
+		return createArchive(logFile, pdata)
 	}
 
-	p, err := json.Marshal(profile)
+	p, err := json.Marshal(pdata)
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", e)))
 		return "", err
@@ -166,14 +188,14 @@ func requestArchive(logFile string, profile *flare.Profile) (string, error) {
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 		}
-		return createArchive(logFile, profile)
+		return createArchive(logFile, pdata)
 	}
 	return string(r), nil
 }
 
-func createArchive(logFile string, profile *flare.Profile) (string, error) {
+func createArchive(logFile string, pdata flare.ProfileData) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile, profile)
+	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile, pdata)
 	if e != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 		return "", e
