@@ -20,7 +20,7 @@ import (
 
 // Container is a singleton ContainerCheck.
 var (
-	Container = &ContainerCheck{}
+	Container    = &ContainerCheck{}
 	checksToSkip = 3
 )
 
