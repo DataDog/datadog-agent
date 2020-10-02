@@ -268,7 +268,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	tableFinder := &tableFinderFilter{}
 	filterTableFinder := config.HasFeature("table_names")
 	var (
-		out       bytes.Buffer = *bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
+		out       = *bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err       error
 		lastToken TokenKind
 		discard   discardFilter
