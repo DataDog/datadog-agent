@@ -19,7 +19,10 @@ import (
 )
 
 // Container is a singleton ContainerCheck.
-var Container = &ContainerCheck{}
+var (
+	Container = &ContainerCheck{}
+	checksToSkip = 3
+)
 
 // ContainerCheck is a check that returns container metadata and stats.
 type ContainerCheck struct {
@@ -30,6 +33,8 @@ type ContainerCheck struct {
 	lastRun         time.Time
 	lastCtrIDForPID map[int32]string
 	networkID       string
+	// runCounter increments everytime Run() is called on check
+	runCounter int64
 
 	containerFailedLogLimit *util.LogLimit
 }
@@ -59,6 +64,8 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	c.Lock()
 	defer c.Unlock()
 
+	c.runCounter++
+
 	start := time.Now()
 	ctrList, err := util.GetContainers()
 	// We ignore certain errors when a container runtime environment isn't available.
@@ -81,11 +88,21 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(ctrList)
 
-	// End check early if this is our first run.
-	if c.lastRates == nil {
+	// always record the current check information for rate calculation on the next check
+	defer func() {
 		c.lastRates = util.ExtractContainerRateMetric(ctrList)
 		c.lastRun = time.Now()
 		c.lastCtrIDForPID = ctrIDForPID(ctrList)
+	}()
+
+	// End check early for the first several checks
+	// NOTE: there are cases, especially in ECS/Fargate environment that container tags are collected by pulling information from API,
+	// the tagger runs tag collection asynchronously in the background and the API call returns slower than container check.
+	// This causes the first several checks to miss container tags. Therefore we need to skip sending payloads for the first "checksToSkip" payloads.
+	// This removes the UI inconsistency because we only update container metadata periodically, so for quite some time the container
+	// in the UI would show incomplete info, until next metadata update happens. By delaying several checks, we guarantee that the information is
+	// already correct the first time we send containers to Datadog
+	if c.runCounter <= int64(checksToSkip) {
 		return nil, nil
 	}
 
@@ -108,10 +125,6 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
-
-	c.lastRates = util.ExtractContainerRateMetric(ctrList)
-	c.lastRun = time.Now()
-	c.lastCtrIDForPID = ctrIDForPID(ctrList)
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", totalContainers, []string{}, 1) //nolint:errcheck
 	log.Debugf("collected %d containers in %s", int(totalContainers), time.Now().Sub(start))
