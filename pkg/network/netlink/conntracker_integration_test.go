@@ -25,31 +25,17 @@ const (
 	nonNatPort = 9876
 )
 
-func TestConnTrackerCrossNamespace(t *testing.T) {
-	skipUnless(t, "all_nsid")
-
+func TestConnTrackerCrossNamespaceAllNsEnabled(t *testing.T) {
 	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		require.NoError(t, err, "setup command output %s", string(out))
 	}
 
-	defer func() {
-		cmd := exec.Command("testdata/teardown_cross_ns_dnat.sh")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			assert.NoError(t, err, "teardown command output %s", string(out))
-		}
-	}()
+	defer teardownCrossNs(t)
 
-	ct, err := NewConntracker("/proc", 100, 500)
-	require.NoError(t, err)
+	ct, closer, laddr := setupTestConnTrackerCrossNamespace(t, true)
 	defer ct.Close()
-
-	time.Sleep(time.Second)
-
-	closer := startServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
 	defer closer.Close()
-
-	laddr := pingTCP(t, net.ParseIP("2.2.2.4"), 80)
 
 	var trans *network.IPTranslation
 	require.Eventually(t, func() bool {
@@ -72,6 +58,44 @@ func TestConnTrackerCrossNamespace(t *testing.T) {
 	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry")
 
 	assert.Equal(t, uint16(8080), trans.ReplSrcPort)
+}
+
+func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
+	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		require.NoError(t, err, "setup command output %s", string(out))
+	}
+
+	defer teardownCrossNs(t)
+
+	ct, closer, laddr := setupTestConnTrackerCrossNamespace(t, false)
+	defer ct.Close()
+	defer closer.Close()
+
+	time.Sleep(time.Second)
+	trans := ct.GetTranslationForConn(
+		network.ConnectionStats{
+			Source: util.AddressFromNetIP(laddr.IP),
+			SPort:  uint16(laddr.Port),
+			Dest:   util.AddressFromString("2.2.2.4"),
+			DPort:  uint16(80),
+			Type:   network.TCP,
+		},
+	)
+
+	assert.Nil(t, trans)
+}
+
+func setupTestConnTrackerCrossNamespace(t *testing.T, enableAllNs bool) (Conntracker, io.Closer, *net.TCPAddr) {
+	ct, err := NewConntracker("/proc", 100, 500, enableAllNs)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+
+	closer := startServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+
+	laddr := pingTCP(t, net.ParseIP("2.2.2.4"), 80)
+	return ct, closer, laddr
 }
 
 func TestConntracker(t *testing.T) {
@@ -98,7 +122,7 @@ func TestConntracker6(t *testing.T) {
 }
 
 func testConntracker(t *testing.T, serverIP, clientIP net.IP) {
-	ct, err := NewConntracker("/proc", 100, 500)
+	ct, err := NewConntracker("/proc", 100, 500, false)
 	require.NoError(t, err)
 	defer ct.Close()
 	time.Sleep(100 * time.Millisecond)
@@ -191,7 +215,7 @@ func TestMessageDump6(t *testing.T) {
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
-	consumer, err := NewConsumer("/proc", 500)
+	consumer, err := NewConsumer("/proc", 500, false)
 	require.NoError(t, err)
 	events := consumer.Events()
 
@@ -366,6 +390,13 @@ func teardown6(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		fmt.Printf("teardown command output: %s", string(out))
 		t.Errorf("error tearing down: %s", err)
+	}
+}
+
+func teardownCrossNs(t *testing.T) {
+	cmd := exec.Command("testdata/teardown_cross_ns_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		assert.NoError(t, err, "teardown command output %s", string(out))
 	}
 }
 
