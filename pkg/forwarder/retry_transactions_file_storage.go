@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const retryTransactionsExtension = ".retry"
@@ -156,6 +157,7 @@ func (f *retryTransactionsFileStorage) makeRoomFor(bufferSize int64) error {
 			return err
 		}
 
+		log.Infof("Maximum disk space for retry transactions is reached. Removing %s", filename)
 		if err := os.Remove(filename); err != nil {
 			return err
 		}

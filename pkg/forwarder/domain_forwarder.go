@@ -125,6 +125,12 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 				droppedWorkerBusy++
 				transactionsDropped.Add(1)
 				tlmTxDropped.Inc(f.domain)
+				// FIX ME: Check why we drop the transaction before.
+				if f.retryTransactionsCollection != nil {
+					if err := f.retryTransactionsCollection.Add(t); err != nil {
+						log.Error(err)
+					}
+				}
 			}
 		} else {
 			retry := true
@@ -296,6 +302,7 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	select {
 	case f.highPrio <- transaction:
 	default:
+		// FIX ME: We probably do not want to drop the transaction.
 		transactionsDroppedOnInput.Add(1)
 		tlmTxDroppedOnInput.Inc(f.domain)
 		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
