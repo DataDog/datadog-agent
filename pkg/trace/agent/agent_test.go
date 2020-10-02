@@ -148,7 +148,7 @@ func TestProcess(t *testing.T) {
 	})
 
 	t.Run("BlacklistPayload", func(t *testing.T) {
-		// Regression test for  DataDog/datadog-agent#6500
+		// Regression test for DataDog/datadog-agent#6500
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
