@@ -67,13 +67,13 @@ var (
 	tlm = telemetry.NewCounter("forwarder", "transactions",
 		[]string{"endpoint", "route"}, "Forwarder telemetry")
 	tlmPayloadInputs = telemetry.NewCounter("forwarder", "payload_inputs",
-		[]string{"endpoint"}, "Payload Inputs")
+		[]string{"endpoint"}, "Total payloads in input")
 	tlmPayloadInputSizes = telemetry.NewCounter("forwarder", "payload_input_sizes",
-		[]string{"endpoint"}, "Payload Input Sizes")
+		[]string{"endpoint"}, "Payload input sizes in bytes")
 	tlmPayloadOutputs = telemetry.NewCounter("forwarder", "payload_outputs",
-		[]string{"endpoint"}, "Payload Outputs")
+		[]string{"endpoint"}, "Total payloads in output")
 	tlmPayloadOutputSizes = telemetry.NewCounter("forwarder", "payload_output_sizes",
-		[]string{"endpoint"}, "Payload Output Sizes")
+		[]string{"endpoint"}, "Payload output sizes in bytes")
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
