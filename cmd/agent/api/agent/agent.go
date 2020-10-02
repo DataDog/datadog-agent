@@ -58,7 +58,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
 	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
 	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
-	r.HandleFunc("/flare/{type}", makeFlare).Methods("POST")
+	r.HandleFunc("/flare/{type}/{op}", handleFlare).Methods("POST")
 	r.HandleFunc("/flare/log/{flare_id}/{tracer_id}/{type}", flareLogHandler).Methods("POST")
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
@@ -85,37 +85,59 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request) {
+func handleFlare(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	flareType := vars["type"]
+	opType, ok := vars["op"]
 
-	switch flareType {
-	case "tracer":
-		tracerFlare(w, r)
-	case "core":
-	case "vanilla":
-	default:
-		vanillaFlare(w, r)
+	if flareType == "trace" {
+		tracerFlare(w, r, vars)
+	} else if flareType == "core" {
+		if !ok || opType == "gen" {
+			vanillaFlare(w, r)
+		} else {
+			http.Error(w, log.Errorf("unsupported op type: %s", opType).Error(), 400)
+		}
+	} else {
+		http.Error(w, log.Errorf("unsupported flare type: %s", flareType).Error(), 400)
 	}
-
 }
 
-func tracerFlare(w http.ResponseWriter, r *http.Request) {
-	tracerId := r.PostFormValue("tracer_id")
-	tracerEnv := r.PostFormValue("environment")
-	tracerSvc := r.PostFormValue("service")
+func tracerFlare(w http.ResponseWriter, r *http.Request, vars map[string]string) {
+	w.Header().Set("Content-Type", "application/json")
 
-	duration, err := strconv.Atoi(r.PostFormValue("duration"))
-	if err != nil {
-		http.Error(w, log.Errorf("error parsing flare duration interval: %s", err).Error(), 500)
+	opType, ok := vars["op"]
+	if !ok {
+		http.Error(w, log.Error("no flare operation was specified: %v", vars).Error(), 400)
+	}
+
+	if opType == "status" {
+		flareId := r.PostFormValue("flare_id")
+		status := remote_flare.GetStatus(flareId)
+
+		j, _ := json.Marshal(status)
+		w.Write(j)
+
 		return
 	}
 
-	if tracerId != "" || tracerEnv != "" || tracerSvc != "" {
-		remote_flare.CreateRemoteFlareArchive(tracerId, tracerEnv, tracerSvc, time.Duration(duration)*time.Second)
-	}
+	if opType == "gen" {
+		tracerId := r.PostFormValue("tracer_id")
+		tracerEnv := r.PostFormValue("environment")
+		tracerSvc := r.PostFormValue("service")
+		tracerLang := r.PostFormValue("language")
 
+		duration, err := strconv.Atoi(r.PostFormValue("duration"))
+		if err != nil {
+			http.Error(w, log.Errorf("error parsing flare duration interval: %s", err).Error(), 500)
+			return
+		}
+
+		if tracerId != "" || tracerEnv != "" || tracerSvc != "" || tracerLang != "" {
+			remote_flare.CreateRemoteFlareArchive(tracerId, tracerEnv, tracerSvc, time.Duration(duration)*time.Second)
+		}
+	}
 	//async or what?
 
 }

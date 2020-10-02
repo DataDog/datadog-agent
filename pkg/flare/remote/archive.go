@@ -31,9 +31,19 @@ type RemoteFlare struct {
 	sources map[string]*RegisteredSource
 }
 
+type RemoteFlareStatus struct {
+	Id     string
+	Status string
+	File   string
+	Ttl    int64
+	Err    string
+}
+
 var (
-	currentFlare *RemoteFlare = nil
-	mutex        sync.RWMutex
+	currentFlare    *RemoteFlare = nil
+	mutex           sync.RWMutex
+	completedFlares map[string]*RemoteFlare = make(map[string]*RemoteFlare) // id to zipPath map
+	listMutex       sync.RWMutex
 )
 
 const (
@@ -51,7 +61,7 @@ func NewRemoteFlare(path, zip string, d time.Duration) *RemoteFlare {
 	}
 }
 
-func (f RemoteFlare) GetFile(id string) (*os.File, error) {
+func (f *RemoteFlare) GetFile(id string) (*os.File, error) {
 	var fp *os.File
 
 	mutex.RLock()
@@ -75,12 +85,12 @@ func (f RemoteFlare) GetFile(id string) (*os.File, error) {
 	return fp, nil
 }
 
-func (f RemoteFlare) hasSource(id string) (*RegisteredSource, bool) {
+func (f *RemoteFlare) hasSource(id string) (*RegisteredSource, bool) {
 	src, ok := f.sources[id]
 	return src, ok
 }
 
-func (f RemoteFlare) wrapUp() error {
+func (f *RemoteFlare) wrapUp() error {
 	defer os.RemoveAll(f.tempDir)
 
 	grace := config.Datadog.GetInt("flare_grace_period")
@@ -112,6 +122,10 @@ func (f RemoteFlare) wrapUp() error {
 		return err
 	}
 
+	listMutex.RLock()
+	completedFlares[f.Id] = f
+	listMutex.RUnlock()
+
 	return nil
 }
 
@@ -123,6 +137,47 @@ func GetCurrentFlareId() (string, error) {
 	}
 
 	return currentFlare.Id, nil
+}
+
+func GetStatus(id string) *RemoteFlareStatus {
+	var flareId string
+	var err error
+
+	status := &RemoteFlareStatus{
+		Status: "unknown",
+	}
+
+	// has the flare been completed
+	listMutex.RLock()
+	flare, ok := completedFlares[id]
+	listMutex.RUnlock()
+
+	// or it might be ongoing
+	status.Id = id
+	if !ok {
+		// we can hold the RLock and still call `GetCurrentFlareId` safely
+		mutex.RLock()
+		flareId, err = GetCurrentFlareId()
+		if err != nil || flareId != id {
+			status.Err = errors.New("invalid flare id").Error()
+			return status
+		}
+
+		status.Status = "ongoing"
+		status.File = currentFlare.zipPath
+
+		status.Ttl = currentFlare.Ts - time.Now().Unix()
+		if status.Ttl < 0 {
+			status.Ttl = 0
+		}
+		mutex.RUnlock()
+	} else {
+		status.Status = "ready"
+		status.File = flare.zipPath
+		status.Ttl = 0
+	}
+
+	return status
 }
 
 func CreateRemoteFlareArchive(tracerId, svc, env string, d time.Duration) (*RemoteFlare, error) {
