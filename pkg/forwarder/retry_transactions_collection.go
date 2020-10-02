@@ -57,6 +57,7 @@ func (f *retryTransactionsCollection) GetRetryTransactions() ([]Transaction, err
 	if len(f.transactions) > 0 {
 		transactions = f.transactions
 		f.transactions = nil
+		f.currentPayloadsSize = 0
 	} else {
 		transactions, err = f.retryTransactionsStorage.DeserializeLast()
 		if err != nil {
@@ -86,7 +87,7 @@ func (f *retryTransactionsCollection) flushToStorage() error {
 
 	i := 0
 	// Flush the N first transactions whose payload size sum is greater than maxPayloadsSize/2.
-	for ; payloadSizeToFlush < f.maxPayloadsSize/2; i++ {
+	for ; i < len(f.transactions) && payloadSizeToFlush < f.maxPayloadsSize/2; i++ {
 		transaction := f.transactions[i]
 		payloadSizeToFlush += transaction.GetPayloadSize()
 		payloadsToFlush = append(payloadsToFlush, transaction)

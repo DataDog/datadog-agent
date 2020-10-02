@@ -112,6 +112,9 @@ func (f *retryTransactionsFileStorage) DeserializeLast() ([]Transaction, error) 
 
 	var transactions []Transaction
 	for _, t := range httpTransactions {
+		// FIXME: Restore the proper handlers
+		t.attemptHandler = defaultAttemptHandler
+		t.completionHandler = defaultCompletionHandler
 		transactions = append(transactions, t)
 	}
 	return transactions, err
