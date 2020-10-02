@@ -178,6 +178,14 @@ func (s *sender) backoff() {
 // Stop stops the sender. It attempts to wait for all inflight payloads to complete
 // with a timeout of 5 seconds.
 func (s *sender) Stop() {
+	s.waitForInflight()
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
+	close(s.queue)
+}
+
+func (s *sender) waitForInflight() {
 	timeout := time.After(5 * time.Second)
 outer:
 	for {
@@ -191,10 +199,6 @@ outer:
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-	s.mu.Lock()
-	s.closed = true
-	s.mu.Unlock()
-	close(s.queue)
 }
 
 // Push pushes p onto the sender's queue, to be written to the destination.

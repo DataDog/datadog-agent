@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -13,6 +14,7 @@ import (
 type Daemon struct {
 	httpServer   *http.Server
 	statsdServer *dogstatsd.Server
+	traceAgent   *traceAgent.SyncAgent
 	stopCh       chan struct{}
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instanciated)
@@ -22,6 +24,11 @@ type Daemon struct {
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
 func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
 	d.statsdServer = statsdServer
+}
+
+// SetTraceAgent sets the SyncAgent instance for submitting traces
+func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.SyncAgent) {
+	d.traceAgent = traceAgent
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime.
@@ -88,6 +95,21 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("DogStatsD server not ready"))
 		return
 	}
-	// synchronous flush
-	f.daemon.statsdServer.Flush(true)
+	// synchronous flush metrics and traces
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	wg.Add(1)
+	go func() {
+		if f.daemon.statsdServer != nil {
+			f.daemon.statsdServer.Flush(true)
+		}
+		wg.Done()
+	}()
+	go func() {
+		if f.daemon.traceAgent != nil {
+			f.daemon.traceAgent.Flush()
+		}
+		wg.Done()
+	}()
+	wg.Wait()
 }

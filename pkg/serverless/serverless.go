@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
 
 const (
@@ -137,7 +138,11 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation starts waiting and blocking until it receives a request.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN messages.
 // Write into stopCh to stop the main thread of the running program.
+<<<<<<< HEAD
 func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, id ID) error {
+=======
+func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, traceAgent *traceAgent.SyncAgent, id Id) error {
+>>>>>>> 756071ed4... [serverless] Add SyncAgent support for serverless extension
 	var err error
 
 	// do the blocking HTTP GET call
@@ -173,6 +178,9 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 		if statsdServer != nil {
 			// flush metrics synchronously
 			statsdServer.Flush(true)
+		}
+		if traceAgent != nil {
+			traceAgent.Flush()
 		}
 		// shutdown the serverless agent
 		stopCh <- struct{}{}

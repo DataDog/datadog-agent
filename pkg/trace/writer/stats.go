@@ -105,7 +105,7 @@ func (w *StatsWriter) Stop() {
 func (w *StatsWriter) addStats(s []stats.Bucket) {
 	defer timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
 
-	payloads, bucketCount, entryCount := w.buildPayloads(s, maxEntriesPerPayload)
+	payloads, bucketCount, entryCount := buildPayloads(s, maxEntriesPerPayload, w.hostname, w.env)
 	switch n := len(payloads); {
 	case n == 0:
 		return
@@ -133,7 +133,7 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 
 // buildPayloads returns a set of payload to send out, each paylods guaranteed
 // to have the number of stats buckets under the given maximum.
-func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int) ([]*stats.Payload, int, int) {
+func buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int, hostname, env string) ([]*stats.Payload, int, int) {
 	if len(s) == 0 {
 		return []*stats.Payload{}, 0, 0
 	}
@@ -153,8 +153,8 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 	if maxEntriesPerPayloads <= 0 || nbEntries < maxEntriesPerPayloads {
 		// nothing to do, break early
 		return []*stats.Payload{{
-			HostName: w.hostname,
-			Env:      w.env,
+			HostName: hostname,
+			Env:      env,
 			Stats:    s,
 		}}, len(s), nbEntries
 	}
@@ -222,8 +222,8 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 			nbEntries += len(sb.Counts)
 		}
 		payloads = append(payloads, &stats.Payload{
-			HostName: w.hostname,
-			Env:      w.env,
+			HostName: hostname,
+			Env:      env,
 			Stats:    pstats,
 		})
 

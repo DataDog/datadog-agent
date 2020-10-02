@@ -30,10 +30,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	traceConfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+const defaultLogFile = "/var/log/datadog/serverless-agent.log"
+const datadogConfigPath = "/var/pkg/datadog.yaml"
 
 var (
 	// serverlessAgentCmd is the root command
@@ -259,13 +264,28 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Errorf("Unable to start the DogStatsD server: %s", err)
 	}
 	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
+	// initializes the trace agent
+	// --------------------------------
+	tc, err := traceConfig.Load(datadogConfigPath)
+	for _, ep := range tc.Endpoints {
+		ep.APIKey = config.Datadog.GetString("api_key")
+	}
+	if err != nil {
+		serverless.ReportInitError(serverlessId, serverless.FatalDogstatsdInit)
+		log.Criticalf("Unable to load trace agent config: %s", err)
+		return
+	}
+	ta := traceAgent.NewSyncAgent(ctx, tc)
+	go func() {
+		ta.Run()
+	}()
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, ta, serverlessID); err != nil {
 				log.Error(err)
 			}
 		}
@@ -273,6 +293,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	// DogStatsD daemon ready.
 	daemon.SetStatsdServer(statsdServer)
+	daemon.SetTraceAgent(ta)
 	daemon.ReadyWg.Done()
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
