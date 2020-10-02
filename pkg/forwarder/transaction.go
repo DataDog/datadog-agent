@@ -287,10 +287,11 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	transactionsSuccessful.Add(1)
 	tlmTxSuccess.Inc(t.Domain)
 
-	payloadOutputs.Add(t.Endpoint, 1)
-	payloadOutputSizes.Add(t.Endpoint, int64(len(*t.Payload)))
-	tlmPayloadOutputs.Add(1, t.Endpoint)
-	tlmPayloadOutputSizes.Add(float64(len(*t.Payload)), t.Endpoint)
+	sanitizedEndpoint := httputils.SanitizeURL(t.Endpoint)
+	payloadOutputs.Add(sanitizedEndpoint, 1)
+	payloadOutputSizes.Add(sanitizedEndpoint, int64(len(*t.Payload)))
+	tlmPayloadOutputs.Add(1, sanitizedEndpoint)
+	tlmPayloadOutputSizes.Add(float64(len(*t.Payload)), sanitizedEndpoint)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 

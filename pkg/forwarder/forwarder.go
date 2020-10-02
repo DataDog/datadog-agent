@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -393,10 +394,11 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	}
 
 	for _, t := range transactions {
-		payloadInputs.Add(t.Endpoint, 1)
-		payloadInputSizes.Add(t.Endpoint, int64(len(*t.Payload)))
-		tlmPayloadInputs.Add(1, t.Endpoint)
-		tlmPayloadInputSizes.Add(float64(len(*t.Payload)), t.Endpoint)
+		sanitizedEndpoint := httputils.SanitizeURL(t.Endpoint)
+		payloadInputs.Add(sanitizedEndpoint, 1)
+		payloadInputSizes.Add(sanitizedEndpoint, int64(len(*t.Payload)))
+		tlmPayloadInputs.Add(1, sanitizedEndpoint)
+		tlmPayloadInputSizes.Add(float64(len(*t.Payload)), sanitizedEndpoint)
 		if err := f.domainForwarders[t.Domain].sendHTTPTransactions(t); err != nil {
 			log.Errorf(err.Error())
 		}
