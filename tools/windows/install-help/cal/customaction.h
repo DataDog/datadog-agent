@@ -7,7 +7,6 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
 int doSetUserPassword(const std::wstring& name, const wchar_t* passbuf);
 DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name);
 DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename);
-bool isDomainController();
 int doesUserExist(const CustomActionData& data, bool isDC = false);
 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
@@ -72,3 +71,28 @@ typedef enum _uninstall_type {
 } UNINSTALL_TYPE;
 
 UINT doUninstallAs(UNINSTALL_TYPE t);
+
+// see https://stackoverflow.com/a/45565001/425565
+// Template ErrType can be HRESULT (long) or DWORD (unsigned long)
+template <class ErrType>
+std::string GetErrorMessageStr(ErrType errCode)
+{
+    const int buffsize = 4096;
+    char buffer[buffsize];
+    const DWORD len =
+        FormatMessageA(
+            FORMAT_MESSAGE_FROM_SYSTEM
+            | FORMAT_MESSAGE_IGNORE_INSERTS
+            | FORMAT_MESSAGE_MAX_WIDTH_MASK,
+            nullptr, // (not used with FORMAT_MESSAGE_FROM_SYSTEM)
+            errCode,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            &buffer[0],
+            buffsize,
+            nullptr);
+    if (len > 0)
+    {
+        return std::string(buffer, len);
+    }
+    return "Failed to retrieve error message string.";
+}

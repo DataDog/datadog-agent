@@ -27,6 +27,12 @@ add_library(datadog-agent-rtloader SHARED
     rtloader.cpp
     ../common/rtloader_mem.c
 )
+
+# execinfo is not POSIX-compliant and some libc may have libexecinfo as a library.
+find_library(EXECINFO execinfo)
+if(EXECINFO)
+    target_link_libraries(datadog-agent-rtloader execinfo)
+endif()
 endif()
 
 set_target_properties(datadog-agent-rtloader PROPERTIES

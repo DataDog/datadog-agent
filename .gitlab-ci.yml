@@ -1786,7 +1786,7 @@ deploy_windows_testing-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="sles-12,urn,SUSE:SLES-BYOS:12-SP4:2019.11.13"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:SLES-BYOS:15:2019.11.15"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -4179,9 +4179,17 @@ pupernetes-dev:
     - when: manual
       allow_failure: true
   <<: *pupernetes_template
-  needs: 
-  - dev_branch_docker_hub-a6
-  - dev_branch_docker_hub-a7
+  # Note: pupernetes-dev requires the below jobs to work. However,
+  # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
+  # Adding the following lines would result in pipelines remaining in a "Running" state forever,
+  # as the pupernetes-dev job waits for manual jobs that may never be triggered.
+  # needs:
+  #   - dev_branch_docker_hub-a6
+  #   - dev_branch_docker_hub-a7
+  # We still want to make the job available as soon as possible. In this case, since it's manual
+  # and requires other manual jobs, it's reasonable make it available from the beginning and let
+  # engineers trigger the correct sequence of jobs when needed.
+  needs: []
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -4190,7 +4198,7 @@ pupernetes-master:
   <<: *pupernetes_template
   rules:
     - <<: *if_master_branch
-  needs: 
+  needs:
   - dev_master_docker_hub-a6
   - dev_master_docker_hub-a7
   script:

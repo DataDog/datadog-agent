@@ -1,6 +1,8 @@
 #pragma once
 #include <map>
 #include <string>
+#include "TargetMachine.h"
+
 class CustomActionData
 {
     public:
@@ -33,8 +35,13 @@ class CustomActionData
         bool installSysprobe() const {
             return doInstallSysprobe;
         }
+
+        const TargetMachine& GetTargetMachine() const {
+            return machine;
+        }
     private:
         MSIHANDLE hInstall;
+        TargetMachine machine;
         bool domainUser;
         std::map< std::wstring, std::wstring> values;
         std::wstring username; // qualified
