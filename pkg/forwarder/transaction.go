@@ -26,6 +26,7 @@ import (
 var (
 	connectionDNSSuccess           = expvar.Int{}
 	connectionConnectSuccess       = expvar.Int{}
+	transactionsExpvars            = expvar.Map{}
 	transactionsRetryQueueSize     = expvar.Int{}
 	transactionsSuccessful         = expvar.Int{}
 	transactionsDroppedOnInput     = expvar.Int{}
@@ -105,6 +106,7 @@ var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
 
 func initTransactionExpvars() {
+	transactionsExpvars.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)

@@ -38,30 +38,11 @@ const (
 var (
 	forwarderExpvars              = expvar.NewMap("forwarder")
 	connectionEvents              = expvar.Map{}
-	payloadInputs                 = expvar.Map{}
-	payloadInputSizes             = expvar.Map{}
-	payloadOutputs                = expvar.Map{}
-	payloadOutputSizes            = expvar.Map{}
-	transactionsExpvars           = expvar.Map{}
-	transactionsSeries            = expvar.Int{}
-	transactionsEvents            = expvar.Int{}
-	transactionsServiceChecks     = expvar.Int{}
-	transactionsSketchSeries      = expvar.Int{}
-	transactionsHostMetadata      = expvar.Int{}
-	transactionsMetadata          = expvar.Int{}
-	transactionsTimeseriesV1      = expvar.Int{}
-	transactionsCheckRunsV1       = expvar.Int{}
-	transactionsIntakeV1          = expvar.Int{}
-	transactionsIntakeProcesses   = expvar.Int{}
-	transactionsIntakeRTProcesses = expvar.Int{}
-	transactionsIntakeContainer   = expvar.Int{}
-	transactionsIntakeRTContainer = expvar.Int{}
-	transactionsIntakeConnections = expvar.Int{}
-	transactionsIntakePod         = expvar.Int{}
-	transactionsIntakeDeployment  = expvar.Int{}
-	transactionsIntakeReplicaSet  = expvar.Int{}
-	transactionsIntakeService     = expvar.Int{}
-	transactionsIntakeNode        = expvar.Int{}
+	inputTransactionsCount        = expvar.Map{}
+	inputTransactionsBytes        = expvar.Map{}
+	outputTransactionsCount       = expvar.Map{}
+	outputTransactionsBytes       = expvar.Map{}
+	orchestratorTransactionsCount = expvar.Map{}
 
 	tlmInputTransactionsCount = telemetry.NewCounter("forwarder", "input_transactions_count",
 		[]string{"domain", "endpoint"}, "Input transaction count")
@@ -94,37 +75,17 @@ var (
 )
 
 func init() {
-	transactionsExpvars.Init()
 	connectionEvents.Init()
-	payloadInputs.Init()
-	payloadInputSizes.Init()
-	payloadOutputs.Init()
-	payloadOutputSizes.Init()
-	forwarderExpvars.Set("Transactions", &transactionsExpvars)
+	orchestratorTransactionsCount.Init()
+	inputTransactionsCount.Init()
+	inputTransactionsBytes.Init()
+	outputTransactionsCount.Init()
+	outputTransactionsCount.Init()
+	forwarderExpvars.Set("InputTransactionsCount", &inputTransactionsCount)
+	forwarderExpvars.Set("InputTransactionsBytes", &inputTransactionsBytes)
+	forwarderExpvars.Set("OutputTransactionsCount", &outputTransactionsCount)
+	forwarderExpvars.Set("OutputTransactionsBytes", &outputTransactionsBytes)
 	forwarderExpvars.Set("ConnectionEvents", &connectionEvents)
-	forwarderExpvars.Set("PayloadInputs", &payloadInputs)
-	forwarderExpvars.Set("PayloadInputSizes", &payloadInputSizes)
-	forwarderExpvars.Set("PayloadOutputs", &payloadOutputs)
-	forwarderExpvars.Set("PayloadOutputSizes", &payloadOutputSizes)
-	transactionsExpvars.Set("Series", &transactionsSeries)
-	transactionsExpvars.Set("Events", &transactionsEvents)
-	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
-	transactionsExpvars.Set("SketchSeries", &transactionsSketchSeries)
-	transactionsExpvars.Set("HostMetadata", &transactionsHostMetadata)
-	transactionsExpvars.Set("Metadata", &transactionsMetadata)
-	transactionsExpvars.Set("TimeseriesV1", &transactionsTimeseriesV1)
-	transactionsExpvars.Set("CheckRunsV1", &transactionsCheckRunsV1)
-	transactionsExpvars.Set("IntakeV1", &transactionsIntakeV1)
-	transactionsExpvars.Set("Processes", &transactionsIntakeProcesses)
-	transactionsExpvars.Set("RTProcesses", &transactionsIntakeRTProcesses)
-	transactionsExpvars.Set("Containers", &transactionsIntakeContainer)
-	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
-	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
-	transactionsExpvars.Set("Pods", &transactionsIntakePod)
-	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
-	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
-	transactionsExpvars.Set("Services", &transactionsIntakeService)
-	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
@@ -376,6 +337,8 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 
 				tlmInputTransactionsCount.Inc(domain, endpoint.name)
 				tlmInputTransactionsBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.name)
+				inputTransactionsCount.Add(endpoint.name, 1)
+				inputTransactionsBytes.Add(endpoint.name, int64(t.GetPayloadSize()))
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))
@@ -403,42 +366,36 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 // SubmitSeries will send a series type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	transactionsSeries.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra)
-	transactionsEvents.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitServiceChecks will send a service check type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(serviceChecksEndpoint, payload, false, extra)
-	transactionsServiceChecks.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extra)
-	transactionsSketchSeries.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
-	transactionsHostMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error {
 	transactions := f.createPriorityHTTPTransactions(metadataEndpoint, payload, false, extra, priority)
-	transactionsMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -446,7 +403,6 @@ func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header, p
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra)
-	transactionsTimeseriesV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -454,7 +410,6 @@ func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) e
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
-	transactionsCheckRunsV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -467,60 +422,37 @@ func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header, p
 		t.Headers.Set("Content-Type", "application/json")
 	}
 
-	transactionsIntakeV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitProcessChecks sends process checks
 func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	transactionsIntakeProcesses.Add(1)
-
 	return f.submitProcessLikePayload(processesEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	transactionsIntakeRTProcesses.Add(1)
-
 	return f.submitProcessLikePayload(rtProcessesEndpoint, payload, extra, false)
 }
 
 // SubmitContainerChecks sends container checks
 func (f *DefaultForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	transactionsIntakeContainer.Add(1)
-
 	return f.submitProcessLikePayload(containerEndpoint, payload, extra, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
 func (f *DefaultForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	transactionsIntakeRTContainer.Add(1)
-
 	return f.submitProcessLikePayload(rtContainerEndpoint, payload, extra, false)
 }
 
 // SubmitConnectionChecks sends connection checks
 func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	transactionsIntakeConnections.Add(1)
-
 	return f.submitProcessLikePayload(connectionsEndpoint, payload, extra, true)
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	switch payloadType {
-	case PayloadTypePod:
-		transactionsIntakePod.Add(1)
-	case PayloadTypeDeployment:
-		transactionsIntakeDeployment.Add(1)
-	case PayloadTypeReplicaSet:
-		transactionsIntakeReplicaSet.Add(1)
-	case PayloadTypeService:
-		transactionsIntakeService.Add(1)
-	case PayloadTypeNode:
-		transactionsIntakeNode.Add(1)
-	}
-
+	orchestratorTransactionsCount.Add(payloadType, 1)
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }
 
