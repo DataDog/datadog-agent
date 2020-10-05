@@ -4,6 +4,7 @@ package bytecode
 
 import (
 	"os"
+	"strings"
 
 	"github.com/DataDog/ebpf/manager"
 )
@@ -57,7 +58,7 @@ func NewManager(closedHandler *PerfHandler) *manager.Manager {
 		},
 		Probes: []*manager.Probe{
 			{Section: string(TCPSendMsg)},
-			{Section: string(TCPSendMsgPre410)},
+			{Section: string(TCPSendMsgPre410), MatchFuncName: strings.TrimPrefix(string(TCPSendMsg), "kprobe/")},
 			{Section: string(TCPSendMsgReturn), KProbeMaxActive: maxActive},
 			{Section: string(TCPCleanupRBuf)},
 			{Section: string(TCPClose)},
@@ -66,7 +67,7 @@ func NewManager(closedHandler *PerfHandler) *manager.Manager {
 			{Section: string(IPMakeSkb)},
 			{Section: string(IP6MakeSkb)},
 			{Section: string(UDPRecvMsg)},
-			{Section: string(UDPRecvMsgPre410)},
+			{Section: string(UDPRecvMsgPre410), MatchFuncName: strings.TrimPrefix(string(UDPRecvMsg), "kprobe/")},
 			{Section: string(UDPRecvMsgReturn), KProbeMaxActive: maxActive},
 			{Section: string(TCPRetransmit)},
 			{Section: string(InetCskAcceptReturn), KProbeMaxActive: maxActive},
