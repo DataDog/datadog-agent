@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -64,16 +63,14 @@ var (
 	transactionsIntakeService     = expvar.Int{}
 	transactionsIntakeNode        = expvar.Int{}
 
-	tlm = telemetry.NewCounter("forwarder", "transactions",
-		[]string{"endpoint", "route"}, "Forwarder telemetry")
-	tlmPayloadInputs = telemetry.NewCounter("forwarder", "payload_inputs",
-		[]string{"endpoint"}, "Total payloads in input")
-	tlmPayloadInputSizes = telemetry.NewCounter("forwarder", "payload_input_sizes",
-		[]string{"endpoint"}, "Payload input sizes in bytes")
-	tlmPayloadOutputs = telemetry.NewCounter("forwarder", "payload_outputs",
-		[]string{"endpoint"}, "Total payloads in output")
-	tlmPayloadOutputSizes = telemetry.NewCounter("forwarder", "payload_output_sizes",
-		[]string{"endpoint"}, "Payload output sizes in bytes")
+	tlmInputTransactionsCount = telemetry.NewCounter("forwarder", "input_transactions_count",
+		[]string{"domain", "route"}, "Input transaction count")
+	tlmInputTransactionsBytes = telemetry.NewCounter("forwarder", "input_transactions_bytes",
+		[]string{"domain", "route"}, "Input transaction sizes in bytes")
+	tlmOutputTransactionsCount = telemetry.NewCounter("forwarder", "output_transactions_count",
+		[]string{"domain", "route"}, "Output transaction count")
+	tlmOutputTransactionsBytes = telemetry.NewCounter("forwarder", "output_transactions_bytes",
+		[]string{"domain", "route"}, "Output transaction sizes in bytes")
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
@@ -376,7 +373,7 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 
-				tlm.Inc(domain, endpoint.name)
+				tlmInputTransactionsCount.Inc(domain, endpoint.name)
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))
@@ -394,11 +391,6 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	}
 
 	for _, t := range transactions {
-		sanitizedEndpoint := httputils.SanitizeURL(t.Endpoint)
-		payloadInputs.Add(sanitizedEndpoint, 1)
-		payloadInputSizes.Add(sanitizedEndpoint, int64(len(*t.Payload)))
-		tlmPayloadInputs.Add(1, sanitizedEndpoint)
-		tlmPayloadInputSizes.Add(float64(len(*t.Payload)), sanitizedEndpoint)
 		if err := f.domainForwarders[t.Domain].sendHTTPTransactions(t); err != nil {
 			log.Errorf(err.Error())
 		}
