@@ -9,24 +9,28 @@ package nvidia
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"regexp"
-	"strconv"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
+	"os"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (
 	checkName = "jetson"
+
+	// The interval to run tegrastats at, in ms
+	tegraStatsInterval = 100
 
 	kb = 1024
 	mb = kb * 1024
@@ -403,7 +407,11 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 
 // Run executes the check
 func (c *JetsonCheck) Run() error {
-	cmd := exec.Command(c.tegraStatsPath, c.commandOpts...)
+	// Kill tegrastats it it runs for twice as long as the interval we specified, to avoid blocking
+	// the check forever
+	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval*time.Millisecond)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, c.tegraStatsPath, c.commandOpts...)
 
 	// Parse the standard output for the stats
 	stdout, err := cmd.StdoutPipe()
@@ -422,6 +430,8 @@ func (c *JetsonCheck) Run() error {
 		} else {
 			_ = log.Warnf("tegrastats did not produce any output")
 		}
+		// Tegrastats keeps running forever, so kill it after trying to read
+		// one line of output
 		err = cmd.Process.Signal(os.Kill)
 		if err != nil {
 			_ = log.Errorf("unable to stop %s check: %s", checkName, err)
@@ -443,6 +453,9 @@ func (c *JetsonCheck) Run() error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+
+	// No need to check the result since we kill the process, so err is normally != nil
+	_ = cmd.Wait()
 
 	return nil
 }
@@ -468,7 +481,7 @@ func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Da
 	// because it will take tegrastats <interval> to produce its first output.
 	c.commandOpts = []string{
 		"--interval",
-		"500", // ms
+		strconv.Itoa(tegraStatsInterval), // ms
 	}
 
 	c.regexes = make([]*regexp.Regexp, len(regexes))
