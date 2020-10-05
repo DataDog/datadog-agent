@@ -329,7 +329,7 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 				t.Domain = domain
 				t.Endpoint = transactionEndpoint
 				t.Payload = payload
-				t.EndpointName = endpoint.name
+				t.endpointName = endpoint.name
 				t.priority = priority
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)

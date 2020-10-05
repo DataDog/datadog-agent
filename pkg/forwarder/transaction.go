@@ -43,7 +43,7 @@ var (
 	tlmConnectEvents = telemetry.NewCounter("forwarder", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
-		[]string{"domain", "endpoint"}, "Retry queue size")
+		[]string{"domain"}, "Retry queue size")
 	tlmTxSuccess = telemetry.NewCounter("transactions", "success",
 		[]string{"domain", "endpoint"}, "Count of successful transactions")
 	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
@@ -58,7 +58,7 @@ var trace = &httptrace.ClientTrace{
 	DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
 		if dnsInfo.Err != nil {
 			transactionsDNSErrors.Add(1)
-			tlmTxErrors.Inc("unknown", "dns_lookup_failure")
+			tlmTxErrors.Inc("unknown", "unknown", "dns_lookup_failure")
 			log.Debugf("DNS Lookup failure: %s", dnsInfo.Err)
 			return
 		}
@@ -69,14 +69,14 @@ var trace = &httptrace.ClientTrace{
 	WroteRequest: func(wroteInfo httptrace.WroteRequestInfo) {
 		if wroteInfo.Err != nil {
 			transactionsWroteRequestErrors.Add(1)
-			tlmTxErrors.Inc("unknown", "writing_failure")
+			tlmTxErrors.Inc("unknown", "unknown", "writing_failure")
 			log.Debugf("Request writing failure: %s", wroteInfo.Err)
 		}
 	},
 	ConnectDone: func(network, addr string, err error) {
 		if err != nil {
 			transactionsConnectionErrors.Add(1)
-			tlmTxErrors.Inc("unknown", "connection_failure")
+			tlmTxErrors.Inc("unknown", "unknown", "connection_failure")
 			log.Debugf("Connection failure: %s", err)
 			return
 		}
@@ -87,7 +87,7 @@ var trace = &httptrace.ClientTrace{
 	TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
 		if err != nil {
 			transactionsTLSErrors.Add(1)
-			tlmTxErrors.Inc("unknown", "tls_handshake_failure")
+			tlmTxErrors.Inc("unknown", "unknown", "tls_handshake_failure")
 			log.Errorf("TLS Handshake failure: %s", err)
 		}
 	},
@@ -144,8 +144,6 @@ type HTTPTransaction struct {
 	Domain string
 	// Endpoint is the API Endpoint used by the HTTPTransaction.
 	Endpoint string
-	// EndpointName is the name of the endpoint used by the HTTPTransaction (used for metrics).
-	EndpointName string
 	// Headers are the HTTP headers used by the HTTPTransaction.
 	Headers http.Header
 	// Payload is the content delivered to the backend.
@@ -162,7 +160,8 @@ type HTTPTransaction struct {
 	// completionHandler will be called with a transaction after it has been successfully sent
 	completionHandler HTTPCompletionHandler
 
-	priority TransactionPriority
+	priority     TransactionPriority
+	endpointName string
 }
 
 // Transaction represents the task to process for a Worker.
@@ -171,6 +170,7 @@ type Transaction interface {
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() TransactionPriority
+	GetEndpointName() string
 	GetPayloadSize() int
 }
 
@@ -197,9 +197,22 @@ func (t *HTTPTransaction) GetTarget() string {
 	return httputils.SanitizeURL(url) // sanitized url that can be logged
 }
 
-// GetPriority returns the priorty
+// GetPriority returns the priority
 func (t *HTTPTransaction) GetPriority() TransactionPriority {
 	return t.priority
+}
+
+// GetEndpointName returns the name of the endpoint used by the transaction
+func (t *HTTPTransaction) GetEndpointName() string {
+	return t.endpointName
+}
+
+// GetPayloadSize returns the size of the payload.
+func (t *HTTPTransaction) GetPayloadSize() int {
+	if t != nil && t.Payload != nil {
+		return len(*t.Payload)
+	}
+	return 0
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
@@ -232,7 +245,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
-		tlmTxErrors.Inc(t.Domain, "invalid_request")
+		tlmTxErrors.Inc(t.Domain, t.GetEndpointName(), "invalid_request")
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
@@ -247,7 +260,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		}
 		t.ErrorCount++
 		transactionsErrors.Add(1)
-		tlmTxErrors.Inc(t.Domain, "cant_send")
+		tlmTxErrors.Inc(t.Domain, t.GetEndpointName(), "cant_send")
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", httputils.SanitizeURL(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -269,7 +282,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		}
 		codeCount.Add(1)
 		transactionsHTTPErrors.Add(1)
-		tlmTxHTTPErrors.Inc(t.Domain, statusCode)
+		tlmTxHTTPErrors.Inc(t.Domain, t.GetEndpointName(), statusCode)
 	}
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
@@ -285,14 +298,14 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
-		tlmTxErrors.Inc(t.Domain, "gt_400")
+		tlmTxErrors.Inc(t.Domain, t.GetEndpointName(), "gt_400")
 		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
 	transactionsSuccessful.Add(1)
-	tlmTxSuccess.Inc(t.Domain)
-	tlmOutputTransactionsCount.Inc(t.Domain, t.EndpointName)
-	tlmOutputTransactionsBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.EndpointName)
+	tlmTxSuccess.Inc(t.Domain, t.GetEndpointName())
+	tlmOutputTransactionsCount.Inc(t.Domain, t.GetEndpointName())
+	tlmOutputTransactionsBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.GetEndpointName())
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
@@ -308,12 +321,4 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
 	return resp.StatusCode, body, nil
-}
-
-// GetPayloadSize returns the size of the payload.
-func (t *HTTPTransaction) GetPayloadSize() int {
-	if t != nil && t.Payload != nil {
-		return len(*t.Payload)
-	}
-	return 0
 }

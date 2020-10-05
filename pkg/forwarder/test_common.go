@@ -54,6 +54,10 @@ func (t *testTransaction) GetPriority() TransactionPriority {
 	return TransactionPriorityNormal
 }
 
+func (t *testTransaction) GetEndpointName() string {
+	return t.Called().Get(0).(string)
+}
+
 func (t *testTransaction) GetPayloadSize() int {
 	return t.Called().Get(0).(int)
 }

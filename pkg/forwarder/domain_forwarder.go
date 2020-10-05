@@ -26,11 +26,11 @@ var (
 	transactionsRequeued = expvar.Int{}
 
 	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
-		[]string{"domain"}, "Transaction retry count")
+		[]string{"domain", "endpoint"}, "Transaction retry count")
 	tlmTxDropped = telemetry.NewCounter("transactions", "dropped",
-		[]string{"domain"}, "Transaction drop count")
-	tlmTxRequeud = telemetry.NewCounter("transactions", "requeud",
-		[]string{"domain"}, "Transaction requeue count")
+		[]string{"domain", "endpoint"}, "Transaction drop count")
+	tlmTxRequeued = telemetry.NewCounter("transactions", "requeued",
+		[]string{"domain", "endpoint"}, "Transaction requeue count")
 )
 
 func initDomainForwarderExpvars() {
@@ -103,20 +103,20 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 			select {
 			case f.lowPrio <- t:
 				transactionsRetried.Add(1)
-				tlmTxRetried.Inc(f.domain)
+				tlmTxRetried.Inc(f.domain, t.GetEndpointName())
 			default:
 				droppedWorkerBusy++
 				transactionsDropped.Add(1)
-				tlmTxDropped.Inc(f.domain)
+				tlmTxDropped.Inc(f.domain, t.GetEndpointName())
 			}
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
 			transactionsRequeued.Add(1)
-			tlmTxRequeud.Inc(f.domain)
+			tlmTxRequeued.Inc(f.domain, t.GetEndpointName())
 		} else {
 			droppedRetryQueueFull++
 			transactionsDropped.Add(1)
-			tlmTxDropped.Inc(f.domain)
+			tlmTxDropped.Inc(f.domain, t.GetEndpointName())
 		}
 	}
 
@@ -248,7 +248,7 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	case f.highPrio <- transaction:
 	default:
 		transactionsDroppedOnInput.Add(1)
-		tlmTxDroppedOnInput.Inc(f.domain)
+		tlmTxDroppedOnInput.Inc(f.domain, transaction.GetEndpointName())
 		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
 	}
 	return nil
