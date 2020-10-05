@@ -42,15 +42,15 @@ var (
 	tlmConnectEvents = telemetry.NewCounter("forwarder", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
-		[]string{"domain"}, "Retry queue size")
+		[]string{"domain", "route"}, "Retry queue size")
 	tlmTxSuccess = telemetry.NewCounter("transactions", "success",
-		[]string{"domain"}, "Count of successful transactions")
+		[]string{"domain", "route"}, "Count of successful transactions")
 	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
-		[]string{"domain"}, "Count of transactions dropped on input")
+		[]string{"domain", "route"}, "Count of transactions dropped on input")
 	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
-		[]string{"domain", "error_type"}, "Count of transactions errored grouped by type of error")
+		[]string{"domain", "route", "error_type"}, "Count of transactions errored grouped by type of error")
 	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
-		[]string{"domain", "code"}, "Count of transactions http errors per http code")
+		[]string{"domain", "route", "code"}, "Count of transactions http errors per http code")
 )
 
 var trace = &httptrace.ClientTrace{
@@ -287,12 +287,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	transactionsSuccessful.Add(1)
 	tlmTxSuccess.Inc(t.Domain)
-
-	sanitizedEndpoint := httputils.SanitizeURL(t.Endpoint)
-	payloadOutputs.Add(sanitizedEndpoint, 1)
-	payloadOutputSizes.Add(sanitizedEndpoint, int64(len(*t.Payload)))
-	tlmPayloadOutputs.Add(1, sanitizedEndpoint)
-	tlmPayloadOutputSizes.Add(float64(len(*t.Payload)), sanitizedEndpoint)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
