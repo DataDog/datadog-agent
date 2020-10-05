@@ -368,12 +368,14 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 				t.Domain = domain
 				t.Endpoint = transactionEndpoint
 				t.Payload = payload
+				t.EndpointName = endpoint.name
 				t.priority = priority
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 
 				tlmInputTransactionsCount.Inc(domain, endpoint.name)
+				tlmInputTransactionsBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.name)
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))

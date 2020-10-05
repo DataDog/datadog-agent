@@ -289,6 +289,8 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	transactionsSuccessful.Add(1)
 	tlmTxSuccess.Inc(t.Domain)
+	tlmOutputTransactionsCount.Inc(t.Domain, t.EndpointName)
+	tlmOutputTransactionsBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.EndpointName)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
