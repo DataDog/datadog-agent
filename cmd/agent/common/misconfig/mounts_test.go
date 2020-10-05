@@ -19,33 +19,46 @@ func TestCheckProcMountHidePid(t *testing.T) {
 	tests := []struct {
 		name        string
 		file        string
+		uid         int
 		groups      []int
 		expectError string
 	}{
 		{
 			name:        "missing file",
 			file:        "./proc-mounts-not-here",
-			expectError: "failed to open ./proc-mounts-not-here: open ./proc-mounts-not-here: no such file or directory",
+			expectError: "failed to open ./proc-mounts-not-here - proc fs inspection may not work: open ./proc-mounts-not-here: no such file or directory",
 		},
 		{
-			name:        "hidepid with no groups",
-			file:        "./tests/proc-mounts-hidepid-2",
-			expectError: "hidepid=2 option detected in ./tests/proc-mounts-hidepid-2 - will prevent inspection of proc fs",
+			name:        "non-root with hidepid without groups",
+			uid:         1001,
+			file:        "./tests/proc-mounts-hidepid-2-groups",
+			expectError: "hidepid=2 option detected in ./tests/proc-mounts-hidepid-2-groups - proc fs inspection may not work",
 		},
 		{
-			name:   "hidepid with no groups",
-			file:   "./tests/proc-mounts-hidepid-2",
+			name:   "non-root with hidepid and groups",
+			uid:    1001,
+			file:   "./tests/proc-mounts-hidepid-2-groups",
 			groups: []int{234, 4242},
 		},
 		{
-			name: "no hidepid",
+			name: "root with hidepid without groups",
+			file: "./tests/proc-mounts-hidepid-2",
+		},
+		{
+			name:   "root with hidepid and groups",
+			file:   "./tests/proc-mounts-hidepid-2-groups",
+			groups: []int{234, 4242},
+		},
+		{
+			name: "non-root with no hidepid",
+			uid:  1001,
 			file: "./tests/proc-mounts-no-hidepid",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := checkProcMountHidePid(test.file, test.groups)
+			err := checkProcMountHidePid(test.file, test.uid, test.groups)
 			if test.expectError != "" {
 				assert.EqualError(err, test.expectError)
 			} else {

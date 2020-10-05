@@ -33,13 +33,13 @@ func procMount() error {
 	} else {
 		path = filepath.Join(path, "mounts")
 	}
-	return checkProcMountHidePid(path, groups)
+	return checkProcMountHidePid(path, os.Geteuid(), groups)
 }
 
-func checkProcMountHidePid(path string, groups []int) error {
+func checkProcMountHidePid(path string, uid int, groups []int) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return errors.Wrapf(err, "failed to open %s", path)
+		return errors.Wrapf(err, "failed to open %s - proc fs inspection may not work", path)
 	}
 	defer file.Close()
 
@@ -52,12 +52,21 @@ func checkProcMountHidePid(path string, groups []int) error {
 		}
 		mountOpts := strings.Split(fields[3], ",")
 		mountOptsLookup := map[string]struct{}{}
+		var hasGidOpt bool
 		for _, opt := range mountOpts {
+			if strings.HasPrefix(opt, "gid=") {
+				hasGidOpt = true
+			}
 			mountOptsLookup[opt] = struct{}{}
 		}
 
 		if _, ok := mountOptsLookup["hidepid=2"]; !ok {
 			// hidepid is not set, no further checks necessary
+			return nil
+		}
+
+		if uid == 0 && !hasGidOpt {
+			// Root can have visibility if there is no gid= option set (default is gid=0)
 			return nil
 		}
 
@@ -69,7 +78,7 @@ func checkProcMountHidePid(path string, groups []int) error {
 			}
 		}
 
-		return fmt.Errorf("hidepid=2 option detected in %s - will prevent inspection of proc fs", path)
+		return fmt.Errorf("hidepid=2 option detected in %s - proc fs inspection may not work", path)
 	}
 
 	return errors.Wrapf(scanner.Err(), "failed to scan %s", path)
