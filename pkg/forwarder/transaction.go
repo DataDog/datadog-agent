@@ -44,8 +44,6 @@ var (
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
-	tlmTxSuccess = telemetry.NewCounter("transactions", "success",
-		[]string{"domain", "endpoint"}, "Count of successful transactions")
 	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
 		[]string{"domain", "endpoint"}, "Count of transactions dropped on input")
 	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
@@ -304,9 +302,10 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 
 	transactionsSuccessful.Add(1)
-	tlmTxSuccess.Inc(t.Domain, t.GetEndpointName())
 	tlmOutputTransactionsCount.Inc(t.Domain, t.GetEndpointName())
 	tlmOutputTransactionsBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.GetEndpointName())
+	outputTransactionsCount.Add(t.GetEndpointName(), 1)
+	outputTransactionsBytes.Add(t.GetEndpointName(), int64(t.GetPayloadSize()))
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
