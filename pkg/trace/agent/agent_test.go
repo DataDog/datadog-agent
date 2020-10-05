@@ -183,14 +183,15 @@ func TestProcess(t *testing.T) {
 		}, stats.NewSublayerCalculator())
 		assert.EqualValues(1, want.TracesFiltered)
 		assert.EqualValues(2, want.SpansFiltered)
-		var span *pb.Span
+		var traces []*pb.APITrace
 		select {
 		case ss := <-agnt.Out:
-			span = ss.Traces[0].Spans[0]
+			traces = ss.Traces
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout: Expected one valid trace, but none were received.")
 		}
-		assert.Equal("unnamed_operation", span.Name)
+		assert.Equal("unnamed_operation", traces[0].Spans[0].Name)
+		assert.Len(traces, 1)
 	})
 
 	t.Run("ContainerTags", func(t *testing.T) {
