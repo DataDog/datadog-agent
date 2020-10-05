@@ -209,9 +209,10 @@ func (t *HTTPTransaction) GetEndpointName() string {
 
 // GetPayloadSize returns the size of the payload.
 func (t *HTTPTransaction) GetPayloadSize() int {
-	if t != nil && t.Payload != nil {
+	if t.Payload != nil {
 		return len(*t.Payload)
 	}
+
 	return 0
 }
 
@@ -288,12 +289,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
 		transactionsDropped.Add(1)
-		tlmTxDropped.Inc(t.Domain)
+		tlmTxDropped.Inc(t.Domain, t.GetEndpointName())
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
 		transactionsDropped.Add(1)
-		tlmTxDropped.Inc(t.Domain)
+		tlmTxDropped.Inc(t.Domain, t.GetEndpointName())
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++

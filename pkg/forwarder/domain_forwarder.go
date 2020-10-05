@@ -103,20 +103,20 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 			select {
 			case f.lowPrio <- t:
 				transactionsRetried.Add(1)
-				tlmTxRetried.Inc(f.domain, t.GetEndpointName())
+				tlmTxRetried.Inc(f.domain, getTransactionEndpointName(t))
 			default:
 				droppedWorkerBusy++
 				transactionsDropped.Add(1)
-				tlmTxDropped.Inc(f.domain, t.GetEndpointName())
+				tlmTxDropped.Inc(f.domain, getTransactionEndpointName(t))
 			}
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
 			transactionsRequeued.Add(1)
-			tlmTxRequeued.Inc(f.domain, t.GetEndpointName())
+			tlmTxRequeued.Inc(f.domain, getTransactionEndpointName(t))
 		} else {
 			droppedRetryQueueFull++
 			transactionsDropped.Add(1)
-			tlmTxDropped.Inc(f.domain, t.GetEndpointName())
+			tlmTxDropped.Inc(f.domain, getTransactionEndpointName(t))
 		}
 	}
 
@@ -248,8 +248,16 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	case f.highPrio <- transaction:
 	default:
 		transactionsDroppedOnInput.Add(1)
-		tlmTxDroppedOnInput.Inc(f.domain, transaction.GetEndpointName())
+		tlmTxDroppedOnInput.Inc(f.domain, getTransactionEndpointName(transaction))
 		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
 	}
 	return nil
+}
+
+func getTransactionEndpointName(transaction Transaction) string {
+	if transaction != nil {
+		return transaction.GetEndpointName()
+	}
+
+	return "unknown"
 }

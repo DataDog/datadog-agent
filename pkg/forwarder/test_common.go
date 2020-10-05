@@ -55,7 +55,7 @@ func (t *testTransaction) GetPriority() TransactionPriority {
 }
 
 func (t *testTransaction) GetEndpointName() string {
-	return t.Called().Get(0).(string)
+	return ""
 }
 
 func (t *testTransaction) GetPayloadSize() int {
