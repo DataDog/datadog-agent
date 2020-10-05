@@ -15,43 +15,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-const (
-	// PayloadTypePod is the name of the pod payload type
-	PayloadTypePod = "pod"
-	// PayloadTypeDeployment is the name of the deployment payload type
-	PayloadTypeDeployment = "deployment"
-	// PayloadTypeReplicaSet is the name of the replica set payload type
-	PayloadTypeReplicaSet = "replicaset"
-	// PayloadTypeService is the name of the service payload type
-	PayloadTypeService = "service"
-	// PayloadTypeNode is the name of the node payload type
-	PayloadTypeNode = "node"
-)
-
 var (
-	forwarderExpvars              = expvar.NewMap("forwarder")
-	connectionEvents              = expvar.Map{}
-	inputTransactionsCount        = expvar.Map{}
-	inputTransactionsBytes        = expvar.Map{}
-	outputTransactionsCount       = expvar.Map{}
-	outputTransactionsBytes       = expvar.Map{}
-	orchestratorTransactionsCount = expvar.Map{}
-
-	tlmInputTransactionsCount = telemetry.NewCounter("forwarder", "input_transactions_count",
-		[]string{"domain", "endpoint"}, "Input transaction count")
-	tlmInputTransactionsBytes = telemetry.NewCounter("forwarder", "input_transactions_bytes",
-		[]string{"domain", "endpoint"}, "Input transaction sizes in bytes")
-	tlmOutputTransactionsCount = telemetry.NewCounter("forwarder", "output_transactions_count",
-		[]string{"domain", "endpoint"}, "Output transaction count")
-	tlmOutputTransactionsBytes = telemetry.NewCounter("forwarder", "output_transactions_bytes",
-		[]string{"domain", "endpoint"}, "Output transaction sizes in bytes")
+	forwarderExpvars          = expvar.NewMap("forwarder")
+	orchestratorPayloadsCount = expvar.Map{}
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
@@ -75,17 +47,9 @@ var (
 )
 
 func init() {
-	connectionEvents.Init()
-	orchestratorTransactionsCount.Init()
-	inputTransactionsCount.Init()
-	inputTransactionsBytes.Init()
-	outputTransactionsCount.Init()
-	outputTransactionsCount.Init()
-	forwarderExpvars.Set("InputTransactionsCount", &inputTransactionsCount)
-	forwarderExpvars.Set("InputTransactionsBytes", &inputTransactionsBytes)
-	forwarderExpvars.Set("OutputTransactionsCount", &outputTransactionsCount)
-	forwarderExpvars.Set("OutputTransactionsBytes", &outputTransactionsBytes)
-	forwarderExpvars.Set("ConnectionEvents", &connectionEvents)
+	transactionsExpvars.Init()
+	orchestratorPayloadsCount.Init()
+	forwarderExpvars.Set("Transactions", &transactionsExpvars)
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
@@ -337,8 +301,8 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 
 				tlmInputTransactionsCount.Inc(domain, endpoint.name)
 				tlmInputTransactionsBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.name)
-				inputTransactionsCount.Add(endpoint.name, 1)
-				inputTransactionsBytes.Add(endpoint.name, int64(t.GetPayloadSize()))
+				transactionsInputCount.Add(endpoint.name, 1)
+				transactionsInputBytes.Add(endpoint.name, int64(t.GetPayloadSize()))
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))
@@ -452,7 +416,7 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	orchestratorTransactionsCount.Add(payloadType, 1)
+	orchestratorPayloadsCount.Add(payloadType, 1)
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }
 
