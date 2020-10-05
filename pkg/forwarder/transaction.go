@@ -42,15 +42,15 @@ var (
 	tlmConnectEvents = telemetry.NewCounter("forwarder", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
-		[]string{"domain", "route"}, "Retry queue size")
+		[]string{"domain", "endpoint"}, "Retry queue size")
 	tlmTxSuccess = telemetry.NewCounter("transactions", "success",
-		[]string{"domain", "route"}, "Count of successful transactions")
+		[]string{"domain", "endpoint"}, "Count of successful transactions")
 	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
-		[]string{"domain", "route"}, "Count of transactions dropped on input")
+		[]string{"domain", "endpoint"}, "Count of transactions dropped on input")
 	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
-		[]string{"domain", "route", "error_type"}, "Count of transactions errored grouped by type of error")
+		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
 	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
-		[]string{"domain", "route", "code"}, "Count of transactions http errors per http code")
+		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 
 var trace = &httptrace.ClientTrace{
@@ -305,7 +305,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
 	return resp.StatusCode, body, nil
 }
-
 
 // GetPayloadSize returns the size of the payload.
 func (t *HTTPTransaction) GetPayloadSize() int {

@@ -64,13 +64,13 @@ var (
 	transactionsIntakeNode        = expvar.Int{}
 
 	tlmInputTransactionsCount = telemetry.NewCounter("forwarder", "input_transactions_count",
-		[]string{"domain", "route"}, "Input transaction count")
+		[]string{"domain", "endpoint"}, "Input transaction count")
 	tlmInputTransactionsBytes = telemetry.NewCounter("forwarder", "input_transactions_bytes",
-		[]string{"domain", "route"}, "Input transaction sizes in bytes")
+		[]string{"domain", "endpoint"}, "Input transaction sizes in bytes")
 	tlmOutputTransactionsCount = telemetry.NewCounter("forwarder", "output_transactions_count",
-		[]string{"domain", "route"}, "Output transaction count")
+		[]string{"domain", "endpoint"}, "Output transaction count")
 	tlmOutputTransactionsBytes = telemetry.NewCounter("forwarder", "output_transactions_bytes",
-		[]string{"domain", "route"}, "Output transaction sizes in bytes")
+		[]string{"domain", "endpoint"}, "Output transaction sizes in bytes")
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
