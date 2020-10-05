@@ -182,10 +182,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
 
-	if err := overrideProbeSectionNames(m); err != nil {
-		return nil, fmt.Errorf("failed to override probe section names: %v", err)
-	}
-
 	reverseDNS := network.NewNullReverseDNS()
 	if enableSocketFilter {
 		filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
@@ -260,22 +256,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 	go tr.expvarStats()
 
 	return tr, nil
-}
-
-func overrideProbeSectionNames(m *manager.Manager) error {
-	for _, p := range m.Probes {
-		if !p.Enabled {
-			continue
-		}
-		if override, ok := bytecode.KProbeOverrides[bytecode.ProbeName(p.Section)]; ok {
-			oldID := manager.ProbeIdentificationPair{Section: p.Section}
-			newID := manager.ProbeIdentificationPair{Section: string(override)}
-			if err := m.RenameProbeIdentificationPair(oldID, newID); err != nil {
-				return fmt.Errorf("failed to edit probe identification pair %s: %v", oldID, err)
-			}
-		}
-	}
-	return nil
 }
 
 func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
