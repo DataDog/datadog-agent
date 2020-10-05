@@ -142,8 +142,8 @@ type HTTPTransaction struct {
 	Domain string
 	// Endpoint is the API Endpoint used by the HTTPTransaction.
 	Endpoint string
-	// Route is the description of the endpoint used by the HTTPTransaction.
-	Route string
+	// EndpointName is the name of the endpoint used by the HTTPTransaction (used for metrics).
+	EndpointName string
 	// Headers are the HTTP headers used by the HTTPTransaction.
 	Headers http.Header
 	// Payload is the content delivered to the backend.
