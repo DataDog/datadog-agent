@@ -140,7 +140,6 @@ func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 			}
 			e.PathnameStr = path.Join(mountPath, e.PathnameStr)
 		}
-		e.PathnameStr = path.Join(mountPath, e.PathnameStr)
 	}
 
 	return e.PathnameStr
