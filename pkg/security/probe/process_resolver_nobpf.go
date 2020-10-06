@@ -14,7 +14,7 @@ type ProcessResolver struct {
 }
 
 // Resolve returns a cache entry for the given pid
-func (p *ProcessResolver) Resolve(pid uint32) *ProcessResolverEntry {
+func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 	return nil
 }
 

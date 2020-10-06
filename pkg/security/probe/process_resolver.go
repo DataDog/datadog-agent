@@ -8,6 +8,8 @@
 package probe
 
 import (
+	"bytes"
+	"encoding/binary"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -20,6 +22,10 @@ type ProcessCacheEntry struct {
 	TimestampRaw uint64
 	Timestamp    time.Time
 	Cookie       uint32
+	TTYName      string
+	Comm         string
+
+	TTYNameRaw [64]byte
 }
 
 // UnmarshalBinary returns the binary representation of itself
@@ -36,6 +42,17 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte) (int, error) {
 	pc.TimestampRaw = ebpf.ByteOrder.Uint64(data[read : read+8])
 	pc.Cookie = ebpf.ByteOrder.Uint32(data[read+8 : read+12])
 
-	// +4 for padding
-	return 96, nil
+	// skip 4 for padding
+	if err := binary.Read(bytes.NewBuffer(data[read+16:read+80]), ebpf.ByteOrder, &pc.TTYNameRaw); err != nil {
+		return 0, err
+	}
+
+	return read + 80, nil
+}
+
+func (pc *ProcessCacheEntry) GetTTY() string {
+	if len(pc.TTYName) == 0 {
+		pc.TTYName = string(bytes.Trim(pc.TTYNameRaw[:], "\x00"))
+	}
+	return pc.TTYName
 }

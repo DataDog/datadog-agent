@@ -250,6 +250,8 @@ func (p *ProcessResolver) snapshotProcess(proc *process.FilledProcess) bool {
 			ID: string(containerID),
 		},
 		Timestamp: timestamp,
+		Comm:      proc.Name,
+		TTYName:   utils.PidTTY(pid),
 	}
 
 	p.AddEntry(pid, entry)

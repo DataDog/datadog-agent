@@ -817,7 +817,6 @@ func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 // ProcessEvent holds the process context of an event
 type ProcessEvent struct {
 	FileEvent
-	Pidns     uint64    `field:"pidns"`
 	Comm      string    `field:"name" handler:"ResolveComm,string"`
 	TTYName   string    `field:"tty_name" handler:"ResolveTTY,string"`
 	Pid       uint32    `field:"pid"`
@@ -828,8 +827,7 @@ type ProcessEvent struct {
 	Group     string    `field:"group" handler:"ResolveGroup,string"`
 	Timestamp time.Time `field:"-" handler:"ResolveTimestamp,string"`
 
-	CommRaw    [16]byte `field:"-"`
-	TTYNameRaw [64]byte `field:"-"`
+	CommRaw [16]byte `field:"-"`
 }
 
 func (p *ProcessEvent) ResolveTimestamp(resolvers *Resolvers) time.Time {
@@ -882,9 +880,8 @@ func (p *ProcessEvent) ResolveBasename(resolvers *Resolvers) string {
 func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"pidns":%d,`, p.Pidns)
-	fmt.Fprintf(&buf, `"name":"%s",`, p.GetComm())
-	if tty := p.GetTTY(); tty != "" {
+	fmt.Fprintf(&buf, `"name":"%s",`, p.ResolveComm(resolvers))
+	if tty := p.ResolveTTY(resolvers); tty != "" {
 		fmt.Fprintf(&buf, `"tty_name":"%s",`, tty)
 	}
 	fmt.Fprintf(&buf, `"pid":%d,`, p.Pid)
@@ -904,24 +901,17 @@ func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // ResolveTTY resolves the name of the process tty
 func (p *ProcessEvent) ResolveTTY(resolvers *Resolvers) string {
-	return p.GetTTY()
-}
-
-// GetTTY returns the name of the process tty
-func (p *ProcessEvent) GetTTY() string {
-	if len(p.TTYName) == 0 {
-		p.TTYName = string(bytes.Trim(p.TTYNameRaw[:], "\x00"))
+	if p.TTYName == "" {
+		if entry := resolvers.ProcessResolver.Resolve(p.Pid); entry != nil {
+			p.TTYName = entry.GetTTY()
+		}
 	}
+
 	return p.TTYName
 }
 
 // ResolveComm resolves the comm of the process
 func (p *ProcessEvent) ResolveComm(resolvers *Resolvers) string {
-	return p.GetComm()
-}
-
-// GetComm returns the comm of the process
-func (p *ProcessEvent) GetComm() string {
 	if len(p.Comm) == 0 {
 		p.Comm = string(bytes.Trim(p.CommRaw[:], "\x00"))
 	}
@@ -948,23 +938,19 @@ func (p *ProcessEvent) ResolveGroup(resolvers *Resolvers) string {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 120 {
+	if len(data) < 32 {
 		return 0, ErrNotEnoughData
 	}
-	p.Pidns = ebpf.ByteOrder.Uint64(data[0:8])
-	if err := binary.Read(bytes.NewBuffer(data[8:24]), ebpf.ByteOrder, &p.CommRaw); err != nil {
-		return 8, err
-	}
-	if err := binary.Read(bytes.NewBuffer(data[24:88]), ebpf.ByteOrder, &p.TTYNameRaw); err != nil {
-		return 8 + len(p.CommRaw), err
-	}
-	p.Pid = ebpf.ByteOrder.Uint32(data[88:92])
-	p.Tid = ebpf.ByteOrder.Uint32(data[92:96])
-	p.UID = ebpf.ByteOrder.Uint32(data[96:100])
-	p.GID = ebpf.ByteOrder.Uint32(data[100:104])
 
-	read, err := p.FileEvent.UnmarshalBinary(data[104:])
-	return 104 + read, err
+	if err := binary.Read(bytes.NewBuffer(data[0:16]), ebpf.ByteOrder, &p.CommRaw); err != nil {
+		return 0, err
+	}
+	p.Pid = ebpf.ByteOrder.Uint32(data[16:20])
+	p.Tid = ebpf.ByteOrder.Uint32(data[20:24])
+	p.UID = ebpf.ByteOrder.Uint32(data[24:28])
+	p.GID = ebpf.ByteOrder.Uint32(data[28:32])
+
+	return 32, nil
 }
 
 // Event represents an event sent from the kernel

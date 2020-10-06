@@ -1,6 +1,8 @@
 #ifndef _EXEC_H_
 #define _EXEC_H_
 
+#include <linux/tty.h>
+
 #include "filters.h"
 #include "syscalls.h"
 #include "container.h"
@@ -98,28 +100,26 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 
     u32 cookie = bpf_get_prandom_u32();
 
-    struct exec_event_t event = {
-        .event.type = EVENT_EXEC,
-        .pid = tgid,
-        .cache_entry.executable = {
+    struct proc_cache_t entry = {
+        .executable = {
             .inode = get_path_ino(path),
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
         },
-        .cache_entry.container = {},
-        .cache_entry.timestamp = bpf_ktime_get_ns(),
-        .cache_entry.cookie = cookie,
+        .container = {},
+        .timestamp = bpf_ktime_get_ns(),
+        .cookie = cookie,
     };
 
     // select parent cache entry
     struct proc_cache_t *parent_entry = get_pid_cache(tgid);
     if (parent_entry) {
         // inherit container ID
-        copy_container_id(event.cache_entry.container.container_id, parent_entry->container.container_id);
+        copy_container_id(entry.container.container_id, parent_entry->container.container_id);
     }
 
     // insert new proc cache entry
-    bpf_map_update_elem(&proc_cache, &cookie, &event.cache_entry, BPF_ANY);
+    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
 
     // insert pid <-> cookie mapping
     bpf_map_update_elem(&pid_cookie, &tgid, &cookie, BPF_ANY);
@@ -128,10 +128,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     struct dentry *dentry = get_path_dentry(path);
     resolve_dentry(dentry, syscall->open.path_key, NULL);
 
-    // send the entry to maintain userspace cache
-    send_process_events(ctx, event);
-
-    // pop syscall as not called from an open not need handle it in the ret
     pop_syscall(SYSCALL_EXEC);
 
     return 0;
@@ -148,23 +144,6 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     if (parent_entry) {
         // Ensures pid and ppid point to the same cookie
         bpf_map_update_elem(&pid_cookie, &pid, &parent_entry->cookie, BPF_ANY);
-
-        struct exec_event_t event = {
-            .event.type = EVENT_EXEC,
-            .pid = pid,
-            .cache_entry.executable = {
-                .inode = parent_entry->executable.inode,
-                .overlay_numlower = parent_entry->executable.overlay_numlower,
-                .mount_id = parent_entry->executable.mount_id,
-            },
-            .cache_entry.timestamp = bpf_ktime_get_ns(),
-            .cache_entry.cookie = parent_entry->cookie,
-        };
-
-        copy_container_id(event.cache_entry.container.container_id, parent_entry->container.container_id);
-
-        // send the entry to maintain userspace cache
-        send_process_events(args, event);
     }
 
     return 0;
@@ -190,4 +169,64 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/exit_itimers")
+int kprobe_exit_itimers(struct pt_regs *ctx) {
+    struct signal_struct *signal = (struct signal_struct *)PT_REGS_PARM1(ctx);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    struct proc_cache_t *entry = get_pid_cache(tgid);
+    if (entry) {
+        struct tty_struct *tty;
+        bpf_probe_read(&tty, sizeof(tty), &signal->tty);
+
+        bpf_probe_read_str(entry->tty_name, TTY_NAME_LEN, tty->name);
+    }
+
+    return 0;
+}
+
+static __attribute__((always_inline)) u32 copy_tty_name(char dst[TTY_NAME_LEN], char src[TTY_NAME_LEN]) {
+    if (src[0] == 0) {
+        return 0;
+    }
+
+#pragma unroll
+    for (int i = 0; i < TTY_NAME_LEN; i++)
+    {
+        dst[i] = src[i];
+    }
+    return TTY_NAME_LEN;
+}
+
+SEC("kprobe/do_close_on_exec")
+int kprobe_do_close_on_exec(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    struct proc_cache_t *entry = get_pid_cache(tgid);
+    if (entry) {
+        struct exec_event_t event = {
+            .event.type = EVENT_EXEC,
+            .pid = tgid,
+            .cache_entry.executable = {
+                .inode = entry->executable.inode,
+                .overlay_numlower = entry->executable.overlay_numlower,
+                .mount_id = entry->executable.mount_id,
+            },
+            .cache_entry.container = {},
+            .cache_entry.timestamp = entry->timestamp,
+            .cache_entry.cookie = entry->cookie,
+        };
+
+        copy_tty_name(event.cache_entry.tty_name, entry->tty_name);
+        copy_container_id(event.cache_entry.container.container_id, entry->container.container_id);
+
+        // send the entry to maintain userspace cache
+        send_process_events(ctx, event);
+    }
+
+    return 0;
+}
 #endif

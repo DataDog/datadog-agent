@@ -231,14 +231,11 @@ struct syscall_t {
 };
 
 struct process_context_t {
-    u64 pidns;
     char comm[TASK_COMM_LEN];
-    char tty_name[TTY_NAME_LEN];
     u32 pid;
     u32 tid;
     u32 uid;
     u32 gid;
-    struct file_t executable;
 };
 
 struct container_context_t {
@@ -251,6 +248,7 @@ struct proc_cache_t {
     u64 timestamp;
     u32 cookie;
     u32 padding;
+    char tty_name[TTY_NAME_LEN];
 };
 
 struct bpf_map_def SEC("maps/events") events = {

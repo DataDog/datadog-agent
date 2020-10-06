@@ -98,8 +98,6 @@ int __attribute__((always_inline)) approve_by_basename(struct syscall_cache_t *s
     struct open_basename_t basename = {};
     get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
 
-bpf_printk("kprobe/vfs_open basename '%s'\n", basename.value);
-
     struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
     if (filter) {
 #ifdef DEBUG

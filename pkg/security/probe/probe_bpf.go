@@ -350,8 +350,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return 0, err
 		}
 
-		entry := p.resolvers.ProcessResolver.Get(event.Process.Pid)
-		if entry != nil {
+		if entry := p.resolvers.ProcessResolver.Get(event.Process.Pid); entry != nil {
 			event.Process.FileEvent = entry.FileEvent
 			event.Container = entry.ContainerEvent
 		}
