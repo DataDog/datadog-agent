@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !windows
+// +build linux
 
 package misconfig
 
@@ -19,7 +19,6 @@ func TestCheckProcMountHidePid(t *testing.T) {
 	tests := []struct {
 		name        string
 		file        string
-		uid         int
 		groups      []int
 		expectError string
 	}{
@@ -29,36 +28,24 @@ func TestCheckProcMountHidePid(t *testing.T) {
 			expectError: "failed to open ./proc-mounts-not-here - proc fs inspection may not work: open ./proc-mounts-not-here: no such file or directory",
 		},
 		{
-			name:        "non-root with hidepid without groups",
-			uid:         1001,
+			name:        "hidepid without groups",
 			file:        "./tests/proc-mounts-hidepid-2-groups",
 			expectError: "hidepid=2 option detected in ./tests/proc-mounts-hidepid-2-groups - proc fs inspection may not work",
 		},
 		{
-			name:   "non-root with hidepid and groups",
-			uid:    1001,
+			name:   "hidepid and groups",
 			file:   "./tests/proc-mounts-hidepid-2-groups",
 			groups: []int{234, 4242},
 		},
 		{
-			name: "root with hidepid without groups",
-			file: "./tests/proc-mounts-hidepid-2",
-		},
-		{
-			name:   "root with hidepid and groups",
-			file:   "./tests/proc-mounts-hidepid-2-groups",
-			groups: []int{234, 4242},
-		},
-		{
-			name: "non-root with no hidepid",
-			uid:  1001,
+			name: "no hidepid",
 			file: "./tests/proc-mounts-no-hidepid",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := checkProcMountHidePid(test.file, test.uid, test.groups)
+			err := checkProcMountHidePid(test.file, test.groups)
 			if test.expectError != "" {
 				assert.EqualError(err, test.expectError)
 			} else {

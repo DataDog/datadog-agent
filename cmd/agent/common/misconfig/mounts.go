@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !windows
+// +build linux
 
 package misconfig
 
@@ -15,7 +15,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
+	"github.com/syndtr/gocapability/capability"
 )
 
 func init() {
@@ -23,6 +25,18 @@ func init() {
 }
 
 func procMount() error {
+
+	if os.Geteuid() == 0 {
+		// Check for root + SYS_PTRACE capability - if it is set we don't
+		// need to check the rest of the logic here
+		if caps, err := capability.NewPid2(0); err == nil && caps.Load() == nil {
+			if caps.Get(capability.EFFECTIVE, capability.CAP_SYS_PTRACE) {
+				log.Debugf("Running as root with cap_sys_ptrace - not checking for hidepid on proc fs")
+				return nil
+			}
+		}
+	}
+
 	groups, err := os.Getgroups()
 	if err != nil {
 		return fmt.Errorf("failed to get process groups: %v", err)
@@ -33,10 +47,10 @@ func procMount() error {
 	} else {
 		path = filepath.Join(path, "mounts")
 	}
-	return checkProcMountHidePid(path, os.Geteuid(), groups)
+	return checkProcMountHidePid(path, groups)
 }
 
-func checkProcMountHidePid(path string, uid int, groups []int) error {
+func checkProcMountHidePid(path string, groups []int) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return errors.Wrapf(err, "failed to open %s - proc fs inspection may not work", path)
@@ -65,9 +79,8 @@ func checkProcMountHidePid(path string, uid int, groups []int) error {
 			return nil
 		}
 
-		if uid == 0 && !hasGidOpt {
-			// Root can have visibility if there is no gid= option set (default is gid=0)
-			return nil
+		if !hasGidOpt {
+			mountOptsLookup["gid=0"] = struct{}{}
 		}
 
 		for _, gid := range groups {
