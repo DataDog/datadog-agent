@@ -60,10 +60,20 @@ var (
 
 func init() {
 	transactionsExpvars.Init()
+	connectionEvents.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
+	initOrchestratorExpVars()
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
+}
+
+func initOrchestratorExpVars() {
+	transactionsExpvars.Set("Pods", &transactionsIntakePod)
+	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
+	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
+	transactionsExpvars.Set("Services", &transactionsIntakeService)
+	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
 }
 
 const (

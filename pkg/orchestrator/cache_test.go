@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build orchestrator
-
 package orchestrator
 
 import (
@@ -19,14 +17,14 @@ func TestKubeCacheHits(t *testing.T) {
 	resourceVersion := "123"
 	newResourceVersion := "321"
 	// we do not have the resource, therefore we do not skip this resource.
-	skip := SkipKubernetesResource(types.UID(uid), resourceVersion)
+	skip := SkipKubernetesResource(types.UID(uid), resourceVersion, K8sPod)
 	assert.False(t, skip)
 
 	// we have the resource, therefore we skip this resource.
-	skip = SkipKubernetesResource(types.UID(uid), resourceVersion)
+	skip = SkipKubernetesResource(types.UID(uid), resourceVersion, K8sPod)
 	assert.True(t, skip)
 
 	// we have the resource but the version has changed. therefore we do not skip this resource.
-	skip = SkipKubernetesResource(types.UID(uid), newResourceVersion)
+	skip = SkipKubernetesResource(types.UID(uid), newResourceVersion, K8sPod)
 	assert.False(t, skip)
 }
