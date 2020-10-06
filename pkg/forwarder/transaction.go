@@ -266,7 +266,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
-		tlmTxErrors.Inc(t.Domain, t.GetEndpointName(), "invalid_request")
+		tlmTxErrors.Inc(t.Domain, getTransactionEndpointName(t), "invalid_request")
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
@@ -281,7 +281,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		}
 		t.ErrorCount++
 		transactionsErrors.Add(1)
-		tlmTxErrors.Inc(t.Domain, t.GetEndpointName(), "cant_send")
+		tlmTxErrors.Inc(t.Domain, getTransactionEndpointName(t), "cant_send")
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", httputils.SanitizeURL(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -303,31 +303,31 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		}
 		codeCount.Add(1)
 		transactionsHTTPErrors.Add(1)
-		tlmTxHTTPErrors.Inc(t.Domain, t.GetEndpointName(), statusCode)
+		tlmTxHTTPErrors.Inc(t.Domain, getTransactionEndpointName(t), statusCode)
 	}
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
-		transactionsDropped.Add(1)
-		tlmTxDropped.Inc(t.Domain, t.GetEndpointName())
+		transactionsDropped.Add(getTransactionEndpointName(t), 1)
+		tlmTxDropped.Inc(t.Domain, getTransactionEndpointName(t))
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
-		transactionsDropped.Add(1)
-		tlmTxDropped.Inc(t.Domain, t.GetEndpointName())
+		transactionsDropped.Add(getTransactionEndpointName(t), 1)
+		tlmTxDropped.Inc(t.Domain, getTransactionEndpointName(t))
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
-		tlmTxErrors.Inc(t.Domain, t.GetEndpointName(), "gt_400")
+		tlmTxErrors.Inc(t.Domain, getTransactionEndpointName(t), "gt_400")
 		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
 	transactionsSuccessful.Add(1)
-	tlmTxOutputCount.Inc(t.Domain, t.GetEndpointName())
-	tlmTxOutputBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.GetEndpointName())
-	transactionsOutputCount.Add(t.GetEndpointName(), 1)
-	transactionsOutputBytes.Add(t.GetEndpointName(), int64(t.GetPayloadSize()))
+	tlmTxOutputCount.Inc(t.Domain, getTransactionEndpointName(t))
+	tlmTxOutputBytes.Add(float64(t.GetPayloadSize()), t.Domain, getTransactionEndpointName(t))
+	transactionsOutputCount.Add(getTransactionEndpointName(t), 1)
+	transactionsOutputBytes.Add(getTransactionEndpointName(t), int64(t.GetPayloadSize()))
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
@@ -343,4 +343,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
 	return resp.StatusCode, body, nil
+}
+
+func getTransactionEndpointName(transaction Transaction) string {
+	if transaction != nil {
+		return transaction.GetEndpointName()
+	}
+
+	return "unknown"
 }
