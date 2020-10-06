@@ -68,6 +68,7 @@
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
 # that should be fine since rarely we make PRs that only change those files alone.
 /releasenotes/                          @DataDog/do-not-notify
+/releasenotes-install/                  @DataDog/do-not-notify
 /go.mod                                 @DataDog/do-not-notify
 /go.sum                                 @DataDog/do-not-notify
 

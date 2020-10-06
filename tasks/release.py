@@ -35,10 +35,9 @@ def add_prelude(ctx, version):
     ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
 
 
-@task
-def update_changelog(ctx, new_version):
+def _update_changelog(ctx, new_version, src_notes_path, target_filename):
     """
-    Quick task to generate the new CHANGELOG using reno when releasing a minor
+    Quick task to generate a specified changelog using reno when releasing a minor
     version (linux/macOS only).
     """
     new_version_int = list(map(int, new_version.split(".")))
@@ -71,8 +70,8 @@ def update_changelog(ctx, new_version):
         previous_minor = "6.15"  # 7.15 is the first release in the 7.x series
     log_result = ctx.run(
         "git log {}...remotes/origin/{}.x --name-only --oneline | \
-            grep releasenotes/notes/ || true".format(
-            branching_point, previous_minor
+            grep {}/notes/ || true".format(
+            branching_point, previous_minor, src_notes_path
         )
     )
     log_result = log_result.stdout.replace('\n', ' ').strip()
@@ -81,12 +80,12 @@ def update_changelog(ctx, new_version):
 
     # generate the new changelog
     ctx.run(
-        "reno report \
+        "reno --rel-notes-dir {} report \
             --ignore-cache \
             --earliest-version {} \
             --version {} \
-            --no-show-source > /tmp/new_changelog.rst".format(
-            branching_point, new_version
+            --no-show-source > /tmp/new_{}.rst".format(
+            src_notes_path, branching_point, new_version, target_filename
         )
     )
 
@@ -102,20 +101,42 @@ def update_changelog(ctx, new_version):
     if new_version_int[0] == 7:
         v6_tag = _find_v6_tag(ctx, new_version)
         if v6_tag:
-            ctx.run("sed {0} -E 's#^{1}#{1} / {2}#' /tmp/new_changelog.rst".format(sed_i_arg, new_version, v6_tag))
+            ctx.run(
+                "sed {0} -E 's#^{1}#{1} / {2}#' /tmp/new_{3}.rst".format(
+                    sed_i_arg, new_version, v6_tag, target_filename
+                )
+            )
     # remove the old header from the existing changelog
-    ctx.run("sed {0} -e '1,4d' CHANGELOG.rst".format(sed_i_arg))
+    ctx.run("sed {0} -e '1,4d' {1}.rst".format(sed_i_arg, target_filename))
 
-    # merging to CHANGELOG.rst
-    ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
+    # merging to {target_filename}.rst
+    ctx.run("cat {0}.rst >> /tmp/new_{0}.rst && mv /tmp/new_{0}.rst {0}.rst".format(target_filename))
 
-    # commit new CHANGELOG
+    # commit new {target_filename}
     ctx.run(
-        "git add CHANGELOG.rst \
-            && git commit -m \"Update CHANGELOG for {}\"".format(
-            new_version
+        "git add {0}.rst \
+            && git commit -m \"Update {0} for {1}\"".format(
+            target_filename, new_version
         )
     )
+
+
+@task
+def update_changelog(ctx, new_version):
+    """
+    Quick task to generate the new CHANGELOG using reno when releasing a minor
+    version (linux/macOS only).
+    """
+    _update_changelog(ctx, new_version, "releasenotes", "CHANGELOG")
+
+
+@task
+def update_install_changelog(ctx, new_version):
+    """
+    Quick task to generate the new INSTALL_CHANGELOG using reno when releasing a minor
+    version (linux/macOS only).
+    """
+    _update_changelog(ctx, new_version, "releasenotes-install", "INSTALL_CHANGELOG")
 
 
 @task
