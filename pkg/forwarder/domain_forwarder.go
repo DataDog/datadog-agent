@@ -25,11 +25,11 @@ var (
 	transactionsDropped  = expvar.Int{}
 	transactionsRequeued = expvar.Int{}
 
-	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
+	tlmTxRetried = telemetry.NewCounter("forwarder_transactions", "retries",
 		[]string{"domain", "endpoint"}, "Transaction retry count")
-	tlmTxDropped = telemetry.NewCounter("transactions", "dropped",
+	tlmTxDropped = telemetry.NewCounter("forwarder_transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
-	tlmTxRequeued = telemetry.NewCounter("transactions", "requeued",
+	tlmTxRequeued = telemetry.NewCounter("forwarder_transactions", "requeued",
 		[]string{"domain", "endpoint"}, "Transaction requeue count")
 )
 
