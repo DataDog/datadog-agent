@@ -28,10 +28,10 @@ var (
 	connectionDNSSuccess           = expvar.Int{}
 	connectionConnectSuccess       = expvar.Int{}
 	transactionsExpvars            = expvar.Map{}
-	transactionsInputCount         = expvar.Map{}
-	transactionsInputBytes         = expvar.Map{}
-	transactionsOutputCount        = expvar.Map{}
-	transactionsOutputBytes        = expvar.Map{}
+	transactionsCount              = expvar.Map{}
+	transactionsBytes              = expvar.Map{}
+	transactionsSuccessCount       = expvar.Map{}
+	transactionsSuccessBytes       = expvar.Map{}
 	transactionsRetryQueueSize     = expvar.Int{}
 	transactionsDroppedOnInput     = expvar.Int{}
 	transactionsErrors             = expvar.Int{}
@@ -47,14 +47,14 @@ var (
 
 	tlmConnectEvents = telemetry.NewCounter("forwarder_transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
-	tlmTxInputCount = telemetry.NewCounter("forwarder_transactions", "input_count",
-		[]string{"domain", "endpoint"}, "Input transaction count")
-	tlmTxInputBytes = telemetry.NewCounter("forwarder_transactions", "input_bytes",
-		[]string{"domain", "endpoint"}, "Input transaction sizes in bytes")
-	tlmTxOutputCount = telemetry.NewCounter("forwarder_transactions", "output_count",
-		[]string{"domain", "endpoint"}, "Output transaction count")
-	tlmTxOutputBytes = telemetry.NewCounter("forwarder_transactions", "output_bytes",
-		[]string{"domain", "endpoint"}, "Output transaction sizes in bytes")
+	tlmTxCount = telemetry.NewCounter("forwarder_transactions", "count",
+		[]string{"domain", "endpoint"}, "Incoming transaction count")
+	tlmTxBytes = telemetry.NewCounter("forwarder_transactions", "bytes",
+		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
+	tlmTxSuccessCount = telemetry.NewCounter("forwarder_transactions", "success",
+		[]string{"domain", "endpoint"}, "Successful transaction count")
+	tlmTxSuccessBytes = telemetry.NewCounter("forwarder_transactions", "success_bytes",
+		[]string{"domain", "endpoint"}, "Successful transaction sizes in bytes")
 	tlmTxRetryQueueSize = telemetry.NewGauge("forwarder_transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
 	tlmTxDroppedOnInput = telemetry.NewCounter("forwarder_transactions", "dropped_on_input",
@@ -118,19 +118,19 @@ var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int
 
 func initTransactionExpvars() {
 	connectionEvents.Init()
-	transactionsInputCount.Init()
-	transactionsInputBytes.Init()
-	transactionsOutputCount.Init()
-	transactionsOutputCount.Init()
+	transactionsCount.Init()
+	transactionsBytes.Init()
+	transactionsSuccessCount.Init()
+	transactionsSuccessBytes.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
 	transactionsExpvars.Set("ConnectionEvents", &connectionEvents)
 	connectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
 	connectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
-	transactionsExpvars.Set("InputCount", &transactionsInputCount)
-	transactionsExpvars.Set("InputBytes", &transactionsInputBytes)
-	transactionsExpvars.Set("OutputCount", &transactionsOutputCount)
-	transactionsExpvars.Set("OutputBytes", &transactionsOutputBytes)
+	transactionsExpvars.Set("Count", &transactionsCount)
+	transactionsExpvars.Set("Bytes", &transactionsBytes)
+	transactionsExpvars.Set("SuccessCount", &transactionsSuccessCount)
+	transactionsExpvars.Set("SuccessBytes", &transactionsSuccessBytes)
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("Success", &transactionsSuccessful)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
@@ -324,10 +324,10 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 
 	transactionsSuccessful.Add(1)
-	tlmTxOutputCount.Inc(t.Domain, getTransactionEndpointName(t))
-	tlmTxOutputBytes.Add(float64(t.GetPayloadSize()), t.Domain, getTransactionEndpointName(t))
-	transactionsOutputCount.Add(getTransactionEndpointName(t), 1)
-	transactionsOutputBytes.Add(getTransactionEndpointName(t), int64(t.GetPayloadSize()))
+	tlmTxSuccessCount.Inc(t.Domain, getTransactionEndpointName(t))
+	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, getTransactionEndpointName(t))
+	transactionsSuccessCount.Add(getTransactionEndpointName(t), 1)
+	transactionsSuccessBytes.Add(getTransactionEndpointName(t), int64(t.GetPayloadSize()))
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
