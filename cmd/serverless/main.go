@@ -147,8 +147,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		true,   // log_to_console
 		false,  // log_format_json
 	); err != nil {
-		log.Criticalf("Unable to setup logger: %s", err)
-		return
+		log.Errorf("Unable to setup logger: %s", err)
 	}
 
 	// immediately starts the communication server
@@ -163,7 +162,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// at this point, we were not even able to register, thus, we don't have
 		// any Id assigned, thus, we can't report an error to the init error route
 		// which needs an Id.
-		log.Criticalf("Can't register as a serverless agent: %s", err)
+		log.Errorf("Can't register as a serverless agent: %s", err)
 		return
 	}
 
@@ -225,8 +224,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessId, serverless.FatalNoApiKey)
-		log.Critical("No API key configured, exiting")
-		return
+		log.Error("No API key configured, exiting")
 	}
 
 	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
@@ -242,8 +240,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessId, serverless.FatalBadEndpoint)
-		log.Criticalf("Misconfiguration of agent endpoints: %s", err)
-		return
+		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start() //nolint:errcheck
@@ -260,8 +257,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessId, serverless.FatalDogstatsdInit)
-		log.Criticalf("Unable to start the DogStatsD server: %s", err)
-		return
+		log.Errorf("Unable to start the DogStatsD server: %s", err)
 	}
 	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
 
