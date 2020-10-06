@@ -28,26 +28,11 @@ var (
 	connectionDNSSuccess           = expvar.Int{}
 	connectionConnectSuccess       = expvar.Int{}
 	transactionsExpvars            = expvar.Map{}
+	transactionsCount              = expvar.Map{}
+	transactionsBytes              = expvar.Map{}
+	transactionsSuccessCount       = expvar.Map{}
+	transactionsSuccessBytes       = expvar.Map{}
 	transactionsSuccessful         = expvar.Int{}
-	transactionsSeries             = expvar.Int{}
-	transactionsEvents             = expvar.Int{}
-	transactionsServiceChecks      = expvar.Int{}
-	transactionsSketchSeries       = expvar.Int{}
-	transactionsHostMetadata       = expvar.Int{}
-	transactionsMetadata           = expvar.Int{}
-	transactionsTimeseriesV1       = expvar.Int{}
-	transactionsCheckRunsV1        = expvar.Int{}
-	transactionsIntakeV1           = expvar.Int{}
-	transactionsIntakeProcesses    = expvar.Int{}
-	transactionsIntakeRTProcesses  = expvar.Int{}
-	transactionsIntakeContainer    = expvar.Int{}
-	transactionsIntakeRTContainer  = expvar.Int{}
-	transactionsIntakeConnections  = expvar.Int{}
-	transactionsIntakePod          = expvar.Int{}
-	transactionsIntakeDeployment   = expvar.Int{}
-	transactionsIntakeReplicaSet   = expvar.Int{}
-	transactionsIntakeService      = expvar.Int{}
-	transactionsIntakeNode         = expvar.Int{}
 	transactionsRetryQueueSize     = expvar.Int{}
 	transactionsDroppedOnInput     = expvar.Int{}
 	transactionsErrors             = expvar.Int{}
@@ -138,26 +123,13 @@ func initTransactionExpvars() {
 	connectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
 	connectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
 	transactionsExpvars.Set("ConnectionEvents", &connectionEvents)
+	transactionsExpvars.Set("Count", &transactionsCount)
+	transactionsExpvars.Set("Bytes", &transactionsBytes)
+	transactionsExpvars.Set("SuccessCount", &transactionsSuccessCount)
+	transactionsExpvars.Set("SuccessBytes", &transactionsSuccessBytes)
+	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
+	transactionsExpvars.Set("OrchestratorCount", &orchestratorPayloadsCount)
 	transactionsExpvars.Set("Success", &transactionsSuccessful)
-	transactionsExpvars.Set("Series", &transactionsSeries)
-	transactionsExpvars.Set("Events", &transactionsEvents)
-	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
-	transactionsExpvars.Set("SketchSeries", &transactionsSketchSeries)
-	transactionsExpvars.Set("HostMetadata", &transactionsHostMetadata)
-	transactionsExpvars.Set("Metadata", &transactionsMetadata)
-	transactionsExpvars.Set("TimeseriesV1", &transactionsTimeseriesV1)
-	transactionsExpvars.Set("CheckRunsV1", &transactionsCheckRunsV1)
-	transactionsExpvars.Set("IntakeV1", &transactionsIntakeV1)
-	transactionsExpvars.Set("Processes", &transactionsIntakeProcesses)
-	transactionsExpvars.Set("RTProcesses", &transactionsIntakeRTProcesses)
-	transactionsExpvars.Set("Containers", &transactionsIntakeContainer)
-	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
-	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
-	transactionsExpvars.Set("Pods", &transactionsIntakePod)
-	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
-	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
-	transactionsExpvars.Set("Services", &transactionsIntakeService)
-	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
 	transactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
@@ -334,12 +306,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
-		transactionsDropped.Add(1)
+		transactionsDropped.Add(getTransactionEndpointName(t), 1)
 		tlmTxDropped.Inc(t.Domain, getTransactionEndpointName(t))
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
-		transactionsDropped.Add(1)
+		transactionsDropped.Add(getTransactionEndpointName(t), 1)
 		tlmTxDropped.Inc(t.Domain, getTransactionEndpointName(t))
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
@@ -349,9 +321,11 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
-	transactionsSuccessful.Add(1)
 	tlmTxSuccessCount.Inc(t.Domain, getTransactionEndpointName(t))
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, getTransactionEndpointName(t))
+	transactionsSuccessCount.Add(getTransactionEndpointName(t), 1)
+	transactionsSuccessBytes.Add(getTransactionEndpointName(t), int64(t.GetPayloadSize()))
+	transactionsSuccessful.Add(1)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 

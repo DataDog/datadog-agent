@@ -33,6 +33,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const (
+	payloadTypePod        = "pod"
+	payloadTypeDeployment = "deployment"
+	payloadTypeReplicaSet = "replicaset"
+	payloadTypeService    = "service"
+	payloadTypeNode       = "node"
+)
+
 // ControllerContext holds necessary context for the controller
 type ControllerContext struct {
 	IsLeaderFunc                 func() bool
@@ -201,7 +209,7 @@ func (o *Controller) processDeploys() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
+	o.sendMessages(msg, payloadTypeDeployment)
 }
 
 func (o *Controller) processReplicaSets() {
@@ -229,7 +237,7 @@ func (o *Controller) processReplicaSets() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
+	o.sendMessages(msg, payloadTypeReplicaSet)
 }
 
 func (o *Controller) processPods() {
@@ -258,7 +266,7 @@ func (o *Controller) processPods() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, forwarder.PayloadTypePod)
+	o.sendMessages(msg, payloadTypePod)
 }
 
 func (o *Controller) processServices() {
@@ -286,7 +294,7 @@ func (o *Controller) processServices() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(messages, forwarder.PayloadTypeService)
+	o.sendMessages(messages, payloadTypeService)
 }
 
 func (o *Controller) processNodes() {
@@ -314,7 +322,7 @@ func (o *Controller) processNodes() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(messages, forwarder.PayloadTypeNode)
+	o.sendMessages(messages, payloadTypeNode)
 }
 
 func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {

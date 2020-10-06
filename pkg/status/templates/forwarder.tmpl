@@ -9,7 +9,11 @@ Forwarder
   ============
   {{- range $key, $value := .Transactions }}
     {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
-    {{$key}}: {{humanize $value}}
+    {{$key}}
+    =================
+    {{- range $key, $value := $value }}
+      {{$key}}: {{humanize $value}}
+    {{- end}}
     {{- end}}
   {{- end}}
   {{- if .Transactions.DroppedOnInput }}

@@ -21,9 +21,9 @@ var (
 	chanBufferSize = 100
 	flushInterval  = 5 * time.Second
 
-	transactionsRetried  = expvar.Int{}
-	transactionsDropped  = expvar.Int{}
-	transactionsRequeued = expvar.Int{}
+	transactionsRetried  = expvar.Map{}
+	transactionsDropped  = expvar.Map{}
+	transactionsRequeued = expvar.Map{}
 
 	tlmTxRetried = telemetry.NewCounter("forwarder_transactions", "retries",
 		[]string{"domain", "endpoint"}, "Transaction retry count")
@@ -34,6 +34,9 @@ var (
 )
 
 func initDomainForwarderExpvars() {
+	transactionsRetried.Init()
+	transactionsDropped.Init()
+	transactionsRequeued.Init()
 	transactionsExpvars.Set("Retried", &transactionsRetried)
 	transactionsExpvars.Set("Dropped", &transactionsDropped)
 	transactionsExpvars.Set("Requeued", &transactionsRequeued)
@@ -102,20 +105,20 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 		if !f.blockedList.isBlock(t.GetTarget()) {
 			select {
 			case f.lowPrio <- t:
-				transactionsRetried.Add(1)
+				transactionsRetried.Add(getTransactionEndpointName(t), 1)
 				tlmTxRetried.Inc(f.domain, getTransactionEndpointName(t))
 			default:
 				droppedWorkerBusy++
-				transactionsDropped.Add(1)
+				transactionsDropped.Add(getTransactionEndpointName(t), 1)
 				tlmTxDropped.Inc(f.domain, getTransactionEndpointName(t))
 			}
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
-			transactionsRequeued.Add(1)
+			transactionsRequeued.Add(getTransactionEndpointName(t), 1)
 			tlmTxRequeued.Inc(f.domain, getTransactionEndpointName(t))
 		} else {
 			droppedRetryQueueFull++
-			transactionsDropped.Add(1)
+			transactionsDropped.Add(getTransactionEndpointName(t), 1)
 			tlmTxDropped.Inc(f.domain, getTransactionEndpointName(t))
 		}
 	}
@@ -132,7 +135,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 
 func (f *domainForwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
-	transactionsRequeued.Add(1)
+	transactionsRequeued.Add(getTransactionEndpointName(t), 1)
 	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
 	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 }

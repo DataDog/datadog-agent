@@ -117,9 +117,6 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.init()
 	forwarder.retryQueueLimit = 1
 
-	// Default value should be 0
-	assert.Equal(t, int64(0), transactionsDropped.Value())
-
 	t1 := NewHTTPTransaction()
 	t1.Domain = "domain/"
 	t1.Endpoint = "test1"
@@ -140,7 +137,7 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.retryTransactions(time.Now())
 	assert.Len(t, forwarder.retryQueue, 1)
 	assert.Len(t, forwarder.lowPrio, 1)
-	assert.Equal(t, int64(1), transactionsDropped.Value())
+	assert.Equal(t, "1", transactionsDropped.Get(t1.endpointName).String())
 }
 
 func TestForwarderRetry(t *testing.T) {
