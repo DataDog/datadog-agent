@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x06
+#define DD_NPMDRIVER_VERSION       0x07
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -122,12 +122,13 @@ typedef struct _filterAddress
     uint8_t                   v4_address[4];    // address in network byte order, so v4_address[0] = top network tuple
     uint8_t                   v4_padding[4];    // pad out to 64 bit boundary
     uint8_t                   v6_address[16];
-    uint64_t                  mask; // number of mask bits.  
+    uint64_t                  mask; // number of mask bits.
 } FILTER_ADDRESS;
 
 #define     DIRECTION_INBOUND    ((uint64_t)0)
 #define     DIRECTION_OUTBOUND   ((uint64_t)1)
 
+//#define     FILTER_LAYER_IPPACKET       ((uint64_t) 0)
 #define     FILTER_LAYER_TRANSPORT      ((uint64_t) 1)
 
 typedef struct _filterDefinition
@@ -160,7 +161,7 @@ typedef struct _filterDefinition
  * PACKET_HEADER structure
  *
  * provided by the driver during the upcall with implementation specific
- * information in the header.  
+ * information in the header.
  */
 
 typedef struct _udpFlowData {
@@ -185,7 +186,7 @@ typedef struct _perFlowData {
     uint8_t           localAddress[16];  // only first 4 bytes valid for AF_INET, in network byte order
     uint8_t           remoteAddress[16]; // ditto
 
-    // stats common to all 
+    // stats common to all
 
     uint64_t packetsOut;
     uint64_t monotonicSentBytes;              // total bytes including ip header
@@ -218,8 +219,10 @@ typedef struct _perFlowData {
 #define IS_FLOW_DIRECTION_OUTBOUND(f)    ( (((f)->flags & FLOW_DIRECTION_MASK) >> FLOW_DIRECTION_BITS) == FLOW_DIRECTION_OUTBOUND)
 
 #define FLOW_CLOSED_MASK 0x10
+#define FLOW_ESTABLISHED_MASK 0x20
 
 #define IS_FLOW_CLOSED(f) ( (((f)->flags) & FLOW_CLOSED_MASK) == FLOW_CLOSED_MASK )
+#define IS_FLOW_ESTABLISHED(f) ( (((f)->flags) & FLOW_ESTABLISHED_MASK) == FLOW_ESTABLISHED_MASK )
 
 /*!
  * PACKET_HEADER structure
