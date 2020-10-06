@@ -127,8 +127,8 @@ var regexes = [...]string{
 	// Group 4. -> GPU Freq (opt)
 	`EMC_FREQ\s*(\d+)%(?:@(\d+))?\s*GR3D_FREQ\s*(\d+)%(?:@(\d+))?`,
 
-	// Group 1. -> List of CPUs and their usage/frequency, e.g. 2%@102,1%@102,0%@102,0%@102
-	`CPU\s*\[((?:\d+%@\d+,?)+)\]`,
+	// Group 1. -> List of CPUs and their usage/frequency, e.g. 2%@102,1%@102,0%@102,0%@102,off,off,off,off
+	`CPU\s*\[((?:.,?)+)\]`,
 
 	// Group 1. -> Zone name
 	// Group 2. -> Temperature
@@ -141,7 +141,8 @@ var regexes = [...]string{
 
 	// Group 1. -> CPU usage
 	// Group 2. -> CPU freq
-	`(\d+)%@(\d+)`,
+	// Alternatively -> off
+	`(\d+)%@(\d+)|off`,
 }
 
 type checkCfg struct {
@@ -318,22 +319,33 @@ func (c *JetsonCheck) sendCPUUsageMetrics(sender aggregator.Sender, field string
 		return errors.New("could not parse CPU usage fields")
 	}
 	cpus := strings.Split(cpuFields[0][1], ",")
-
+	inactiveCpus := 0
 	for i := 0; i < len(cpus); i++ {
-		cpuAndFreqFields := c.regexes[regexCPUFreqIdx].FindAllStringSubmatch(cpus[i], -1)
-		cpuUsage, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuUsage], 64)
 		cpuTags := []string{fmt.Sprintf("cpu:%d", i)}
-		if err != nil {
-			return err
+		cpuAndFreqFields := c.regexes[regexCPUFreqIdx].FindAllStringSubmatch(cpus[i], -1)
+		if cpuAndFreqFields == nil {
+			// No match
+			return errors.New(fmt.Sprintf("could not parse CPU usage field of CPU %d", i))
+		} else if cpuAndFreqFields[0][0] == "off" {
+			sender.Gauge("nvidia.jetson.cpu.usage", 0.0, "", cpuTags)
+			sender.Gauge("nvidia.jetson.cpu.freq", 0.0, "", cpuTags)
+			inactiveCpus++
+		} else {
+			cpuUsage, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuUsage], 64)
+			if err != nil {
+				return err
+			}
+			sender.Gauge("nvidia.jetson.cpu.usage", cpuUsage, "", cpuTags)
+			cpuFreq, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuFreq], 64)
+			if err != nil {
+				return err
+			}
+			sender.Gauge("nvidia.jetson.cpu.freq", cpuFreq, "", cpuTags)
 		}
-		sender.Gauge("nvidia.jetson.cpu.usage", cpuUsage, "", cpuTags)
-
-		cpuFreq, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuFreq], 64)
-		if err != nil {
-			return err
-		}
-		sender.Gauge("nvidia.jetson.cpu.freq", cpuFreq, "", cpuTags)
 	}
+
+	sender.Gauge("nvidia.jetson.cpu.inactive_count", float64(inactiveCpus), "", nil)
+	sender.Gauge("nvidia.jetson.cpu.total_count", float64(len(cpus)), "", nil)
 
 	return nil
 }
