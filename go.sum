@@ -92,8 +92,8 @@ github.com/DataDog/datadog-go v3.5.0+incompatible h1:AShr9cqkF+taHjyQgcBcQUt/ZNK
 github.com/DataDog/datadog-go v3.5.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822 h1:E5WNl43j4mpE3V35QySkRnP/m9pjXOnEZD6eyTK7Qvk=
 github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822/go.mod h1:a5NqgPglcSct+NwO9gPvVhoL5V6G1+gHbRaRnU8U54M=
-github.com/DataDog/ebpf v0.0.0-20201005125148-b896d6a0f210 h1:nJ+Mcd7YwCfQ60jj58JCHYBHY1mGRtVSo0veXzKToWA=
-github.com/DataDog/ebpf v0.0.0-20201005125148-b896d6a0f210/go.mod h1:qZLIrmmVuqP23NwIvK3/PwUyQyp6gvP/hdk+wiPhI/I=
+github.com/DataDog/ebpf v0.0.0-20201006072253-4888b092bbfe h1:tLkoG8IR+sZR0lfKy6qrPMnSN+qWZDWDsI0VVDst+Fk=
+github.com/DataDog/ebpf v0.0.0-20201006072253-4888b092bbfe/go.mod h1:qZLIrmmVuqP23NwIvK3/PwUyQyp6gvP/hdk+wiPhI/I=
 github.com/DataDog/gobpf v0.0.0-20200907093925-5f8313cb4d71 h1:0TOAH3X9tEvMBVQ1HYrQfrnAUcSS1mfMrhqeN+spV1s=
 github.com/DataDog/gobpf v0.0.0-20200907093925-5f8313cb4d71/go.mod h1:rNvi5cSHdpxN6495MOYAWN3yukac8lORoluL+9Osrsw=
 github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a h1:BkU6uq4Ib7Kp1zP7MT33IdHZQazC+kxbuTyEmgePyyA=
