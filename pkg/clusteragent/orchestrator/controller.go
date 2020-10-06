@@ -65,6 +65,7 @@ type Controller struct {
 	processConfig           *processcfg.AgentConfig
 	isLeaderFunc            func() bool
 	isScrubbingEnabled      bool
+	extraTags               []string
 }
 
 // StartController starts the orchestrator controller
@@ -141,6 +142,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		isLeaderFunc:            ctx.IsLeaderFunc,
 		isScrubbingEnabled:      config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled"),
+		extraTags:               config.Datadog.GetStringSlice("orchestrator_explorer.extra_tags"),
 	}
 
 	oc.processConfig = cfg
@@ -187,7 +189,7 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process deployment list: %v", err)
 		return
@@ -215,7 +217,7 @@ func (o *Controller) processReplicaSets() {
 		return
 	}
 
-	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process replica set list: %v", err)
 		return
@@ -244,7 +246,7 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
@@ -272,7 +274,7 @@ func (o *Controller) processServices() {
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processServiceList(serviceList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	messages, err := processServiceList(serviceList, groupID, o.processConfig, o.clusterName, o.clusterID, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process service list: %s", err)
 		return

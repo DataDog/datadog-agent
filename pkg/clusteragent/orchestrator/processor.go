@@ -22,7 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
 
@@ -50,6 +50,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 			log.Debugf("Could not marshal deployment to JSON: %s", err)
 			continue
 		}
+		deployModel.Tags = append(deployModel.Tags, extraTags...)
 		deployModel.Yaml = jsonDeploy
 
 		deployMsgs = append(deployMsgs, deployModel)
@@ -94,7 +95,7 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 	return chunks
 }
 
-func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
 
@@ -124,6 +125,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 			log.Debugf("Could not marshal replica set to JSON: %s", err)
 			continue
 		}
+		rsModel.Tags = append(rsModel.Tags, extraTags...)
 		rsModel.Yaml = jsonRS
 
 		rsMsgs = append(rsMsgs, rsModel)
@@ -169,7 +171,7 @@ func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int
 }
 
 // processServiceList process a service list into process messages.
-func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	serviceMsgs := make([]*model.Service, 0, len(serviceList))
 
@@ -188,6 +190,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 			log.Debugf("Could not marshal service to JSON: %s", err)
 			continue
 		}
+		serviceModel.Tags = append(serviceModel.Tags, extraTags...)
 		serviceModel.Yaml = jsonSvc
 
 		serviceMsgs = append(serviceMsgs, serviceModel)

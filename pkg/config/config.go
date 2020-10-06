@@ -655,6 +655,7 @@ func InitConfig(config Config) {
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
 	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
 	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
+	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
