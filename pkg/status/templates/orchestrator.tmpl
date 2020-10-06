@@ -55,13 +55,13 @@ Orchestrator Explorer
   ===========
     Elements in the cache: {{.CacheNumber}}
     Pods:
-      Last Run: (CacheHits: {{.PodsStats.CacheHits}} CacheMiss: {{.PodsStats.CacheMiss}}), TotalHits: {{.CacheHits.Pods}} TotalMiss: {{.CacheMiss.Pods}}
+      Last Run: (Hits: {{.PodsStats.CacheHits}} Miss: {{.PodsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Pods}} Miss: {{.CacheMiss.Pods}})
     Deployments:
-      Last Run: (CacheHits: {{.DeploymentsStats.CacheHits}} CacheMiss: {{.DeploymentsStats.CacheMiss}}), TotalHits: {{.CacheHits.Deployments}} TotalMiss: {{.CacheMiss.Deployments}}
+      Last Run: (Hits: {{.DeploymentsStats.CacheHits}} Miss: {{.DeploymentsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Deployments}} Miss: {{.CacheMiss.Deployments}})
     ReplicaSets:
-      Last Run: (CacheHits: {{.ReplicaSetsStats.CacheHits}} CacheMiss: {{.ReplicaSetsStats.CacheMiss}}), TotalHits: {{.CacheHits.ReplicaSets}} TotalMiss: {{.CacheMiss.ReplicaSets}}
+      Last Run: (Hits: {{.ReplicaSetsStats.CacheHits}} Miss: {{.ReplicaSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.ReplicaSets}} Miss: {{.CacheMiss.ReplicaSets}})
     Services:
-      Last Run: (CacheHits: {{.ServicesStats.CacheHits}} CacheMiss: {{.ServicesStats.CacheMiss}}), TotalHits: {{.CacheHits.Services}} TotalMiss: {{.CacheMiss.Services}}
+      Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
     Nodes:
-      Last Run: (CacheHits: {{.NodesStats.CacheHits}} CacheMiss: {{.NodesStats.CacheMiss}}), TotalHits: {{.CacheHits.Nodes}} TotalMiss: {{.CacheMiss.Nodes}}
+      Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
 {{/* this line intentionally left blank */}}
