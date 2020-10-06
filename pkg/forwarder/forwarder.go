@@ -21,9 +21,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	// PayloadTypePod is the name of the pod payload type
+	PayloadTypePod = "pod"
+	// PayloadTypeDeployment is the name of the deployment payload type
+	PayloadTypeDeployment = "deployment"
+	// PayloadTypeReplicaSet is the name of the replica set payload type
+	PayloadTypeReplicaSet = "replicaset"
+	// PayloadTypeService is the name of the service payload type
+	PayloadTypeService = "service"
+	// PayloadTypeNode is the name of the node payload type
+	PayloadTypeNode = "node"
+)
+
 var (
-	forwarderExpvars          = expvar.NewMap("forwarder")
-	orchestratorPayloadsCount = expvar.Map{}
+	forwarderExpvars = expvar.NewMap("forwarder")
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
@@ -48,7 +60,6 @@ var (
 
 func init() {
 	transactionsExpvars.Init()
-	orchestratorPayloadsCount.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
@@ -301,8 +312,6 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 
 				tlmTxCount.Inc(domain, endpoint.name)
 				tlmTxBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.name)
-				transactionsCount.Add(endpoint.name, 1)
-				transactionsBytes.Add(endpoint.name, int64(t.GetPayloadSize()))
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))
@@ -330,36 +339,42 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 // SubmitSeries will send a series type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
+	transactionsSeries.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra)
+	transactionsEvents.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitServiceChecks will send a service check type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(serviceChecksEndpoint, payload, false, extra)
+	transactionsServiceChecks.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extra)
+	transactionsSketchSeries.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
+	transactionsHostMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error {
 	transactions := f.createPriorityHTTPTransactions(metadataEndpoint, payload, false, extra, priority)
+	transactionsMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -367,6 +382,7 @@ func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header, p
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra)
+	transactionsTimeseriesV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -374,6 +390,7 @@ func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) e
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
+	transactionsCheckRunsV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -386,37 +403,60 @@ func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header, p
 		t.Headers.Set("Content-Type", "application/json")
 	}
 
+	transactionsIntakeV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitProcessChecks sends process checks
 func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeProcesses.Add(1)
+
 	return f.submitProcessLikePayload(processesEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeRTProcesses.Add(1)
+
 	return f.submitProcessLikePayload(rtProcessesEndpoint, payload, extra, false)
 }
 
 // SubmitContainerChecks sends container checks
 func (f *DefaultForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeContainer.Add(1)
+
 	return f.submitProcessLikePayload(containerEndpoint, payload, extra, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
 func (f *DefaultForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeRTContainer.Add(1)
+
 	return f.submitProcessLikePayload(rtContainerEndpoint, payload, extra, false)
 }
 
 // SubmitConnectionChecks sends connection checks
 func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	transactionsIntakeConnections.Add(1)
+
 	return f.submitProcessLikePayload(connectionsEndpoint, payload, extra, true)
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	orchestratorPayloadsCount.Add(payloadType, 1)
+	switch payloadType {
+	case PayloadTypePod:
+		transactionsIntakePod.Add(1)
+	case PayloadTypeDeployment:
+		transactionsIntakeDeployment.Add(1)
+	case PayloadTypeReplicaSet:
+		transactionsIntakeReplicaSet.Add(1)
+	case PayloadTypeService:
+		transactionsIntakeService.Add(1)
+	case PayloadTypeNode:
+		transactionsIntakeNode.Add(1)
+	}
+
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }
 
