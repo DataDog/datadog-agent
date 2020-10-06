@@ -47,13 +47,13 @@ var (
 
 	tlmConnectEvents = telemetry.NewCounter("forwarder_transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
-	tlmInputTransactionsCount = telemetry.NewCounter("forwarder_transactions", "input_count",
+	tlmTxInputCount = telemetry.NewCounter("forwarder_transactions", "input_count",
 		[]string{"domain", "endpoint"}, "Input transaction count")
-	tlmInputTransactionsBytes = telemetry.NewCounter("forwarder_transactions", "input_bytes",
+	tlmTxInputBytes = telemetry.NewCounter("forwarder_transactions", "input_bytes",
 		[]string{"domain", "endpoint"}, "Input transaction sizes in bytes")
-	tlmOutputTransactionsCount = telemetry.NewCounter("forwarder_transactions", "output_count",
+	tlmTxOutputCount = telemetry.NewCounter("forwarder_transactions", "output_count",
 		[]string{"domain", "endpoint"}, "Output transaction count")
-	tlmOutputTransactionsBytes = telemetry.NewCounter("forwarder_transactions", "output_bytes",
+	tlmTxOutputBytes = telemetry.NewCounter("forwarder_transactions", "output_bytes",
 		[]string{"domain", "endpoint"}, "Output transaction sizes in bytes")
 	tlmTxRetryQueueSize = telemetry.NewGauge("forwarder_transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
@@ -324,8 +324,8 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 
 	transactionsSuccessful.Add(1)
-	tlmOutputTransactionsCount.Inc(t.Domain, t.GetEndpointName())
-	tlmOutputTransactionsBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.GetEndpointName())
+	tlmTxOutputCount.Inc(t.Domain, t.GetEndpointName())
+	tlmTxOutputBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.GetEndpointName())
 	transactionsOutputCount.Add(t.GetEndpointName(), 1)
 	transactionsOutputBytes.Add(t.GetEndpointName(), int64(t.GetPayloadSize()))
 
