@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TargetMachine.h"
+#include <DsGetDC.h>
 
 TargetMachine::TargetMachine()
 : _serverType(0)
@@ -194,6 +195,29 @@ DWORD TargetMachine::DetectDomainInformation()
             WcaLog(LOGMSG_STANDARD, "DNS domain name %S doesn't match the joined domain %S", _domain.c_str(), joined_domain.c_str());
             _domain = joined_domain;
         }
+
+        // Detect if we are on a read-only domain controller
+        if (IsDomainController())
+        {
+            PDOMAIN_CONTROLLER_INFO dcInfo;
+            // See https://docs.microsoft.com/en-us/windows/win32/api/dsgetdc/nf-dsgetdc-dsgetdcnamea
+            // ComputerName = nullptr means local computer
+            nErr = DsGetDcName(
+                /*ComputerName*/ nullptr,
+                _domain.c_str(),
+                /*DomainGuid*/ nullptr,
+                /*SiteName*/ nullptr,
+                0,
+                &dcInfo);
+            if (nErr != ERROR_SUCCESS)
+            {
+                return nErr;
+            }
+            _dcFlags = dcInfo->Flags;
+            WcaLog(LOGMSG_STANDARD, "Domain Controller is %s", IsReadOnlyDomainController() ? "Read-Only" : "Writable");
+            NetApiBufferFree(dcInfo);
+        }
+        
     }
 
     return ERROR_SUCCESS;
@@ -227,4 +251,9 @@ bool TargetMachine::IsDomainController() const
 bool TargetMachine::IsBackupDomainController() const
 {
     return SV_TYPE_DOMAIN_BAKCTRL & _serverType;
+}
+
+bool TargetMachine::IsReadOnlyDomainController() const
+{
+    return IsDomainController() && !(_dcFlags & DS_WRITABLE_FLAG);
 }

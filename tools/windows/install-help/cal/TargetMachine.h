@@ -3,7 +3,8 @@
 class TargetMachine
 {
 private:
-    DWORD  _serverType;
+    DWORD _serverType;
+    DWORD _dcFlags;
     std::wstring _machineName;
     std::wstring _domain;
     bool _isDomainJoined;
@@ -24,4 +25,5 @@ public:
     bool IsServer() const;
     bool IsDomainController() const;
     bool IsBackupDomainController() const;
+    bool IsReadOnlyDomainController() const;
 };
