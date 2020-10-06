@@ -15,11 +15,13 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -68,9 +70,14 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	statsdServer *dogstatsd.Server
 
-	apiKeyEnvVar    = "DD_API_KEY"
+	// Apikey reading priority:
+	// KSM > SSM > Apikey in environment var
+	// If one is set but failing, the next will be tried
 	kmsApiKeyEnvVar = "DD_KMS_API_KEY"
-	logLevelEnvVar  = "DD_LOG_LEVEL"
+	ssmApiKeyEnvVar = "DD_API_KEY_SECRET_ARN"
+	apiKeyEnvVar    = "DD_API_KEY"
+
+	logLevelEnvVar = "DD_LOG_LEVEL"
 )
 
 const (
@@ -140,8 +147,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		true,   // log_to_console
 		false,  // log_format_json
 	); err != nil {
-		log.Criticalf("Unable to setup logger: %s", err)
-		return
+		log.Errorf("Unable to setup logger: %s", err)
 	}
 
 	// immediately starts the communication server
@@ -156,34 +162,61 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// at this point, we were not even able to register, thus, we don't have
 		// any Id assigned, thus, we can't report an error to the init error route
 		// which needs an Id.
-		log.Criticalf("Can't register as a serverless agent: %s", err)
+		log.Errorf("Can't register as a serverless agent: %s", err)
 		return
 	}
 
+	// api key reading
+	// ---------------
+
+	// some useful warnings first
+
+	var apikeySetIn = []string{}
+	if os.Getenv(kmsApiKeyEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "KMS")
+	}
+	if os.Getenv(ssmApiKeyEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "SSM")
+	}
+	if os.Getenv(apiKeyEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "environment variable")
+	}
+
+	if len(apikeySetIn) > 1 {
+		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
+	}
+
 	// try to read apikey from KMS
-	// ---------------------------
 
 	var apiKey string
 	if apiKey, err = readApiKeyFromKMS(); err != nil {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
-		if os.Getenv(apiKeyEnvVar) != "" {
-			log.Warn("An API Key has been set in both KMS and in the environment variable. Using the one set in KMS.")
-		}
-		log.Info("Using deciphered KMS API Key")
+		log.Info("Using deciphered KMS API Key.")
 		os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
+	}
+
+	// try to read the apikey from SSM, only if not set from KMS
+
+	if apiKey == "" {
+		if apiKey, err = readApiKeyFromSSM(); err != nil {
+			log.Errorf("Error while trying to read an API Key from SSM: %s", err)
+		} else if apiKey != "" {
+			log.Info("Using API key set in SSM.")
+			os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
+		}
 	}
 
 	// read configuration from the environment vars
 	// --------------------------------------------
 
-	if _, confErr := config.Load(); confErr != nil {
-		log.Info("Configuration will be read from environment variables")
-	} else {
+	// note that this call is counter-intuitive: it must return an error because
+	// no files should exist, and then, the configuration is read from env vars.
+	if _, confErr := config.Load(); confErr == nil {
 		log.Warn("A configuration file has been found, which should not happen in this mode.")
 	}
 
-	// validate that an apikey has been set, either by the env var or read from KMS
+	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
 	// ---------------------------
 
 	if !config.Datadog.IsSet("api_key") {
@@ -191,8 +224,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessId, serverless.FatalNoApiKey)
-		log.Critical("No API key configured, exiting")
-		return
+		log.Error("No API key configured, exiting")
 	}
 
 	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
@@ -208,8 +240,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessId, serverless.FatalBadEndpoint)
-		log.Criticalf("Misconfiguration of agent endpoints: %s", err)
-		return
+		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start() //nolint:errcheck
@@ -226,8 +257,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessId, serverless.FatalDogstatsdInit)
-		log.Criticalf("Unable to start the DogStatsD server: %s", err)
-		return
+		log.Errorf("Unable to start the DogStatsD server: %s", err)
 	}
 	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
 
@@ -290,8 +320,9 @@ func decryptKMS(cipherText string) (string, error) {
 	return decrypted, nil
 }
 
-// readApiKeyFromKMS reads an API Key in KMS.
-// If none has been set, it is returning an empty string and a nil error.
+// readApiKeyFromKMS reads an API Key in KMS if the env var DD_KMS_API_KEY has
+// been set.
+// If none has been set, it is returning an empty string and a nil error
 func readApiKeyFromKMS() (string, error) {
 	ciphered := os.Getenv(kmsApiKeyEnvVar)
 	if ciphered == "" {
@@ -305,6 +336,37 @@ func readApiKeyFromKMS() (string, error) {
 	}
 }
 
+// readApiKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SECRET_ARN
+// has been set.
+// If none has been set, it is returning an empty string and a nil error.
+func readApiKeyFromSSM() (string, error) {
+	arn := os.Getenv(ssmApiKeyEnvVar)
+	if arn == "" {
+		return "", nil
+	}
+	log.Debug("Found DD_API_KEY_SECRET_ARN value, trying to use it.")
+	ssmClient := secretsmanager.New(session.New(nil))
+	secret := &secretsmanager.GetSecretValueInput{}
+	secret.SetSecretId(arn)
+	if output, err := ssmClient.GetSecretValue(secret); err != nil {
+		return "", fmt.Errorf("SSM read error: %s", err)
+	} else {
+		if output.SecretString != nil {
+			secretString := *output.SecretString // create a copy to not return an object within the AWS response
+			return secretString, nil
+		} else if output.SecretBinary != nil {
+			decodedBinarySecretBytes := make([]byte, base64.StdEncoding.DecodedLen(len(output.SecretBinary)))
+			len, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
+			if err != nil {
+				return "", fmt.Errorf("Can't base64 decode SSM secret: %s", err)
+			}
+			return string(decodedBinarySecretBytes[:len]), nil
+		}
+		// should not happen but let's handle this gracefully
+		log.Warn("SSM returned something but there seems to be no data available;")
+		return "", nil
+	}
+}
 func stopCallback(cancel context.CancelFunc) {
 	// gracefully shut down any component
 	cancel()
