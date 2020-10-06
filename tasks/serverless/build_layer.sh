@@ -25,8 +25,9 @@ mkdir $EXTENSION_DIR
 
 echo "Building layer"
 cd cmd/serverless
-GOOS=linux go build  -tags serverless -o ../../$EXTENSION_DIR/datadog-agent
+GOOS=linux go build -ldflags="-s -w" -tags serverless -o ../../$EXTENSION_DIR/datadog-agent
 cd ../..
+#upx --brute $EXTENSION_DIR/datadog-agent
 touch $PREVIEW_FILE
 zip -q -r "${LAYER_DIR}/${LAYER_FILE}" -r $PREVIEW_FILE $EXTENSION_DIR
 rm -rf ./extensions
