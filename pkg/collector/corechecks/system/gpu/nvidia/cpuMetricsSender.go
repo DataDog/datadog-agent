@@ -52,7 +52,7 @@ func (cpuMetricSender *cpuMetricSender) SendMetrics(sender aggregator.Sender, fi
 		cpuAndFreqFields := cpuMetricSender.cpuUsageRegex.FindAllStringSubmatch(cpus[i], -1)
 		if cpuAndFreqFields == nil {
 			// No match
-			return errors.New(fmt.Sprintf("could not parse CPU usage field of CPU %d", i))
+			return fmt.Errorf("could not parse CPU usage field of CPU %d", i)
 		} else if cpuAndFreqFields[0][0] == "off" {
 			sender.Gauge("nvidia.jetson.cpu.usage", 0.0, "", cpuTags)
 			sender.Gauge("nvidia.jetson.cpu.freq", 0.0, "", cpuTags)

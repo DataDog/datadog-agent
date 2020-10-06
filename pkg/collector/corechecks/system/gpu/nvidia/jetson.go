@@ -159,7 +159,7 @@ func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Da
 		strconv.Itoa(tegraStatsInterval), // ms
 	}
 
-	c.metricsSenders = []metricsSender {
+	c.metricsSenders = []metricsSender{
 		&cpuMetricSender{},
 		&gpuMetricSender{},
 		&iramMetricSender{},
