@@ -8,8 +8,6 @@ POLICY_MAP(unlink);
 
 INODE_DISCARDERS_MAP(unlink, 512);
 
-PROCESS_DISCARDERS_MAP(unlink, 256);
-
 struct unlink_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -30,7 +28,7 @@ int __attribute__((always_inline)) trace__sys_unlink(int flags) {
 
     set_policy(&syscall, POLICY_MAP_PTR(unlink));
 
-    if (syscall.policy.mode != NO_FILTER && discard_by_pid(PROCESS_DISCARDERS_MAP_PTR(unlink))) {
+    if (syscall.policy.mode != NO_FILTER && discard_by_pid(EVENT_UNLINK)) {
         return 0;
     }
 

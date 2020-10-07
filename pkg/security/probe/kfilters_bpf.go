@@ -94,13 +94,26 @@ func discardFlags(probe *Probe, tableName string, flags ...int) error {
 	return setFlagsFilter(probe, tableName, flags...)
 }
 
-func discardProcessFilename(probe *Probe, tableName string, event *Event) error {
-	key := ebpf.Uint32MapItem(event.Process.Pid)
+type ProcessDiscarder struct {
+	EventType EventType
+	Pid       uint32
+}
 
-	table := probe.Map(tableName)
-	if table == nil {
-		return errors.Errorf("map %s not found", tableName)
+func (p *ProcessDiscarder) Bytes() ([]byte, error) {
+	b := make([]byte, 16)
+	ebpf.ByteOrder.PutUint64(b[0:8], uint64(p.EventType))
+	ebpf.ByteOrder.PutUint32(b[8:12], p.Pid)
+
+	return b, nil
+}
+
+func discardProcessFilename(probe *Probe, eventType EventType, event *Event) error {
+	key := &ProcessDiscarder{
+		EventType: eventType,
+		Pid:       event.Process.Pid,
 	}
+
+	table := probe.Map("process_discarders")
 	if err := table.Put(key, ebpf.ZeroUint8MapItem); err != nil {
 		return err
 	}

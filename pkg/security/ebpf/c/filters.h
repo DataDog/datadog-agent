@@ -41,20 +41,31 @@ void __attribute__((always_inline)) remove_pid_discarders(u32 tgid);
 
 #define PROCESS_DISCARDERS_MAP_PTR(name) &name##_process_discarders
 
-#define PROCESS_DISCARDERS_MAP(name, size) struct bpf_map_def SEC("maps/"#name"_process_discarders") name##_process_discarders = { \
-    .type = BPF_MAP_TYPE_LRU_HASH, \
-    .key_size = sizeof(u32), \
-    .value_size = sizeof(struct filter_t), \
-    .max_entries = size, \
-    .pinning = 0, \
-    .namespace = "", \
-}
+struct process_discarder_t {
+    u64 event_type;
+    u32 tgid;
+    u32 padding;
+};
 
-int __attribute__((always_inline)) discard_by_pid(struct bpf_map_def *discarders_map) {
+struct bpf_map_def SEC("maps/process_discarders") process_discarders = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct process_discarder_t),
+    .value_size = sizeof(struct filter_t),
+    .max_entries = 512,
+    .pinning = 0,
+    .namespace = "",
+};
+
+int __attribute__((always_inline)) discard_by_pid(u64 event_type) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
-    struct filter_t *filter = bpf_map_lookup_elem(discarders_map, &tgid);
+    struct process_discarder_t key = {
+        .event_type = event_type,
+        .tgid = tgid,
+    };
+
+    struct filter_t *filter = bpf_map_lookup_elem(&process_discarders, &key);
     if (filter) {
 #ifdef DEBUG
         bpf_printk("process with pid %d discarded\n", tgid);
@@ -62,6 +73,15 @@ int __attribute__((always_inline)) discard_by_pid(struct bpf_map_def *discarders
         return 1;
     }
     return 0;
+}
+
+void __attribute__((always_inline)) remove_pid_discarder(u64 event_type, u32 tgid) {
+    struct process_discarder_t key = {
+        .event_type = event_type,
+        .tgid = tgid,
+    };
+
+    bpf_map_delete_elem(&process_discarders, &key);
 }
 
 #define INODE_DISCARDERS_MAP_PTR(name) &name##_inode_discarders

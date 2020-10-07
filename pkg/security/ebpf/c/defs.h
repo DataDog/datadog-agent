@@ -195,6 +195,7 @@ enum event_type
     EVENT_REMOVEXATTR,
     EVENT_EXEC,
     EVENT_EXIT,
+    EVENT_MAX, // has to be the last one
 };
 
 enum syscall_type

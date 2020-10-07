@@ -35,13 +35,15 @@ void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file)
         .mount_id = file->mount_id,
     };
 
-    bpf_map_delete_elem(PROCESS_DISCARDERS_MAP_PTR(open), &path_key);
-    bpf_map_delete_elem(PROCESS_DISCARDERS_MAP_PTR(unlink), &path_key);
+    bpf_map_delete_elem(INODE_DISCARDERS_MAP_PTR(open), &path_key);
+    bpf_map_delete_elem(INODE_DISCARDERS_MAP_PTR(unlink), &path_key);
 }
 
 void __attribute__((always_inline)) remove_pid_discarders(u32 tgid) {
-    bpf_map_delete_elem(PROCESS_DISCARDERS_MAP_PTR(open), &tgid);
-    bpf_map_delete_elem(PROCESS_DISCARDERS_MAP_PTR(unlink), &tgid);
+#pragma unroll
+    for (int i = 1; i < EVENT_MAX; i++) {
+        remove_pid_discarder(i, tgid);
+    }
 }
 
 __u32 _version SEC("version") = 0xFFFFFFFE;

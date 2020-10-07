@@ -37,8 +37,6 @@ struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
 
 INODE_DISCARDERS_MAP(open, 512);
 
-PROCESS_DISCARDERS_MAP(open, 256);
-
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -61,7 +59,7 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
 
     set_policy(&syscall, POLICY_MAP_PTR(open));
 
-    if (syscall.policy.mode != NO_FILTER && discard_by_pid(PROCESS_DISCARDERS_MAP_PTR(open))) {
+    if (syscall.policy.mode != NO_FILTER && discard_by_pid(EVENT_OPEN)) {
         return 0;
     }
 

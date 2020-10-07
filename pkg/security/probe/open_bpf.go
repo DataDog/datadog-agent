@@ -64,8 +64,6 @@ func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder
 	field := discarder.Field
 
 	switch field {
-	case "process.filename":
-		return discardProcessFilename(probe, "open_process_discarders", event)
 	case "open.flags":
 		value, err := event.GetFieldValue(field)
 		if err != nil {

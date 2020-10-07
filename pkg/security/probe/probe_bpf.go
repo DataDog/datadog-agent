@@ -674,9 +674,24 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	return p, nil
 }
 
+func processDiscarderWrapper(eventType EventType, fnc onDiscarderFnc) onDiscarderFnc {
+	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
+		field := discarder.Field
+
+		switch field {
+		case "process.filename":
+			log.Tracef("apply process.filename discarder for event `%s`", eventType)
+
+			return discardProcessFilename(probe, eventType, event)
+		}
+
+		return fnc(rs, event, probe, discarder)
+	}
+}
+
 func init() {
 	allApproversFncs["open"] = openOnNewApprovers
 
-	allDiscarderFncs["open"] = openOnNewDiscarder
-	allDiscarderFncs["unlink"] = unlinkOnNewDiscarder
+	allDiscarderFncs["open"] = processDiscarderWrapper(FileOpenEventType, openOnNewDiscarder)
+	allDiscarderFncs["unlink"] = processDiscarderWrapper(FileUnlinkEventType, unlinkOnNewDiscarder)
 }
