@@ -111,7 +111,24 @@ struct bpf_map_def SEC("maps/syscalls") syscalls = {
     .namespace = "",
 };
 
-void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
+// cache_syscall checks the event policy in order to see if the syscall struct can be cached
+void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall, u64 event_type) {
+    struct policy_t *policy = bpf_map_lookup_elem(&filter_policy, &event_type);
+    if (policy) {
+        syscall->policy.mode = policy->mode;
+        syscall->policy.flags = policy->flags;
+    } else {
+        syscall->policy.mode = NO_FILTER;
+    }
+
+#ifdef DEBUG
+        bpf_printk("cache/syscall policy for %d is %d\n", event_type, syscall->policy.mode);
+#endif
+
+    if (syscall->policy.mode != NO_FILTER && discard_by_pid(event_type)) {
+        return;
+    }
+
     u64 key = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 }
@@ -132,15 +149,6 @@ struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u16 type) {
         return syscall;
     }
     return NULL;
-}
-
-void __attribute__((always_inline)) set_policy(struct syscall_cache_t *syscall, struct bpf_map_def *policy_map) {
-    u32 key = 0;
-    struct policy_t *policy = bpf_map_lookup_elem(policy_map, &key);
-    if (policy) {
-        syscall->policy.mode = policy->mode;
-        syscall->policy.flags = policy->flags;
-    }
 }
 
 #endif

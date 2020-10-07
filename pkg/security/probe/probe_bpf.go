@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -579,11 +579,16 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
+func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
 	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
-	table := p.Map(tableName)
+	table := p.Map("filter_policy")
 	if table == nil {
-		return fmt.Errorf("unable to find policy table `%s`", tableName)
+		return errors.New("unable to find policy table")
+	}
+
+	et := parseEvalEventType(eventType)
+	if et == UnknownEventType {
+		return errors.New("unable to parse the eval event type")
 	}
 
 	policy := &FilterPolicy{
@@ -591,7 +596,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, tableName string, mo
 		Flags: flags,
 	}
 
-	return table.Put(ebpf.ZeroUint32MapItem, policy)
+	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
 
 // ApplyApprovers applies approvers
@@ -685,7 +690,11 @@ func processDiscarderWrapper(eventType EventType, fnc onDiscarderFnc) onDiscarde
 			return discardProcessFilename(probe, eventType, event)
 		}
 
-		return fnc(rs, event, probe, discarder)
+		if fnc != nil {
+			return fnc(rs, event, probe, discarder)
+		}
+
+		return nil
 	}
 }
 
@@ -693,5 +702,15 @@ func init() {
 	allApproversFncs["open"] = openOnNewApprovers
 
 	allDiscarderFncs["open"] = processDiscarderWrapper(FileOpenEventType, openOnNewDiscarder)
+	allDiscarderFncs["mkdir"] = processDiscarderWrapper(FileMkdirEventType, nil)
+	allDiscarderFncs["link"] = processDiscarderWrapper(FileLinkEventType, nil)
+	allDiscarderFncs["rename"] = processDiscarderWrapper(FileRenameEventType, nil)
+	allDiscarderFncs["rename"] = processDiscarderWrapper(FileRenameEventType, nil)
 	allDiscarderFncs["unlink"] = processDiscarderWrapper(FileUnlinkEventType, unlinkOnNewDiscarder)
+	allDiscarderFncs["rmdir"] = processDiscarderWrapper(FileRmdirEventType, nil)
+	allDiscarderFncs["chmod"] = processDiscarderWrapper(FileChmodEventType, nil)
+	allDiscarderFncs["chown"] = processDiscarderWrapper(FileChownEventType, nil)
+	allDiscarderFncs["utimes"] = processDiscarderWrapper(FileUtimeEventType, nil)
+	allDiscarderFncs["setxattr"] = processDiscarderWrapper(FileSetXAttrEventType, nil)
+	allDiscarderFncs["removexattr"] = processDiscarderWrapper(FileRemoveXAttrEventType, nil)
 }

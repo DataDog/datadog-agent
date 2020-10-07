@@ -21,7 +21,7 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_CHMOD);
     return 0;
 }
 

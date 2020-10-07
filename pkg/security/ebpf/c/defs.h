@@ -168,7 +168,6 @@
 #define CONTAINER_ID_LEN 64
 #define MAX_XATTR_NAME_LEN 200
 
-
 #define bpf_printk(fmt, ...)                       \
 	({                                             \
 		char ____fmt[] = fmt;                      \

@@ -21,7 +21,7 @@ long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_MKDIR);
     return 0;
 }
 

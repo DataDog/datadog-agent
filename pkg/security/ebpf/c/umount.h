@@ -25,7 +25,7 @@ int kprobe__security_sb_umount(struct pt_regs *ctx) {
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_UMOUNT);
     return 0;
 }
 

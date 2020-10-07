@@ -98,6 +98,18 @@ func (t EventType) String() string {
 	return "unknown"
 }
 
+// parseEvalEventType convert a eval.EventType (string) to its uint64 representation
+// the current algorithm is not efficient but allow us to only keep few conversion implementations
+func parseEvalEventType(eventType eval.EventType) EventType {
+	for i := uint64(0); i != uint64(maxEventType); i++ {
+		if EventType(i).String() == eventType {
+			return EventType(i)
+		}
+	}
+
+	return UnknownEventType
+}
+
 var (
 	errorConstants = map[string]int{
 		"E2BIG":           -int(syscall.E2BIG),

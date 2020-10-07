@@ -81,8 +81,3 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 	}
 	return []byte("[" + strings.Join(flags, ",") + "]"), nil
 }
-
-func init() {
-	allPolicyTables["open"] = "open_policy"
-	allPolicyTables["unlink"] = "unlink_policy"
-}

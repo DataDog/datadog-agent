@@ -25,21 +25,18 @@ struct filter_t {
     char value;
 };
 
+// implemented in the probe.c file
 void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file);
 void __attribute__((always_inline)) remove_pid_discarders(u32 tgid);
 
-#define POLICY_MAP_PTR(name) &name##_policy
-
-#define POLICY_MAP(name) struct bpf_map_def SEC("maps/"#name"_policy") name##_policy = { \
-    .type = BPF_MAP_TYPE_ARRAY, \
-    .key_size = sizeof(u32), \
-    .value_size = sizeof(struct policy_t), \
-    .max_entries = 1, \
-    .pinning = 0, \
-    .namespace = "", \
-}
-
-#define PROCESS_DISCARDERS_MAP_PTR(name) &name##_process_discarders
+struct bpf_map_def SEC("maps/filter_policy") filter_policy = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct policy_t),
+    .max_entries = EVENT_MAX,
+    .pinning = 0,
+    .namespace = "",
+};
 
 struct process_discarder_t {
     u64 event_type;

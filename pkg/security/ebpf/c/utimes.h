@@ -25,8 +25,8 @@ int __attribute__((always_inline)) trace__sys_utimes() {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_UTIME,
     };
-    cache_syscall(&syscall);
 
+    cache_syscall(&syscall, EVENT_UTIME);
     return 0;
 }
 

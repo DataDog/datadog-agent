@@ -16,8 +16,8 @@ int __attribute__((always_inline)) trace__sys_rename() {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_RENAME,
     };
-    cache_syscall(&syscall);
 
+    cache_syscall(&syscall, EVENT_RENAME);
     return 0;
 }
 

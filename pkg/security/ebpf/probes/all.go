@@ -49,14 +49,13 @@ func AllProbes() []*manager.Probe {
 // AllMaps returns the list of maps of the runtime security module
 func AllMaps() []*manager.Map {
 	return []*manager.Map{
-		// Process
-		{Name: "process_discarders"},
+		// Filters
+		{Name: "filter_policy"},
 		// Dentry resolver table
 		{Name: "pathnames"},
 		// Snapshot table
 		{Name: "inode_info_cache"},
 		// Open tables
-		{Name: "open_policy"},
 		{Name: "open_basename_approvers"},
 		{Name: "open_flags_approvers"},
 		{Name: "open_flags_discarders"},

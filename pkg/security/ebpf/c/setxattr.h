@@ -12,41 +12,52 @@ struct setxattr_event_t {
     char name[MAX_XATTR_NAME_LEN];
 };
 
-int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u64 type) {
+int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
     struct syscall_cache_t syscall = {
-        .type = type,
+        .type = SYSCALL_SETXATTR,
         .setxattr = {
             .name = xattr_name,
         }
     };
 
-    cache_syscall(&syscall);
-
+    cache_syscall(&syscall, EVENT_SETXATTR);
     return 0;
 }
 
 SYSCALL_KPROBE2(setxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
+    return trace__sys_setxattr(name);
 }
 
 SYSCALL_KPROBE2(lsetxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
+    return trace__sys_setxattr(name);
 }
 
 SYSCALL_KPROBE2(fsetxattr, int, fd, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_SETXATTR);
+    return trace__sys_setxattr(name);
+}
+
+int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
+    struct syscall_cache_t syscall = {
+        .type = SYSCALL_REMOVEXATTR,
+        .setxattr = {
+            .name = xattr_name,
+        }
+    };
+
+    cache_syscall(&syscall, EVENT_REMOVEXATTR);
+    return 0;
 }
 
 SYSCALL_KPROBE2(removexattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
+    return trace__sys_removexattr(name);
 }
 
 SYSCALL_KPROBE2(lremovexattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
+    return trace__sys_removexattr(name);
 }
 
 SYSCALL_KPROBE2(fremovexattr, int, fd, const char *, name) {
-    return trace__sys_setxattr(name, SYSCALL_REMOVEXATTR);
+    return trace__sys_removexattr(name);
 }
 
 int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx) {

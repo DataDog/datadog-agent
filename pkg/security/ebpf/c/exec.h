@@ -62,8 +62,7 @@ int __attribute__((always_inline)) trace__sys_execveat() {
         .type = SYSCALL_EXEC,
     };
 
-    cache_syscall(&syscall);
-
+    cache_syscall(&syscall, EVENT_EXEC);
     return 0;
 }
 

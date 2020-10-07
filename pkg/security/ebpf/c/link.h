@@ -16,8 +16,8 @@ int __attribute__((always_inline)) trace__sys_link() {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_LINK,
     };
-    cache_syscall(&syscall);
 
+    cache_syscall(&syscall, EVENT_LINK);
     return 0;
 }
 

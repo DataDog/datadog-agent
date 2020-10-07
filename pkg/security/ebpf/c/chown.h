@@ -22,7 +22,7 @@ int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_CHOWN);
     return 0;
 }
 

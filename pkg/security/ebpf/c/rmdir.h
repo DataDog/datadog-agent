@@ -15,8 +15,8 @@ SYSCALL_KPROBE0(rmdir) {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_RMDIR,
     };
-    cache_syscall(&syscall);
 
+    cache_syscall(&syscall, EVENT_RMDIR);
     return 0;
 }
 

@@ -4,8 +4,6 @@
 #include "syscalls.h"
 #include "process.h"
 
-POLICY_MAP(unlink);
-
 INODE_DISCARDERS_MAP(unlink, 512);
 
 struct unlink_event_t {
@@ -26,13 +24,7 @@ int __attribute__((always_inline)) trace__sys_unlink(int flags) {
         }
     };
 
-    set_policy(&syscall, POLICY_MAP_PTR(unlink));
-
-    if (syscall.policy.mode != NO_FILTER && discard_by_pid(EVENT_UNLINK)) {
-        return 0;
-    }
-
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_UNLINK);
 
     return 0;
 }

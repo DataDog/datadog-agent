@@ -12,7 +12,6 @@ import (
 )
 
 var unlinkTables = []string{
-	"unlink_policy",
 	"unlink_inode_discarders",
 }
 

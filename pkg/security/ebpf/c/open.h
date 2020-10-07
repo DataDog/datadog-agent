@@ -6,8 +6,6 @@
 #include "process.h"
 #include "open_filter.h"
 
-POLICY_MAP(open);
-
 struct bpf_map_def SEC("maps/open_basename_approvers") open_basename_approvers = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = BASENAME_FILTER_SIZE,
@@ -57,14 +55,7 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
         }
     };
 
-    set_policy(&syscall, POLICY_MAP_PTR(open));
-
-    if (syscall.policy.mode != NO_FILTER && discard_by_pid(EVENT_OPEN)) {
-        return 0;
-    }
-
-    cache_syscall(&syscall);
-
+    cache_syscall(&syscall, EVENT_OPEN);
     return 0;
 }
 
