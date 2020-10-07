@@ -132,6 +132,7 @@ func main() {
 }
 
 func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
+
 	startTime := time.Now()
 
 	// setup logger
@@ -140,14 +141,18 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// init the logger configuring it to not log in a file (the first empty string)
 	if err = config.SetupLogger(
 		loggerName,
-		"info", // will be re-set later with the value from the env var
-		"",     // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",     // syslog URI
-		false,  // syslog_rfc
-		true,   // log_to_console
-		false,  // log_format_json
+		"error", // will be re-set later with the value from the env var
+		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
+		"",      // syslog URI
+		false,   // syslog_rfc
+		true,    // log_to_console
+		false,   // log_format_json
 	); err != nil {
 		log.Errorf("Unable to setup logger: %s", err)
+	}
+
+	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
+		config.ChangeLogLevel(logLevel)
 	}
 
 	// immediately starts the communication server
@@ -225,10 +230,6 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessId, serverless.FatalNoApiKey)
 		log.Error("No API key configured, exiting")
-	}
-
-	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		config.ChangeLogLevel(logLevel)
 	}
 
 	// setup the forwarder, serializer and aggregator
