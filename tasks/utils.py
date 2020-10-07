@@ -110,8 +110,8 @@ def get_build_flags(
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + ":{}".format(':'.join(rtloader_lib))  # linux
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + " -L{}".format(' -L '.join(rtloader_lib))    
     warning_as_error = '-Werror'
-    if sys.platform == 'win32':
-        warning_as_error = '' # Disable on Windows because of redefined macro errors.
+    # if sys.platform == 'win32':
+    #     warning_as_error = '' # Disable on Windows because of redefined macro errors.
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " {} -Wno-deprecated-declarations -I{} -I{}".format(
         warning_as_error, rtloader_headers, rtloader_common_headers
     )
