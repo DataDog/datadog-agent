@@ -9,29 +9,20 @@ import (
 	"strings"
 )
 
-const (
-	// Indices of the matched fields by the CPU regex
-	cpuUsage = 1
-	cpuFreq  = 2
-)
-
 type cpuMetricSender struct {
 	cpusRegex     *regexp.Regexp
 	cpuUsageRegex *regexp.Regexp
 }
 
 func (cpuMetricSender *cpuMetricSender) Init() error {
-	// Group 1. -> List of CPUs and their usage/frequency, e.g. 2%@102,1%@102,0%@102,0%@102,off,off,off,off
+	// List of CPUs and their usage/frequency, e.g. 2%@102,1%@102,0%@102,0%@102,off,off,off,off
 	regex, err := regexp.Compile(`CPU\s*\[((?:.,?)+)]`)
 	if err != nil {
 		return err
 	}
 	cpuMetricSender.cpusRegex = regex
 
-	// Group 1. -> CPU usage
-	// Group 2. -> CPU freq
-	// Alternatively -> off
-	regex, err = regexp.Compile(`(\d+)%@(\d+)|off`)
+	regex, err = regexp.Compile(`(?P<cpuUsage>\d+)%@(?P<cpuFreq>\d+)|off`)
 	if err != nil {
 		return err
 	}
@@ -49,21 +40,21 @@ func (cpuMetricSender *cpuMetricSender) SendMetrics(sender aggregator.Sender, fi
 	inactiveCpus := 0
 	for i := 0; i < len(cpus); i++ {
 		cpuTags := []string{fmt.Sprintf("cpu:%d", i)}
-		cpuAndFreqFields := cpuMetricSender.cpuUsageRegex.FindAllStringSubmatch(cpus[i], -1)
+		cpuAndFreqFields := regexFindStringSubmatchMap(cpuMetricSender.cpuUsageRegex, cpus[i])
 		if cpuAndFreqFields == nil {
 			// No match
 			return fmt.Errorf("could not parse CPU usage field of CPU %d", i)
-		} else if cpuAndFreqFields[0][0] == "off" {
+		} else if cpuAndFreqFields[""] == "off" {
 			sender.Gauge("nvidia.jetson.cpu.usage", 0.0, "", cpuTags)
 			sender.Gauge("nvidia.jetson.cpu.freq", 0.0, "", cpuTags)
 			inactiveCpus++
 		} else {
-			cpuUsage, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuUsage], 64)
+			cpuUsage, err := strconv.ParseFloat(cpuAndFreqFields["cpuUsage"], 64)
 			if err != nil {
 				return err
 			}
 			sender.Gauge("nvidia.jetson.cpu.usage", cpuUsage, "", cpuTags)
-			cpuFreq, err := strconv.ParseFloat(cpuAndFreqFields[0][cpuFreq], 64)
+			cpuFreq, err := strconv.ParseFloat(cpuAndFreqFields["cpuFreq"], 64)
 			if err != nil {
 				return err
 			}

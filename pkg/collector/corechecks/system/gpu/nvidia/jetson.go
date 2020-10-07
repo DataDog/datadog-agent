@@ -19,6 +19,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -50,6 +51,25 @@ type JetsonCheck struct {
 	commandOpts []string
 
 	metricsSenders []metricsSender
+}
+
+// regexFindStringSubmatchMap returns a map of strings where the keys are the name
+// of the submatch groups defined in its expressions and the values are the matches,
+// if any, of that group.
+// A return value of nil indicates no match.
+// The map will contain an empty key that holds the full match, if any. E.g.
+// map[""] = fullMatch
+func regexFindStringSubmatchMap(regex *regexp.Regexp, str string) map[string]string {
+	matches := regex.FindStringSubmatch(str)
+	if matches == nil {
+		return nil
+	}
+	result := make(map[string]string)
+	names := regex.SubexpNames()
+	for i, match := range matches {
+		result[names[i]] = match
+	}
+	return result
 }
 
 func getSizeMultiplier(unit string) float64 {

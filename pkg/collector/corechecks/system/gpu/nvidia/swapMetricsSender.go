@@ -6,26 +6,12 @@ import (
 	"strconv"
 )
 
-const (
-	// Indices of the matched fields by the Swap/Cache regex
-	swapUsed  = 1
-	totalSwap = 2
-	swapUnit  = 3
-	cached    = 4
-	cacheUnit = 5
-)
-
 type swapMetricsSender struct {
 	regex *regexp.Regexp
 }
 
 func (swapMetricsSender *swapMetricsSender) Init() error {
-	// Group 1. -> Used
-	// Group 2. -> Total
-	// Group 3. -> Unit
-	// Group 4. -> Cached
-	// Group 5. -> Unit
-	regex, err := regexp.Compile(`SWAP\s*(\d+)/(\d+)([kKmMgG][bB])\s*\(cached\s*(\d+)([kKmMgG][bB])\)`)
+	regex, err := regexp.Compile(`SWAP\s*(?P<usedSwap>\d+)/(?P<totalSwap>\d+)(?P<swapUnit>[kKmMgG][bB])\s*\(cached\s*(?P<cached>\d+)(?P<cachedUnit>[kKmMgG][bB])\)`)
 	if err != nil {
 		return err
 	}
@@ -35,28 +21,28 @@ func (swapMetricsSender *swapMetricsSender) Init() error {
 }
 
 func (swapMetricsSender *swapMetricsSender) SendMetrics(sender aggregator.Sender, field string) error {
-	swapFields := swapMetricsSender.regex.FindAllStringSubmatch(field, -1)
-	if len(swapFields) != 1 {
+	swapFields := regexFindStringSubmatchMap(swapMetricsSender.regex, field)
+	if swapFields == nil{
 		// SWAP is not present on all devices
 		return nil
 	}
 
-	swapMultiplier := getSizeMultiplier(swapFields[0][swapUnit])
+	swapMultiplier := getSizeMultiplier(swapFields["swapUnit"])
 
-	swapUsed, err := strconv.ParseFloat(swapFields[0][swapUsed], 64)
+	swapUsed, err := strconv.ParseFloat(swapFields["usedSwap"], 64)
 	if err != nil {
 		return err
 	}
 	sender.Gauge("nvidia.jetson.gpu.swap.used", swapUsed*swapMultiplier, "", nil)
 
-	totalSwap, err := strconv.ParseFloat(swapFields[0][totalSwap], 64)
+	totalSwap, err := strconv.ParseFloat(swapFields["totalSwap"], 64)
 	if err != nil {
 		return err
 	}
 	sender.Gauge("nvidia.jetson.gpu.swap.total", totalSwap*swapMultiplier, "", nil)
 
-	cacheMultiplier := getSizeMultiplier(swapFields[0][cacheUnit])
-	cached, err := strconv.ParseFloat(swapFields[0][cached], 64)
+	cacheMultiplier := getSizeMultiplier(swapFields["cachedUnit"])
+	cached, err := strconv.ParseFloat(swapFields["cached"], 64)
 	if err != nil {
 		return err
 	}
