@@ -3,7 +3,6 @@
 package network
 
 import (
-	"context"
 	"log"
 	"net"
 	"net/url"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 )
@@ -34,19 +34,12 @@ func TestMain(m *testing.M) {
 
 func TestReadInitialState(t *testing.T) {
 
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		if err := exec.CommandContext(ctx, "testdata/setup_netns.sh").Run(); err != nil {
-			t.Fatalf("setup_netns.sh failed, err: %s", err)
-		}
-	}()
+	err := exec.Command("testdata/setup_netns.sh").Run()
+	require.NoError(t, err, "setup_netns.sh failed")
 
 	defer func() {
-		cancel()
-
-		if err := exec.Command("testdata/teardown_netns.sh").Run(); err != nil {
-			t.Errorf("failed to teardown netns: %s", err)
-		}
+		err := exec.Command("testdata/teardown_netns.sh").Run()
+		assert.NoError(t, err, "failed to teardown netns")
 	}()
 
 	l, err := net.Listen("tcp", ":0")
