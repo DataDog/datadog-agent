@@ -102,14 +102,18 @@ func init() {
 	transactionsExpvars.Set("Containers", &transactionsIntakeContainer)
 	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
 	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
+	initOrchestratorExpVars()
+	initDomainForwarderExpvars()
+	initTransactionExpvars()
+	initForwarderHealthExpvars()
+}
+
+func initOrchestratorExpVars() {
 	transactionsExpvars.Set("Pods", &transactionsIntakePod)
 	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
 	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
 	transactionsExpvars.Set("Services", &transactionsIntakeService)
 	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
-	initDomainForwarderExpvars()
-	initTransactionExpvars()
-	initForwarderHealthExpvars()
 }
 
 const (

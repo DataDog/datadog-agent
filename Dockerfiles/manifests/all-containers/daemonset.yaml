@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: agent
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -45,6 +45,8 @@ spec:
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
               value: "8125"
+            - name: DD_LEADER_ELECTION
+              value: "true"
             - name: DD_COLLECT_KUBERNETES_EVENTS
               value: "true"
             - name: DD_APM_ENABLED
@@ -112,7 +114,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: trace-agent
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           imagePullPolicy: IfNotPresent
           command: ["trace-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -157,7 +159,7 @@ spec:
               port: 8126
             timeoutSeconds: 5
         - name: process-agent
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -179,6 +181,8 @@ spec:
               value: "INFO"
             - name: DD_SYSTEM_PROBE_ENABLED
               value: "true"
+            - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+              value: "false"
           volumeMounts:
             - name: config
               mountPath: /etc/datadog-agent
@@ -203,11 +207,11 @@ spec:
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
         - name: system-probe
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
-              add: ["SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "IPC_LOCK"]
+              add: ["SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "NET_BROADCAST", "IPC_LOCK"]
           command: ["/opt/datadog-agent/embedded/bin/system-probe", "--config=/etc/datadog-agent/system-probe.yaml"]
           env:
             - name: DD_LOG_LEVEL
@@ -218,24 +222,17 @@ spec:
               mountPath: /sys/kernel/debug
               mountPropagation: None
             - name: sysprobe-config
-              mountPath: /etc/datadog-agent
+              mountPath: /etc/datadog-agent/system-probe.yaml
+              subPath: system-probe.yaml
             - name: sysprobe-socket-dir
               mountPath: /var/run/sysprobe
             - name: procdir
               mountPath: /host/proc
               mountPropagation: None
               readOnly: true
-            - name: modules
-              mountPath: /lib/modules
-              mountPropagation: None
-              readOnly: true
-            - name: src
-              mountPath: /usr/src
-              mountPropagation: None
-              readOnly: true
       initContainers:
         - name: init-volume
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -245,7 +242,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -278,9 +275,11 @@ spec:
               value: "yes"
             - name: DOCKER_HOST
               value: unix:///host/var/run/docker.sock
+            - name: DD_LEADER_ELECTION
+              value: "true"
           resources: {}
         - name: seccomp-setup
-          image: "datadog/agent:7.21.1"
+          image: "datadog/agent:7.22.0"
           command:
             - cp
             - /etc/config/system-probe-seccomp.json
@@ -323,12 +322,6 @@ spec:
           name: debugfs
         - name: sysprobe-socket-dir
           emptyDir: {}
-        - hostPath:
-            path: /lib/modules
-          name: modules
-        - hostPath:
-            path: /usr/src
-          name: src
         - hostPath:
             path: /etc/passwd
           name: passwd

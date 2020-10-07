@@ -100,13 +100,13 @@ var whatString = map[C.__u64]string{
 }
 
 const (
-	tcpInfoKProbeNotCalled C.__u64 = 0
-	tcpInfoKProbeCalled            = 1
+	tcpGetSockOptKProbeNotCalled C.__u64 = 0
+	tcpGetSockOptKProbeCalled            = 1
 )
 
 var tcpKprobeCalledString = map[C.__u64]string{
-	tcpInfoKProbeNotCalled: "tcp_get_info kprobe not executed",
-	tcpInfoKProbeCalled:    "tcp_get_info kprobe executed",
+	tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
+	tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
 }
 
 const listenIP = "127.0.0.2"
@@ -214,8 +214,8 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 
 func offsetGuessProbes(c *Config) map[bytecode.ProbeName]struct{} {
 	probes := map[bytecode.ProbeName]struct{}{
-		bytecode.TCPGetInfo: {},
-		bytecode.IPMakeSkb:  {},
+		bytecode.TCPGetSockOpt: {},
+		bytecode.IPMakeSkb:     {},
 	}
 
 	if c.CollectIPv6Conns {
@@ -438,7 +438,7 @@ func setReadyState(mp *ebpf.Map, status *tracerStatus) error {
 // To guess the offsets, we create connections from localhost (127.0.0.1) to
 // 127.0.0.2:$PORT, where we have a server listening. We store the current
 // possible offset and expected value of each field in a eBPF map. In kernel-space
-// we rely on two different kprobes: `tcp_get_info` and `tcp_connect_v6`. When they're
+// we rely on two different kprobes: `tcp_getsockopt` and `tcp_connect_v6`. When they're
 // are triggered, we store the value of
 //     (struct sock *)skp + possible_offset
 // in the eBPF map. Then, back in userspace (checkAndUpdateCurrentOffset()), we
@@ -611,7 +611,7 @@ func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) e
 		return err
 	}
 
-	// This triggers the KProbe handler attached to `tcp_get_info`
+	// This triggers the KProbe handler attached to `tcp_getsockopt`
 	_, err := tcpGetInfo(e.conn)
 	return err
 }

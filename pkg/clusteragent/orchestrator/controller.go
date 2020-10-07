@@ -14,16 +14,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	model "github.com/DataDog/agent-payload/process"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -193,6 +193,14 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
+	stats := CheckStats{
+		CacheHits: len(deployList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sDeployment,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
+
 	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
 }
 
@@ -212,6 +220,14 @@ func (o *Controller) processReplicaSets() {
 		log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(rsList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sReplicaSet,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
 }
@@ -234,6 +250,14 @@ func (o *Controller) processPods() {
 		return
 	}
 
+	stats := CheckStats{
+		CacheHits: len(podList) - len(msg),
+		CacheMiss: len(msg),
+		NodeType:  orchestrator.K8sPod,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
+
 	o.sendMessages(msg, forwarder.PayloadTypePod)
 }
 
@@ -254,6 +278,14 @@ func (o *Controller) processServices() {
 		return
 	}
 
+	stats := CheckStats{
+		CacheHits: len(serviceList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sService,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
+
 	o.sendMessages(messages, forwarder.PayloadTypeService)
 }
 
@@ -273,6 +305,14 @@ func (o *Controller) processNodes() {
 		log.Errorf("Unable to process node list: %s", err)
 		return
 	}
+
+	stats := CheckStats{
+		CacheHits: len(nodesList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sNode,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
 	o.sendMessages(messages, forwarder.PayloadTypeNode)
 }

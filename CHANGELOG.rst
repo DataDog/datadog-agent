@@ -2,6 +2,32 @@
 Release Notes
 =============
 
+.. _Release Notes_7.22.1:
+
+7.22.1 / 6.22.1
+======
+
+.. _Release Notes_7.22.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-09-17
+
+- Please refer to the `7.22.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7221>`_ for the list of changes on the Core Checks
+
+.. _Release Notes_7.22.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Define a default logs file (security-agent.log) for the security-agent.
+
+- Fix segfault when listing Garden containers that are in error state.
+
+- Do not activate security-agent service by default in the Linux packages of the Agent (RPM/DEB). The security-agent was already properly starting and exiting if not activated in configuration.
+
+
 .. _Release Notes_7.22.0:
 
 7.22.0 / 6.22.0

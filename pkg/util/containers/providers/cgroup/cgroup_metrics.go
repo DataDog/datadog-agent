@@ -27,7 +27,7 @@ import (
 const NanoToUserHZDivisor float64 = 1e9 / 100
 
 var (
-	numCPU float64 = float64(runtime.NumCPU())
+	numCPU = float64(runtime.NumCPU())
 )
 
 // Mem returns the memory statistics for a Cgroup. If the cgroup file is not

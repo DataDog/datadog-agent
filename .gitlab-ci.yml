@@ -91,7 +91,7 @@ variables:
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2894686-d80c3ce
   DATADOG_AGENT_BUILDERS: v2894668-736db00
-  DATADOG_AGENT_WINBUILDIMAGES: v2894686-d80c3ce
+  DATADOG_AGENT_WINBUILDIMAGES: v3078400-b2b4314
   DATADOG_AGENT_ARMBUILDIMAGES: v2894686-d80c3ce
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2894686-d80c3ce
   BCC_VERSION: v0.12.0
@@ -1786,7 +1786,7 @@ deploy_windows_testing-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="sles-12,urn,SUSE:SLES-BYOS:12-SP4:2019.11.13"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:SLES-BYOS:15:2019.11.15"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -2978,6 +2978,12 @@ twistlock_scan-7:
   DOCKER_REGISTRY_PWD_SSM_KEY: quay_pwd
   DOCKER_REGISTRY_URL: quay.io
 
+.google_container_registry_variables: &google_container_registry_variables
+  <<: *docker_hub_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: gcr_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: gcr_pwd
+  GOOGLE_PROJECT_ID: datadoghq
+
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
@@ -3036,6 +3042,21 @@ twistlock_scan-7:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | out-file ci-scripts/docker-publish.ps1
 
+.google_container_registry_tag_job_definition: &google_container_registry_tag_job_definition
+  stage: image_deploy
+  tags: [ "runner:docker", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-push:1.5.0
+  variables:
+    <<: *google_container_registry_variables
+  before_script:
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/gcr_key.json
+    - gcloud auth activate-service-account "$DOCKER_REGISTRY_LOGIN" --key-file=/tmp/gcr_key.json
+    - gcloud config set project $GOOGLE_PROJECT_ID
+    - gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
+    - python3 -m pip install -r requirements.txt
+
 dev_branch_docker_hub-a6:
   rules:
     - <<: *if_version_6
@@ -3075,6 +3096,19 @@ dev_branch_docker_hub-a7:
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64         datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
+
+dev_branch_google_container_registry-a7:
+  rules:
+    - <<: *if_version_7
+      when: manual
+      allow_failure: true
+  <<: *google_container_registry_tag_job_definition
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_jmx
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-amd64             gcr.io/datadoghq/agent-dev:${CI_COMMIT_REF_SLUG}-py3
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64         gcr.io/datadoghq/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
 
 dev_branch_docker_hub-a7-windows:
   rules:
@@ -4179,9 +4213,17 @@ pupernetes-dev:
     - when: manual
       allow_failure: true
   <<: *pupernetes_template
-  needs: 
-  - dev_branch_docker_hub-a6
-  - dev_branch_docker_hub-a7
+  # Note: pupernetes-dev requires the below jobs to work. However,
+  # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
+  # Adding the following lines would result in pipelines remaining in a "Running" state forever,
+  # as the pupernetes-dev job waits for manual jobs that may never be triggered.
+  # needs:
+  #   - dev_branch_docker_hub-a6
+  #   - dev_branch_docker_hub-a7
+  # We still want to make the job available as soon as possible. In this case, since it's manual
+  # and requires other manual jobs, it's reasonable make it available from the beginning and let
+  # engineers trigger the correct sequence of jobs when needed.
+  needs: []
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -4190,7 +4232,7 @@ pupernetes-master:
   <<: *pupernetes_template
   rules:
     - <<: *if_master_branch
-  needs: 
+  needs:
   - dev_master_docker_hub-a6
   - dev_master_docker_hub-a7
   script:

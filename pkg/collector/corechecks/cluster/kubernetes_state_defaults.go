@@ -107,6 +107,7 @@ var (
 		"kube_verticalpodautoscaler_spec_updatepolicy_updatemode":                                  "vpa.update_mode",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_minallowed":             "vpa.spec_container_minallowed",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
+		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
 	}
 
 	// metadata metrics are useful for label joins
@@ -125,7 +126,6 @@ var (
 		"kube_cronjob_status_active":                       {},
 		"kube_namespace_status_phase":                      {},
 		"kube_node_status_phase":                           {},
-		"kube_cronjob_spec_suspend":                        {},
 		"kube_cronjob_spec_starting_deadline_seconds":      {},
 		"kube_job_spec_active_dealine_seconds":             {},
 		"kube_job_spec_completions":                        {},
@@ -185,6 +185,10 @@ var (
 		},
 		"kube_job_labels": {
 			LabelsToMatch: []string{"job_name", "namespace"},
+			LabelsToGet:   defaultStandardLabels,
+		},
+		"kube_cronjob_labels": {
+			LabelsToMatch: []string{"cronjob", "namespace"},
 			LabelsToGet:   defaultStandardLabels,
 		},
 	}

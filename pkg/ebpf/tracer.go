@@ -210,7 +210,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit, config.EnableConntrackAllNamespaces); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -299,7 +299,7 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 	start := time.Now()
 	editors, err := guessOffsets(offsetMgr, config)
 	if err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %v", err)
+		return nil, err
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 	return editors, nil

@@ -620,7 +620,7 @@ func TestExtractNode(t *testing.T) {
 					Allocatable: map[corev1.ResourceName]resource.Quantity{
 						corev1.ResourcePods:   resource.MustParse("50"),
 						corev1.ResourceCPU:    resource.MustParse("5"),
-						corev1.ResourceMemory: resource.MustParse("5Gi"),
+						corev1.ResourceMemory: resource.MustParse("5G"),
 					},
 					Conditions: []corev1.NodeCondition{{
 						Type:               corev1.NodeReady,
@@ -643,12 +643,12 @@ func TestExtractNode(t *testing.T) {
 					Capacity: map[string]int64{
 						"pods":   100,
 						"cpu":    10000,
-						"memory": 10737418240000,
+						"memory": 10737418240, // 10 Gibibytes (Gi) are 10737418240 (base 1024)
 					},
 					Allocatable: map[string]int64{
 						"pods":   50,
 						"cpu":    5000,
-						"memory": 5368709120000,
+						"memory": 5000000000, // 5 Gigabytes (G) are 5000000000 (base 1000)
 					},
 					NodeAddresses: map[string]string{"endpoint": "1234567890"},
 					Status:        "Ready,SchedulingDisabled",

@@ -370,6 +370,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
+	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -563,7 +564,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
-	config.BindEnvAndSetDefault("logs_config.close_timeout", 60*time.Second)
+	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
 	config.BindEnv("logs_config.additional_endpoints") //nolint:errcheck
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
@@ -692,6 +693,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_conntrack")
 	config.SetKnown("system_probe_config.sysprobe_socket")
 	config.SetKnown("system_probe_config.conntrack_rate_limit")
+	config.SetKnown("system_probe_config.enable_conntrack_all_namespaces")
 	config.SetKnown("system_probe_config.max_conns_per_message")
 	config.SetKnown("system_probe_config.max_tracked_connections")
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")

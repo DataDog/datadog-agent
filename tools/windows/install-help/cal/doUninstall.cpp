@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "TargetMachine.h"
 
 extern std::wstring versionhistoryfilename;
 
@@ -17,9 +18,16 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
     LOCALGROUP_MEMBERS_INFO_0 lmi0;
     memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
     BOOL willDeleteUser = false;
-    BOOL isDC = isDomainController();
+    TargetMachine machine;
+
     if (t == UNINSTALL_UNINSTALL) {
         regkey.createSubKey(strUninstallKeyName.c_str(), installState);
+        //
+        // Make best effort to delete versionhistory.json file on uninstallation. We only attempt
+        // to delete the file from the default location. If customer changed the default location,
+        // the file will not be deleted.
+        //
+        (void)DeleteFileW(versionhistoryfilename.c_str());
     }
     else {
         regkey.createSubKey(strRollbackKeyName.c_str(), installState);
@@ -41,7 +49,7 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
             installedComplete = installedDomain + L"\\";
         }
-        else if (isDC) {
+        else if (machine.IsDomainController()) {
             WcaLog(LOGMSG_STANDARD, "NOT Removing user %S from domain controller", installedUser.c_str());
             WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
 
@@ -111,14 +119,6 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
         }
     }
     // remove the auth token file altogether
-
-    //
-    // Make best effort to delete versionhistory.json file on uninstallation. We only attempt
-    // to delete the file from the default location. If customer changed the default location,
-    // the file will not be deleted.
-    //
-    (void)DeleteFileW(versionhistoryfilename.c_str());
-
     DeleteFile(authtokenfilename.c_str());
     std::wstring svcsInstalled;
     if (installState.getStringValue(installInstalledServices.c_str(), svcsInstalled))

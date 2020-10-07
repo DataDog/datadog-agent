@@ -98,6 +98,7 @@
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
@@ -122,7 +123,7 @@
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
-/pkg/process/util/orchestrator/         @DataDog/container-app
+/pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
 /pkg/quantile/                          @DataDog/metrics-aggregation
