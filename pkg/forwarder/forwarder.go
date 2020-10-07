@@ -21,9 +21,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	// PayloadTypePod is the name of the pod payload type
+	PayloadTypePod = "pod"
+	// PayloadTypeDeployment is the name of the deployment payload type
+	PayloadTypeDeployment = "deployment"
+	// PayloadTypeReplicaSet is the name of the replica set payload type
+	PayloadTypeReplicaSet = "replicaset"
+	// PayloadTypeService is the name of the service payload type
+	PayloadTypeService = "service"
+	// PayloadTypeNode is the name of the node payload type
+	PayloadTypeNode = "node"
+)
+
 var (
-	forwarderExpvars          = expvar.NewMap("forwarder")
-	orchestratorPayloadsCount = expvar.Map{}
+	forwarderExpvars             = expvar.NewMap("forwarder")
+	transactionsIntakePod        = expvar.Int{}
+	transactionsIntakeDeployment = expvar.Int{}
+	transactionsIntakeReplicaSet = expvar.Int{}
+	transactionsIntakeService    = expvar.Int{}
+	transactionsIntakeNode       = expvar.Int{}
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
@@ -48,11 +65,18 @@ var (
 
 func init() {
 	transactionsExpvars.Init()
-	orchestratorPayloadsCount.Init()
-	transactionsExpvars.Set("OrchestratorCount", &orchestratorPayloadsCount)
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
+	initOrchestratorExpVars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
+}
+
+func initOrchestratorExpVars() {
+	transactionsExpvars.Set("Pods", &transactionsIntakePod)
+	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
+	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
+	transactionsExpvars.Set("Services", &transactionsIntakeService)
+	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
 }
 
 const (
@@ -416,7 +440,18 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	orchestratorPayloadsCount.Add(payloadType, 1)
+	switch payloadType {
+	case PayloadTypePod:
+		transactionsIntakePod.Add(1)
+	case PayloadTypeDeployment:
+		transactionsIntakeDeployment.Add(1)
+	case PayloadTypeReplicaSet:
+		transactionsIntakeReplicaSet.Add(1)
+	case PayloadTypeService:
+		transactionsIntakeService.Add(1)
+	case PayloadTypeNode:
+		transactionsIntakeNode.Add(1)
+	}
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }

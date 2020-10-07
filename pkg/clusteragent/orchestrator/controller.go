@@ -209,7 +209,7 @@ func (o *Controller) processDeploys() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, payloadTypeDeployment)
+	o.sendMessages(msg, forwarder.PayloadTypeDeployment)
 }
 
 func (o *Controller) processReplicaSets() {
@@ -237,7 +237,7 @@ func (o *Controller) processReplicaSets() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, payloadTypeReplicaSet)
+	o.sendMessages(msg, forwarder.PayloadTypeReplicaSet)
 }
 
 func (o *Controller) processPods() {
@@ -266,7 +266,7 @@ func (o *Controller) processPods() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(msg, payloadTypePod)
+	o.sendMessages(msg, forwarder.PayloadTypePod)
 }
 
 func (o *Controller) processServices() {
@@ -294,7 +294,7 @@ func (o *Controller) processServices() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(messages, payloadTypeService)
+	o.sendMessages(messages, forwarder.PayloadTypeService)
 }
 
 func (o *Controller) processNodes() {
@@ -322,7 +322,7 @@ func (o *Controller) processNodes() {
 
 	orchestrator.KubernetesResourceCache.Set(BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
-	o.sendMessages(messages, payloadTypeNode)
+	o.sendMessages(messages, forwarder.PayloadTypeNode)
 }
 
 func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
