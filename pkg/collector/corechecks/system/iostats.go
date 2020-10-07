@@ -36,7 +36,13 @@ func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.
 		return err
 	}
 
-	blacklistRe, ok := conf["device_blacklist_re"]
+	blacklistRe, ok := conf["device_exclude_re"]
+	if !ok {
+		blacklistRe, ok = conf["device_blacklist_re"]
+		if ok {
+			log.Warn("'device_blacklist_re' has been deprecated, use 'device_exclude_re' instead")
+		}
+	}
 	if ok && blacklistRe != "" {
 		if regex, ok := blacklistRe.(string); ok {
 			c.blacklist, err = regexp.Compile(regex)

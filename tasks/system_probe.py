@@ -309,6 +309,8 @@ def build_object_files(ctx, bundle_ebpf=False):
         "-include {}".format(os.path.join(c_dir, "asm_goto_workaround.h")),
         '-O2',
         '-emit-llvm',
+        # Some linux distributions enable stack protector by default which is not available on eBPF
+        '-fno-stack-protector',
     ]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include

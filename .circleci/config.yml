@@ -302,9 +302,7 @@ workflows:
     jobs:
       - checkout_code
       - macos_tests
-      - macos_build:
-          requires:
-            - macos_tests
+      - macos_build
       - dependencies:
           requires:
             - checkout_code

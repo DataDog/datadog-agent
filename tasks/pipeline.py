@@ -61,8 +61,10 @@ def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_
 
             print("Successfully cross checked v7 tag {} and git ref {}".format(tag_name, git_ref))
 
-    pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, repo_branch, deploy=True)
-    wait_for_pipeline(project_name, pipeline_id)
+    pipeline_id = trigger_agent_pipeline(
+        gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch, deploy=True
+    )
+    wait_for_pipeline(gitlab, project_name, pipeline_id)
 
 
 @task
@@ -79,10 +81,17 @@ def run_all_tests(ctx, git_ref="master", here=False, release_version_6="nightly"
     inv pipeline.run-all-tests --git-ref my-branch
     inv pipeline.run-all-tests --here
     """
+
+    project_name = "DataDog/datadog-agent"
+    gitlab = Gitlab()
+    gitlab.test_project_found(project_name)
+
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-    pipeline_id = trigger_agent_pipeline(git_ref, release_version_6, release_version_7, "none", deploy=False)
-    wait_for_pipeline("DataDog/datadog-agent", pipeline_id)
+    pipeline_id = trigger_agent_pipeline(
+        gitlab, project_name, git_ref, release_version_6, release_version_7, "none", deploy=False
+    )
+    wait_for_pipeline(gitlab, project_name, pipeline_id)
 
 
 @task
@@ -98,19 +107,24 @@ def follow(ctx, id=None, git_ref=None, here=False):
     inv pipeline.follow --here
     inv pipeline.follow --id 1234567
     """
+
+    project_name = "DataDog/datadog-agent"
+    gitlab = Gitlab()
+    gitlab.test_project_found(project_name)
+
     if id is not None:
-        wait_for_pipeline("DataDog/datadog-agent", id)
+        wait_for_pipeline(gitlab, project_name, id)
     elif git_ref is not None:
-        wait_for_pipeline_from_ref(git_ref)
+        wait_for_pipeline_from_ref(gitlab, project_name, git_ref)
     elif here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-        wait_for_pipeline_from_ref(git_ref)
+        wait_for_pipeline_from_ref(gitlab, project_name, git_ref)
 
 
-def wait_for_pipeline_from_ref(ref):
-    pipeline = Gitlab().last_pipeline_for_ref("DataDog/datadog-agent", ref)
+def wait_for_pipeline_from_ref(gitlab, project_name, ref):
+    pipeline = Gitlab().last_pipeline_for_ref(project_name, ref)
     if pipeline is not None:
-        wait_for_pipeline("DataDog/datadog-agent", pipeline['id'])
+        wait_for_pipeline(gitlab, project_name, pipeline['id'])
     else:
         print("No pipelines found for {ref}".format(ref=ref))
         raise Exit(code=1)
