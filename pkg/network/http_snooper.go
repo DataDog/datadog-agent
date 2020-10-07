@@ -20,8 +20,9 @@ import (
 type HTTPSocketFilterSnooper struct {
 	source     *packetSource
 	statKeeper *httpStatKeeper
-	exit       chan struct{}
-	wg         sync.WaitGroup
+
+	exit chan struct{}
+	wg   sync.WaitGroup
 
 	// Telemetry
 	socketPolls        int64
@@ -34,6 +35,11 @@ type HTTPSocketFilterSnooper struct {
 	requests           int64
 	connectionsFlushed int64
 	connectionsClosed  int64
+}
+
+type packetWithTS struct {
+	packet gopacket.Packet
+	ts     time.Time
 }
 
 // NewHTTPSocketFilterSnooper returns a new HTTPSocketFilterSnooper
@@ -54,7 +60,7 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 		return nil, srcErr
 	}
 	statKeeper := &httpStatKeeper{
-		requests: make(map[httpKey]httpInfo),
+		connections: make(map[httpKey]httpConnection),
 	}
 	snooper := &HTTPSocketFilterSnooper{
 		source:     packetSrc,
@@ -62,10 +68,40 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 		exit:       make(chan struct{}),
 	}
 
+	// Create the tcp assemblers and the channels they'll read packets from
+	reqStreamFactory := &httpStreamFactory{
+		pktDirection: request,
+		statKeeper:   statKeeper,
+	}
+	reqStreamPool := tcpassembly.NewStreamPool(reqStreamFactory)
+	reqAssembler := tcpassembly.NewAssembler(reqStreamPool)
+	reqPackets := make(chan packetWithTS, 100)
+
+	resStreamFactory := &httpStreamFactory{
+		pktDirection: response,
+		statKeeper:   statKeeper,
+	}
+	resStreamPool := tcpassembly.NewStreamPool(resStreamFactory)
+	resAssembler := tcpassembly.NewAssembler(resStreamPool)
+	resPackets := make(chan packetWithTS, 100)
+
+	// Get ready to assemble packets
+	snooper.wg.Add(1)
+	go func() {
+		snooper.assemblePackets(reqPackets, reqAssembler, httpTimeout)
+		snooper.wg.Done()
+	}()
+
+	snooper.wg.Add(1)
+	go func() {
+		snooper.assemblePackets(resPackets, resAssembler, httpTimeout)
+		snooper.wg.Done()
+	}()
+
 	// Start consuming packets
 	snooper.wg.Add(1)
 	go func() {
-		snooper.pollPackets(httpTimeout)
+		snooper.pollPackets(reqPackets, resPackets)
 		snooper.wg.Done()
 	}()
 
@@ -79,8 +115,8 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 	return snooper, nil
 }
 
-func (s *HTTPSocketFilterSnooper) GetHTTPStats() map[httpKey]httpInfo {
-	return s.statKeeper.requests
+func (s *HTTPSocketFilterSnooper) GetHTTPConnections() map[httpKey]httpConnection {
+	return s.statKeeper.connections
 }
 
 func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
@@ -96,45 +132,33 @@ func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
 		"connections_flushed":  atomic.LoadInt64(&s.connectionsFlushed),
 		"connections_closed":   atomic.LoadInt64(&s.connectionsClosed),
 		"timestamp_micro_secs": time.Now().UnixNano() / 1000,
+
+		// TODO add statkeeper telemetry
 	}
 }
 
 // Close terminates the HTTP traffic snooper as well as the underlying socket and the attached filter
 func (s *HTTPSocketFilterSnooper) Close() {
 	close(s.exit)
+
+	// TODO close the packet channels?
+	// TODO send an EOF to all http streams in the streampools to shut them down?
+
 	s.wg.Wait()
 	s.source.Close()
 }
 
 var _ HTTPTracker = &HTTPSocketFilterSnooper{}
 
-func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
-	streamFactory := &httpStreamFactory{
-		statKeeper: s.statKeeper,
-	}
-	streamPool := tcpassembly.NewStreamPool(streamFactory)
-	assembler := tcpassembly.NewAssembler(streamPool)
-
-	// Poll packets and feed them to the tcp assembler, which creates a new readerStream
-	// and corresponding httpStreamHandler for each request
-	ticker := time.NewTicker(time.Second * 30)
-	defer ticker.Stop()
+func (s *HTTPSocketFilterSnooper) pollPackets(reqPackets chan packetWithTS, resPackets chan packetWithTS) {
 	for {
-		data, captureInfo, err := s.source.ZeroCopyReadPacketData()
-
 		select {
 		case <-s.exit:
-			// Properly synchronize termination process
-			// TODO send an EOF to all http streams in the streampool to shut them down
 			return
-		case <-ticker.C:
-			// Every 30 seconds, flush old connections
-			flushed, closed := assembler.FlushOlderThan(time.Now().Add(-1 * httpTimeout))
-			atomic.AddInt64(&s.connectionsFlushed, int64(flushed))
-			atomic.AddInt64(&s.connectionsClosed, int64(closed))
 		default:
 		}
 
+		data, captureInfo, err := s.source.ZeroCopyReadPacketData()
 		if err == nil {
 			packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.Default)
 			if packet.NetworkLayer() == nil || packet.TransportLayer() == nil || packet.TransportLayer().LayerType() != layers.LayerTypeTCP {
@@ -143,53 +167,21 @@ func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
 			}
 			atomic.AddInt64(&s.validPackets, 1)
 
-			tcp := packet.TransportLayer().(*layers.TCP)
-			srcIP, dstIP := packet.NetworkLayer().NetworkFlow().Endpoints()
-			srcPort, dstPort := packet.TransportLayer().TransportFlow().Endpoints()
+			direction := s.determineDirection(packet)
+			ts := captureInfo.Timestamp
 
-			key := httpKey{
-				serverIP:   srcIP,
-				clientIP:   dstIP,
-				serverPort: srcPort,
-				clientPort: dstPort,
+			// TODO: latency calculation
+			// key := HTTPKey.New(packet)
+			// if lastDirection was diff that what we currently see, then we can add timestamps,
+			// calculate latency, and increase response/request counts
+			// NOTE: this logic fails if we see request/response packets out of order (though this
+			// should never happen)
+
+			if direction == request {
+				reqPackets <- packetWithTS{packet, ts}
+			} else if direction == response {
+				resPackets <- packetWithTS{packet, ts}
 			}
-
-			inverseKey := httpKey{
-				serverIP:   dstIP,
-				clientIP:   srcIP,
-				serverPort: dstPort,
-				clientPort: srcPort,
-			}
-
-			if _, keyExists := s.statKeeper.requests[key]; !keyExists {
-				if requestInfo, inverseKeyExists := s.statKeeper.requests[inverseKey]; inverseKeyExists {
-					// We saw the "inverse key" prior to seeing this key; this packet is part of a response
-					if captureInfo.Timestamp.Before(requestInfo.timeResponseRcvd) {
-						requestInfo.timeResponseRcvd = captureInfo.Timestamp
-						requestInfo.latency = requestInfo.timeResponseRcvd.Sub(requestInfo.timeSent)
-						s.statKeeper.requests[inverseKey] = requestInfo
-
-						atomic.AddInt64(&s.responses, 1)
-						log.Infof("Received response from %v:%v -> %v:%v", srcIP, srcPort, dstIP, dstPort)
-					}
-
-					// Check if this packet contains the response code
-					// TODO
-					// For now we can't assemble responses, so we'll just skip this packet
-					continue
-				} else {
-					// We have not seen this key or it's inverse; this packet is the first packet of a new request
-					s.statKeeper.requests[key] = httpInfo{
-						timeSent: captureInfo.Timestamp,
-					}
-					atomic.AddInt64(&s.requests, 1)
-
-					log.Infof("Received request from %v:%v -> %v:%v", srcIP, srcPort, dstIP, dstPort)
-				}
-			}
-			// If the key already exists in our map, we don't need to do anything except continuing assembling this request
-
-			assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(), tcp, captureInfo.Timestamp)
 			continue
 		}
 
@@ -201,6 +193,49 @@ func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
 		// Sleep briefly and try again
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+func (s *HTTPSocketFilterSnooper) assemblePackets(ch chan packetWithTS, assembler *tcpassembly.Assembler, timeout time.Duration) {
+	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
+	for {
+		select {
+
+		case <-s.exit:
+			return
+
+		case <-ticker.C:
+			// Every 30 seconds, flush old connections
+			flushed, closed := assembler.FlushOlderThan(time.Now().Add(-1 * timeout))
+			atomic.AddInt64(&s.connectionsFlushed, int64(flushed))
+			atomic.AddInt64(&s.connectionsClosed, int64(closed))
+
+		case p := <-ch:
+			tcp := p.packet.TransportLayer().(*layers.TCP)
+			assembler.AssembleWithTimestamp(p.packet.NetworkLayer().NetworkFlow(), tcp, p.ts)
+		}
+	}
+}
+
+func (s *HTTPSocketFilterSnooper) determineDirection(packet gopacket.Packet) packetDirection {
+	key := newKey(packet)
+	if _, exists := s.statKeeper.connections[key]; exists {
+		return request
+	}
+
+	inverseKey := httpKey{
+		sourceIP:   key.destIP,
+		destIP:     key.sourceIP,
+		sourcePort: key.destPort,
+		destPort:   key.sourcePort,
+	}
+	if _, exists := s.statKeeper.connections[inverseKey]; exists {
+		return response
+	}
+
+	// Never seen this connection before -> assume it's a new connection beginning with a request
+	s.statKeeper.connections[key] = httpConnection{}
+	return request
 }
 
 func (s *HTTPSocketFilterSnooper) pollStats() {

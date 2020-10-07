@@ -472,17 +472,17 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
-	httpStats := t.httpTracker.GetHTTPStats()
+	httpConns := t.httpTracker.GetHTTPConnections()
 
 	// for now, just print the stats to log
-	printHTTPStats(httpStats)
+	printHTTPConnections(httpConns)
 
 	tm := t.getConnTelemetry(len(latestConns))
 
 	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
 }
 
-func printHTTPStats(stats interface{}) {
+func printHTTPConnections(stats interface{}) {
 	log.Infof("HTTP stats: %v", stats)
 }
 
