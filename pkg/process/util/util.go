@@ -177,8 +177,8 @@ func GetProcRoot() string {
 	return "/proc"
 }
 
-// WithAllProcs will execute `fn` for every pid under procRoot. `fn`` is
-// passed a `pid`. If `fn` returns an error the iteration aborts,
+// WithAllProcs will execute `fn` for every pid under procRoot. `fn` is
+// passed the `pid`. If `fn` returns an error the iteration aborts,
 // returning the last error returned from `fn`.
 func WithAllProcs(procRoot string, fn func(int) error) error {
 	files, err := ioutil.ReadDir(procRoot)
