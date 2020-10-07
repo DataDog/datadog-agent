@@ -33,14 +33,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const (
-	payloadTypePod        = "pod"
-	payloadTypeDeployment = "deployment"
-	payloadTypeReplicaSet = "replicaset"
-	payloadTypeService    = "service"
-	payloadTypeNode       = "node"
-)
-
 // ControllerContext holds necessary context for the controller
 type ControllerContext struct {
 	IsLeaderFunc                 func() bool
