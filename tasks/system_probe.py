@@ -198,9 +198,6 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=T
         # bpf_tag += ",ebpf_bindata"
         cmd += " -run=TestEbpfBytesCorrect"
     else:
-        if getpass.getuser() != "root":
-            print("system-probe tests must be run as root")
-            raise Exit(code=1)
         if os.getenv("GOPATH") is None:
             print(
                 "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment"
