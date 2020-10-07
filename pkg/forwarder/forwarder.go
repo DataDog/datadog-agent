@@ -325,8 +325,8 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 
 				tlmTxCount.Inc(domain, endpoint.name)
 				tlmTxBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.name)
-				transactionsCount.Add(endpoint.name, 1)
-				transactionsBytes.Add(endpoint.name, int64(t.GetPayloadSize()))
+				transactionsInputCount.Add(endpoint.name, 1)
+				transactionsInputBytes.Add(endpoint.name, int64(t.GetPayloadSize()))
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))

@@ -80,24 +80,29 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	sort.Sort(byCreatedTimeAndPriority(f.retryQueue))
 
 	for _, t := range f.retryQueue {
+		transactionEndpointName := getTransactionEndpointName(t)
 		if !f.blockedList.isBlock(t.GetTarget()) {
 			select {
 			case f.lowPrio <- t:
-				transactionsRetried.Add(getTransactionEndpointName(t), 1)
-				tlmTxRetried.Inc(f.domain, getTransactionEndpointName(t))
+				transactionsRetriedByEndpoint.Add(transactionEndpointName, 1)
+				transactionsRetried.Add(1)
+				tlmTxRetried.Inc(f.domain, transactionEndpointName)
 			default:
 				droppedWorkerBusy++
-				transactionsDropped.Add(getTransactionEndpointName(t), 1)
-				tlmTxDropped.Inc(f.domain, getTransactionEndpointName(t))
+				transactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+				transactionsDropped.Add(1)
+				tlmTxDropped.Inc(f.domain, transactionEndpointName)
 			}
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
-			transactionsRequeued.Add(getTransactionEndpointName(t), 1)
-			tlmTxRequeued.Inc(f.domain, getTransactionEndpointName(t))
+			transactionsRequeuedByEndpoint.Add(transactionEndpointName, 1)
+			transactionsRequeued.Add(1)
+			tlmTxRequeued.Inc(f.domain, transactionEndpointName)
 		} else {
 			droppedRetryQueueFull++
-			transactionsDropped.Add(getTransactionEndpointName(t), 1)
-			tlmTxDropped.Inc(f.domain, getTransactionEndpointName(t))
+			transactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+			transactionsDropped.Add(1)
+			tlmTxDropped.Inc(f.domain, transactionEndpointName)
 		}
 	}
 
@@ -113,7 +118,8 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 
 func (f *domainForwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
-	transactionsRequeued.Add(getTransactionEndpointName(t), 1)
+	transactionsRequeuedByEndpoint.Add(getTransactionEndpointName(t), 1)
+	transactionsRequeued.Add(1)
 	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
 	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 }

@@ -27,17 +27,20 @@ var (
 	connectionDNSSuccess           = expvar.Int{}
 	connectionConnectSuccess       = expvar.Int{}
 	transactionsExpvars            = expvar.Map{}
-	transactionsBytes              = expvar.Map{}
+	transactionsInputBytes         = expvar.Map{}
 	transactionsConnectionEvents   = expvar.Map{}
-	transactionsCount              = expvar.Map{}
-	transactionsDropped            = expvar.Map{}
+	transactionsInputCount         = expvar.Map{}
+	transactionsDropped            = expvar.Int{}
+	transactionsDroppedByEndpoint  = expvar.Map{}
 	transactionsDroppedOnInput     = expvar.Int{}
-	transactionsRequeued           = expvar.Map{}
-	transactionsRetried            = expvar.Map{}
+	transactionsRequeued           = expvar.Int{}
+	transactionsRequeuedByEndpoint = expvar.Map{}
+	transactionsRetried            = expvar.Int{}
+	transactionsRetriedByEndpoint  = expvar.Map{}
 	transactionsRetryQueueSize     = expvar.Int{}
-	transactionsSuccess            = expvar.Map{}
+	transactionsSuccessByEndpoint  = expvar.Map{}
 	transactionsSuccessBytes       = expvar.Map{}
-	transactionsSuccessTotal       = expvar.Int{}
+	transactionsSuccess            = expvar.Int{}
 	transactionsErrors             = expvar.Int{}
 	transactionsErrorsByType       = expvar.Map{}
 	transactionsDNSErrors          = expvar.Int{}
@@ -126,29 +129,32 @@ var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
 
 func initTransactionExpvars() {
-	transactionsBytes.Init()
+	transactionsInputBytes.Init()
 	transactionsConnectionEvents.Init()
-	transactionsCount.Init()
-	transactionsDropped.Init()
-	transactionsRequeued.Init()
-	transactionsRetried.Init()
-	transactionsSuccess.Init()
+	transactionsInputCount.Init()
+	transactionsDroppedByEndpoint.Init()
+	transactionsRequeuedByEndpoint.Init()
+	transactionsRetriedByEndpoint.Init()
+	transactionsSuccessByEndpoint.Init()
 	transactionsSuccessBytes.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
 	transactionsConnectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
 	transactionsConnectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
-	transactionsExpvars.Set("Bytes", &transactionsBytes)
+	transactionsExpvars.Set("InputBytes", &transactionsInputBytes)
 	transactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
-	transactionsExpvars.Set("Count", &transactionsCount)
+	transactionsExpvars.Set("InputCount", &transactionsInputCount)
 	transactionsExpvars.Set("Dropped", &transactionsDropped)
+	transactionsExpvars.Set("DroppedByEndpoint", &transactionsDroppedByEndpoint)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
 	transactionsExpvars.Set("Requeued", &transactionsRequeued)
+	transactionsExpvars.Set("RequeuedByEndpoint", &transactionsRequeuedByEndpoint)
 	transactionsExpvars.Set("Retried", &transactionsRetried)
+	transactionsExpvars.Set("RetriedByEndpoint", &transactionsRetriedByEndpoint)
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
-	transactionsExpvars.Set("Success", &transactionsSuccess)
+	transactionsExpvars.Set("SuccessByEndpoint", &transactionsSuccessByEndpoint)
 	transactionsExpvars.Set("SuccessBytes", &transactionsSuccessBytes)
-	transactionsExpvars.Set("SuccessTotal", &transactionsSuccessTotal)
+	transactionsExpvars.Set("Success", &transactionsSuccess)
 	transactionsExpvars.Set("Errors", &transactionsErrors)
 	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
 	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
@@ -323,12 +329,14 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
-		transactionsDropped.Add(getTransactionEndpointName(t), 1)
+		transactionsDroppedByEndpoint.Add(getTransactionEndpointName(t), 1)
+		transactionsDropped.Add(1)
 		tlmTxDropped.Inc(t.Domain, getTransactionEndpointName(t))
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
-		transactionsDropped.Add(getTransactionEndpointName(t), 1)
+		transactionsDroppedByEndpoint.Add(getTransactionEndpointName(t), 1)
+		transactionsDropped.Add(1)
 		tlmTxDropped.Inc(t.Domain, getTransactionEndpointName(t))
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
@@ -340,18 +348,18 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	tlmTxSuccessCount.Inc(t.Domain, getTransactionEndpointName(t))
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, getTransactionEndpointName(t))
-	transactionsSuccess.Add(getTransactionEndpointName(t), 1)
+	transactionsSuccessByEndpoint.Add(getTransactionEndpointName(t), 1)
 	transactionsSuccessBytes.Add(getTransactionEndpointName(t), int64(t.GetPayloadSize()))
-	transactionsSuccessTotal.Add(1)
+	transactionsSuccess.Add(1)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
-	if transactionsSuccessTotal.Value() == 1 {
+	if transactionsSuccess.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
 		log.Tracef("Url: %q payload: %s", logURL, string(body))
 		return resp.StatusCode, body, nil
 	}
-	if transactionsSuccessTotal.Value()%loggingFrequency == 0 {
+	if transactionsSuccess.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
 		log.Tracef("Url: %q payload: %s", logURL, string(body))
 		return resp.StatusCode, body, nil
