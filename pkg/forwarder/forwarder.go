@@ -21,19 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-const (
-	// PayloadTypePod is the name of the pod payload type
-	PayloadTypePod = "pod"
-	// PayloadTypeDeployment is the name of the deployment payload type
-	PayloadTypeDeployment = "deployment"
-	// PayloadTypeReplicaSet is the name of the replica set payload type
-	PayloadTypeReplicaSet = "replicaset"
-	// PayloadTypeService is the name of the service payload type
-	PayloadTypeService = "service"
-	// PayloadTypeNode is the name of the node payload type
-	PayloadTypeNode = "node"
-)
-
 var (
 	forwarderExpvars          = expvar.NewMap("forwarder")
 	orchestratorPayloadsCount = expvar.Map{}

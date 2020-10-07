@@ -30,9 +30,9 @@ var (
 	transactionsExpvars            = expvar.Map{}
 	transactionsCount              = expvar.Map{}
 	transactionsBytes              = expvar.Map{}
-	transactionsSuccessCount       = expvar.Map{}
+	transactionsSuccess            = expvar.Map{}
 	transactionsSuccessBytes       = expvar.Map{}
-	transactionsSuccessful         = expvar.Int{}
+	transactionsSuccessTotal       = expvar.Int{}
 	transactionsRetryQueueSize     = expvar.Int{}
 	transactionsDroppedOnInput     = expvar.Int{}
 	transactionsErrors             = expvar.Int{}
@@ -125,11 +125,11 @@ func initTransactionExpvars() {
 	transactionsExpvars.Set("ConnectionEvents", &connectionEvents)
 	transactionsExpvars.Set("Count", &transactionsCount)
 	transactionsExpvars.Set("Bytes", &transactionsBytes)
-	transactionsExpvars.Set("SuccessCount", &transactionsSuccessCount)
+	transactionsExpvars.Set("Success", &transactionsSuccess)
 	transactionsExpvars.Set("SuccessBytes", &transactionsSuccessBytes)
+	transactionsExpvars.Set("SuccessTotal", &transactionsSuccessTotal)
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("OrchestratorCount", &orchestratorPayloadsCount)
-	transactionsExpvars.Set("Success", &transactionsSuccessful)
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
 	transactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
@@ -323,18 +323,18 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	tlmTxSuccessCount.Inc(t.Domain, getTransactionEndpointName(t))
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, getTransactionEndpointName(t))
-	transactionsSuccessCount.Add(getTransactionEndpointName(t), 1)
+	transactionsSuccess.Add(getTransactionEndpointName(t), 1)
 	transactionsSuccessBytes.Add(getTransactionEndpointName(t), int64(t.GetPayloadSize()))
-	transactionsSuccessful.Add(1)
+	transactionsSuccessTotal.Add(1)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
-	if transactionsSuccessful.Value() == 1 {
+	if transactionsSuccessTotal.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
 		log.Tracef("Url: %q payload: %s", logURL, string(body))
 		return resp.StatusCode, body, nil
 	}
-	if transactionsSuccessful.Value()%loggingFrequency == 0 {
+	if transactionsSuccessTotal.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
 		log.Tracef("Url: %q payload: %s", logURL, string(body))
 		return resp.StatusCode, body, nil
