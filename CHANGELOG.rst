@@ -22,7 +22,7 @@ Release on: 2020-10-06
 Upgrade Notes
 -------------
 
-- Enable DNS stats collection by default.
+- Network monitoring: enable DNS stats collection by default.
 
 
 .. _Release Notes_7.23.0_New Features:
