@@ -7,29 +7,15 @@ Forwarder
 {{ if .Transactions }}
   Transactions
   ============
-  {{/* this line intentionally left blank */}}
+  {{- range $key, $value := .Transactions }}
+    {{- if and (ne $key "InputBytes") (ne $key "InputCount") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytes") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
+    {{$key}}: {{humanize $value}}
+    {{- end}}
+  {{- end}}
   {{- if .Transactions.DroppedOnInput }}
 
     Warning: the forwarder dropped transactions, there is probably an issue with your network
     More info at https://github.com/DataDog/datadog-agent/tree/master/docs/agent/status.md
-  {{- end}}
-
-  {{- range $key, $value := .Transactions }}
-    {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") }}
-      {{- if and (ne $key "Retried") (ne $key "Dropped") (ne $key "Requeued") (ne $key "Count") (ne $key "Bytes") (ne $key "Success") (ne $key "SuccessBytes") (ne $key "OrchestratorCount") (ne $key "ConnectionEvents")}}
-    {{$key}}: {{humanize $value}}
-    {{/* this line intentionally left blank */}}
-      {{- else}}
-        {{- if $value}}
-    {{$key}}
-    =================
-          {{- range $key, $value := $value }}
-      {{$key}}: {{humanize $value}}
-          {{- end}}
-        {{/* this line intentionally left blank */}}
-        {{- end}}
-      {{- end}}
-    {{- end}}
   {{- end}}
   {{- if .Transactions.Errors }}
 
