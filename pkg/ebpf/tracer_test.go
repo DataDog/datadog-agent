@@ -741,6 +741,10 @@ func TestUDPSendAndReceive(t *testing.T) {
 		t.Errorf("simulate_udp failed: %s", err)
 	}
 
+	defer func() {
+		exec.Command("testdata/teardown_simulate_udp.sh").Run()
+	}()
+
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
