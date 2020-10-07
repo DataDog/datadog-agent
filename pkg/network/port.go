@@ -113,6 +113,7 @@ func (pm *PortMapping) ReadInitialState() error {
 		if ports, err := readProcNetListeners(path.Join(pm.procRoot, fmt.Sprintf("%d/net/tcp", pid))); err != nil {
 			log.Errorf("error reading tcp state: %s", err)
 		} else {
+			log.Tracef("read TCP ports for net ns %d: %v", nsIno, ports)
 			for _, port := range ports {
 				pm.ports[portMappingKey(nsIno, port)] = struct{}{}
 			}
@@ -125,6 +126,7 @@ func (pm *PortMapping) ReadInitialState() error {
 		if ports, err := readProcNetListeners(path.Join(pm.procRoot, fmt.Sprintf("%d/net/tcp6", pid))); err != nil {
 			log.Errorf("error reading tcp6 state: %s", err)
 		} else {
+			log.Tracef("read TCPv6 ports for net ns %d: %v", nsIno, ports)
 			for _, port := range ports {
 				pm.ports[portMappingKey(nsIno, port)] = struct{}{}
 			}
