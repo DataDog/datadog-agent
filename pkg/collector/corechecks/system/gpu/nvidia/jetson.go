@@ -36,6 +36,7 @@ const (
 	gb = mb * 1024
 )
 
+// The configuration for the jetson check
 type checkCfg struct {
 	TegraStatsPath string `yaml:"tegrastats_path,omitempty"`
 }
@@ -72,6 +73,8 @@ func regexFindStringSubmatchMap(regex *regexp.Regexp, str string) map[string]str
 	return result
 }
 
+// getSizeMultiplier returns a multiplier for a given unit, i.e. kb = 1024, mb = 1024*1024 etc...
+// If the unit is not one of "kb", "mb" or "gb", it returns 1
 func getSizeMultiplier(unit string) float64 {
 	switch strings.ToLower(unit) {
 	case "kb":
@@ -80,10 +83,12 @@ func getSizeMultiplier(unit string) float64 {
 		return mb
 	case "gb":
 		return gb
+	default:
+		return 1
 	}
-	return 1
 }
 
+// Parses the output of tegrastats
 func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
