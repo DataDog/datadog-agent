@@ -78,6 +78,9 @@ const (
 
 	// SocketDnsFilter is the socket probe for dns
 	SocketDnsFilter ProbeName = "socket/dns_filter"
+
+	// SocketHttpFilter is the socket probe for http
+	SocketHttpFilter ProbeName = "socket/http_filter"
 )
 
 const (

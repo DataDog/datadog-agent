@@ -27,7 +27,7 @@ func getSnooper(
 	collectStats bool,
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
-) (*manager.Manager, *SocketFilterSnooper) {
+) (*manager.Manager, *DNSSocketFilterSnooper) {
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
 			{Section: string(bytecode.SocketDnsFilter)},
@@ -60,7 +60,7 @@ func getSnooper(
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
 	require.NotNil(t, filter)
 
-	reverseDNS, err := NewSocketFilterSnooper(
+	reverseDNS, err := NewDNSSocketFilterSnooper(
 		"/proc",
 		filter,
 		collectStats,
@@ -71,7 +71,7 @@ func getSnooper(
 	return mgr, reverseDNS
 }
 
-func checkSnooping(t *testing.T, destIP string, reverseDNS *SocketFilterSnooper) {
+func checkSnooping(t *testing.T, destIP string, reverseDNS *DNSSocketFilterSnooper) {
 	destAddr := util.AddressFromString(destIP)
 	srcAddr := util.AddressFromString("127.0.0.1")
 
@@ -110,7 +110,7 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
-	// Connect to golang.org. This will result in a DNS lookup which will be captured by SocketFilterSnooper
+	// Connect to golang.org. This will result in a DNS lookup which will be captured by DNSSocketFilterSnooper
 	conn, err := net.DialTimeout("tcp", "golang.org:80", 1*time.Second)
 	require.NoError(t, err)
 
@@ -158,7 +158,7 @@ const (
 	validDNSServerIP = "8.8.8.8"
 )
 
-func initDNSTests(t *testing.T, localDNS bool) (*manager.Manager, *SocketFilterSnooper) {
+func initDNSTests(t *testing.T, localDNS bool) (*manager.Manager, *DNSSocketFilterSnooper) {
 	buf, err := bytecode.ReadBPFModule("", false)
 	require.NoError(t, err)
 	return getSnooper(t, buf, true, localDNS, 1*time.Second)
@@ -227,7 +227,7 @@ func getKey(
 }
 
 func getStats(
-	snooper *SocketFilterSnooper,
+	snooper *DNSSocketFilterSnooper,
 	expectedCount int,
 ) map[dnsKey]dnsStats {
 	timeout := time.After(1 * time.Second)

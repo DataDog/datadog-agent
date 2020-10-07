@@ -24,7 +24,7 @@ import (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns"}
+	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http"}
 )
 
 func init() {
@@ -46,6 +46,8 @@ type Tracer struct {
 	conntracker netlink.Conntracker
 
 	reverseDNS network.ReverseDNS
+
+	httpTracker network.HTTPTracker
 
 	perfMap      *manager.PerfMap
 	perfHandler  *bytecode.PerfHandler
@@ -151,8 +153,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
 
-	enableSocketFilter := config.DNSInspection && !pre410Kernel
-	if enableSocketFilter {
+	enableDNSSocketFilter := config.DNSInspection && !pre410Kernel
+	if enableDNSSocketFilter {
 		enabledProbes[bytecode.SocketDnsFilter] = struct{}{}
 		if config.CollectDNSStats {
 			mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
@@ -160,6 +162,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 				Value: uint64(1),
 			})
 		}
+	}
+
+	enableHTTPSocketFilter := config.HTTPInspection && !pre410Kernel
+	if enableHTTPSocketFilter {
+		enabledProbes[bytecode.SocketHttpFilter] = struct{}{}
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
@@ -183,13 +190,13 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	reverseDNS := network.NewNullReverseDNS()
-	if enableSocketFilter {
+	if enableDNSSocketFilter {
 		filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketDnsFilter)})
 		if filter == nil {
-			return nil, fmt.Errorf("error retrieving socket filter")
+			return nil, fmt.Errorf("error retrieving DNS socket filter")
 		}
 
-		if snooper, err := network.NewSocketFilterSnooper(
+		if snooper, err := network.NewDNSSocketFilterSnooper(
 			config.ProcRoot,
 			filter,
 			config.CollectDNSStats,
@@ -199,6 +206,24 @@ func NewTracer(config *Config) (*Tracer, error) {
 			reverseDNS = snooper
 		} else {
 			return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
+		}
+	}
+
+	httpTracker := network.NewNullHTTPTracker()
+	if enableHTTPSocketFilter {
+		filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketHttpFilter)})
+		if filter == nil {
+			return nil, fmt.Errorf("error retrieving HTTP socket filter")
+		}
+
+		if snooper, err := network.NewHTTPSocketFilterSnooper(
+			config.ProcRoot,
+			filter,
+			config.HTTPTimeout,
+		); err == nil {
+			httpTracker = snooper
+		} else {
+			return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 		}
 	}
 
@@ -235,6 +260,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		portMapping:    portMapping,
 		udpPortMapping: udpPortMapping,
 		reverseDNS:     reverseDNS,
+		httpTracker:    httpTracker,
 		buffer:         make([]network.ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
@@ -446,9 +472,18 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
+	httpStats := t.httpTracker.GetHTTPStats()
+
+	// for now, just print the stats to log
+	printHTTPStats(httpStats)
+
 	tm := t.getConnTelemetry(len(latestConns))
 
 	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
+}
+
+func printHTTPStats(stats interface{}) {
+	log.Infof("HTTP stats: %v", stats)
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
@@ -741,6 +776,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"ebpf":    t.getEbpfTelemetry(),
 		"kprobes": GetProbeStats(),
 		"dns":     t.reverseDNS.GetStats(),
+		"http":    t.httpTracker.GetStats(),
 	}, nil
 }
 
