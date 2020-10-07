@@ -91,6 +91,17 @@ func GetNetNamespaceFromPid(procRoot string, pid int) (netns.NsHandle, error) {
 	return netns.GetFromPath(path.Join(procRoot, fmt.Sprintf("%d/ns/net", pid)))
 }
 
+func GetNetNsInoFromPid(procRoot string, pid int) (uint64, error) {
+	ns, err := GetNetNamespaceFromPid(procRoot, pid)
+	if err != nil {
+		return 0, err
+	}
+
+	defer ns.Close()
+
+	return GetInoForNs(ns)
+}
+
 func GetInoForNs(ns netns.NsHandle) (uint64, error) {
 	if ns.Equal(netns.None()) {
 		return 0, fmt.Errorf("net ns is none")
