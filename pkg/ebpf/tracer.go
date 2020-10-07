@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
-	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 )
 
@@ -199,8 +198,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
-	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
+	rootNsIno, err := util.GetNetNsInoFromPid(config.ProcRoot, 1)
+	if err != nil {
+		return nil, fmt.Errorf("error getting root net ns: %s", err)
+	}
+	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns, rootNsIno)
+	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns, rootNsIno)
 	if err := portMapping.ReadInitialState(); err != nil {
 		return nil, fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
@@ -569,13 +572,13 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 	for i, key := range closedPortBindings {
 		port := uint16(key.port)
-		t.portMapping.RemoveMapping(closedNetNs[i], port)
+		t.portMapping.RemoveMappingWithNs(closedNetNs[i], port)
 		_ = portMp.Delete(unsafe.Pointer(&key))
 	}
 
 	for i, key := range closedUDPPortBindings {
 		port := uint16(key.port)
-		t.udpPortMapping.RemoveMapping(closedUDPNetNs[i], port)
+		t.udpPortMapping.RemoveMappingWithNs(closedUDPNetNs[i], port)
 		_ = udpPortMp.Delete(unsafe.Pointer(&key))
 	}
 
@@ -773,27 +776,25 @@ func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping)
 	var key, emptyKey portBindingTuple
 	var state uint8
 
+	inos := make(map[int]uint64)
 	entries := mp.IterateFrom(unsafe.Pointer(&emptyKey))
 	for entries.Next(unsafe.Pointer(&key), unsafe.Pointer(&state)) {
-		pid := uint32(key.pid)
+		pid := int(key.pid)
 		port := uint16(key.port)
-		var ns netns.NsHandle
-		ns, err = util.GetNetNamespaceFromPid(t.config.ProcRoot, int(pid))
-		if err != nil {
-			log.Errorf("could not add port mapping (pid: %d port: %d), could not get net ns for pid %d: %s", pid, port, pid, err)
-			continue
-		}
-
-		defer ns.Close()
-
 		var ino uint64
-		ino, err = util.GetInoForNs(ns)
-		if err != nil {
-			log.Errorf("could not add port mapping (pid: %d port: %d), could not get ino for net ns %s: %s", pid, port, ns, err)
-			continue
+		var ok bool
+		if ino, ok = inos[pid]; !ok {
+			var err error
+			ino, err = util.GetNetNsInoFromPid(t.config.ProcRoot, pid)
+			if err != nil {
+				log.Errorf("could not add port mapping (pid: %d port: %d), could not get net ns for pid %d: %s", pid, port, pid, err)
+				continue
+			}
+
+			inos[pid] = ino
 		}
 
-		mapping.AddMapping(ino, port)
+		mapping.AddMappingWithNs(ino, port)
 
 		if isPortClosed(state) {
 			closed = append(closed, key)
@@ -809,8 +810,8 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 	if conn.Type == network.UDP {
 		pm = t.udpPortMapping
 	}
-	if pm.IsListening(uint64(conn.NetNS), conn.SPort) ||
-		(conn.IPTranslation != nil && pm.IsListening(uint64(conn.NetNS), conn.IPTranslation.ReplDstPort)) {
+	if pm.IsListeningWithNs(uint64(conn.NetNS), conn.SPort) ||
+		(conn.IPTranslation != nil && pm.IsListeningWithNs(uint64(conn.NetNS), conn.IPTranslation.ReplDstPort)) {
 		return network.INCOMING
 	}
 	return network.OUTGOING
