@@ -49,8 +49,8 @@ var (
 func init() {
 	transactionsExpvars.Init()
 	orchestratorPayloadsCount.Init()
+	transactionsExpvars.Set("OrchestratorCount", &orchestratorPayloadsCount)
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
-	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
 }

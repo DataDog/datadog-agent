@@ -24,17 +24,20 @@ import (
 )
 
 var (
-	connectionEvents               = expvar.Map{}
 	connectionDNSSuccess           = expvar.Int{}
 	connectionConnectSuccess       = expvar.Int{}
 	transactionsExpvars            = expvar.Map{}
-	transactionsCount              = expvar.Map{}
 	transactionsBytes              = expvar.Map{}
+	transactionsConnectionEvents   = expvar.Map{}
+	transactionsCount              = expvar.Map{}
+	transactionsDropped            = expvar.Map{}
+	transactionsDroppedOnInput     = expvar.Int{}
+	transactionsRequeued           = expvar.Map{}
+	transactionsRetried            = expvar.Map{}
+	transactionsRetryQueueSize     = expvar.Int{}
 	transactionsSuccess            = expvar.Map{}
 	transactionsSuccessBytes       = expvar.Map{}
 	transactionsSuccessTotal       = expvar.Int{}
-	transactionsRetryQueueSize     = expvar.Int{}
-	transactionsDroppedOnInput     = expvar.Int{}
 	transactionsErrors             = expvar.Int{}
 	transactionsErrorsByType       = expvar.Map{}
 	transactionsDNSErrors          = expvar.Int{}
@@ -45,20 +48,26 @@ var (
 	transactionsHTTPErrors         = expvar.Int{}
 	transactionsHTTPErrorsByCode   = expvar.Map{}
 
+	tlmTxBytes = telemetry.NewCounter("forwarder_transactions", "bytes",
+		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
 	tlmConnectEvents = telemetry.NewCounter("forwarder_transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 	tlmTxCount = telemetry.NewCounter("forwarder_transactions", "count",
 		[]string{"domain", "endpoint"}, "Incoming transaction count")
-	tlmTxBytes = telemetry.NewCounter("forwarder_transactions", "bytes",
-		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
+	tlmTxDropped = telemetry.NewCounter("forwarder_transactions", "dropped",
+		[]string{"domain", "endpoint"}, "Transaction drop count")
+	tlmTxDroppedOnInput = telemetry.NewCounter("forwarder_transactions", "dropped_on_input",
+		[]string{"domain", "endpoint"}, "Count of transactions dropped on input")
+	tlmTxRequeued = telemetry.NewCounter("forwarder_transactions", "requeued",
+		[]string{"domain", "endpoint"}, "Transaction requeue count")
+	tlmTxRetried = telemetry.NewCounter("forwarder_transactions", "retries",
+		[]string{"domain", "endpoint"}, "Transaction retry count")
+	tlmTxRetryQueueSize = telemetry.NewGauge("forwarder_transactions", "retry_queue_size",
+		[]string{"domain"}, "Retry queue size")
 	tlmTxSuccessCount = telemetry.NewCounter("forwarder_transactions", "success",
 		[]string{"domain", "endpoint"}, "Successful transaction count")
 	tlmTxSuccessBytes = telemetry.NewCounter("forwarder_transactions", "success_bytes",
 		[]string{"domain", "endpoint"}, "Successful transaction sizes in bytes")
-	tlmTxRetryQueueSize = telemetry.NewGauge("forwarder_transactions", "retry_queue_size",
-		[]string{"domain"}, "Retry queue size")
-	tlmTxDroppedOnInput = telemetry.NewCounter("forwarder_transactions", "dropped_on_input",
-		[]string{"domain", "endpoint"}, "Count of transactions dropped on input")
 	tlmTxErrors = telemetry.NewCounter("forwarder_transactions", "errors",
 		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
 	tlmTxHTTPErrors = telemetry.NewCounter("forwarder_transactions", "http_errors",
@@ -117,23 +126,29 @@ var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
 
 func initTransactionExpvars() {
-	connectionEvents.Init()
+	transactionsBytes.Init()
+	transactionsConnectionEvents.Init()
+	transactionsCount.Init()
+	transactionsDropped.Init()
+	transactionsRequeued.Init()
+	transactionsRetried.Init()
+	transactionsSuccess.Init()
+	transactionsSuccessBytes.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
-	connectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
-	connectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
-	transactionsExpvars.Set("ConnectionEvents", &connectionEvents)
-	transactionsExpvars.Set("Count", &transactionsCount)
+	transactionsConnectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
+	transactionsConnectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
 	transactionsExpvars.Set("Bytes", &transactionsBytes)
+	transactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
+	transactionsExpvars.Set("Count", &transactionsCount)
+	transactionsExpvars.Set("Dropped", &transactionsDropped)
+	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
+	transactionsExpvars.Set("Requeued", &transactionsRequeued)
+	transactionsExpvars.Set("Retried", &transactionsRetried)
+	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("Success", &transactionsSuccess)
 	transactionsExpvars.Set("SuccessBytes", &transactionsSuccessBytes)
 	transactionsExpvars.Set("SuccessTotal", &transactionsSuccessTotal)
-	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
-	transactionsExpvars.Set("OrchestratorCount", &orchestratorPayloadsCount)
-	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
-	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
-	transactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
-	transactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 	transactionsExpvars.Set("Errors", &transactionsErrors)
 	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
 	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
@@ -141,6 +156,8 @@ func initTransactionExpvars() {
 	transactionsErrorsByType.Set("ConnectionErrors", &transactionsConnectionErrors)
 	transactionsErrorsByType.Set("WroteRequestErrors", &transactionsWroteRequestErrors)
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
+	transactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
+	transactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 }
 
 // TransactionPriority defines the priority of a transaction

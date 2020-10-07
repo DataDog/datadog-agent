@@ -6,41 +6,19 @@
 package forwarder
 
 import (
-	"expvar"
 	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	chanBufferSize = 100
 	flushInterval  = 5 * time.Second
-
-	transactionsRetried  = expvar.Map{}
-	transactionsDropped  = expvar.Map{}
-	transactionsRequeued = expvar.Map{}
-
-	tlmTxRetried = telemetry.NewCounter("forwarder_transactions", "retries",
-		[]string{"domain", "endpoint"}, "Transaction retry count")
-	tlmTxDropped = telemetry.NewCounter("forwarder_transactions", "dropped",
-		[]string{"domain", "endpoint"}, "Transaction drop count")
-	tlmTxRequeued = telemetry.NewCounter("forwarder_transactions", "requeued",
-		[]string{"domain", "endpoint"}, "Transaction requeue count")
 )
-
-func initDomainForwarderExpvars() {
-	transactionsRetried.Init()
-	transactionsDropped.Init()
-	transactionsRequeued.Init()
-	transactionsExpvars.Set("Retried", &transactionsRetried)
-	transactionsExpvars.Set("Dropped", &transactionsDropped)
-	transactionsExpvars.Set("Requeued", &transactionsRequeued)
-}
 
 // domainForwarder is in charge of sending Transactions to Datadog backend over
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
