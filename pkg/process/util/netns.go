@@ -83,14 +83,18 @@ func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 	return nss, nil
 }
 
+// GetRootNetNamespace gets the root network namespace
 func GetRootNetNamespace(procRoot string) (netns.NsHandle, error) {
 	return GetNetNamespaceFromPid(procRoot, 1)
 }
 
+// GetNetNamespaceFromPid gets the network namespace for a given `pid`
 func GetNetNamespaceFromPid(procRoot string, pid int) (netns.NsHandle, error) {
 	return netns.GetFromPath(path.Join(procRoot, fmt.Sprintf("%d/ns/net", pid)))
 }
 
+// GetNetNsInoFromPid gets the network namespace inode number for the given
+// `pid`
 func GetNetNsInoFromPid(procRoot string, pid int) (uint64, error) {
 	ns, err := GetNetNamespaceFromPid(procRoot, pid)
 	if err != nil {
@@ -102,6 +106,7 @@ func GetNetNsInoFromPid(procRoot string, pid int) (uint64, error) {
 	return GetInoForNs(ns)
 }
 
+// GetInoForNs gets the inode number for the given network namespace
 func GetInoForNs(ns netns.NsHandle) (uint64, error) {
 	if ns.Equal(netns.None()) {
 		return 0, fmt.Errorf("net ns is none")

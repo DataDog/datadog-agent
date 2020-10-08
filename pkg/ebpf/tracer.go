@@ -768,7 +768,12 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // closed ports will be returned.
 // the map will be one of port_bindings  or udp_port_bindings, and the mapping will be one of tracer#portMapping
 // tracer#udpPortMapping respectively.
-func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping) (closed []portBindingTuple, closedNetNs []uint64, err error) {
+func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping) (
+	closed []struct {
+		binding portBindingTuple
+		netNs   uint64
+	},
+	err error) {
 	var key, emptyKey portBindingTuple
 	var state uint8
 
@@ -793,8 +798,7 @@ func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping)
 		mapping.AddMapping(ino, port)
 
 		if isPortClosed(state) {
-			closed = append(closed, key)
-			closedNetNs = append(closedNetNs, ino)
+			closed = append(closed, {binding: key, netNs: ino})
 		}
 	}
 
