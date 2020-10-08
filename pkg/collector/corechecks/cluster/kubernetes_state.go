@@ -31,8 +31,7 @@ import (
 )
 
 const (
-	// TODO rename correctly once we deprecate the python check
-	kubeStateMetricsCheckName = "kubernetes_state-alpha"
+	kubeStateMetricsCheckName = "kubernetes_state_core"
 	defaultResyncPeriod       = 30
 )
 
@@ -129,6 +128,8 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	if err != nil {
 		return err
 	}
+
+	k.BuildID(config, initConfig)
 
 	err = k.instance.parse(config)
 	if err != nil {
