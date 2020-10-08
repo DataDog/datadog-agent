@@ -3,63 +3,56 @@
 package network
 
 import (
-	"net/url"
-	"sync"
-	"time"
-
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 )
 
-type packetDirection uint8
-
-const (
-	request = iota
-	response
-	unknown
-)
-
 type httpStatKeeper struct {
-	mux         sync.Mutex
-	connections map[httpKey]httpConnection
+	streams     map[httpStreamKey]*httpStream
+	streamStats map[httpStreamKey]httpStreamStats
 
 	// Telemetry
 	messagesRead int64
 	readErrors   int64
 }
 
-type httpKey struct {
+type httpStreamStats struct {
 	sourceIP   gopacket.Endpoint
 	destIP     gopacket.Endpoint
 	sourcePort gopacket.Endpoint
 	destPort   gopacket.Endpoint
-}
 
-func newKey(packet gopacket.Packet) httpKey {
-	srcIP, dstIP := packet.NetworkLayer().NetworkFlow().Endpoints()
-	srcPort, dstPort := packet.TransportLayer().TransportFlow().Endpoints()
-
-	return httpKey{
-		sourceIP:   srcIP,
-		destIP:     dstIP,
-		sourcePort: srcPort,
-		destPort:   dstPort,
-	}
-}
-
-type httpConnection struct {
 	requests  []httpRequest
 	responses []httpResponse
 
-	lastReqTime time.Time
-	lastResTime time.Time
+	successes int64
+	errors    int64
+	// durations []time.Duration
+
+	// lastReqTime time.Time
+	// lastResTime time.Time
 }
 
 type httpRequest struct {
 	method    string
-	url       *url.URL
 	bodyBytes int
 }
 
 type httpResponse struct {
-	status string
+	status    string
+	bodyBytes int
+}
+
+// PrintConnectionsAndStats is a temporary debug function
+func PrintConnectionsAndStats(conns map[httpStreamKey]httpStreamStats, stats map[string]int64) {
+	log.Infof("%v HTTP active connections: ", len(conns))
+	for _, conn := range conns {
+		log.Infof("  %v:%v -> %v:%v \t %v requests, %v responses, %v errors, %v successes ",
+			conn.sourceIP, conn.sourcePort, conn.destIP, conn.destPort, len(conn.requests), len(conn.responses), conn.errors, conn.successes)
+	}
+
+	// log.Infof("HTTP Telemetry:")
+	// for key, val := range stats {
+	// 	log.Infof("  %v, %v", key, val)
+	// }
 }

@@ -60,7 +60,8 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 		return nil, srcErr
 	}
 	statKeeper := &httpStatKeeper{
-		connections: make(map[httpKey]httpConnection),
+		streams:     make(map[httpStreamKey]*httpStream),
+		streamStats: make(map[httpStreamKey]httpStreamStats),
 	}
 	snooper := &HTTPSocketFilterSnooper{
 		source:     packetSrc,
@@ -68,40 +69,10 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 		exit:       make(chan struct{}),
 	}
 
-	// Create the tcp assemblers and the channels they'll read packets from
-	reqStreamFactory := &httpStreamFactory{
-		pktDirection: request,
-		statKeeper:   statKeeper,
-	}
-	reqStreamPool := tcpassembly.NewStreamPool(reqStreamFactory)
-	reqAssembler := tcpassembly.NewAssembler(reqStreamPool)
-	reqPackets := make(chan packetWithTS, 100)
-
-	resStreamFactory := &httpStreamFactory{
-		pktDirection: response,
-		statKeeper:   statKeeper,
-	}
-	resStreamPool := tcpassembly.NewStreamPool(resStreamFactory)
-	resAssembler := tcpassembly.NewAssembler(resStreamPool)
-	resPackets := make(chan packetWithTS, 100)
-
-	// Get ready to assemble packets
-	snooper.wg.Add(1)
-	go func() {
-		snooper.assemblePackets(reqPackets, reqAssembler, httpTimeout)
-		snooper.wg.Done()
-	}()
-
-	snooper.wg.Add(1)
-	go func() {
-		snooper.assemblePackets(resPackets, resAssembler, httpTimeout)
-		snooper.wg.Done()
-	}()
-
 	// Start consuming packets
 	snooper.wg.Add(1)
 	go func() {
-		snooper.pollPackets(reqPackets, resPackets)
+		snooper.pollPackets(httpTimeout)
 		snooper.wg.Done()
 	}()
 
@@ -115,8 +86,8 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 	return snooper, nil
 }
 
-func (s *HTTPSocketFilterSnooper) GetHTTPConnections() map[httpKey]httpConnection {
-	return s.statKeeper.connections
+func (s *HTTPSocketFilterSnooper) GetHTTPConnections() map[httpStreamKey]httpStreamStats {
+	return s.statKeeper.streamStats
 }
 
 func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
@@ -127,13 +98,11 @@ func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
 		"packets_dropped":      atomic.LoadInt64(&s.droppedPackets),
 		"packets_skipped":      atomic.LoadInt64(&s.skippedPackets),
 		"packets_valid":        atomic.LoadInt64(&s.validPackets),
-		"http_requests":        atomic.LoadInt64(&s.requests),
-		"http_responses":       atomic.LoadInt64(&s.responses),
 		"connections_flushed":  atomic.LoadInt64(&s.connectionsFlushed),
 		"connections_closed":   atomic.LoadInt64(&s.connectionsClosed),
+		"http_messages_read":   atomic.LoadInt64(&s.statKeeper.messagesRead),
+		"http_read_errors":     atomic.LoadInt64(&s.statKeeper.readErrors),
 		"timestamp_micro_secs": time.Now().UnixNano() / 1000,
-
-		// TODO add statkeeper telemetry
 	}
 }
 
@@ -141,7 +110,6 @@ func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
 func (s *HTTPSocketFilterSnooper) Close() {
 	close(s.exit)
 
-	// TODO close the packet channels?
 	// TODO send an EOF to all http streams in the streampools to shut them down?
 
 	s.wg.Wait()
@@ -150,11 +118,32 @@ func (s *HTTPSocketFilterSnooper) Close() {
 
 var _ HTTPTracker = &HTTPSocketFilterSnooper{}
 
-func (s *HTTPSocketFilterSnooper) pollPackets(reqPackets chan packetWithTS, resPackets chan packetWithTS) {
+func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
+	streamFactory := &httpStreamFactory{
+		statKeeper: s.statKeeper,
+	}
+	streamPool := tcpassembly.NewStreamPool(streamFactory)
+	assembler := tcpassembly.NewAssembler(streamPool)
+
+	// Note: as an optimization, we could have multiple assemblers working on the same
+	// stream pool (or, for an even better optimization, multiple assemblers reading from
+	// multiple stream pools - but in this case you must be able to guarantee that packets
+	// from the same connection will end up being handled by assemblers in the same pool - ie
+	// by hashing the packets)
+
+	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-s.exit:
 			return
+
+		case <-ticker.C:
+			// Every 30 seconds, flush old connections
+			flushed, closed := assembler.FlushOlderThan(time.Now().Add(-1 * httpTimeout))
+			// TODO remove closed connections from statKeeper
+			atomic.AddInt64(&s.connectionsFlushed, int64(flushed))
+			atomic.AddInt64(&s.connectionsClosed, int64(closed))
 		default:
 		}
 
@@ -167,21 +156,8 @@ func (s *HTTPSocketFilterSnooper) pollPackets(reqPackets chan packetWithTS, resP
 			}
 			atomic.AddInt64(&s.validPackets, 1)
 
-			direction := s.determineDirection(packet)
-			ts := captureInfo.Timestamp
-
-			// TODO: latency calculation
-			// key := HTTPKey.New(packet)
-			// if lastDirection was diff that what we currently see, then we can add timestamps,
-			// calculate latency, and increase response/request counts
-			// NOTE: this logic fails if we see request/response packets out of order (though this
-			// should never happen)
-
-			if direction == request {
-				reqPackets <- packetWithTS{packet, ts}
-			} else if direction == response {
-				resPackets <- packetWithTS{packet, ts}
-			}
+			tcp := packet.TransportLayer().(*layers.TCP)
+			assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(), tcp, captureInfo.Timestamp)
 			continue
 		}
 
@@ -193,49 +169,6 @@ func (s *HTTPSocketFilterSnooper) pollPackets(reqPackets chan packetWithTS, resP
 		// Sleep briefly and try again
 		time.Sleep(5 * time.Millisecond)
 	}
-}
-
-func (s *HTTPSocketFilterSnooper) assemblePackets(ch chan packetWithTS, assembler *tcpassembly.Assembler, timeout time.Duration) {
-	ticker := time.NewTicker(time.Second * 30)
-	defer ticker.Stop()
-	for {
-		select {
-
-		case <-s.exit:
-			return
-
-		case <-ticker.C:
-			// Every 30 seconds, flush old connections
-			flushed, closed := assembler.FlushOlderThan(time.Now().Add(-1 * timeout))
-			atomic.AddInt64(&s.connectionsFlushed, int64(flushed))
-			atomic.AddInt64(&s.connectionsClosed, int64(closed))
-
-		case p := <-ch:
-			tcp := p.packet.TransportLayer().(*layers.TCP)
-			assembler.AssembleWithTimestamp(p.packet.NetworkLayer().NetworkFlow(), tcp, p.ts)
-		}
-	}
-}
-
-func (s *HTTPSocketFilterSnooper) determineDirection(packet gopacket.Packet) packetDirection {
-	key := newKey(packet)
-	if _, exists := s.statKeeper.connections[key]; exists {
-		return request
-	}
-
-	inverseKey := httpKey{
-		sourceIP:   key.destIP,
-		destIP:     key.sourceIP,
-		sourcePort: key.destPort,
-		destPort:   key.sourcePort,
-	}
-	if _, exists := s.statKeeper.connections[inverseKey]; exists {
-		return response
-	}
-
-	// Never seen this connection before -> assume it's a new connection beginning with a request
-	s.statKeeper.connections[key] = httpConnection{}
-	return request
 }
 
 func (s *HTTPSocketFilterSnooper) pollStats() {
@@ -268,6 +201,13 @@ func (s *HTTPSocketFilterSnooper) pollStats() {
 			prevProcessed = sourceStats.Packets
 			prevCaptured = int64(socketStats.Packets())
 			prevDropped = int64(socketStats.Drops())
+
+			stats := s.GetStats()
+			log.Infof("HTTP Telemetry:")
+			for key, val := range stats {
+				log.Infof("  %v, %v", key, val)
+			}
+
 		case <-s.exit:
 			return
 		}
