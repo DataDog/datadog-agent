@@ -120,7 +120,7 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 
 // Run executes the check
 func (c *JetsonCheck) Run() error {
-	// Kill tegrastats it it runs for twice as long as the interval we specified, to avoid blocking
+	// Kill tegrastats if it runs for twice as long as the interval we specified, to avoid blocking
 	// the check forever
 	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval*time.Millisecond)
 	defer cancel()
