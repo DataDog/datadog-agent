@@ -8,13 +8,14 @@ import (
 
 // SyncDefaultForwarder is a very simple Forwarder synchronously sending
 // the data to the intake.
+// It doesn't ship any retry mechanism for now.
 type SyncDefaultForwarder struct {
 	defaultForwarder *DefaultForwarder
 	client           *http.Client
 }
 
 func NewSyncDefaultForwarder(keysPerDomains map[string][]string, timeout time.Duration) *SyncDefaultForwarder {
-	return &ServerlessForwarder{
+	return &SyncDefaultForwarder{
 		defaultForwarder: NewDefaultForwarder(NewOptions(keysPerDomains)),
 		client:           &http.Client{Timeout: timeout},
 	}
