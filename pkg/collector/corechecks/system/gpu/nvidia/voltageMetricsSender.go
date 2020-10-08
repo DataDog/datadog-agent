@@ -31,13 +31,13 @@ func (voltageMetricsSender *voltageMetricsSender) SendMetrics(sender aggregator.
 
 	for i := 0; i < len(voltageFields); i++ {
 		voltageProbeTags := []string{fmt.Sprintf("probe:%s", voltageFields[i][r.SubexpIndex("voltageProbeName")])}
-		instantVoltage, err := strconv.ParseFloat(voltageFields[i][r.SubexpIndex("currentVoltage")], 64)
+		instantVoltage, err := strconv.ParseFloat(voltageFields[i][regexSubexpIndex(r, "currentVoltage")], 64)
 		if err != nil {
 			return err
 		}
 		sender.Gauge("nvidia.jetson.gpu.vdd.instant", instantVoltage, "", voltageProbeTags)
 
-		averageVoltage, err := strconv.ParseFloat(voltageFields[i][r.SubexpIndex("averageVoltage")], 64)
+		averageVoltage, err := strconv.ParseFloat(voltageFields[i][regexSubexpIndex(r, "averageVoltage")], 64)
 		if err != nil {
 			return err
 		}

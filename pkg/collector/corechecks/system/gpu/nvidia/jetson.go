@@ -73,6 +73,19 @@ func regexFindStringSubmatchMap(regex *regexp.Regexp, str string) map[string]str
 	return result
 }
 
+// Only available in Go 15, so implement it here for now
+func regexSubexpIndex(regex *regexp.Regexp, name string) int {
+	if name != "" {
+		for i, s := range regex.SubexpNames() {
+			if name == s {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+
 // getSizeMultiplier returns a multiplier for a given unit, i.e. kb = 1024, mb = 1024*1024 etc...
 // If the unit is not one of "kb", "mb" or "gb", it returns 1
 func getSizeMultiplier(unit string) float64 {

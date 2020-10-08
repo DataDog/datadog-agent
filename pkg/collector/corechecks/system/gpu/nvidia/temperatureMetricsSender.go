@@ -30,11 +30,11 @@ func (temperatureMetricsSender *temperatureMetricsSender) SendMetrics(sender agg
 	}
 
 	for i := 0; i < len(temperatureFields); i++ {
-		tempValue, err := strconv.ParseFloat(temperatureFields[i][r.SubexpIndex("tempValue")], 64)
+		tempValue, err := strconv.ParseFloat(temperatureFields[i][regexSubexpIndex(r, "tempValue")], 64)
 		if err != nil {
 			return err
 		}
-		temperatureZoneTags := []string{fmt.Sprintf("zone:%s", temperatureFields[i][r.SubexpIndex("tempZone")])}
+		temperatureZoneTags := []string{fmt.Sprintf("zone:%s", temperatureFields[i][regexSubexpIndex(r, "tempZone")])}
 		sender.Gauge("nvidia.jetson.gpu.temp", tempValue, "", temperatureZoneTags)
 	}
 
