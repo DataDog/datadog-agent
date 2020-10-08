@@ -14,72 +14,42 @@ import (
 
 // PortMapping tracks which ports a pid is listening on
 type PortMapping struct {
-	procRoot     string
-	collectTCP   bool
-	collectIPv6  bool
-	ports        map[string]interface{}
-	defaultNetNs uint64
+	procRoot    string
+	collectTCP  bool
+	collectIPv6 bool
+	ports       map[string]interface{}
 	sync.RWMutex
 }
 
 //NewPortMapping creates a new PortMapping instance
-func NewPortMapping(procRoot string, collectTCP, collectIPv6 bool, defaultNetNs uint64) *PortMapping {
+func NewPortMapping(procRoot string, collectTCP, collectIPv6 bool) *PortMapping {
 	return &PortMapping{
-		procRoot:     procRoot,
-		collectTCP:   collectTCP,
-		collectIPv6:  collectIPv6,
-		ports:        make(map[string]interface{}),
-		defaultNetNs: defaultNetNs,
+		procRoot:    procRoot,
+		collectTCP:  collectTCP,
+		collectIPv6: collectIPv6,
+		ports:       make(map[string]interface{}),
 	}
 }
 
-// AddMapping adds/overwrites a port mapping in the default network
-// namespace
-func (pm *PortMapping) AddMapping(port uint16) {
-	pm.Lock()
-	defer pm.Unlock()
-
-	pm.ports[portMappingKey(pm.defaultNetNs, port)] = struct{}{}
-}
-
-// RemoveMapping removes a port mapping in the default network
-// namespace
-func (pm *PortMapping) RemoveMapping(port uint16) {
-	pm.Lock()
-	defer pm.Unlock()
-
-	delete(pm.ports, portMappingKey(pm.defaultNetNs, port))
-}
-
-// AddMappingWithNs adds a port mapping in the given network namespace
-func (pm *PortMapping) AddMappingWithNs(nsIno uint64, port uint16) {
+// AddMapping adds a port mapping in the given network namespace
+func (pm *PortMapping) AddMapping(nsIno uint64, port uint16) {
 	pm.Lock()
 	defer pm.Unlock()
 
 	pm.ports[portMappingKey(nsIno, port)] = struct{}{}
 }
 
-// RemoveMappingWithNs removes a port mapping in the given network namespace
-func (pm *PortMapping) RemoveMappingWithNs(nsIno uint64, port uint16) {
+// RemoveMapping removes a port mapping in the given network namespace
+func (pm *PortMapping) RemoveMapping(nsIno uint64, port uint16) {
 	pm.Lock()
 	defer pm.Unlock()
 
 	delete(pm.ports, portMappingKey(nsIno, port))
 }
 
-// IsListening returns true if something is listening on the given port in
-// the default network namespace
-func (pm *PortMapping) IsListening(port uint16) bool {
-	pm.RLock()
-	defer pm.RUnlock()
-
-	_, ok := pm.ports[portMappingKey(pm.defaultNetNs, port)]
-	return ok
-}
-
-// IsListeningWithNs returns true if something is listening on the given port
+// IsListening returns true if something is listening on the given port
 // in the given network namespace
-func (pm *PortMapping) IsListeningWithNs(nsIno uint64, port uint16) bool {
+func (pm *PortMapping) IsListening(nsIno uint64, port uint16) bool {
 	pm.RLock()
 	defer pm.RUnlock()
 

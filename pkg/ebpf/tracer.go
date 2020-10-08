@@ -198,12 +198,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	rootNsIno, err := util.GetNetNsInoFromPid(config.ProcRoot, 1)
-	if err != nil {
-		return nil, fmt.Errorf("error getting root net ns: %s", err)
-	}
-	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns, rootNsIno)
-	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns, rootNsIno)
+	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
+	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	if err := portMapping.ReadInitialState(); err != nil {
 		return nil, fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
@@ -572,13 +568,13 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 	for i, key := range closedPortBindings {
 		port := uint16(key.port)
-		t.portMapping.RemoveMappingWithNs(closedNetNs[i], port)
+		t.portMapping.RemoveMapping(closedNetNs[i], port)
 		_ = portMp.Delete(unsafe.Pointer(&key))
 	}
 
 	for i, key := range closedUDPPortBindings {
 		port := uint16(key.port)
-		t.udpPortMapping.RemoveMappingWithNs(closedUDPNetNs[i], port)
+		t.udpPortMapping.RemoveMapping(closedUDPNetNs[i], port)
 		_ = udpPortMp.Delete(unsafe.Pointer(&key))
 	}
 
@@ -794,7 +790,7 @@ func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping)
 			inos[pid] = ino
 		}
 
-		mapping.AddMappingWithNs(ino, port)
+		mapping.AddMapping(ino, port)
 
 		if isPortClosed(state) {
 			closed = append(closed, key)
@@ -810,8 +806,8 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 	if conn.Type == network.UDP {
 		pm = t.udpPortMapping
 	}
-	if pm.IsListeningWithNs(uint64(conn.NetNS), conn.SPort) ||
-		(conn.IPTranslation != nil && pm.IsListeningWithNs(uint64(conn.NetNS), conn.IPTranslation.ReplDstPort)) {
+	if pm.IsListening(uint64(conn.NetNS), conn.SPort) ||
+		(conn.IPTranslation != nil && pm.IsListening(uint64(conn.NetNS), conn.IPTranslation.ReplDstPort)) {
 		return network.INCOMING
 	}
 	return network.OUTGOING

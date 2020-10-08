@@ -10,13 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testNs uint64 = 1234
+
 func TestIncomingTCPDirection(t *testing.T) {
 	tr := &Tracer{
-		portMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, true, 1234),
+		portMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, true),
 	}
 
-	tr.portMapping.AddMapping(8000)
-	tr.portMapping.AddMapping(8080)
+	tr.portMapping.AddMapping(1234, 8000)
+	tr.portMapping.AddMapping(1234, 8080)
 	connStat := createConnectionStat("10.2.25.1", "38.122.226.210", 8000, 80, network.TCP, 1234)
 	connStat.Direction = tr.determineConnectionDirection(&connStat)
 	assert.Equal(t, network.INCOMING, connStat.Direction)
@@ -28,7 +30,7 @@ func TestIncomingTCPDirection(t *testing.T) {
 
 func TestOutgoingTCPDirection(t *testing.T) {
 	tr := &Tracer{
-		portMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, true, 1234),
+		portMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, true),
 	}
 	connStat := createConnectionStat("10.2.25.1", "38.122.226.210", 8000, 80, network.TCP, 1234)
 	connStat.Direction = tr.determineConnectionDirection(&connStat)
@@ -41,14 +43,14 @@ func TestOutgoingTCPDirection(t *testing.T) {
 
 func TestIncomingUDPConnectionDirection(t *testing.T) {
 	tr := &Tracer{
-		udpPortMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, true, 1234),
+		udpPortMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, true),
 	}
-	tr.udpPortMapping.AddMapping(5323)
+	tr.udpPortMapping.AddMapping(1234, 5323)
 	connStat := createConnectionStat("10.2.25.1", "38.122.226.210", 5323, 8125, network.UDP, 1234)
 	connStat.Direction = tr.determineConnectionDirection(&connStat)
 	assert.Equal(t, network.INCOMING, connStat.Direction)
 
-	tr.udpPortMapping.AddMapping(8080)
+	tr.udpPortMapping.AddMapping(1234, 8080)
 	connStat = createConnectionStatWithNAT("10.2.25.1", "38.122.226.210", 5323, 8125, network.UDP, 1234, 8080)
 	connStat.Direction = tr.determineConnectionDirection(&connStat)
 	assert.Equal(t, network.INCOMING, connStat.Direction)
@@ -56,9 +58,9 @@ func TestIncomingUDPConnectionDirection(t *testing.T) {
 
 func TestOutgoingUDPConnectionDirection(t *testing.T) {
 	tr := &Tracer{
-		udpPortMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, true, 1234),
+		udpPortMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, conn),
 	}
-	connStat := createConnectionStat("10.2.25.1", "38.122.226.210", 5323, 8125, network.UDP, 1234)
+	trueStat := createConnectionStat("10.2.25.1", "38.122.226.210", 5323, 8125, network.UDP, 1234)
 	connStat.Direction = tr.determineConnectionDirection(&connStat)
 	assert.Equal(t, network.OUTGOING, connStat.Direction)
 

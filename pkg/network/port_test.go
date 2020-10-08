@@ -69,35 +69,27 @@ func TestReadInitialState(t *testing.T) {
 			return false
 		}
 
-		pm := NewPortMapping("/proc", true, true, testRootNs)
+		pm := NewPortMapping("/proc", true, true)
 		err = pm.ReadInitialState()
 		require.NoError(t, err)
 		for _, p := range ports[:2] {
-			if !pm.IsListening(p) {
-				t.Errorf("pm.IsListening returned false for port %d", p)
-				return false
-			}
-			if !pm.IsListeningWithNs(testRootNs, p) {
+			if !pm.IsListening(testRootNs, p) {
 				t.Errorf("pm.IsListening(testRootNs) returned false for port %d", p)
 				return false
 			}
 		}
 		for _, p := range ports[2:] {
-			if !pm.IsListeningWithNs(nsIno, p) {
+			if !pm.IsListening(nsIno, p) {
 				t.Errorf("pm.IsListening(test ns) returned false for port %d", p)
 				return false
 			}
 		}
 
-		if pm.IsListening(999) {
-			t.Errorf("expected IsListening(999) to return false, but returned true")
-			return false
-		}
-		if pm.IsListeningWithNs(testRootNs, 999) {
+		if pm.IsListening(testRootNs, 999) {
 			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
 			return false
 		}
-		if pm.IsListeningWithNs(nsIno, 999) {
+		if pm.IsListening(nsIno, 999) {
 			t.Errorf("expected IsListening(nsIno, 999) to return false, but returned true")
 			return false
 		}
@@ -107,20 +99,19 @@ func TestReadInitialState(t *testing.T) {
 }
 
 func TestAddRemove(t *testing.T) {
-	ports := NewPortMapping("/proc", true, true, testRootNs)
+	ports := NewPortMapping("/proc", true, true)
 
-	require.False(t, ports.IsListening(123))
-	require.False(t, ports.IsListeningWithNs(testRootNs, 123))
+	const testNs uint64 = 1234
 
-	ports.AddMapping(123)
+	require.False(t, ports.IsListening(testNs, 123))
 
-	require.True(t, ports.IsListening(123))
-	require.True(t, ports.IsListeningWithNs(testRootNs, 123))
+	ports.AddMapping(testNs, 123)
 
-	ports.RemoveMapping(123)
+	require.True(t, ports.IsListening(testNs, 123))
 
-	require.False(t, ports.IsListening(123))
-	require.False(t, ports.IsListeningWithNs(testRootNs, 123))
+	ports.RemoveMapping(testNs, 123)
+
+	require.False(t, ports.IsListening(testNs, 123))
 }
 
 func getPort(t *testing.T, listener net.Listener) uint16 {
