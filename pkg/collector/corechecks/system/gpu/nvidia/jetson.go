@@ -138,16 +138,16 @@ func (c *JetsonCheck) Run() error {
 			line := in.Text()
 			log.Debugf("tegrastats: %s", line)
 			if err = c.processTegraStatsOutput(line); err != nil {
-				log.Error(err) //nolint:errcheck
+				log.Error(err)
 			}
 		} else {
-			log.Warnf("tegrastats did not produce any output") //nolint:errcheck
+			log.Warnf("tegrastats did not produce any output")
 		}
 		// Tegrastats keeps running forever, so kill it after trying to read
 		// one line of output
 		err = cmd.Process.Signal(os.Kill)
 		if err != nil {
-			log.Errorf("unable to stop %s check: %s", checkName, err) //nolint:errcheck
+			log.Errorf("unable to stop %s check: %s", checkName, err)
 		}
 	}()
 
@@ -159,7 +159,7 @@ func (c *JetsonCheck) Run() error {
 	go func() {
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
-			log.Error(in.Text()) //nolint:errcheck
+			log.Error(in.Text())
 		}
 	}()
 
