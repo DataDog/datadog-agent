@@ -55,15 +55,17 @@ type RuleSetListener interface {
 // Opts defines rules set options
 type Opts struct {
 	eval.Opts
+	SupportedDiscarders map[eval.Field]bool
 }
 
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(constants map[string]interface{}) *Opts {
+func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool) *Opts {
 	return &Opts{
 		Opts: eval.Opts{
 			Constants: constants,
 			Macros:    make(map[eval.MacroID]*eval.Macro),
 		},
+		SupportedDiscarders: supportedDiscarders,
 	}
 }
 
@@ -305,6 +307,12 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		log.Tracef("Looking for discarders for event of type `%s`", eventType)
 
 		for _, field := range bucket.fields {
+			if rs.opts.SupportedDiscarders != nil {
+				if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
+					continue
+				}
+			}
+
 			evaluator, err := rs.model.GetEvaluator(field)
 			if err != nil {
 				continue

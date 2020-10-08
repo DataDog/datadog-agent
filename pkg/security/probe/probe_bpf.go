@@ -739,19 +739,25 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 }
 
 func init() {
+	// approvers
 	allApproversFncs["open"] = openOnNewApprovers
+
+	// discarders
+	SupportedDiscarders["process.filename"] = true
 
 	allDiscarderFncs["open"] = processDiscarderWrapper(FileOpenEventType,
 		filenameDiscarderWrapper(FileOpenEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "open.filename", event.Open.MountID, event.Open.Inode, false
 			}))
+	SupportedDiscarders["open.filename"] = true
 
 	allDiscarderFncs["mkdir"] = processDiscarderWrapper(FileMkdirEventType,
 		filenameDiscarderWrapper(FileMkdirEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "mkdir.filename", event.Open.MountID, event.Open.Inode, false
 			}))
+	SupportedDiscarders["mkdir.filename"] = true
 
 	allDiscarderFncs["link"] = processDiscarderWrapper(FileLinkEventType, nil)
 
@@ -762,40 +768,47 @@ func init() {
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "unlink.filename", event.Open.MountID, event.Open.Inode, true
 			}))
+	SupportedDiscarders["unlink.filename"] = true
 
 	allDiscarderFncs["rmdir"] = processDiscarderWrapper(FileRmdirEventType,
 		filenameDiscarderWrapper(FileRmdirEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "rmdir.filename", event.Open.MountID, event.Open.Inode, true
 			}))
+	SupportedDiscarders["rmdir.filename"] = true
 
 	allDiscarderFncs["chmod"] = processDiscarderWrapper(FileChmodEventType,
 		filenameDiscarderWrapper(FileChmodEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "chmod.filename", event.Open.MountID, event.Open.Inode, false
 			}))
+	SupportedDiscarders["chmod.filename"] = true
 
 	allDiscarderFncs["chown"] = processDiscarderWrapper(FileChownEventType,
 		filenameDiscarderWrapper(FileChownEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "chown.filename", event.Open.MountID, event.Open.Inode, false
 			}))
+	SupportedDiscarders["chown.filename"] = true
 
 	allDiscarderFncs["utimes"] = processDiscarderWrapper(FileUtimeEventType,
 		filenameDiscarderWrapper(FileUtimeEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "utimes.filename", event.Open.MountID, event.Open.Inode, false
 			}))
+	SupportedDiscarders["utimes.filename"] = true
 
 	allDiscarderFncs["setxattr"] = processDiscarderWrapper(FileSetXAttrEventType,
 		filenameDiscarderWrapper(FileSetXAttrEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "setxattr.filename", event.Open.MountID, event.Open.Inode, false
 			}))
+	SupportedDiscarders["setxattr.filename"] = true
 
 	allDiscarderFncs["removexattr"] = processDiscarderWrapper(FileRemoveXAttrEventType,
 		filenameDiscarderWrapper(FileRemoveXAttrEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, bool) {
 				return "removexattr.filename", event.Open.MountID, event.Open.Inode, false
 			}))
+	SupportedDiscarders["removexattr.filename"] = true
 }

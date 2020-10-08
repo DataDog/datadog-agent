@@ -308,7 +308,7 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
 
 	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err

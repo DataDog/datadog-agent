@@ -65,7 +65,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
 	if err := policy.LoadPolicies(cfg, ruleSet); err != nil {
 		return err
 	}
