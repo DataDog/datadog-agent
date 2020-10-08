@@ -125,7 +125,7 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
         bpf_printk("cache/syscall policy for %d is %d\n", event_type, syscall->policy.mode);
 #endif
 
-    if (syscall->policy.mode != NO_FILTER && discard_by_pid(event_type)) {
+    if (syscall->policy.mode != NO_FILTER && discarded_by_pid(event_type)) {
         return;
     }
 

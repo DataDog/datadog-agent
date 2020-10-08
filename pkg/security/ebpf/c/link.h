@@ -52,7 +52,10 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     syscall->link.target_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
     syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
 
-    resolve_dentry(dentry, syscall->link.src_key, NULL);
+    int ret = resolve_dentry(dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
+    if (ret < 0) {
+        pop_syscall(SYSCALL_LINK);
+    }
 
     return 0;
 }
@@ -92,7 +95,7 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
 
-    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, NULL);
+    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
 
     send_event(ctx, event);
 

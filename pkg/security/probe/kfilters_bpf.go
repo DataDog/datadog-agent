@@ -13,15 +13,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func discardInode(probe *Probe, mountID uint32, inode uint64, tableName string) (bool, error) {
-	key := PathKey{MountID: mountID, Inode: inode}
+type inodeDiscarder struct {
+	eventType EventType
+	pathKey   PathKey
+}
 
-	table := probe.Map(tableName)
-	if table == nil {
-		return false, errors.Errorf("map %s not found", tableName)
+func (i *inodeDiscarder) Bytes() ([]byte, error) {
+	b := make([]byte, 24)
+	ebpf.ByteOrder.PutUint64(b[0:8], uint64(i.eventType))
+	i.pathKey.Write(b[8:])
+
+	return b, nil
+}
+
+func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint64) (bool, error) {
+	key := inodeDiscarder{
+		eventType: eventType,
+		pathKey: PathKey{
+			MountID: mountID,
+			Inode:   inode,
+		},
 	}
+
+	log.Tracef("apply %s.filename discarder for event `%s`", eventType, eventType)
+
+	table := probe.Map("inode_discarders")
 	if err := table.Put(&key, ebpf.ZeroUint8MapItem); err != nil {
 		return false, err
 	}
@@ -29,7 +48,7 @@ func discardInode(probe *Probe, mountID uint32, inode uint64, tableName string) 
 	return true, nil
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventType, field eval.Field, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
+func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventType, field eval.Field, filename string, mountID uint32, inode uint64) (bool, error) {
 	isDiscarder, err := isParentPathDiscarder(rs, eventType, field, filename)
 	if !isDiscarder {
 		return false, err
@@ -40,7 +59,7 @@ func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventTyp
 		return false, err
 	}
 
-	return discardInode(probe, parentMountID, parentInode, tableName)
+	return discardInode(probe, eventType, parentMountID, parentInode)
 }
 
 func approveBasename(probe *Probe, tableName string, basename string) error {
@@ -90,28 +109,26 @@ func approveFlags(probe *Probe, tableName string, flags ...int) error {
 	return setFlagsFilter(probe, tableName, flags...)
 }
 
-func discardFlags(probe *Probe, tableName string, flags ...int) error {
-	return setFlagsFilter(probe, tableName, flags...)
+type processDiscarder struct {
+	eventType EventType
+	pid       uint32
 }
 
-type ProcessDiscarder struct {
-	EventType EventType
-	Pid       uint32
-}
-
-func (p *ProcessDiscarder) Bytes() ([]byte, error) {
+func (p *processDiscarder) Bytes() ([]byte, error) {
 	b := make([]byte, 16)
-	ebpf.ByteOrder.PutUint64(b[0:8], uint64(p.EventType))
-	ebpf.ByteOrder.PutUint32(b[8:12], p.Pid)
+	ebpf.ByteOrder.PutUint64(b[0:8], uint64(p.eventType))
+	ebpf.ByteOrder.PutUint32(b[8:12], p.pid)
 
 	return b, nil
 }
 
 func discardProcessFilename(probe *Probe, eventType EventType, event *Event) error {
-	key := &ProcessDiscarder{
-		EventType: eventType,
-		Pid:       event.Process.Pid,
+	key := processDiscarder{
+		eventType: eventType,
+		pid:       event.Process.Pid,
 	}
+
+	log.Tracef("apply process.filename discarder for event `%s`", eventType)
 
 	table := probe.Map("process_discarders")
 	if err := table.Put(key, ebpf.ZeroUint8MapItem); err != nil {

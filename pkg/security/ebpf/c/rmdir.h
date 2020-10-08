@@ -26,11 +26,14 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
+    u64 event_type = 0;
     struct path_key_t key = {};
     struct dentry *dentry = NULL;
 
     switch (syscall->type) {
         case SYSCALL_RMDIR:
+            event_type = EVENT_RMDIR;
+
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *)PT_REGS_PARM2(ctx);
 
@@ -47,6 +50,8 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 
             break;
         case SYSCALL_UNLINK:
+            event_type = EVENT_UNLINK;
+
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *) PT_REGS_PARM2(ctx);
 
@@ -65,7 +70,10 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     }
 
     if (dentry != NULL) {
-        resolve_dentry(dentry, key, NULL);
+        int ret = resolve_dentry(dentry, key, syscall->policy.mode != NO_FILTER ? event_type : 0);
+        if (ret < 0) {
+            pop_syscall(syscall->type);
+        }
     }
 
     return 0;

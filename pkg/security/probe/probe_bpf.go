@@ -681,13 +681,53 @@ func NewProbe(config *config.Config) (*Probe, error) {
 
 func processDiscarderWrapper(eventType EventType, fnc onDiscarderFnc) onDiscarderFnc {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
-		field := discarder.Field
-
-		switch field {
-		case "process.filename":
-			log.Tracef("apply process.filename discarder for event `%s`", eventType)
-
+		if discarder.Field == "process.filename" {
 			return discardProcessFilename(probe, eventType, event)
+		}
+
+		if fnc != nil {
+			return fnc(rs, event, probe, discarder)
+		}
+
+		return nil
+	}
+}
+
+// function used to retrieve discarder information, *.filename, mountID, inode, file deleted
+type inodeEventGetter = func(event *Event) (eval.Field, uint32, uint64, bool)
+
+func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter inodeEventGetter) onDiscarderFnc {
+	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
+		field, mountID, inode, isDeleted := getter(event)
+
+		if discarder.Field == field {
+			value, err := event.GetFieldValue(discarder.Field)
+			if err != nil {
+				return err
+			}
+			filename := value.(string)
+
+			if filename == "" {
+				return nil
+			}
+
+			if probe.IsInvalidDiscarder(discarder.Field, filename) {
+				return nil
+			}
+
+			isDiscarded, err := discardParentInode(probe, rs, eventType, filename, mountID, inode)
+			if !isDiscarded && !isDeleted {
+				if _, ok := err.(*ErrInvalidKeyPath); !ok {
+					// not able to discard the parent then only discard the filename
+					_, err = discardInode(probe, eventType, mountID, inode)
+				}
+			}
+
+			if err != nil {
+				err = errors.Wrapf(err, "unable to set inode discarders for `%s` for event `%s`", filename, eventType)
+			}
+
+			return err
 		}
 
 		if fnc != nil {
@@ -701,16 +741,61 @@ func processDiscarderWrapper(eventType EventType, fnc onDiscarderFnc) onDiscarde
 func init() {
 	allApproversFncs["open"] = openOnNewApprovers
 
-	allDiscarderFncs["open"] = processDiscarderWrapper(FileOpenEventType, openOnNewDiscarder)
-	allDiscarderFncs["mkdir"] = processDiscarderWrapper(FileMkdirEventType, nil)
+	allDiscarderFncs["open"] = processDiscarderWrapper(FileOpenEventType,
+		filenameDiscarderWrapper(FileOpenEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "open.filename", event.Open.MountID, event.Open.Inode, false
+			}))
+
+	allDiscarderFncs["mkdir"] = processDiscarderWrapper(FileMkdirEventType,
+		filenameDiscarderWrapper(FileMkdirEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "mkdir.filename", event.Open.MountID, event.Open.Inode, false
+			}))
+
 	allDiscarderFncs["link"] = processDiscarderWrapper(FileLinkEventType, nil)
+
 	allDiscarderFncs["rename"] = processDiscarderWrapper(FileRenameEventType, nil)
-	allDiscarderFncs["rename"] = processDiscarderWrapper(FileRenameEventType, nil)
-	allDiscarderFncs["unlink"] = processDiscarderWrapper(FileUnlinkEventType, unlinkOnNewDiscarder)
-	allDiscarderFncs["rmdir"] = processDiscarderWrapper(FileRmdirEventType, nil)
-	allDiscarderFncs["chmod"] = processDiscarderWrapper(FileChmodEventType, nil)
-	allDiscarderFncs["chown"] = processDiscarderWrapper(FileChownEventType, nil)
-	allDiscarderFncs["utimes"] = processDiscarderWrapper(FileUtimeEventType, nil)
-	allDiscarderFncs["setxattr"] = processDiscarderWrapper(FileSetXAttrEventType, nil)
-	allDiscarderFncs["removexattr"] = processDiscarderWrapper(FileRemoveXAttrEventType, nil)
+
+	allDiscarderFncs["unlink"] = processDiscarderWrapper(FileUnlinkEventType,
+		filenameDiscarderWrapper(FileMkdirEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "unlink.filename", event.Open.MountID, event.Open.Inode, true
+			}))
+
+	allDiscarderFncs["rmdir"] = processDiscarderWrapper(FileRmdirEventType,
+		filenameDiscarderWrapper(FileRmdirEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "rmdir.filename", event.Open.MountID, event.Open.Inode, true
+			}))
+
+	allDiscarderFncs["chmod"] = processDiscarderWrapper(FileChmodEventType,
+		filenameDiscarderWrapper(FileChmodEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "chmod.filename", event.Open.MountID, event.Open.Inode, false
+			}))
+
+	allDiscarderFncs["chown"] = processDiscarderWrapper(FileChownEventType,
+		filenameDiscarderWrapper(FileChownEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "chown.filename", event.Open.MountID, event.Open.Inode, false
+			}))
+
+	allDiscarderFncs["utimes"] = processDiscarderWrapper(FileUtimeEventType,
+		filenameDiscarderWrapper(FileUtimeEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "utimes.filename", event.Open.MountID, event.Open.Inode, false
+			}))
+
+	allDiscarderFncs["setxattr"] = processDiscarderWrapper(FileSetXAttrEventType,
+		filenameDiscarderWrapper(FileSetXAttrEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "setxattr.filename", event.Open.MountID, event.Open.Inode, false
+			}))
+
+	allDiscarderFncs["removexattr"] = processDiscarderWrapper(FileRemoveXAttrEventType,
+		filenameDiscarderWrapper(FileRemoveXAttrEventType, nil,
+			func(event *Event) (eval.Field, uint32, uint64, bool) {
+				return "removexattr.filename", event.Open.MountID, event.Open.Inode, false
+			}))
 }

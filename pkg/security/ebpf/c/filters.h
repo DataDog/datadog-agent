@@ -53,7 +53,7 @@ struct bpf_map_def SEC("maps/process_discarders") process_discarders = {
     .namespace = "",
 };
 
-int __attribute__((always_inline)) discard_by_pid(u64 event_type) {
+int __attribute__((always_inline)) discarded_by_pid(u64 event_type) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -81,15 +81,49 @@ void __attribute__((always_inline)) remove_pid_discarder(u64 event_type, u32 tgi
     bpf_map_delete_elem(&process_discarders, &key);
 }
 
-#define INODE_DISCARDERS_MAP_PTR(name) &name##_inode_discarders
+struct inode_discarder_t {
+    u64 event_type;
+    struct path_key_t path_key;
+};
 
-#define INODE_DISCARDERS_MAP(name, size) struct bpf_map_def SEC("maps/"#name"_inode_discarders") name##_inode_discarders = { \
-    .type = BPF_MAP_TYPE_LRU_HASH, \
-    .key_size = sizeof(struct path_key_t), \
-    .value_size = sizeof(struct filter_t), \
-    .max_entries = size, \
-    .pinning = 0, \
-    .namespace = "", \
+struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = { \
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct inode_discarder_t),
+    .value_size = sizeof(struct filter_t),
+    .max_entries = 512,
+    .pinning = 0,
+    .namespace = "",
+};
+
+int __attribute__((always_inline)) discarded_by_inode(u64 event_type, struct path_key_t path_key) {
+    struct inode_discarder_t key = {
+        .event_type = event_type,
+        .path_key = {
+            .ino = path_key.ino,
+            .mount_id = path_key.mount_id,
+        }
+    };
+
+    struct filter_t *filter = bpf_map_lookup_elem(&inode_discarders, &key);
+    if (filter) {
+#ifdef DEBUG
+        bpf_printk("file with inode %d discarded\n", path_key.ino);
+#endif
+        return 1;
+    }
+    return 0;
+}
+
+void __attribute__((always_inline)) remove_inode_discarder(u64 event_type, struct path_key_t path_key) {
+    struct inode_discarder_t key = {
+        .event_type = event_type,
+        .path_key = {
+            .ino = path_key.ino,
+            .mount_id = path_key.mount_id,
+        }
+    };
+
+    bpf_map_delete_elem(&inode_discarders, &key);
 }
 
 #endif

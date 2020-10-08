@@ -54,7 +54,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     syscall->rename.src_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_key, NULL);
+    resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_key, 0);
 
     return 0;
 }
@@ -94,7 +94,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
 
-    resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, NULL);
+    resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
 
     // as old and new have are the same files, only one is needed
     remove_inode_discarders(&event.new);

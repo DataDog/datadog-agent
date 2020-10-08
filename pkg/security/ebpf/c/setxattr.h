@@ -60,8 +60,8 @@ SYSCALL_KPROBE2(fremovexattr, int, fd, const char *, name) {
     return trace__sys_removexattr(name);
 }
 
-int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_SETXATTR | SYSCALL_REMOVEXATTR);
+int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u16 type, u64 event_type) {
+    struct syscall_cache_t *syscall = peek_syscall(type);
     if (!syscall)
         return 0;
 
@@ -75,20 +75,24 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx) {
 
     syscall->setxattr.dentry = dentry;
     syscall->setxattr.path_key.ino = get_dentry_ino(syscall->setxattr.dentry);
+
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, NULL);
+    int ret = resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
+    if (ret < 0) {
+        pop_syscall(type);
+    }
 
     return 0;
 }
 
 SEC("kprobe/vfs_setxattr")
 int kprobe__vfs_setxattr(struct pt_regs *ctx) {
-    return trace__vfs_setxattr(ctx);
+    return trace__vfs_setxattr(ctx, SYSCALL_SETXATTR, EVENT_SETXATTR);
 }
 
 SEC("kprobe/vfs_removexattr")
 int kprobe__vfs_removexattr(struct pt_regs *ctx) {
-    return trace__vfs_setxattr(ctx);
+    return trace__vfs_setxattr(ctx, SYSCALL_REMOVEXATTR, EVENT_REMOVEXATTR);
 }
 
 int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, u64 type) {

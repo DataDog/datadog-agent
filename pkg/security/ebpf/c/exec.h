@@ -125,7 +125,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 
     // cache dentry
     struct dentry *dentry = get_path_dentry(path);
-    resolve_dentry(dentry, syscall->open.path_key, NULL);
+    resolve_dentry(dentry, syscall->open.path_key, 0);
 
     pop_syscall(SYSCALL_EXEC);
 

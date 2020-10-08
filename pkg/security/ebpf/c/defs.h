@@ -251,6 +251,12 @@ struct proc_cache_t {
     char tty_name[TTY_NAME_LEN];
 };
 
+struct path_key_t {
+    u64 ino;
+    u32 mount_id;
+    u32 padding;
+};
+
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),

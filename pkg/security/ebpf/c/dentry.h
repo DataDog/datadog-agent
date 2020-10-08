@@ -22,12 +22,6 @@ struct bpf_map_def SEC("maps/mount_id_offset") mount_id_offset = {
     .namespace = "",
 };
 
-struct path_key_t {
-    u64 ino;
-    u32 mount_id;
-    u32 padding;
-};
-
 struct path_leaf_t {
   struct path_key_t parent;
   // TODO: reduce the amount of allocated structs during the resolution so that we can take this buffer to its max
@@ -216,7 +210,7 @@ static __attribute__((always_inline)) void link_dentry_inode(struct path_key_t k
     bpf_map_update_elem(&pathnames, &new_key, &map_value, BPF_ANY);
 }
 
-static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, struct bpf_map_def *discarders_map) {
+static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, u64 event_type) {
     struct path_leaf_t map_value = {};
     struct path_key_t next_key = key;
     struct qstr qstr;
@@ -240,9 +234,8 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
         }
 
         // discard filename and its parent only in order to limit the number of lookup
-        if (discarders_map && i < 2) {
-            struct filter_t *filter = bpf_map_lookup_elem(discarders_map, &key);
-            if (filter) {
+        if (event_type && i < 2) {
+            if (discarded_by_inode(event_type, key)) {
                 return -1;
             }
         }

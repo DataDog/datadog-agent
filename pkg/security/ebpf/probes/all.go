@@ -51,6 +51,7 @@ func AllMaps() []*manager.Map {
 	return []*manager.Map{
 		// Filters
 		{Name: "filter_policy"},
+		{Name: "inode_discarders"},
 		// Dentry resolver table
 		{Name: "pathnames"},
 		// Snapshot table
@@ -59,12 +60,9 @@ func AllMaps() []*manager.Map {
 		{Name: "open_basename_approvers"},
 		{Name: "open_flags_approvers"},
 		{Name: "open_flags_discarders"},
-		{Name: "open_inode_discarders"},
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cookie"},
-		// Unlink tables
-		{Name: "unlink_inode_discarders"},
 		// Mount tables
 		{Name: "mount_id_offset"},
 		// Syscall monitor tables

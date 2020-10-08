@@ -4,8 +4,6 @@
 #include "syscalls.h"
 #include "process.h"
 
-INODE_DISCARDERS_MAP(unlink, 512);
-
 struct unlink_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -56,12 +54,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    int ret = 0;
-    if (syscall->policy.mode == NO_FILTER) {
-        ret = resolve_dentry(dentry, syscall->unlink.path_key, NULL);
-    } else {
-        ret = resolve_dentry(dentry, syscall->unlink.path_key, INODE_DISCARDERS_MAP_PTR(unlink));
-    }
+    int ret = resolve_dentry(dentry, syscall->unlink.path_key, syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0);
     if (ret < 0) {
         pop_syscall(SYSCALL_UNLINK);
     }

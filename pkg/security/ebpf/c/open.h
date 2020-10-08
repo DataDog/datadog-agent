@@ -33,8 +33,6 @@ struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
     .namespace = "",
 };
 
-INODE_DISCARDERS_MAP(open, 512);
-
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -109,18 +107,6 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     return 0;
 }
 
-int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *syscall) {
-    u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &key);
-    if (flags != NULL && (syscall->open.flags & *flags) > 0) {
-#ifdef DEBUG
-        bpf_printk("open flags %d discarded\n", syscall->open.flags);
-#endif
-        return 1;
-    }
-    return 0;
-}
-
 int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) {
     if (syscall->policy.mode == NO_FILTER)
         return 0;
@@ -134,10 +120,6 @@ int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) 
 
         if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
            pass_to_userspace = approve_by_flags(syscall);
-        }
-    } else {
-        if (pass_to_userspace && ((syscall->policy.flags & FLAGS))) {
-            pass_to_userspace = !discard_by_flags(syscall);
         }
     }
 
@@ -172,7 +154,7 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     struct path *path = (struct path *)PT_REGS_PARM1(ctx);
 
     if (syscall->open.dentry) {
-        syscall->open.real_inode = get_key(syscall->open.dentry, path).ino;
+        syscall->open.real_inode = get_dentry_key_path(syscall->open.dentry, path).ino;
         return 0;
     }
 
@@ -187,7 +169,6 @@ int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
-
 
     struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
     syscall->open.path_key.ino = get_dentry_ino(dentry);
@@ -252,12 +233,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         .mode = syscall->open.mode,
     };
 
-    int ret = 0;
-    if (syscall->policy.mode == NO_FILTER) {
-        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, NULL);
-    } else {
-        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, INODE_DISCARDERS_MAP_PTR(open));
-    }
+    int ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
     if (ret < 0) {
         return 0;
     }
