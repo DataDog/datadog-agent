@@ -173,7 +173,9 @@
               Errors By Type:<br>
               <span class="stat_subdata">
                 {{- range $type, $count := .Transactions.ErrorsByType }}
+                  {{- if $count}}
                     {{$type}}: {{humanize $count}}<br>
+                  {{- end}}
                 {{- end}}
               </span>
             </span>
@@ -186,7 +188,9 @@
               HTTP Errors By Code:<br>
               <span class="stat_subdata">
                 {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+                  {{- if $count}}
                     {{$code}}: {{humanize $count}}<br>
+                  {{- end}}
                 {{- end}}
               </span>
             </span>

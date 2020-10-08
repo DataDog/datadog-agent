@@ -36,7 +36,9 @@ Forwarder
     Total number: {{.Transactions.HTTPErrors}}
     HTTP Errors By Code:
       {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+        {{- if $count}}
       {{$code}}: {{humanize $count}}
+        {{- end}}
       {{- end}}
   {{- end}}
 {{- end}}
