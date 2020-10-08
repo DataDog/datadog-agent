@@ -51,11 +51,11 @@ var (
 	transactionsHTTPErrors         = expvar.Int{}
 	transactionsHTTPErrorsByCode   = expvar.Map{}
 
-	tlmTxBytes = telemetry.NewCounter("forwarder_transactions", "bytes",
+	tlmTxInputBytes = telemetry.NewCounter("forwarder_transactions", "input_bytes",
 		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
 	tlmConnectEvents = telemetry.NewCounter("forwarder_transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
-	tlmTxCount = telemetry.NewCounter("forwarder_transactions", "count",
+	tlmTxInputCount = telemetry.NewCounter("forwarder_transactions", "input_count",
 		[]string{"domain", "endpoint"}, "Incoming transaction count")
 	tlmTxDropped = telemetry.NewCounter("forwarder_transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
