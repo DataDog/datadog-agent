@@ -1071,6 +1071,20 @@ api_key:
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
 
+## @param dogstatsd_tag_filters - list of regular expressions - optional
+## List of regular expressions used to filter out (remove) tags from incoming dogstatsd samples.
+#
+# dogstatsd_tag_filters:
+## Remove any tag that matches "tag_name:tag_value":
+#   - tag_name:tag_value
+## Remove any tag with an empty value:
+#   - :$
+## Remove any tag containing a UUID:
+#   - [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+## Strip an unwanted string suffix from a tag:
+#   - ^(?P<Keep>calling_service:[^/]+)  # calling_service:foo/1.2.3 => calling_service:foo
+
+
 ## @param dogstatsd_mapper_profiles - list of custom object - optional
 ## The profiles will be used to convert parts of metrics names into tags.
 ## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.
