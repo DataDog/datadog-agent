@@ -2,200 +2,30 @@
 Release Notes
 =============
 
-.. _Release Notes_7.23.0:
+.. _Release Notes_7.22.1:
 
-7.23.0 / 6.23.0
+7.22.1 / 6.22.1
 ======
 
-.. _Release Notes_7.23.0_Prelude:
+.. _Release Notes_7.22.1_Prelude:
 
 Prelude
 -------
 
-Release on: 2020-10-06
+Release on: 2020-09-17
 
-- Please refer to the `7.23.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7230>`_ for the list of changes on the Core Checks
+- Please refer to the `7.22.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7221>`_ for the list of changes on the Core Checks
 
-
-.. _Release Notes_7.23.0_Upgrade Notes:
-
-Upgrade Notes
--------------
-
-- Network monitoring: enable DNS stats collection by default.
-
-
-.. _Release Notes_7.23.0_New Features:
-
-New Features
-------------
-
-- APM: Decoding errors reported by the `datadog.trace-agent.receiver.error`
-  and `datadog.trace_agent.normalizer.traces_dropped` contain more detailed
-  reason tags in case of EOFs and timeouts.
-
-- Running the agent flare with the -p flag now includes profiles
-  for the trace-agent.
-
-- APM: An SQL query obfuscation cache was added under the feature flag
-  DD_APM_FEATURES=sql_cache. In most cases where SQL queries are repeated
-  or prepared, this can significantly reduce CPU work.
-
-- Secrets handles are not supported inside JSON value set through environment variables.
-  For example setting a secret in a list
-  `DD_FLARE_STRIPPED_KEYS='["ENC[auth_token_name]"]' datadog-agent run`
-
-- Add basic support for UTF16 (BE and LE) encoding.
-  It should be manually enabled in a log configuration using
-  ``encoding: utf-16-be`` or ``encoding: utf-16-le`` other
-  values are unsupported and ignored by the agent.
-
-
-.. _Release Notes_7.23.0_Enhancement Notes:
-
-Enhancement Notes
------------------
-
-- Add new configuration parameter to allow 'GroupExec' permission on the secret-backend command.
-  Set to 'true' the new parameter 'secret_backend_command_allow_group_exec_perm' to activate it.
-
-- Add a map from DNS rcode to count of replies received with that rcode
-
-- Enforces a size limit of 64MB to uncompressed sketch payloads (distribution metrics).
-  Payloads above this size will be split into smaller payloads before being sent.
-
-- APM: Span normalization speed has been increased by 15%.
-
-- Improve the ``kubelet`` check error reporting in the output of ``agent status`` in the case where the agent cannot properly connect to the kubelet.
-
-- Add `space_id`, `space_name`, `org_id` and `org_name` as tags to both autodiscovered containers as well as checks found through autodiscovery on Cloud Foundry/Tanzu.
-
-- Improves compliance check status view in the security-agent status command.
-
-- Include compliance benchmarks from github.com/DataDog/security-agent-policies in the Agent packages and the Cluster Agent image.
-
-- Windows Docker image is now based on Windows Server Nano instead of Windows Server Core.
-
-- Allow sending the GCP project ID under the ``project_id:`` host tag key, in addition
-  to the ``project:`` host tag key, with the ``gce_send_project_id_tag`` config setting.
-
-- Add `kubeconfig` to GCE excluded host tags (used on GKE)
-
-- The cluster name can now be longer than 40 characters, however
-  the combined length of the host name and cluster name must not
-  exceed 254 characters.
-
-- When requesting EC2 metadata, you can use IMDSv2 by turning
-  on a new configuration option (``ec2_prefer_imdsv2``).
-
-- When tailing logs from container in a kubernetes environment
-  long lines (>16kB usually) that got split by the container
-  runtime (docker & containerd at least) are now reassembled
-  pending they do not exceed the upper message length limit
-  (256kB).
-
-- Move the cluster-id ConfigMap creation, and Orchestrator
-  Explorer controller instantiation behind the orchestrator_explorer
-  config flag to avoid it failing and generating error logs.
-
-- Add caching for sending kubernetes resources for live containers
-
-- Agent log format improvement: logs can have kv-pairs as context to make it easier to get all logs for a given context
-  Sample: 2020-09-17 12:17:17 UTC | CORE | INFO | (pkg/collector/runner/runner.go:327 in work) | check:io | Done running check
-
-- The CRI check now supports container exclusion based on container name, image and kubernetes namespace.
-
-- Added a network_config config to the system-probe that allows the
-  network module to be selectively enabled/disabled. Also added a
-  corresponding DD_SYSTEM_PROBE_NETWORK_ENABLED env var.  The network module
-  will only be disabled if the network_config exists and has enabled set to
-  false, or if the env var is set to false.  To maintain compatibility with
-  previous configs, the network module will be enabled in all other cases.
-
-- Log a warning when a log file is rotated but has not finished tailing the file. 
-
-- The NTP check now uses the cloud provider's recommended NTP servers by default, if the Agent
-  detects that it's running on said cloud provider.
-
-
-.. _Release Notes_7.23.0_Deprecation Notes:
-
-Deprecation Notes
------------------
-
-- `process_config.orchestrator_additional_endpoints` and `process_config.orchestrator_dd_url` are deprecated in favor of:
-  `orchestrator_explorer.orchestrator_additional_endpoints` and `orchestrator_explorer.orchestrator_dd_url`.
-
-
-.. _Release Notes_7.23.0_Bug Fixes:
+.. _Release Notes_7.22.1_Bug Fixes:
 
 Bug Fixes
 ---------
 
-- Allow `agent integration install` to work even if the datadog agent
-  configuration file doesn't exist.
-  This is typically the case when this command is run from a Dockerfile
-  in order to build a custom image from the datadog official one.
+- Define a default logs file (security-agent.log) for the security-agent.
 
-- Implement variable interpolation in the tagger when inferring the standard tags
-  from the ``DD_ENV``, ``DD_SERVICE`` and ``DD_VERSION`` environment variables
+- Fix segfault when listing Garden containers that are in error state.
 
-- Fix a bug that was causing not picking checks and logs for containers targeted
-  by container-image-based autodiscovery. Or picking checks and logs for
-  containers that were not targeted by container-image-based autodiscovery.
-  This happened when several image names were pointing to the same image digest.
-
-- APM: Allow digits in SQL literal identifiers (e.g. `1sad123jk`)
-
-- Fixes an issue with not always reporting ECS Fargate task_arn tag due to a race condition in the tag collector.
-
-- The SUSE SysVInit service now correctly starts the Agent as the
-  dd-agent user instead of root.
-
-- APM: Allow double-colon operator in SQL obfuscator.
-
-- UDP packets can be sent in two ways. In the "connected" way, a `connect` call is
-  made first to assign the remote/destination address, and then packets get sent with the `send`
-  function or `sendto` function with destination address set to NULL. In the "unconnected" way,
-  packets get sent using `sendto` function with a non NULL destination address. This fix addresss
-  a bug where network stats were not being generated for UDP packets sent using the "unconnected"
-  way.
-
-- Fix the Windows systray not appearing sometimes (bug introduced with 6.20.0).
-
-- The Chocolatey package now uses a fixed URL to the MSI installer.
-
-- Fix logs tagging inconsistency for restarted containers.
-
-- On macOS, in Agent v6, the unversioned python binaries in
-  ``/opt/datadog-agent/embedded/bin`` (example: ``python``, ``pip``) now correctly
-  point to the Python 2 binaries.
-
-- Fix truncated cgroup name on copy with bpf_probe_read_str in OOM kill and TCP queue length checks.
-
-- Use double-precision floats for metric values submitted from Python checks.
-
-- On Windows, the ddtray executable now has a digital signature
-
-- Updates the logs package to get the short image name from Kubernetes ContainerSpec, rather than ContainerStatus.
-  This works around a known issue where the image name in the ContainerStatus may be incorrect.
-
-- On Windows, the Agent now responds to control signals from the OS and shuts down gracefully.
-  Coincidentally, a Windows Agent Container will now gracefully stop when receiving the stop command.
-
-
-.. _Release Notes_7.23.0_Other Notes:
-
-Other Notes
------------
-
-- All Agents binaries are now compiled with Go  ``1.14.7``
-
-- JMXFetch upgraded from `0.38.2 <https://github.com/DataDog/jmxfetch/releases/0.38.2>`_
-  to `0.39.1 <https://github.com/DataDog/jmxfetch/releases/0.39.1>`_
-
-- Move the orchestrator related settings `process_config.orchestrator_additional_endpoints` and
-  `process_config.orchestrator_dd_url` into the `orchestrator_explorer` section.
+- Do not activate security-agent service by default in the Linux packages of the Agent (RPM/DEB). The security-agent was already properly starting and exiting if not activated in configuration.
 
 
 .. _Release Notes_7.22.0:
@@ -277,7 +107,7 @@ Enhancement Notes
   included in the flare.
 
 - Upgrade embedded Python 3 to 3.8.5. Link to Python 3.8 changelog: https://docs.python.org/3/whatsnew/3.8.html
-  
+
   Note that the Python 2 version shipped in Agent v6 continues to be version 2.7.18 (unchanged).
 
 - Upgrade pip to v20.1.1. Link to pip 20.1.1 changelog: https://pip.pypa.io/en/stable/news/#id54
@@ -345,7 +175,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- APM: datadog.trace_agent.receiver.* metrics are now also tagged by endpoint_version 
+- APM: datadog.trace_agent.receiver.* metrics are now also tagged by endpoint_version
 
 
 .. _Release Notes_7.21.1:
@@ -524,7 +354,7 @@ Bug Fixes
   certain non-alphanumeric label names (e.g. app.kubernetes.io/managed-by).
 
 - Fixes the `/ready` health endpoint on the cluster-agent.
-  
+
   The `/ready` health endpoint was reporting 200 at the cluster-agent startup and was then, permanently reporting 500 even though the cluster-agent was experiencing no problem.
   In the body of the response, we could see that a `healthcheck` component was failing.
   This change fixes this issue.
@@ -549,8 +379,8 @@ Bug Fixes
   systemd cgroups. This also reduces agent logging volume as it's able to
   capture those statistics going forward.
 
-- APM: The agent now exits with code 0 when the API key is not specified. This is so to prevent the Windows SCM 
-  from restarting the process. 
+- APM: The agent now exits with code 0 when the API key is not specified. This is so to prevent the Windows SCM
+  from restarting the process.
 
 
 .. _Release Notes_7.21.0_Other Notes:
@@ -714,7 +544,7 @@ Enhancement Notes
 
 - Introduce ``kube_cluster_name`` and ``ecs_cluster_name`` tags in addition to ``cluster_name``.
   Add the possibility to stop sending the ``cluster_name`` tag using the parameter ``disable_cluster_name_tag_key`` in Agent config.
-  The Agent keeps sending ``kube_cluster_name`` and `ecs_cluster_name` tags regardless of `disable_cluster_name_tag_key`. 
+  The Agent keeps sending ``kube_cluster_name`` and `ecs_cluster_name` tags regardless of `disable_cluster_name_tag_key`.
 
 - Configure additional process and orchestrator endpoints by environment variable.
 
@@ -834,7 +664,7 @@ Upgrade Notes
     * logs_config.use_tcp is set to true
     * logs_config.socks5_proxy_address is set, because socks5 proxies are not yet supported in HTTPS with compression
     * HTTPS connectivity test has failed: at agent startup, an HTTPS test request is sent to determine if HTTPS can be used
-  
+
   To force the use of TCP or HTTPS with compression, logs_config.use_tcp or logs_config.use_http can be set to true, respectively.
 
 
@@ -866,7 +696,7 @@ New Features
   settings can be listed using ``agent config list-runtime``. The
   log_level may also be fetched using the ``agent config get log_level``
   command. Additional runtime-editable setting can easily be added
-  by following this implementation. 
+  by following this implementation.
 
 - The ``system-probe`` classifies UDP connections as incoming or outgoing.
 
@@ -1031,7 +861,7 @@ Upgrade Notes
   notarization tests.
 
 - On Windows, the embedded Python will no longer use the PYTHONPATH
-  environment variable, restricting its access to the Python packages 
+  environment variable, restricting its access to the Python packages
   installed with the Agent. Set windows_use_pythonpath to true to keep
   the previous behavior.
 
@@ -1069,7 +899,7 @@ Enhancement Notes
 - The min_collection_interval check setting has been
   relocated since Agent 6/7 release. The agent import
   command now include in the right section this setting
-  when importing configuration from Agent 5.   
+  when importing configuration from Agent 5.
 
 - Add new config parameter (dogstatsd_entity_id_precedence) to enable DD_ENTITY_ID
   presence check when enriching Dogstatsd metrics with tags.
@@ -1120,7 +950,7 @@ Enhancement Notes
   characters.
 
 - Upgrade embedded Python 3 to 3.8.1. Link to Python 3.8 changelog: https://docs.python.org/3/whatsnew/3.8.html
-  
+
   Note that the Python 2 version shipped in Agent v6 continues to be version 2.7.17 (unchanged).
 
 - Removing an RPM of the Datadog Agent will no longer throw missing files warning.
@@ -1263,7 +1093,7 @@ Upgrade Notes
 
 - Starting with this version, the containerized Agent never chooses the OS hostname as its hostname when it is running in a dedicated UTS namespace.
   This is done in order to avoid picking container IDs or kubernetes POD names as hostnames, since these identifiers do not reflect the identity of the host they run on.
-  
+
   This change only affects you if your agent is currently using a container ID or a kubernetes POD name as hostname.
   The hostname of the agent can be checked with ``agent hostname``.
   If the output stays stable when the container or POD of the agent is destroyed and recreated, you’re not impacted by this change.
@@ -1343,8 +1173,8 @@ Bug Fixes
 - On Windows, fixes registration of agent as event log source.  Allows
   agent to correctly write to the Windows event log.
 
-- On Windows, when upgrading, installer will fail if the user attempts 
-  to assign a configuration file directory or binary directory that is 
+- On Windows, when upgrading, installer will fail if the user attempts
+  to assign a configuration file directory or binary directory that is
   different from the original.
 
 - Add logic to support docker restart of containers.
@@ -1433,7 +1263,7 @@ Enhancement Notes
 - Log a warning when the hostname defined in the configuration will not be used as the in-app hostname.
 
 - Add ``ignore_autodiscovery_tags`` parameter config check.
-  
+
   In some cases, a check should not receive tags coming from the autodiscovery listeners.
   By default ``ignore_autodiscovery_tags`` is set to false which doesn't change the behavior of the checks.
   The first check that will use it is ``kubernetes_state``.
