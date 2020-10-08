@@ -10,5 +10,5 @@ fixes:
   - |
     The ``ec2_prefer_imdsv2`` parameter was ignored when fetching
     EC2 tags from the metadata endpoint. This fixes situations were
-    EC2 tags could not be fetched by a dockerized agent running
+    EC2 tags could not be fetched by a containerized agent running
     on an EC2 instance.
