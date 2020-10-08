@@ -1,6 +1,5 @@
 import contextlib
 import datetime
-import getpass
 import glob
 import os
 import shutil
