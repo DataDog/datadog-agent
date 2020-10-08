@@ -29,7 +29,7 @@ func (swapMetricsSender *swapMetricsSender) Init() error {
 
 func (swapMetricsSender *swapMetricsSender) SendMetrics(sender aggregator.Sender, field string) error {
 	swapFields := regexFindStringSubmatchMap(swapMetricsSender.regex, field)
-	if swapFields == nil{
+	if swapFields == nil {
 		// SWAP is not present on all devices
 		return nil
 	}

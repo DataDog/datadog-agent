@@ -85,7 +85,6 @@ func regexSubexpIndex(regex *regexp.Regexp, name string) int {
 	return -1
 }
 
-
 // getSizeMultiplier returns a multiplier for a given unit, i.e. kb = 1024, mb = 1024*1024 etc...
 // If the unit is not one of "kb", "mb" or "gb", it returns 1
 func getSizeMultiplier(unit string) float64 {
