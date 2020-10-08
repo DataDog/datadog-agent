@@ -37,7 +37,7 @@ func (voltageMetricsSender *voltageMetricsSender) SendMetrics(sender aggregator.
 	}
 
 	for i := 0; i < len(voltageFields); i++ {
-		voltageProbeTags := []string{fmt.Sprintf("probe:%s", voltageFields[i][r.SubexpIndex("voltageProbeName")])}
+		voltageProbeTags := []string{fmt.Sprintf("probe:%s", voltageFields[i][regexSubexpIndex(r, "voltageProbeName")])}
 		instantVoltage, err := strconv.ParseFloat(voltageFields[i][regexSubexpIndex(r, "currentVoltage")], 64)
 		if err != nil {
 			return err
