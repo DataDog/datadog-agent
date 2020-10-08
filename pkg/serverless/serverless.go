@@ -112,7 +112,6 @@ func ReportInitError(id Id, errorEnum ErrorEnum) error {
 		IdleConnTimeout:    5 * time.Second,
 		DisableCompression: true,
 	}
-	fmt.Println(request)
 	client := &http.Client{Transport: tr, Timeout: 5 * time.Second}
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("ReportInitError: while POST init error route: %s", err)
