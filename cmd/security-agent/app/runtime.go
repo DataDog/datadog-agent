@@ -129,5 +129,9 @@ func startRuntimeSecurity(hostname string, endpoints *config.Endpoints, context 
 
 	log.Info("Datadog runtime security agent is now running")
 
+	// Send the runtime 'running' metrics periodically
+	ticker := sendRunningMetrics("runtime")
+	stopper.Add(ticker)
+
 	return agent, nil
 }

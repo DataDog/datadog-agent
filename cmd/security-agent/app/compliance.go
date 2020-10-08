@@ -174,5 +174,10 @@ func startCompliance(hostname string, endpoints *config.Endpoints, context *clie
 	stopper.Add(agent)
 
 	log.Infof("Running compliance checks every %s", checkInterval.String())
+
+	// Send the compliance 'running' metrics periodically
+	ticker := sendRunningMetrics("compliance")
+	stopper.Add(ticker)
+
 	return nil
 }

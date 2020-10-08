@@ -28,11 +28,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -212,6 +214,16 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Error(err)
 	}
 	stopper.Add(dstContext)
+
+	// Retrieve statsd host and port from the datadog agent configuration file
+	statsdHost := coreconfig.Datadog.GetString("bind_host")
+	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
+
+	// Configure the global statsd Client in the package
+	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	if statsd.Client, err = ddgostatsd.New(statsdAddr); err != nil {
+		return log.Criticalf("Error configuring statsd: %s", err)
+	}
 
 	if err = startCompliance(hostname, endpoints, dstContext, stopper); err != nil {
 		return err
