@@ -58,9 +58,9 @@ func TestIncomingUDPConnectionDirection(t *testing.T) {
 
 func TestOutgoingUDPConnectionDirection(t *testing.T) {
 	tr := &Tracer{
-		udpPortMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, conn),
+		udpPortMapping: network.NewPortMapping(NewDefaultConfig().ProcRoot, true, true),
 	}
-	trueStat := createConnectionStat("10.2.25.1", "38.122.226.210", 5323, 8125, network.UDP, 1234)
+	connStat := createConnectionStat("10.2.25.1", "38.122.226.210", 5323, 8125, network.UDP, 1234)
 	connStat.Direction = tr.determineConnectionDirection(&connStat)
 	assert.Equal(t, network.OUTGOING, connStat.Direction)
 
