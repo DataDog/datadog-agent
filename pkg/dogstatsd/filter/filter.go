@@ -12,13 +12,13 @@ type TagFilter struct {
 func NewTagFilter(regexes []string) (*TagFilter, error) {
 	filters := make([]*regexp.Regexp, len(regexes))
 	for i, r := range regexes {
-		if regex, err := regexp.Compile(r); err != nil {
+		regex, err := regexp.Compile(r)
+		if err != nil {
 			return nil, err
-		} else {
-			filters[i] = regex
 		}
-	}
 
+		filters[i] = regex
+	}
 	return &TagFilter{
 		filters: filters,
 	}, nil
@@ -42,7 +42,7 @@ func (tf *TagFilter) Filter(tags []string) []string {
 }
 
 func (tf *TagFilter) filter(tag string) (bool, string) {
-	OUTER:
+OUTER:
 	for _, regex := range tf.filters {
 		if m := regex.FindStringSubmatch(tag); m != nil {
 			for i, name := range regex.SubexpNames() {
