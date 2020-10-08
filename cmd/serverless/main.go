@@ -242,8 +242,10 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// serverless.ReportInitError(serverlessId, serverless.FatalBadEndpoint)
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
-	f := forwarder.NewSyncDefaultForwarder(keysPerDomain, time.Second*3) // TODO(remy): configurable/tweak this timeout
-	f.Start()                                                            //nolint:errcheck
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
+	log.Debugf("Using a SyncDefaultForwarder with a %v timeout", forwarderTimeout)
+	f := forwarder.NewSyncDefaultForwarder(keysPerDomain, forwarderTimeout)
+	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f)
 
 	aggregatorInstance := aggregator.InitAggregator(serializer, "serverless")

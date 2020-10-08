@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SyncDefaultForwarder is a very simple Forwarder synchronously sending
@@ -17,7 +20,10 @@ type SyncDefaultForwarder struct {
 func NewSyncDefaultForwarder(keysPerDomains map[string][]string, timeout time.Duration) *SyncDefaultForwarder {
 	return &SyncDefaultForwarder{
 		defaultForwarder: NewDefaultForwarder(NewOptions(keysPerDomains)),
-		client:           &http.Client{Timeout: timeout},
+		client: &http.Client{
+			Timeout:   timeout,
+			Transport: utilhttp.CreateHTTPTransport(),
+		},
 	}
 }
 
@@ -30,6 +36,7 @@ func (f *SyncDefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransact
 	for _, t := range transactions {
 		t.Process(context.Background(), f.client)
 	}
+	log.Debugf("SyncDefaultForwarder has flushed %d transactions", len(transactions))
 	return nil
 }
 func (f *SyncDefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
