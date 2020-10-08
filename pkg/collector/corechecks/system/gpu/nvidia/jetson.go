@@ -29,7 +29,7 @@ const (
 	checkName = "jetson"
 
 	// The interval to run tegrastats at, in ms
-	tegraStatsInterval = 100
+	tegraStatsInterval = 100 * time.Millisecond
 
 	kb = 1024
 	mb = kb * 1024
@@ -194,7 +194,7 @@ func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Da
 	// because it will take tegrastats <interval> to produce its first output.
 	c.commandOpts = []string{
 		"--interval",
-		strconv.Itoa(tegraStatsInterval), // ms
+		strconv.FormatInt(tegraStatsInterval.Milliseconds(), 10),
 	}
 
 	c.metricsSenders = []metricsSender{
