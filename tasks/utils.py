@@ -112,7 +112,7 @@ def get_build_flags(
     warning_as_error = '-Werror'
     # if sys.platform == 'win32':
     #     warning_as_error = '' # Disable on Windows because of redefined macro errors.
-    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " {} -Wno-deprecated-declarations -I{} -I{}".format(
+    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " {} -Wno-deprecated-declarations -Wno-int-to-pointer-cast -I{} -I{}".format(
         warning_as_error, rtloader_headers, rtloader_common_headers
     )
 

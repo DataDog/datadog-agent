@@ -140,12 +140,8 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     env["CGO_ENABLED"] = "1"
     print ("GO VET")
     print (env)
-    return
-    try:
-        ctx.run("go vet -tags \"{}\" ".format(" ".join(tags)) + " ".join(args), env=env)
-    except Exception as e:
-        print (e)
-        raise e
+    ctx.run("go vet -tags \"{}\" ".format(" ".join(tags)) + " ".join(args), env=env)
+    
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")
