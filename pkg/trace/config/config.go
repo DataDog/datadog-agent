@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -78,8 +78,8 @@ type AgentConfig struct {
 	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
-	StatsWriter             *WriterConfig
-	TraceWriter             *WriterConfig
+	StatsWriter             *configdefs.WriterConfig
+	TraceWriter             *configdefs.WriterConfig
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
@@ -115,7 +115,7 @@ type AgentConfig struct {
 	DDAgentBin string
 
 	// Obfuscation holds sensitive data obufscator's configuration.
-	Obfuscation *ObfuscationConfig
+	Obfuscation *configdefs.ObfuscationConfig
 }
 
 // New returns a configuration with the default values.
@@ -136,8 +136,8 @@ func New() *AgentConfig {
 		ReceiverPort:    8126,
 		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
-		StatsWriter:             new(WriterConfig),
-		TraceWriter:             new(WriterConfig),
+		StatsWriter:             new(configdefs.WriterConfig),
+		TraceWriter:             new(configdefs.WriterConfig),
 		ConnectionResetInterval: 0, // disabled
 
 		StatsdHost: "localhost",
@@ -256,16 +256,10 @@ func Load(path string) (*AgentConfig, error) {
 
 func prepareConfig(path string) (*AgentConfig, error) {
 	cfg := New()
-	config.Datadog.SetConfigFile(path)
-	if _, err := config.Load(); err != nil {
+	coreconfig.Datadog.SetConfigFile(path)
+	if _, err := coreconfig.Load(); err != nil {
 		return cfg, err
 	}
 	cfg.ConfigPath = path
 	return cfg, nil
-}
-
-// HasFeature returns true if the feature f is present. Features are values
-// of the DD_APM_FEATURES environment variable.
-func HasFeature(f string) bool {
-	return strings.Contains(os.Getenv("DD_APM_FEATURES"), f)
 }

@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 	"github.com/DataDog/datadog-go/statsd"
 )
 
@@ -23,6 +24,6 @@ func Configure(conf *config.AgentConfig, tags []string) error {
 		return err
 	}
 	client.Tags = tags
-	Client = client
+	metricsClient.Client = client
 	return nil
 }

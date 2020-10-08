@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 )
 
 // AutoreportInterval specifies the interval at which the default set reports.
@@ -145,7 +145,7 @@ func (c *counter) flush() {
 	sum := c.sum.Swap(0)
 	max := c.max.Swap(0)
 	c.mu.Unlock()
-	metrics.Count(c.name+".count", int64(count), nil, 1)
-	metrics.Gauge(c.name+".max", max, nil, 1)
-	metrics.Gauge(c.name+".avg", sum/count, nil, 1)
+	metricsClient.Count(c.name+".count", int64(count), nil, 1)
+	metricsClient.Gauge(c.name+".max", max, nil, 1)
+	metricsClient.Gauge(c.name+".avg", sum/count, nil, 1)
 }

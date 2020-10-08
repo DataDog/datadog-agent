@@ -6,7 +6,7 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -16,7 +16,7 @@ import (
 var MaxResourceLen = 5000
 
 func init() {
-	if config.HasFeature("big_resource") {
+	if features.HasFeature("big_resource") {
 		MaxResourceLen = 15000
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
@@ -189,7 +190,7 @@ func testStatsWriter() (*StatsWriter, chan []stats.Bucket, *testServer) {
 		Hostname:    testHostname,
 		DefaultEnv:  testEnv,
 		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
-		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
+		StatsWriter: &configdefs.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 	}
 	return NewStatsWriter(cfg, in), in, srv
 }

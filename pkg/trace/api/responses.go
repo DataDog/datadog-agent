@@ -12,7 +12,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +32,7 @@ type traceResponse struct {
 func httpFormatError(w http.ResponseWriter, v Version, err error) {
 	log.Errorf("Rejecting client request: %v", err)
 	tags := []string{"error:format-error", "version:" + string(v)}
-	metrics.Count(receiverErrorKey, 1, tags, 1)
+	metricsClient.Count(receiverErrorKey, 1, tags, 1)
 	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 }
 
@@ -58,7 +58,7 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	}
 
 	tags = append(tags, fmt.Sprintf("error:%s", errtag))
-	metrics.Count(receiverErrorKey, 1, tags, 1)
+	metricsClient.Count(receiverErrorKey, 1, tags, 1)
 	http.Error(w, msg, status)
 }
 
@@ -76,7 +76,7 @@ func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) {
 	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(response); err != nil {
 		tags := []string{"error:response-error"}
-		metrics.Count(receiverErrorKey, 1, tags, 1)
+		metricsClient.Count(receiverErrorKey, 1, tags, 1)
 		return
 	}
 }

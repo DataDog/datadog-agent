@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -218,15 +218,15 @@ func (w *TraceWriter) flush() {
 }
 
 func (w *TraceWriter) report() {
-	metrics.Count("datadog.trace_agent.trace_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", atomic.SwapInt64(&w.stats.BytesUncompressed, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes_estimated", atomic.SwapInt64(&w.stats.BytesEstimated, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.errors", atomic.SwapInt64(&w.stats.Errors, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.traces", atomic.SwapInt64(&w.stats.Traces, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.events", atomic.SwapInt64(&w.stats.Events, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.spans", atomic.SwapInt64(&w.stats.Spans, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", atomic.SwapInt64(&w.stats.BytesUncompressed, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.bytes_estimated", atomic.SwapInt64(&w.stats.BytesEstimated, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.errors", atomic.SwapInt64(&w.stats.Errors, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.traces", atomic.SwapInt64(&w.stats.Traces, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.events", atomic.SwapInt64(&w.stats.Events, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.trace_writer.spans", atomic.SwapInt64(&w.stats.Spans, 0), nil, 1)
 }
 
 var _ eventRecorder = (*TraceWriter)(nil)
@@ -234,8 +234,8 @@ var _ eventRecorder = (*TraceWriter)(nil)
 // recordEvent implements eventRecorder.
 func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	if data != nil {
-		metrics.Histogram("datadog.trace_agent.trace_writer.connection_fill", data.connectionFill, nil, 1)
-		metrics.Histogram("datadog.trace_agent.trace_writer.queue_fill", data.queueFill, nil, 1)
+		metricsClient.Histogram("datadog.trace_agent.trace_writer.connection_fill", data.connectionFill, nil, 1)
+		metricsClient.Histogram("datadog.trace_agent.trace_writer.queue_fill", data.queueFill, nil, 1)
 	}
 	switch t {
 	case eventTypeRetry:
@@ -254,7 +254,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 
 	case eventTypeDropped:
 		w.easylog.Warn("Trace writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
-		metrics.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
-		metrics.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
+		metricsClient.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
+		metricsClient.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}
 }

@@ -8,7 +8,7 @@ package obfuscate
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
@@ -37,7 +37,7 @@ type jsonObfuscator struct {
 	keepDepth int  // the depth at which we've stopped obfuscating
 }
 
-func newJSONObfuscator(cfg *config.JSONObfuscationConfig) *jsonObfuscator {
+func newJSONObfuscator(cfg *configdefs.JSONObfuscationConfig) *jsonObfuscator {
 	keepValue := make(map[string]bool, len(cfg.KeepValues))
 	for _, v := range cfg.KeepValues {
 		keepValue[v] = true

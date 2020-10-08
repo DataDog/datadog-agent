@@ -8,7 +8,7 @@ package event
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -93,13 +93,13 @@ func (s *maxEPSSampler) getSampleRate() float64 {
 
 func (s *maxEPSSampler) report() {
 	maxRate := s.maxEPS
-	metrics.Gauge("datadog.trace_agent.events.max_eps.max_rate", maxRate, nil, 1)
+	metricsClient.Gauge("datadog.trace_agent.events.max_eps.max_rate", maxRate, nil, 1)
 
 	currentRate := s.rateCounter.GetRate()
-	metrics.Gauge("datadog.trace_agent.events.max_eps.current_rate", currentRate, nil, 1)
+	metricsClient.Gauge("datadog.trace_agent.events.max_eps.current_rate", currentRate, nil, 1)
 
 	sampleRate := s.getSampleRate()
-	metrics.Gauge("datadog.trace_agent.events.max_eps.sample_rate", sampleRate, nil, 1)
+	metricsClient.Gauge("datadog.trace_agent.events.max_eps.sample_rate", sampleRate, nil, 1)
 
 	reachedMaxGaugeV := 0.
 	if sampleRate < 1 {
@@ -108,7 +108,7 @@ func (s *maxEPSSampler) report() {
 			"Some events are now being dropped (sample rate=%.2f). Consider adjusting event sampling rates.",
 			currentRate, maxRate, sampleRate)
 	}
-	metrics.Gauge("datadog.trace_agent.events.max_eps.reached_max", reachedMaxGaugeV, nil, 1)
+	metricsClient.Gauge("datadog.trace_agent.events.max_eps.reached_max", reachedMaxGaugeV, nil, 1)
 }
 
 // rateCounter keeps track of different event rates.

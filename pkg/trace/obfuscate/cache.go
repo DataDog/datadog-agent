@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 
 	"github.com/dgraph-io/ristretto"
 )
@@ -38,8 +38,8 @@ func (c *measuredCache) statsLoop() {
 	for {
 		select {
 		case <-tick.C:
-			metrics.Gauge("datadog.trace_agent.ofuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)
-			metrics.Gauge("datadog.trace_agent.ofuscation.sql_cache.misses", float64(mx.Misses()), nil, 1)
+			metricsClient.Gauge("datadog.trace_agent.ofuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)
+			metricsClient.Gauge("datadog.trace_agent.ofuscation.sql_cache.misses", float64(mx.Misses()), nil, 1)
 		case <-c.close:
 			c.Cache.Close()
 			return
@@ -49,7 +49,7 @@ func (c *measuredCache) statsLoop() {
 
 // newMeasuredCache returns a new measuredCache.
 func newMeasuredCache() *measuredCache {
-	if !config.HasFeature("sql_cache") {
+	if !features.HasFeature("sql_cache") {
 		// a nil *ristretto.Cache is a no-op cache
 		return &measuredCache{}
 	}

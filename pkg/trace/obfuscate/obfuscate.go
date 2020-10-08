@@ -11,14 +11,14 @@ import (
 	"bytes"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
-	opts  *config.ObfuscationConfig
+	opts  *configdefs.ObfuscationConfig
 	es    *jsonObfuscator // nil if disabled
 	mongo *jsonObfuscator // nil if disabled
 	// sqlLiteralEscapes reports whether we should treat escape characters literally or as escape characters.
@@ -45,9 +45,9 @@ func (o *Obfuscator) SQLLiteralEscapes() bool {
 }
 
 // NewObfuscator creates a new obfuscator from the provided config
-func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
+func NewObfuscator(cfg *configdefs.ObfuscationConfig) *Obfuscator {
 	if cfg == nil {
-		cfg = new(config.ObfuscationConfig)
+		cfg = new(configdefs.ObfuscationConfig)
 	}
 	o := Obfuscator{
 		opts:       cfg,

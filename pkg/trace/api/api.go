@@ -33,9 +33,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -64,7 +65,7 @@ type HTTPReceiver struct {
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
-	if config.HasFeature("429") {
+	if features.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
 	return &HTTPReceiver{
@@ -402,7 +403,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		// channel blocked, add a goroutine to ensure we never drop
 		r.wg.Add(1)
 		go func() {
-			metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
+			metricsClient.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
 			defer func() {
 				r.wg.Done()
 				watchdog.LogOnPanic()
@@ -453,8 +454,8 @@ func (r *HTTPReceiver) loop() {
 		case now := <-tw.C:
 			r.watchdog(now)
 		case now := <-t.C:
-			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
-			metrics.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), nil, 1)
+			metricsClient.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
+			metricsClient.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), nil, 1)
 
 			// We update accStats with the new stats we collected
 			accStats.Acc(r.Stats)
@@ -500,8 +501,8 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 		if current, allowed := float64(wi.Mem.Alloc), r.conf.MaxMemory*1.5; current > allowed {
 			// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
 			// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
-			metrics.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
-			metrics.Flush()
+			metricsClient.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
+			metricsClient.Flush()
 			log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
 			killProcess("OOM")
 		}
@@ -525,9 +526,9 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	info.UpdateRateLimiter(*stats)
 	info.UpdateWatchdogInfo(wi)
 
-	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
-	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
-	metrics.Gauge("datadog.trace_agent.receiver.ratelimit", stats.TargetRate, nil, 1)
+	metricsClient.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
+	metricsClient.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
+	metricsClient.Gauge("datadog.trace_agent.receiver.ratelimit", stats.TargetRate, nil, 1)
 }
 
 // Languages returns the list of the languages used in the traces the agent receives.

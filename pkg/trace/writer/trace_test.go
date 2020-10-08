@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -29,7 +30,7 @@ func TestTraceWriter(t *testing.T) {
 			APIKey: "123",
 			Host:   srv.URL,
 		}},
-		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		TraceWriter: &configdefs.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 	}
 
 	t.Run("ok", func(t *testing.T) {
@@ -71,7 +72,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 					Host:   srv.URL,
 				},
 			},
-			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+			TraceWriter: &configdefs.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 		}
 		numWorkers      = 10
 		numOpsPerWorker = 100

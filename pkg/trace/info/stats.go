@@ -12,7 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -145,28 +145,28 @@ func (ts *TagStats) publish() {
 	// Publish the stats
 	tags := ts.Tags.toArray()
 
-	metrics.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_filtered", tracesFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNone, append(tags, "priority:none"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNeg, append(tags, "priority:neg"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority0, append(tags, "priority:0"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority1, append(tags, "priority:1"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority2, append(tags, "priority:2"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_bytes", tracesBytes, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_received", spansReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_dropped", spansDropped, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_filtered", spansFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_refused", requestsRejected, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.traces_filtered", tracesFiltered, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNone, append(tags, "priority:none"), 1)
+	metricsClient.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNeg, append(tags, "priority:neg"), 1)
+	metricsClient.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority0, append(tags, "priority:0"), 1)
+	metricsClient.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority1, append(tags, "priority:1"), 1)
+	metricsClient.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority2, append(tags, "priority:2"), 1)
+	metricsClient.Count("datadog.trace_agent.receiver.traces_bytes", tracesBytes, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.spans_received", spansReceived, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.spans_dropped", spansDropped, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.spans_filtered", spansFiltered, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
+	metricsClient.Count("datadog.trace_agent.receiver.payload_refused", requestsRejected, tags, 1)
 
 	for reason, count := range ts.TracesDropped.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
+		metricsClient.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
 	}
 	for reason, count := range ts.SpansMalformed.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+reason), 1)
+		metricsClient.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+reason), 1)
 	}
 }
 

@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -271,7 +271,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		&groupingFilter{},
 	}
 	tableFinder := &tableFinderFilter{}
-	if config.HasFeature("table_names") {
+	if features.HasFeature("table_names") {
 		filters = append(filters, tableFinder)
 	}
 	var (

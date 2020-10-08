@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -235,19 +235,19 @@ func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int)
 var _ eventRecorder = (*StatsWriter)(nil)
 
 func (w *StatsWriter) report() {
-	metrics.Count("datadog.trace_agent.stats_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.stats_buckets", atomic.SwapInt64(&w.stats.StatsBuckets, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.splits", atomic.SwapInt64(&w.stats.Splits, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.stats_writer.errors", atomic.SwapInt64(&w.stats.Errors, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.stats_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.stats_writer.stats_buckets", atomic.SwapInt64(&w.stats.StatsBuckets, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.stats_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.stats_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.stats_writer.splits", atomic.SwapInt64(&w.stats.Splits, 0), nil, 1)
+	metricsClient.Count("datadog.trace_agent.stats_writer.errors", atomic.SwapInt64(&w.stats.Errors, 0), nil, 1)
 }
 
 // recordEvent implements eventRecorder.
 func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 	if data != nil {
-		metrics.Histogram("datadog.trace_agent.stats_writer.connection_fill", data.connectionFill, nil, 1)
-		metrics.Histogram("datadog.trace_agent.stats_writer.queue_fill", data.queueFill, nil, 1)
+		metricsClient.Histogram("datadog.trace_agent.stats_writer.connection_fill", data.connectionFill, nil, 1)
+		metricsClient.Histogram("datadog.trace_agent.stats_writer.queue_fill", data.queueFill, nil, 1)
 	}
 	switch t {
 	case eventTypeRetry:
@@ -266,7 +266,7 @@ func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 
 	case eventTypeDropped:
 		w.easylog.Warn("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
-		metrics.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
-		metrics.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
+		metricsClient.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
+		metricsClient.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}
 }
