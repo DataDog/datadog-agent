@@ -138,7 +138,9 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     env["CGO_ENABLED"] = "1"
-
+    print ("GO VET")
+    print (env)
+    return
     try:
         ctx.run("go vet -tags \"{}\" ".format(" ".join(tags)) + " ".join(args), env=env)
     except Exception as e:
