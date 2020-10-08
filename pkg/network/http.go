@@ -2,9 +2,13 @@ package network
 
 // HTTPTracker tracks HTTP requests/responses
 type HTTPTracker interface {
-	GetHTTPConnections() map[httpStreamKey]httpStreamStats
+	GetHTTPConnections() map[httpKey]httpStats
 	GetStats() map[string]int64
 	Close()
+
+	// temporary
+	PrintConnections()
+	PrintStats()
 }
 
 type nullHTTPTracker struct{}
@@ -14,7 +18,7 @@ func NewNullHTTPTracker() HTTPTracker {
 	return nullHTTPTracker{}
 }
 
-func (nullHTTPTracker) GetHTTPConnections() map[httpStreamKey]httpStreamStats {
+func (nullHTTPTracker) GetHTTPConnections() map[httpKey]httpStats {
 	return nil
 }
 
@@ -35,5 +39,9 @@ func (nullHTTPTracker) GetStats() map[string]int64 {
 }
 
 func (nullHTTPTracker) Close() {}
+
+func (nullHTTPTracker) PrintConnections() {}
+
+func (nullHTTPTracker) PrintStats() {}
 
 var _ HTTPTracker = nullHTTPTracker{}

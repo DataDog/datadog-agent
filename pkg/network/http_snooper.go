@@ -3,6 +3,7 @@
 package network
 
 import (
+	"sort"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -37,11 +38,6 @@ type HTTPSocketFilterSnooper struct {
 	connectionsClosed  int64
 }
 
-type packetWithTS struct {
-	packet gopacket.Packet
-	ts     time.Time
-}
-
 // NewHTTPSocketFilterSnooper returns a new HTTPSocketFilterSnooper
 func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTimeout time.Duration) (*HTTPSocketFilterSnooper, error) {
 	var (
@@ -60,8 +56,9 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 		return nil, srcErr
 	}
 	statKeeper := &httpStatKeeper{
-		streams:     make(map[httpStreamKey]*httpStream),
-		streamStats: make(map[httpStreamKey]httpStreamStats),
+		// streams: make(map[httpKey]*httpStream),
+		stats:  make(map[httpKey]httpStats),
+		muxMap: make(map[httpKey]*sync.Mutex),
 	}
 	snooper := &HTTPSocketFilterSnooper{
 		source:     packetSrc,
@@ -86,8 +83,8 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 	return snooper, nil
 }
 
-func (s *HTTPSocketFilterSnooper) GetHTTPConnections() map[httpStreamKey]httpStreamStats {
-	return s.statKeeper.streamStats
+func (s *HTTPSocketFilterSnooper) GetHTTPConnections() map[httpKey]httpStats {
+	return s.statKeeper.stats
 }
 
 func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
@@ -109,9 +106,6 @@ func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
 // Close terminates the HTTP traffic snooper as well as the underlying socket and the attached filter
 func (s *HTTPSocketFilterSnooper) Close() {
 	close(s.exit)
-
-	// TODO send an EOF to all http streams in the streampools to shut them down?
-
 	s.wg.Wait()
 	s.source.Close()
 }
@@ -126,9 +120,9 @@ func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
 	assembler := tcpassembly.NewAssembler(streamPool)
 
 	// Note: as an optimization, we could have multiple assemblers working on the same
-	// stream pool (or, for an even better optimization, multiple assemblers reading from
-	// multiple stream pools - but in this case you must be able to guarantee that packets
-	// from the same connection will end up being handled by assemblers in the same pool - ie
+	// stream pool. For an even better optimization, we could have multiple assemblers reading
+	// from multiple stream pools - but in this case you must be able to guarantee that packets
+	// from the same connection will end up being handled by assemblers in the same pool (ie
 	// by hashing the packets)
 
 	ticker := time.NewTicker(time.Second * 30)
@@ -141,7 +135,6 @@ func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
 		case <-ticker.C:
 			// Every 30 seconds, flush old connections
 			flushed, closed := assembler.FlushOlderThan(time.Now().Add(-1 * httpTimeout))
-			// TODO remove closed connections from statKeeper
 			atomic.AddInt64(&s.connectionsFlushed, int64(flushed))
 			atomic.AddInt64(&s.connectionsClosed, int64(closed))
 		default:
@@ -202,14 +195,54 @@ func (s *HTTPSocketFilterSnooper) pollStats() {
 			prevCaptured = int64(socketStats.Packets())
 			prevDropped = int64(socketStats.Drops())
 
-			stats := s.GetStats()
-			log.Infof("HTTP Telemetry:")
-			for key, val := range stats {
-				log.Infof("  %v, %v", key, val)
-			}
-
 		case <-s.exit:
 			return
 		}
 	}
+}
+
+func (s *HTTPSocketFilterSnooper) PrintStats() {
+	stats := s.GetStats()
+
+	// sort keys so we always print in a stable order
+	var keys []string
+	for k := range stats {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	log.Infof("HTTP Telemetry:")
+	for _, k := range keys {
+		log.Infof("  %v, %v", k, stats[k])
+	}
+}
+
+func (s *HTTPSocketFilterSnooper) PrintConnections() {
+	log.Infof("%v HTTP active connections: ", len(s.statKeeper.stats))
+
+	for key, conn := range s.statKeeper.stats {
+		s.statKeeper.muxMap[key].Lock()
+
+		_, latencies := conn.getEventsAndLatencies()
+		avgLatency := avg(latencies)
+
+		log.Infof("  %v:%v -> %v:%v \t %v requests, %v responses, %v errors, %v successes, %v avg latency",
+			conn.sourceIP, conn.sourcePort, conn.destIP, conn.destPort,
+			conn.numRequests, conn.numResponses, conn.errors, conn.successes, avgLatency)
+
+		s.statKeeper.muxMap[key].Unlock()
+	}
+}
+
+func avg(arr []time.Duration) time.Duration {
+	if len(arr) == 0 {
+		return 0
+	}
+
+	total := int64(0)
+	for _, v := range arr {
+		total += v.Microseconds()
+	}
+
+	return time.Duration(total/int64(len(arr))) * time.Microsecond
 }
