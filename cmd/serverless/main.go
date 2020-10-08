@@ -242,8 +242,8 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// serverless.ReportInitError(serverlessId, serverless.FatalBadEndpoint)
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start() //nolint:errcheck
+	f := forwarder.NewSyncDefaultForwarder(keysPerDomain, time.Second*3) // TODO(remy): configurable/tweak this timeout
+	f.Start()                                                            //nolint:errcheck
 	serializer := serializer.NewSerializer(f)
 
 	aggregatorInstance := aggregator.InitAggregator(serializer, "serverless")
