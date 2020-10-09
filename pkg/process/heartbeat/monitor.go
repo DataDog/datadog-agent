@@ -14,8 +14,7 @@ import (
 // ModuleMonitor is responsible for emitting heartbeat metrics for each
 // system-probe module. It does so by hitting the stats endpoint from
 // system-probe and emitting one metric per enabled module using Datadog Public
-// API. If the API can't be reached for some reason, metrics are sent to the
-// statsd deaemon.
+// API.
 type ModuleMonitor struct {
 	statsFn statsFn
 	flusher flusher
@@ -65,7 +64,7 @@ func NewModuleMonitor(opts Options) (*ModuleMonitor, error) {
 		log.Warnf("could not create statsd flusher: %s", err)
 	}
 
-	apiFlusher, err := newAPIFlusher(opts, flusher)
+	apiFlusher, err := newAPIFlusher(opts)
 	if err != nil {
 		log.Warnf("could not create api flusher: %s", err)
 	} else {

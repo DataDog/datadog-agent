@@ -1,7 +1,6 @@
 package heartbeat
 
 import (
-	"net/http"
 	"testing"
 	"time"
 
@@ -41,7 +40,7 @@ func TestFlush(t *testing.T) {
 	var payloads forwarder.Payloads
 
 	mockForwarder.
-		On("SubmitV1Series", mock.AnythingOfType("forwarder.Payloads"), http.Header{}).
+		On("SubmitV1Series", mock.AnythingOfType("forwarder.Payloads"), mock.AnythingOfType("http.Header")).
 		Return(nil).
 		Times(1).
 		Run(func(args mock.Arguments) {

@@ -2,7 +2,6 @@ package heartbeat
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -22,14 +21,13 @@ type flusher interface {
 
 type apiFlusher struct {
 	forwarder forwarder.Forwarder
-	fallback  flusher
 	tags      []string
 	hostname  string
 }
 
 var _ flusher = &apiFlusher{}
 
-func newAPIFlusher(opts Options, fallback flusher) (flusher, error) {
+func newAPIFlusher(opts Options) (flusher, error) {
 	if len(opts.KeysPerDomain) == 0 {
 		return nil, fmt.Errorf("missing api key information")
 	}
@@ -45,15 +43,12 @@ func newAPIFlusher(opts Options, fallback flusher) (flusher, error) {
 
 	return &apiFlusher{
 		forwarder: heartbeatForwarder,
-		fallback:  fallback,
 		tags:      tagsFromOptions(opts),
 		hostname:  opts.HostName,
 	}, nil
 }
 
-// Flush heartbeats metrics for each system-probe module to Datadog.  We first
-// attempt to flush it via the Metrics API. In case of failures we fallback to
-// `statsd`.
+// Flush heartbeats metrics for each system-probe module using the API
 func (f *apiFlusher) Flush(modules []string, now time.Time) {
 	if len(modules) == 0 {
 		return
@@ -66,10 +61,7 @@ func (f *apiFlusher) Flush(modules []string, now time.Time) {
 	}
 
 	payload := forwarder.Payloads{&heartbeats}
-	if err := f.forwarder.SubmitV1Series(payload, http.Header{}); err != nil && f.fallback != nil {
-		log.Errorf("could not flush heartbeats to API: %s. trying statsd...", err)
-		f.fallback.Flush(modules, now)
-	}
+	f.forwarder.SubmitV1Series(payload, nil)
 }
 
 // Stop forwarder
