@@ -1,8 +1,8 @@
 name "net-snmp"
-default_version "5.8"
+default_version "5.7.3"
 
-version "5.8" do
-  source sha256: "b2fc3500840ebe532734c4786b0da4ef0a5f67e51ef4c86b3345d697e4976adf"
+version "5.7.3" do
+  source sha256: "12ef89613c7707dc96d13335f153c1921efc9d61d3708ef09f3fc4a7014fb4f0"
 end
 
 source url: "https://deac-ams.dl.sourceforge.net/project/net-snmp/net-snmp/#{version}/net-snmp-#{version}.tar.gz"
