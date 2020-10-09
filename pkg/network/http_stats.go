@@ -39,20 +39,26 @@ type httpStats struct {
 
 func (s httpStats) getLatencies() []time.Duration {
 	var latencies []time.Duration
+	var requestsQ []*httpRequest
 
-	if s.orderedEvents.Len() <= 1 {
-		return latencies
-	}
-
-	lastEventTime := time.Time{}
 	for _, event := range *s.orderedEvents {
-		latency := event.timestamp().Sub(lastEventTime)
-		latencies = append(latencies, latency)
-		lastEventTime = event.timestamp()
-	}
+		if req, ok := event.(*httpRequest); ok {
+			requestsQ = append(requestsQ, req)
+			continue
+		}
 
-	// the first latency value is garbage
-	latencies = latencies[1:]
+		if res, ok := event.(*httpResponse); ok {
+			if len(requestsQ) == 0 {
+				continue
+			}
+
+			oldestReq := requestsQ[0]
+			requestsQ = requestsQ[1:]
+
+			latency := res.timestamp().Sub(oldestReq.timestamp())
+			latencies = append(latencies, latency)
+		}
+	}
 
 	return latencies
 }
