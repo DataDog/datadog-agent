@@ -202,7 +202,7 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 	return &Options{
 		NumberOfWorkers:                config.Datadog.GetInt("forwarder_num_workers"),
 		RetryQueueSize:                 config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		RetryQueuePayloadsTotalMaxSize: config.Datadog.GetInt("forwarder_retry_queue_all_payloads_max_size"),
+		RetryQueuePayloadsTotalMaxSize: config.Datadog.GetInt("forwarder_retry_queue_payloads_max_size"),
 		DisableAPIKeyChecking:          false,
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		KeysPerDomain:                  keysPerDomain,

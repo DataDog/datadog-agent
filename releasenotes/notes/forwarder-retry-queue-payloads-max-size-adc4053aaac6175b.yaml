@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    Add the config `forwarder_retry_queue_all_payloads_max_size` which defines the 
+    Add the config `forwarder_retry_queue_payloads_max_size` which defines the 
     maximum size in bytes of all the payloads in the forwarder's retry queue. If 
-    `forwarder_retry_queue_all_payloads_max_size` is greater than 0, 
+    `forwarder_retry_queue_payloads_max_size` is greater than 0, 
     `forwarder_retry_queue_max_size` is ignored.
