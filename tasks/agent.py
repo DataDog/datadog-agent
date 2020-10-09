@@ -43,6 +43,7 @@ AGENT_CORECHECKS = [
     "file_handle",
     "go_expvar",
     "io",
+    "jetson",
     "jmx",
     "kubernetes_apiserver",
     "load",
