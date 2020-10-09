@@ -128,6 +128,7 @@ core,"github.com/cenkalti/backoff",MIT
 core,"github.com/cespare/xxhash",MIT
 core,"github.com/cihub/seelog",NewBSD
 core,"github.com/clbanning/mxj",MIT
+core,"github.com/cobaugh/osrelease",NewBSD
 core,"github.com/containerd/cgroups/stats/v1",Apache-2.0
 core,"github.com/containerd/containerd",Apache-2.0
 core,"github.com/containerd/containerd/api/events",Apache-2.0
