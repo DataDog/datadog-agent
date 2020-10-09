@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	lib "github.com/DataDog/ebpf"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -22,6 +23,7 @@ import (
 type DentryResolver struct {
 	probe     *Probe
 	pathnames *lib.Map
+	cache     *lru.Cache
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -59,10 +61,7 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
 	}
 
-	b := make([]byte, 16)
-	p.Write(b)
-
-	return b, nil
+	return make([]byte, 16), nil
 }
 
 type PathValue struct {
@@ -101,9 +100,19 @@ func (dr *DentryResolver) resolve(mountID uint32, inode uint64, pathID uint32) (
 
 	// Fetch path recursively
 	for !done {
-		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
-			filename = dentryPathKeyNotFound
-			break
+		cacheKey := PathKey{MountID: key.MountID, Inode: key.Inode}
+
+		entry, exists := dr.cache.Get(cacheKey)
+		if !exists {
+			key.Write(keyBuffer)
+			if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
+				filename = dentryPathKeyNotFound
+				break
+			}
+
+			dr.cache.Add(cacheKey, path)
+		} else {
+			path = entry.(PathValue)
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
@@ -116,7 +125,7 @@ func (dr *DentryResolver) resolve(mountID uint32, inode uint64, pathID uint32) (
 		}
 
 		// Prepare next key
-		path.Parent.Write(keyBuffer)
+		key = path.Parent
 	}
 
 	if len(filename) == 0 {
@@ -154,6 +163,12 @@ func (dr *DentryResolver) Start() error {
 		return errors.New("map pathnames not found")
 	}
 	dr.pathnames = pathnames
+
+	cache, err := lru.New(4096)
+	if err != nil {
+		return err
+	}
+	dr.cache = cache
 
 	return nil
 }
