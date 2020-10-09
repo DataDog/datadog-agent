@@ -611,6 +611,7 @@ core,"gopkg.in/Knetic/govaluate.v3",MIT
 core,"gopkg.in/inf.v0",NewBSD
 core,"gopkg.in/natefinch/lumberjack.v2",MIT
 core,"gopkg.in/yaml.v2",Apache-2.0
+core,"gopkg.in/yaml.v3",MIT
 core,"gopkg.in/zorkian/go-datadog-api.v2",NewBSD
 core,"k8s.io/api/admission/v1",Apache-2.0
 core,"k8s.io/api/admission/v1beta1",Apache-2.0
