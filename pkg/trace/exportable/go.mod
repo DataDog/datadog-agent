@@ -8,8 +8,8 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-20201009090525-8e5fc6df0681
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-20201009090525-8e5fc6df0681
 	github.com/DataDog/datadog-go v4.0.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/dgraph-io/ristretto v0.0.3
