@@ -8,7 +8,7 @@ package obfuscate
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/config/configdefs"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
 )
 

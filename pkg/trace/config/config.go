@@ -18,7 +18,7 @@ import (
 	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/config/configdefs"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

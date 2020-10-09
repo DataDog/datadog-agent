@@ -11,7 +11,7 @@ import (
 	"bytes"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/config/configdefs"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
 )
 

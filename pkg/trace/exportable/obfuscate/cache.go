@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/config/features"
 	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/exportable/metrics/client"
 
 	"github.com/dgraph-io/ristretto"
