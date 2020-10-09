@@ -39,24 +39,6 @@ void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *dst, st
     return;
 }
 
-struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct proc_cache_t),
-    .max_entries = 4095,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/pid_cookie") pid_cookie = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 4097,
-    .pinning = 0,
-    .namespace = "",
-};
-
 int __attribute__((always_inline)) trace__sys_execveat() {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_EXEC,
@@ -72,18 +54,6 @@ SYSCALL_KPROBE0(execve) {
 
 SYSCALL_KPROBE0(execveat) {
     return trace__sys_execveat();
-}
-
-struct proc_cache_t * __attribute__((always_inline)) get_pid_cache(u32 tgid) {
-    struct proc_cache_t *entry = NULL;
-
-    u32 *cookie = (u32 *) bpf_map_lookup_elem(&pid_cookie, &tgid);
-    if (cookie) {
-        // Select the old cache entry
-        u32 cookie_key = *cookie;
-        entry = bpf_map_lookup_elem(&proc_cache, &cookie_key);
-    }
-    return entry;
 }
 
 int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
@@ -115,6 +85,10 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     if (parent_entry) {
         // inherit container ID
         copy_container_id(entry.container.container_id, parent_entry->container.container_id);
+    } else {
+        // cache dentry
+        struct dentry *dentry = get_path_dentry(path);
+        resolve_dentry(dentry, syscall->open.path_key, 0);
     }
 
     // insert new proc cache entry
@@ -122,10 +96,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 
     // insert pid <-> cookie mapping
     bpf_map_update_elem(&pid_cookie, &tgid, &cookie, BPF_ANY);
-
-    // cache dentry
-    struct dentry *dentry = get_path_dentry(path);
-    resolve_dentry(dentry, syscall->open.path_key, 0);
 
     pop_syscall(SYSCALL_EXEC);
 
@@ -162,8 +132,6 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         };
 
         send_process_events(ctx, event);
-
-        remove_pid_discarders(tgid);
     }
     return 0;
 }

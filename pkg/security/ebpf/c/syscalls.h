@@ -2,6 +2,7 @@
 #define _SYSCALLS_H_
 
 #include "filters.h"
+#include "process.h"
 
 #define FSTYPE_LEN 16
 
@@ -125,8 +126,14 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
         bpf_printk("cache/syscall policy for %d is %d\n", event_type, syscall->policy.mode);
 #endif
 
-    if (syscall->policy.mode != NO_FILTER && discarded_by_pid(event_type)) {
-        return;
+    if (syscall->policy.mode != NO_FILTER) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+
+        struct proc_cache_t *entry = get_pid_cache(tgid);
+        if (entry && discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode)) {
+            return;
+        }
     }
 
     u64 key = bpf_get_current_pid_tgid();

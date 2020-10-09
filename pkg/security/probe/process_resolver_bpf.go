@@ -73,11 +73,6 @@ func (p *ProcessResolver) AddEntry(pid uint32, entry *ProcessCacheEntry) {
 
 func (p *ProcessResolver) DelEntry(pid uint32) {
 	delete(p.entryCache, pid)
-
-	pidb := make([]byte, 4)
-	ebpf.ByteOrder.PutUint32(pidb, pid)
-
-	p.pidCookieMap.Delete(pidb)
 }
 
 func (p *ProcessResolver) resolve(pid uint32) *ProcessCacheEntry {

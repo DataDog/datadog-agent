@@ -649,7 +649,10 @@ func NewProbe(config *config.Config) (*Probe, error) {
 func processDiscarderWrapper(eventType EventType, fnc onDiscarderFnc) onDiscarderFnc {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.filename" {
-			return discardProcessInode(probe, eventType, event)
+			log.Tracef("apply process.filename discarder for event `%s`", eventType)
+
+			_, err := discardInode(probe, eventType, event.Process.MountID, event.Process.Inode)
+			return err
 		}
 
 		if fnc != nil {
@@ -685,9 +688,13 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 			isDiscarded, err := discardParentInode(probe, rs, eventType, filename, mountID, inode)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
+					log.Tracef("apply `%s.filename` inode discarder for event `%s`", eventType, eventType)
+
 					// not able to discard the parent then only discard the filename
 					_, err = discardInode(probe, eventType, mountID, inode)
 				}
+			} else {
+				log.Tracef("apply `%s.filename` parent inode discarder for event `%s`", eventType, eventType)
 			}
 
 			if err != nil {

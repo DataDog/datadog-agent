@@ -30,21 +30,9 @@
 #include "setxattr.h"
 
 void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file) {
-    struct path_key_t path_key = {
-        .ino = file->inode,
-        .mount_id = file->mount_id,
-    };
-
 #pragma unroll
     for (int i = 1; i < EVENT_MAX; i++) {
-        remove_inode_discarder(i, path_key);
-    }
-}
-
-void __attribute__((always_inline)) remove_pid_discarders(u32 tgid) {
-#pragma unroll
-    for (int i = 1; i < EVENT_MAX; i++) {
-        remove_pid_discarder(i, tgid);
+        remove_inode_discarder(i, file->mount_id, file->inode);
     }
 }
 

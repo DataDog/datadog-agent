@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type inodeDiscarder struct {
@@ -37,8 +36,6 @@ func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint6
 			Inode:   inode,
 		},
 	}
-
-	log.Tracef("apply %s.filename discarder for event `%s`", eventType, eventType)
 
 	table := probe.Map("inode_discarders")
 	if err := table.Put(&key, ebpf.ZeroUint8MapItem); err != nil {
@@ -107,33 +104,4 @@ func setFlagsFilter(probe *Probe, tableName string, flags ...int) error {
 
 func approveFlags(probe *Probe, tableName string, flags ...int) error {
 	return setFlagsFilter(probe, tableName, flags...)
-}
-
-type processDiscarder struct {
-	eventType EventType
-	pid       uint32
-}
-
-func (p *processDiscarder) Bytes() ([]byte, error) {
-	b := make([]byte, 16)
-	ebpf.ByteOrder.PutUint64(b[0:8], uint64(p.eventType))
-	ebpf.ByteOrder.PutUint32(b[8:12], p.pid)
-
-	return b, nil
-}
-
-func discardProcessFilename(probe *Probe, eventType EventType, event *Event) error {
-	key := processDiscarder{
-		eventType: eventType,
-		pid:       event.Process.Pid,
-	}
-
-	log.Tracef("apply process.filename discarder for event `%s`", eventType)
-
-	table := probe.Map("process_discarders")
-	if err := table.Put(key, ebpf.ZeroUint8MapItem); err != nil {
-		return err
-	}
-
-	return nil
 }
