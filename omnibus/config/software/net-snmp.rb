@@ -15,11 +15,12 @@ build do
 
   configure_args = [
     "--prefix=#{install_dir}/embedded",
+    "--enable-mini-agent",
   ]
 
   configure_command = configure_args.unshift("./configure").join(" ")
 
-  command configure_command, env: env, in_msys_bash: true
+  command configure_command, env: env
   make env: env
   make "install", env: env
 
