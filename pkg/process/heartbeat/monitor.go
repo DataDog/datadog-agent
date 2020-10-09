@@ -54,10 +54,6 @@ func NewModuleMonitor(opts Options) (*ModuleMonitor, error) {
 	if opts.SysprobeSocketPath != "" {
 		net.SetSystemProbePath(opts.SysprobeSocketPath)
 	}
-	sysprobe, err := net.GetRemoteSystemProbeUtil()
-	if err != nil {
-		return nil, err
-	}
 
 	flusher, err := newStatsdFlusher(opts)
 	if err != nil {
@@ -76,7 +72,7 @@ func NewModuleMonitor(opts Options) (*ModuleMonitor, error) {
 	}
 
 	return &ModuleMonitor{
-		statsFn: statsFn(sysprobe.GetStats),
+		statsFn: systemProbeStats,
 		flusher: flusher,
 		exit:    make(chan struct{}),
 	}, nil
@@ -87,12 +83,10 @@ func NewModuleMonitor(opts Options) (*ModuleMonitor, error) {
 // emitted. If no argument is given all enabled modules are reported.
 func (m *ModuleMonitor) Heartbeat(modules ...string) {
 	enabled, err := m.enabled(modules)
-	if err != nil {
+	if err != nil || len(enabled) == 0 {
 		return
 	}
-	if len(enabled) == 0 {
-		return
-	}
+
 	m.flusher.Flush(enabled, time.Now())
 }
 
@@ -138,4 +132,13 @@ func (m *ModuleMonitor) enabled(modules []string) ([]string, error) {
 	}
 	sort.Strings(enabled)
 	return enabled, nil
+}
+
+func systemProbeStats() (map[string]interface{}, error) {
+	sysprobe, err := net.GetRemoteSystemProbeUtil()
+	if err != nil {
+		return nil, fmt.Errorf("system-probe not initialized: %s", err)
+	}
+
+	return sysprobe.GetStats()
 }
