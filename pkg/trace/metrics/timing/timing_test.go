@@ -13,7 +13,7 @@ import (
 	"time"
 
 	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/exportable/metrics/client"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/test/testutil"
 
 	"github.com/stretchr/testify/assert"
 )

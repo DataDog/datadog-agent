@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config/configdefs"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/test/testutil"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )

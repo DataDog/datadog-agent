@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/test/testutil"
 )
 
 type BySpanID []*pb.Span
