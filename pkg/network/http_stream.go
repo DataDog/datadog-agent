@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/tcpassembly"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
@@ -137,10 +136,10 @@ func (h *httpStreamHandler) readStreamData() {
 			return
 		}
 		if err != nil {
-			srcIP, dstIP := h.key.net.Endpoints()
-			srcPrt, dstPrt := h.key.transport.Endpoints()
-			log.Errorf("Error reading HTTP stream %v:%v -> %v:%v : %v",
-				srcIP, dstIP, srcPrt, dstPrt, err)
+			// srcIP, dstIP := h.key.net.Endpoints()
+			// srcPrt, dstPrt := h.key.transport.Endpoints()
+			// log.Errorf("Error reading HTTP stream %v:%v -> %v:%v : %v",
+			// 	srcIP, dstIP, srcPrt, dstPrt, err)
 			atomic.AddInt64(&h.statKeeper.readErrors, 1)
 			continue
 		}

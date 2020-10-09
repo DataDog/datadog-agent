@@ -1218,7 +1218,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
     __u16 dst_port = load_half(skb, ETH_HLEN + ip_hdr_size + dst_port_offset);
 
-    if (src_port == 80 || dst_port == 80)
+    if (src_port == 80 || dst_port == 8 || src_port == 8080 || dst_port == 8080)
         return -1;  // accept packet
 
     return 0;

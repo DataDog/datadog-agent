@@ -224,7 +224,8 @@ func (s *HTTPSocketFilterInspector) PrintStats() {
 }
 
 func (s *HTTPSocketFilterInspector) PrintConnections() {
-	count := 0 // sync.Map currently has no length method
+	var connCount, reqCount, resCount, errCount, successCount int64
+	var avgLatencies []time.Duration
 	s.statKeeper.stats.Range(func(key, value interface{}) bool {
 		conn, ok := value.(httpStats)
 		if !ok {
@@ -235,15 +236,21 @@ func (s *HTTPSocketFilterInspector) PrintConnections() {
 		latencies := conn.getLatencies()
 		avgLatency := avg(latencies)
 
-		log.Infof("  %v:%v -> %v:%v \t %v requests, %v responses, %v errors, %v successes, %v avg latency",
-			conn.sourceIP, conn.sourcePort, conn.destIP, conn.destPort,
-			conn.numRequests, conn.numResponses, conn.errors, conn.successes, avgLatency)
+		// log.Infof("  %v:%v -> %v:%v \t %v requests, %v responses, %v errors, %v successes, %v avg latency",
+		// 	conn.sourceIP, conn.sourcePort, conn.destIP, conn.destPort,
+		// 	conn.numRequests, conn.numResponses, conn.errors, conn.successes, avgLatency)
 
-		count++
+		connCount++
+		reqCount += conn.numRequests
+		resCount += conn.numResponses
+		errCount += conn.errors
+		successCount += conn.successes
+		avgLatencies = append(avgLatencies, avgLatency)
 
 		return true
 	})
-	log.Infof("  %v connections found", count)
+	log.Infof("%v active connections: %v requests, %v responses, %v errors, %v successes, %v average request latency",
+		connCount, reqCount, resCount, errCount, successCount, avg(avgLatencies))
 }
 
 func avg(arr []time.Duration) time.Duration {
