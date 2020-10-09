@@ -1,9 +1,7 @@
 module github.com/DataDog/datadog-agent/pkg/util/winutil
 
-replace (
-    github.com/DataDog/datadog-agent/pkg/util/winutil => ../winutil
-)
+go 1.14
 
-require (
-    "github.com/DataDog/datadog-agent/pkg/util/log" v0.0.0-20201009091026-5e3e70109784
-)
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../winutil
+
+require github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-20201009091607-ce4e57cdf8f4
