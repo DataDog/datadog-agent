@@ -26,7 +26,7 @@ import (
 // NewCheckBase() in your factory, plus:
 // - long-running checks must override Stop() and Interval()
 // - checks supporting multiple instances must call BuildID() from
-// their Config() method
+// their Configure() method
 // - after optionally building a unique ID, CommonConfigure() must
 // be called from the Config() method to handle the common instance
 // fields
