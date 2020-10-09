@@ -72,7 +72,7 @@
             "type": "go"
         },
         "github.com/goware/modvendor": {
-            "version": "892bf4ecb805b052575eb45070a60f9db471df8e",
+            "version": "8f69eb91bc89d69d0d7381fb5b8ed25d21f0ff90",
             "type": "go"
         },
         "github.com/golang/perf/cmd/benchstat": {
