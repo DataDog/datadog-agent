@@ -306,7 +306,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 // GetPayloadSize returns the size of the payload.
 func (t *HTTPTransaction) GetPayloadSize() int {
-	if t != nil && t.Payload != nil {
+	if t.Payload != nil {
 		return len(*t.Payload)
 	}
 	return 0

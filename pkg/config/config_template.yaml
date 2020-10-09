@@ -167,6 +167,8 @@ api_key:
 ## The forwarder retries failed requests. Use this setting to change the
 ## maximum length of the forwarder's retry queue (each request in the queue
 ## takes no more than 2MB in memory)
+## If "forwarder_retry_queue_payloads_max_size" is greater than 0, 
+## "forwarder_retry_queue_max_size" is ignored.
 #
 # forwarder_retry_queue_max_size: 30
 
