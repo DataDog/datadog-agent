@@ -10,7 +10,7 @@ package python
 import (
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/obfuscate"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"

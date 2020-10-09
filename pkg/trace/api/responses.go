@@ -12,8 +12,8 @@ import (
 	"net"
 	"net/http"
 
-	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/exportable/metrics/client"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

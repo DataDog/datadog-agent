@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/metrics/client"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/exportable/metrics/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

@@ -8,7 +8,7 @@ package testutil
 import (
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/stats"
 )
 
 var defaultAggregators = []string{"service", "resource"}

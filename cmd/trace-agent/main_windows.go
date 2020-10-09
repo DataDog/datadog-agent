@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/flags"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/watchdog"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 
 	"golang.org/x/sys/windows/svc"

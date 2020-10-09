@@ -8,7 +8,7 @@ package testutil
 import (
 	"math/rand"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
 )
 
 // genNextLevel generates a new level for the trace tree structure,

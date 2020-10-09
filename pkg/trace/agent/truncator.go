@@ -7,8 +7,8 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
