@@ -39,7 +39,10 @@ func newAPIFlusher(opts Options) (flusher, error) {
 	fwdOpts := forwarder.NewOptions(sanitize(opts.KeysPerDomain))
 	fwdOpts.DisableAPIKeyChecking = true
 	heartbeatForwarder := forwarder.NewDefaultForwarder(fwdOpts)
-	heartbeatForwarder.Start()
+	err := heartbeatForwarder.Start()
+	if err != nil {
+		return nil, err
+	}
 
 	return &apiFlusher{
 		forwarder: heartbeatForwarder,
@@ -61,7 +64,7 @@ func (f *apiFlusher) Flush(modules []string, now time.Time) {
 	}
 
 	payload := forwarder.Payloads{&heartbeats}
-	f.forwarder.SubmitV1Series(payload, nil)
+	f.forwarder.SubmitV1Series(payload, nil) //nolint:errcheck
 }
 
 // Stop forwarder
