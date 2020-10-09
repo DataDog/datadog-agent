@@ -48,6 +48,9 @@ var (
 
 const (
 	sourcesLogfile = "sources.log"
+	StatusUnknown  = "unknown"
+	StatusOngoing  = "ongoing"
+	StatusReady    = "ready"
 )
 
 func NewRemoteFlare(path, zip string, d time.Duration) *RemoteFlare {
@@ -59,6 +62,13 @@ func NewRemoteFlare(path, zip string, d time.Duration) *RemoteFlare {
 		files:   map[string]*os.File{},
 		sources: map[string]*RegisteredSource{},
 	}
+}
+
+func (f *RemoteFlare) GetId() string {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
+	return f.Id
 }
 
 func (f *RemoteFlare) GetFile(id string) (*os.File, error) {
@@ -144,7 +154,7 @@ func GetStatus(id string) *RemoteFlareStatus {
 	var err error
 
 	status := &RemoteFlareStatus{
-		Status: "unknown",
+		Status: StatusUnknown,
 	}
 
 	// has the flare been completed
@@ -163,7 +173,7 @@ func GetStatus(id string) *RemoteFlareStatus {
 			return status
 		}
 
-		status.Status = "ongoing"
+		status.Status = StatusOngoing
 		status.File = currentFlare.zipPath
 
 		status.Ttl = currentFlare.Ts - time.Now().Unix()
@@ -172,7 +182,7 @@ func GetStatus(id string) *RemoteFlareStatus {
 		}
 		mutex.RUnlock()
 	} else {
-		status.Status = "ready"
+		status.Status = StatusReady
 		status.File = flare.zipPath
 		status.Ttl = 0
 	}
@@ -212,6 +222,10 @@ func GetFlareForId(id string) (*RemoteFlare, error) {
 	mutex.RLock()
 	f := currentFlare
 	mutex.RUnlock()
+
+	if f == nil {
+		return nil, nil
+	}
 
 	if _, ok := f.hasSource(id); !ok {
 		return nil, nil

@@ -130,16 +130,28 @@ func tracerFlare(w http.ResponseWriter, r *http.Request, vars map[string]string)
 
 		duration, err := strconv.Atoi(r.PostFormValue("duration"))
 		if err != nil {
-			http.Error(w, log.Errorf("error parsing flare duration interval: %s", err).Error(), 500)
+			http.Error(w, log.Errorf("error parsing flare duration interval: %s", err).Error(), 400)
 			return
 		}
 
+		// TODO: use tracer lang for something
 		if tracerId != "" || tracerEnv != "" || tracerSvc != "" || tracerLang != "" {
-			remote_flare.CreateRemoteFlareArchive(tracerId, tracerEnv, tracerSvc, time.Duration(duration)*time.Second)
+			flare, err := remote_flare.CreateRemoteFlareArchive(tracerId, tracerEnv, tracerSvc, time.Duration(duration)*time.Second)
+			if err != nil {
+				http.Error(w, log.Errorf("error creating flare: %s", err).Error(), 500)
+				return
+			}
+
+			status := remote_flare.GetStatus(flare.GetId())
+			j, _ := json.Marshal(status)
+			w.Write(j)
+
+			return
 		}
 	}
-	//async or what?
 
+	http.Error(w, log.Errorf("unable to create flare, bad arguments").Error(), 400)
+	return
 }
 
 func vanillaFlare(w http.ResponseWriter, r *http.Request) {

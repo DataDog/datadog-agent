@@ -42,7 +42,7 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 	return &pb.HostnameReply{Hostname: h}, nil
 }
 
-func (s *server) ServiceHeartbeat(ctx context.Context, in *pb.FlareHeartbeatRequest) (*pb.FlareHeartbeatResponse, error) {
+func (s *server) FlareServiceHeartbeat(ctx context.Context, in *pb.FlareHeartbeatRequest) (*pb.FlareHeartbeatResponse, error) {
 	remote.RegisterSource(in.TracerIdentifier, "APM", in.TracerService, in.TracerEnvironment)
 	flare, err := remote.GetFlareForId(in.TracerIdentifier)
 	if err != nil {
@@ -58,6 +58,29 @@ func (s *server) ServiceHeartbeat(ctx context.Context, in *pb.FlareHeartbeatRequ
 		EndTime:         flare.Ts,
 	}
 	return &pb.FlareHeartbeatResponse{Trigger: trigger}, nil
+
+}
+
+func (s *server) FlareServiceQuery(ctx context.Context, in *pb.FlareQueryRequest) (*pb.FlareQueryResponse, error) {
+	response := pb.FlareQueryResponse{}
+
+	if in.Query == nil {
+		return &response, nil
+	}
+
+	sources := remote.GetSourcesByServiceAndEnv(in.Query.TracerService, in.Query.TracerEnvironment)
+
+	answer := []*pb.FlareHeartbeatRequest{}
+	for id, s := range sources {
+		answer = append(answer, &pb.FlareHeartbeatRequest{
+			TracerIdentifier:  id,
+			TracerService:     s.Service,
+			TracerEnvironment: s.Env,
+		})
+	}
+
+	response.Answer = answer
+	return &response, nil
 
 }
 

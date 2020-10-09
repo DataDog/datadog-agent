@@ -14,9 +14,17 @@ service Agent {
     }
 
     // get tracer heartbeat
-    rpc ServiceHeartbeat (FlareHeartbeatRequest) returns (FlareHeartbeatResponse) {
+    rpc FlareServiceHeartbeat (FlareHeartbeatRequest) returns (FlareHeartbeatResponse) {
         option (google.api.http) = {
-            post: "/v1/grpc/service_heartbeat"
+            post: "/v1/grpc/flare/service_heartbeat"
+            body: "*"
+        };
+    }
+
+    // get tracer heartbeat
+    rpc FlareServiceQuery (FlareQueryRequest) returns (FlareQueryResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/flare/service_query"
             body: "*"
         };
     }
@@ -24,7 +32,7 @@ service Agent {
     // log events
     rpc FlareLogEvent (FlareLogRequest) returns (FlareLogResponse) {
         option (google.api.http) = {
-            post: "/v1/grpc/log/{flare_identifier}/{tracer_identifier}"
+            post: "/v1/grpc/flare/log/{flare_identifier}/{tracer_identifier}"
             body: "*"
         };
     }
@@ -100,6 +108,14 @@ message FlareHeartbeatResponse {
                              // should be empty if no flare
                              // should be triggered on the
                              // tracer side.
+}
+
+message FlareQueryRequest {
+    FlareHeartbeatRequest query = 1;
+}
+
+message FlareQueryResponse {
+    repeated FlareHeartbeatRequest answer = 1;
 }
 
 

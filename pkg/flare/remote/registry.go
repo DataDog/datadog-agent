@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	gocache "github.com/patrickmn/go-cache"
 )
 
 const (
@@ -18,7 +20,15 @@ const (
 	maxTracers         = 10
 )
 
-var registrationMap = cache.NewCache(expirationInterval, purgeInterval)
+var registrationMap = initRegistry()
+
+func initRegistry() *gocache.Cache {
+	c := cache.NewCache(expirationInterval, purgeInterval)
+	c.OnEvicted(func(k string, v interface{}) {
+		log.Warnf("source with key: %s was evicted", k)
+	})
+	return c
+}
 
 // Questions: should this schema be looser?
 type RegisteredSource struct {
@@ -35,6 +45,8 @@ func (rs *RegisteredSource) String() string {
 func RegisterSource(id, source, service, env string) *RegisteredSource {
 	//idempotent
 	if item, ok := registrationMap.Get(id); ok {
+		// reset it to update the timestamp :(
+		registrationMap.SetDefault(id, item)
 		return item.(*RegisteredSource)
 	}
 
