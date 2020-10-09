@@ -342,6 +342,8 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 
 	eventType := EventType(event.Type)
 
+	p.eventsStats.CountEventType(eventType, 1)
+
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
 	unmarshalProcessContainer := func(data []byte) (int, error) {
@@ -467,44 +469,6 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-<<<<<<< HEAD
-=======
-	case FileMountEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
-		if err != nil {
-			log.Errorf("failed to decode event `utimes`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		// Resolve mount point
-		event.Mount.ResolveMountPoint(p.resolvers)
-		// Resolve root
-		event.Mount.ResolveRoot(p.resolvers)
-		// Insert new mount point in cache
-		p.resolvers.MountResolver.Insert(&event.Mount)
-	case FileUmountEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
-		if err != nil {
-			log.Errorf("failed to decode event `utimes`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-		// Delete new mount point from cache
-		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
-			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
-		}
->>>>>>> 986495364... Do not fill the process cache up
 	case FileSetXAttrEventType:
 		read, err = unmarshalProcessContainer(data[offset:])
 		if err != nil {
@@ -536,6 +500,8 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 		}
 
 		p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &event.Exec.ProcessCacheEntry)
+
+		return
 	case ExitEventType:
 		if _, err := event.Exit.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
@@ -545,12 +511,13 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 		// as far as we keep only one perf for all the event we can delete the entry right away, there won't be
 		// any race
 		p.resolvers.ProcessResolver.DelEntry(event.Exit.Pid)
+
+		// no need to dispatch
+		return
 	default:
 		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
 		return
 	}
-
-	p.eventsStats.CountEventType(eventType, 1)
 
 	log.Tracef("Dispatching event %+v\n", event)
 	p.DispatchEvent(event)
@@ -682,7 +649,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 func processDiscarderWrapper(eventType EventType, fnc onDiscarderFnc) onDiscarderFnc {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.filename" {
-			return discardProcessFilename(probe, eventType, event)
+			return discardProcessInode(probe, eventType, event)
 		}
 
 		if fnc != nil {
