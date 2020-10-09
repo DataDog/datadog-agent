@@ -11,8 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-// HeartbeatMetricName is used to determine the metric name for a given module
-func HeartbeatMetricName(moduleName string) string {
+// MetricName is used to determine the metric name for a given module
+func MetricName(moduleName string) string {
 	return fmt.Sprintf("datadog.system_probe.agent.%s", moduleName)
 }
 
@@ -71,7 +71,7 @@ func NewModuleMonitor(opts Options) (*ModuleMonitor, error) {
 		log.Warnf("could not create statsd flusher: %s", err)
 	}
 
-	apiFlusher, err := newAPIFlusher(opts)
+	apiFlusher, err := newAPIFlusher(opts, flusher)
 	if err != nil {
 		log.Warnf("could not create api flusher: %s", err)
 	} else {
@@ -151,7 +151,7 @@ func (m *ModuleMonitor) enabled(modules []string) ([]string, error) {
 	return enabled, nil
 }
 
-// SystemProbeEnableModules returns a list of all system-probe enabled modules
+// SystemProbeEnabledModules returns a list of all system-probe modules that are running
 func SystemProbeEnabledModules() ([]string, error) {
 	sysprobe, err := net.GetRemoteSystemProbeUtil()
 	if err != nil {

@@ -36,7 +36,12 @@ var requestBody = `
 func TestFlush(t *testing.T) {
 	mockForwarder := &forwarder.MockedForwarder{}
 	tags := []string{"version:8", "revision:123"}
-	flusher := &apiFlusher{forwarder: mockForwarder, hostname: "foobar", tags: tags}
+	flusher := &apiFlusher{
+		forwarder:  mockForwarder,
+		hostname:   "foobar",
+		tags:       tags,
+		apiWatcher: newAPIWatcher(time.Minute),
+	}
 	var payloads forwarder.Payloads
 
 	mockForwarder.

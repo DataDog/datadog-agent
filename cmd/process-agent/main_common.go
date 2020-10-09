@@ -114,6 +114,16 @@ func runAgent(exit chan struct{}) {
 	tagger.Init()
 	defer tagger.Stop() //nolint:errcheck
 
+	err = initInfo(cfg)
+	if err != nil {
+		log.Criticalf("Error initializing info: %s", err)
+		cleanupAndExit(1)
+	}
+	if err := statsd.Configure(cfg); err != nil {
+		log.Criticalf("Error configuring statsd: %s", err)
+		cleanupAndExit(1)
+	}
+
 	// Initialize system-probe heartbeats
 	sysprobeMonitor, err := heartbeat.NewModuleMonitor(heartbeat.Options{
 		KeysPerDomain:      keysPerDomains(cfg.APIEndpoints),
@@ -128,16 +138,6 @@ func runAgent(exit chan struct{}) {
 		log.Warnf("failed to initialize system-probe monitor: %s", err)
 	} else {
 		sysprobeMonitor.Every(15 * time.Second)
-	}
-
-	err = initInfo(cfg)
-	if err != nil {
-		log.Criticalf("Error initializing info: %s", err)
-		cleanupAndExit(1)
-	}
-	if err := statsd.Configure(cfg); err != nil {
-		log.Criticalf("Error configuring statsd: %s", err)
-		cleanupAndExit(1)
 	}
 
 	// Exit if agent is not enabled and we're not debugging a check.

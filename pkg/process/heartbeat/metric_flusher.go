@@ -7,9 +7,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	pstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/statsd"
 )
 
 type flusher interface {
@@ -18,14 +16,16 @@ type flusher interface {
 }
 
 type apiFlusher struct {
-	forwarder forwarder.Forwarder
-	tags      []string
-	hostname  string
+	forwarder  forwarder.Forwarder
+	apiWatcher *apiWatcher
+	fallback   flusher
+	tags       []string
+	hostname   string
 }
 
 var _ flusher = &apiFlusher{}
 
-func newAPIFlusher(opts Options) (flusher, error) {
+func newAPIFlusher(opts Options, fallback flusher) (flusher, error) {
 	if len(opts.KeysPerDomain) == 0 {
 		return nil, fmt.Errorf("missing api key information")
 	}
@@ -33,9 +33,12 @@ func newAPIFlusher(opts Options) (flusher, error) {
 		return nil, fmt.Errorf("missing hostname information")
 	}
 
+	apiWatcher := newAPIWatcher(time.Minute)
+
 	// Instantiate forwarder responsible for sending hearbeat metrics to the API
 	fwdOpts := forwarder.NewOptions(sanitize(opts.KeysPerDomain))
 	fwdOpts.DisableAPIKeyChecking = true
+	fwdOpts.CompletionHandler = apiWatcher.handler()
 	heartbeatForwarder := forwarder.NewDefaultForwarder(fwdOpts)
 	err := heartbeatForwarder.Start()
 	if err != nil {
@@ -43,15 +46,22 @@ func newAPIFlusher(opts Options) (flusher, error) {
 	}
 
 	return &apiFlusher{
-		forwarder: heartbeatForwarder,
-		tags:      tagsFromOptions(opts),
-		hostname:  opts.HostName,
+		forwarder:  heartbeatForwarder,
+		apiWatcher: apiWatcher,
+		fallback:   fallback,
+		tags:       tagsFromOptions(opts),
+		hostname:   opts.HostName,
 	}, nil
 }
 
 // Flush heartbeats metrics via the API
 func (f *apiFlusher) Flush(metricNames []string, now time.Time) {
 	if len(metricNames) == 0 {
+		return
+	}
+
+	if f.apiWatcher.state() == apiUnreachable && f.fallback != nil {
+		f.fallback.Flush(metricNames, now)
 		return
 	}
 
@@ -94,37 +104,6 @@ func (f *apiFlusher) jsonPayload(metricNames []string, now time.Time) ([]byte, e
 
 	return heartbeats.MarshalJSON()
 }
-
-type statsdFlusher struct {
-	client statsd.ClientInterface
-	tags   []string
-}
-
-var _ flusher = &statsdFlusher{}
-
-func newStatsdFlusher(opts Options) (flusher, error) {
-	if opts.StatsdClient != nil {
-		opts.StatsdClient = pstatsd.Client
-	}
-	if opts.StatsdClient != nil {
-		return nil, fmt.Errorf("missing statsd client")
-	}
-
-	return &statsdFlusher{
-		client: opts.StatsdClient,
-		tags:   tagsFromOptions(opts),
-	}, nil
-}
-
-// Flush heartbeats via statsd
-func (f *statsdFlusher) Flush(metricNames []string, _ time.Time) {
-	for _, name := range metricNames {
-		f.client.Gauge(name, 1, f.tags, 1) //nolint:errcheck
-	}
-}
-
-// Stop flusher
-func (f *statsdFlusher) Stop() {}
 
 func sanitize(keysPerDomain map[string][]string) map[string][]string {
 	sanitized := make(map[string][]string)
