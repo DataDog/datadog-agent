@@ -60,10 +60,10 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.44.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/trace/exportable v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-20201009092105-58e18918b2db
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-20201009092105-58e18918b2db
-	github.com/DataDog/datadog-go v4.0.1+incompatible
+	github.com/DataDog/datadog-agent/pkg/trace/exportable v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0
+	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
 	github.com/DataDog/ebpf v0.0.0-20201006072253-4888b092bbfe
 	github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a

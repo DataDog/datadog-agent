@@ -10,7 +10,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-20201009092105-58e18918b2db
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-20201009092105-58e18918b2db
-	github.com/DataDog/datadog-go v4.0.1+incompatible
+	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/dgraph-io/ristretto v0.0.3
