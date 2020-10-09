@@ -52,6 +52,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     syscall->link.target_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
     syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
 
+    syscall->link.src_key.path_id = bpf_get_prandom_u32();
     int ret = resolve_dentry(dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
     if (ret < 0) {
         pop_syscall(SYSCALL_LINK);
@@ -84,6 +85,7 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
             .inode = inode,
             .mount_id = syscall->link.src_key.mount_id,
             .overlay_numlower = syscall->link.src_overlay_numlower,
+            .path_id = syscall->link.src_key.path_id,
         },
         .target = {
             .inode = syscall->link.target_key.ino,

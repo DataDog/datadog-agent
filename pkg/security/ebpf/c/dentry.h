@@ -202,6 +202,7 @@ static __attribute__((always_inline)) void link_dentry_inode(struct path_key_t k
     struct path_key_t new_key = {
         .mount_id = key.mount_id,
         .ino = inode,
+        .path_id = key.path_id,
     };
     struct path_leaf_t map_value = {
         .parent = key

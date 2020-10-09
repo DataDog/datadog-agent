@@ -119,6 +119,7 @@ type BinaryUnmarshaler interface {
 type FileEvent struct {
 	MountID         uint32 `field:"-"`
 	Inode           uint64 `field:"inode"`
+	PathID          uint32 `field:"-"`
 	OverlayNumLower int32  `field:"overlay_numlower"`
 	PathnameStr     string `field:"filename" handler:"ResolveInode,string"`
 	ContainerPath   string `field:"container_path" handler:"ResolveContainerPath,string"`
@@ -128,7 +129,7 @@ type FileEvent struct {
 // ResolveInode resolves the inode to a full path
 func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
 		if e.PathnameStr == dentryPathKeyNotFound {
 			return e.PathnameStr
 		}
@@ -166,7 +167,7 @@ func (e *FileEvent) ResolveBasename(resolvers *Resolvers) string {
 		if e.PathnameStr != "" {
 			e.BasenameStr = path.Base(e.PathnameStr)
 		} else {
-			e.BasenameStr = resolvers.DentryResolver.GetName(e.MountID, e.Inode)
+			e.BasenameStr = resolvers.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
 		}
 	}
 	return e.BasenameStr
@@ -191,13 +192,15 @@ func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
 	e.Inode = ebpf.ByteOrder.Uint64(data[0:8])
 	e.MountID = ebpf.ByteOrder.Uint32(data[8:12])
 	e.OverlayNumLower = int32(ebpf.ByteOrder.Uint32(data[12:16]))
-	return 16, nil
+	e.PathID = ebpf.ByteOrder.Uint32(data[16:20])
+
+	return 24, nil
 }
 
 func unmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int, error) {
@@ -218,6 +221,7 @@ func (e *FileEvent) Bytes() []byte {
 	ebpf.ByteOrder.PutUint64(b[0:8], e.Inode)
 	ebpf.ByteOrder.PutUint32(b[8:12], e.MountID)
 	ebpf.ByteOrder.PutUint32(b[12:16], uint32(e.OverlayNumLower))
+	ebpf.ByteOrder.PutUint32(b[16:20], uint32(e.PathID))
 	return b
 }
 
@@ -667,7 +671,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 // ResolveMountPoint resolves the mountpoint to a full path
 func (e *MountEvent) ResolveMountPoint(resolvers *Resolvers) string {
 	if len(e.MountPointStr) == 0 {
-		e.MountPointStr = resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode)
+		e.MountPointStr = resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
 	}
 	return e.MountPointStr
 }
@@ -675,7 +679,7 @@ func (e *MountEvent) ResolveMountPoint(resolvers *Resolvers) string {
 // ResolveRoot resolves the mountpoint to a full path
 func (e *MountEvent) ResolveRoot(resolvers *Resolvers) string {
 	if len(e.RootStr) == 0 {
-		e.RootStr = resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode)
+		e.RootStr = resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
 	}
 	return e.RootStr
 }

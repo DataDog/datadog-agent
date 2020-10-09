@@ -220,6 +220,8 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         link_dentry_inode(syscall->open.path_key, inode);
     }
 
+    syscall->open.path_key.path_id = bpf_get_prandom_u32();
+
     struct open_event_t event = {
         .event.type = EVENT_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),
@@ -228,6 +230,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
             .inode = inode,
             .mount_id = syscall->open.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
+            .path_id = syscall->open.path_key.path_id,
         },
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

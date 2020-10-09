@@ -37,13 +37,13 @@ func (e *ErrInvalidKeyPath) Error() string {
 type PathKey struct {
 	Inode   uint64
 	MountID uint32
-	Padding uint32
+	PathID  uint32
 }
 
 func (p *PathKey) Write(buffer []byte) {
 	ebpf.ByteOrder.PutUint64(buffer[0:8], p.Inode)
 	ebpf.ByteOrder.PutUint32(buffer[8:12], p.MountID)
-	ebpf.ByteOrder.PutUint32(buffer[12:16], 0)
+	ebpf.ByteOrder.PutUint32(buffer[12:16], p.PathID)
 }
 
 func (p *PathKey) IsNull() bool {
@@ -70,8 +70,8 @@ type PathValue struct {
 	Name   [128]byte
 }
 
-func (dr *DentryResolver) getName(mountID uint32, inode uint64) (name string, err error) {
-	key := PathKey{MountID: mountID, Inode: inode}
+func (dr *DentryResolver) getName(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
+	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var path PathValue
 
 	if err := dr.pathnames.Lookup(key, &path); err != nil {
@@ -82,17 +82,17 @@ func (dr *DentryResolver) getName(mountID uint32, inode uint64) (name string, er
 }
 
 // GetName resolves a couple of mountID/inode to a path
-func (dr *DentryResolver) GetName(mountID uint32, inode uint64) string {
-	name, _ := dr.getName(mountID, inode)
+func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) string {
+	name, _ := dr.getName(mountID, inode, pathID)
 	return name
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (string, error) {
+func (dr *DentryResolver) resolve(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	var done bool
 	var path PathValue
 	var filename string
-	key := PathKey{MountID: mountID, Inode: inode}
+	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 
 	keyBuffer, err := key.MarshalBinary()
 	if err != nil {
@@ -127,14 +127,14 @@ func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (string, error) 
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) Resolve(mountID uint32, inode uint64) string {
-	path, _ := dr.resolve(mountID, inode)
+func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) string {
+	path, _ := dr.resolve(mountID, inode, pathID)
 	return path
 }
 
 // GetParent - Return the parent mount_id/inode
-func (dr *DentryResolver) GetParent(mountID uint32, inode uint64) (uint32, uint64, error) {
-	key := PathKey{MountID: mountID, Inode: inode}
+func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
+	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var path PathValue
 
 	if err := dr.pathnames.Lookup(key, &path); err != nil {

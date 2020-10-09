@@ -75,6 +75,8 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.real_src_dentry);
     }
 
+    syscall->rename.target_key.path_id = bpf_get_prandom_u32();
+
     struct rename_event_t event = {
         .event.type = EVENT_RENAME,
         .event.timestamp = bpf_ktime_get_ns(),
@@ -88,6 +90,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
             .inode = syscall->rename.target_key.ino,
             .mount_id = syscall->rename.target_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
+            .path_id = syscall->rename.target_key.path_id,
         }
     };
 

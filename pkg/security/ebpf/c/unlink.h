@@ -52,6 +52,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
 
     syscall->unlink.path_key.ino = get_dentry_ino(dentry);
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
+    syscall->unlink.path_key.path_id = bpf_get_prandom_u32();
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     int ret = resolve_dentry(dentry, syscall->unlink.path_key, syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0);
@@ -86,6 +87,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
             .mount_id = syscall->unlink.path_key.mount_id,
             .inode = inode,
             .overlay_numlower = syscall->unlink.overlay_numlower,
+            .path_id = syscall->unlink.path_key.path_id,
         },
         .flags = syscall->unlink.flags,
     };

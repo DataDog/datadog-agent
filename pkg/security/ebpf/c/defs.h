@@ -224,6 +224,8 @@ struct file_t {
     u64 inode;
     u32 mount_id;
     u32 overlay_numlower;
+    u32 path_id;
+    u32 padding;
 };
 
 struct syscall_t {
@@ -254,7 +256,7 @@ struct proc_cache_t {
 struct path_key_t {
     u64 ino;
     u32 mount_id;
-    u32 padding;
+    u32 path_id;
 };
 
 struct bpf_map_def SEC("maps/events") events = {

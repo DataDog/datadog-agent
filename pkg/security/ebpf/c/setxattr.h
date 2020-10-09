@@ -73,8 +73,11 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u16 
         return 0;
     }
 
+    u32 path_id = bpf_get_prandom_u32();
+
     syscall->setxattr.dentry = dentry;
     syscall->setxattr.path_key.ino = get_dentry_ino(syscall->setxattr.dentry);
+    syscall->setxattr.path_key.path_id = path_id;
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     int ret = resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
@@ -119,6 +122,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
             .inode = inode,
             .mount_id = syscall->setxattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setxattr.dentry),
+            .path_id = syscall->setxattr.path_key.path_id,
         },
     };
 
@@ -129,6 +133,7 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
     fill_container_data(entry, &event.container);
 
     send_event(ctx, event);
+
     return 0;
 }
 

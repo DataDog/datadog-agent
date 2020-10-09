@@ -30,6 +30,8 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     struct path_key_t key = {};
     struct dentry *dentry = NULL;
 
+    u32 path_id = bpf_get_prandom_u32();
+
     switch (syscall->type) {
         case SYSCALL_RMDIR:
             event_type = EVENT_RMDIR;
@@ -45,6 +47,8 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 
             syscall->rmdir.path_key.ino = get_dentry_ino(dentry);
             syscall->rmdir.overlay_numlower = get_overlay_numlower(dentry);
+            syscall->rmdir.path_key.path_id = path_id;
+
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
             key = syscall->rmdir.path_key;
 
@@ -63,6 +67,8 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 
             syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
             syscall->unlink.path_key.ino = get_dentry_ino(dentry);
+            syscall->unlink.path_key.path_id = path_id;
+
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
             key = syscall->unlink.path_key;
 
@@ -103,6 +109,7 @@ SYSCALL_KRETPROBE(rmdir) {
             .inode = inode,
             .mount_id = syscall->rmdir.path_key.mount_id,
             .overlay_numlower = syscall->rmdir.overlay_numlower,
+            .path_id = syscall->rmdir.path_key.path_id,
         }
     };
 

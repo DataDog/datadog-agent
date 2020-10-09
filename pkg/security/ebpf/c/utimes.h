@@ -84,6 +84,7 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
             .inode = inode,
             .mount_id = syscall->setattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
+            .path_id = syscall->setattr.path_key.path_id,
         },
     };
 
