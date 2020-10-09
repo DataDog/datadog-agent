@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/test"
 )
 
 func TestMain(m *testing.M) {

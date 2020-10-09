@@ -25,9 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/exportable/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/exportable/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 
