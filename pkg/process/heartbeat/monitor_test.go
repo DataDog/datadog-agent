@@ -1,6 +1,7 @@
 package heartbeat
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -8,30 +9,37 @@ import (
 )
 
 func TestModuleMonitor(t *testing.T) {
-	stats := func() (map[string]interface{}, error) {
-		return map[string]interface{}{
-			"network_tracer":   nil,
-			"security_runtime": nil,
-			"oom_kill_probe":   nil,
-		}, nil
+	enabledModulesFn := func() ([]string, error) {
+		return []string{"network_tracer", "security_runtime", "oom_kill_probe"}, nil
 	}
 
 	flusher := &flusherMock{}
 	monitor := &ModuleMonitor{
-		statsFn: statsFn(stats),
-		flusher: flusher,
+		enabledModulesFn: enabledModulesFn,
+		metricNameFn:     func(moduleName string) string { return fmt.Sprintf("heartbeat.%s", moduleName) },
+		flusher:          flusher,
 	}
 
 	t.Run("reporting all modules", func(t *testing.T) {
-		flusher.On("Flush", []string{"network_tracer", "oom_kill_probe", "security_runtime"}, mock.AnythingOfType("time.Time"))
+		flusher.On(
+			"Flush",
+			[]string{"heartbeat.network_tracer", "heartbeat.oom_kill_probe", "heartbeat.security_runtime"},
+			mock.AnythingOfType("time.Time"),
+		)
 		monitor.Heartbeat()
 		flusher.AssertExpectations(t)
 	})
+
 	t.Run("reporting a subset of modules", func(t *testing.T) {
-		flusher.On("Flush", []string{"network_tracer", "security_runtime"}, mock.AnythingOfType("time.Time"))
+		flusher.On(
+			"Flush",
+			[]string{"heartbeat.network_tracer", "heartbeat.security_runtime"},
+			mock.AnythingOfType("time.Time"),
+		)
 		monitor.Heartbeat("abc", "security_runtime", "network_tracer")
 		flusher.AssertExpectations(t)
 	})
+
 	t.Run("reporting a module that isn't enabled", func(t *testing.T) {
 		monitor.Heartbeat("abc")
 		flusher.AssertNotCalled(t, "Flush")

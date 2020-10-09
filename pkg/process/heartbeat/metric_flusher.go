@@ -12,10 +12,8 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 )
 
-const metricName = "datadog.system_probe.agent.%s"
-
 type flusher interface {
-	Flush(modules []string, now time.Time)
+	Flush(metricNames []string, now time.Time)
 	Stop()
 }
 
@@ -51,13 +49,13 @@ func newAPIFlusher(opts Options) (flusher, error) {
 	}, nil
 }
 
-// Flush heartbeats metrics for each system-probe module using the API
-func (f *apiFlusher) Flush(modules []string, now time.Time) {
-	if len(modules) == 0 {
+// Flush heartbeats metrics via the API
+func (f *apiFlusher) Flush(metricNames []string, now time.Time) {
+	if len(metricNames) == 0 {
 		return
 	}
 
-	heartbeats, err := f.jsonPayload(modules, now)
+	heartbeats, err := f.jsonPayload(metricNames, now)
 	if err != nil {
 		log.Errorf("error marshaling heartbeats payload: %s", err)
 		return
@@ -72,16 +70,16 @@ func (f *apiFlusher) Stop() {
 	f.forwarder.Stop()
 }
 
-func (f *apiFlusher) jsonPayload(modules []string, now time.Time) ([]byte, error) {
-	if len(modules) == 0 {
+func (f *apiFlusher) jsonPayload(metricNames []string, now time.Time) ([]byte, error) {
+	if len(metricNames) == 0 {
 		return nil, nil
 	}
 
 	ts := float64(now.Unix())
-	heartbeats := make(metrics.Series, 0, len(modules))
-	for _, moduleName := range modules {
+	heartbeats := make(metrics.Series, 0, len(metricNames))
+	for _, name := range metricNames {
 		serie := &metrics.Serie{
-			Name: fmt.Sprintf(metricName, moduleName),
+			Name: name,
 			Tags: f.tags,
 			Host: f.hostname,
 			Points: []metrics.Point{
@@ -119,9 +117,9 @@ func newStatsdFlusher(opts Options) (flusher, error) {
 }
 
 // Flush heartbeats via statsd
-func (f *statsdFlusher) Flush(modules []string, _ time.Time) {
-	for _, moduleName := range modules {
-		f.client.Gauge(fmt.Sprintf(metricName, moduleName), 1, f.tags, 1) //nolint:errcheck
+func (f *statsdFlusher) Flush(metricNames []string, _ time.Time) {
+	for _, name := range metricNames {
+		f.client.Gauge(name, 1, f.tags, 1) //nolint:errcheck
 	}
 }
 
@@ -131,7 +129,7 @@ func (f *statsdFlusher) Stop() {}
 func sanitize(keysPerDomain map[string][]string) map[string][]string {
 	sanitized := make(map[string][]string)
 	for domain, keys := range keysPerDomain {
-		sanitizedDomain := strings.ReplaceAll(domain, "process", "app")
+		sanitizedDomain := strings.Replace(domain, "process", "app", 1)
 		sanitized[sanitizedDomain] = keys
 	}
 	return sanitized

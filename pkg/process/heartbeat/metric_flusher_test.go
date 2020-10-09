@@ -47,7 +47,7 @@ func TestFlush(t *testing.T) {
 			payloads = args.Get(0).(forwarder.Payloads)
 		})
 
-	flusher.Flush([]string{"network_tracer", "oom_kill_probe"}, then)
+	flusher.Flush([]string{"datadog.system_probe.agent.network_tracer", "datadog.system_probe.agent.oom_kill_probe"}, then)
 	mockForwarder.AssertExpectations(t)
 	assert.JSONEq(t, requestBody, string(*payloads[0]))
 }

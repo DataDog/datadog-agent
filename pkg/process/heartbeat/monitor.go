@@ -11,14 +11,20 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+// HeartbeatMetricName is used to determine the metric name for a given module
+func HeartbeatMetricName(moduleName string) string {
+	return fmt.Sprintf("datadog.system_probe.agent.%s", moduleName)
+}
+
 // ModuleMonitor is responsible for emitting heartbeat metrics for each
 // system-probe module. It does so by hitting the stats endpoint from
 // system-probe and emitting one metric per enabled module using Datadog Public
 // API.
 type ModuleMonitor struct {
-	statsFn statsFn
-	flusher flusher
-	exit    chan struct{}
+	enabledModulesFn func() ([]string, error)
+	metricNameFn     func(string) string
+	flusher          flusher
+	exit             chan struct{}
 }
 
 // Options encapsulates all configuration params used by ModuleMonitor
@@ -44,15 +50,20 @@ type Options struct {
 	// TagRevision (optional) contains the agent revision to be sent along with the
 	// hearbeat metric
 	TagRevision string
-}
 
-// statsFn represents the function signature used to fetch stats from system-probe
-type statsFn func() (map[string]interface{}, error)
+	// MetricNameFn (optional) allows metric names to be specified
+	MetricNameFn func(string) string
+}
 
 // NewModuleMonitor returns a new ModuleMonitor
 func NewModuleMonitor(opts Options) (*ModuleMonitor, error) {
 	if opts.SysprobeSocketPath != "" {
 		net.SetSystemProbePath(opts.SysprobeSocketPath)
+	}
+
+	metricNameFn := HeartbeatMetricName
+	if opts.MetricNameFn != nil {
+		metricNameFn = opts.MetricNameFn
 	}
 
 	flusher, err := newStatsdFlusher(opts)
@@ -72,9 +83,10 @@ func NewModuleMonitor(opts Options) (*ModuleMonitor, error) {
 	}
 
 	return &ModuleMonitor{
-		statsFn: systemProbeStats,
-		flusher: flusher,
-		exit:    make(chan struct{}),
+		enabledModulesFn: SystemProbeEnabledModules,
+		metricNameFn:     metricNameFn,
+		flusher:          flusher,
+		exit:             make(chan struct{}),
 	}, nil
 }
 
@@ -87,7 +99,12 @@ func (m *ModuleMonitor) Heartbeat(modules ...string) {
 		return
 	}
 
-	m.flusher.Flush(enabled, time.Now())
+	metricNames := make([]string, 0, len(enabled))
+	for _, moduleName := range enabled {
+		metricNames = append(metricNames, m.metricNameFn(moduleName))
+	}
+
+	m.flusher.Flush(metricNames, time.Now())
 }
 
 // Every can be used to automatically send heartbeats based on the given time
@@ -119,13 +136,13 @@ func (m *ModuleMonitor) Stop() {
 
 func (m *ModuleMonitor) enabled(modules []string) ([]string, error) {
 	only := sets.NewString(modules...)
-	stats, err := m.statsFn()
+	all, err := m.enabledModulesFn()
 	if err != nil {
 		return nil, err
 	}
 
 	var enabled []string
-	for moduleName := range stats {
+	for _, moduleName := range all {
 		if only.Len() == 0 || only.Has(moduleName) {
 			enabled = append(enabled, moduleName)
 		}
@@ -134,11 +151,22 @@ func (m *ModuleMonitor) enabled(modules []string) ([]string, error) {
 	return enabled, nil
 }
 
-func systemProbeStats() (map[string]interface{}, error) {
+// SystemProbeEnableModules returns a list of all system-probe enabled modules
+func SystemProbeEnabledModules() ([]string, error) {
 	sysprobe, err := net.GetRemoteSystemProbeUtil()
 	if err != nil {
 		return nil, fmt.Errorf("system-probe not initialized: %s", err)
 	}
 
-	return sysprobe.GetStats()
+	stats, err := sysprobe.GetStats()
+	if err != nil {
+		return nil, err
+	}
+
+	modules := make([]string, 0, len(stats))
+	for moduleName := range stats {
+		modules = append(modules, moduleName)
+	}
+
+	return modules, nil
 }
