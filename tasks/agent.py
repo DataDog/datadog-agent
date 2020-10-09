@@ -87,7 +87,7 @@ def build(
     python_runtimes='3',
     arch='x64',
     exclude_rtloader=False,
-    go_mod="vendor",
+    go_mod="mod",
     windows_sysprobe=False,
 ):
     """
@@ -315,7 +315,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     """
     Run integration tests for the Agent
     """

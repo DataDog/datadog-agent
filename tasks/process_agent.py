@@ -33,7 +33,7 @@ def build(
     major_version='7',
     python_runtimes='3',
     arch="x64",
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Build the process agent

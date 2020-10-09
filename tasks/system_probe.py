@@ -45,7 +45,7 @@ def build(
     major_version='7',
     python_runtimes='3',
     with_bcc=True,
-    go_mod="vendor",
+    go_mod="mod",
     windows=False,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
@@ -207,11 +207,11 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=T
             )
             raise Exit(code=1)
 
-    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=bpf_tag, pkg=pkg))
+    ctx.run(cmd.format(path=path, go_mod="mod", bpf_tag=bpf_tag, pkg=pkg))
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="vendor"):
+def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     Build and run the `nettop` utility for testing
     """

@@ -23,7 +23,7 @@ def build_common(
     race,
     development,
     skip_assets,
-    go_mod="vendor",
+    go_mod="mod",
     arch="x64",
 ):
     """

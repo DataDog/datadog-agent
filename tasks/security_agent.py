@@ -46,7 +46,7 @@ def build(
     incremental_build=False,
     major_version='7',
     arch="x64",
-    go_mod="vendor",
+    go_mod="mod",
     skip_assets=False,
 ):
     """
