@@ -2,6 +2,24 @@
 Release Notes
 =============
 
+.. _Release Notes_7.23.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-10-09
+
+.. _Release Notes_7.23.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The ``ec2_prefer_imdsv2`` parameter was ignored when fetching
+  EC2 tags from the metadata endpoint. This fixes situations were
+  EC2 tags could not be fetched by a containerized agent running
+  on an EC2 instance.
+
+
 .. _Release Notes_7.23.0:
 
 7.23.0 / 6.23.0
