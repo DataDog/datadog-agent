@@ -17,8 +17,8 @@ import (
 	"github.com/google/gopacket/tcpassembly"
 )
 
-// HTTPSocketFilterSnooper is a HTTP traffic snooper built on top of an eBPF SOCKET_FILTER
-type HTTPSocketFilterSnooper struct {
+// HTTPSocketFilterInspector is a HTTP traffic inspector built on top of an eBPF SOCKET_FILTER
+type HTTPSocketFilterInspector struct {
 	source     *packetSource
 	statKeeper *httpStatKeeper
 
@@ -38,8 +38,8 @@ type HTTPSocketFilterSnooper struct {
 	connectionsClosed  int64
 }
 
-// NewHTTPSocketFilterSnooper returns a new HTTPSocketFilterSnooper
-func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTimeout time.Duration) (*HTTPSocketFilterSnooper, error) {
+// NewHTTPSocketFilterInspector returns a new HTTPSocketFilterInspector
+func NewHTTPSocketFilterInspector(rootPath string, filter *manager.Probe, httpTimeout time.Duration) (*HTTPSocketFilterInspector, error) {
 	var (
 		packetSrc *packetSource
 		srcErr    error
@@ -56,38 +56,37 @@ func NewHTTPSocketFilterSnooper(rootPath string, filter *manager.Probe, httpTime
 		return nil, srcErr
 	}
 	statKeeper := &httpStatKeeper{
-		// streams: make(map[httpKey]*httpStream),
-		stats:  make(map[httpKey]httpStats),
-		muxMap: make(map[httpKey]*sync.Mutex),
+		stats: &sync.Map{},
 	}
-	snooper := &HTTPSocketFilterSnooper{
+	inspector := &HTTPSocketFilterInspector{
 		source:     packetSrc,
 		statKeeper: statKeeper,
 		exit:       make(chan struct{}),
 	}
 
 	// Start consuming packets
-	snooper.wg.Add(1)
+	inspector.wg.Add(1)
 	go func() {
-		snooper.pollPackets(httpTimeout)
-		snooper.wg.Done()
+		inspector.pollPackets(httpTimeout)
+		inspector.wg.Done()
 	}()
 
 	// Start polling socket stats
-	snooper.wg.Add(1)
+	inspector.wg.Add(1)
 	go func() {
-		snooper.pollStats()
-		snooper.wg.Done()
+		inspector.pollStats()
+		inspector.wg.Done()
 	}()
 
-	return snooper, nil
+	return inspector, nil
 }
 
-func (s *HTTPSocketFilterSnooper) GetHTTPConnections() map[httpKey]httpStats {
-	return s.statKeeper.stats
+func (s *HTTPSocketFilterInspector) GetHTTPConnections() map[httpKey]httpStats {
+	// TODO
+	return nil
 }
 
-func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
+func (s *HTTPSocketFilterInspector) GetStats() map[string]int64 {
 	return map[string]int64{
 		"socket_polls":         atomic.LoadInt64(&s.socketPolls),
 		"packets_processed":    atomic.LoadInt64(&s.processedPackets),
@@ -103,18 +102,21 @@ func (s *HTTPSocketFilterSnooper) GetStats() map[string]int64 {
 	}
 }
 
-// Close terminates the HTTP traffic snooper as well as the underlying socket and the attached filter
-func (s *HTTPSocketFilterSnooper) Close() {
+// Close terminates the HTTP traffic inspector as well as the underlying socket and the attached filter
+func (s *HTTPSocketFilterInspector) Close() {
 	close(s.exit)
+	// TODO close the http stream handlers (send an EOF msg to all streams in the stream pool) &
+	// close the http event handlers (close all the events channels in the stream factory)
 	s.wg.Wait()
 	s.source.Close()
 }
 
-var _ HTTPTracker = &HTTPSocketFilterSnooper{}
+var _ HTTPTracker = &HTTPSocketFilterInspector{}
 
-func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
+func (s *HTTPSocketFilterInspector) pollPackets(httpTimeout time.Duration) {
 	streamFactory := &httpStreamFactory{
 		statKeeper: s.statKeeper,
+		events:     make(map[httpKey](chan httpEvent)),
 	}
 	streamPool := tcpassembly.NewStreamPool(streamFactory)
 	assembler := tcpassembly.NewAssembler(streamPool)
@@ -134,7 +136,11 @@ func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
 
 		case <-ticker.C:
 			// Every 30 seconds, flush old connections
-			flushed, closed := assembler.FlushOlderThan(time.Now().Add(-1 * httpTimeout))
+			expiration := time.Now().Add(-1 * httpTimeout)
+			flushed, closed := assembler.FlushOlderThan(expiration)
+
+			// TODO remove closed connections from the stats map and close their events channels
+
 			atomic.AddInt64(&s.connectionsFlushed, int64(flushed))
 			atomic.AddInt64(&s.connectionsClosed, int64(closed))
 		default:
@@ -164,7 +170,7 @@ func (s *HTTPSocketFilterSnooper) pollPackets(httpTimeout time.Duration) {
 	}
 }
 
-func (s *HTTPSocketFilterSnooper) pollStats() {
+func (s *HTTPSocketFilterInspector) pollStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -201,7 +207,7 @@ func (s *HTTPSocketFilterSnooper) pollStats() {
 	}
 }
 
-func (s *HTTPSocketFilterSnooper) PrintStats() {
+func (s *HTTPSocketFilterInspector) PrintStats() {
 	stats := s.GetStats()
 
 	// sort keys so we always print in a stable order
@@ -217,21 +223,27 @@ func (s *HTTPSocketFilterSnooper) PrintStats() {
 	}
 }
 
-func (s *HTTPSocketFilterSnooper) PrintConnections() {
-	log.Infof("%v HTTP active connections: ", len(s.statKeeper.stats))
+func (s *HTTPSocketFilterInspector) PrintConnections() {
+	count := 0 // sync.Map currently has no length method
+	s.statKeeper.stats.Range(func(key, value interface{}) bool {
+		conn, ok := value.(httpStats)
+		if !ok {
+			log.Infof("  %v Invalid connection stats object found for key %v ", key)
+			return true
+		}
 
-	for key, conn := range s.statKeeper.stats {
-		s.statKeeper.muxMap[key].Lock()
-
-		_, latencies := conn.getEventsAndLatencies()
+		latencies := conn.getLatencies()
 		avgLatency := avg(latencies)
 
 		log.Infof("  %v:%v -> %v:%v \t %v requests, %v responses, %v errors, %v successes, %v avg latency",
 			conn.sourceIP, conn.sourcePort, conn.destIP, conn.destPort,
 			conn.numRequests, conn.numResponses, conn.errors, conn.successes, avgLatency)
 
-		s.statKeeper.muxMap[key].Unlock()
-	}
+		count++
+
+		return true
+	})
+	log.Infof("  %v connections found", count)
 }
 
 func avg(arr []time.Duration) time.Duration {

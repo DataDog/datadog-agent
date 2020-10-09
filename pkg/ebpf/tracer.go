@@ -216,12 +216,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 			return nil, fmt.Errorf("error retrieving HTTP socket filter")
 		}
 
-		if snooper, err := network.NewHTTPSocketFilterSnooper(
+		if inspector, err := network.NewHTTPSocketFilterInspector(
 			config.ProcRoot,
 			filter,
 			config.HTTPTimeout,
 		); err == nil {
-			httpTracker = snooper
+			httpTracker = inspector
 		} else {
 			return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 		}

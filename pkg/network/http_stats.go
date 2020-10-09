@@ -3,8 +3,6 @@
 package network
 
 import (
-	"container/heap"
-	"fmt"
 	"sync"
 	"time"
 
@@ -12,8 +10,9 @@ import (
 )
 
 type httpStatKeeper struct {
-	stats  map[httpKey]httpStats
-	muxMap map[httpKey]*sync.Mutex // protects concurrent edits of a single streamStat
+	stats *sync.Map
+	// sync.Map guarantees safety for multiple goroutines to read/write
+	// map entries for disjoint keys without the use of locks
 
 	// Telemetry
 	messagesRead int64
@@ -38,42 +37,22 @@ type httpStats struct {
 	errors       int64
 }
 
-func (s httpStats) getEventsAndLatencies() ([]string, []time.Duration) {
-	var events []string
+func (s httpStats) getLatencies() []time.Duration {
 	var latencies []time.Duration
 
-	if s.orderedEvents.Len() == 0 {
-		return events, latencies
+	if s.orderedEvents.Len() <= 1 {
+		return latencies
 	}
 
-	lastReqTime := time.Time{}
-	tempHeap := &httpEventHeap{}
-
-	for s.orderedEvents.Len() > 0 {
-		event := heap.Pop(s.orderedEvents).(httpEvent)
-
-		latency := event.timestamp().Sub(lastReqTime)
+	lastEventTime := time.Time{}
+	for _, event := range *s.orderedEvents {
+		latency := event.timestamp().Sub(lastEventTime)
 		latencies = append(latencies, latency)
-		lastReqTime = event.timestamp()
-
-		if req, ok := event.(*httpRequest); ok {
-			events = append(events, req.method+fmt.Sprintf(" (%v bytes)", req.bodyBytes))
-		}
-
-		if res, ok := event.(*httpResponse); ok {
-			events = append(events, res.status+fmt.Sprintf(" (%v bytes)", res.bodyBytes))
-		}
-
-		heap.Push(tempHeap, event)
-	}
-
-	for tempHeap.Len() > 0 {
-		event := heap.Pop(tempHeap)
-		heap.Push(s.orderedEvents, event)
+		lastEventTime = event.timestamp()
 	}
 
 	// the first latency value is garbage
 	latencies = latencies[1:]
 
-	return events, latencies
+	return latencies
 }

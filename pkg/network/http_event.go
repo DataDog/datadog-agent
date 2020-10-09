@@ -39,9 +39,10 @@ func (r httpRequest) timestamp() time.Time { return r.ts }
 var _ httpEvent = httpRequest{}
 
 type httpResponse struct {
-	status    string
-	bodyBytes int
-	ts        time.Time
+	status     string
+	statusCode int
+	bodyBytes  int
+	ts         time.Time
 }
 
 func (r httpResponse) timestamp() time.Time { return r.ts }
