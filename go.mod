@@ -91,7 +91,6 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dgraph-io/ristretto v0.0.3 // indirect
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200309214505-aa6a9891b09c+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
@@ -137,7 +136,6 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.2
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/pierrec/lz4 v2.5.0+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1
