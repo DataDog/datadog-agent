@@ -349,6 +349,23 @@ def fetch_python_version(timeout = 15)
   return nil
 end
 
+def is_file_signed(fullpath)
+  puts "checking file #{fullpath}"
+  expect(File).to exist(fullpath)
+  output = `powershell -command get-authenticodesignature -FilePath '#{fullpath}'`
+  signature_hash = "21FE8679BDFB16B879A87DF228003758B62ABF5E"
+  if not output.include? signature_hash
+    return false
+  end
+  if not output.include? "Valid"
+    return false
+  end
+  if output.include? "NotSigned"
+    return false
+  end
+  return true
+end
+
 shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Agent'
 end
@@ -408,13 +425,19 @@ shared_examples_for "an installed Agent" do
       if File.file?(msi_path_upgrade)
         msi_path = msi_path_upgrade
       end
-      puts "checking file #{msi_path}"
-      expect(File).to exist(msi_path)
-      output = `powershell -command "get-authenticodesignature #{msi_path}"`
-      signature_hash = "3B79DBE9410471E4FFBDFDAD646A83A1CD47D5AA"
-      expect(output).to include(signature_hash)
-      expect(output).to include("Valid")
-      expect(output).not_to include("NotSigned")
+      is_signed = is_file_signed(msi_path)
+      expect(is_signed).to be_truthy
+      
+      verify_signature_files = [
+        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
+        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
+        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
+        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent.exe"
+      ]
+      verify_signature_files.each do |vf|
+        is_signed = is_file_signed(vf)
+        expect(is_signed).to be_truthy
+      end
     end
   end
 end

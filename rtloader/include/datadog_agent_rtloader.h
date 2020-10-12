@@ -306,11 +306,11 @@ DATADOG_AGENT_RTLOADER_API int has_error(const rtloader_t *);
 DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
 #ifndef _WIN32
 
-/*! \fn int handle_crashes(const rtloader_t *, const int)
+/*! \fn int handle_crashes(const int, char** error)
     \brief Routine to install a crash handler in C-land to better debug crashes on RtLoader.
-    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
     \param int A const integer boolean flag indicating whether dumps should be created
     on crashes or not.
+    \param error A C-string pointer output parameter to return error messages.
     \return An integer reflecting if the handler was correctly installed on RtLoader. Zero for
     false, non-zero for true.
     \sa rtloader_t
@@ -322,8 +322,10 @@ DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
     provide the go-routine dump. If you need both, just crash twice trying both options :)
 
     Currently only SEGFAULT is handled.
+
+    The returned error C-string must be freed by the caller.
 */
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const rtloader_t *, const int);
+DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, char **error);
 #endif
 
 // PYTHON HELPERS

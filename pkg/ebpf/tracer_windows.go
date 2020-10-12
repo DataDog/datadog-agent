@@ -2,13 +2,11 @@
 
 package ebpf
 
-/*
-#include "c/ddfilterapi.h"
-*/
-import "C"
 import (
 	"expvar"
 	"fmt"
+	"math"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -21,7 +19,7 @@ const (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_total_flow_stats", "driver_flow_handle_stats", "total_flows"}
+	expvarTypes     = []string{"state", "driver_total_flow_stats", "driver_flow_handle_stats", "total_flows", "open_flows", "closed_flows", "more_data_errors"}
 )
 
 func init() {
@@ -38,6 +36,12 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      network.ReverseDNS
+	bufferLock      sync.Mutex
+
+	// buffers
+	connStatsActive []network.ConnectionStats
+	connStatsClosed []network.ConnectionStats
+	driverBuffer    []uint8
 
 	timerInterval int
 
@@ -48,7 +52,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface()
+	di, err := network.NewDriverInterface(config.EnableMonotonicCount)
 	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
@@ -66,6 +70,9 @@ func NewTracer(config *Config) (*Tracer, error) {
 		timerInterval:   defaultPollInterval,
 		state:           state,
 		reverseDNS:      network.NewNullReverseDNS(),
+		connStatsActive: make([]network.ConnectionStats, 512),
+		connStatsClosed: make([]network.ConnectionStats, 512),
+		driverBuffer:    make([]uint8, config.DriverBufferSize),
 	}
 
 	go tr.expvarStats(tr.stopChan)
@@ -92,6 +99,13 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 				continue
 			}
 
+			// Move state stats into proper field
+			if states, ok := stats["state"]; ok {
+				if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+					stats["state"] = telemetry
+				}
+			}
+
 			for name, stat := range stats {
 				for metric, val := range stat.(map[string]int64) {
 					currVal := &expvar.Int{}
@@ -112,26 +126,47 @@ func printStats(stats []network.ConnectionStats) {
 
 // GetActiveConnections returns all active connections
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
-	connStatsActive, connStatsClosed, err := t.driverInterface.GetConnectionStats()
+	t.bufferLock.Lock()
+	defer t.bufferLock.Unlock()
+
+	activeConnStats, closedConnStats, bytesRead, err := t.driverInterface.GetConnectionStats(t.connStatsActive[:0], t.connStatsClosed[:0], t.driverBuffer)
 	if err != nil {
-		log.Errorf("failed to get connnections")
+		log.Errorf("failed to get connections")
 		return nil, err
 	}
 
-	for _, connStat := range connStatsClosed {
+	for _, connStat := range closedConnStats {
 		t.state.StoreClosedConnection(connStat)
 	}
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
-	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), connStatsActive, t.reverseDNS.GetDNSStats())
+	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats())
+	t.connStatsActive = t.resizeConnectionStatBuffer(len(activeConnStats), t.connStatsActive)
+	t.connStatsClosed = t.resizeConnectionStatBuffer(len(closedConnStats), t.connStatsClosed)
+	t.driverBuffer = t.resizeDriverBuffer(bytesRead, t.driverBuffer)
 	return &network.Connections{Conns: conns}, nil
 }
 
-// getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
-// a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.ConnectionStats, uint64, error) {
-	return nil, 0, ErrNotImplemented
+func (t *Tracer) resizeConnectionStatBuffer(compareSize int, buffer []network.ConnectionStats) []network.ConnectionStats {
+	if compareSize >= cap(buffer)*2 {
+		return make([]network.ConnectionStats, 0, cap(buffer)*2)
+	} else if compareSize <= cap(buffer)/2 {
+		// Take the max of buffer/2 and compareSize to limit future array resizes
+		return make([]network.ConnectionStats, 0, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
+	}
+	return buffer
+}
+
+func (t *Tracer) resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
+	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
+	if compareSize >= cap(buffer)*2 {
+		return make([]uint8, cap(buffer)*2)
+	} else if compareSize <= cap(buffer)/2 {
+		// Take the max of buffer/2 and compareSize to limit future array resizes
+		return make([]uint8, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
+	}
+	return buffer
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
@@ -141,8 +176,14 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		log.Errorf("not printing driver stats: %v", err)
 	}
 
+	stateStats := t.state.GetStats()
+
 	return map[string]interface{}{
+		"state":                    stateStats,
 		"total_flows":              driverStats["total_flows"],
+		"open_flows":               driverStats["open_flows"],
+		"closed_flows":             driverStats["closed_flows"],
+		"more_data_errors":         driverStats["more_data_errors"],
 		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
 		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil

@@ -9,9 +9,82 @@ import (
 	"path"
 	"strings"
 
+	"github.com/pkg/errors"
+
+	"github.com/DataDog/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
+var requiredKernelFuncs = []string{
+	// Maps (3.18)
+	"bpf_map_lookup_elem",
+	"bpf_map_update_elem",
+	"bpf_map_delete_elem",
+	// bpf_probe_read intentionally omitted since it was renamed in kernel 5.5
+	// Perf events (4.4)
+	"bpf_perf_event_output",
+	"bpf_perf_event_read",
+}
+
+func verifyKernelFuncs(path string) ([]string, error) {
+	// Will hold the found functions
+	found := make(map[string]bool, len(requiredKernelFuncs))
+	for _, f := range requiredKernelFuncs {
+		found[f] = false
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error reading kallsyms file from: %s", path)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanLines)
+
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 3 {
+			continue
+		}
+
+		name := fields[2]
+		if _, ok := found[name]; ok {
+			found[name] = true
+		}
+	}
+
+	missing := []string{}
+	for probe, b := range found {
+		if !b {
+			missing = append(missing, probe)
+		}
+	}
+
+	return missing, nil
+}
+
+// IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
+// along with some context on why it's not supported
+func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
+	currentKernelCode, err := ebpf.CurrentKernelVersion()
+	if err == ErrNotImplemented {
+		log.Infof("Could not detect OS, will assume supported.")
+	} else if err != nil {
+		return false, fmt.Sprintf("could not get kernel version: %s", err)
+	}
+
+	platform, err := util.GetPlatform()
+	if err != nil {
+		log.Warnf("error retrieving current platform: %s", err)
+	} else {
+		log.Infof("running on platform: %s", platform)
+	}
+	return verifyOSVersion(currentKernelCode, platform, exclusionList)
+}
 
 func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
 	for _, version := range exclusionList {
@@ -50,62 +123,4 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCodeToString(kernelCode))
 	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
 	return false, errMsg
-}
-
-// getSyscallPrefix gets a prefix which will be prepended to every syscall kprobe.
-// for example, if getSyscallPrefix returns sys_, then the kprobe for bind()
-// will be called _sys_bind.
-// Adapted from a similar BCC function:
-// https://github.com/iovisor/bcc/blob/5e123df1dd33cdff5798560e4f0390c69cdba00f/src/python/bcc/__init__.py#L623-L627
-func getSyscallPrefix() (string, error) {
-
-	syscallPrefixes := []string{
-		"__sys_",
-		"sys_",
-		"__x64_sys_",
-		"__x32_compat_sys_",
-		"__ia32_compat_sys_",
-		"__arm64_sys_",
-		"__s390x_sys_",
-		"__s390_sys_",
-	}
-
-	kallsyms := path.Join(util.GetProcRoot(), "kallsyms")
-	file, err := os.Open(kallsyms)
-	if err != nil {
-		return "", err
-	}
-
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		for _, prefix := range syscallPrefixes {
-			if strings.HasSuffix(line, " "+prefix+"socket") {
-				return prefix, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("could not get syscall prefix")
-}
-
-// takes in a syscall prexix (see getSyscallPrefix()) and a system call kprobe
-// name (like kprobe/sys_bind or kretprobe/sys_bind) and returns a kprobe name
-// as gobpf expects it with the corrected prefix.
-//
-// this function needs to exist because the kprobes for syscalls have different names
-// depending on which kernel/architecture we're running on.
-//
-// see get_syscall_fnname in bcc https://github.com/iovisor/bcc/blob/5e123df1dd33cdff5798560e4f0390c69cdba00f/src/python/bcc/__init__.py#L632-L634
-func fixSyscallName(prefix string, name KProbeName) string {
-	// see get_syscall_fname in bcc
-
-	parts := strings.Split(string(name), "/")
-	probeType := parts[0]
-	rawName := strings.TrimPrefix(parts[1], "sys_")
-
-	out := probeType + "/" + prefix + rawName
-
-	return out
 }

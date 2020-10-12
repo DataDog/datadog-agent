@@ -17,15 +17,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -136,6 +137,8 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
 
+	stats["logsStats"] = logs.GetStatus()
+
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
 		stats["endpointsInfos"] = endpointsInfos
@@ -143,10 +146,10 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		stats["endpointsInfos"] = nil
 	}
 
-	apiCl, err := apiserver.GetAPIClient()
-	if err != nil {
-		stats["custommetrics"] = map[string]string{"Error": err.Error()}
-		stats["admissionWebhook"] = map[string]string{"Error": err.Error()}
+	apiCl, apiErr := apiserver.GetAPIClient()
+	if apiErr != nil {
+		stats["custommetrics"] = map[string]string{"Error": apiErr.Error()}
+		stats["admissionWebhook"] = map[string]string{"Error": apiErr.Error()}
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
@@ -158,6 +161,15 @@ func GetDCAStatus() (map[string]interface{}, error) {
 			log.Errorf("Error grabbing clusterchecks stats: %s", err)
 		} else {
 			stats["clusterchecks"] = cchecks
+		}
+	}
+
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		if apiErr != nil {
+			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
+		} else {
+			orchestratorStats := orchestrator.GetStatus(apiCl.Cl)
+			stats["orchestrator"] = orchestratorStats
 		}
 	}
 
@@ -185,11 +197,12 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 }
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
-func GetAndFormatSecurityAgentStatus() ([]byte, error) {
+func GetAndFormatSecurityAgentStatus(runtimeStatus map[string]interface{}) ([]byte, error) {
 	s, err := GetStatus()
 	if err != nil {
 		return nil, err
 	}
+	s["runtimeSecurityStatus"] = runtimeStatus
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {
@@ -381,6 +394,18 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["agent_metadata"] = data
 	} else {
 		stats["agent_metadata"] = map[string]string{}
+	}
+
+	stats["snmpTrapsStats"] = traps.GetStatus()
+
+	complianceVar := expvar.Get("compliance")
+	if complianceVar != nil {
+		complianceStatusJSON := []byte(complianceVar.String())
+		complianceStatus := make(map[string]interface{})
+		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
+		stats["complianceChecks"] = complianceStatus["Checks"]
+	} else {
+		stats["complianceChecks"] = map[string]interface{}{}
 	}
 
 	return stats, err

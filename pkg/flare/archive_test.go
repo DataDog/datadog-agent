@@ -32,7 +32,7 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -56,7 +56,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	pprofURL = ts.URL
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -100,7 +100,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -154,7 +154,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
+	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, "", nil)
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
 
@@ -182,7 +182,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 
 	common.SetupConfig("./test")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
+	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, "", nil)
 
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
@@ -280,4 +280,41 @@ func TestZipTaggerList(t *testing.T) {
 	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")
+}
+
+func TestPerformanceProfile(t *testing.T) {
+	testProfile := ProfileData{
+		"first":  []byte{},
+		"second": []byte{},
+		"third":  []byte{},
+	}
+	zipFilePath := getArchivePath()
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, "", testProfile)
+
+	assert.NoError(t, err)
+	assert.Equal(t, zipFilePath, filePath)
+
+	// Open a zip archive for reading.
+	z, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		assert.Fail(t, "Unable to open the flare archive")
+	}
+	defer z.Close()
+	defer os.Remove(zipFilePath)
+
+	firstHeap, secondHeap, cpu := false, false, false
+	for _, f := range z.File {
+		switch path.Base(f.Name) {
+		case "first":
+			firstHeap = true
+		case "second":
+			secondHeap = true
+		case "third":
+			cpu = true
+		}
+	}
+
+	assert.True(t, firstHeap, "first-heap.profile should've been included")
+	assert.True(t, secondHeap, "second-heap.profile should've been included")
+	assert.True(t, cpu, "cpu.profile should've been included")
 }

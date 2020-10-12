@@ -19,6 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	// scheduler is plugged to autodiscovery to collect integration configs
+	// and schedule log collection for different kind of inputs
+	adScheduler *Scheduler
+)
+
 // Scheduler creates and deletes new sources and services to start or stop
 // log collection on different kind of inputs.
 // A source represents a logs-config that can be defined either in a configuration file,
@@ -29,16 +35,18 @@ type Scheduler struct {
 	services *service.Services
 }
 
-// NewScheduler returns a new scheduler.
-func NewScheduler(sources *logsConfig.LogSources, services *service.Services) *Scheduler {
-	return &Scheduler{
+// CreateScheduler creates the scheduler.
+func CreateScheduler(sources *logsConfig.LogSources, services *service.Services) {
+	adScheduler = &Scheduler{
 		sources:  sources,
 		services: services,
 	}
 }
 
 // Stop does nothing.
-func (s *Scheduler) Stop() {}
+func (s *Scheduler) Stop() {
+	adScheduler = nil
+}
 
 // Schedule creates new sources and services from a list of integration configs.
 // An integration config can be mapped to a list of sources when it contains a Provider,
@@ -252,4 +260,9 @@ var integrationToServiceCRTime = map[integration.CreationTime]service.CreationTi
 // getCreationTime returns the service creation time for the integration configuration.
 func (s *Scheduler) getCreationTime(config integration.Config) service.CreationTime {
 	return integrationToServiceCRTime[config.CreationTime]
+}
+
+// GetScheduler returns the logs-config scheduler if set.
+func GetScheduler() *Scheduler {
+	return adScheduler
 }

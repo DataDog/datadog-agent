@@ -14,14 +14,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	ns   = "process_config"
-	spNS = "system_probe_config"
+	ns             = "process_config"
+	orchestratorNS = "orchestrator_explorer"
+	spNS           = "system_probe_config"
 )
 
 func key(pieces ...string) string {
@@ -46,7 +48,11 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
-	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
+
+	if config.Datadog.IsSet(key(spNS, "collect_dns_stats")) {
+		a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "dns_timeout_in_s")) {
 		a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
 	}
@@ -61,6 +67,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	a.SysProbeBPFDebug = config.Datadog.GetBool(key(spNS, "bpf_debug"))
+	if config.Datadog.IsSet(key(spNS, "bpf_dir")) {
+		a.SystemProbeBPFDir = config.Datadog.GetString(key(spNS, "bpf_dir"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "excluded_linux_versions")) {
 		a.ExcludedBPFLinuxVersions = config.Datadog.GetStringSlice(key(spNS, "excluded_linux_versions"))
 	}
@@ -79,6 +89,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "conntrack_rate_limit")) {
 		a.ConntrackRateLimit = config.Datadog.GetInt(key(spNS, "conntrack_rate_limit"))
 	}
+	if config.Datadog.IsSet(key(spNS, "enable_conntrack_all_namespaces")) {
+		a.EnableConntrackAllNamespaces = config.Datadog.GetBool(key(spNS, "enable_conntrack_all_namespaces"))
+	}
 
 	// When reading kernel structs at different offsets, don't go over the threshold
 	// This defaults to 400 and has a max of 3000. These are arbitrary choices to avoid infinite loops.
@@ -91,7 +104,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if logFile := config.Datadog.GetString(key(spNS, "log_file")); logFile != "" {
-		a.LogFile = logFile
+		a.SystemProbeLogFile = logFile
 	}
 
 	// The maximum number of connections per message. Note: Only change if the defaults are causing issues.
@@ -153,6 +166,34 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
 	}
 
+	if config.Datadog.IsSet(key(spNS, "enable_tracepoints")) {
+		a.EnableTracepoints = config.Datadog.GetBool(key(spNS, "enable_tracepoints"))
+	}
+
+	a.Windows.EnableMonotonicCount = config.Datadog.GetBool(key(spNS, "windows", "enable_monotonic_count"))
+
+	if driverBufferSize := config.Datadog.GetInt(key(spNS, "windows", "driver_buffer_size")); driverBufferSize > 0 {
+		a.Windows.DriverBufferSize = driverBufferSize
+	}
+
+	// If there is no network_config, assume it is an old version of the config, and enable
+	// the network check. This has the downside that if the network_config is deleted, network
+	// check will be enabled.  However, this seems like the best option for backwards compatibility.
+	//
+	// The network check won't be run if sysprobe isn't enabled so there's no need to check
+	// EnableSystemProbe here.
+	networkEnabled := true
+	// network_config is a top-level config, not a subconfig of system_probe_config
+	if config.Datadog.IsSet("network_config") {
+		// System probe can be run without the network module as determined on the network_config.enabled value
+		networkEnabled = config.Datadog.GetBool("network_config.enabled")
+		log.Info(fmt.Sprintf("network_config found, enabled = %v", networkEnabled))
+	} else {
+		log.Info("network_config not found, enabling network check by default")
+	}
+	if networkEnabled {
+		a.EnabledChecks = append(a.EnabledChecks, "Network")
+	}
 	return nil
 }
 
@@ -170,9 +211,10 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		return fmt.Errorf("error parsing process_dd_url: %s", err)
 	}
 	a.APIEndpoints[0].Endpoint = URL
-	URL, err = url.Parse(config.GetMainEndpoint("https://orchestrator.", key(ns, "orchestrator_dd_url")))
+
+	URL, err = extractOrchestratorDDUrl()
 	if err != nil {
-		return fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
+		return err
 	}
 	a.OrchestratorEndpoints[0].Endpoint = URL
 
@@ -328,27 +370,20 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 		}
 	}
-
-	if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
-		for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
-			u, err := URL.Parse(endpointURL)
-			if err != nil {
-				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
-			}
-			for _, k := range apiKeys {
-				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, api.Endpoint{
-					APIKey:   k,
-					Endpoint: u,
-				})
-			}
-		}
+	if err := extractOrchestratorAdditionalEndpoints(URL, &a.OrchestratorEndpoints); err != nil {
+		return err
 	}
 
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
 	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
-	if sources := config.Datadog.GetStringSlice(key(ns, "container_source")); len(sources) > 0 {
-		util.SetContainerSources(sources)
+	containerSourceKey := key(ns, "container_source")
+	if config.Datadog.Get(containerSourceKey) != nil {
+		// container_source can be nil since we're not forcing default values in the main config file
+		// make sure we don't pass nil value to GetStringSlice to avoid spammy warnings
+		if sources := config.Datadog.GetStringSlice(containerSourceKey); len(sources) > 0 {
+			util.SetContainerSources(sources)
+		}
 	}
 
 	// Pull additional parameters from the global config file.
@@ -371,12 +406,54 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		a.OrchestrationCollectionEnabled = true
 		// Set clustername
-		if clusterName := clustername.GetClusterName(); clusterName != "" {
+		hostname, _ := coreutil.GetHostname()
+		if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
 			a.KubeClusterName = clusterName
 		}
 	}
+	a.IsScrubbingEnabled = config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled")
 
 	return nil
+}
+
+func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]api.Endpoint) error {
+	if k := key(orchestratorNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
+		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
+			return err
+		}
+	} else if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
+		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func extractEndpoints(URL *url.URL, k string, endpoints *[]api.Endpoint) error {
+	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
+		u, err := URL.Parse(endpointURL)
+		if err != nil {
+			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
+		}
+		for _, k := range apiKeys {
+			*endpoints = append(*endpoints, api.Endpoint{
+				APIKey:   k,
+				Endpoint: u,
+			})
+		}
+	}
+	return nil
+}
+
+// extractOrchestratorDDUrl contains backward compatible config parsing code.
+func extractOrchestratorDDUrl() (*url.URL, error) {
+	orchestratorURL := key(orchestratorNS, "orchestrator_dd_url")
+	processURL := key(ns, "orchestrator_dd_url")
+	URL, err := url.Parse(config.GetMainEndpointWithConfigBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
+	if err != nil {
+		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
+	}
+	return URL, nil
 }
 
 func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {

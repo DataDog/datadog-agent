@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/test/util"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
@@ -80,7 +79,7 @@ func (f *forwarderBenchStub) Stop()        {}
 func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	return nil
 }
 func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
@@ -101,7 +100,7 @@ func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extr
 func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	return nil
 }
 
@@ -206,7 +205,7 @@ func main() {
 		return
 	}
 
-	util.SetHostname("foo")
+	SetHostname("foo")
 
 	f := &forwarderBenchStub{}
 	s := serializer.NewSerializer(f)

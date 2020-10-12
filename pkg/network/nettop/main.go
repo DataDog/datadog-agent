@@ -8,10 +8,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	ddebpf "github.com/DataDog/ebpf"
 )
 
 func main() {
-	kernelVersion, err := ebpf.CurrentKernelVersion()
+	kernelVersion, err := ddebpf.CurrentKernelVersion()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

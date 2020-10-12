@@ -1,0 +1,117 @@
+#ifndef _UTIME_H_
+#define _UTIME_H_
+
+#include "syscalls.h"
+
+#include <uapi/linux/utime.h>
+
+/*
+  utime syscalls call utimes_common
+*/
+
+struct utime_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t file;
+    struct {
+        long tv_sec;
+        long tv_usec;
+    } atime, mtime;
+};
+
+int __attribute__((always_inline)) trace__sys_utimes() {
+    struct syscall_cache_t syscall = {
+        .type = EVENT_UTIME,
+    };
+    cache_syscall(&syscall);
+
+    return 0;
+}
+
+// On old kernels, we have sys_utime and compat_sys_utime.
+// On new kernels, we have _x64_sys_utime32, __ia32_sys_utime32, __x64_sys_utime, __ia32_sys_utime
+SYSCALL_COMPAT_KPROBE0(utime) {
+    return trace__sys_utimes();
+}
+
+SYSCALL_KPROBE0(utime32) {
+    return trace__sys_utimes();
+}
+
+SYSCALL_COMPAT_TIME_KPROBE0(utimes) {
+    return trace__sys_utimes();
+}
+
+SYSCALL_COMPAT_TIME_KPROBE0(utimensat) {
+    return trace__sys_utimes();
+}
+
+SYSCALL_COMPAT_TIME_KPROBE0(utimesat) {
+    return trace__sys_utimes();
+}
+
+SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
+    return trace__sys_utimes();
+}
+
+int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall();
+    if (!syscall)
+        return 0;
+
+    int retval = PT_REGS_RC(ctx);
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    struct utime_event_t event = {
+        .event.type = EVENT_UTIME,
+        .syscall = {
+            .retval = retval,
+            .timestamp = bpf_ktime_get_ns(),
+        },
+        .atime = {
+            .tv_sec = syscall->setattr.atime.tv_sec,
+            .tv_usec = syscall->setattr.atime.tv_nsec,
+        },
+        .mtime = {
+            .tv_sec = syscall->setattr.mtime.tv_sec,
+            .tv_usec = syscall->setattr.mtime.tv_nsec,
+        },
+        .file = {
+            .inode = syscall->setattr.path_key.ino,
+            .mount_id = syscall->setattr.path_key.mount_id,
+            .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
+        },
+    };
+
+    struct proc_cache_t *entry = fill_process_data(&event.process);
+    fill_container_data(entry, &event.container);
+
+    send_event(ctx, event);
+
+    return 0;
+}
+
+SYSCALL_COMPAT_KRETPROBE(utime) {
+    return trace__sys_utimes_ret(ctx);
+}
+
+SYSCALL_KRETPROBE(utime32) {
+    return trace__sys_utimes_ret(ctx);
+}
+
+SYSCALL_COMPAT_TIME_KRETPROBE(utimes) {
+    return trace__sys_utimes_ret(ctx);
+}
+
+SYSCALL_COMPAT_TIME_KRETPROBE(utimensat) {
+    return trace__sys_utimes_ret(ctx);
+}
+
+SYSCALL_COMPAT_TIME_KRETPROBE(futimesat) {
+    return trace__sys_utimes_ret(ctx);
+}
+
+#endif

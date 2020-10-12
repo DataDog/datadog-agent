@@ -178,7 +178,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "nginx.net.request_per_s",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: nginx.net.request_per_s, datadogmetricid: default/dcaautogen-32402d8dfc05cf540928a606d78ed68c0607f758"),
+			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: nginx.net.request_per_s, datadogmetricid: default/dcaautogen-32402d8dfc05cf540928a606d78ed68c0607f7"),
 		},
 	}
 

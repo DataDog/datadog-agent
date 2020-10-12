@@ -85,8 +85,8 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 		return err
 	}
 	c.sub.Filters = c.instance.ContainerdFilters
-	// GetSharedFilter should not return a nil instance of *Filter if there is an error during its setup.
-	fil, err := ddContainers.GetSharedFilter()
+	// GetSharedMetricFilter should not return a nil instance of *Filter if there is an error during its setup.
+	fil, err := ddContainers.GetSharedMetricFilter()
 	if err != nil {
 		return err
 	}
@@ -391,12 +391,16 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*v1
 			continue
 		}
 
-		tags = append(tags, fmt.Sprintf("device:%s", m.Device))
-		tags = append(tags, fmt.Sprintf("device_name:%s", m.Device))
+		// +3 As we will add tags after
+		deviceTags := make([]string, 0, len(tags)+3)
+		deviceTags = append(deviceTags, tags...)
+
+		deviceTags = append(deviceTags, fmt.Sprintf("device:%s", m.Device))
+		deviceTags = append(deviceTags, fmt.Sprintf("device_name:%s", m.Device))
 		if m.Op != "" {
-			tags = append(tags, fmt.Sprintf("operation:%s", m.Op))
+			deviceTags = append(deviceTags, fmt.Sprintf("operation:%s", m.Op))
 		}
 
-		sender.Rate(metricName, float64(m.Value), "", tags)
+		sender.Rate(metricName, float64(m.Value), "", deviceTags)
 	}
 }

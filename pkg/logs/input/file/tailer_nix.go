@@ -26,7 +26,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	// adds metadata to enable users to filter logs by filename
 	t.tags = t.buildTailerTags()
 
-	log.Info("Opening ", t.path)
+	log.Info("Opening", t.path, "for tailer key", buildTailerKey(t))
 	f, err := openFile(fullpath)
 	if err != nil {
 		return err

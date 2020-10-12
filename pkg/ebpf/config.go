@@ -68,6 +68,9 @@ type Config struct {
 	// BPFDebug enables bpf debug logs
 	BPFDebug bool
 
+	// BPFDir is the directory to load the eBPF program from
+	BPFDir string
+
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
@@ -77,6 +80,10 @@ type Config struct {
 	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
 	// Setting it to -1 disables the limit and can result in a high CPU usage.
 	ConntrackRateLimit int
+
+	// EnableConntrackAllNamespaces enables network address translation via netlink for all namespaces that are peers of the root namespace.
+	// default is false
+	EnableConntrackAllNamespaces bool
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
@@ -92,25 +99,35 @@ type Config struct {
 
 	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
 	OffsetGuessThreshold uint64
+
+	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
+	EnableTracepoints bool
+
+	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
+	EnableMonotonicCount bool
+
+	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
+	DriverBufferSize int
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
 func NewDefaultConfig() *Config {
 	return &Config{
-		CollectTCPConns:       true,
-		CollectUDPConns:       true,
-		CollectIPv6Conns:      true,
-		CollectLocalDNS:       false,
-		DNSInspection:         true,
-		UDPConnTimeout:        30 * time.Second,
-		TCPConnTimeout:        2 * time.Minute,
-		TCPClosedTimeout:      20 * time.Second,
-		MaxTrackedConnections: 65536,
-		ConntrackMaxStateSize: 65536,
-		ConntrackRateLimit:    500,
-		ProcRoot:              "/proc",
-		BPFDebug:              false,
-		EnableConntrack:       true,
+		CollectTCPConns:              true,
+		CollectUDPConns:              true,
+		CollectIPv6Conns:             true,
+		CollectLocalDNS:              false,
+		DNSInspection:                true,
+		UDPConnTimeout:               30 * time.Second,
+		TCPConnTimeout:               2 * time.Minute,
+		TCPClosedTimeout:             time.Second,
+		MaxTrackedConnections:        65536,
+		ConntrackMaxStateSize:        65536,
+		ConntrackRateLimit:           500,
+		EnableConntrackAllNamespaces: false,
+		ProcRoot:                     "/proc",
+		BPFDebug:                     false,
+		EnableConntrack:              true,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
@@ -118,8 +135,9 @@ func NewDefaultConfig() *Config {
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
-		CollectDNSStats:      false,
+		CollectDNSStats:      true,
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
+		EnableMonotonicCount: false,
 	}
 }

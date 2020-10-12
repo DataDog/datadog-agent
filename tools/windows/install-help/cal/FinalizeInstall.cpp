@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "TargetMachine.h"
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
@@ -7,7 +8,6 @@ UINT doFinalizeInstall(CustomActionData &data)
 
     int ddUserExists = 0;
     int ddServiceExists = 0;
-    bool isDC = false;
     int passbuflen = 0;
     wchar_t *passbuf = NULL;
     const wchar_t * passToUse = NULL;
@@ -27,13 +27,9 @@ UINT doFinalizeInstall(CustomActionData &data)
     regkeybase.createSubKey(strRollbackKeyName.c_str(), keyRollback, REG_OPTION_VOLATILE);
     regkeybase.createSubKey(strUninstallKeyName.c_str(), keyInstall);
 
-    // check to see if we're a domain controller.
-    WcaLog(LOGMSG_STANDARD, "checking if this is a domain controller");
-    isDC = isDomainController();
-
     // check to see if the supplied dd-agent-user exists
     WcaLog(LOGMSG_STANDARD, "checking to see if the user is already present");
-    if ((ddUserExists = doesUserExist(data, isDC)) == -1) {
+    if ((ddUserExists = doesUserExist(data, data.GetTargetMachine().IsDomainController())) == -1) {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
@@ -48,7 +44,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     // new installation or an upgrade, and what steps need to be taken
 
 
-    if (!canInstall(isDC, ddUserExists, ddServiceExists, data, bResetPassword)) {
+    if (!canInstall(data.GetTargetMachine().IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword)) {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
@@ -107,7 +103,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     hr = -1;
     sid = GetSidForUser(NULL, data.Username().c_str());
     if (!sid) {
-        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %S", data.Username().c_str());
+        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %S (%d)", data.Username().c_str(), GetLastError());
         goto LExit;
     }
     if ((hLsa = GetPolicyHandle()) == NULL) {
@@ -133,21 +129,19 @@ UINT doFinalizeInstall(CustomActionData &data)
     }
     hr = 0;
 
-    if (!ddUserExists)
-    {
-        hr = -1;
-        nErr = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
-        if (nErr != NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
+    if (!data.GetTargetMachine().IsReadOnlyDomainController()) {
+        er = AddUserToGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+        if (er != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
-        nErr = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
-        if (nErr != NERR_Success) {
-            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
+        er = AddUserToGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
+        if (er != NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", er);
             goto LExit;
         }
-        hr = 0;
     }
+
     if (!ddServiceExists) {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
         if (!passToUse) {
@@ -210,7 +204,16 @@ UINT doFinalizeInstall(CustomActionData &data)
         std::wstring embedded = installdir + L"\\embedded";
         std::wstring bindir = installdir + L"\\bin";
         BOOL bRet = CreateSymbolicLink(embedded.c_str(), bindir.c_str(), SYMBOLIC_LINK_FLAG_DIRECTORY);
-        WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink %d %d", bRet, GetLastError());
+        if (!bRet)
+        {
+            DWORD lastErr = GetLastError();
+            std::string lastErrStr = GetErrorMessageStr(lastErr);
+            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %s (%d)", lastErrStr.c_str(), lastErr);
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink");
+        }
     }
 LExit:
     if (sid) {

@@ -13,11 +13,15 @@ import (
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
+
+// SnmpTraps is the name of the integration that collects logs from SNMP traps received by the Agent
+const SnmpTraps = "snmp_traps"
 
 // logs-intake endpoint prefix.
 const (
@@ -43,21 +47,30 @@ var (
 	HTTPConnectivityFailure HTTPConnectivity = false
 )
 
-// DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
-func DefaultSources() []*LogSource {
-	var sources []*LogSource
-
+// ContainerCollectAllSource returns a source to collect all logs from all containers.
+func ContainerCollectAllSource() *LogSource {
 	if coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
-		// append a new source to collect all logs from all containers
-		source := NewLogSource(ContainerCollectAll, &LogsConfig{
+		// source to collect all logs from all containers
+		return NewLogSource(ContainerCollectAll, &LogsConfig{
 			Type:    DockerType,
 			Service: "docker",
 			Source:  "docker",
 		})
-		sources = append(sources, source)
 	}
+	return nil
+}
 
-	return sources
+// SNMPTrapsSource returs a source to forward SNMP traps as logs.
+func SNMPTrapsSource() *LogSource {
+	if traps.IsEnabled() && traps.IsRunning() {
+		// source to forward SNMP traps as logs.
+		return NewLogSource(SnmpTraps, &LogsConfig{
+			Type:    SnmpTrapsType,
+			Service: "snmp",
+			Source:  "snmp",
+		})
+	}
+	return nil
 }
 
 // GlobalProcessingRules returns the global processing rules to apply to all logs.

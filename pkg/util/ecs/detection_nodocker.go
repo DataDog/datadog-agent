@@ -7,11 +7,6 @@
 
 package ecs
 
-const (
-	// CloudProviderName contains the inventory name of for ECS
-	CloudProviderName = "AWS"
-)
-
 // IsECSInstance returns whether the agent is running in ECS.
 func IsECSInstance() bool {
 	return false
@@ -26,4 +21,9 @@ func IsFargateInstance() bool {
 // IsRunningOn returns true if the agent is running on ECS/Fargate
 func IsRunningOn() bool {
 	return false
+}
+
+// GetNTPHosts returns the NTP hosts for ECS/Fargate if it is detected as the cloud provider, otherwise an empty array.
+func GetNTPHosts() []string {
+	return nil
 }

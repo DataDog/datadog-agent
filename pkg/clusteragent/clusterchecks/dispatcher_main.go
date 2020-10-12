@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,7 +41,8 @@ func newDispatcher() *dispatcher {
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
 	d.extraTags = config.Datadog.GetStringSlice("cluster_checks.extra_tags")
 
-	clusterTagValue := clustername.GetClusterName()
+	hostname, _ := util.GetHostname()
+	clusterTagValue := clustername.GetClusterName(hostname)
 	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
 	if clusterTagValue != "" {
 		if clusterTagName != "" && !config.Datadog.GetBool("disable_cluster_name_tag_key") {
@@ -194,10 +196,8 @@ func (d *dispatcher) run(ctx context.Context) {
 				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
 			}
 
-			// Update runner stats and rebalance if needed
+			// Rebalance if needed
 			if d.advancedDispatching {
-				// Collect CLC runners stats and update cache
-				d.updateRunnersStats()
 				// Rebalance checks distribution
 				d.rebalance()
 			}

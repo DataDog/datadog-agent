@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -111,12 +110,16 @@ func (t *TCPQueueLengthCheck) Run() error {
 	for _, lineRaw := range data {
 		line, ok := lineRaw.(tcpqueuelength.Stats)
 		if !ok {
+			log.Error("Raw data has incorrect type")
 			continue
 		}
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
-		tags, err := tagger.Tag(entityID, collectors.OrchestratorCardinality)
-		if err != nil {
-			log.Errorf("Could not collect tags for container %s: %s", line.ContainerID, err)
+		var tags []string
+		if entityID != "" {
+			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality)
+			if err != nil {
+				log.Errorf("Error collecting tags for container %s: %s", line.ContainerID, err)
+			}
 		}
 
 		tags = append(tags,

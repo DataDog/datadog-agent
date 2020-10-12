@@ -9,13 +9,14 @@ WORKDIR /output
 COPY datadog-cluster-agent.amd64 opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
+COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/compliance.d
 COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh .
 
 RUN chmod 755 entrypoint.sh \
     && chown root:root readsecret.sh \
-    && chmod 555 readsecret.sh \
+    && chmod 550 readsecret.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
@@ -29,6 +30,9 @@ FROM debian:bullseye-slim
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
 ENV PATH="/opt/datadog-agent/bin/:$PATH"
+
+# Allow User Group to exec the secret backend script.
+ENV DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 RUN apt-get update \
     && apt full-upgrade -y \

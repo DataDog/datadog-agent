@@ -1,9 +1,9 @@
 """
 RtLoader namespaced tasks
 """
+import errno
 import os
 import shutil
-import errno
 
 from invoke import task
 from invoke.exceptions import Exit

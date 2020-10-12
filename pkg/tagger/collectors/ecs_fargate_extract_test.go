@@ -148,15 +148,15 @@ func TestParseMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"unknownID"}, expires)
 
-	// Diff parsing should show 0 containers
+	// Diff parsing should show 0 containers + 1 tag for task_arn
 	updates, err = collector.parseMetadata(&meta, false)
 	assert.NoError(t, err)
-	assert.Len(t, updates, 0)
+	assert.Len(t, updates, 1)
 
-	// Full parsing should show 3 containers
+	// Full parsing should show 3 containers + 1 tag for task_arn
 	updates, err = collector.parseMetadata(&meta, true)
 	assert.NoError(t, err)
-	assert.Len(t, updates, 3)
+	assert.Len(t, updates, 4)
 }
 
 func TestParseMetadataV10(t *testing.T) {

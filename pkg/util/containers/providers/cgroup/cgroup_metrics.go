@@ -27,7 +27,7 @@ import (
 const NanoToUserHZDivisor float64 = 1e9 / 100
 
 var (
-	numCPU float64 = float64(runtime.NumCPU())
+	numCPU = float64(runtime.NumCPU())
 )
 
 // Mem returns the memory statistics for a Cgroup. If the cgroup file is not
@@ -360,19 +360,11 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 //
 func (c ContainerCgroup) IO() (*metrics.ContainerIOStats, error) {
 	ret := &metrics.ContainerIOStats{
-		DeviceReadBytes:  make(map[string]uint64),
-		DeviceWriteBytes: make(map[string]uint64),
+		DeviceReadBytes:       make(map[string]uint64),
+		DeviceWriteBytes:      make(map[string]uint64),
+		DeviceReadOperations:  make(map[string]uint64),
+		DeviceWriteOperations: make(map[string]uint64),
 	}
-
-	statfile := c.cgroupFilePath("blkio", "blkio.throttle.io_service_bytes")
-	f, err := os.Open(statfile)
-	if os.IsNotExist(err) {
-		log.Debugf("Missing cgroup file: %s", statfile)
-		return ret, nil
-	} else if err != nil {
-		return nil, err
-	}
-	defer f.Close()
 
 	// Get device id->name mapping
 	var devices map[string]string
@@ -384,11 +376,10 @@ func (c ContainerCgroup) IO() (*metrics.ContainerIOStats, error) {
 		devices = mapping.idToName
 	}
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), " ")
+	err = c.scanStatFile("blkio", "blkio.throttle.io_service_bytes", func(line string) error {
+		fields := strings.Split(line, " ")
 		if len(fields) < 3 {
-			continue
+			return nil
 		}
 		deviceName := devices[fields[0]]
 		if fields[1] == "Read" {
@@ -408,9 +399,39 @@ func (c ContainerCgroup) IO() (*metrics.ContainerIOStats, error) {
 				}
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	if err := scanner.Err(); err != nil {
-		return ret, fmt.Errorf("error reading %s: %s", statfile, err)
+
+	err = c.scanStatFile("blkio", "blkio.throttle.io_serviced", func(line string) error {
+		fields := strings.Split(line, " ")
+		if len(fields) < 3 {
+			return nil
+		}
+		deviceName := devices[fields[0]]
+		if fields[1] == "Read" {
+			read, err := strconv.ParseUint(fields[2], 10, 64)
+			if err == nil {
+				ret.ReadOperations += read
+				if deviceName != "" {
+					ret.DeviceReadOperations[deviceName] = read
+				}
+			}
+		} else if fields[1] == "Write" {
+			write, err := strconv.ParseUint(fields[2], 10, 64)
+			if err == nil {
+				ret.WriteOperations += write
+				if deviceName != "" {
+					ret.DeviceWriteOperations[deviceName] = write
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	var fileDescCount uint64
@@ -487,4 +508,30 @@ func (c ContainerCgroup) ParseSingleStat(target, file string) (uint64, error) {
 		return 0, err
 	}
 	return value, nil
+}
+
+// Parse file
+func (c ContainerCgroup) scanStatFile(target, file string, parser func(line string) error) error {
+	filePath := c.cgroupFilePath(target, file)
+	f, err := os.Open(filePath)
+	if os.IsNotExist(err) {
+		log.Debugf("Missing cgroup file: %s", filePath)
+		return nil
+	} else if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if err = parser(scanner.Text()); err != nil {
+			return err
+		}
+	}
+
+	if err = scanner.Err(); err != nil {
+		return fmt.Errorf("error reading %s: %s", filePath, err)
+	}
+
+	return nil
 }

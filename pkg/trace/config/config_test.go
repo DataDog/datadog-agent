@@ -19,6 +19,7 @@ import (
 func cleanConfig() func() {
 	oldConfig := config.Datadog
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config.InitConfig(config.Datadog)
 	return func() { config.Datadog = oldConfig }
 }
 
@@ -115,7 +116,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal("INFO", c.LogLevel)
 	assert.Equal(true, c.Enabled)
 
-	assert.Equal([]string{"http.status_code", "version"}, c.ExtraAggregators)
+	assert.Equal([]string{"http.status_code", "version", "_dd.hostname"}, c.ExtraAggregators)
 }
 
 func TestNoAPMConfig(t *testing.T) {

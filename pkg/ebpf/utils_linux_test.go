@@ -55,10 +55,19 @@ func TestExcludedKernelVersion(t *testing.T) {
 	assert.Empty(t, msg)
 }
 
-func TestFixSyscallName(t *testing.T) {
+func TestVerifyKernelFuncs(t *testing.T) {
+	missing, err := verifyKernelFuncs("./testdata/kallsyms.supported")
+	assert.Empty(t, missing)
+	assert.Empty(t, err)
 
-	assert.Equal(t, fixSyscallName("__sys_", "kprobe/sys_socket"), "kprobe/__sys_socket")
-	assert.Equal(t, fixSyscallName("__x64_sys_", "kprobe/sys_socket"), "kprobe/__x64_sys_socket")
-	assert.Equal(t, fixSyscallName("sys_", "kretprobe/sys_bind"), "kretprobe/sys_bind")
+	missing, err = verifyKernelFuncs("./testdata/kallsyms.unsupported")
+	assert.NotEmpty(t, missing)
+	assert.Empty(t, err)
 
+	missing, err = verifyKernelFuncs("./testdata/kallsyms.empty")
+	assert.NotEmpty(t, missing)
+	assert.Empty(t, err)
+
+	_, err = verifyKernelFuncs("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t")
+	assert.NotEmpty(t, err)
 }

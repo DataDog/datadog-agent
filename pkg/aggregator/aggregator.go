@@ -105,7 +105,7 @@ var (
 	aggregatorHostnameUpdate                   = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
-		[]string{"data_type", "state"}, "Count of flush")
+		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
 	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
 		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
 	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
@@ -220,6 +220,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 	if config.Datadog.GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent
+	}
+	if config.Datadog.GetBool("heroku_dyno") {
+		// Override the agentName if this Agent is configured to report as Heroku Dyno
+		agentName = flavor.HerokuAgent
 	}
 
 	aggregator := &BufferedAggregator{

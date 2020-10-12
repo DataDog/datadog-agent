@@ -35,3 +35,19 @@ func TestGetInstanceID(t *testing.T) {
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/meta-data/instance-id")
 }
+
+func TestGetNTPHosts(t *testing.T) {
+	expectedHosts := []string{"ntpupdate.tencentyun.com"}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, "test")
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	config.Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	actualHosts := GetNTPHosts()
+
+	assert.Equal(t, expectedHosts, actualHosts)
+}

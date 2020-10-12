@@ -6,121 +6,90 @@
 package checks
 
 import (
-	"errors"
+	"context"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/elastic/go-libaudit/rule"
 )
 
-// AuditClient defines the interface for interacting with the auditd client
-type AuditClient interface {
-	GetFileWatchRules() ([]*rule.FileWatchRule, error)
-	Close() error
+var auditReportedFields = []string{
+	compliance.AuditFieldPath,
+	compliance.AuditFieldEnabled,
+	compliance.AuditFieldPermissions,
 }
 
-type auditCheck struct {
-	baseCheck
-
-	client AuditClient
-
-	audit *compliance.Audit
-}
-
-func newAuditCheck(baseCheck baseCheck, client AuditClient, audit *compliance.Audit) (*auditCheck, error) {
-
-	if len(audit.Path) == 0 {
-		return nil, errors.New("unable to create audit check without a path")
+func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
+	if res.Audit == nil {
+		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
-	return &auditCheck{
-		baseCheck: baseCheck,
-		client:    client,
-		audit:     audit,
+
+	audit := res.Audit
+
+	client := e.AuditClient()
+	if client == nil {
+		return nil, fmt.Errorf("audit client not configured")
+	}
+
+	path, err := resolvePath(e, audit.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	normPath := e.NormalizeToHostRoot(path)
+	if _, err := os.Stat(normPath); err != nil && os.IsNotExist(err) {
+		return nil, fmt.Errorf("%s: audit resource path does not exist", ruleID)
+	}
+
+	paths := []string{path}
+
+	log.Debugf("%s: evaluating audit rules", ruleID)
+
+	auditRules, err := client.GetFileWatchRules()
+	if err != nil {
+		return nil, err
+	}
+
+	var instances []*eval.Instance
+	for _, auditRule := range auditRules {
+		for _, path := range paths {
+			if auditRule.Path != path {
+				continue
+			}
+
+			log.Debugf("%s: audit check - match %s", ruleID, path)
+			instances = append(instances, &eval.Instance{
+				Vars: eval.VarMap{
+					compliance.AuditFieldPath:        path,
+					compliance.AuditFieldEnabled:     true,
+					compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
+				},
+			})
+		}
+	}
+
+	return &instanceIterator{
+		instances: instances,
 	}, nil
 }
 
-func (c *auditCheck) Run() error {
-	log.Debugf("%s: running audit check - path %s", c.id, c.audit.Path)
-
-	rules, err := c.client.GetFileWatchRules()
-	if err != nil {
-		return err
-	}
-
-	// Scal for the rule matching configured path
-	for _, r := range rules {
-		if r.Path == c.audit.Path {
-			log.Debugf("%s: audit check - match %s", c.id, c.audit.Path)
-			return c.reportOnRule(r)
+func auditPermissionsString(r *rule.FileWatchRule) string {
+	permissions := ""
+	for _, p := range r.Permissions {
+		switch p {
+		case rule.ReadAccessType:
+			permissions += "r"
+		case rule.WriteAccessType:
+			permissions += "w"
+		case rule.ExecuteAccessType:
+			permissions += "e"
+		case rule.AttributeChangeAccessType:
+			permissions += "a"
 		}
 	}
-
-	// If no rule found we still report this as "not enabled"
-	return c.reportOnRule(nil)
-}
-
-func (c *auditCheck) reportOnRule(r *rule.FileWatchRule) error {
-	var (
-		v   string
-		err error
-		kv  = compliance.KVMap{}
-	)
-
-	for _, field := range c.audit.Report {
-		if c.setStaticKV(field, kv) {
-			continue
-		}
-
-		switch field.Kind {
-		case compliance.PropertyKindAttribute:
-			v, err = c.getAttribute(field.Property, r)
-		default:
-			return ErrPropertyKindNotSupported
-		}
-		if err != nil {
-			return err
-		}
-
-		key := field.As
-		if key == "" {
-			key = field.Property
-		}
-
-		if v != "" {
-			kv[key] = v
-		}
-	}
-
-	c.report(nil, kv)
-	return nil
-}
-
-func (c *auditCheck) getAttribute(name string, r *rule.FileWatchRule) (string, error) {
-	switch name {
-	case "path":
-		return c.audit.Path, nil
-	case "enabled":
-		return fmt.Sprintf("%t", r != nil), nil
-	case "permissions":
-		if r == nil {
-			return "", nil
-		}
-		permissions := ""
-		for _, p := range r.Permissions {
-			switch p {
-			case rule.ReadAccessType:
-				permissions += "r"
-			case rule.WriteAccessType:
-				permissions += "w"
-			case rule.ExecuteAccessType:
-				permissions += "e"
-			case rule.AttributeChangeAccessType:
-				permissions += "a"
-			}
-		}
-		return permissions, nil
-	default:
-		return "", ErrPropertyNotSupported
-	}
+	return permissions
 }

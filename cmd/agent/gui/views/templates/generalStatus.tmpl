@@ -116,6 +116,12 @@
         {{- if and (not .timestamp) (not .checks)}}
           No JMX status available
         {{- else }}
+          <span class="stat_subtitle">Information</span>
+          <span class="stat_subdata">
+            {{- range $k,$v := .info }}
+              {{ $k }} : {{ $v }}<br>
+            {{- end }}
+          </span>
           <span class="stat_subtitle">Initialized Checks</span>
           <span class="stat_subdata">
             {{- if (not .checks.initialized_checks)}}
@@ -347,5 +353,19 @@
   <div class="stat" id="apmStats">
     <span class="stat_title">APM</span>
     <span class="stat_data">Loading...</span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">SNMP Traps</span>
+    <span class="stat_data">
+      {{- with .snmpTrapsStats -}}
+        {{- if .error }}
+          Error: {{.error}}<br>
+        {{- end }}
+        {{- range $key, $value := .metrics}}
+          {{formatTitle $key}}: {{humanize $value}}<br>
+        {{- end }}
+      {{- end -}}
+    </span>
   </div>
 {{- end -}}

@@ -16,6 +16,7 @@ const (
 	RuntimeNameDocker     string = "docker"
 	RuntimeNameContainerd string = "containerd"
 	RuntimeNameCRIO       string = "cri-o"
+	RuntimeNameGarden     string = "garden"
 )
 
 // Supported container states

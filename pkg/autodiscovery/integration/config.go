@@ -38,23 +38,25 @@ const (
 )
 
 // Config is a generic container for configuration files
+// When a new field is added to this struct, please evaluate whether it should be computed in the config Digest
+// and update the field's documentation and the Digest method accordingly
 type Config struct {
-	Name                    string       `json:"check_name"`                // the name of the check
-	Instances               []Data       `json:"instances"`                 // the list of instances in Yaml
-	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml
-	MetricConfig            Data         `json:"metric_config"`             // the metric config in Yaml (jmx check only)
-	LogsConfig              Data         `json:"logs"`                      // the logs config in Yaml (logs-agent only)
-	ADIdentifiers           []string     `json:"ad_identifiers"`            // the list of AutoDiscovery identifiers (optional)
-	Provider                string       `json:"provider"`                  // the provider that issued the config
-	Entity                  string       `json:"-"`                         // the entity ID (optional)
-	TaggerEntity            string       `json:"-"`                         // the tagger entity ID (optional)
-	ClusterCheck            bool         `json:"cluster_check"`             // cluster-check configuration flag
-	NodeName                string       `json:"node_name"`                 // node name in case of an endpoint check backed by a pod
-	CreationTime            CreationTime `json:"-"`                         // creation time of service
-	Source                  string       `json:"source"`                    // the source of the configuration
-	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // used to ignore tags coming from autodiscovery
-	MetricsExcluded         bool         `json:"-"`                         // whether metrics collection is disabled (set by container listeners only)
-	LogsExcluded            bool         `json:"-"`                         // whether logs collection is disabled (set by container listeners only)
+	Name                    string       `json:"check_name"`                // the name of the check (include in digest: true)
+	Instances               []Data       `json:"instances"`                 // the list of instances in Yaml (include in digest: true)
+	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml (include in digest: true)
+	MetricConfig            Data         `json:"metric_config"`             // the metric config in Yaml (jmx check only) (include in digest: false)
+	LogsConfig              Data         `json:"logs"`                      // the logs config in Yaml (logs-agent only) (include in digest: true)
+	ADIdentifiers           []string     `json:"ad_identifiers"`            // the list of AutoDiscovery identifiers (optional) (include in digest: true)
+	Provider                string       `json:"provider"`                  // the provider that issued the config (include in digest: false)
+	Entity                  string       `json:"-"`                         // the entity ID (optional) (include in digest: true)
+	TaggerEntity            string       `json:"-"`                         // the tagger entity ID (optional) (include in digest: false)
+	ClusterCheck            bool         `json:"cluster_check"`             // cluster-check configuration flag (include in digest: false)
+	NodeName                string       `json:"node_name"`                 // node name in case of an endpoint check backed by a pod (include in digest: true)
+	CreationTime            CreationTime `json:"-"`                         // creation time of service (include in digest: false)
+	Source                  string       `json:"source"`                    // the source of the configuration (include in digest: false)
+	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // used to ignore tags coming from autodiscovery (include in digest: true)
+	MetricsExcluded         bool         `json:"-"`                         // whether metrics collection is disabled (set by container listeners only) (include in digest: false)
+	LogsExcluded            bool         `json:"-"`                         // whether logs collection is disabled (set by container listeners only) (include in digest: false)
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -287,7 +289,7 @@ func (c *Config) Digest() string {
 			// identical configs with the same tags but with different order
 			tagsInterface, ok := val.([]interface{})
 			if !ok {
-				log.Debug("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
+				log.Debugf("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
 				continue
 			}
 			tags := make([]string, len(tagsInterface))
@@ -308,9 +310,10 @@ func (c *Config) Digest() string {
 	for _, i := range c.ADIdentifiers {
 		h.Write([]byte(i)) //nolint:errcheck
 	}
-	h.Write([]byte(c.NodeName))   //nolint:errcheck
-	h.Write([]byte(c.LogsConfig)) //nolint:errcheck
-	h.Write([]byte(c.Entity))     //nolint:errcheck
+	h.Write([]byte(c.NodeName))                                    //nolint:errcheck
+	h.Write([]byte(c.LogsConfig))                                  //nolint:errcheck
+	h.Write([]byte(c.Entity))                                      //nolint:errcheck
+	h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags))) //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

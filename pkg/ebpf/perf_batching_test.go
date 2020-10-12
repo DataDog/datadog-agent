@@ -7,13 +7,18 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	numTestBatches = 4
+)
+
 func TestPerfBatchManagerExtract(t *testing.T) {
 	t.Run("normal flush", func(t *testing.T) {
-		manager := PerfBatchManager{stateByCPU: make([]batchState, maxNumberBatches)}
+		manager := PerfBatchManager{stateByCPU: make([]batchState, numTestBatches)}
 
 		batch := new(batch)
 		batch.c0.tup.pid = 1
@@ -33,7 +38,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 	})
 
 	t.Run("partial flush", func(t *testing.T) {
-		manager := PerfBatchManager{stateByCPU: make([]batchState, maxNumberBatches)}
+		manager := PerfBatchManager{stateByCPU: make([]batchState, numTestBatches)}
 
 		batch := new(batch)
 		batch.c0.tup.pid = 1
@@ -72,12 +77,7 @@ func TestGetIdleConns(t *testing.T) {
 	batch.cpu = 0
 
 	updateBatch := func() {
-		manager.module.UpdateElement(
-			manager.batchMap,
-			unsafe.Pointer(&batch.cpu),
-			unsafe.Pointer(batch),
-			0,
-		)
+		manager.batchMap.Put(unsafe.Pointer(&batch.cpu), unsafe.Pointer(batch))
 	}
 	updateBatch()
 
@@ -106,8 +106,8 @@ func newTestBatchManager(t *testing.T, idleTime time.Duration) (manager *PerfBat
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
 
-	tcpCloseMap, _ := tr.getMap(tcpCloseBatchMap)
-	manager, err = NewPerfBatchManager(tr.m, tcpCloseMap, idleTime)
+	tcpCloseMap, _ := tr.getMap(bytecode.TcpCloseBatchMap)
+	manager, err = NewPerfBatchManager(tcpCloseMap, idleTime, numTestBatches)
 	require.NoError(t, err)
 
 	doneFn = func() { tr.Stop() }

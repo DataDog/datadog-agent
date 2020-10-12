@@ -20,9 +20,11 @@ const (
 	SecurityAgent = "security_agent"
 	// ServerlessAgent is an Agent running in a serverless environment
 	ServerlessAgent = "serverless_agent"
+	// HerokuAgent is the Heroku Agent flavor
+	HerokuAgent = "heroku_agent"
 )
 
-var agentFlavor string = DefaultAgent
+var agentFlavor = DefaultAgent
 
 // SetFlavor sets the Agent flavor
 func SetFlavor(flavor string) {

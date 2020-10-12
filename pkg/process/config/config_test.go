@@ -232,7 +232,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, agentConfig.QueueSize)
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
-	assert.Equal(processChecks, agentConfig.EnabledChecks)
+	assert.Equal(append(processChecks, "Network"), agentConfig.EnabledChecks)
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals["container"])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals["process"])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
@@ -260,7 +260,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
-	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
+	assert.Equal(append(processChecks, "connections", "Network"), agentConfig.EnabledChecks)
 	assert.Equal(500, agentConfig.ClosedChannelSize)
 	assert.True(agentConfig.SysProbeBPFDebug)
 	assert.Empty(agentConfig.ExcludedBPFLinuxVersions)
@@ -478,4 +478,34 @@ func TestIsAffirmative(t *testing.T) {
 	value, err = isAffirmative("ok")
 	assert.Nil(t, err)
 	assert.False(t, value)
+}
+
+func TestEnablingDNSStatsCollection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSStats)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		defer os.Unsetenv("DD_COLLECT_DNS_STATS")
+
+		os.Setenv("DD_COLLECT_DNS_STATS", "false")
+		cfg, err := NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.False(t, cfg.CollectDNSStats)
+
+		os.Setenv("DD_COLLECT_DNS_STATS", "true")
+		cfg, err = NewAgentConfig("test", "", "")
+		assert.Nil(t, err)
+		assert.True(t, cfg.CollectDNSStats)
+	})
 }

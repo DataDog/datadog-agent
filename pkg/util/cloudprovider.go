@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	ecscommon "github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tencent"
@@ -19,6 +20,11 @@ import (
 type cloudProviderDetector struct {
 	name     string
 	callback func() bool
+}
+
+type cloudProviderNTPDetector struct {
+	name     string
+	callback func() []string
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
@@ -30,7 +36,7 @@ type cloudProviderDetector struct {
 // * Tencent
 func DetectCloudProvider() {
 	detectors := []cloudProviderDetector{
-		{name: ecs.CloudProviderName, callback: ecs.IsRunningOn},
+		{name: ecscommon.CloudProviderName, callback: ecs.IsRunningOn},
 		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn},
 		{name: gce.CloudProviderName, callback: gce.IsRunningOn},
 		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
@@ -46,4 +52,25 @@ func DetectCloudProvider() {
 		}
 	}
 	log.Info("No cloud provider detected")
+}
+
+// GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
+func GetCloudProviderNTPHosts() []string {
+	detectors := []cloudProviderNTPDetector{
+		{name: ecscommon.CloudProviderName, callback: ecs.GetNTPHosts},
+		{name: ec2.CloudProviderName, callback: ec2.GetNTPHosts},
+		{name: gce.CloudProviderName, callback: gce.GetNTPHosts},
+		{name: azure.CloudProviderName, callback: azure.GetNTPHosts},
+		{name: alibaba.CloudProviderName, callback: alibaba.GetNTPHosts},
+		{name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
+	}
+
+	for _, cloudNTPDetector := range detectors {
+		if cloudNTPServers := cloudNTPDetector.callback(); cloudNTPServers != nil {
+			log.Infof("Using NTP servers from %s cloud provider: %+q", cloudNTPDetector.name, cloudNTPServers)
+			return cloudNTPServers
+		}
+	}
+
+	return nil
 }

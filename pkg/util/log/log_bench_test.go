@@ -72,3 +72,15 @@ func BenchmarkLogScrubbingMulti(b *testing.B) {
 		Infof("this is a credential encoding urI: %s", "http://user:password@host:port")
 	}
 }
+
+func BenchmarkLogWithContext(b *testing.B) {
+	var buff bytes.Buffer
+	w := bufio.NewWriter(&buff)
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	SetupDatadogLogger(l, "info")
+
+	for n := 0; n < b.N; n++ {
+		Infoc("this is a credential encoding uri: %s", "http://user:password@host:port", "extra", "context")
+	}
+}

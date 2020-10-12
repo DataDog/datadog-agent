@@ -22,6 +22,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	// PayloadTypePod is the name of the pod payload type
+	PayloadTypePod = "pod"
+	// PayloadTypeDeployment is the name of the deployment payload type
+	PayloadTypeDeployment = "deployment"
+	// PayloadTypeReplicaSet is the name of the replica set payload type
+	PayloadTypeReplicaSet = "replicaset"
+	// PayloadTypeService is the name of the service payload type
+	PayloadTypeService = "service"
+	// PayloadTypeNode is the name of the node payload type
+	PayloadTypeNode = "node"
+)
+
 var (
 	forwarderExpvars              = expvar.NewMap("forwarder")
 	connectionEvents              = expvar.Map{}
@@ -41,6 +54,10 @@ var (
 	transactionsIntakeRTContainer = expvar.Int{}
 	transactionsIntakeConnections = expvar.Int{}
 	transactionsIntakePod         = expvar.Int{}
+	transactionsIntakeDeployment  = expvar.Int{}
+	transactionsIntakeReplicaSet  = expvar.Int{}
+	transactionsIntakeService     = expvar.Int{}
+	transactionsIntakeNode        = expvar.Int{}
 
 	tlm = telemetry.NewCounter("forwarder", "transactions",
 		[]string{"endpoint", "route"}, "Forwarder telemetry")
@@ -58,12 +75,12 @@ var (
 	hostMetadataEndpoint  = endpoint{"/api/v2/host_metadata", "host_metadata_v2"}
 	metadataEndpoint      = endpoint{"/api/v2/metadata", "metadata_v2"}
 
-	processesEndpoint   = endpoint{"/api/v1/collector", "process"}
-	rtProcessesEndpoint = endpoint{"/api/v1/collector", "rtprocess"}
-	containerEndpoint   = endpoint{"/api/v1/container", "container"}
-	rtContainerEndpoint = endpoint{"/api/v1/container", "rtcontainer"}
-	connectionsEndpoint = endpoint{"/api/v1/collector", "connections"}
-	podEndpoint         = endpoint{"/api/v1/orchestrator", "pod"}
+	processesEndpoint    = endpoint{"/api/v1/collector", "process"}
+	rtProcessesEndpoint  = endpoint{"/api/v1/collector", "rtprocess"}
+	containerEndpoint    = endpoint{"/api/v1/container", "container"}
+	rtContainerEndpoint  = endpoint{"/api/v1/container", "rtcontainer"}
+	connectionsEndpoint  = endpoint{"/api/v1/collector", "connections"}
+	orchestratorEndpoint = endpoint{"/api/v1/orchestrator", "orchestrator"}
 )
 
 func init() {
@@ -85,10 +102,18 @@ func init() {
 	transactionsExpvars.Set("Containers", &transactionsIntakeContainer)
 	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
 	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
-	transactionsExpvars.Set("Pods", &transactionsIntakePod)
+	initOrchestratorExpVars()
 	initDomainForwarderExpvars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
+}
+
+func initOrchestratorExpVars() {
+	transactionsExpvars.Set("Pods", &transactionsIntakePod)
+	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
+	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
+	transactionsExpvars.Set("Services", &transactionsIntakeService)
+	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
 }
 
 const (
@@ -136,20 +161,20 @@ type Forwarder interface {
 	Start() error
 	Stop()
 	SubmitV1Series(payload Payloads, extra http.Header) error
-	SubmitV1Intake(payload Payloads, extra http.Header) error
+	SubmitV1Intake(payload Payloads, extra http.Header, priority TransactionPriority) error
 	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
 	SubmitSeries(payload Payloads, extra http.Header) error
 	SubmitEvents(payload Payloads, extra http.Header) error
 	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
 	SubmitHostMetadata(payload Payloads, extra http.Header) error
-	SubmitMetadata(payload Payloads, extra http.Header) error
+	SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -312,8 +337,11 @@ func (f *DefaultForwarder) State() uint32 {
 
 	return f.internalState
 }
-
 func (f *DefaultForwarder) createHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
+	return f.createPriorityHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityNormal)
+}
+
+func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority TransactionPriority) []*HTTPTransaction {
 	transactions := make([]*HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
 	for _, payload := range payloads {
 		for domain, apiKeys := range f.keysPerDomains {
@@ -326,6 +354,7 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint endpoint, payloads Pa
 				t.Domain = domain
 				t.Endpoint = transactionEndpoint
 				t.Payload = payload
+				t.priority = priority
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
@@ -391,8 +420,8 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Heade
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, extra)
+func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error {
+	transactions := f.createPriorityHTTPTransactions(metadataEndpoint, payload, false, extra, priority)
 	transactionsMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
@@ -414,8 +443,8 @@ func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
+func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header, priority TransactionPriority) error {
+	transactions := f.createPriorityHTTPTransactions(v1IntakeEndpoint, payload, true, extra, priority)
 
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
@@ -461,11 +490,22 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 	return f.submitProcessLikePayload(connectionsEndpoint, payload, extra, true)
 }
 
-// SubmitPodChecks sends pod checks
-func (f *DefaultForwarder) SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	transactionsIntakePod.Add(1)
+// SubmitOrchestratorChecks sends orchestrator checks
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	switch payloadType {
+	case PayloadTypePod:
+		transactionsIntakePod.Add(1)
+	case PayloadTypeDeployment:
+		transactionsIntakeDeployment.Add(1)
+	case PayloadTypeReplicaSet:
+		transactionsIntakeReplicaSet.Add(1)
+	case PayloadTypeService:
+		transactionsIntakeService.Add(1)
+	case PayloadTypeNode:
+		transactionsIntakeNode.Add(1)
+	}
 
-	return f.submitProcessLikePayload(podEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {

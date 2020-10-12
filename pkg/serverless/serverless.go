@@ -15,7 +15,7 @@ const (
 	Name                  = "datadog-agent"
 	RouteRegister  string = "http://localhost:9001/2020-01-01/extension/register"
 	RouteEventNext string = "http://localhost:9001/2020-01-01/extension/event/next"
-	RouteInitError string = "http://127.0.0.1:9001/2020-01-01/extension/init/error"
+	RouteInitError string = "http://localhost:9001/2020-01-01/extension/init/error"
 
 	FatalNoApiKey      ErrorEnum = "Fatal.NoApiKey"
 	FatalDogstatsdInit ErrorEnum = "Fatal.DogstatsdInit"

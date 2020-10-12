@@ -6,6 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,9 +19,13 @@ var (
 	entityIDIgnoreValue = "none"
 
 	getTags tagRetriever = tagger.Tag
+
+	tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
+		nil, "Dogstatsd UDP origin detection error count")
 )
 
 func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) ([]string, string) {
+	var originTags, entityTags []string
 	host := defaultHostname
 
 	n := 0
@@ -36,9 +41,10 @@ func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []s
 		}
 	}
 	tags = tags[:n]
+
 	if entityIDValue == "" || !entityIDPrecedenceEnabled {
 		// Add origin tags only if the entity id tags is not provided
-		tags = append(tags, originTagsFunc()...)
+		originTags = originTagsFunc()
 	}
 	if entityIDValue != "" && entityIDValue != entityIDIgnoreValue {
 		// Check if the value is not "none" in order to avoid calling
@@ -46,15 +52,29 @@ func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []s
 
 		// currently only supported for pods
 		entity := kubelet.KubePodTaggerEntityPrefix + entityIDValue
-		entityTags, err := getTags(entity, tagger.DogstatsdCardinality)
+		var err error
+		entityTags, err = getTags(entity, tagger.DogstatsdCardinality)
 		if err != nil {
 			log.Tracef("Cannot get tags for entity %s: %s", entity, err)
-		} else {
-			tags = append(tags, entityTags...)
+			tlmUDPOriginDetectionError.Inc()
 		}
 	}
-	return tags, host
+
+	var finalTags []string
+	if cap(tags) >= len(tags)+len(originTags)+len(entityTags) {
+		tags = append(tags, originTags...)
+		tags = append(tags, entityTags...)
+		finalTags = tags
+	} else {
+		finalTags = make([]string, 0, len(tags)+len(originTags)+len(entityTags))
+		finalTags = append(finalTags, tags...)
+		finalTags = append(finalTags, originTags...)
+		finalTags = append(finalTags, entityTags...)
+	}
+
+	return finalTags, host
 }
+
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 	switch dogstatsdMetricType {
 	case gaugeType:

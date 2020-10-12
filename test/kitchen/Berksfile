@@ -9,6 +9,9 @@ cookbook 'datadog', '~> 4.4.0'
 # (ie: when the datadog cookbook requires chef >= 13.3, which already bundles everything we use from apt).
 cookbook 'apt', '< 4.0'
 
+cookbook 'docker'
+cookbook 'selinux'
+
 cookbook 'dd-agent-install', path: './site-cookbooks/dd-agent-install'
 cookbook 'dd-agent-upgrade', path: './site-cookbooks/dd-agent-upgrade'
 cookbook 'dd-agent-install-script', path: './site-cookbooks/dd-agent-install-script'
@@ -16,4 +19,6 @@ cookbook 'dd-agent-step-by-step', path: './site-cookbooks/dd-agent-step-by-step'
 cookbook 'dd-agent-import-conf', path: './site-cookbooks/dd-agent-import-conf'
 cookbook 'dd-agent-5', path: './site-cookbooks/dd-agent-5'
 cookbook 'dd-agent-sles-workaround', path: './site-cookbooks/dd-agent-sles-workaround'
+cookbook 'dd-agent-rhel-workaround', path: './site-cookbooks/dd-agent-rhel-workaround'
 cookbook 'dd-agent-system-files-check', path: './site-cookbooks/dd-agent-system-files-check'
+cookbook 'dd-security-agent-check', path: './site-cookbooks/dd-security-agent-check'

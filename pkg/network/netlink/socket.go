@@ -113,10 +113,11 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 }
 
 // ReceiveInto reads one or more netlink.Messages off the socket
-func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, error) {
-	n, err := s.recvmsg(s.recvbuf, 0)
+func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, int32, error) {
+	oob := make([]byte, unix.CmsgSpace(24))
+	n, oobn, err := s.recvmsg(s.recvbuf, oob, 0)
 	if err != nil {
-		return nil, os.NewSyscallError("recvmsg", err)
+		return nil, 0, os.NewSyscallError("recvmsg", err)
 	}
 
 	n = nlmsgAlign(n)
@@ -129,7 +130,7 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, error) {
 
 	raw, err := syscall.ParseNetlinkMessage(b[:n])
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	msgs := make([]netlink.Message, 0, len(raw))
@@ -142,7 +143,30 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, error) {
 		msgs = append(msgs, m)
 	}
 
-	return msgs, nil
+	var netns int32
+	if oobn > 0 {
+		oob = oob[:oobn]
+		scms, err := unix.ParseSocketControlMessage(oob)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		netns = parseNetNS(scms)
+	}
+
+	return msgs, netns, nil
+}
+
+func parseNetNS(scms []unix.SocketControlMessage) int32 {
+	for _, m := range scms {
+		if m.Header.Level != unix.SOL_NETLINK || m.Header.Type != unix.NETLINK_LISTEN_ALL_NSID {
+			continue
+		}
+
+		return *(*int32)(unsafe.Pointer(&m.Data[0]))
+	}
+
+	return 0
 }
 
 // File descriptor of the socket
@@ -186,14 +210,30 @@ func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	}
 
 	var err error
-	ctrlErr := s.conn.Control(func(fd uintptr) {
+	doErr := s.conn.Control(func(fd uintptr) {
 		err = unix.SetsockoptInt(int(fd), level, opt, value)
 	})
-	if ctrlErr != nil {
-		return ctrlErr
+
+	if doErr != nil {
+		return doErr
 	}
 
 	return err
+}
+
+// GetSockoptInt gets a socket option
+func (s *Socket) GetSockoptInt(level, opt int) (int, error) {
+	var err error
+	var v int
+	doErr := s.conn.Control(func(fd uintptr) {
+		v, err = unix.GetsockoptInt(int(fd), level, opt)
+	})
+
+	if doErr != nil {
+		return v, doErr
+	}
+
+	return v, err
 }
 
 // SetBPF attaches an assembled BPF program to the socket
@@ -214,22 +254,23 @@ func (s *Socket) SetBPF(filter []bpf.RawInstruction) error {
 	return err
 }
 
-func (s *Socket) recvmsg(b []byte, flags int) (int, error) {
+func (s *Socket) recvmsg(b []byte, oob []byte, flags int) (int, int, error) {
 	var (
-		n   int
-		err error
+		n    int
+		oobn int
+		err  error
 	)
 
 	ctrlErr := s.conn.Read(func(fd uintptr) bool {
-		n, _, _, _, err = unix.Recvmsg(int(fd), b, nil, flags)
+		n, oobn, _, _, err = unix.Recvmsg(int(fd), b, oob, flags)
 		return ready(err)
 	})
 
 	if ctrlErr != nil {
-		return 0, ctrlErr
+		return 0, 0, ctrlErr
 	}
 
-	return n, err
+	return n, oobn, err
 }
 
 // Copied from github.com/mdlayher/netlink

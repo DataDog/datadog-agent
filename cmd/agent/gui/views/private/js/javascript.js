@@ -495,7 +495,7 @@ function disableCheckSettings(editor) {
       $(".success").delay(3000).fadeOut("slow");
       $("#checks_description").html("Disable check.");
       $("#save_check").addClass("inactive");
-
+      $("#disable_check").addClass("inactive");
       // If this was a default file, we just saved it under a new (non-default) name,
       // so we need to change the displayed name & update the associated file name
       $('#check_input').data('file_name', fileName);
@@ -711,7 +711,7 @@ function seeRunningChecks() {
 function loadFlare() {
   $(".page").css("display", "none");
   $("#flare, .flare_input").css("display", "block");
-  $("#flare_description").html("Your logs and configuration files will be collected and sent to DataDog Support.");
+  $("#flare_description").html("Your logs and configuration files will be collected and sent to Datadog Support.");
 }
 
 // Handler for the 'submit flare' button, validates the email address & then
@@ -772,7 +772,7 @@ function restartAgent() {
         $("#general_status").css("display", "block");
         $('#general_status').html("<span class='center'>Error restarting agent: " + data + "</span>");
       } else loadStatus("general");
-    }, 2000);
+    }, 10000);
   }, function() {
     $(".loading_spinner").remove();
     $("#general_status").css("display", "block");

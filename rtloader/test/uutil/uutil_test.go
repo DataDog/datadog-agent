@@ -3,6 +3,7 @@ package testuutil
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -15,6 +16,7 @@ var (
 	exception    string
 	retCode      int
 	args         []string
+	env          []string
 )
 
 func resetTest() {
@@ -45,7 +47,8 @@ func TestSubprocessOutputWrongArg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: get_subprocess_output() takes at least 1 argument (0 given)" {
+	if out != "TypeError: get_subprocess_output() missing required argument 'command' (pos 1)" && // Python 3
+		out != "TypeError: Required argument 'command' (pos 1) not found" { // Python 2
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
@@ -193,7 +196,7 @@ func TestGetSubprocessOutputErrorNotList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: command args not a list" {
+	if out != "TypeError: command args is not a list" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
@@ -285,6 +288,23 @@ func TestSubprocessOutputRaiseEmptyException(t *testing.T) {
 	}
 	if out != "Exception:" {
 		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestGetSubprocessOutputEnv(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`_util.get_subprocess_output(["bash", "-c", "echo $BAZ"], False, env={'FOO': 'BAR', 'BAZ': 'QUX'})`)
+	_, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(env, []string{"FOO=BAR", "BAZ=QUX"}) {
+		t.Errorf("Unexpected env value: '%v'", env)
 	}
 
 	// Check for leaks

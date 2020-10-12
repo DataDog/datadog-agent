@@ -1,6 +1,7 @@
-import unittest
-import release
 import random
+import unittest
+
+import release
 
 
 class TestIsHigherMethod(unittest.TestCase):
@@ -116,6 +117,25 @@ class TestIsHigherMethod(unittest.TestCase):
             release._is_version_higher(
                 self._get_version(version["major"], version["minor"], version["patch"], version["rc"]),
                 self._get_version(version["major"], version["minor"], version["patch"], version["rc"]),
+            )
+        )
+
+    def test_absent_patch_equal_zero(self):
+        version = self._get_random_version()
+        self.assertFalse(
+            release._is_version_higher(
+                self._get_version(version["major"], version["minor"], None, None),
+                self._get_version(version["major"], version["minor"], 0, None),
+            )
+        )
+
+    def test_absent_patch_less_than_any(self):
+        version = self._get_random_version()
+        increment = random.randint(1, 99)
+        self.assertTrue(
+            release._is_version_higher(
+                self._get_version(version["major"], version["minor"], version["patch"] + increment, None),
+                self._get_version(version["major"], version["minor"], None, None),
             )
         )
 

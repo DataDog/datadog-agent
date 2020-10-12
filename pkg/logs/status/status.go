@@ -13,10 +13,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
+// Transport is the transport used by logs-agent, i.e TCP or HTTP
+type Transport string
+
+const (
+	// TransportHTTP indicates logs-agent is using HTTP transport
+	TransportHTTP Transport = "HTTP"
+	// TransportTCP indicates logs-agent is using TCP transport
+	TransportTCP Transport = "TCP"
+)
+
 var (
 	builder  *Builder
 	warnings *config.Messages
 	errors   *config.Messages
+
+	// CurrentTransport is the current transport used by logs-agent, i.e TCP or HTTP
+	CurrentTransport Transport
 )
 
 // Source provides some information about a logs source.
