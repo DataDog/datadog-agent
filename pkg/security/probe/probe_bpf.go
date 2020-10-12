@@ -9,6 +9,7 @@ package probe
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"strings"
 	"time"
 
@@ -92,6 +93,13 @@ func (p *Probe) Init() error {
 
 	// Set default options of the manager
 	p.managerOptions = ebpf.NewDefaultOptions()
+
+	if p.config.SyscallMonitor {
+		// Add syscall monitor probes
+		if err := p.RegisterProbesSelectors(probes.SyscallMonitorSelectors); err != nil {
+			return err
+		}
+	}
 
 	// Load discarders
 	for eventType, fnc := range allDiscarderFncs {

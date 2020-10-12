@@ -13,6 +13,7 @@ core,"code.cloudfoundry.org/garden/routes",Apache-2.0
 core,"code.cloudfoundry.org/garden/transport",Apache-2.0
 core,"code.cloudfoundry.org/lager",Apache-2.0
 core,"code.cloudfoundry.org/tlsconfig",Apache-2.0
+core,"github.com/avast/retry-go",MIT
 core,"github.com/DataDog/agent-payload/gogen",NewBSD
 core,"github.com/DataDog/agent-payload/process",NewBSD
 core,"github.com/DataDog/datadog-go/statsd",MIT

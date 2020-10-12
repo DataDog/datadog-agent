@@ -9,6 +9,11 @@ package probes
 
 import "github.com/DataDog/ebpf/manager"
 
+// SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
+var SyscallMonitorSelectors = []manager.ProbesSelector{
+	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "tracepoint/raw_syscalls/sys_enter"}},
+}
+
 // SelectorsPerEventType is the list of probes that should be activated for each event
 var SelectorsPerEventType = map[string][]manager.ProbesSelector{
 
