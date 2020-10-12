@@ -7,7 +7,6 @@ import csv
 import datetime
 import os
 import shutil
-import sys
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -308,41 +307,13 @@ def deps(
 
     if not no_dep_ensure:
         # source level deps
-        print("calling go mod vendor")
+        print("calling go mod download")
         start = datetime.datetime.now()
-        verbosity = ' -v' if verbose else ''
-        ctx.run("go mod vendor{}".format(verbosity))
-        # use modvendor to copy missing files dependencies
-        ctx.run('{}/bin/modvendor -copy="**/*.c **/*.h **/*.proto"{}'.format(get_gopath(ctx), verbosity))
+        ctx.run("go mod download")
         dep_done = datetime.datetime.now()
 
-        # If github.com/DataDog/datadog-agent gets vendored too - nuke it
-        #
-        # This may happen as a result of having to introduce DEPPROJECTROOT
-        # in our builders to get around a known-issue with go dep, and the
-        # strange GOPATH situation in our builders.
-        #
-        # This is only a workaround, we should eliminate the need to resort
-        # to DEPPROJECTROOT.
-        if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
-            print("Removing vendored github.com/DataDog/datadog-agent")
-            shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
-
-        # make sure PSUTIL is gone on windows; the go mod above will vendor it
-        # in because it's necessary on other platforms
-        if not android and sys.platform == 'win32':
-            print("Removing PSUTIL on Windows")
-            ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
-
-        # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
-        # because we use it, and there's no way to exclude; however, we must use
-        # the version from $GOPATH
-        if os.path.exists('vendor/golang.org/x/mobile'):
-            print("Removing vendored golang.org/x/mobile")
-            shutil.rmtree('vendor/golang.org/x/mobile')
-
     if not no_dep_ensure:
-        print("go mod vendor, elapsed: {}".format(dep_done - start))
+        print("go mod download, elapsed: {}".format(dep_done - start))
 
 
 @task
@@ -360,19 +331,6 @@ def lint_licenses(ctx, verbose=False):
             licenses.append(line.rstrip())
 
     new_licenses = get_licenses_list(ctx)
-
-    if sys.platform == 'win32':
-        # ignore some licenses because we remove
-        # the deps in a hack for windows
-        ignore_licenses = ['github.com/shirou/gopsutil']
-        to_removed = []
-        for ignore in ignore_licenses:
-            for license in licenses:
-                if ignore in license:
-                    if verbose:
-                        print("[hack-windows] ignore: {}".format(license))
-                    to_removed.append(license)
-        licenses = [x for x in licenses if x not in to_removed]
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
@@ -404,6 +362,22 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 
 
 def get_licenses_list(ctx):
+
+    # Vendor deps before linting licenses, wwhrd only checks the vendor/ directory.
+    ctx.run('go mod vendor')
+
+    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+    #
+    # This may happen as a result of having to introduce DEPPROJECTROOT
+    # in our builders to get around a known-issue with go dep, and the
+    # strange GOPATH situation in our builders.
+    #
+    # This is only a workaround, we should eliminate the need to resort
+    # to DEPPROJECTROOT.
+    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+        print("Removing vendored github.com/DataDog/datadog-agent")
+        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
+
     result = ctx.run('{}/bin/wwhrd list --no-color'.format(get_gopath(ctx)), hide='err')
     licenses = []
     licenses.append('core,"github.com/frapposelli/wwhrd",MIT')
@@ -421,6 +395,7 @@ def get_licenses_list(ctx):
                     package = val[len('package=') :]
                     licenses.append("core,{},{}".format(package, license))
     licenses.sort()
+    ctx.run('rm -rf vendor/')
     return licenses
 
 
@@ -485,5 +460,5 @@ def generate(ctx):
     """
     Run go generate required package
     """
-    ctx.run("go generate -mod=vendor " + " ".join(GO_GENERATE_TARGETS))
+    ctx.run("go generate -mod=mod " + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")

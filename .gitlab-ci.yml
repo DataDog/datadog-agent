@@ -243,13 +243,11 @@ build_libbcc_arm64:
     - inv -e deps --verbose
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
-    - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
   artifacts:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/go-pkg.tar.gz
       - $CI_PROJECT_DIR/go-bin.tar.gz
-      - $CI_PROJECT_DIR/vendor.tar.gz
 
 linux_x64_go_deps:
   extends: .go_deps
@@ -270,8 +268,7 @@ linux_armhf_go_deps:
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p $GOPATH/bin && tar xzf go-bin.tar.gz -C $GOPATH/bin
   mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
-  mkdir vendor && tar xzf vendor.tar.gz -C vendor
-  rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz
+  rm -f go-bin.tar.gz go-pkg.tar.gz
 
 .tests_windows_base:
   stage: source_test

@@ -12,7 +12,6 @@
             "golang.org/x/tools/go/gcexportdata",
             "github.com/golangci/golangci-lint",
             "github.com/frapposelli/wwhrd",
-            "github.com/goware/modvendor",
             "github.com/shuLhan/go-bindata/cmd/go-bindata",
             "honnef.co/go/tools/cmd/staticcheck",
             "github.com/golang/perf/cmd/benchstat"
@@ -69,10 +68,6 @@
         },
         "github.com/frapposelli/wwhrd": {
             "version": "v0.2.4",
-            "type": "go"
-        },
-        "github.com/goware/modvendor": {
-            "version": "8f69eb91bc89d69d0d7381fb5b8ed25d21f0ff90",
             "type": "go"
         },
         "github.com/golang/perf/cmd/benchstat": {
