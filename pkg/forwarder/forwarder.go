@@ -198,11 +198,21 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 		)
 		validationInterval = config.DefaultAPIKeyValidationInterval
 	}
+	retryQueueSize := config.Datadog.GetInt("forwarder_retry_queue_max_size")
+	retryQueuePayloadsTotalMaxSize := config.Datadog.GetInt("forwarder_retry_queue_payloads_max_size")
+
+	if retryQueueSize != config.DefaultForwarderRetryQueueMaxSize {
+		if retryQueuePayloadsTotalMaxSize == 0 {
+			log.Warn("'forwarder_retry_queue_max_size' is used, but it is recommended to use `forwarder_retry_queue_payloads_max_size` as it takes the payload sizes into account.")
+		} else {
+			log.Warn("'forwarder_retry_queue_max_size' is ignored as `forwarder_retry_queue_payloads_max_size` is used.")
+		}
+	}
 
 	return &Options{
 		NumberOfWorkers:                config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:                 config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		RetryQueuePayloadsTotalMaxSize: config.Datadog.GetInt("forwarder_retry_queue_payloads_max_size"),
+		RetryQueueSize:                 retryQueueSize,
+		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
 		DisableAPIKeyChecking:          false,
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		KeysPerDomain:                  keysPerDomain,
