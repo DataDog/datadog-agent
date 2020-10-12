@@ -25,10 +25,11 @@ import (
 // To use it, you need to embed it in your check struct, by calling
 // NewCheckBase() in your factory, plus:
 // - long-running checks must override Stop() and Interval()
+// - long-running checks can call runner.AddWorkStats() to register their stats
 // - checks supporting multiple instances must call BuildID() from
 // their Configure() method
 // - after optionally building a unique ID, CommonConfigure() must
-// be called from the Config() method to handle the common instance
+// be called from the Configure() method to handle the common instance
 // fields
 //
 // Integration warnings are handled via the Warn and Warnf methods

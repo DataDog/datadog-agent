@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -32,7 +34,7 @@ import (
 
 const (
 	kubeStateMetricsCheckName = "kubernetes_state_core"
-	defaultResyncPeriod       = 30
+	defaultCollectionInterval = 15 // in seconds
 )
 
 // KSMConfig contains the check config parameters
@@ -76,20 +78,26 @@ type KSMConfig struct {
 	//   - kube-system
 	Namespaces []string `yaml:"namespaces"`
 
-	// ResyncPeriod is the frequency of resync'ing the metrics cache in seconds, default 30.
+	// ResyncPeriod is the frequency of resync'ing the metrics cache in seconds, default 30 seconds.
 	ResyncPeriod int `yaml:"resync_period"`
 
 	// Telemetry enables telemetry check's metrics, default false.
 	// Metrics can be found under kubernetes_state.telemetry
 	Telemetry bool `yaml:"telemetry"`
+
+	// CollectionInterval configures the duration between two metric collections, default 15 seconds.
+	CollectionInterval int `yaml:"collection_interval"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	instance  *KSMConfig
-	store     []cache.Store
-	telemetry *telemetryCache
+	instance           *KSMConfig
+	store              []cache.Store
+	telemetry          *telemetryCache
+	collectionInterval time.Duration
+	cancel             context.CancelFunc
+	ctx                context.Context
 }
 
 // JoinsConfig contains the config parameters for label joins
@@ -124,12 +132,12 @@ func init() {
 
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
+	k.BuildID(config, initConfig)
+
 	err := k.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}
-
-	k.BuildID(config, initConfig)
 
 	err = k.instance.parse(config)
 	if err != nil {
@@ -147,6 +155,13 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	k.mergeLabelsMapper(defaultLabelsMapper)
 
 	k.initTags()
+
+	// Configure the collection interval
+	if k.instance.CollectionInterval != 0 {
+		k.collectionInterval = time.Duration(k.instance.CollectionInterval) * time.Second
+	} else {
+		k.collectionInterval = defaultCollectionInterval * time.Second
+	}
 
 	builder := kubestatemetrics.New()
 
@@ -189,11 +204,13 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	}
 
 	builder.WithKubeClient(c.Cl)
-	builder.WithContext(context.Background())
+
+	k.ctx, k.cancel = context.WithCancel(context.Background())
+	builder.WithContext(k.ctx)
 
 	resyncPeriod := k.instance.ResyncPeriod
 	if resyncPeriod == 0 {
-		resyncPeriod = defaultResyncPeriod
+		resyncPeriod = ddconfig.Datadog.GetInt("kubernetes_informers_resync_period") // 5 minutes
 	}
 
 	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
@@ -211,7 +228,45 @@ func (c *KSMConfig) parse(data []byte) error {
 }
 
 // Run runs the KSM check
+// This is a long-running check, the Run method is blocking and handles the scheduling of metrics collection
 func (k *KSMCheck) Run() error {
+	runTicker := time.NewTicker(k.collectionInterval)
+	defer runTicker.Stop()
+
+	// Do not wait for the first tick and start the first metrics collection ASAP
+	k.collectWithStats()
+
+	for {
+		select {
+		case <-runTicker.C:
+			log.Tracef("Collecting KSM metrics: '%s'", k.ID())
+			k.collectWithStats()
+		case <-k.ctx.Done():
+			log.Debugf("Stopping KSM check '%s'", k.ID())
+			return nil
+		}
+	}
+}
+
+// collectWithStats executes one KSM check run and updates its stats
+func (k *KSMCheck) collectWithStats() {
+	t0 := time.Now()
+
+	checkErr := k.collect()
+	if checkErr != nil {
+		log.Debugf("Error running check '%s': %v", k.ID(), checkErr)
+	}
+
+	stats, statsErr := k.GetMetricStats()
+	if statsErr != nil {
+		log.Debugf("Couldn't collect stats from check '%s': %v", k.ID(), statsErr)
+	}
+
+	runner.AddWorkStats(k, time.Since(t0), checkErr, []error{}, stats)
+}
+
+// collect gets the KSM metrics from the MetricsStore and converts them into Datadog Metrics
+func (k *KSMCheck) collect() error {
 	sender, err := aggregator.GetSender(k.ID())
 	if err != nil {
 		return err
@@ -240,6 +295,17 @@ func (k *KSMCheck) Run() error {
 	k.sendTelemetry(sender)
 
 	return nil
+}
+
+// Stop releases the KSM Store resources (shutdown the KSM informers) and breaks the infinite Run loop
+// This is a long-running check, the scheduler guarantees calling this method when unscheduling the check
+func (k *KSMCheck) Stop() {
+	k.cancel()
+}
+
+// Interval must return 0 (long-running check)
+func (k *KSMCheck) Interval() time.Duration {
+	return 0
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
