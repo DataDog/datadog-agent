@@ -84,12 +84,17 @@ func isBlacklisted(metricName, namespace string, namespaceBlacklist []string) bo
 	return false
 }
 
-func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) metrics.MetricSample {
+func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string,
+	originTagsFunc func() []string, entityIDPrecedenceEnabled bool, serverlessMode bool) metrics.MetricSample {
 	metricName := metricSample.name
 	tags, hostname := enrichTags(metricSample.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
 
 	if !isBlacklisted(metricName, namespace, namespaceBlacklist) {
 		metricName = namespace + metricName
+	}
+
+	if serverlessMode { // we don't want to set the host while running in serverless mode
+		hostname = ""
 	}
 
 	return metrics.MetricSample{

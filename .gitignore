@@ -102,6 +102,9 @@ omnibus/.tarball-version
 omnibus/files/sources
 omnibus/resources/agent/msi/cal/packages/
 
+# serverless artifact
+cmd/serverless/serverless
+
 #visual studio files
 *.aps
 omnibus/resources/agent/msi/cal/packages/
@@ -139,3 +142,7 @@ cmd/agent/gui/templates.go
 
 # netlink message dump test files
 pkg/network/netlink/testdata/message_dump*
+
+# serverless
+.layers
+.extension

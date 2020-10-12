@@ -16,13 +16,15 @@ func returnEmptyTags() []string {
 	return []string{}
 }
 
+// TODO(remy): add an unit test using the serverless mode and validate that there is no Host set
+
 func parseAndEnrichMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (metrics.MetricSample, error) {
 	parser := newParser()
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return metrics.MetricSample{}, err
 	}
-	return enrichMetricSample(parsed, namespace, namespaceBlacklist, defaultHostname, returnEmptyTags, true), nil
+	return enrichMetricSample(parsed, namespace, namespaceBlacklist, defaultHostname, returnEmptyTags, true, false), nil
 }
 
 func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
