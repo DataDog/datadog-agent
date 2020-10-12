@@ -13,3 +13,13 @@ import "github.com/DataDog/ebpf/manager"
 func AllProbes() []*manager.Probe {
 	return []*manager.Probe{}
 }
+
+// AllMaps returns the list of maps of the runtime security module
+func AllMaps() []*manager.Map {
+	return []*manager.Map{}
+}
+
+// AllPerfMaps returns the list of perf maps of the runtime security module
+func AllPerfMaps() []*manager.PerfMap {
+	return []*manager.PerfMap{}
+}

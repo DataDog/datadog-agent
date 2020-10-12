@@ -30,11 +30,58 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 
-	// Syscall monitor
-	allProbes = append(allProbes, &manager.Probe{
-		UID:     SecurityAgentUID,
-		Section: "tracepoint/raw_syscalls/sys_enter",
-	})
+	allProbes = append(allProbes,
+		// Syscall monitor
+		&manager.Probe{
+			UID:     SecurityAgentUID,
+			Section: "tracepoint/raw_syscalls/sys_enter",
+		},
+		// Snapshot probe
+		&manager.Probe{
+			UID:     SecurityAgentUID,
+			Section: "kprobe/security_inode_getattr",
+		},
+	)
 
 	return allProbes
+}
+
+// AllMaps returns the list of maps of the runtime security module
+func AllMaps() []*manager.Map {
+	return []*manager.Map{
+		// Dentry resolver map
+		{Name: "pathnames"},
+		// Snapshot map
+		{Name: "inode_numlower"},
+		// Open maps
+		{Name: "open_policy"},
+		{Name: "open_basename_approvers"},
+		{Name: "open_flags_approvers"},
+		{Name: "open_flags_discarders"},
+		{Name: "open_process_inode_approvers"},
+		{Name: "open_path_inode_discarders"},
+		// Exec maps
+		{Name: "proc_cache"},
+		{Name: "pid_cookie"},
+		// Unlink maps
+		{Name: "unlink_path_inode_discarders"},
+		// Mount map
+		{Name: "mount_id_offset"},
+		// Syscall monitor maps
+		{Name: "noisy_processes_buffer"},
+		{Name: "noisy_processes_fb"},
+		{Name: "noisy_processes_bb"},
+	}
+}
+
+// AllPerfMaps returns the list of perf maps of the runtime security module
+func AllPerfMaps() []*manager.PerfMap {
+	return []*manager.PerfMap{
+		{
+			Map: manager.Map{Name: "events"},
+		},
+		{
+			Map: manager.Map{Name: "mountpoints_events"},
+		},
+	}
 }

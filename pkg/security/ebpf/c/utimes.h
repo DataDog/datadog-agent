@@ -110,6 +110,10 @@ SYSCALL_COMPAT_TIME_KRETPROBE(utimensat) {
     return trace__sys_utimes_ret(ctx);
 }
 
+SYSCALL_COMPAT_TIME_KRETPROBE(utimesat) {
+    return trace__sys_utimes_ret(ctx);
+}
+
 SYSCALL_COMPAT_TIME_KRETPROBE(futimesat) {
     return trace__sys_utimes_ret(ctx);
 }

@@ -304,7 +304,7 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
-	_, err = rsa.GetPolicyReport(ruleSet, probe)
+	_, err = rsa.Apply(ruleSet, probe)
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +351,7 @@ func (tp *testProbe) Path(filename string) (string, unsafe.Pointer, error) {
 
 func (tp *testProbe) Close() {
 	tp.st.Close()
-	_ = tp.probe.Close()
+	tp.probe.Close()
 	time.Sleep(10 * time.Second)
 }
 

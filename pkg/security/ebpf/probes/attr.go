@@ -15,10 +15,6 @@ var attrProbes = []*manager.Probe{
 		UID:     SecurityAgentUID,
 		Section: "kprobe/security_inode_setattr",
 	},
-	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_getattr",
-	},
 }
 
 func getAttrProbes() []*manager.Probe {
@@ -81,23 +77,31 @@ func getAttrProbes() []*manager.Probe {
 	}, EntryAndExit, true)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		UID:             SecurityAgentUID,
+		SyscallFuncName: "utimes",
+	}, EntryAndExit|ExpandTime32)...)
+	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
+		UID:             SecurityAgentUID,
 		SyscallFuncName: "utimensat",
 	}, EntryAndExit, true)...)
+	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
+		UID:             SecurityAgentUID,
+		SyscallFuncName: "utimensat",
+	}, EntryAndExit|ExpandTime32)...)
+	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
+		UID:             SecurityAgentUID,
+		SyscallFuncName: "utimesat",
+	}, EntryAndExit, true)...)
+	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
+		UID:             SecurityAgentUID,
+		SyscallFuncName: "utimesat",
+	}, EntryAndExit|ExpandTime32)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		UID:             SecurityAgentUID,
 		SyscallFuncName: "futimesat",
 	}, EntryAndExit, true)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		UID:             SecurityAgentUID,
-		SyscallFuncName: "utimes_time32",
-	}, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
-		SyscallFuncName: "utimensat_time32",
-	}, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
-		SyscallFuncName: "futimesat_time32",
-	}, EntryAndExit)...)
+		SyscallFuncName: "futimesat",
+	}, EntryAndExit|ExpandTime32)...)
 	return attrProbes
 }

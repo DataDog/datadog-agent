@@ -89,7 +89,7 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 	}
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.GetPolicyReport(m.ruleSet, m.probe)
+	report, err := rsa.Apply(m.ruleSet, m.probe)
 	if err != nil {
 		return err
 	}

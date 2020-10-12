@@ -111,13 +111,13 @@ func (r *Resolvers) startSnapshotProbes() error {
 // stopSnapshotProbes stops the snapshot probes
 func (r *Resolvers) stopSnapshotProbes() {
 	for _, p := range r.snapshotProbes {
-		// Deregister probes
-		if err := p.Detach(); err != nil {
-			log.Debugf("couldn't detach probe %s: %v", p.GetIdentificationPair(), err)
+		// Stop snapshot probes
+		if err := p.Stop(); err != nil {
+			log.Debugf("couldn't stop probe %s: %v", p.GetIdentificationPair(), err)
 		}
 		// the probes selectors mechanism of the manager will re-enable this probe if needed
 		p.Enabled = false
-		log.Debugf("probe %s detached", p.GetIdentificationPair())
+		log.Debugf("probe %s stopped", p.GetIdentificationPair())
 	}
 	return
 }

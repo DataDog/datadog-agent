@@ -10,6 +10,7 @@ package ebpf
 import (
 	"math"
 	"os"
+	"time"
 
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
@@ -26,6 +27,10 @@ func NewDefaultOptions() manager.Options {
 
 		// DefaultPerfRingBufferSize is the default buffer size of the perf buffers
 		DefaultPerfRingBufferSize: 128 * os.Getpagesize(),
+
+		// DefaultProbeAttach is the default number of attach / detach retries on error
+		DefaultProbeRetry:      3,
+		DefaultProbeRetryDelay: time.Second,
 
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
@@ -52,41 +57,8 @@ func NewDefaultOptions() manager.Options {
 // NewRuntimeSecurityManager returns a new instance of the runtime security module manager
 func NewRuntimeSecurityManager() *manager.Manager {
 	return &manager.Manager{
-
-		Probes: probes.AllProbes(),
-
-		Maps: []*manager.Map{
-			// Dentry resolver table
-			{Name: "pathnames"},
-			// Snapshot table
-			{Name: "inode_numlower"},
-			// Open tables
-			{Name: "open_policy"},
-			{Name: "open_basename_approvers"},
-			{Name: "open_flags_approvers"},
-			{Name: "open_flags_discarders"},
-			{Name: "open_process_inode_approvers"},
-			{Name: "open_path_inode_discarders"},
-			// Exec tables
-			{Name: "proc_cache"},
-			{Name: "pid_cookie"},
-			// Unlink tables
-			{Name: "unlink_path_inode_discarders"},
-			// Mount tables
-			{Name: "mount_id_offset"},
-			// Syscall monitor tables
-			{Name: "noisy_processes_buffer"},
-			{Name: "noisy_processes_fb"},
-			{Name: "noisy_processes_bb"},
-		},
-
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{Name: "events"},
-			},
-			{
-				Map: manager.Map{Name: "mountpoints_events"},
-			},
-		},
+		Probes:   probes.AllProbes(),
+		Maps:     probes.AllMaps(),
+		PerfMaps: probes.AllPerfMaps(),
 	}
 }
