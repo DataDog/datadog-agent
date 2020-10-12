@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -157,10 +158,16 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 	for {
 		buff := make([]byte, 1)
 		_, err := conn.Read(buff)
-		if err == io.EOF {
+		switch {
+		case err == nil:
+		case strings.Contains(err.Error(), "use of closed network connection"):
+			// TODO: in go1.16+, match the newly-exported `net.ErrClosed` error instead.
+			// Connection already closed, expected
+			return
+		case err == io.EOF:
 			cm.CloseConnection(conn)
 			return
-		} else if err != nil {
+		default:
 			log.Warn(err)
 			return
 		}
