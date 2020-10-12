@@ -74,30 +74,21 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 
 	// if approvers disabled
 	if !rsa.config.EnableApprovers {
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
 	}
 
 	capabilities, exists := allCapabilities[eventType]
 	if !exists {
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
 	}
 
 	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
 	if err != nil {
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
 	}
 
 	if err := rsa.applyApprovers(eventType, approvers, applier); err != nil {
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8, applier)
 	}
 
 	if err := rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags(), applier); err != nil {

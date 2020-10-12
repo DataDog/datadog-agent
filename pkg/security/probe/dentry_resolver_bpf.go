@@ -69,7 +69,19 @@ type PathValue struct {
 	Name   [128]byte
 }
 
-func (dr *DentryResolver) getName(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
+func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (name string, err error) {
+	key := PathKey{MountID: mountID, Inode: inode}
+
+	entry, exists := dr.cache.Get(key)
+	if !exists {
+		return "", errors.New("entry not found")
+	}
+	path := entry.(PathValue)
+
+	return C.GoString((*C.char)(unsafe.Pointer(&path.Name))), nil
+}
+
+func (dr *DentryResolver) getNameFromMap(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var path PathValue
 
@@ -82,16 +94,50 @@ func (dr *DentryResolver) getName(mountID uint32, inode uint64, pathID uint32) (
 
 // GetName resolves a couple of mountID/inode to a path
 func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) string {
-	name, _ := dr.getName(mountID, inode, pathID)
+	name, err := dr.getNameFromCache(mountID, inode)
+	if err != nil {
+		name, _ = dr.getNameFromMap(mountID, inode, pathID)
+	}
 	return name
 }
 
-// Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) resolve(mountID uint32, inode uint64, pathID uint32) (string, error) {
-	var done bool
+func (dr *DentryResolver) resolveFromCache(mountID uint32, inode uint64) (filename string, err error) {
+	key := PathKey{MountID: mountID, Inode: inode}
 	var path PathValue
-	var filename string
+
+	// Fetch path recursively
+	for {
+		cacheKey := PathKey{MountID: key.MountID, Inode: key.Inode}
+
+		entry, exists := dr.cache.Get(cacheKey)
+		if !exists {
+			return "", errors.New("entry not found")
+		}
+		path = entry.(PathValue)
+
+		// Don't append dentry name if this is the root dentry (i.d. name == '/')
+		if path.Name[0] != '\x00' && path.Name[0] != '/' {
+			filename = "/" + C.GoString((*C.char)(unsafe.Pointer(&path.Name))) + filename
+		}
+
+		if path.Parent.Inode == 0 {
+			break
+		}
+
+		// Prepare next key
+		key = path.Parent
+	}
+
+	if len(filename) == 0 {
+		filename = "/"
+	}
+
+	return
+}
+
+func (dr *DentryResolver) resolveFromMap(mountID uint32, inode uint64, pathID uint32) (filename string, err error) {
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
+	var path PathValue
 
 	keyBuffer, err := key.MarshalBinary()
 	if err != nil {
@@ -99,21 +145,15 @@ func (dr *DentryResolver) resolve(mountID uint32, inode uint64, pathID uint32) (
 	}
 
 	// Fetch path recursively
-	for !done {
-		cacheKey := PathKey{MountID: key.MountID, Inode: key.Inode}
-
-		entry, exists := dr.cache.Get(cacheKey)
-		if !exists {
-			key.Write(keyBuffer)
-			if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
-				filename = dentryPathKeyNotFound
-				break
-			}
-
-			dr.cache.Add(cacheKey, path)
-		} else {
-			path = entry.(PathValue)
+	for {
+		key.Write(keyBuffer)
+		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
+			filename = dentryPathKeyNotFound
+			break
 		}
+
+		cacheKey := PathKey{MountID: key.MountID, Inode: key.Inode}
+		dr.cache.Add(cacheKey, path)
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '\x00' && path.Name[0] != '/' {
@@ -137,12 +177,26 @@ func (dr *DentryResolver) resolve(mountID uint32, inode uint64, pathID uint32) (
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) string {
-	path, _ := dr.resolve(mountID, inode, pathID)
+	path, err := dr.resolveFromCache(mountID, inode)
+	if err != nil {
+		path, _ = dr.resolveFromMap(mountID, inode, pathID)
+	}
 	return path
 }
 
-// GetParent - Return the parent mount_id/inode
-func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
+func (dr *DentryResolver) getParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {
+	key := PathKey{MountID: mountID, Inode: inode}
+
+	entry, exists := dr.cache.Get(key)
+	if !exists {
+		return 0, 0, errors.New("entry not found")
+	}
+	path := entry.(PathValue)
+
+	return path.Parent.MountID, path.Parent.Inode, nil
+}
+
+func (dr *DentryResolver) getParentFromMap(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var path PathValue
 
@@ -151,6 +205,15 @@ func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32)
 	}
 
 	return path.Parent.MountID, path.Parent.Inode, nil
+}
+
+// GetParent - Return the parent mount_id/inode
+func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
+	mountID, inode, err := dr.getParentFromCache(mountID, inode)
+	if err != nil {
+		mountID, inode, err = dr.getParentFromMap(mountID, inode, pathID)
+	}
+	return mountID, inode, err
 }
 
 // Start the dentry resolver
