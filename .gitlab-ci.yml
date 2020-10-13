@@ -18,6 +18,8 @@ stages:
   - deps_build
   - deps_fetch
   - source_test
+  - functional_test
+  - functional_test_cleanup
   - binary_build
   - integration_test
   - package_build
@@ -387,11 +389,14 @@ tests_ebpf:
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
     - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
+    # Compile runtime security functional tests to be executed in kitchen tests
+    - inv -e security-agent.functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite
 
   artifacts:
     when: always
     paths:
       - $CI_PROJECT_DIR/.tmp/binary-ebpf
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
 
 # scan the dependencies for security vulnerabilities with snyk
 security_scan_test:
@@ -1937,6 +1942,32 @@ deploy_windows_testing-a7:
     - .kitchen_datadog_iot_agent_flavor
     - .kitchen_azure_location_north_central_us
 
+trigger_kitchen_functional_test:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:docker", "size:large" ]
+  rules:
+    - when: manual
+      allow_failure: true
+  needs: []
+  script: [ "# noop" ]
+  stage: source_test
+
+.kitchen_test_security_agent:
+  script:
+    - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
+  extends:
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+  <<: *kitchen_common
+  rules:
+    - when: always
+      allow_failure: true
+  needs: [ "trigger_kitchen_functional_test", "tests_ebpf" ]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  stage: functional_test
+
 .kitchen_test_windows_installer_agent:
   extends:
     - .kitchen_test_windows_installer
@@ -2151,6 +2182,17 @@ kitchen_centos_upgrade7_iot_agent-a7:
     - .kitchen_scenario_centos_a7
     - .kitchen_test_upgrade7_iot_agent
 
+kitchen_centos_security_agent:
+  allow_failure: false
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="centos-77,urn,OpenLogic:CentOS:7.7:7.7.201912090"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-81,urn,RedHat:RHEL:8.1:8.1.2020020415"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  extends:
+    - .kitchen_test_security_agent
+
 # Ubuntu kitchen tests
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 
@@ -2230,6 +2272,17 @@ kitchen_ubuntu_upgrade7_iot_agent-a7:
     - .kitchen_scenario_ubuntu_a7
     - .kitchen_test_upgrade7_iot_agent
 
+kitchen_ubuntu_security_agent:
+  allow_failure: false
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="ubuntu-18-04,urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-20-04,urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202004230"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  extends:
+    - .kitchen_test_security_agent
+
 # SUSE kitchen tests
 
 kitchen_suse_install_script_agent-a6:
@@ -2307,6 +2360,12 @@ kitchen_suse_upgrade7_iot_agent-a7:
   extends:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_upgrade7_iot_agent
+
+kitchen_suse_security_agent:
+  allow_failure: false
+  extends:
+    - .kitchen_os_suse
+    - .kitchen_test_security_agent
 
 # Debian kitchen tests
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
@@ -2387,6 +2446,16 @@ kitchen_debian_upgrade7_iot_agent-a7:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_upgrade7_iot_agent
 
+kitchen_debian_security_agent:
+  allow_failure: false
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export TEST_PLATFORMS="debian-10,urn,Debian:debian-10:10:0.20200610.293"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  extends:
+    - .kitchen_test_security_agent
+
 .kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -2456,6 +2525,20 @@ testkitchen_cleanup_azure-a7:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   <<: *kitchen_cleanup_azure_common
+
+cleanup_kitchen_functional_test:
+  <<: *kitchen_cleanup_azure_common
+  rules:
+    - when: always
+      allow_failure: true
+  stage: functional_test_cleanup
+  needs:
+    - kitchen_centos_security_agent
+    - kitchen_debian_security_agent
+    - kitchen_suse_security_agent
+    - kitchen_ubuntu_security_agent
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
 
 #
 # pkg_metrics: send metrics about packages

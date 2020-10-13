@@ -28,7 +28,7 @@ var SnapshotTables = []string{
 var SnapshotProbes = []*ebpf.KProbe{
 	{
 		Name:      "getattr",
-		EntryFunc: "kprobe/vfs_getattr",
+		EntryFunc: "kprobe/security_inode_getattr",
 	},
 }
 
@@ -99,6 +99,7 @@ func (r *Resolvers) Snapshot(retry int) error {
 		return errors.New("inode_numlower BPF_HASH table doesn't exist")
 	}
 
+	log.Debugf("Registering security_inode_getattr kprobe")
 	// Activate the probes required by the snapshot
 	for _, kp := range SnapshotProbes {
 		if err := r.probe.Module.RegisterKprobe(kp); err != nil {
@@ -109,6 +110,7 @@ func (r *Resolvers) Snapshot(retry int) error {
 	err := r.snapshot(retry)
 
 	// Deregister probes
+	log.Debugf("Deregistering security_inode_getattr kprobe")
 	for _, kp := range SnapshotProbes {
 		if err := r.probe.Module.UnregisterKprobe(kp); err != nil {
 			log.Debugf("couldn't unregister kprobe %s: %v", kp.Name, err)
@@ -200,7 +202,7 @@ func (r *Resolvers) snapshotProcess(pid uint32) bool {
 	byteOrder.PutUint64(inodeb, stat.Ino)
 	numlowerb, err := r.inodeNumlowerMap.Get(inodeb)
 	if err != nil {
-		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve numlower value", pid))
+		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve numlower value (ino: %d)", pid, stat.Ino))
 		return false
 	}
 	entry.Numlower = byteOrder.Uint32(numlowerb)

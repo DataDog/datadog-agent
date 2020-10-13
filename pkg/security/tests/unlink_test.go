@@ -18,7 +18,7 @@ import (
 func TestUnlink(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/testat-unlink"`,
+		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/test-unlinkat"`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -54,7 +54,7 @@ func TestUnlink(t *testing.T) {
 		}
 	})
 
-	testatFile, testatFilePtr, err := test.Path("testat-unlink")
+	testatFile, testatFilePtr, err := test.Path("test-unlinkat")
 	if err != nil {
 		t.Fatal(err)
 	}
