@@ -100,6 +100,7 @@ type testOpts struct {
 	disableApprovers  bool
 	disableDiscarders bool
 	testDir           string
+	withoutHandler    bool
 }
 
 type testModule struct {
@@ -317,9 +318,11 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 	events := make(chan *sprobe.Event, eventChanLength)
 	discarders := make(chan *testDiscarder, discarderChanLength)
 
-	handler := &testEventHandler{events: events, discarders: discarders, ruleSet: ruleSet}
-	probe.SetEventHandler(handler)
-	ruleSet.AddListener(handler)
+	if !opts.withoutHandler {
+		handler := &testEventHandler{events: events, discarders: discarders, ruleSet: ruleSet}
+		probe.SetEventHandler(handler)
+		ruleSet.AddListener(handler)
+	}
 
 	if err := probe.Init(); err != nil {
 		return nil, err

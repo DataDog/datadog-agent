@@ -11,7 +11,6 @@ package probe
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os/user"
@@ -338,9 +337,8 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 200 {
 		return n, ErrNotEnoughData
 	}
-	if err := binary.Read(bytes.NewBuffer(data[0:200]), ebpf.ByteOrder, &e.NameRaw); err != nil {
-		return 0, err
-	}
+	utils.SliceToArray(data[0:200], unsafe.Pointer(&e.NameRaw))
+
 	return n + 200, nil
 }
 
@@ -661,9 +659,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	// Notes: bytes 36 to 40 are used to pad the structure
 
-	if err := binary.Read(bytes.NewBuffer(data[40:56]), ebpf.ByteOrder, &e.FSTypeRaw); err != nil {
-		return 40, err
-	}
+	utils.SliceToArray(data[40:56], unsafe.Pointer(&e.FSTypeRaw))
 
 	return 56, nil
 }
@@ -750,9 +746,8 @@ func (e *ContainerEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
-	if err := binary.Read(bytes.NewBuffer(data[0:64]), ebpf.ByteOrder, &e.IDRaw); err != nil {
-		return 0, err
-	}
+	utils.SliceToArray(data[0:64], unsafe.Pointer(&e.IDRaw))
+
 	return 64, nil
 }
 
@@ -966,9 +961,8 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	if err := binary.Read(bytes.NewBuffer(data[0:16]), ebpf.ByteOrder, &p.CommRaw); err != nil {
-		return 0, err
-	}
+	utils.SliceToArray(data[0:16], unsafe.Pointer(&p.CommRaw))
+
 	p.Pid = ebpf.ByteOrder.Uint32(data[16:20])
 	p.Tid = ebpf.ByteOrder.Uint32(data[20:24])
 	p.UID = ebpf.ByteOrder.Uint32(data[24:28])

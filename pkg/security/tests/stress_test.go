@@ -12,6 +12,7 @@ import (
 	"path"
 	"syscall"
 	"testing"
+	"time"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -39,7 +40,7 @@ func benchmarkOpen(b *testing.B, rule *rules.RuleDefinition, pathname string, si
 		rules = append(rules, rule)
 	}
 
-	test, err := newTestProbe(nil, rules, testOpts{enableFilters: true})
+	test, err := newTestProbe(nil, rules, testOpts{enableFilters: true, withoutHandler: true})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -81,6 +82,8 @@ func benchmarkOpen(b *testing.B, rule *rules.RuleDefinition, pathname string, si
 			b.Fatal(err)
 		}
 	}
+
+	time.Sleep(5 * time.Second)
 
 	lost := eventsStats.GetLost()
 

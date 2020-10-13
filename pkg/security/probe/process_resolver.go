@@ -9,10 +9,11 @@ package probe
 
 import (
 	"bytes"
-	"encoding/binary"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // ProcCacheEntry this structure holds the container context that we keep in kernel for each process
@@ -43,9 +44,7 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte) (int, error) {
 	pc.Cookie = ebpf.ByteOrder.Uint32(data[read+8 : read+12])
 
 	// skip 4 for padding
-	if err := binary.Read(bytes.NewBuffer(data[read+16:read+80]), ebpf.ByteOrder, &pc.TTYNameRaw); err != nil {
-		return 0, err
-	}
+	utils.SliceToArray(data[read+16:read+80], unsafe.Pointer(&pc.TTYNameRaw))
 
 	return read + 80, nil
 }
