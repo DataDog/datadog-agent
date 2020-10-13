@@ -82,7 +82,8 @@ The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by
 
 1. Open the workspace in VSCode
 2. Install the [Go VSCode extension](https://marketplace.visualstudio.com/items?itemName=golang.Go)
-3. See `.vscode/tasks.json` and `.vscode/launch.json` for available run configurations. 
+- See `.vscode/tasks.json` for available tasks.
+- See `.vscode/launch.json.template` for an example launch configuration.
 
 ## Contributing code
 
