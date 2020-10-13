@@ -92,6 +92,7 @@ typedef struct {
 
 typedef struct {
     __u32 pid;
+    __u32 net_ns;
     __u16 port;
 } port_binding_t;
 

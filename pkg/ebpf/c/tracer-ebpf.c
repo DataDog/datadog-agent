@@ -844,6 +844,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
 
     port_binding_t t = {};
     t.pid = bpf_get_current_pid_tgid() >> 32;
+    t.net_ns = get_netns_from_sock(newsk);
     t.port = lport;
 
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
@@ -877,6 +878,7 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
 
     port_binding_t t = {};
     t.pid = bpf_get_current_pid_tgid() >> 32;
+    t.net_ns = get_netns_from_sock(sk);
     t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
@@ -910,6 +912,10 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     // decide if the port is bound, if not, do nothing
     port_binding_t t = {};
     t.pid = bpf_get_current_pid_tgid() >> 32;
+    // although we have net ns info, we don't use it in the key
+    // since we don't have it everywhere for udp port bindings
+    // (see sys_exit_bind below)
+    t.net_ns = 0;
     t.port = lport;
     __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &t);
 
@@ -946,10 +952,20 @@ static __always_inline int sys_enter_bind(__u64 fd, struct sockaddr* addr) {
         return 0;
     }
 
-    // sockaddr is part of the syscall ABI, so we can hardcode the offset of 2 to find the port.
     u16 sin_port = 0;
-    bpf_probe_read(&sin_port, sizeof(u16), (char*)addr + 2);
+    sa_family_t family = 0;
+    bpf_probe_read(&family, sizeof(sa_family_t), &addr->sa_family);
+    if (family == AF_INET) {
+        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
+    } else if (family == AF_INET6) {
+        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
+    }
+
     sin_port = ntohs(sin_port);
+    if (sin_port == 0) {
+        log_debug("ERR(sys_enter_bind): sin_port is 0\n");
+        return 0;
+    }
 
     // write to pending_binds so the retprobe knows we can mark this as binding.
     bind_syscall_args_t args = {};
@@ -1014,6 +1030,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     __u8 port_state = PORT_LISTENING;
     port_binding_t t = {};
     t.pid = tid >> 32;
+    t.net_ns = 0; // don't have net ns info; this will get looked up by pid in go
     t.port = sin_port;
     bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);

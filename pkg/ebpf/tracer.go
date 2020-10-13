@@ -776,20 +776,23 @@ func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping)
 	entries := mp.IterateFrom(unsafe.Pointer(&emptyKey))
 	for entries.Next(unsafe.Pointer(&key), unsafe.Pointer(&state)) {
 		pid := int(key.pid)
+		ino := uint64(key.net_ns)
 		port := uint16(key.port)
-		var ino uint64
-		var ok bool
-		if ino, ok = inos[pid]; !ok {
-			var err error
-			ino, err = util.GetNetNsInoFromPid(t.config.ProcRoot, pid)
-			if err != nil {
-				log.Errorf("could not add port mapping (pid: %d port: %d), could not get net ns for pid %d: %s", pid, port, pid, err)
-				continue
-			}
+		if ino == 0 {
+			var ok bool
+			if ino, ok = inos[pid]; !ok {
+				var err error
+				if ino, err = util.GetNetNsInoFromPid(t.config.ProcRoot, pid); err != nil {
+					log.Errorf("could not add port mapping (pid: %d port: %d), could not get net ns for pid %d: %s", pid, port, pid, err)
+					continue
+				}
 
-			inos[pid] = ino
+			}
 		}
 
+		inos[pid] = ino
+
+		log.Tracef("adding port mapping for port=%d net_ns=%d", port, ino)
 		mapping.AddMapping(ino, port)
 
 		if isPortClosed(state) {
