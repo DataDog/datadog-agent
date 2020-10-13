@@ -20,7 +20,7 @@ import (
 func TestSetXAttr(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `setxattr.filename == "{{.Root}}/test-xattr" && setxattr.namespace == "user" && setxattr.name == "user.test_xattr"`,
+		Expression: `setxattr.filename == "{{.Root}}/test-setxattr" && setxattr.namespace == "user" && setxattr.name == "user.test_xattr"`,
 	}
 
 	testDrive, err := newTestDrive("ext4", []string{"user_xattr"})
@@ -35,7 +35,7 @@ func TestSetXAttr(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := testDrive.Path("test-xattr")
+	testFile, testFilePtr, err := testDrive.Path("test-setxattr")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestSetXAttr(t *testing.T) {
 	})
 
 	t.Run("lsetxattr", func(t *testing.T) {
-		testOldFile, testOldFilePtr, err := testDrive.Path("test-xattr-old")
+		testOldFile, testOldFilePtr, err := testDrive.Path("test-setxattr-old")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,11 +85,11 @@ func TestSetXAttr(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer os.Remove(testOldFile)
 
 		if err := f.Close(); err != nil {
 			t.Fatal(err)
 		}
-		defer os.Remove(testOldFile)
 
 		_, _, errno := syscall.Syscall(syscall.SYS_SYMLINK, uintptr(testOldFilePtr), uintptr(testFilePtr), 0)
 		if errno != 0 {
@@ -151,7 +151,7 @@ func TestSetXAttr(t *testing.T) {
 func TestRemoveXAttr(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `removexattr.filename == "{{.Root}}/test-xattr" && removexattr.namespace == "user" && removexattr.name == "user.test_xattr"`,
+		Expression: `removexattr.filename == "{{.Root}}/test-removexattr" && removexattr.namespace == "user" && removexattr.name == "user.test_xattr"`,
 	}
 
 	testDrive, err := newTestDrive("ext4", []string{"user_xattr"})
@@ -166,7 +166,7 @@ func TestRemoveXAttr(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := testDrive.Path("test-xattr")
+	testFile, testFilePtr, err := testDrive.Path("test-removexattr")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestRemoveXAttr(t *testing.T) {
 	})
 
 	t.Run("lremovexattr", func(t *testing.T) {
-		testOldFile, testOldFilePtr, err := testDrive.Path("test-xattr-old")
+		testOldFile, testOldFilePtr, err := testDrive.Path("test-removexattr-old")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -32,8 +32,8 @@ var (
 	tokenURL           = "http://169.254.169.254/latest/api/token"
 	oldDefaultPrefixes = []string{"ip-", "domu"}
 	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
-	tokenLifetime      = time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second
 	token              = ec2Token{}
+	tokenRenewalWindow = 15 * time.Second
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"
 
@@ -219,7 +219,7 @@ func doHTTPRequest(url string, method string, headers map[string]string, useToke
 	if useToken {
 		token, err := getToken()
 		if err != nil {
-			log.Warnf("ec2_prefer_imdsv2 is set to true in configuration but the agent was unable to get a token: %s", err)
+			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {
 			headers["X-aws-ec2-metadata-token"] = token
 		}
@@ -239,9 +239,10 @@ func doHTTPRequest(url string, method string, headers map[string]string, useToke
 }
 
 func getToken() (string, error) {
+
 	token.RLock()
-	// Will refresh token 15 seconds before expiration
-	if time.Now().Before(token.expirationDate.Add(-15 * time.Second)) {
+	// The token renewal window is open, refreshing the token
+	if time.Now().Before(token.expirationDate) {
 		val := token.value
 		token.RUnlock()
 		return val, nil
@@ -250,7 +251,7 @@ func getToken() (string, error) {
 	token.Lock()
 	defer token.Unlock()
 	// Token has been refreshed by another caller
-	if time.Now().Before(token.expirationDate.Add(-15 * time.Second)) {
+	if time.Now().Before(token.expirationDate) {
 		return token.value, nil
 	}
 
@@ -263,15 +264,21 @@ func getToken() (string, error) {
 		return "", err
 	}
 
+	tokenLifetime := time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second
 	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", fmt.Sprintf("%d", int(tokenLifetime.Seconds())))
-	token.expirationDate = time.Now().Add(tokenLifetime)
+	// Set the local expiration date before requesting the metadata endpoint so the local expiration date will always
+	// expire before the expiration date computed on the AWS side. The expiration date is set minus the renewal window
+	// to ensure the token will be refreshed before it expires.
+	token.expirationDate = time.Now().Add(tokenLifetime - tokenRenewalWindow)
 	res, err := client.Do(req)
 	if err != nil {
+		// Re-mark the token as expired now, so it will be refreshed next time
 		token.expirationDate = time.Now()
 		return "", err
 	}
 
 	if res.StatusCode != 200 {
+		// Re-mark the token as expired now, so it will be refreshed next time
 		token.expirationDate = time.Now()
 		return "", fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, tokenURL)
 	}
@@ -279,6 +286,7 @@ func getToken() (string, error) {
 	defer res.Body.Close()
 	all, err := ioutil.ReadAll(res.Body)
 	if err != nil {
+		// Re-mark the token as expired now, so it will be refreshed next time
 		token.expirationDate = time.Now()
 		return "", fmt.Errorf("unable to read response body, %s", err)
 	}

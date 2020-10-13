@@ -9,5 +9,4 @@
 enhancements:
   - |
     Log a warning when a log file is rotated but has not finished tailing the file. 
-    Made the rotation stop timeout configurable. 
 

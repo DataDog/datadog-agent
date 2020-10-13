@@ -51,7 +51,7 @@ system_probe_config:
 
 runtime_security_config:
   enabled: true
-  debug: true
+  debug: false
   socket: /tmp/test-security-probe.sock
 {{if not .EnableFilters}}
   enable_kernel_filters: false
@@ -374,6 +374,11 @@ func (t *simpleTest) Root() string {
 	return t.root
 }
 
+func (t *simpleTest) ProcessName() string {
+	executable, _ := os.Executable()
+	return path.Base(executable)
+}
+
 func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	filename = path.Join(t.root, filename)
 	filenamePtr, err := syscall.BytePtrFromString(filename)
@@ -383,22 +388,46 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 	return filename, unsafe.Pointer(filenamePtr), nil
 }
 
+var logInitilialized bool
+
 func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	var logLevel seelog.LogLevel = seelog.InfoLvl
-	if testing.Verbose() {
-		logLevel = seelog.TraceLvl
-	}
+	var err error
 
-	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stderr, logLevel, "%Ns [%LEVEL] %Msg\n")
-	if err != nil {
-		return nil, err
-	}
+	if !logInitilialized {
+		var logLevel seelog.LogLevel = seelog.InfoLvl
+		if testing.Verbose() {
+			logLevel = seelog.TraceLvl
+		}
 
-	err = seelog.ReplaceLogger(logger)
-	if err != nil {
-		return nil, err
+		constraints, err := seelog.NewMinMaxConstraints(logLevel, seelog.CriticalLvl)
+		if err != nil {
+			return nil, err
+		}
+
+		formatter, err := seelog.NewFormatter("%Ns [%LEVEL] %Func %Line %Msg\n")
+		if err != nil {
+			return nil, err
+		}
+
+		dispatcher, err := seelog.NewSplitDispatcher(formatter, []interface{}{os.Stderr})
+		if err != nil {
+			return nil, err
+		}
+
+		specificConstraints, _ := seelog.NewListConstraints([]seelog.LogLevel{})
+		ex, _ := seelog.NewLogLevelException("*.Snapshot", "*", specificConstraints)
+		exceptions := []*seelog.LogLevelException{ex}
+
+		logger := seelog.NewAsyncLoopLogger(seelog.NewLoggerConfig(constraints, exceptions, dispatcher))
+
+		err = seelog.ReplaceLogger(logger)
+		if err != nil {
+			return nil, err
+		}
+		log.SetupDatadogLogger(logger, logLevel.String())
+
+		logInitilialized = true
 	}
-	log.SetupDatadogLogger(logger, logLevel.String())
 
 	t := &simpleTest{
 		root: testDir,

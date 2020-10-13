@@ -76,7 +76,7 @@
             "type": "go"
         },
         "github.com/golang/perf/cmd/benchstat": {
-            "version": "9c9101da83161dff5e53fc89bf35ed49ea286db8",
+            "version": "d949658356f9a1d750bdabd650745c5bd5f1cfa4",
             "type": "go"
         }
     }

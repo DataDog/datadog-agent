@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -170,6 +171,16 @@ func batchConnections(
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV1DNSEncoder()
+
+	if len(cxs) > cfg.MaxConnsPerMessage {
+		// Sort connections by remote IP/PID for more efficient resolution
+		sort.Slice(cxs, func(i, j int) bool {
+			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
+				return cxs[i].Raddr.Ip < cxs[j].Raddr.Ip
+			}
+			return cxs[i].Pid < cxs[j].Pid
+		})
+	}
 
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))

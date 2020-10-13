@@ -8,8 +8,8 @@ package kubernetes
 import (
 	"bytes"
 	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 const (
@@ -27,18 +27,20 @@ var (
 // Parser parses Kubernetes log lines
 var Parser *parser
 
-type parser struct {
-	lineParser.Parser
-}
+type parser struct{}
 
 // Parse parses a Kubernetes log line.
 // Kubernetes log lines follow this pattern '<timestamp> <stream> <flag> <content>',
 // see https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
-func (p *parser) Parse(msg []byte) ([]byte, string, string, error) {
-	content, status, timestamp, _, err := parse(msg)
-	return content, status, timestamp, err
+func (p *parser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+	content, status, timestamp, flag, err := parse(msg)
+	return content, status, timestamp, isPartial(flag), err
+}
+
+func (p *parser) SupportsPartialLine() bool {
+	return true
 }
 
 func parse(msg []byte) ([]byte, string, string, string, error) {
@@ -57,6 +59,10 @@ func parse(msg []byte) ([]byte, string, string, string, error) {
 	timestamp = string(components[0])
 	flag = string(components[2])
 	return content, status, timestamp, flag, nil
+}
+
+func isPartial(flag string) bool {
+	return flag == "P"
 }
 
 // getStatus returns the status of the message based on

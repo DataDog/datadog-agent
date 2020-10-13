@@ -18,7 +18,7 @@ var NoopParser *noopParser
 type Encoding int
 
 const (
-	// UTF16LE UTF16 little endian, most commong (windows)
+	// UTF16LE UTF16 little endian, most common (windows)
 	UTF16LE = iota
 	// UTF16BE UTF16 big endian
 	UTF16BE
@@ -26,28 +26,36 @@ const (
 
 // Parser parse messages
 type Parser interface {
-	Parse([]byte) ([]byte, string, string, error)
+	// It returns 1. raw message, 2. severity, 3. timestamp, 4. partial, 5. error
+	Parse([]byte) ([]byte, string, string, bool, error)
+	SupportsPartialLine() bool
 }
 
-type noopParser struct {
-	Parser
-}
+type noopParser struct{}
 
 // Parse does nothing for NoopParser
-func (p *noopParser) Parse(msg []byte) ([]byte, string, string, error) {
-	return msg, "", "", nil
+func (p *noopParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+	return msg, "", "", false, nil
+}
+
+func (p *noopParser) SupportsPartialLine() bool {
+	return false
 }
 
 // DecodingParser a generic decoding Parser
 type DecodingParser struct {
 	decoder *encoding.Decoder
-	Parser
 }
 
-// Parse does nothing for NoopParser
-func (p *DecodingParser) Parse(msg []byte) ([]byte, string, string, error) {
+// Parse parses the incoming message with the decoder
+func (p *DecodingParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	decoded, _, err := transform.Bytes(p.decoder, msg)
-	return decoded, "", "", err
+	return decoded, "", "", false, err
+}
+
+// SupportsPartialLine returns false as it does not support partial lines
+func (p *DecodingParser) SupportsPartialLine() bool {
+	return false
 }
 
 // NewDecodingParser build a new DecodingParser

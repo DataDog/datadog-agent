@@ -11,6 +11,7 @@ CustomActionData::~CustomActionData()
 {
 
 }
+
 bool CustomActionData::init(MSIHANDLE hi) 
 {
     this->hInstall = hi;
@@ -24,6 +25,13 @@ bool CustomActionData::init(MSIHANDLE hi)
 
 bool CustomActionData::init(const std::wstring& data)
 {
+    DWORD errCode = machine.Detect();
+    if (errCode != ERROR_SUCCESS)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %d", errCode);
+        return false;
+    }
+
     // first, the string is KEY=VAL;KEY=VAL....
     // first split into key/value pairs
     std::wstringstream ss(data);
@@ -102,6 +110,7 @@ bool CustomActionData::parseSysprobeData()
     }
     return true;
 }
+
 bool CustomActionData::parseUsernameData()
 {
     std::wstring tmpName = ddAgentUserName;
@@ -123,29 +132,28 @@ bool CustomActionData::parseUsernameData()
     getline(asStream, computed_domain, L'\\');
     getline(asStream, computed_user, L'\\');
 
-    if (computed_domain == L".") {
+    if (computed_domain == L".")
+    {
         WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-        computed_domain = computername;
+        computed_domain = machine.GetMachineName();
         this->domainUser = false;
-    } else {
-        WCHAR netBiosDomainName[256];
-        DWORD size = sizeof netBiosDomainName/sizeof(WCHAR);
-        if (DnsHostnameToComputerName(computed_domain.c_str(), netBiosDomainName, &size))
+    }
+    else
+    {
+        if(0 == _wcsicmp(computed_domain.c_str(), machine.GetMachineName().c_str()))
         {
-            WcaLog(LOGMSG_VERBOSE, "Computed domain was %S. Equivalent NetBIOS name: %S", computed_domain.c_str(), netBiosDomainName);
-            computed_domain = netBiosDomainName;
-        } else {
-            WcaLog(LOGMSG_STANDARD, "Warning: DnsHostnameToComputerName(%S) did not return success: %d", computed_domain.c_str(), GetLastError());
-        }
-
-        if(0 == _wcsicmp(computed_domain.c_str(), computername.c_str())){
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
             this->domainUser = false;
-        } else if(0 == _wcsicmp(computed_domain.c_str(), domainname.c_str())){
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), domainname.c_str());
+        }
+        else if(0 == _wcsicmp(computed_domain.c_str(), machine.GetDomain().c_str()))
+        {
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), machine.GetDomain().c_str());
             this->domainUser = true;
-        } else {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), domainname.c_str());
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), machine.GetDomain().c_str());
+            computed_domain = machine.GetDomain();
             this->domainUser = true;
         }
     }

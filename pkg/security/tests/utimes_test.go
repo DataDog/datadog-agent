@@ -38,7 +38,10 @@ func TestUtime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	defer os.Remove(testFile)
 
 	t.Run("utime", func(t *testing.T) {
@@ -48,7 +51,7 @@ func TestUtime(t *testing.T) {
 		}
 
 		if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-			t.Fatal(err)
+			t.Fatal(errno)
 		}
 
 		event, _, err := test.GetEvent()
@@ -82,7 +85,7 @@ func TestUtime(t *testing.T) {
 		}
 
 		if _, _, errno := syscall.Syscall(syscall.SYS_UTIMES, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
-			t.Fatal(err)
+			t.Fatal(errno)
 		}
 
 		event, _, err := test.GetEvent()

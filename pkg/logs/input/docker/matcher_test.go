@@ -33,7 +33,7 @@ func TestDecoderDetectDockerHeader(t *testing.T) {
 		input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
 		d.InputChan <- decoder.NewInput(input)
 
-		var output *decoder.Output
+		var output *decoder.Message
 		output = <-d.OutputChan
 		assert.Equal(t, "hello", string(output.Content))
 
@@ -55,7 +55,7 @@ func TestDecoderDetectMultipleDockerHeader(t *testing.T) {
 	}
 	d.InputChan <- decoder.NewInput(input)
 
-	var output *decoder.Output
+	var output *decoder.Message
 	for i := 0; i < 100; i++ {
 		output = <-d.OutputChan
 		assert.Equal(t, fmt.Sprintf("app logs %d", i), string(output.Content))
@@ -86,7 +86,7 @@ func TestDecoderDetectMultipleDockerHeaderOnAChunkedLine(t *testing.T) {
 
 	d.InputChan <- decoder.NewInput(input)
 
-	var output *decoder.Output
+	var output *decoder.Message
 	output = <-d.OutputChan
 	assert.Equal(t, fmt.Sprintf(longestChunk+longestChunk+"the end"), string(output.Content))
 	output = <-d.OutputChan
@@ -105,7 +105,7 @@ func TestDecoderNoNewLineBeforeDockerHeader(t *testing.T) {
 		input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
 		d.InputChan <- decoder.NewInput(input)
 
-		var output *decoder.Output
+		var output *decoder.Message
 		output = <-d.OutputChan
 		assert.Equal(t, "app logs", string(output.Content))
 	}

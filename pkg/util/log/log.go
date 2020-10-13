@@ -376,7 +376,7 @@ func log(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), v ..
 	}
 }
 
-func logWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, v ...interface{}) error {
+func logWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, fallbackStderr bool, v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		s := buildLogEntry(v...)
 		return logFunc(logger.scrub(s))
@@ -384,7 +384,9 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(stri
 		addLogToBuffer(bufferFunc)
 	}
 	err := formatError(v...)
-	fmt.Fprintf(os.Stderr, "%s: %s\n", err.Error(), logLevel.String())
+	if fallbackStderr {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
+	}
 	return err
 }
 
@@ -396,14 +398,16 @@ func logFormat(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string,
 	}
 }
 
-func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string, ...interface{}) error, format string, params ...interface{}) error {
+func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string, ...interface{}) error, format string, fallbackStderr bool, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		return logFunc(format, params...)
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
 	}
 	err := formatErrorf(format, params...)
-	fmt.Fprintf(os.Stderr, "%s: %s\n", err.Error(), logLevel.String())
+	if fallbackStderr {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
+	}
 	return err
 }
 
@@ -468,39 +472,39 @@ func Infoc(message string, context ...interface{}) {
 
 // Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
-	return logWithError(seelog.WarnLvl, func() { Warn(v...) }, logger.warn, v...)
+	return logWithError(seelog.WarnLvl, func() { Warn(v...) }, logger.warn, false, v...)
 }
 
 // Warnf logs with format at the warn level and returns an error containing the formated log message
 func Warnf(format string, params ...interface{}) error {
-	return logFormatWithError(seelog.WarnLvl, func() { Warnf(format, params...) }, logger.warnf, format, params...)
+	return logFormatWithError(seelog.WarnLvl, func() { Warnf(format, params...) }, logger.warnf, format, false, params...)
 }
 
 // Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
-	return logWithError(seelog.ErrorLvl, func() { Error(v...) }, logger.error, v...)
+	return logWithError(seelog.ErrorLvl, func() { Error(v...) }, logger.error, true, v...)
 }
 
 // Errorf logs with format at the error level and returns an error containing the formated log message
 func Errorf(format string, params ...interface{}) error {
-	return logFormatWithError(seelog.ErrorLvl, func() { Errorf(format, params...) }, logger.errorf, format, params...)
+	return logFormatWithError(seelog.ErrorLvl, func() { Errorf(format, params...) }, logger.errorf, format, true, params...)
 }
 
 // Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
-	return logWithError(seelog.CriticalLvl, func() { Critical(v...) }, logger.critical, v...)
+	return logWithError(seelog.CriticalLvl, func() { Critical(v...) }, logger.critical, true, v...)
 }
 
 // Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
-	return logFormatWithError(seelog.ErrorLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, params...)
+	return logFormatWithError(seelog.CriticalLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, true, params...)
 }
 
 // ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func ErrorStackDepth(depth int, v ...interface{}) error {
 	return logWithError(seelog.ErrorLvl, func() { ErrorStackDepth(depth, v...) }, func(s string) error {
 		return logger.errorStackDepth(s, depth)
-	}, v...)
+	}, true, v...)
 }
 
 // Flush flushes the underlying inner log

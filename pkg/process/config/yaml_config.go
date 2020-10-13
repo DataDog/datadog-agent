@@ -89,6 +89,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "conntrack_rate_limit")) {
 		a.ConntrackRateLimit = config.Datadog.GetInt(key(spNS, "conntrack_rate_limit"))
 	}
+	if config.Datadog.IsSet(key(spNS, "enable_conntrack_all_namespaces")) {
+		a.EnableConntrackAllNamespaces = config.Datadog.GetBool(key(spNS, "enable_conntrack_all_namespaces"))
+	}
 
 	// When reading kernel structs at different offsets, don't go over the threshold
 	// This defaults to 400 and has a max of 3000. These are arbitrary choices to avoid infinite loops.
@@ -173,6 +176,24 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Windows.DriverBufferSize = driverBufferSize
 	}
 
+	// If there is no network_config, assume it is an old version of the config, and enable
+	// the network check. This has the downside that if the network_config is deleted, network
+	// check will be enabled.  However, this seems like the best option for backwards compatibility.
+	//
+	// The network check won't be run if sysprobe isn't enabled so there's no need to check
+	// EnableSystemProbe here.
+	networkEnabled := true
+	// network_config is a top-level config, not a subconfig of system_probe_config
+	if config.Datadog.IsSet("network_config") {
+		// System probe can be run without the network module as determined on the network_config.enabled value
+		networkEnabled = config.Datadog.GetBool("network_config.enabled")
+		log.Info(fmt.Sprintf("network_config found, enabled = %v", networkEnabled))
+	} else {
+		log.Info("network_config not found, enabling network check by default")
+	}
+	if networkEnabled {
+		a.EnabledChecks = append(a.EnabledChecks, "Network")
+	}
 	return nil
 }
 

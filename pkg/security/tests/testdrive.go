@@ -44,22 +44,31 @@ func (td *testDrive) Path(filename string) (string, unsafe.Pointer, error) {
 func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 	backingFile, err := ioutil.TempFile("", "secagent-testdrive-")
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create testdrive backing file")
+	}
+
+	if err := backingFile.Close(); err != nil {
+		return nil, errors.Wrap(err, "failed to close testdrive backing file")
 	}
 
 	mountPoint, err := ioutil.TempDir("", "secagent-testdrive-")
 	if err != nil {
-		return nil, err
+		os.Remove(backingFile.Name())
+		return nil, errors.Wrap(err, "failed to create testdrive mount point")
 	}
 
 	if err := os.Truncate(backingFile.Name(), 1*1024*1024); err != nil {
-		return nil, err
+		os.Remove(backingFile.Name())
+		os.RemoveAll(mountPoint)
+
+		return nil, errors.Wrap(err, "failed to truncate testdrive backing file")
 	}
 
 	dev, err := losetup.Attach(backingFile.Name(), 0, false)
 	if err != nil {
 		os.Remove(backingFile.Name())
-		return nil, err
+		os.RemoveAll(mountPoint)
+		return nil, errors.Wrap(err, "failed to create testdrive loop device")
 	}
 
 	if len(mountOpts) == 0 {
@@ -70,7 +79,8 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 	if err := mkfsCmd.Run(); err != nil {
 		_ = dev.Detach()
 		os.Remove(backingFile.Name())
-		return nil, errors.Wrap(err, "failed to create ext4 filesystem")
+		os.RemoveAll(mountPoint)
+		return nil, errors.Wrap(err, "failed to create testdrive ext4 filesystem")
 	}
 
 	mountCmd := exec.Command("mount", "-o", strings.Join(mountOpts, ","), dev.Path(), mountPoint)
@@ -79,7 +89,8 @@ func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
 	if err := mountCmd.Run(); err != nil {
 		_ = dev.Detach()
 		os.Remove(backingFile.Name())
-		return nil, errors.Wrap(err, "failed to mount filesystem")
+		os.RemoveAll(mountPoint)
+		return nil, errors.Wrap(err, "failed to mount testdrive")
 	}
 
 	return &testDrive{

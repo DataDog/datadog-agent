@@ -101,6 +101,7 @@ func (m *Module) Close() {
 
 	if m.listener != nil {
 		m.listener.Close()
+		os.Remove(m.config.SocketPath)
 	}
 
 	m.probe.Stop()
@@ -118,7 +119,7 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field); err != nil {
-		log.Debug(err)
+		log.Trace(err)
 	}
 }
 

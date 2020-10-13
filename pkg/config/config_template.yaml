@@ -916,6 +916,20 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+{{- if .NetworkModule }}
+
+########################################
+## System Probe Network Configuration ##
+########################################
+
+# network_config:
+  ## @param enabled - boolean - optional - default: true
+  ## Set to true to enable the Network Module of the System Probe
+  #
+  # enabled: true
+
+{{ end -}}
+
 {{- if .SecurityModule }}
 
 ##########################################

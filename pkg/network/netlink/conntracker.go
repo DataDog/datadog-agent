@@ -72,7 +72,7 @@ type realConntracker struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(procRoot string, maxStateSize, targetRateLimit int) (Conntracker, error) {
+func NewConntracker(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -81,7 +81,7 @@ func NewConntracker(procRoot string, maxStateSize, targetRateLimit int) (Conntra
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, targetRateLimit)
+		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, targetRateLimit, listenAllNamespaces)
 		done <- struct{}{}
 	}()
 
@@ -93,8 +93,8 @@ func NewConntracker(procRoot string, maxStateSize, targetRateLimit int) (Conntra
 	}
 }
 
-func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int) (Conntracker, error) {
-	consumer, err := NewConsumer(procRoot, targetRateLimit)
+func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool) (Conntracker, error) {
+	consumer, err := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
 	if err != nil {
 		return nil, err
 	}

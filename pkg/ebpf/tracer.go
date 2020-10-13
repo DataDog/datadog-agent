@@ -166,18 +166,22 @@ func NewTracer(config *Config) (*Tracer, error) {
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
 		if _, enabled := enabledProbes[bytecode.ProbeName(p.Section)]; !enabled {
-			mgrOptions.ExcludedProbes = append(mgrOptions.ExcludedProbes, p.Section)
+			mgrOptions.ExcludedSections = append(mgrOptions.ExcludedSections, p.Section)
 		}
 	}
 	for probeName := range enabledProbes {
-		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(probeName))
+		mgrOptions.ActivatedProbes = append(
+			mgrOptions.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: string(probeName),
+				},
+			})
 	}
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
-
-	overrideProbeSectionNames(m)
 
 	reverseDNS := network.NewNullReverseDNS()
 	if enableSocketFilter {
@@ -211,7 +215,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit, config.EnableConntrackAllNamespaces); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -256,17 +260,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 	return tr, nil
 }
 
-func overrideProbeSectionNames(m *manager.Manager) {
-	for _, p := range m.Probes {
-		if !p.Enabled {
-			continue
-		}
-		if override, ok := bytecode.KProbeOverrides[bytecode.ProbeName(p.Section)]; ok {
-			p.Section = string(override)
-		}
-	}
-}
-
 func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
 	// Enable kernel probes used for offset guessing.
 	offsetMgr := bytecode.NewOffsetManager()
@@ -279,11 +272,17 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 	enabledProbes := offsetGuessProbes(config)
 	for _, p := range offsetMgr.Probes {
 		if _, enabled := enabledProbes[bytecode.ProbeName(p.Section)]; !enabled {
-			offsetOptions.ExcludedProbes = append(offsetOptions.ExcludedProbes, p.Section)
+			offsetOptions.ExcludedSections = append(offsetOptions.ExcludedSections, p.Section)
 		}
 	}
 	for probeName := range enabledProbes {
-		offsetOptions.ActivatedProbes = append(offsetOptions.ActivatedProbes, string(probeName))
+		offsetOptions.ActivatedProbes = append(
+			offsetOptions.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: string(probeName),
+				},
+			})
 	}
 	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
 		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
@@ -301,7 +300,7 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 	start := time.Now()
 	editors, err := guessOffsets(offsetMgr, config)
 	if err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %v", err)
+		return nil, err
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 	return editors, nil
