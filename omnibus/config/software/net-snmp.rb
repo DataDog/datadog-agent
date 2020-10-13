@@ -16,6 +16,7 @@ build do
   configure_args = [
     "--prefix=#{install_dir}/embedded",
     "--enable-mini-agent",
+    "--silent",
   ]
 
   configure_command = configure_args.unshift("./configure").join(" ")
