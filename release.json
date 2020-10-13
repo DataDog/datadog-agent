@@ -58,6 +58,9 @@
         "MACOS_BUILD_VERSION": "7.23.0",
         "SECURITY_AGENT_POLICIES_VERSION": "v0.5"
     },
+    "dca-1.9.0": {
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
+    },
     "6.22.0": {
         "INTEGRATIONS_CORE_VERSION": "7.22.0",
         "OMNIBUS_SOFTWARE_VERSION": "7.22.0",
