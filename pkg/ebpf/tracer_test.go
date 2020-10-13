@@ -1748,3 +1748,82 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
 	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
 }
+
+func TestConnectionClobber(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
+	srvRecvBuf := make([]byte, 4)
+	server := NewTCPServer(func(c net.Conn) {
+		io.ReadFull(c, srvRecvBuf)
+		c.Write(srvRecvBuf)
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// we only need 1/4 since both send and recv sides will be registered
+	sendCount := (cap(tr.buffer) / 4) + 1
+	sendAndRecv := func(closeCh chan struct{}) *sync.WaitGroup {
+		sendWg := sync.WaitGroup{}
+		doneWg := sync.WaitGroup{}
+		sendBuf := make([]byte, 4)
+		recvBuf := make([]byte, 4)
+		for i := 0; i < sendCount; i++ {
+			senderNum := i
+			sendWg.Add(1)
+			doneWg.Add(1)
+			go func() {
+				defer doneWg.Done()
+
+				c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+				if err != nil {
+					t.Logf("dial error %d: %s\n", senderNum, err)
+					return
+				}
+				defer c.Close()
+
+				if _, err = c.Write(sendBuf); err != nil {
+					t.Fatal(err)
+				}
+				io.ReadFull(c, recvBuf)
+				sendWg.Done()
+				<-closeCh
+			}()
+		}
+		sendWg.Wait()
+		return &doneWg
+	}
+
+	closeCh := make(chan struct{})
+	dg := sendAndRecv(closeCh)
+
+	preCap := cap(tr.buffer)
+	firstConnections := getConnections(t, tr)
+	// ensure we didn't grow or shrink the buffer
+	require.Equal(t, preCap, cap(tr.buffer))
+	src := firstConnections.Conns[0].SPort
+	dst := firstConnections.Conns[0].DPort
+	t.Logf("before src: %d dst: %d\n", src, dst)
+
+	close(closeCh)
+	dg.Wait()
+
+	// send second batch so that underlying array gets clobbered
+	closeCh = make(chan struct{})
+	dg = sendAndRecv(closeCh)
+	_ = getConnections(t, tr)
+	require.Equal(t, preCap, cap(tr.buffer))
+
+	t.Logf("after src: %d dst: %d\n", firstConnections.Conns[0].SPort, firstConnections.Conns[0].DPort)
+	assert.EqualValues(t, int(src), int(firstConnections.Conns[0].SPort), "source port should not change")
+	assert.EqualValues(t, int(dst), int(firstConnections.Conns[0].DPort), "dest port should not change")
+
+	close(closeCh)
+	dg.Wait()
+
+	doneChan <- struct{}{}
+}
