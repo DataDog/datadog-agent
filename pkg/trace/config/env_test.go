@@ -345,4 +345,25 @@ func TestLoadEnv(t *testing.T) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
 	})
+
+	env = "DD_DOGSTATSD_MAPPER_PROFILES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `[{"name":"another_profile","prefix":"abcd","mappings":[{"match":"foo.bar.*.*","name":"foo","tags":{"a":"$1","b":"$2"}}]},{"name":"some_other_profile","prefix":"some_other_profile.","mappings":[{"match":"some_other_profile.*","name":"some_other_profile.abc","tags":{"a":"$1"}}]}]`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []config.MappingProfile{
+			{Name: "another_profile", Prefix: "abcd", Mappings: []config.MetricMapping{
+				{Match: "foo.bar.*.*", Name: "foo", Tags: map[string]string{"a": "$1", "b": "$2"}},
+			}},
+			{Name: "some_other_profile", Prefix: "some_other_profile.", Mappings: []config.MetricMapping{
+				{Match: "some_other_profile.*", Name: "some_other_profile.abc", Tags: map[string]string{"a": "$1"}},
+			}},
+		}
+		mappings, _ := config.GetDogstatsdMappingProfiles()
+		assert.Equal(mappings, expected)
+	})
 }

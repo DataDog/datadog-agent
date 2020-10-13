@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -1236,6 +1237,14 @@ func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
 
 func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) {
 	var mappings []MappingProfile
+	if v := os.Getenv("DD_DOGSTATSD_MAPPER_PROFILES"); v != "" {
+		// If the mapper profiles config is set via an environment variable, we expect JSON instead of YAML
+		err := json.Unmarshal([]byte(v), &mappings)
+		if err != nil {
+			return []MappingProfile{}, log.Errorf("Could not parse DD_DOGSTATSD_MAPPER_PROFILES: %v", err)
+		}
+		return mappings, nil
+	}
 	if config.IsSet("dogstatsd_mapper_profiles") {
 		err := config.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
 		if err != nil {

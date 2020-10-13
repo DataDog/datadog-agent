@@ -63,3 +63,19 @@ apm_config:
       enabled: true
     memcached:
       enabled: true
+dogstatsd_mapper_profiles:
+  - name: "airflow"
+    prefix: "airflow."
+    mappings:
+      - match: "airflow.job.size.*.*"
+        name: "airflow.job.size"
+        tags:
+          foo: "$1"
+          bar: "$2"
+  - name: "profile2"
+    prefix: "profile2."
+    mappings:
+      - match: "profile2.hello.*"
+        name: "profile2.hello"
+        tags:
+          foo: "$1"
