@@ -229,7 +229,7 @@ jobs:
 
   macos_tests:
     macos:
-      xcode: 10.1.0
+      xcode: 11.2.1
     environment:
       BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
@@ -262,7 +262,7 @@ jobs:
           command: |
             source ~/.build_setup
 
-            inv rtloader.test
+            DYLD_LIBRARY_PATH=/Users/distiller/go/src/github.com/DataDog/datadog-agent/dev/lib/ inv rtloader.test
       - run:
           name: Run tests
           command: |
