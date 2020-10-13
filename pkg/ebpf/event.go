@@ -64,48 +64,44 @@ func (t *ConnTuple) copy() *ConnTuple {
 	}
 }
 
+func ipPortFromAddr(addr net.Addr) (net.IP, int) {
+	switch v := addr.(type) {
+	case *net.TCPAddr:
+		return v.IP, v.Port
+	case *net.UDPAddr:
+		return v.IP, v.Port
+	}
+	return nil, 0
+}
+
 func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 	saddr := conn.LocalAddr()
-	shost, sportStr, err := net.SplitHostPort(saddr.String())
-	if err != nil {
-		return nil, err
-	}
-	sport, err := strconv.Atoi(sportStr)
-	if err != nil {
-		return nil, err
-	}
-	sip := util.AddressFromString(shost)
+	shost, sport := ipPortFromAddr(saddr)
 
 	daddr := conn.RemoteAddr()
-	dhost, dportStr, err := net.SplitHostPort(daddr.String())
-	if err != nil {
-		return nil, err
-	}
-	dport, err := strconv.Atoi(dportStr)
-	if err != nil {
-		return nil, err
-	}
-	dip := util.AddressFromString(dhost)
+	dhost, dport := ipPortFromAddr(daddr)
 
 	ct := &ConnTuple{
 		pid:   C.__u32(pid),
 		sport: C.__u16(sport),
 		dport: C.__u16(dport),
 	}
-	sbytes := sip.Bytes()
-	dbytes := dip.Bytes()
-	if len(sbytes) == net.IPv4len {
+	if sbytes := shost.To4(); sbytes != nil {
+		dbytes := dhost.To4()
 		ct.metadata |= C.CONN_V4
 		ct.saddr_h = 0
 		ct.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
 		ct.daddr_h = 0
 		ct.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
-	} else {
+	} else if sbytes := shost.To16(); sbytes != nil {
+		dbytes := dhost.To16()
 		ct.metadata |= C.CONN_V6
 		ct.saddr_h = C.__u64(binary.LittleEndian.Uint64(sbytes[:8]))
 		ct.saddr_l = C.__u64(binary.LittleEndian.Uint64(sbytes[8:]))
 		ct.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
 		ct.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+	} else {
+		return nil, fmt.Errorf("invalid source/dest address")
 	}
 
 	switch saddr.Network() {
