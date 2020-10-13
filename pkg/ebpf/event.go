@@ -129,6 +129,7 @@ func (t *ConnTuple) SourceAddress() util.Address {
 	return util.V6Address(uint64(t.saddr_l), uint64(t.saddr_h))
 }
 
+// SourceEndpoint returns the source address in the ip:port format (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 func (t *ConnTuple) SourceEndpoint() string {
 	return net.JoinHostPort(t.SourceAddress().String(), strconv.Itoa(int(t.sport)))
 }
@@ -140,6 +141,7 @@ func (t *ConnTuple) DestAddress() util.Address {
 	return util.V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
 }
 
+// DestEndpoint returns the destination address in the ip:port format (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 func (t *ConnTuple) DestEndpoint() string {
 	return net.JoinHostPort(t.DestAddress().String(), strconv.Itoa(int(t.dport)))
 }
