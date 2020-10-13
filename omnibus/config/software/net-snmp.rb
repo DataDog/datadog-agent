@@ -21,6 +21,12 @@ build do
     "--with-sys-location=Unknown",
     "--with-logfile=/var/log/snmpd.log",
     "--with-persistent-directory=/var/net-snmp",
+    "--disable-agent",
+    "--disable-applications",
+    "--disable-manuals",
+    "--disable-scripts",
+    "--disable-mibs",
+    "--disable-mib-loading",
   ]
 
   configure_command = configure_args.unshift("./configure").join(" ")
