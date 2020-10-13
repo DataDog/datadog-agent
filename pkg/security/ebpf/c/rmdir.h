@@ -76,16 +76,17 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
             break;
     }
 
-    // be sure that invalidate inode is always done before any discard
-    invalidate_inode(ctx, key.mount_id, key.ino);
-
     if (discarded_by_process(syscall->policy.mode, event_type)) {
+        invalidate_inode(ctx, key.mount_id, key.ino);
+
         return 0;
     }
 
     if (dentry != NULL) {
         int ret = resolve_dentry(dentry, key, syscall->policy.mode != NO_FILTER ? event_type : 0);
         if (ret < 0) {
+            invalidate_inode(ctx, key.mount_id, key.ino);
+
             pop_syscall(syscall->type);
         }
     }
@@ -125,6 +126,8 @@ SYSCALL_KRETPROBE(rmdir) {
     fill_container_data(entry, &event.container);
 
     send_event(ctx, event);
+
+    invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode);
 
     return 0;
 }

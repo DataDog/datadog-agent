@@ -56,10 +56,10 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     if (!syscall->unlink.path_key.path_id)
         syscall->unlink.path_key.path_id = bpf_get_prandom_u32();
 
-    // be sure that invalidate inode is always done before any discard
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
-
     if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
+        // discard here as the event wont be sent
+        invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
+
         pop_syscall(SYSCALL_UNLINK);
 
         return 0;
@@ -68,6 +68,9 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     int ret = resolve_dentry(dentry, syscall->unlink.path_key, syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0);
     if (ret < 0) {
+        // discard here as the event wont be sent
+        invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
+
         pop_syscall(SYSCALL_UNLINK);
     }
 
@@ -108,6 +111,8 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     fill_container_data(entry, &event.container);
 
     send_event(ctx, event);
+
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
 
     return 0;
 }
