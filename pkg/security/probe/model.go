@@ -780,7 +780,7 @@ func (e *ContainerEvent) GetContainerID() string {
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	ProcessCacheEntry
-	Pid uint32 `field:"-"`
+	Pid uint32
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -816,6 +816,26 @@ func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Pid = ebpf.ByteOrder.Uint32(data)
 
 	return 4, nil
+}
+
+// ExecEvent represents a exec event
+type InvalidateDentryEvent struct {
+	Inode   uint64
+	MountID uint32
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Inode = ebpf.ByteOrder.Uint64(data[0:8])
+	e.MountID = ebpf.ByteOrder.Uint32(data[8:12])
+
+	// 4 of padding
+
+	return 16, nil
 }
 
 // ProcessEvent holds the process context of an event
@@ -965,23 +985,24 @@ type Event struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"-"`
 
-	Process     ProcessEvent   `yaml:"process" field:"process" event:"*"`
-	Container   ContainerEvent `yaml:"container" field:"container"`
-	Chmod       ChmodEvent     `yaml:"chmod" field:"chmod" event:"chmod"`
-	Chown       ChownEvent     `yaml:"chown" field:"chown" event:"chown"`
-	Open        OpenEvent      `yaml:"open" field:"open" event:"open"`
-	Mkdir       MkdirEvent     `yaml:"mkdir" field:"mkdir" event:"mkdir"`
-	Rmdir       RmdirEvent     `yaml:"rmdir" field:"rmdir" event:"rmdir"`
-	Rename      RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
-	Unlink      UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
-	Utimes      UtimesEvent    `yaml:"utimes" field:"utimes" event:"utimes"`
-	Link        LinkEvent      `yaml:"link" field:"link" event:"link"`
-	SetXAttr    SetXAttrEvent  `yaml:"setxattr" field:"setxattr" event:"setxattr"`
-	RemoveXAttr SetXAttrEvent  `yaml:"removexattr" field:"removexattr" event:"removexattr"`
-	Mount       MountEvent     `yaml:"mount" field:"-"`
-	Umount      UmountEvent    `yaml:"umount" field:"-"`
-	Exec        ExecEvent      `yaml:"exec" field:"-"`
-	Exit        ExitEvent      `yaml:"exit" field:"-"`
+	Process          ProcessEvent          `yaml:"process" field:"process" event:"*"`
+	Container        ContainerEvent        `yaml:"container" field:"container"`
+	Chmod            ChmodEvent            `yaml:"chmod" field:"chmod" event:"chmod"`
+	Chown            ChownEvent            `yaml:"chown" field:"chown" event:"chown"`
+	Open             OpenEvent             `yaml:"open" field:"open" event:"open"`
+	Mkdir            MkdirEvent            `yaml:"mkdir" field:"mkdir" event:"mkdir"`
+	Rmdir            RmdirEvent            `yaml:"rmdir" field:"rmdir" event:"rmdir"`
+	Rename           RenameEvent           `yaml:"rename" field:"rename" event:"rename"`
+	Unlink           UnlinkEvent           `yaml:"unlink" field:"unlink" event:"unlink"`
+	Utimes           UtimesEvent           `yaml:"utimes" field:"utimes" event:"utimes"`
+	Link             LinkEvent             `yaml:"link" field:"link" event:"link"`
+	SetXAttr         SetXAttrEvent         `yaml:"setxattr" field:"setxattr" event:"setxattr"`
+	RemoveXAttr      SetXAttrEvent         `yaml:"removexattr" field:"removexattr" event:"removexattr"`
+	Mount            MountEvent            `field:"-"`
+	Umount           UmountEvent           `field:"-"`
+	Exec             ExecEvent             `field:"-"`
+	Exit             ExitEvent             `field:"-"`
+	InvalidateDentry InvalidateDentryEvent `field:"-"`
 
 	resolvers *Resolvers `field:"-"`
 }

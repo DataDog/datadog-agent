@@ -9,6 +9,7 @@ package probe
 
 import (
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
@@ -38,6 +39,7 @@ type InodeInfo struct {
 
 // ProcessResolver resolved process context
 type ProcessResolver struct {
+	sync.RWMutex
 	probe          *Probe
 	resolvers      *Resolvers
 	snapshotProbes []*manager.Probe
@@ -68,11 +70,15 @@ func (p *ProcessResolver) AddEntry(pid uint32, entry *ProcessCacheEntry) {
 		entry.Timestamp = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.TimestampRaw)
 	}
 
+	p.Lock()
 	p.entryCache[pid] = entry
+	p.Unlock()
 }
 
 func (p *ProcessResolver) DelEntry(pid uint32) {
+	p.Lock()
 	delete(p.entryCache, pid)
+	p.Unlock()
 }
 
 func (p *ProcessResolver) resolve(pid uint32) *ProcessCacheEntry {
@@ -101,7 +107,10 @@ func (p *ProcessResolver) resolve(pid uint32) *ProcessCacheEntry {
 
 // Resolve returns the cache entry for the given pid
 func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
+	p.RLock()
 	entry, ok := p.entryCache[pid]
+	p.RUnlock()
+
 	if ok {
 		return entry
 	}
@@ -111,6 +120,9 @@ func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 }
 
 func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
+	p.RLock()
+	defer p.RUnlock()
+
 	return p.entryCache[pid]
 }
 
@@ -183,7 +195,11 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 func (p *ProcessResolver) snapshotProcess(proc *process.FilledProcess) bool {
 	pid := uint32(proc.Pid)
 
-	if _, exists := p.entryCache[pid]; exists {
+	p.RLock()
+	_, exists := p.entryCache[pid]
+	p.RUnlock()
+
+	if exists {
 		return false
 	}
 

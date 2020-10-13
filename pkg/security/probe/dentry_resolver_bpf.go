@@ -69,6 +69,11 @@ type PathValue struct {
 	Name   [128]byte
 }
 
+func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
+	key := PathKey{MountID: mountID, Inode: inode}
+	dr.cache.Remove(key)
+}
+
 func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (name string, err error) {
 	key := PathKey{MountID: mountID, Inode: inode}
 

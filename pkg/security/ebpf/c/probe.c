@@ -29,11 +29,27 @@
 #include "getattr.h"
 #include "setxattr.h"
 
-void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file) {
+struct invalidate_dentry_event_t {
+    struct kevent_t event;
+    u64 inode;
+    u32 mount_id;
+    u32 padding;
+};
+
+void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode) {
 #pragma unroll
     for (int i = 1; i < EVENT_MAX; i++) {
-        remove_inode_discarder(i, file->mount_id, file->inode);
+        remove_inode_discarder(i, mount_id, inode);
     }
+
+    // invalidate dentry
+    struct invalidate_dentry_event_t event = {
+        .event.type = EVENT_INVALIDATE_DENTRY,
+        .inode = inode,
+        .mount_id = mount_id,
+    };
+
+    send_event(ctx, event);
 }
 
 __u32 _version SEC("version") = 0xFFFFFFFE;

@@ -194,6 +194,7 @@ enum event_type
     EVENT_REMOVEXATTR,
     EVENT_EXEC,
     EVENT_EXIT,
+    EVENT_INVALIDATE_DENTRY,
     EVENT_MAX, // has to be the last one
 };
 
@@ -321,5 +322,8 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
 
     return res;
 }
+
+// implemented in the probe.c file
+void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode);
 
 #endif

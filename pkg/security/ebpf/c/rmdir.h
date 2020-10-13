@@ -17,6 +17,7 @@ SYSCALL_KPROBE0(rmdir) {
     };
 
     cache_syscall(&syscall, EVENT_RMDIR);
+
     return 0;
 }
 
@@ -75,6 +76,13 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
             break;
     }
 
+    // be sure that invalidate inode is always done before any discard
+    invalidate_inode(ctx, key.mount_id, key.ino);
+
+    if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
+        return 0;
+    }
+
     if (dentry != NULL) {
         int ret = resolve_dentry(dentry, key, syscall->policy.mode != NO_FILTER ? event_type : 0);
         if (ret < 0) {
@@ -115,8 +123,6 @@ SYSCALL_KRETPROBE(rmdir) {
 
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
-
-    remove_inode_discarders(&event.file);
 
     send_event(ctx, event);
 

@@ -58,6 +58,8 @@ const (
 	ExecEventType
 	// ExitEventType - Exit event
 	ExitEventType
+	// InvalidateDentryEventType - Dentry invalidated event
+	InvalidateDentryEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
 	maxEventType
 )
@@ -94,6 +96,8 @@ func (t EventType) String() string {
 		return "exec"
 	case ExitEventType:
 		return "exit"
+	case InvalidateDentryEventType:
+		return "invalidate_dentry"
 	}
 	return "unknown"
 }

@@ -1,6 +1,8 @@
 #ifndef _FILTERS_H
 #define _FILTERS_H
 
+#include "process.h"
+
 enum policy_mode
 {
     ACCEPT = 1,
@@ -24,9 +26,6 @@ struct policy_t {
 struct filter_t {
     char value;
 };
-
-// implemented in the probe.c file
-void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file);
 
 struct bpf_map_def SEC("maps/filter_policy") filter_policy = {
     .type = BPF_MAP_TYPE_ARRAY,
@@ -86,6 +85,21 @@ void __attribute__((always_inline)) remove_inode_discarder(u64 event_type, u32 m
     };
 
     bpf_map_delete_elem(&inode_discarders, &key);
+}
+
+// cache_syscall checks the event policy in order to see if the syscall struct can be cached
+int __attribute__((always_inline)) discarded_by_process(const char mode, u64 event_type) {
+    if (mode != NO_FILTER) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+
+        struct proc_cache_t *entry = get_pid_cache(tgid);
+        if (entry && discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode)) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 #endif

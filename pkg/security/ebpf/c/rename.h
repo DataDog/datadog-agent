@@ -18,6 +18,7 @@ int __attribute__((always_inline)) trace__sys_rename() {
     };
 
     cache_syscall(&syscall, EVENT_RENAME);
+
     return 0;
 }
 
@@ -75,6 +76,13 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.real_src_dentry);
     }
 
+    // be sure that invalidate inode is always done before any discard
+    invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino);
+
+    if (discarded_by_process(syscall->policy.mode, EVENT_RENAME)) {
+        return 0;
+    }
+
     syscall->rename.target_key.path_id = bpf_get_prandom_u32();
 
     struct rename_event_t event = {
@@ -98,9 +106,6 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     fill_container_data(entry, &event.container);
 
     resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
-
-    // as old and new have are the same files, only one is needed
-    remove_inode_discarders(&event.new);
 
     send_event(ctx, event);
 

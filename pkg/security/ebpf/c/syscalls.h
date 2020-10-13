@@ -34,6 +34,7 @@ struct syscall_cache_t {
         } mkdir;
 
         struct {
+            struct dentry *dentry;
             struct path_key_t path_key;
             int overlay_numlower;
             int flags;
@@ -125,16 +126,6 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
 #ifdef DEBUG
         bpf_printk("cache/syscall policy for %d is %d\n", event_type, syscall->policy.mode);
 #endif
-
-    if (syscall->policy.mode != NO_FILTER) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-
-        struct proc_cache_t *entry = get_pid_cache(tgid);
-        if (entry && discarded_by_inode(event_type, entry->executable.mount_id, entry->executable.inode)) {
-            return;
-        }
-    }
 
     u64 key = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);

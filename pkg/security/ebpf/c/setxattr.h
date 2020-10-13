@@ -21,6 +21,11 @@ int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
     };
 
     cache_syscall(&syscall, EVENT_SETXATTR);
+
+    if (discarded_by_process(syscall.policy.mode, EVENT_SETXATTR)) {
+        pop_syscall(SYSCALL_SETXATTR);
+    }
+
     return 0;
 }
 

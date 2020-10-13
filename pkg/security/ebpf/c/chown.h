@@ -23,6 +23,11 @@ int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
     };
 
     cache_syscall(&syscall, EVENT_CHOWN);
+
+    if (discarded_by_process(syscall.policy.mode, EVENT_CHOWN)) {
+        pop_syscall(SYSCALL_CHOWN);
+    }
+
     return 0;
 }
 
