@@ -239,7 +239,7 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 }
 
 // processNodesList process a nodes list into process messages.
-func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	nodeMsgs := make([]*model.Node, 0, len(nodesList))
 
@@ -268,6 +268,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 			nodeModel.Tags = append(nodeModel.Tags, fmt.Sprintf("node_role:%s", strings.ToLower(role)))
 		}
 
+		nodeModel.Tags = append(nodeModel.Tags, extraTags...)
 		nodeMsgs = append(nodeMsgs, nodeModel)
 	}
 

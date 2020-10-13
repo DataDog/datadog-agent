@@ -302,7 +302,7 @@ func (o *Controller) processNodes() {
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processNodesList(nodesList, groupID, o.processConfig, o.clusterName, o.clusterID)
+	messages, err := processNodesList(nodesList, groupID, o.processConfig, o.clusterName, o.clusterID, o.extraTags)
 	if err != nil {
 		log.Errorf("Unable to process node list: %s", err)
 		return
