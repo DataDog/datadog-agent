@@ -6,6 +6,7 @@
 package config
 
 import (
+	"expvar"
 	"sync"
 )
 
@@ -34,17 +35,19 @@ type LogSource struct {
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
+	BytesRead  expvar.Int
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, config *LogsConfig) *LogSource {
 	return &LogSource{
-		Name:     name,
-		Config:   config,
-		Status:   NewLogStatus(),
-		inputs:   make(map[string]bool),
-		lock:     &sync.Mutex{},
-		Messages: NewMessages(),
+		Name:      name,
+		Config:    config,
+		Status:    NewLogStatus(),
+		inputs:    make(map[string]bool),
+		lock:      &sync.Mutex{},
+		Messages:  NewMessages(),
+		BytesRead: expvar.Int{},
 	}
 }
 
