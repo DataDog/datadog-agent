@@ -28,7 +28,6 @@ type Destination struct {
 	connManager         *ConnectionManager
 	destinationsContext *client.DestinationsContext
 	conn                net.Conn
-	connResetInterval   time.Duration
 	connCreationTime    time.Time
 	inputChan           chan []byte
 	once                sync.Once
@@ -42,7 +41,6 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		delimiter:           NewDelimiter(useProto),
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
-		connResetInterval:   endpoint.ConnectionResetInterval,
 	}
 }
 
@@ -81,7 +79,7 @@ func (d *Destination) Send(payload []byte) error {
 		return client.NewRetryableError(err)
 	}
 
-	if d.connResetInterval != 0 && time.Since(d.connCreationTime) > d.connResetInterval {
+	if d.connManager.ShouldReset(d.connCreationTime) {
 		log.Debug("Resetting TCP connection")
 		d.connManager.CloseConnection(d.conn)
 		d.conn = nil

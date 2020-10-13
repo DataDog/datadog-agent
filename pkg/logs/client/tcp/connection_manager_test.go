@@ -9,6 +9,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -68,4 +69,20 @@ func TestNewConnectionReturnsWhenContextCancelled(t *testing.T) {
 
 	// Make sure NewConnection really returns.
 	wg.Wait()
+}
+
+func TestShouldReset(t *testing.T) {
+	endpoint := config.Endpoint{ConnectionResetInterval: time.Duration(10) * time.Second}
+	connManager := NewConnectionManager(endpoint)
+
+	assert.False(t, connManager.ShouldReset(time.Now().Add(-time.Duration(5)*time.Second)))
+	assert.True(t, connManager.ShouldReset(time.Now().Add(-time.Duration(20)*time.Second)))
+}
+
+func TestShouldResetDisabled(t *testing.T) {
+	endpoint := config.Endpoint{ConnectionResetInterval: 0}
+	connManager := NewConnectionManager(endpoint)
+
+	assert.False(t, connManager.ShouldReset(time.Now().Add(-time.Duration(5)*time.Second)))
+	assert.False(t, connManager.ShouldReset(time.Now().Add(-time.Duration(20)*time.Second)))
 }
