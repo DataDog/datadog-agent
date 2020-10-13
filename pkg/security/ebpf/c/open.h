@@ -185,7 +185,7 @@ SEC("kretprobe/ovl_d_real")
 int kretprobe__ovl_d_real(struct pt_regs *ctx) {
    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
-        return 0;   
+        return 0;
 
     struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
     syscall->open.path_key.ino = get_dentry_ino(dentry);

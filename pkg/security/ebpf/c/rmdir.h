@@ -79,7 +79,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     // be sure that invalidate inode is always done before any discard
     invalidate_inode(ctx, key.mount_id, key.ino);
 
-    if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
+    if (discarded_by_process(syscall->policy.mode, event_type)) {
         return 0;
     }
 

@@ -232,7 +232,7 @@ func (dr *DentryResolver) Start() error {
 	}
 	dr.pathnames = pathnames
 
-	cache, err := lru.New(4096)
+	cache, err := lru.New(128)
 	if err != nil {
 		return err
 	}

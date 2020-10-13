@@ -34,7 +34,6 @@ struct syscall_cache_t {
         } mkdir;
 
         struct {
-            struct dentry *dentry;
             struct path_key_t path_key;
             int overlay_numlower;
             int flags;
