@@ -15,7 +15,7 @@ build do
 
   configure_args = [
     "--prefix=#{install_dir}/embedded",
-    "--enable-mini-agent",
+    "--enable-mini-agent",  # for a faster build
     "--with-default-snmp-version=2",
     "--with-sys-contact=contact",
     "--with-sys-location=Unknown",
