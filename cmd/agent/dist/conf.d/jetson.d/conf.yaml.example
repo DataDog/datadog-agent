@@ -4,3 +4,10 @@ instances:
   ## Defaults to `/usr/bin/tegrastats`
   #
   # - tegrastats_path: <PATH_TO_TEGRASTATS_UTILITY>
+  #
+  ## @param use_sudo - boolean - optional
+  ## Certain metrics require super-user privileges, such as the CPU/GPU frequency, the Audio-Processing Engine usage,
+  ## and IRAM values.
+  #
+  # - use_sudo: false
+  #

@@ -39,6 +39,7 @@ const (
 // The configuration for the jetson check
 type checkCfg struct {
 	TegraStatsPath string `yaml:"tegrastats_path,omitempty"`
+	UseSudo	bool `yaml:"use_sudo,omitempty"`
 }
 
 // JetsonCheck contains the field for the JetsonCheck
@@ -52,6 +53,7 @@ type JetsonCheck struct {
 	commandOpts []string
 
 	metricsSenders []metricsSender
+	useSudo        bool
 }
 
 // regexFindStringSubmatchMap returns a map of strings where the keys are the name
@@ -123,7 +125,12 @@ func (c *JetsonCheck) Run() error {
 	// the check forever
 	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval*time.Millisecond)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, c.tegraStatsPath, c.commandOpts...)
+	var cmd *exec.Cmd
+	if c.useSudo {
+		cmd = exec.CommandContext(ctx, "sudo", append([]string{c.tegraStatsPath}, c.commandOpts...)...)
+	} else {
+		cmd = exec.CommandContext(ctx, c.tegraStatsPath, c.commandOpts...)
+	}
 
 	// Parse the standard output for the stats
 	stdout, err := cmd.StdoutPipe()
@@ -195,6 +202,8 @@ func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Da
 		"--interval",
 		strconv.FormatInt(tegraStatsInterval.Milliseconds(), 10),
 	}
+
+	c.useSudo = conf.UseSudo
 
 	c.metricsSenders = []metricsSender{
 		&cpuMetricSender{},
