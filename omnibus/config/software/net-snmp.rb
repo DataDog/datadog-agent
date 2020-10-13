@@ -16,7 +16,11 @@ build do
   configure_args = [
     "--prefix=#{install_dir}/embedded",
     "--enable-mini-agent",
-    "--silent",
+    "--with-default-snmp-version=2",
+    "--with-sys-contact=contact",
+    "--with-sys-location=Unknown",
+    "--with-logfile=/var/log/snmpd.log",
+    "--with-persistent-directory=/var/net-snmp",
   ]
 
   configure_command = configure_args.unshift("./configure").join(" ")
