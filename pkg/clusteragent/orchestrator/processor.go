@@ -50,7 +50,6 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 			log.Debugf("Could not marshal deployment to JSON: %s", err)
 			continue
 		}
-		deployModel.Tags = append(deployModel.Tags, extraTags...)
 		deployModel.Yaml = jsonDeploy
 
 		deployMsgs = append(deployMsgs, deployModel)
@@ -69,6 +68,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
+			Tags:        extraTags,
 		})
 	}
 
@@ -125,7 +125,6 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 			log.Debugf("Could not marshal replica set to JSON: %s", err)
 			continue
 		}
-		rsModel.Tags = append(rsModel.Tags, extraTags...)
 		rsModel.Yaml = jsonRS
 
 		rsMsgs = append(rsMsgs, rsModel)
@@ -144,6 +143,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
+			Tags:        extraTags,
 		})
 	}
 
@@ -190,7 +190,6 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 			log.Debugf("Could not marshal service to JSON: %s", err)
 			continue
 		}
-		serviceModel.Tags = append(serviceModel.Tags, extraTags...)
 		serviceModel.Yaml = jsonSvc
 
 		serviceMsgs = append(serviceMsgs, serviceModel)
@@ -211,6 +210,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			Services:    chunks[i],
+			Tags:        extraTags,
 		})
 	}
 
@@ -268,7 +268,6 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 			nodeModel.Tags = append(nodeModel.Tags, fmt.Sprintf("node_role:%s", strings.ToLower(role)))
 		}
 
-		nodeModel.Tags = append(nodeModel.Tags, extraTags...)
 		nodeMsgs = append(nodeMsgs, nodeModel)
 	}
 
@@ -287,6 +286,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			Nodes:       chunks[i],
+			Tags:        extraTags,
 		})
 	}
 
