@@ -51,7 +51,7 @@ func TestMitre(t *testing.T) {
 				}
 				f.Close()
 			},
-			expectedRule: "credential_modified",
+			expectedRule: "credential_accessed",
 		},
 		{
 			action: func(t *testing.T) {
@@ -100,17 +100,6 @@ func TestMitre(t *testing.T) {
 				os.Remove("/usr/local/bin/pleaseremoveme")
 			},
 			expectedRule: "permissions_changed",
-		},
-		{
-			action: func(t *testing.T) {
-				f, err := os.Create("/.removeme")
-				if err != nil {
-					t.Fatal(err)
-				}
-				f.Close()
-				os.Remove("/.removeme")
-			},
-			expectedRule: "hidden_file",
 		},
 		{
 			action: func(t *testing.T) {

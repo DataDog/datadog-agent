@@ -18,7 +18,7 @@ import (
 )
 
 func TestProcess(t *testing.T) {
-	currentUser, err := user.Current()
+	currentUser, err := user.LookupId("0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestProcess(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`process.user == "%s" && process.name == "%s" && open.filename == "/etc/hosts"`, currentUser.Name, path.Base(executable)),
+		Expression: fmt.Sprintf(`process.user == "%s" && process.name == "%s" && open.filename == "{{.Root}}/test-process"`, currentUser.Name, path.Base(executable)),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{enableFilters: true})
@@ -39,11 +39,20 @@ func TestProcess(t *testing.T) {
 	}
 	defer test.Close()
 
-	f, err := os.Open("/etc/hosts")
+	testFile, _, err := test.Path("test-process")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	_, rule, err := test.GetEvent()
 	if err != nil {

@@ -81,6 +81,7 @@ core,"github.com/alecthomas/participle/lexer/ebnf",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf/internal",MIT
 core,"github.com/alecthomas/repr",MIT
 core,"github.com/armon/go-metrics",MIT
+core,"github.com/avast/retry-go",MIT
 core,"github.com/aws/aws-sdk-go/aws",Apache-2.0
 core,"github.com/aws/aws-sdk-go/aws/awserr",Apache-2.0
 core,"github.com/aws/aws-sdk-go/aws/awsutil",Apache-2.0
@@ -127,6 +128,7 @@ core,"github.com/cenkalti/backoff",MIT
 core,"github.com/cespare/xxhash",MIT
 core,"github.com/cihub/seelog",NewBSD
 core,"github.com/clbanning/mxj",MIT
+core,"github.com/cobaugh/osrelease",NewBSD
 core,"github.com/containerd/cgroups/stats/v1",Apache-2.0
 core,"github.com/containerd/containerd",Apache-2.0
 core,"github.com/containerd/containerd/api/events",Apache-2.0
@@ -260,6 +262,8 @@ core,"github.com/fatih/color",MIT
 core,"github.com/florianl/go-conntrack",MIT
 core,"github.com/florianl/go-conntrack/internal/unix",MIT
 core,"github.com/florianl/go-tc",MIT
+core,"github.com/florianl/go-tc/core",MIT
+core,"github.com/florianl/go-tc/internal/unix",MIT
 core,"github.com/frapposelli/wwhrd",MIT
 core,"github.com/freddierice/go-losetup",MIT
 core,"github.com/fsnotify/fsnotify",NewBSD

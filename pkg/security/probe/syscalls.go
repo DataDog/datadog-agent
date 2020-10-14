@@ -375,12 +375,13 @@ func syscallKprobe(name string, compat ...bool) []*ebpf.KProbe {
 				EntryFunc: "kprobe/" + getCompatSyscallFnName(name),
 				ExitFunc:  "kretprobe/" + getCompatSyscallFnName(name),
 			})
+		} else {
+			kprobes = append(kprobes, &ebpf.KProbe{
+				Name:      getIA32SyscallFnName(name),
+				EntryFunc: "kprobe/" + getIA32SyscallFnName(name),
+				ExitFunc:  "kretprobe/" + getIA32SyscallFnName(name),
+			})
 		}
-		kprobes = append(kprobes, &ebpf.KProbe{
-			Name:      getIA32SyscallFnName(name),
-			EntryFunc: "kprobe/" + getIA32SyscallFnName(name),
-			ExitFunc:  "kretprobe/" + getIA32SyscallFnName(name),
-		})
 	}
 
 	return kprobes

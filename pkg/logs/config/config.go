@@ -135,8 +135,9 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	useProto := coreConfig.Datadog.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")
 	main := Endpoint{
-		APIKey:       getLogsAPIKey(coreConfig.Datadog),
-		ProxyAddress: proxyAddress,
+		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
+		ProxyAddress:            proxyAddress,
+		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt("logs_config.connection_reset_interval")) * time.Second,
 	}
 	switch {
 	case isSetAndNotEmpty(coreConfig.Datadog, "logs_config.logs_dd_url"):

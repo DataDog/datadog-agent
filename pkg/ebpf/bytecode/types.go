@@ -106,14 +106,3 @@ const (
 func (b BPFMapName) SectionName() string {
 	return fmt.Sprintf("maps/%s", b)
 }
-
-var (
-	// KProbeOverrides specifies a mapping between sections in our kprobe functions and
-	// the actual eBPF function that it should bind to
-	KProbeOverrides = map[ProbeName]ProbeName{
-		TCPSendMsgPre410: TCPSendMsg,
-		UDPRecvMsgPre410: UDPRecvMsg,
-		SysBindX64:       SysBind,
-		SysSocketX64:     SysSocket,
-	}
-)
