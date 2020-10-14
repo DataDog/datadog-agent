@@ -1759,8 +1759,8 @@ func TestConnectionClobber(t *testing.T) {
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
 	srvRecvBuf := make([]byte, 4)
 	server := NewTCPServer(func(c net.Conn) {
-		io.ReadFull(c, srvRecvBuf)
-		c.Write(srvRecvBuf)
+		_, _ = io.ReadFull(c, srvRecvBuf)
+		_, _ = c.Write(srvRecvBuf)
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
@@ -1789,7 +1789,7 @@ func TestConnectionClobber(t *testing.T) {
 				if _, err = c.Write(sendBuf); err != nil {
 					t.Fatal(err)
 				}
-				io.ReadFull(c, recvBuf)
+				_, _ = io.ReadFull(c, recvBuf)
 				sendWg.Done()
 				<-closeCh
 			}()
