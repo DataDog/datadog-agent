@@ -309,15 +309,13 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 	for _, payload := range payloads {
 		for domain, apiKeys := range f.keysPerDomains {
 			for _, apiKey := range apiKeys {
-				transactionEndpoint := endpoint.route
 				if apiKeyInQueryString {
-					transactionEndpoint = fmt.Sprintf("%s?api_key=%s", endpoint.route, apiKey)
+					endpoint.route = fmt.Sprintf("%s?api_key=%s", endpoint.route, apiKey)
 				}
 				t := NewHTTPTransaction()
 				t.Domain = domain
-				t.Endpoint = transactionEndpoint
+				t.Endpoint = endpoint
 				t.Payload = payload
-				t.endpointName = endpoint.name
 				t.priority = priority
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)

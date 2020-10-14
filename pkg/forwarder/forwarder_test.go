@@ -123,10 +123,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
 	assert.Equal(t, testVersionDomain, transactions[2].Domain)
 	assert.Equal(t, testVersionDomain, transactions[3].Domain)
-	assert.Equal(t, endpoint.route, transactions[0].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[1].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[2].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[3].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[0].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[1].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[2].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[3].Endpoint.route)
 	assert.Len(t, transactions[0].Headers, 4)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
@@ -139,10 +139,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 4)
-	assert.Contains(t, transactions[0].Endpoint, "api_key=api-key-1")
-	assert.Contains(t, transactions[1].Endpoint, "api_key=api-key-2")
-	assert.Contains(t, transactions[2].Endpoint, "api_key=api-key-1")
-	assert.Contains(t, transactions[3].Endpoint, "api_key=api-key-2")
+	assert.Contains(t, transactions[0].Endpoint.route, "api_key=api-key-1")
+	assert.Contains(t, transactions[1].Endpoint.route, "api_key=api-key-2")
+	assert.Contains(t, transactions[2].Endpoint.route, "api_key=api-key-1")
+	assert.Contains(t, transactions[3].Endpoint.route, "api_key=api-key-2")
 }
 
 func TestSendHTTPTransactions(t *testing.T) {

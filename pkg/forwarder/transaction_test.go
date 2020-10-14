@@ -40,7 +40,7 @@ func TestProcess(t *testing.T) {
 
 	transaction := NewHTTPTransaction()
 	transaction.Domain = ts.URL
-	transaction.Endpoint = "/endpoint/test"
+	transaction.Endpoint.route = "/endpoint/test"
 	payload := []byte("test payload")
 	transaction.Payload = &payload
 
@@ -53,7 +53,7 @@ func TestProcess(t *testing.T) {
 func TestProcessInvalidDomain(t *testing.T) {
 	transaction := NewHTTPTransaction()
 	transaction.Domain = "://invalid"
-	transaction.Endpoint = "/endpoint/test"
+	transaction.Endpoint.route = "/endpoint/test"
 	payload := []byte("test payload")
 	transaction.Payload = &payload
 
@@ -66,7 +66,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 func TestProcessNetworkError(t *testing.T) {
 	transaction := NewHTTPTransaction()
 	transaction.Domain = "http://localhost:1234"
-	transaction.Endpoint = "/endpoint/test"
+	transaction.Endpoint.route = "/endpoint/test"
 	payload := []byte("test payload")
 	transaction.Payload = &payload
 
@@ -86,7 +86,7 @@ func TestProcessHTTPError(t *testing.T) {
 
 	transaction := NewHTTPTransaction()
 	transaction.Domain = ts.URL
-	transaction.Endpoint = "/endpoint/test"
+	transaction.Endpoint.route = "/endpoint/test"
 	payload := []byte("test payload")
 	transaction.Payload = &payload
 
@@ -114,7 +114,7 @@ func TestProcessHTTPError(t *testing.T) {
 func TestProcessCancel(t *testing.T) {
 	transaction := NewHTTPTransaction()
 	transaction.Domain = "example.com"
-	transaction.Endpoint = "/endpoint/test"
+	transaction.Endpoint.route = "/endpoint/test"
 	payload := []byte("test payload")
 	transaction.Payload = &payload
 

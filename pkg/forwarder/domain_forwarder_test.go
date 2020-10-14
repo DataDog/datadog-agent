@@ -122,10 +122,10 @@ func TestRetryTransactions(t *testing.T) {
 
 	t1 := NewHTTPTransaction()
 	t1.Domain = "domain/"
-	t1.Endpoint = "test1"
+	t1.Endpoint.route = "test1"
 	t2 := NewHTTPTransaction()
 	t2.Domain = "domain/"
-	t2.Endpoint = "test2"
+	t2.Endpoint.route = "test2"
 
 	// Create blocks
 	forwarder.blockedList.recover(t1.GetTarget())

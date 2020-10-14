@@ -184,7 +184,7 @@ type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
 	Domain string
 	// Endpoint is the API Endpoint used by the HTTPTransaction.
-	Endpoint string
+	Endpoint endpoint
 	// Headers are the HTTP headers used by the HTTPTransaction.
 	Headers http.Header
 	// Payload is the content delivered to the backend.
@@ -201,8 +201,7 @@ type HTTPTransaction struct {
 	// completionHandler will be called with a transaction after it has been successfully sent
 	completionHandler HTTPCompletionHandler
 
-	priority     TransactionPriority
-	endpointName string
+	priority TransactionPriority
 }
 
 // Transaction represents the task to process for a Worker.
@@ -234,7 +233,7 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 
 // GetTarget return the url used by the transaction
 func (t *HTTPTransaction) GetTarget() string {
-	url := t.Domain + t.Endpoint
+	url := t.Domain + t.Endpoint.route
 	return httputils.SanitizeURL(url) // sanitized url that can be logged
 }
 
@@ -245,7 +244,7 @@ func (t *HTTPTransaction) GetPriority() TransactionPriority {
 
 // GetEndpointName returns the name of the endpoint used by the transaction
 func (t *HTTPTransaction) GetEndpointName() string {
-	return t.endpointName
+	return t.Endpoint.name
 }
 
 // GetPayloadSize returns the size of the payload.
@@ -280,7 +279,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
 	reader := bytes.NewReader(*t.Payload)
-	url := t.Domain + t.Endpoint
+	url := t.Domain + t.Endpoint.route
 	transactionEndpointName := getTransactionEndpointName(t)
 	logURL := httputils.SanitizeURL(url) // sanitized url that can be logged
 
