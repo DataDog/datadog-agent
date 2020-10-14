@@ -85,7 +85,7 @@ struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
 };
 
 /* This maps tracks listening TCP ports. Entries are added to the map via tracing the inet_csk_accept syscall.  The
- * key in the map is the pid and network namespace inode together with the port and the value is a flag that
+ * key in the map is the network namespace inode together with the port and the value is a flag that
  * indicates if the port is listening or not. When the socket is destroyed (via tcp_v4_destroy_sock), we set the
  * value to be "port closed" to indicate that the port is no longer being listened on.  We leave the data in place
  * for the userspace side to read and clean up
@@ -844,7 +844,6 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     }
 
     port_binding_t t = {};
-    t.pid = bpf_get_current_pid_tgid() >> 32;
     t.net_ns = get_netns_from_sock(newsk);
     t.port = lport;
 
@@ -855,7 +854,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
         bpf_map_update_elem(&port_bindings, &t, &state, BPF_ANY);
     }
 
-    log_debug("kretprobe/inet_csk_accept: pid: %d, lport: %d\n", t.pid, t.port);
+    log_debug("kretprobe/inet_csk_accept: net ns: %d, lport: %d\n", t.net_ns, t.port);
     return 0;
 }
 
@@ -878,7 +877,6 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     }
 
     port_binding_t t = {};
-    t.pid = bpf_get_current_pid_tgid() >> 32;
     t.net_ns = get_netns_from_sock(sk);
     t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
@@ -887,7 +885,7 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
         bpf_map_update_elem(&port_bindings, &t, &state, BPF_ANY);
     }
 
-    log_debug("kprobe/tcp_v4_destroy_sock: pid: %d, lport: %d\n", t.pid, t.port);
+    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.net_ns, t.port);
     return 0;
 }
 
@@ -912,10 +910,9 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
     // decide if the port is bound, if not, do nothing
     port_binding_t t = {};
-    t.pid = bpf_get_current_pid_tgid() >> 32;
     // although we have net ns info, we don't use it in the key
     // since we don't have it everywhere for udp port bindings
-    // (see sys_exit_bind below)
+    // (see sys_enter_bind/sys_exit_bind below)
     t.net_ns = 0;
     t.port = lport;
     __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &t);
@@ -1030,8 +1027,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     __u16 sin_port = args->port;
     __u8 port_state = PORT_LISTENING;
     port_binding_t t = {};
-    t.pid = tid >> 32;
-    t.net_ns = 0; // don't have net ns info; this will get looked up by pid in go
+    t.net_ns = 0; // don't have net ns info in this context
     t.port = sin_port;
     bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);

@@ -519,12 +519,12 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 		return nil, 0, nil
 	}
 
-	closedPortBindings, closedNetNs, err := t.populatePortMapping(portMp, t.portMapping)
+	closedPortBindings, err := t.populatePortMapping(portMp, t.portMapping)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error populating port mapping: %s", err)
 	}
 
-	closedUDPPortBindings, closedUDPNetNs, err := t.populatePortMapping(udpPortMp, t.udpPortMapping)
+	closedUDPPortBindings, err := t.populatePortMapping(udpPortMp, t.udpPortMapping)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error populating UDP port mapping: %s", err)
 	}
@@ -565,15 +565,15 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
-	for i, key := range closedPortBindings {
+	for _, key := range closedPortBindings {
 		port := uint16(key.port)
-		t.portMapping.RemoveMapping(closedNetNs[i], port)
+		t.portMapping.RemoveMapping(uint64(key.net_ns), port)
 		_ = portMp.Delete(unsafe.Pointer(&key))
 	}
 
-	for i, key := range closedUDPPortBindings {
+	for _, key := range closedUDPPortBindings {
 		port := uint16(key.port)
-		t.udpPortMapping.RemoveMapping(closedUDPNetNs[i], port)
+		t.udpPortMapping.RemoveMapping(uint64(key.net_ns), port)
 		_ = udpPortMp.Delete(unsafe.Pointer(&key))
 	}
 
@@ -767,40 +767,26 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // closed ports will be returned.
 // the map will be one of port_bindings  or udp_port_bindings, and the mapping will be one of tracer#portMapping
 // tracer#udpPortMapping respectively.
-func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping) (closed []portBindingTuple, closedNetNs []uint64, err error) {
+func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping) (closed []portBindingTuple, err error) {
 	var key, emptyKey portBindingTuple
 	var state uint8
 
-	inos := make(map[int]uint64)
 	entries := mp.IterateFrom(unsafe.Pointer(&emptyKey))
 	for entries.Next(unsafe.Pointer(&key), unsafe.Pointer(&state)) {
-		pid := int(key.pid)
 		ino := uint64(key.net_ns)
 		port := uint16(key.port)
-		if ino == 0 {
-			var ok bool
-			if ino, ok = inos[pid]; !ok {
-				var err error
-				if ino, err = util.GetNetNsInoFromPid(t.config.ProcRoot, pid); err != nil {
-					log.Errorf("could not add port mapping (pid: %d port: %d), could not get net ns for pid %d: %s", pid, port, pid, err)
-					continue
-				}
-
-			}
-		}
-
-		inos[pid] = ino
-
-		log.Tracef("adding port mapping for port=%d net_ns=%d", port, ino)
-		mapping.AddMapping(ino, port)
 
 		if isPortClosed(state) {
+			key.setNetNs(ino)
+			log.Tracef("port mapping closed port=%d net_ns=%d", key.port, key.net_ns)
 			closed = append(closed, key)
-			closedNetNs = append(closedNetNs, ino)
+		} else {
+			log.Tracef("port mapping added port=%d net_ns=%d", key.port, key.net_ns)
+			mapping.AddMapping(ino, port)
 		}
 	}
 
-	return closed, closedNetNs, nil
+	return closed, nil
 }
 
 func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) network.ConnectionDirection {

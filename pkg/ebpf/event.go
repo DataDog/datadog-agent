@@ -53,6 +53,10 @@ __u16 port;
 */
 type portBindingTuple C.port_binding_t
 
+func (t *portBindingTuple) setNetNs(netNs uint64) {
+	t.net_ns = C.uint(netNs)
+}
+
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
 		pid:      t.pid,
