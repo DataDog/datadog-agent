@@ -2,6 +2,42 @@
 Release Notes
 =============
 
+
+.. _Release Notes_1.9.0:
+
+1.9.0
+=====
+
+.. _Release Notes_1.9.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-10-13
+Pinned to datadog-agent v7.23.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7230--6230>`_..
+
+New Features
+------------
+
+- Collect the node and cluster resource in Kubernetes for the Orchestrator Explorer (#6297).
+- Add `resolve` option to the endpoint checks (#5918).
+- Add `health` command (#6144).
+- Add options to configure the External Metrics Server (#6406).
+
+Enhancement Notes
+-----------------
+
+- Fill DatadogMetric `AutoscalerReferences` field to ease usage/investigation of DatadogMetrics (#6367).
+- Only run compliance checks on the Cluster Agent leader (#6311).
+- Add `orchestrator_explorer` configuration to enable the cluster-id ConfigMap creation and Orchestrator Explorer instanciation (#6189).
+
+Bug Fixes
+---------
+
+- Fix transformer for gibiBytes and gigaBytes (#6437).
+- Fix `cluster-agent` commands to allow executing the `readsecret.sh` script for the secret backend feature (#6445). 
+- Fix issue with External Metrics when several HPAs use the same query (#6412).
+
 .. _Release Notes_1.8.0:
 
 1.8.0
