@@ -286,7 +286,7 @@ def test_host_metrics(host):
         assert_metric("stackstate.process.containers.host_count", lambda v: v == 0.0, lambda v: v == 0.0, lambda v: v == 0.0)
 
         # Assert that we don't see any Datadog metrics
-        datadog_metrics = [(key, value) for key, value in metrics.iteritems() if key.startswith("datadog")]
+        datadog_metrics = [(key, value) for key, value in metrics.items() if key.startswith("datadog")]
         assert len(datadog_metrics) == 0, 'Datadog metrics found in sts_metrics: [%s]' % ', '.join(map(str, datadog_metrics))
 
     util.wait_until(wait_for_metrics, 30, 3)

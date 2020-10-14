@@ -52,3 +52,65 @@ Under `./molecule-role/win-image-refresh` there is a terraform script that can b
     $ terraform init
     $ terraform plan -o win.plan
     $ terraform apply -f win.plan
+
+## Emulating pipeline molecule run locally
+
+```sh
+
+export MOLECULE_RUN_ID=${USER}_manual
+export AGENT_CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
+export quay_password=SPECIFY_ENCRYPTED_CHECK_UI
+export quay_user=SPECIFY
+export STACKSTATE_BRANCH=master
+```
+
+you can only converge environment, like 
+
+```sh
+cd test/molecule-role
+molecule converge -s vms
+```
+
+Important, do not leave dangling instances on a cloud after manual troubleshouting.
+
+In compose scenario to get round of traces
+
+```sh
+curl -H Host:stackstate-books-app -s -o /dev/null -w \"%{http_code}\" http://localhost/stackstate-books-app/listbooks
+```
+getting intercepted payload from simulator
+
+```sh
+curl -o out.json http://localhost:7077/download
+```
+
+
+### Leaving instances up for troubleshouting
+```sh
+molecule test -s vm --destroy=never
+```
+
+### Escaping root device size
+
+```yaml
+
+- name: ami facts
+  ec2_ami_info:
+    image_ids: "{{ ami_id }}"
+  register: ami_facts
+
+- name: set current ami
+  set_fact:
+    ami: "{{ ami_facts.images | first }}"
+```
+
+    
+and use ami.root_device_name    
+
+
+you can also get the same information from console, like
+
+```sh
+ ansible localhost -m ec2_ami_info -a "image_ids=ami-09ae46ee3ab46c423" | grep root_device
+```
+

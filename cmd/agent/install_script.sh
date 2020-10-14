@@ -7,7 +7,6 @@
 # using the package manager and StackState repositories.
 
 set -e
-install_script_version=1.0.0
 
 PKG_NAME="stackstate-agent"
 PKG_USER="stackstate-agent"
@@ -15,6 +14,12 @@ ETCDIR="/etc/stackstate-agent"
 CONF="$ETCDIR/stackstate.yaml"
 
 logfile="$PKG_NAME-install.log"
+
+if [ $(command -v curl) ]; then
+    dl_cmd="curl -f"
+else
+    dl_cmd="wget --quiet"
+fi
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.tmp
@@ -24,7 +29,7 @@ mknod $npipe p
 tee <$npipe $logfile &
 exec 1>&-
 exec 1>$npipe 2>&1
-trap 'rm -f $npipe' EXIT
+trap "rm -f $npipe" EXIT
 
 # Colours
 readonly C_NOC="\\033[0m"    # No colour
@@ -57,17 +62,14 @@ solve your problem.\n"
 }
 trap on_error ERR
 
-hostname=
 if [ -n "$STS_API_KEY" ]; then
-    dd_hostname=$DD_HOSTNAME
+    api_key=$STS_API_KEY
 fi
 
-site=
 if [ -n "$STS_SITE" ]; then
     site="$STS_SITE"
 fi
 
-apikey=
 if [ -n "$STS_URL" ]; then
     sts_url=$STS_URL
 fi
@@ -77,6 +79,7 @@ if [ -n "$STS_INSTALL_ONLY" ]; then
     no_start=true
 fi
 
+no_repo=
 if [ ! -z "$STS_INSTALL_NO_REPO" ]; then
     no_repo=true
 fi
@@ -94,64 +97,14 @@ else
 fi
 
 if [ -n "$CODE_NAME" ]; then
-  repo_url=$REPO_URL
+    code_name=$CODE_NAME
 else
-  repo_url="datadoghq.com"
+    code_name="stable"
 fi
 
-if [ -n "$TESTING_YUM_URL" ]; then
-  yum_url=$TESTING_YUM_URL
-else
-  yum_url="yum.${repository_url}"
-fi
-
-if [ -n "$TESTING_APT_URL" ]; then
-  apt_url=$TESTING_APT_URL
-else
-  apt_url="apt.${repository_url}"
-fi
-
-dd_upgrade=
 if [ -z "$DEBIAN_REPO" ]; then
-  dd_upgrade=$DD_UPGRADE
+    # for offline script remember default production repo address
     DEBIAN_REPO="https://stackstate-agent-2.s3.amazonaws.com"
-fi
-
-agent_major_version=6
-if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
-  if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
-    echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
-    exit 1;
-  fi
-  agent_major_version=$DD_AGENT_MAJOR_VERSION
-else
-  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
-fi
-
-agent_flavor="datadog-agent"
-if [ -n "$DD_AGENT_FLAVOR" ]; then
-    agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
-fi
-
-agent_dist_channel=stable
-if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
-  if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
-    echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
-    exit 1;
-  fi
-  agent_dist_channel=$DD_AGENT_DIST_CHANNEL
-fi
-
-if [ -n "$TESTING_YUM_VERSION_PATH" ]; then
-  yum_version_path=$TESTING_YUM_VERSION_PATH
-else
-  yum_version_path="${agent_dist_channel}/${agent_major_version}"
-fi
-
-if [ -n "$TESTING_APT_REPO_VERSION" ]; then
-  apt_repo_version=$TESTING_APT_REPO_VERSION
-else
-  apt_repo_version="${agent_dist_channel} ${agent_major_version}"
 fi
 
 if [ -z "$YUM_REPO" ]; then
@@ -163,12 +116,12 @@ if [ -n "$SKIP_SSL_VALIDATION" ]; then
     skip_ssl_validation=$SKIP_SSL_VALIDATION
 fi
 
-if [ ! $apikey ]; then
+if [ ! $api_key ]; then
     print_red "API key not available in STS_API_KEY environment variable.\n"
     exit 1
 fi
 
-  if [ ! $dd_upgrade ]; then
+if [ ! $sts_url ]; then
     print_red "StackState url not available in STS_URL environment variable.\n"
     exit 1
 fi
@@ -187,29 +140,29 @@ fi
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
-if [ "$DISTRIBUTION" = "Darwin" ]; then
+if [ $DISTRIBUTION = "Darwin" ]; then
     print_red "This script does not support installing on the Mac.
 
 Please use the 1-step script available at https://app.datadoghq.com/account/settings#agent/mac."
     exit 1
 
-elif [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
+elif [ -f /etc/debian_version -o "$DISTRIBUTION" == "Debian" -o "$DISTRIBUTION" == "Ubuntu" ]; then
     OS="Debian"
-elif [ -f /etc/redhat-release ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "Amazon" ]; then
+elif [ -f /etc/redhat-release -o "$DISTRIBUTION" == "RedHat" -o "$DISTRIBUTION" == "CentOS" -o "$DISTRIBUTION" == "Amazon" ]; then
     OS="RedHat"
 # Some newer distros like Amazon may not have a redhat-release file
-elif [ -f /etc/system-release ] || [ "$DISTRIBUTION" == "Amazon" ]; then
+elif [ -f /etc/system-release -o "$DISTRIBUTION" == "Amazon" ]; then
     OS="RedHat"
 # Arista is based off of Fedora14/18 but do not have /etc/redhat-release
-elif [ -f /etc/Eos-release ] || [ "$DISTRIBUTION" == "Arista" ]; then
+elif [ -f /etc/Eos-release -o "$DISTRIBUTION" == "Arista" ]; then
     OS="RedHat"
 # openSUSE and SUSE use /etc/SuSE-release or /etc/os-release
-elif [ -f /etc/SuSE-release ] || [ "$DISTRIBUTION" == "SUSE" ] || [ "$DISTRIBUTION" == "openSUSE" ]; then
+elif [ -f /etc/SuSE-release -o "$DISTRIBUTION" == "SUSE" -o "$DISTRIBUTION" == "openSUSE" ]; then
     OS="SUSE"
 fi
 
 # Root user detection
-if [ "$(echo "$UID")" = "0" ]; then
+if [ $(echo "$UID") = "0" ]; then
     sudo_cmd=''
 else
     sudo_cmd='sudo'
@@ -270,6 +223,20 @@ If the failing repository is StackState, please contact StackState support.
         ERROR_MESSAGE=""
     else
         print_blu "* ($INSTALL_MODE) Installing local deb package $LOCAL_PKG_NAME \n"
+# If unattended upgrade in place - wait for lock to disappear.
+        print_blu "* ($INSTALL_MODE) Waiting for initial /var/lib/dpkg/lock absence \n"
+        while $sudo_cmd fuser /var/lib/dpkg/lock >/dev/null 2>&1; do echo "."; sleep 10; done;
+# wait additional 10 seconds to ensure, that activity around lock is done
+        i=0
+        while [ $i -lt 10 ]
+        do
+        if [ $($sudo_cmd fuser /var/lib/dpkg/lock) ]; then
+          i=0
+        fi
+        sleep 1
+        i=$[$i+1]
+        echo ".."
+        done
         $sudo_cmd dpkg -i $LOCAL_PKG_NAME
     fi
     if [ ! -z "$no_repo" ]; then

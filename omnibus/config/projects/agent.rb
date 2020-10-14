@@ -202,6 +202,8 @@ end
 
 # External agents
 dependency 'jmxfetch'
+# //TODO: [STS] Embed code changes into main source code
+dependency 'stackstate-process-agent'
 
 # version manifest file
 dependency 'version-manifest'

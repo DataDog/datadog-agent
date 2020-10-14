@@ -3,6 +3,29 @@
   hosts: kubernetes-cluster-agent
   gather_facts: true
   tasks:
+    - name: Ubuntu18 automatic updates (wait for lock) (1/2)
+      shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Ubuntu18 automatic updates (wait for lock) (2/2)
+      shell: "sleep 15; while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Install provisioning dependencies (1/2)
+      apt:
+        name:
+          python3-pip
+        state: present
+      become: yes
+      register: pip3_res
+      retries: 15
+      delay: 5
+      until: pip3_res is success
+
+    - name: Install provisioning dependencies (2/2)
+      shell: pip3 install docker
+      become: yes
+
     - name: Configure aws credentials
       copy:
         content: |

@@ -3,6 +3,9 @@
 ## Basic Configuration ##
 #########################
 
+# The host of the StackState receiver to send Agent data to
+sts_url:
+
 ## @param api_key - string - required
 ## The StackState API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
@@ -645,13 +648,14 @@ api_key:
 ## Uncomment this parameter and the one below to enable them.
 ## See https://docs.datadoghq.com/agent/apm/
 #
-# apm_config:
+# [STS]
+apm_config:
 
   ## @param enabled - boolean - optional - default: true
   ## Set to true to enable the APM Agent.
-  #
-  # enabled: true
-
+  # [STS]
+  enabled: true
+  apm_sts_url:
   ## @param env - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
   ## If not set the value will be inherited, in order, from the top level
@@ -662,8 +666,8 @@ api_key:
 
   ## @param receiver_port - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
-  #
-  # receiver_port: 8126
+  # [STS] default
+  receiver_port: 8126
 
   ## @param receiver_socket - string - optional
   ## Accept traces through Unix Domain Sockets.
@@ -674,8 +678,8 @@ api_key:
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
-  #
-  # apm_non_local_traffic: false
+  # [STS] default
+  apm_non_local_traffic: true
 
   ## @param apm_dd_url - string - optional
   ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
@@ -767,7 +771,7 @@ api_key:
 ## Uncomment this parameter and the one below to enable them.
 ## See https://docs.datadoghq.com/graphing/infrastructure/process/
 #
-# process_config:
+process_config:
 
   ## @param enabled - string - optional - default: "false"
   ##  A string indicating the enabled state of the Process Agent:
@@ -775,7 +779,10 @@ api_key:
   ##    * "true"     : The Agent collects containers and processes information.
   ##    * "disabled" : The Agent process collection is disabled.
   #
-  # enabled: "true"
+  # [STS] default
+  enabled: "true"
+  process_sts_url:
+  # /[STS] default
 
   ## @param expvar_port - string - optional - default: 6062
   ## Port for the debug endpoints for the process Agent.
@@ -797,6 +804,28 @@ api_key:
   #   process: 10
   #   process_realtime: 2
 
+  intervals:
+     container: 30
+     process: 30
+     connections: 30
+
+  # [STS] DEFAULTS for agent 2.6.0
+   ##  Process blacklisting is used to filter out unwanted processes and not report them to StackState.
+  process_blacklist:
+      #    patterns:
+      #      - "regex-pattern"
+      ##    Inclusions override the blacklist patterns, these are used to include process that consume a lot of resources.
+      ##    Each inclusion type: top_cpu, top_io_read, top_io_write and top_mem have an amount of processes that get's considered
+      ##    as the top x resource using processes. For top_cpu and top_mem there is a threshold that needs to be met first, meaning
+      ##    the process needs to consume more resource % than the threshold.
+     inclusions:
+         amount_top_cpu_pct_usage: 3
+         cpu_pct_usage_threshold: 20
+         amount_top_io_read_usage: 3
+         amount_top_io_write_usage: 3
+         amount_top_mem_usage: 3
+         mem_usage_threshold: 35
+  # /[STS] DEFAULTS
   ## @param blacklist_patterns - list of strings - optional
   ## A list of regex patterns that exclude processes if matched.
   #
@@ -806,7 +835,7 @@ api_key:
   ## @param queue_size - integer - optional - default: 20
   ## How many check results to buffer in memory when POST fails.
   #
-  # queue_size: 20
+  queue_size: 10
 
   ## @param max_per_message - integer - optional - default: 100
   ## The maximum number of processes or containers per message.
@@ -840,6 +869,12 @@ api_key:
   #   - '*token'
   #   - 'sql*'
   #   - '*pass*d*'
+
+# [STS] defaults
+network_tracer_config:
+   network_tracing_enabled: "true"
+   initial_connections_from_proc: "true"
+# /[STS] defaults
 
 {{ end -}}
 {{- if .SystemProbe }}

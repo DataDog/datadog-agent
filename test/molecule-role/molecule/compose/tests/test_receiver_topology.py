@@ -158,13 +158,14 @@ def test_java_traces(host):
         ]
 
         for c in components:
-            print("Running assertion for: " + c["assertion"])
+            print("Running assertion for component: " + c["assertion"])
             assert _component_data(
                 json_data=json_data,
                 type_name=c["type"],
                 external_id_assert_fn=c["external_id"],
                 data_assert_fn=c["data"],
             ) is not None
+            print("/ OK for: " + c["assertion"])
 
         relations = [
             {
@@ -286,12 +287,13 @@ def test_java_traces(host):
         ]
 
         for i, r in enumerate(relations):
-            print("Running assertion for: " + r["assertion"])
+            print("Running assertion for relation: " + r["assertion"])
             assert _relation_data(
                 json_data=json_data,
                 type_name=r["type"],
                 external_id_assert_fn=r["external_id"],
             ) is not None
+            print("/ OK for: " + r["assertion"])
 
         #         calls               calls        has                  is module of
         # traefik  -->  traefik:books  -->  books  -->  books-instance     -->        books-process

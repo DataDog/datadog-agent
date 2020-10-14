@@ -5,6 +5,30 @@
   vars_files:
     - common_vars.yml
   tasks:
+
+    - name: Ubuntu18 automatic updates (wait for lock) (1/2)
+      shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Ubuntu18 automatic updates (wait for lock) (2/2)
+      shell: "sleep 15; while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Install provisioning dependencies (1/2)
+      apt:
+        name:
+          python3-pip
+        state: present
+      become: yes
+      register: pip3_res
+      retries: 15
+      delay: 5
+      until: pip3_res is success
+
+    - name: Install provisioning dependencies (2/2)
+      shell: pip3 install docker
+      become: yes
+
     - name: Configure aws credentials
       copy:
         content: |
@@ -12,6 +36,7 @@
           aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
           aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
         dest: /home/ubuntu/.aws/credentials
+
     - name: Docker login
       docker_login:
         registry: quay.io
@@ -82,9 +107,31 @@
   vars_files:
     - common_vars.yml
   tasks:
+    - name: Ubuntu18 automatic updates (wait for lock) (1/2)
+      shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Ubuntu18 automatic updates (wait for lock) (2/2)
+      shell: "sleep 15; while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Install provisioning dependencies (1/2)
+      apt:
+        name:
+          python3-pip
+        state: present
+      become: yes
+      register: pip3_res
+      retries: 15
+      delay: 5
+      until: pip3_res is success
+
+    - name: Install provisioning dependencies (2/2)
+      shell: pip3 install docker
+      become: yes
     - name: Installing multiple python packages in Ansible
-      pip:
-        name: boto,boto3
+      shell: pip3 install boto boto3
+      become: yes
     - name: Add Docker GPG APT key
       become: true
       apt_key: url=https://download.docker.com/linux/ubuntu/gpg
@@ -145,7 +192,7 @@
         timeout: 90
       register: net_try1
       ignore_errors: true
-      until: net_try1.finished
+      until: net_try1 is not failed
     - name: Install netcat (2/2)
       win_chocolatey:
         name: netcat
@@ -365,8 +412,7 @@
       pause:
         seconds: 10
     - name: Installing requests library for test connections
-      pip:
-        name: requests
+      shell: pip install requests
     - name: "Start a python http server to make requests to http://localhost:{{ network_relation_test_server_port_single_request }}"
       shell: "python -m SimpleHTTPServer {{ network_relation_test_server_port_single_request }}"
       async: "{{ max_test_time }}"

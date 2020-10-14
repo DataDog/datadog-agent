@@ -495,18 +495,18 @@ pre_release_win:
     - Import-VisualStudioVars 2017 -Architecture amd64
     - ridk enable
   script:
-    - ls
     - $env:VERSION = Get-Content version.txt -First 1
 # //TODO: in Windows MSI is build with hash shorter on one character. Find where.
     - $Env:VERSION=$Env:VERSION.Substring(0,$Env:VERSION.Length-1)
     - $filename = "stackstate-agent-" + $Env:VERSION + "-1-x86_64.msi"
     - $filename
     - Copy-Item $filename -Destination stackstate-agent-latest-1-x86_64.msi
-    - cmd /c 'echo aws.exe s3 cp . s3://%STS_AWS_TEST_BUCKET_WIN%/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read'
-    - cmd /c 'aws.exe s3 cp . s3://%STS_AWS_TEST_BUCKET_WIN%/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read'
+    - ls
+    - aws.exe s3 cp . s3://$Env:STS_AWS_TEST_BUCKET_WIN/windows/$Env:CI_COMMIT_REF_NAME --recursive --exclude "*" --include "*.msi" --acl public-read
     - inv release.generate-install -t
-    - cmd /c 'echo aws.exe s3 cp ./cmd/agent/install.ps1 s3://%STS_AWS_TEST_BUCKET_WIN%/install.ps1 --acl public-read'
-    - cmd /c 'aws.exe s3 cp ./cmd/agent/install.ps1 s3://%STS_AWS_TEST_BUCKET_WIN%/install.ps1 --acl public-read'
+    - aws.exe s3 cp ./cmd/agent/install.ps1 s3://$Env:STS_AWS_TEST_BUCKET_WIN/install.ps1 --acl public-read
+    - aws.exe s3 ls s3://$Env:STS_AWS_TEST_BUCKET_WIN/windows/$Env:CI_COMMIT_REF_NAME/
+    - aws.exe s3 ls s3://$Env:STS_AWS_TEST_BUCKET_WIN/
   tags:
     - windows_agent7_ps1
 
@@ -575,7 +575,6 @@ pre_release_cluster_agent_image:
 
 molecule_tests_vms:
   stage: acceptance
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_deb
     - pre_release_rpm
@@ -586,7 +585,7 @@ molecule_tests_vms:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
-    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s vms
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s vms
   artifacts:
     when: always
     paths:
@@ -596,7 +595,6 @@ molecule_tests_vms:
 
 molecule_tests_compose:
   stage: acceptance
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_image
   dependencies: []
@@ -605,7 +603,7 @@ molecule_tests_compose:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
-    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s compose
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s compose
   artifacts:
     when: always
     paths:
@@ -615,7 +613,6 @@ molecule_tests_compose:
 
 molecule_tests_local_install:
   stage: acceptance
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_deb
     - pre_release_rpm
@@ -625,7 +622,7 @@ molecule_tests_local_install:
    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
    - export MOLECULE_RUN_ID=${CI_JOB_ID}
-   - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s localinstall
+   - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
   only:
     - master
     - tags
@@ -633,7 +630,6 @@ molecule_tests_local_install:
 
 molecule_tests_kubernetes:
   stage: acceptance
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_cluster_agent_image
     - pre_release_image
@@ -643,7 +639,7 @@ molecule_tests_kubernetes:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
-    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s kubernetes
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
   artifacts:
     when: always
     paths:
@@ -653,7 +649,6 @@ molecule_tests_kubernetes:
 
 molecule_tests_secrets:
   stage: acceptance
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - pre_release_deb
   dependencies: []
@@ -662,7 +657,7 @@ molecule_tests_secrets:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
-    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s secrets
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s secrets
   only:
     - master
     - tags

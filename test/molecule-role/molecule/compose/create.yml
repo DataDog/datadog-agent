@@ -64,6 +64,12 @@
         instance_type: "{{ item.instance_type }}"
         vpc_subnet_id: "{{ item.vpc_subnet_id }}"
         security_group: "{{ security_group_name }}"
+        volumes:
+          - device_name: /dev/sda1
+            ebs:
+              delete_on_termination: true
+              volume_size: 30
+              volume_type: gp2
         tags:
           Name: "{{ item.name }}"
           instance: "{{ item.name }}"

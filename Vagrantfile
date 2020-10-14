@@ -1,6 +1,6 @@
 agent_version = {
     ## for dev
-    :branch => "master",              # or use the PR_NAME
+    :branch => "upstream-updates-7-21-polish-round5",              # or use the PR_NAME
     :repo_suffix => "-test",
 
     ## for stable
@@ -9,58 +9,58 @@ agent_version = {
 }
 
 machines = {
-    :trusty => {
-        :box => 'ubuntu/trusty64',    # Ubuntu 14
-        :ip => '192.168.56.101',
-        # :share_cwd => false,        # Defaults can be overridden
-        # :install => true,
-    },
-    :xenial => {
-        :box => 'ubuntu/xenial64',    # Ubuntu 16
-        :ip => '192.168.56.102',
-    },
+#    :trusty => {
+#        :box => 'ubuntu/trusty64',    # Ubuntu 14
+#        :ip => '192.168.56.101',
+#        # :share_cwd => false,        # Defaults can be overridden
+#        # :install => true,
+#    },
+#    :xenial => {
+#        :box => 'ubuntu/xenial64',    # Ubuntu 16
+#        :ip => '192.168.56.102',
+#    },
     :bionic => {
         :box => 'ubuntu/bionic64',    # Ubuntu 18
         :ip => '192.168.56.103',
     },
-    :wheezy => {
-        :box => 'debian/wheezy64',    # Debian 7, Needs glibc 2.17
-        :ip => '192.168.56.104',
-    },
-    :jessie => {
-        :box => 'debian/jessie64',    # Debian 8
-        :ip => '192.168.56.105',
-    },
-    :stretch => {
-        :box => 'debian/stretch64',   # Debian 9
-        :ip => '192.168.56.106',
-    },
-    :centos6 => {
-        :box => 'centos/6',
-        :ip => '192.168.56.110',
-    },
-    :centos7 => {
-        :box => 'centos/7',
-        :ip => '192.168.56.111',
-    },
-    :rhel7 => {
-        :box => 'generic/rhel7',
-        :ip => '192.168.56.112',
-    },
-    :fedora28 => {
-        :box => 'generic/fedora28',
-        :ip => '192.168.56.113',
-    },
-    :win16 => {
-        :box => 'mwrock/Windows2016',
-        :ip => '192.168.56.120',
-        :share_cwd => true,
-    },
-    :win12 => {
-        :box => 'mwrock/Windows2012R2',
-        :ip => '192.168.56.121',
-        :share_cwd => true,
-    },
+#    :wheezy => {
+#        :box => 'debian/wheezy64',    # Debian 7, Needs glibc 2.17
+#        :ip => '192.168.56.104',
+#    },
+#    :jessie => {
+#        :box => 'debian/jessie64',    # Debian 8
+#        :ip => '192.168.56.105',
+#    },
+#    :stretch => {
+#        :box => 'debian/stretch64',   # Debian 9
+#        :ip => '192.168.56.106',
+#    },
+#    :centos6 => {
+#        :box => 'centos/6',
+#        :ip => '192.168.56.110',
+#    },
+#    :centos7 => {
+#        :box => 'centos/7',
+#        :ip => '192.168.56.111',
+#    },
+#    :rhel7 => {
+#        :box => 'generic/rhel7',
+#        :ip => '192.168.56.112',
+#    },
+#    :fedora28 => {
+#        :box => 'generic/fedora28',
+#        :ip => '192.168.56.113',
+#    },
+#    :win16 => {
+#        :box => 'mwrock/Windows2016',
+#        :ip => '192.168.56.120',
+#        :share_cwd => true,
+#    },
+#    :win12 => {
+#        :box => 'mwrock/Windows2012R2',
+#        :ip => '192.168.56.121',
+#        :share_cwd => true,
+#    },
 }
 
 Vagrant.configure("2") do |config|

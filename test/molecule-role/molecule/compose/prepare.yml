@@ -1,8 +1,40 @@
 ---
 - name: Prepare Trace Java
   hosts: trace-java-demo
-  gather_facts: false
+  gather_facts: true
   tasks:
+    - name: Ubuntu18 automatic updates (wait for lock) (1/2)
+      shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Inject current user pub key, if exists
+      authorized_key:
+        user: ubuntu
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+      ignore_errors: true
+      become: true
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Ubuntu18 automatic updates (wait for lock) (2/2)
+      shell: "sleep 15; while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Install provisioning dependencies (1/2)
+      apt:
+        name:
+          python3-pip
+        state: present
+      become: yes
+      register: pip3_res
+      retries: 15
+      delay: 5
+      until: pip3_res is success
+
+    - name: Install provisioning dependencies (2/2)
+      shell: pip3 install docker
+      become: yes
+
     - name: Docker login
       docker_login:
         registry: quay.io
@@ -15,8 +47,14 @@
         dest: "/home/ubuntu/{{ item }}"
         mode: preserve
       with_items:
-        - docker-compose.yml
         - create-topics.sh
+    - name: Template Configuration files
+      template:
+        src: "files/{{ item }}"
+        dest: "/home/ubuntu/{{ item }}"
+        mode: preserve
+      with_items:
+        - docker-compose.yml
     - name: Gather facts (we need the docker network interface ip)
       setup:
     - name: Run Docker compose
@@ -27,3 +65,49 @@
         AGENT_VERSION: "{{ agent_current_branch }}"
         DOCKER_HOST_IP: "{{ ansible_docker0['ipv4']['address'] }}"
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
+
+    - name: Wait for receiver http://localhost:7077/health
+      uri:
+        url: http://localhost:7077/health
+        return_content: true
+      register: response
+      failed_when: "'OKAY' not in response.content"
+      retries: 20
+      delay: 5
+      ignore_errors: true
+
+    - name: Wait for accessible receiver
+      uri:
+        url: "http://localhost:7077/health"
+        follow_redirects: none
+        method: GET
+      register: result
+      until: result.status == 200
+      retries: 30
+      delay: 5
+      changed_when: false
+      ignore_errors: true
+
+    - name: Check/Wait for OKAY from receiver
+      uri:
+        url: http://localhost:7077/health
+        return_content: true
+        status_code: 200
+      register: response
+      until: ('OKAY' in response.content)
+      retries: 20
+      delay: 5
+      changed_when: false
+      ignore_errors: true
+
+    - name: Wait for agent
+      shell: docker inspect ubuntu_stackstate-agent_1 |  jq -r '.[0].State.Health.Status' | grep  healthy
+      args:
+        chdir: /home/ubuntu
+      become: yes
+      register: agent_healthy
+      until: agent_healthy.rc == 0
+      retries: 20
+      delay: 5
+      changed_when: false
+      ignore_errors: true
