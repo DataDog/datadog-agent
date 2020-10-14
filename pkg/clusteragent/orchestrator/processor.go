@@ -28,7 +28,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
-		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion, orchestrator.K8sDeployment) {
 			continue
 		}
 
@@ -100,7 +100,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 
 	for rs := 0; rs < len(rsList); rs++ {
 		r := rsList[rs]
-		if orchestrator.SkipKubernetesResource(r.UID, r.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(r.UID, r.ResourceVersion, orchestrator.K8sReplicaSet) {
 			continue
 		}
 
@@ -175,7 +175,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 
 	for s := 0; s < len(serviceList); s++ {
 		svc := serviceList[s]
-		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(svc.UID, svc.ResourceVersion, orchestrator.K8sService) {
 			continue
 		}
 
@@ -242,7 +242,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 
 	for s := 0; s < len(nodesList); s++ {
 		node := nodesList[s]
-		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion) {
+		if orchestrator.SkipKubernetesResource(node.UID, node.ResourceVersion, orchestrator.K8sNode) {
 			continue
 		}
 

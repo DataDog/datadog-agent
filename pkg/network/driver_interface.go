@@ -62,8 +62,6 @@ type DriverInterface struct {
 	openFlows      int64
 	moreDataErrors int64
 
-	driverBufferSize int
-
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
 
@@ -72,11 +70,10 @@ type DriverInterface struct {
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(enableMonotonicCounts bool, driverBufferSize int) (*DriverInterface, error) {
+func NewDriverInterface(enableMonotonicCounts bool) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
-		driverBufferSize:      driverBufferSize,
 	}
 
 	err := dc.setupFlowHandle()
@@ -210,15 +207,14 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 }
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
-func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed []ConnectionStats) ([]ConnectionStats, []ConnectionStats, error) {
-	readbuffer := make([]uint8, di.driverBufferSize)
-
+func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed []ConnectionStats, driverReadBuffer []byte) ([]ConnectionStats, []ConnectionStats, int, error) {
+	var totalCount uint32
 	for {
 		var count uint32
 		var bytesused int
-		err := windows.ReadFile(di.driverFlowHandle.handle, readbuffer, &count, nil)
+		err := windows.ReadFile(di.driverFlowHandle.handle, driverReadBuffer, &count, nil)
 		if err != nil && err != windows.ERROR_MORE_DATA {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 
 		if err == windows.ERROR_MORE_DATA {
@@ -227,7 +223,7 @@ func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed [
 
 		var buf []byte
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
-			buf = readbuffer[bytesused:]
+			buf = driverReadBuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 			if isFlowClosed(pfd.flags) {
 				// Closed Connection
@@ -239,11 +235,12 @@ func (di *DriverInterface) GetConnectionStats(active []ConnectionStats, closed [
 			}
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
+		totalCount += count
 		if err == nil {
 			break
 		}
 	}
-	return active, closed, nil
+	return active, closed, int(totalCount), nil
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set

@@ -101,6 +101,7 @@ func (m *Module) Close() {
 
 	if m.listener != nil {
 		m.listener.Close()
+		os.Remove(m.config.SocketPath)
 	}
 
 	m.probe.Stop()

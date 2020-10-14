@@ -365,7 +365,7 @@ def lint_filenames(ctx):
     # Maximum length supported by the win32 API
     max_length = 255
     for file in files:
-        if prefix_length + len(file) > max_length:
+        if not file.startswith('test/kitchen/') and prefix_length + len(file) > max_length:
             print(
                 "Error: path {} is too long ({} characters too many)".format(
                     file, prefix_length + len(file) - max_length

@@ -39,9 +39,9 @@ rules:
   - id: permissions_changed
     description: Permissions were changed on sensitive files
     expression: >-
-      (chmod.filename =~ "/etc/*" || chmod.filename =~ "/etc/*" ||
+      (chmod.filename =~ "/etc/*" ||
       chmod.filename =~ "/sbin/*" || chmod.filename =~ "/usr/sbin/*" ||
-      chmod.filename =~ "/usr/local/sbin*" || chmod.filename =~ "/usr/bin/local/*" ||
+      chmod.filename =~ "/usr/local/sbin/*" || chmod.filename =~ "/usr/local/bin/*" ||
       chmod.filename =~ "/var/log/*" || chmod.filename =~ "/usr/lib/*") &&
       process.name not in ["containerd", "kubelet"]
     tags:
@@ -49,7 +49,7 @@ rules:
   - id: kernel_module
     description: A new kernel module was added
     expression: >-
-      open.filename =~ "/lib/modules/*" && open.flags & O_CREAT > 0
+      (open.filename =~ "/lib/modules/*" || open.filename =~ "/usr/lib/modules/*") && open.flags & O_CREAT > 0
     tags:
       technique: T1215
   - id: nsswitch_conf_mod
@@ -80,7 +80,7 @@ rules:
   - id: systemd_modification
     description: Unauthorized modification of a service
     expression: >-
-      open.filename =~ "/lib/systemd/system/*" && open.flags & (O_CREAT | O_RDWR | O_WRONLY) > 0
+      open.filename =~ "/usr/lib/systemd/system/*" && open.flags & (O_CREAT | O_RDWR | O_WRONLY) > 0
     tags:
       technique: T1014
   - id: authentication_logs_accessed
