@@ -151,6 +151,9 @@
 /test/e2e/                              @DataDog/container-integrations
 /test/integration/                      @DataDog/container-integrations
 /test/kitchen/                          @DataDog/agent-platform
+/test/kitchen/kitchen-azure-security-agent-test.yml @DataDog/agent-security
+/test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security
+/test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
 /test/system/                           @DataDog/agent-core
 
 /tools/                                 @DataDog/agent-platform

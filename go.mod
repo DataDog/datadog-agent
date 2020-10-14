@@ -66,6 +66,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5
 	github.com/alecthomas/participle v0.4.4
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+	github.com/avast/retry-go v2.6.1+incompatible
 	github.com/aws/aws-sdk-go v1.30.5
 	github.com/beevik/ntp v0.3.0
 	github.com/benesch/cgosymbolizer v0.0.0
@@ -73,6 +74,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
+	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v0.0.0-20190919134610-bf292b21730f
 	github.com/containerd/containerd v1.3.2
 	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c // indirect

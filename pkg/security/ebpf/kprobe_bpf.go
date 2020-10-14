@@ -13,6 +13,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/avast/retry-go"
 )
 
 const (
@@ -20,19 +23,22 @@ const (
 	maxEnableRetry = 3
 )
 
-func (m *Module) tryEnableKprobe(secName string) (err error) {
-	for i := 0; i != maxEnableRetry; i++ {
-		if err = m.EnableKprobe(secName, 512); err == nil {
-			break
+func (m *Module) tryEnableKprobe(secName string) error {
+	return retry.Do(func() error {
+		err := m.EnableKprobe(secName, 512)
+		if err == nil {
+			return nil
 		}
-		// not available, not a temporary error
-		if strings.Contains(err.Error(), syscall.ENOENT.Error()) {
-			break
-		}
-		time.Sleep(time.Second)
-	}
 
-	return err
+		// not available, not a temporary error
+		if strings.Contains(err.Error(), syscall.ENOENT.Error()) ||
+			strings.Contains(err.Error(), syscall.EINVAL.Error()) {
+			return nil
+		}
+
+		log.Debugf("try reenabling kprobe %s in 1 second: %s", secName, err.Error())
+		return err
+	}, retry.Attempts(maxEnableRetry), retry.Delay(time.Second))
 }
 
 // RegisterKprobe registers a Kprobe
