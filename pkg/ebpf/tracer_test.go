@@ -289,11 +289,8 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 
 func TestDNATIntraHostIntegration(t *testing.T) {
 	t.SkipNow()
-	cmd := exec.Command("./testdata/setup_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("setup command output: %s", string(out))
-	}
-	defer teardown(t)
+	setupDNAT(t)
+	defer teardownDNAT(t)
 
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
@@ -1542,14 +1539,6 @@ func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	return connections
 }
 
-func teardown(t *testing.T) {
-	cmd := exec.Command("./testdata/teardown_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("teardown command output: %s", string(out))
-		t.Errorf("error tearing down: %s", err)
-	}
-}
-
 const (
 	validDNSServer = "8.8.8.8"
 )
@@ -1625,11 +1614,8 @@ func TestDNSStatsForTimeout(t *testing.T) {
 }
 
 func TestConntrackExpiration(t *testing.T) {
-	cmd := exec.Command("./testdata/setup_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("setup command output: %s", string(out))
-	}
-	defer teardown(t)
+	setupDNAT(t)
+	defer teardownDNAT(t)
 
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
@@ -1802,4 +1788,42 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
 	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+}
+
+func setupDNAT(t *testing.T) {
+	if _, err := exec.LookPath("conntrack"); err != nil {
+		t.Errorf("conntrack not found in PATH: %s", err)
+		return
+	}
+
+	cmds := []string{
+		"ip link add dummy0 type dummy",
+		"ip address add 1.1.1.1 broadcast + dev dummy0",
+		"ip link set dummy0 up",
+		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
+	}
+	runCommands(t, cmds)
+}
+
+func teardownDNAT(t *testing.T) {
+	cmds := []string{
+		// tear down the testing interface, and iptables rule
+		"ip link del dummy0",
+		"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
+		// clear out the conntrack table
+		"conntrack -F",
+	}
+	runCommands(t, cmds)
+}
+
+func runCommands(t *testing.T, cmds []string) {
+	for _, c := range cmds {
+		args := strings.Split(c, " ")
+		c := exec.Command(args[0], args[1:]...)
+		out, err := c.CombinedOutput()
+		if err != nil {
+			t.Errorf("%s: %s", err, out)
+			return
+		}
+	}
 }
