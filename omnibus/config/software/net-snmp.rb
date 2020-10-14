@@ -21,6 +21,8 @@ build do
     "--with-sys-location=Unknown",
     "--with-logfile=/var/log/snmpd.log",
     "--with-persistent-directory=/var/net-snmp",
+    "--without-perl-modules",
+    "--disable-embedded-perl",
     "--disable-agent",
     "--disable-applications",
     "--disable-manuals",
