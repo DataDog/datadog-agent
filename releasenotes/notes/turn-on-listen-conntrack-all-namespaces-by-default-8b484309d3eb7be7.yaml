@@ -8,4 +8,6 @@
 ---
 features:
   - |
-    Listening for conntrack updates from all network namespaces (system_probe_config.enable_conntrack_all_namespaces flag) is now turned on by default
+    Listening for conntrack updates from all network namespaces
+    (system_probe_config.enable_conntrack_all_namespaces flag) is now turned
+    on by default
