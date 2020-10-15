@@ -34,6 +34,19 @@ templates:
           - gen16-godeps-master-
     - save_cache: &save_deps
         key: gen16-godeps-{{ .Branch }}-{{ .Revision }}
+    - restore_cache: &restore_macos_deps
+        keys:
+          # The first match will be used. Doing that so new branches
+          # use master's cache but don't pollute it back.
+          #
+          # If incremental dep fails, increase the cache gen number
+          # in restore_macos_deps AND save_macos_deps
+          # See https://github.com/DataDog/datadog-agent/pull/2384
+          - gen1-macos-{{ .Branch }}-{{ .Revision }}
+          - gen1-macos-{{ .Branch }}-
+          - gen1-macos-master-
+    - save_cache: &save_macos_deps
+        key: gen1-macos-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
@@ -231,10 +244,11 @@ jobs:
     macos:
       xcode: 10.1.0
     environment:
-      BUILDIMAGES_VERSION: "a8226a8e78774afad285e7372fe8c6c179340dd9" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "d202bff48d9059dbbf17c58be4fbe345614a4104" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
+      - restore_cache: *restore_macos_deps
       - run:
           name: Setup runner
           command: |
@@ -270,6 +284,15 @@ jobs:
 
             inv -e deps
             inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+      - save_cache:
+          <<: *save_macos_deps
+          paths:
+            - /usr/local/Homebrew
+            - /usr/local/Cellar
+            - /usr/local/Frameworks
+            - /usr/local/bin
+            - /usr/local/opt
+            - /usr/local/lib/python3.8
 
   macos_build:
     macos:
