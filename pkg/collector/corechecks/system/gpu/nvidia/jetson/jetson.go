@@ -8,8 +8,8 @@
 package nvidia
 
 import (
-	"bufio"
-	"context"
+	"errors"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
-	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -28,8 +27,8 @@ import (
 const (
 	checkName = "jetson"
 
-	// The interval to run tegrastats at, in ms
-	tegraStatsInterval = 100 * time.Millisecond
+	// The interval to run tegrastats at, in seconds
+	tegraStatsInterval = 1 * time.Second
 
 	kb = 1024
 	mb = kb * 1024
@@ -121,60 +120,26 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 
 // Run executes the check
 func (c *JetsonCheck) Run() error {
-	// Kill tegrastats if it runs for twice as long as the interval we specified, to avoid blocking
-	// the check forever
-	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval*time.Millisecond)
-	defer cancel()
+	tegraStatsCmd := fmt.Sprintf("%s %s", c.tegraStatsPath, strings.Join(c.commandOpts, " "))
+	cmdStr := fmt.Sprintf("(%s) & pid=$!; (sleep %d && kill -9 $pid)", tegraStatsCmd, int((2*tegraStatsInterval).Seconds()))
 	var cmd *exec.Cmd
 	if c.useSudo {
-		cmd = exec.CommandContext(ctx, "sudo", append([]string{c.tegraStatsPath}, c.commandOpts...)...)
+		// -n, non-interactive mode, no prompts are used
+		cmd = exec.Command("sudo", "-n", "sh", "-c", cmdStr)
 	} else {
-		cmd = exec.CommandContext(ctx, c.tegraStatsPath, c.commandOpts...)
+		cmd = exec.Command("sh", "-c", cmdStr)
 	}
 
-	// Parse the standard output for the stats
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	go func() {
-		in := bufio.NewScanner(stdout)
-		if in.Scan() {
-			// We only need to read one line
-			line := in.Text()
-			log.Debugf("tegrastats: %s", line)
-			if err = c.processTegraStatsOutput(line); err != nil {
-				log.Error(err)
-			}
-		} else {
-			log.Warnf("tegrastats did not produce any output")
+	// Since we kill the process, err is always going to be != nil
+	tegrastatsOutput, _ := cmd.Output()
+	if len(tegrastatsOutput) > 0 {
+		log.Debugf("tegrastats output = %s\n", tegrastatsOutput)
+		if err := c.processTegraStatsOutput(string(tegrastatsOutput)); err != nil {
+			return fmt.Errorf("error processing tegrastats output: %s",  err)
 		}
-		// Tegrastats keeps running forever, so kill it after trying to read
-		// one line of output
-		err = cmd.Process.Signal(os.Kill)
-		if err != nil {
-			log.Errorf("unable to stop %s check: %s", checkName, err)
-		}
-	}()
-
-	// forward the standard error to the Agent logger
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
+	} else {
+		return errors.New("tegrastats did not produce any output")
 	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			log.Error(in.Text())
-		}
-	}()
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	// No need to check the result since we kill the process, so err is normally != nil
-	cmd.Wait() //nolint:errcheck
 
 	return nil
 }
