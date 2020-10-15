@@ -264,7 +264,7 @@ def misspell(ctx, targets):
 
 @task
 def deps(
-    ctx, verbose=False, android=False, no_bootstrap=False, no_dep_ensure=False,
+    ctx, verbose=False, android=False, no_bootstrap=False, no_mod_download=False,
 ):
     """
     Setup Go dependencies
@@ -305,15 +305,22 @@ def deps(
         print("gomobile command {}".format(cmd))
         ctx.run(cmd)
 
-    if not no_dep_ensure:
-        # source level deps
-        print("calling go mod download")
-        start = datetime.datetime.now()
+    if not no_mod_download:
+        download_start = datetime.datetime.now()
         ctx.run("go mod download")
-        dep_done = datetime.datetime.now()
+        download_done = datetime.datetime.now()
 
-    if not no_dep_ensure:
-        print("go mod download, elapsed: {}".format(dep_done - start))
+        # Android exception: we need to vendor, the gomobile version
+        # we use isn't compatible with go modules
+        if android:
+            verbosity = '-v' if verbose else ''
+            vendor_start = datetime.datetime.now()
+            ctx.run("go mod vendor{}".format(verbosity))
+            vendor_done = datetime.datetime.now()
+
+        print("go mod download, elapsed: {}".format(download_done - download_start))
+        if android:
+            print("go mod vendor, elapsed: {}".format(vendor_done - vendor_start))
 
 
 @task
@@ -456,9 +463,9 @@ def reset(ctx):
 
 
 @task
-def generate(ctx):
+def generate(ctx, mod="mod"):
     """
     Run go generate required package
     """
-    ctx.run("go generate -mod=mod " + " ".join(GO_GENERATE_TARGETS))
+    ctx.run("go generate -mod={} ".format(mod) + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")
