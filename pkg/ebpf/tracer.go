@@ -773,16 +773,11 @@ func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping)
 
 	entries := mp.IterateFrom(unsafe.Pointer(&emptyKey))
 	for entries.Next(unsafe.Pointer(&key), unsafe.Pointer(&state)) {
-		ino := uint64(key.net_ns)
-		port := uint16(key.port)
-
+		log.Tracef("port mapping added port=%d net_ns=%d", key.port, key.net_ns)
+		mapping.AddMapping(uint64(key.net_ns), uint16(key.port))
 		if isPortClosed(state) {
-			key.setNetNs(ino)
 			log.Tracef("port mapping closed port=%d net_ns=%d", key.port, key.net_ns)
 			closed = append(closed, key)
-		} else {
-			log.Tracef("port mapping added port=%d net_ns=%d", key.port, key.net_ns)
-			mapping.AddMapping(ino, port)
 		}
 	}
 
@@ -791,11 +786,12 @@ func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping)
 
 func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) network.ConnectionDirection {
 	pm := t.portMapping
+	netNs := uint64(conn.NetNS)
 	if conn.Type == network.UDP {
 		pm = t.udpPortMapping
+		netNs = 0
 	}
-	if pm.IsListening(uint64(conn.NetNS), conn.SPort) ||
-		(conn.IPTranslation != nil && pm.IsListening(uint64(conn.NetNS), conn.IPTranslation.ReplDstPort)) {
+	if pm.IsListening(netNs, conn.SPort) {
 		return network.INCOMING
 	}
 	return network.OUTGOING

@@ -113,46 +113,32 @@ func (pm *PortMapping) ReadInitialUDPState() error {
 	pm.Lock()
 	defer pm.Unlock()
 
-	seen := make(map[uint64]interface{})
-
-	return util.WithAllProcs(pm.procRoot, func(pid int) error {
-		nsIno, err := util.GetNetNsInoFromPid(pm.procRoot, pid)
-		if err != nil {
-			log.Errorf("error getting net ns for pid %d", pid)
-			return nil
+	udpPath := path.Join(pm.procRoot, "net/udp")
+	if ports, err := readProcNetWithStatus(udpPath, tcpClose); err != nil {
+		log.Errorf("failed to read UDP state: %s", err)
+	} else {
+		log.Infof("read UDP ports: %v", ports)
+		for _, port := range ports {
+			// we use 0 for the network namespace for udp since we don't
+			// have net namespace info availlable from bpf for udp
+			pm.ports[portMappingKey(0, port)] = struct{}{}
 		}
+	}
 
-		if _, ok := seen[nsIno]; ok {
-			return nil
-		}
-
-		seen[nsIno] = struct{}{}
-
-		udpPath := path.Join(pm.procRoot, fmt.Sprintf("%d/net/udp", pid))
-		if ports, err := readProcNetWithStatus(udpPath, tcpClose); err != nil {
-			log.Errorf("failed to read UDP state for net ns %d: %s", nsIno, err)
+	if pm.collectIPv6 {
+		if ports, err := readProcNetWithStatus(path.Join(pm.procRoot, "net/udp6"), 7); err != nil {
+			log.Errorf("error reading UDPv6 state: %s", err)
 		} else {
-			log.Tracef("read UDP ports for net ns %d: %v", nsIno, ports)
+			log.Infof("read UDPv6 state: %v", ports)
 			for _, port := range ports {
-				pm.ports[portMappingKey(nsIno, port)] = struct{}{}
+				// we use 0 for the network namespace for udp since we don't
+				// have net namespace info availlable from bpf for udp
+				pm.ports[portMappingKey(0, port)] = struct{}{}
 			}
 		}
+	}
 
-		if !pm.collectIPv6 {
-			return nil
-		}
-
-		if ports, err := readProcNetWithStatus(path.Join(pm.procRoot, fmt.Sprintf("%d/net/udp6", pid)), tcpClose); err != nil {
-			log.Errorf("error reading UDPv6 state for net ns %d: %s", nsIno, err)
-		} else {
-			log.Tracef("read UDPv6 state for net ns %d: %v", nsIno, ports)
-			for _, port := range ports {
-				pm.ports[portMappingKey(nsIno, port)] = struct{}{}
-			}
-		}
-
-		return nil
-	})
+	return nil
 }
 
 func portMappingKey(nsIno uint64, port uint16) string {
