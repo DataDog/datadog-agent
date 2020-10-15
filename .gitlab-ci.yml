@@ -1747,6 +1747,7 @@ deploy_windows_testing-a7:
     - <<: *if_not_version_6
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   <<: *kitchen_common
   variables:
     AGENT_MAJOR_VERSION: 6
@@ -1757,6 +1758,7 @@ deploy_windows_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   <<: *kitchen_common
   variables:
     AGENT_MAJOR_VERSION: 7
