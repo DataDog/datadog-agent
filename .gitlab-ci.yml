@@ -1579,6 +1579,7 @@ deploy_deb_testing-a6:
     - <<: *if_not_version_6
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   stage: testkitchen_deploy
   needs: ["agent_deb-x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -1606,6 +1607,7 @@ deploy_deb_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   stage: testkitchen_deploy
   needs: ["agent_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -1634,6 +1636,7 @@ deploy_rpm_testing-a6:
     - <<: *if_not_version_6
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   stage: testkitchen_deploy
   needs: ["agent_rpm-x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -1650,6 +1653,7 @@ deploy_rpm_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   stage: testkitchen_deploy
   needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64", "dogstatsd_rpm-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -1667,6 +1671,7 @@ deploy_suse_rpm_testing-a6:
     - <<: *if_not_version_6
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   stage: testkitchen_deploy
   needs: ["agent_suse-x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -1683,6 +1688,7 @@ deploy_suse_rpm_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   stage: testkitchen_deploy
   needs: ["agent_suse-x64-a7", "iot_agent_suse-x64", "dogstatsd_suse-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -1700,6 +1706,7 @@ deploy_windows_testing-a6:
     - <<: *if_not_version_6
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   stage: testkitchen_deploy
   needs: ["windows_msi_x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -1714,6 +1721,7 @@ deploy_windows_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_test_kitchen_deploy
+    - when: manual
   stage: testkitchen_deploy
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
