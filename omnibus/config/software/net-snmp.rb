@@ -43,6 +43,7 @@ build do
   make env: env
   make "install", env: env
 
+  command ["ls", "-la", "#{install_dir}/embedded"]
 #   command ["ls", "-la", "src/snmplib/.libs"]
 #   copy "src/snmplib/.libs/libnetsnmp.so.35.0.0", "#{install_dir}/embedded/lib/libnetsnmp.so"
 end
