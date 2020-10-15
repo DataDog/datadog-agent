@@ -23,9 +23,8 @@ Bug Fixes
 ---------
 
 - The ``ec2_prefer_imdsv2`` parameter was ignored when fetching
-  EC2 tags from the metadata endpoint. This fixes situations were
-  EC2 tags could not be fetched by a containerized agent running
-  on an EC2 instance.
+  EC2 tags from the metadata endpoint. This fixes a misleading warning log that was logged
+  even when ``ec2_prefer_imdsv2`` was left disabled in the Agent configuration.
 
 - The Windows installer can now install on domains where the domain name is different from the Netbios name.
 
