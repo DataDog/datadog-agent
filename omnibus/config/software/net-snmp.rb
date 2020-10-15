@@ -1,19 +1,19 @@
 name "net-snmp"
-default_version "5.7.3"
-
-version "5.7.3" do
-  source sha256: "12ef89613c7707dc96d13335f153c1921efc9d61d3708ef09f3fc4a7014fb4f0"
-end
-
-source url: "https://deac-ams.dl.sourceforge.net/project/net-snmp/net-snmp/#{version}/net-snmp-#{version}.tar.gz"
-
-# default_version "5.9"
+# default_version "5.7.3"
 #
-# source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip",
-#        :sha256 => "1d86261db919fca112fcc594ed881761c5b54ce372f97ceb3bc8a3a91ff68511",
-#        :extract => :seven_zip
+# version "5.7.3" do
+#   source sha256: "12ef89613c7707dc96d13335f153c1921efc9d61d3708ef09f3fc4a7014fb4f0"
+# end
+#
+# source url: "https://deac-ams.dl.sourceforge.net/project/net-snmp/net-snmp/#{version}/net-snmp-#{version}.tar.gz"
+#
+# relative_path "net-snmp-#{version}"
 
-relative_path "net-snmp-#{version}"
+default_version "5.9"
+
+source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip",
+       :sha256 => "1d86261db919fca112fcc594ed881761c5b54ce372f97ceb3bc8a3a91ff68511",
+       :extract => :seven_zip
 
 build do
   ship_license "./COPYING"
