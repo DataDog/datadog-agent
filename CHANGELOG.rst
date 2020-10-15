@@ -2,6 +2,32 @@
 Release Notes
 =============
 
+.. _Release Notes_7.23.1:
+
+7.23.1
+======
+
+.. _Release Notes_7.23.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-10-15
+
+- Please refer to the `7.23.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7231>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.23.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The ``ec2_prefer_imdsv2`` parameter was ignored when fetching
+  EC2 tags from the metadata endpoint. This fixes a misleading warning log that was logged
+  even when ``ec2_prefer_imdsv2`` was left disabled in the Agent configuration.
+
+- The Windows installer can now install on domains where the domain name is different from the Netbios name.
+
 .. _Release Notes_7.23.0:
 
 7.23.0 / 6.23.0
@@ -112,7 +138,7 @@ Enhancement Notes
   false, or if the env var is set to false.  To maintain compatibility with
   previous configs, the network module will be enabled in all other cases.
 
-- Log a warning when a log file is rotated but has not finished tailing the file. 
+- Log a warning when a log file is rotated but has not finished tailing the file.
 
 - The NTP check now uses the cloud provider's recommended NTP servers by default, if the Agent
   detects that it's running on said cloud provider.
@@ -277,7 +303,7 @@ Enhancement Notes
   included in the flare.
 
 - Upgrade embedded Python 3 to 3.8.5. Link to Python 3.8 changelog: https://docs.python.org/3/whatsnew/3.8.html
-  
+
   Note that the Python 2 version shipped in Agent v6 continues to be version 2.7.18 (unchanged).
 
 - Upgrade pip to v20.1.1. Link to pip 20.1.1 changelog: https://pip.pypa.io/en/stable/news/#id54
@@ -345,7 +371,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- APM: datadog.trace_agent.receiver.* metrics are now also tagged by endpoint_version 
+- APM: datadog.trace_agent.receiver.* metrics are now also tagged by endpoint_version
 
 
 .. _Release Notes_7.21.1:
@@ -524,7 +550,7 @@ Bug Fixes
   certain non-alphanumeric label names (e.g. app.kubernetes.io/managed-by).
 
 - Fixes the `/ready` health endpoint on the cluster-agent.
-  
+
   The `/ready` health endpoint was reporting 200 at the cluster-agent startup and was then, permanently reporting 500 even though the cluster-agent was experiencing no problem.
   In the body of the response, we could see that a `healthcheck` component was failing.
   This change fixes this issue.
@@ -549,8 +575,8 @@ Bug Fixes
   systemd cgroups. This also reduces agent logging volume as it's able to
   capture those statistics going forward.
 
-- APM: The agent now exits with code 0 when the API key is not specified. This is so to prevent the Windows SCM 
-  from restarting the process. 
+- APM: The agent now exits with code 0 when the API key is not specified. This is so to prevent the Windows SCM
+  from restarting the process.
 
 
 .. _Release Notes_7.21.0_Other Notes:
@@ -714,7 +740,7 @@ Enhancement Notes
 
 - Introduce ``kube_cluster_name`` and ``ecs_cluster_name`` tags in addition to ``cluster_name``.
   Add the possibility to stop sending the ``cluster_name`` tag using the parameter ``disable_cluster_name_tag_key`` in Agent config.
-  The Agent keeps sending ``kube_cluster_name`` and `ecs_cluster_name` tags regardless of `disable_cluster_name_tag_key`. 
+  The Agent keeps sending ``kube_cluster_name`` and `ecs_cluster_name` tags regardless of `disable_cluster_name_tag_key`.
 
 - Configure additional process and orchestrator endpoints by environment variable.
 
@@ -834,7 +860,7 @@ Upgrade Notes
     * logs_config.use_tcp is set to true
     * logs_config.socks5_proxy_address is set, because socks5 proxies are not yet supported in HTTPS with compression
     * HTTPS connectivity test has failed: at agent startup, an HTTPS test request is sent to determine if HTTPS can be used
-  
+
   To force the use of TCP or HTTPS with compression, logs_config.use_tcp or logs_config.use_http can be set to true, respectively.
 
 
@@ -866,7 +892,7 @@ New Features
   settings can be listed using ``agent config list-runtime``. The
   log_level may also be fetched using the ``agent config get log_level``
   command. Additional runtime-editable setting can easily be added
-  by following this implementation. 
+  by following this implementation.
 
 - The ``system-probe`` classifies UDP connections as incoming or outgoing.
 
@@ -1031,7 +1057,7 @@ Upgrade Notes
   notarization tests.
 
 - On Windows, the embedded Python will no longer use the PYTHONPATH
-  environment variable, restricting its access to the Python packages 
+  environment variable, restricting its access to the Python packages
   installed with the Agent. Set windows_use_pythonpath to true to keep
   the previous behavior.
 
@@ -1069,7 +1095,7 @@ Enhancement Notes
 - The min_collection_interval check setting has been
   relocated since Agent 6/7 release. The agent import
   command now include in the right section this setting
-  when importing configuration from Agent 5.   
+  when importing configuration from Agent 5.
 
 - Add new config parameter (dogstatsd_entity_id_precedence) to enable DD_ENTITY_ID
   presence check when enriching Dogstatsd metrics with tags.
@@ -1120,7 +1146,7 @@ Enhancement Notes
   characters.
 
 - Upgrade embedded Python 3 to 3.8.1. Link to Python 3.8 changelog: https://docs.python.org/3/whatsnew/3.8.html
-  
+
   Note that the Python 2 version shipped in Agent v6 continues to be version 2.7.17 (unchanged).
 
 - Removing an RPM of the Datadog Agent will no longer throw missing files warning.
@@ -1263,7 +1289,7 @@ Upgrade Notes
 
 - Starting with this version, the containerized Agent never chooses the OS hostname as its hostname when it is running in a dedicated UTS namespace.
   This is done in order to avoid picking container IDs or kubernetes POD names as hostnames, since these identifiers do not reflect the identity of the host they run on.
-  
+
   This change only affects you if your agent is currently using a container ID or a kubernetes POD name as hostname.
   The hostname of the agent can be checked with ``agent hostname``.
   If the output stays stable when the container or POD of the agent is destroyed and recreated, you’re not impacted by this change.
@@ -1343,8 +1369,8 @@ Bug Fixes
 - On Windows, fixes registration of agent as event log source.  Allows
   agent to correctly write to the Windows event log.
 
-- On Windows, when upgrading, installer will fail if the user attempts 
-  to assign a configuration file directory or binary directory that is 
+- On Windows, when upgrading, installer will fail if the user attempts
+  to assign a configuration file directory or binary directory that is
   different from the original.
 
 - Add logic to support docker restart of containers.
@@ -1433,7 +1459,7 @@ Enhancement Notes
 - Log a warning when the hostname defined in the configuration will not be used as the in-app hostname.
 
 - Add ``ignore_autodiscovery_tags`` parameter config check.
-  
+
   In some cases, a check should not receive tags coming from the autodiscovery listeners.
   By default ``ignore_autodiscovery_tags`` is set to false which doesn't change the behavior of the checks.
   The first check that will use it is ``kubernetes_state``.
