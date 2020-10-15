@@ -9,9 +9,15 @@ source url: "https://deac-ams.dl.sourceforge.net/project/net-snmp/net-snmp/#{ver
 
 relative_path "net-snmp-#{version}"
 
+reconf_env = { "PATH" => "#{install_dir}/embedded/bin:#{ENV["PATH"]}" }
+
 build do
   ship_license "./COPYING"
   env = with_standard_compiler_flags(with_embedded_path)
+
+  # Trying to fix: configure: error: cannot guess build type; you must specify one
+  autoconf_cmd = ["autoreconf", "--install"].join(" ")
+  command autoconf_cmd, :env => reconf_env
 
   configure_args = [
     "--prefix=#{install_dir}/embedded",
