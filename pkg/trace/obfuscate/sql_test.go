@@ -6,6 +6,7 @@
 package obfuscate
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -1013,8 +1014,8 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 	}
 }
 
-// query1 is sourced from https://stackoverflow.com/questions/12607667/issues-with-a-very-large-sql-query/12711494
-var query1 = `SELECT '%c%' as Chapter,
+// LargeQuery is sourced from https://stackoverflow.com/questions/12607667/issues-with-a-very-large-sql-query/12711494
+var LargeQuery = `SELECT '%c%' as Chapter,
 (SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
 WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine' AND ticket.status IN ('new','assigned') ) AS 'New',
 (SELECT count(ticket.id) AS Matches FROM engine.ticket INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
@@ -1049,7 +1050,7 @@ INNER JOIN engine.ticket_custom ON ticket.id = ticket_custom.ticket
 WHERE ticket_custom.name='chapter' AND ticket_custom.value LIKE '%c%' AND type='New material' AND milestone='1.1.12' AND component NOT LIKE 'internal_engine'`
 
 // query3 is sourced from https://www.ibm.com/support/knowledgecenter/SSCRJT_6.0.0/com.ibm.swg.im.bigsql.doc/doc/tut_bsql_uc_complex_query.html
-var query3 = `WITH
+var ComplexQuery = `WITH
  sales AS
  (SELECT sf.*
   FROM gosalesdw.sls_order_method_dim AS md,
@@ -1086,8 +1087,8 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 	}{
 		{"Escaping", `INSERT INTO delayed_jobs (attempts, created_at, failed_at, handler, last_error, locked_at, locked_by, priority, queue, run_at, updated_at) VALUES (0, '2016-12-04 17:09:59', NULL, '--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/object:Item\n  store:\n  - a simple string\n  - an \'escaped \' string\n  - another \'escaped\' string\n  - 42\n  string: a string with many \\\\\'escapes\\\\\'\nmethod_name: :show_store\nargs: []\n', NULL, NULL, NULL, 0, NULL, '2016-12-04 17:09:59', '2016-12-04 17:09:59')`},
 		{"Grouping", `INSERT INTO delayed_jobs (created_at, failed_at, handler) VALUES (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL), (0, '2016-12-04 17:09:59', NULL)`},
-		{"query1", query1},
-		{"query3", query3},
+		{"Large", LargeQuery},
+		{"Complex", ComplexQuery},
 	}
 	obf := NewObfuscator(nil)
 	for _, bm := range benchmarks {
@@ -1227,4 +1228,50 @@ func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(nil)
 	o.ObfuscateSQLString(hangStr)
+}
+
+// TestToUpper contains test data lifted from Go's bytes/bytes_test.go, but we test
+// that our toUpper returns the same values as bytes.ToUpper.
+func TestToUpper(t *testing.T) {
+	var upperTests = []struct {
+		in string
+	}{
+		{""},
+		{"ONLYUPPER"},
+		{"abc"},
+		{"AbC123"},
+		{"azAZ09_"},
+		{"longStrinGwitHmixofsmaLLandcAps"},
+		{"long\u0250string\u0250with\u0250nonascii\u2C6Fchars"},
+		{"\u0250\u0250\u0250\u0250\u0250"}, // grows one byte per char
+		{"a\u0080\U0010FFFF"},              // test utf8.RuneSelf and utf8.MaxRune
+	}
+	for name, tf := range map[string]func(in []byte) []byte{
+		"nil-dst": func(in []byte) []byte {
+			return toUpper(in, nil)
+		},
+		"empty-dst": func(in []byte) []byte {
+			return toUpper(in, make([]byte, 0))
+		},
+		"small-dst": func(in []byte) []byte {
+			return toUpper(in, make([]byte, 2))
+		},
+		"big-dst": func(in []byte) []byte {
+			return toUpper(in, make([]byte, 200))
+		},
+		"big-cap-dst": func(in []byte) []byte {
+			return toUpper(in, make([]byte, 0, 200))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, tc := range upperTests {
+				expect := bytes.ToUpper([]byte(tc.in))
+				actual := tf([]byte(tc.in))
+				if !bytes.Equal(actual, expect) {
+					t.Errorf("toUpper(%q) = %q; want %q", tc.in, actual, expect)
+				}
+			}
+		})
+	}
+
 }

@@ -273,11 +273,10 @@ func toUpper(src, dst []byte) []byte {
 	}
 	if isASCII { // optimize for ASCII-only byte slices.
 		if !hasLower {
-			// Just return a copy.
-			//return append(dst, src...)
+			// Just return src.
+			return src
 		}
 		dst = dst[:len(src)]
-		//b := make([]byte, len(src))
 		for i := 0; i < len(src); i++ {
 			c := src[i]
 			if 'a' <= c && c <= 'z' {
