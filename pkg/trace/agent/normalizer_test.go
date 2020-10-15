@@ -450,7 +450,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 		err := normalize(ts, span)
 
 		assert.Nil(err)
-		assert.Equal("test��", span.Resource)
+		assert.Equal("test�", span.Resource)
 	})
 
 	t.Run("name", func(t *testing.T) {
@@ -478,7 +478,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 		err := normalize(ts, span)
 
 		assert.Nil(err)
-		assert.Equal("test��", span.Type)
+		assert.Equal("test�", span.Type)
 	})
 
 	t.Run("meta", func(t *testing.T) {
@@ -496,9 +496,29 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 
 		assert.Nil(err)
 		assert.EqualValues(map[string]string{
-			"test��": "test1",
-			"test2":  "test��",
+			"test�": "test1",
+			"test2": "test�",
 		}, span.Meta)
+	})
+
+	t.Run("metrics", func(t *testing.T) {
+		assert := assert.New(t)
+
+		ts := newTagStats()
+		span := newTestSpan()
+
+		span.Metrics = map[string]float64{
+			invalidUTF8: 1 / 5,
+			"test2":     2 / 5,
+		}
+
+		err := normalize(ts, span)
+
+		assert.Nil(err)
+		assert.EqualValues(map[string]float64{
+			"test�": 1 / 5,
+			"test2": 2 / 5,
+		}, span.Metrics)
 	})
 }
 

@@ -6,7 +6,6 @@
 package agent
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -176,6 +175,13 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 			delete(s.Meta, "http.status_code")
 		}
 	}
+	for k, v := range s.Metrics {
+		utf8K := toUTF8(k)
+		if k != utf8K {
+			delete(s.Metrics, k)
+			s.Metrics[utf8K] = v
+		}
+	}
 	return nil
 }
 
@@ -288,27 +294,7 @@ func normMetricNameParse(name string) (string, bool) {
 
 // toUTF8 forces the string to utf-8 by replacing illegal character sequences with the utf-8 replacement character.
 func toUTF8(s string) string {
-	if utf8.ValidString(s) {
-		// if string is already valid utf8, return it as-is. Checking validity is cheaper than blindly rewriting.
-		return s
-	}
-
-	in := strings.NewReader(s)
-	var out bytes.Buffer
-	out.Grow(len(s))
-
-	for {
-		r, _, err := in.ReadRune()
-		if err != nil {
-			// note: by contract, if `in` contains non-valid utf-8, no error is returned. Rather the utf-8 replacement
-			// character is returned. Therefore, the only error should usually be io.EOF indicating end of string.
-			// If any other error is returned by chance, we quit as well, outputting whatever part of the string we
-			// had already constructed.
-			return out.String()
-		}
-
-		out.WriteRune(r)
-	}
+	return strings.ToValidUTF8(s, "�")
 }
 
 const maxTagLength = 200
