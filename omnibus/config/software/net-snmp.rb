@@ -16,7 +16,7 @@ source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c
        :extract => :seven_zip
 
 build do
-  ship_license "./COPYING"
+#   ship_license "./COPYING"
   env = with_standard_compiler_flags(with_embedded_path)
 
   configure_args = [
