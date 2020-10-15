@@ -10,6 +10,7 @@ name 'datadog-agent-integrations-py3'
 
 dependency 'datadog-agent'
 dependency 'pip3'
+dependency 'net-snmp'  # needed for SNMP integration
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -31,7 +32,6 @@ if linux?
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
   dependency 'nfsiostat'
-  dependency 'net-snmp'  # needed for SNMP integration
   # need kerberos for hdfs
   dependency 'libkrb5'
 
