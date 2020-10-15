@@ -1,17 +1,17 @@
 name "net-snmp"
+default_version "5.7.3"
+
+version "5.7.3" do
+  source sha256: "04303a66f85d6d8b16d3cc53bde50428877c82ab524e17591dfceaeb94df6071"
+end
+
+source url: "https://deac-ams.dl.sourceforge.net/project/net-snmp/net-snmp/#{version}/net-snmp-#{version}.tar.gz"
+
 # default_version "5.9"
 #
-# version "5.9" do
-#   source sha256: "04303a66f85d6d8b16d3cc53bde50428877c82ab524e17591dfceaeb94df6071"
-# end
-#
-# source url: "https://deac-ams.dl.sourceforge.net/project/net-snmp/net-snmp/#{version}/net-snmp-#{version}.tar.gz"
-
-default_version "5.9"
-
-source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip",
-       :sha256 => "1d86261db919fca112fcc594ed881761c5b54ce372f97ceb3bc8a3a91ff68511",
-       :extract => :seven_zip
+# source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip",
+#        :sha256 => "1d86261db919fca112fcc594ed881761c5b54ce372f97ceb3bc8a3a91ff68511",
+#        :extract => :seven_zip
 
 relative_path "net-snmp-#{version}"
 
