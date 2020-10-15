@@ -740,6 +740,7 @@ github.com/iancoleman/strcase v0.0.0-20180726023541-3605ed457bf7/go.mod h1:SK73t
 github.com/iancoleman/strcase v0.0.0-20190422225806-e506e3ef7365/go.mod h1:SK73tn/9oHe+/Y0h39VT4UCxmurVJkR5NA7kMEAOgSE=
 github.com/ianlancetaylor/cgosymbolizer v0.0.0-20170921033129-f5072df9c550 h1:7Mr0IG3PMp/Z/iNN2vCCHdXS4RFzBwi9sr5Km6b2+N4=
 github.com/ianlancetaylor/cgosymbolizer v0.0.0-20170921033129-f5072df9c550/go.mod h1:a5aratAVTWyz+nJMmDsN8O4XTfaLfdAsB1ysCmZX5Bw=
+github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201002210021-dda951febc36 h1:SgAfkQ7+MVwIQP9PPN+NrTsRvzLOfpDuMqaVhvjqMGA=
 github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201002210021-dda951febc36/go.mod h1:a5aratAVTWyz+nJMmDsN8O4XTfaLfdAsB1ysCmZX5Bw=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/imdario/mergo v0.3.5/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=
