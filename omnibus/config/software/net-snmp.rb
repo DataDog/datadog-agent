@@ -9,7 +9,7 @@ name "net-snmp"
 
 default_version "5.9"
 
-source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip"
+source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip",
        :sha256 => "1d86261db919fca112fcc594ed881761c5b54ce372f97ceb3bc8a3a91ff68511",
        :extract => :seven_zip
 
