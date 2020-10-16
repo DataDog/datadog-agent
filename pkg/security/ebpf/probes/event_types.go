@@ -266,7 +266,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimes"}, EntryAndExit, true),
 			},
 			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimes"}, EntryAndExit | ExpandTime32, true),
+				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimes"}, EntryAndExit|ExpandTime32),
 			},
 		}},
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
@@ -274,7 +274,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimensat"}, EntryAndExit, true),
 			},
 			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimensat"}, EntryAndExit | ExpandTime32, true),
+				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimensat"}, EntryAndExit|ExpandTime32),
 			},
 		}},
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
@@ -282,7 +282,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimesat"}, EntryAndExit, true),
 			},
 			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimesat"}, EntryAndExit | ExpandTime32, true),
+				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "utimesat"}, EntryAndExit|ExpandTime32),
 			},
 		}},
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
@@ -290,7 +290,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "futimesat"}, EntryAndExit, true),
 			},
 			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
-				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "futimesat"}, EntryAndExit | ExpandTime32, true),
+				manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "futimesat"}, EntryAndExit|ExpandTime32),
 			},
 		}},
 	},
