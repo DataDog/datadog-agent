@@ -18,8 +18,6 @@ stages:
   - deps_build
   - deps_fetch
   - source_test
-  - functional_test
-  - functional_test_cleanup
   - binary_build
   - integration_test
   - package_build
@@ -38,6 +36,8 @@ stages:
   - trigger_release
   - e2e
   - testkitchen_cleanup
+  - functional_test
+  - functional_test_cleanup
   - notify
 
 variables:
@@ -99,6 +99,8 @@ variables:
   BCC_VERSION: v0.12.0
   SYSTEM_PROBE_GO_VERSION: 1.14.7
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_e09422b3
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_e09422b3
 
 #
 # Condition mixins for simplification of rules
@@ -908,9 +910,9 @@ iot_agent_deb-armhf:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
 
     - mkdir -p /tmp/system-probe
@@ -1029,9 +1031,9 @@ agent_rpm-arm64-a7:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
@@ -1075,9 +1077,9 @@ iot_agent_rpm-armhf:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
     - mkdir -p /tmp/system-probe
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe/system-probe
@@ -1163,9 +1165,9 @@ iot_agent_suse-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
@@ -1515,9 +1517,9 @@ dogstatsd_rpm-x64:
     # from the GOPATH (see above). We then call `invoke` passing --base-dir,
     # pointing to a gitlab-friendly location.
     - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
@@ -1554,9 +1556,9 @@ dogstatsd_suse-x64:
     # from the GOPATH (see above). We then call `invoke` passing --base-dir,
     # pointing to a gitlab-friendly location.
     - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
@@ -1942,16 +1944,6 @@ deploy_windows_testing-a7:
     - .kitchen_datadog_iot_agent_flavor
     - .kitchen_azure_location_north_central_us
 
-trigger_kitchen_functional_test:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  tags: [ "runner:docker", "size:large" ]
-  rules:
-    - when: manual
-      allow_failure: true
-  needs: []
-  script: [ "# noop" ]
-  stage: source_test
-
 .kitchen_test_security_agent:
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
@@ -1960,9 +1952,9 @@ trigger_kitchen_functional_test:
     - .kitchen_azure_location_north_central_us
   <<: *kitchen_common
   rules:
-    - when: always
+    - when: manual
       allow_failure: true
-  needs: [ "trigger_kitchen_functional_test", "tests_ebpf" ]
+  needs: [  "tests_ebpf" ]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -2183,7 +2175,6 @@ kitchen_centos_upgrade7_iot_agent-a7:
     - .kitchen_test_upgrade7_iot_agent
 
 kitchen_centos_security_agent:
-  allow_failure: false
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="centos-77,urn,OpenLogic:CentOS:7.7:7.7.201912090"
@@ -2273,7 +2264,6 @@ kitchen_ubuntu_upgrade7_iot_agent-a7:
     - .kitchen_test_upgrade7_iot_agent
 
 kitchen_ubuntu_security_agent:
-  allow_failure: false
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="ubuntu-18-04,urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
@@ -2362,7 +2352,6 @@ kitchen_suse_upgrade7_iot_agent-a7:
     - .kitchen_test_upgrade7_iot_agent
 
 kitchen_suse_security_agent:
-  allow_failure: false
   extends:
     - .kitchen_os_suse
     - .kitchen_test_security_agent
@@ -2447,7 +2436,6 @@ kitchen_debian_upgrade7_iot_agent-a7:
     - .kitchen_test_upgrade7_iot_agent
 
 kitchen_debian_security_agent:
-  allow_failure: false
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="debian-10,urn,Debian:debian-10:10:0.20200610.293"
@@ -2529,14 +2517,10 @@ testkitchen_cleanup_azure-a7:
 cleanup_kitchen_functional_test:
   <<: *kitchen_cleanup_azure_common
   rules:
-    - when: always
+    - when: manual
       allow_failure: true
   stage: functional_test_cleanup
-  needs:
-    - kitchen_centos_security_agent
-    - kitchen_debian_security_agent
-    - kitchen_suse_security_agent
-    - kitchen_ubuntu_security_agent
+  needs: [  "tests_ebpf" ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
 
