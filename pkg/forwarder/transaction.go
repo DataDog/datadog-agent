@@ -24,32 +24,32 @@ import (
 )
 
 var (
-	connectionDNSSuccess           = expvar.Int{}
-	connectionConnectSuccess       = expvar.Int{}
-	transactionsExpvars            = expvar.Map{}
-	transactionsInputBytes         = expvar.Map{}
-	transactionsConnectionEvents   = expvar.Map{}
-	transactionsInputCount         = expvar.Map{}
-	transactionsDropped            = expvar.Int{}
-	transactionsDroppedByEndpoint  = expvar.Map{}
-	transactionsDroppedOnInput     = expvar.Int{}
-	transactionsRequeued           = expvar.Int{}
-	transactionsRequeuedByEndpoint = expvar.Map{}
-	transactionsRetried            = expvar.Int{}
-	transactionsRetriedByEndpoint  = expvar.Map{}
-	transactionsRetryQueueSize     = expvar.Int{}
-	transactionsSuccessByEndpoint  = expvar.Map{}
-	transactionsSuccessBytes       = expvar.Map{}
-	transactionsSuccess            = expvar.Int{}
-	transactionsErrors             = expvar.Int{}
-	transactionsErrorsByType       = expvar.Map{}
-	transactionsDNSErrors          = expvar.Int{}
-	transactionsTLSErrors          = expvar.Int{}
-	transactionsConnectionErrors   = expvar.Int{}
-	transactionsWroteRequestErrors = expvar.Int{}
-	transactionsSentRequestErrors  = expvar.Int{}
-	transactionsHTTPErrors         = expvar.Int{}
-	transactionsHTTPErrorsByCode   = expvar.Map{}
+	connectionDNSSuccess               = expvar.Int{}
+	connectionConnectSuccess           = expvar.Int{}
+	transactionsExpvars                = expvar.Map{}
+	transactionsInputBytesByEndpoint   = expvar.Map{}
+	transactionsConnectionEvents       = expvar.Map{}
+	transactionsInputCountByEndpoint   = expvar.Map{}
+	transactionsDropped                = expvar.Int{}
+	transactionsDroppedByEndpoint      = expvar.Map{}
+	transactionsDroppedOnInput         = expvar.Int{}
+	transactionsRequeued               = expvar.Int{}
+	transactionsRequeuedByEndpoint     = expvar.Map{}
+	transactionsRetried                = expvar.Int{}
+	transactionsRetriedByEndpoint      = expvar.Map{}
+	transactionsRetryQueueSize         = expvar.Int{}
+	transactionsSuccessByEndpoint      = expvar.Map{}
+	transactionsSuccessBytesByEndpoint = expvar.Map{}
+	transactionsSuccess                = expvar.Int{}
+	transactionsErrors                 = expvar.Int{}
+	transactionsErrorsByType           = expvar.Map{}
+	transactionsDNSErrors              = expvar.Int{}
+	transactionsTLSErrors              = expvar.Int{}
+	transactionsConnectionErrors       = expvar.Int{}
+	transactionsWroteRequestErrors     = expvar.Int{}
+	transactionsSentRequestErrors      = expvar.Int{}
+	transactionsHTTPErrors             = expvar.Int{}
+	transactionsHTTPErrorsByCode       = expvar.Map{}
 
 	tlmTxInputBytes = telemetry.NewCounter("forwarder_transactions", "input_bytes",
 		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
@@ -129,21 +129,21 @@ var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
 
 func initTransactionExpvars() {
-	transactionsInputBytes.Init()
+	transactionsInputBytesByEndpoint.Init()
 	transactionsConnectionEvents.Init()
-	transactionsInputCount.Init()
+	transactionsInputCountByEndpoint.Init()
 	transactionsDroppedByEndpoint.Init()
 	transactionsRequeuedByEndpoint.Init()
 	transactionsRetriedByEndpoint.Init()
 	transactionsSuccessByEndpoint.Init()
-	transactionsSuccessBytes.Init()
+	transactionsSuccessBytesByEndpoint.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
 	transactionsConnectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
 	transactionsConnectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
-	transactionsExpvars.Set("InputBytes", &transactionsInputBytes)
+	transactionsExpvars.Set("InputBytesByEndpoint", &transactionsInputBytesByEndpoint)
 	transactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
-	transactionsExpvars.Set("InputCount", &transactionsInputCount)
+	transactionsExpvars.Set("InputCountByEndpoint", &transactionsInputCountByEndpoint)
 	transactionsExpvars.Set("Dropped", &transactionsDropped)
 	transactionsExpvars.Set("DroppedByEndpoint", &transactionsDroppedByEndpoint)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
@@ -153,7 +153,7 @@ func initTransactionExpvars() {
 	transactionsExpvars.Set("RetriedByEndpoint", &transactionsRetriedByEndpoint)
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("SuccessByEndpoint", &transactionsSuccessByEndpoint)
-	transactionsExpvars.Set("SuccessBytes", &transactionsSuccessBytes)
+	transactionsExpvars.Set("SuccessBytesByEndpoint", &transactionsSuccessBytesByEndpoint)
 	transactionsExpvars.Set("Success", &transactionsSuccess)
 	transactionsExpvars.Set("Errors", &transactionsErrors)
 	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
@@ -349,7 +349,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName)
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, transactionEndpointName)
 	transactionsSuccessByEndpoint.Add(transactionEndpointName, 1)
-	transactionsSuccessBytes.Add(transactionEndpointName, int64(t.GetPayloadSize()))
+	transactionsSuccessBytesByEndpoint.Add(transactionEndpointName, int64(t.GetPayloadSize()))
 	transactionsSuccess.Add(1)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
