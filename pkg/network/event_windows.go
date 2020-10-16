@@ -72,10 +72,11 @@ func connDirection(flags C.uint32_t) ConnectionDirection {
 
 func isFlowClosed(flags C.uint32_t) bool {
 	// Connection is closed
-	if (flags & C.FLOW_CLOSED_MASK) == C.FLOW_CLOSED_MASK {
-		return true
-	}
-	return false
+	return (flags & C.FLOW_CLOSED_MASK) == C.FLOW_CLOSED_MASK
+}
+
+func isTCPFlowEstablished(flags C.uint32_t) bool {
+	return (flags & C.TCP_FLOW_ESTABLISHED_MASK) == C.TCP_FLOW_ESTABLISHED_MASK
 }
 
 func convertV4Addr(addr [16]C.uint8_t) util.Address {
@@ -139,6 +140,13 @@ func FlowToConnStat(flow *C.struct__perFlowData, enableMonotonicCounts bool) Con
 		cs.MonotonicRetransmits = uint32(C.getTcp_retransmitCount(flow))
 		cs.RTT = uint32(C.getTcp_sRTT(flow))
 		cs.RTTVar = uint32(C.getTcp_rttVariance(flow))
+
+		if isTCPFlowEstablished(flow.flags) {
+			cs.MonotonicTCPEstablished = 1
+		}
+		if isFlowClosed(flow.flags) {
+			cs.MonotonicTCPClosed = 1
+		}
 	}
 	return cs
 }

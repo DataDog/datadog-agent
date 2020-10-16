@@ -8,18 +8,19 @@
 package ebpf
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strings"
+	"syscall"
 	"time"
 
-	bpflib "github.com/iovisor/gobpf/elf"
-)
+	"github.com/avast/retry-go"
+	"github.com/pkg/errors"
 
-// ErrEBPFNotSupported is returned when eBPF is not enabled/supported on the host
-var ErrEBPFNotSupported = errors.New("eBPF is not supported")
+	bpflib "github.com/iovisor/gobpf/elf"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 // Module represents an eBPF module
 type Module struct {
@@ -41,7 +42,7 @@ func (m *Module) RegisterPerfMap(perfMap *PerfMapDefinition) (*PerfMap, error) {
 		return nil, fmt.Errorf("error initializing perf map: %s", err)
 	}
 
-	log.Printf("Registered perf map %s", perfMap.Name)
+	log.Debugf("Registered perf map %s", perfMap.Name)
 
 	return &PerfMap{
 		PerfMap:      pm,
@@ -87,12 +88,9 @@ func detach(kprobe *bpflib.Kprobe) error {
 func (m *Module) Close() error {
 	for kprobe := range m.IterKprobes() {
 		if err := kprobe.Detach(); err != nil {
-			for i := 0; i != maxDetachRetry; i++ {
-				if err = detach(kprobe); err == nil {
-					break
-				}
-				time.Sleep(time.Second)
-			}
+			err := retry.Do(func() error {
+				return detach(kprobe)
+			}, retry.Attempts(maxDetachRetry), retry.Delay(time.Second))
 
 			if err != nil {
 				return err
@@ -108,21 +106,18 @@ func (m *Module) Close() error {
 func NewModuleFromReader(reader io.ReaderAt) (*Module, error) {
 	module := bpflib.NewModuleFromReaderWithLogSize(reader, eBPFLogSize)
 	if module == nil {
-		return nil, ErrEBPFNotSupported
+		return nil, fmt.Errorf("failed to load eBPF module: %s", string(module.Log()))
 	}
 
-	if err := module.Load(nil); err != nil {
-		log.Printf("eBPF verifiers logs: %s", string(module.Log()))
-		return nil, err
-	}
+	err := retry.Do(func() error {
+		return module.Load(nil)
+	}, retry.RetryIf(func(err error) bool {
+		return strings.Contains(err.Error(), syscall.EAGAIN.Error())
+	}))
 
-	/*
-		map[string]bpflib.SectionParams{
-			"maps/" + name: {
-				MapMaxEntries: mapMaxEntries,
-			},
-		})
-	*/
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load module")
+	}
 
 	return &Module{module}, nil
 }

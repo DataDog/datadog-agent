@@ -48,13 +48,10 @@ func getLabelsToTags() map[string]string {
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {
 	tagList := utils.NewTagList()
-
+	labelsToTags, glob := utils.InitMetadataAsTags(labelsToTags)
 	for labelName, labelValue := range nodeLabels {
 		labelName, labelValue := LabelPreprocessor(labelName, labelValue)
-
-		if tagName, found := labelsToTags[strings.ToLower(labelName)]; found {
-			tagList.AddLow(tagName, labelValue)
-		}
+		utils.AddMetadataAsTags(labelName, labelValue, labelsToTags, glob, tagList)
 	}
 
 	tags, _, _, _ := tagList.Compute()

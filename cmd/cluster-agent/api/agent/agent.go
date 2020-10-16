@@ -182,5 +182,14 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(runtimeConfig)
+
+	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
+	if err != nil {
+		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(scrubbed)
 }
