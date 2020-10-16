@@ -280,7 +280,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint.route
-	transactionEndpointName := getTransactionEndpointName(t)
+	transactionEndpointName := t.GetEndpointName()
 	logURL := httputils.SanitizeURL(url) // sanitized url that can be logged
 
 	req, err := http.NewRequest("POST", url, reader)
@@ -366,12 +366,4 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
 	return resp.StatusCode, body, nil
-}
-
-func getTransactionEndpointName(transaction Transaction) string {
-	if transaction != nil {
-		return transaction.GetEndpointName()
-	}
-
-	return "unknown"
 }

@@ -80,7 +80,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	sort.Sort(byCreatedTimeAndPriority(f.retryQueue))
 
 	for _, t := range f.retryQueue {
-		transactionEndpointName := getTransactionEndpointName(t)
+		transactionEndpointName := t.GetEndpointName()
 		if !f.blockedList.isBlock(t.GetTarget()) {
 			select {
 			case f.lowPrio <- t:
@@ -118,7 +118,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 
 func (f *domainForwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
-	transactionsRequeuedByEndpoint.Add(getTransactionEndpointName(t), 1)
+	transactionsRequeuedByEndpoint.Add(t.GetEndpointName(), 1)
 	transactionsRequeued.Add(1)
 	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
 	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
@@ -235,7 +235,7 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	case f.highPrio <- transaction:
 	default:
 		transactionsDroppedOnInput.Add(1)
-		tlmTxDroppedOnInput.Inc(f.domain, getTransactionEndpointName(transaction))
+		tlmTxDroppedOnInput.Inc(f.domain, transaction.GetEndpointName())
 		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
 	}
 	return nil
