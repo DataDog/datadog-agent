@@ -610,3 +610,18 @@ func BenchmarkNormalizeTag(b *testing.B) {
 	b.Run("plenty", benchNormalizeTag("fun:ky_ta@#g/1"))
 	b.Run("more", benchNormalizeTag("fun:k####y_ta@#g/1_@@#"))
 }
+
+func benchToUTF8(s string) func(b *testing.B) {
+	return func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			toUTF8(s)
+		}
+	}
+}
+
+func BenchmarkToUTF8(b *testing.B) {
+	b.Run("valid ascii", benchNormalizeTag("valid UTF8"))
+	b.Run("valid utf8", benchNormalizeTag("Data🐨dog🐶 繋がっ⛰てて"))
+	b.Run("invalid", benchNormalizeTag("test\x99\x8f"))
+}
