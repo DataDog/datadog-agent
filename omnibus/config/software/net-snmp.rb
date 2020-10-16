@@ -45,6 +45,10 @@ build do
   make env: env
   make "install", env: env
 
+  if windows?
+    copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded/include/net-snmp/net-snmp-config.h"
+  end
+
   whitelist_file "#{install_dir}/embedded/lib/libnetsnmpmibs.so.40.0.0"
   whitelist_file "#{install_dir}/embedded/lib/libnetsnmpagent.so.40.0.0"
 end
