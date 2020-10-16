@@ -33,7 +33,7 @@ build do
   ]
 
   if windows?
-    configure_command = configure_args.unshift("sh").unshift("configure").join(" ")
+    configure_command = configure_args.unshift("sh configure").join(" ")
   else
     configure_command = configure_args.unshift("./configure").join(" ")
   end
