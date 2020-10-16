@@ -83,6 +83,7 @@ func NewManager(closedHandler *PerfHandler) *manager.Manager {
 			{Section: string(SysSocketRet), SyscallFuncName: "socket", KProbeMaxActive: maxActive},
 			{Section: string(TraceSysSocketExit)},
 			{Section: string(SocketDnsFilter)},
+			{Section: string(SocketHttpFilter)},
 		},
 	}
 }

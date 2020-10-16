@@ -22,10 +22,10 @@ const (
 	dnsCacheSize             = 100000
 )
 
-var _ ReverseDNS = &SocketFilterSnooper{}
+var _ ReverseDNS = &DNSSocketFilterSnooper{}
 
-// SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
-type SocketFilterSnooper struct {
+// DNSSocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
+type DNSSocketFilterSnooper struct {
 	source          *packetSource
 	parser          *dnsParser
 	cache           *reverseDNSCache
@@ -51,14 +51,14 @@ type SocketFilterSnooper struct {
 	errors    int64
 }
 
-// NewSocketFilterSnooper returns a new SocketFilterSnooper
-func NewSocketFilterSnooper(
+// NewDNSSocketFilterSnooper returns a new DNSSocketFilterSnooper
+func NewDNSSocketFilterSnooper(
 	rootPath string,
 	filter *manager.Probe,
 	collectDNSStats bool,
 	collectLocalDNS bool,
 	dnsTimeout time.Duration,
-) (*SocketFilterSnooper, error) {
+) (*DNSSocketFilterSnooper, error) {
 
 	var (
 		packetSrc *packetSource
@@ -81,7 +81,7 @@ func NewSocketFilterSnooper(
 	if collectDNSStats {
 		statKeeper = newDNSStatkeeper(dnsTimeout)
 	}
-	snooper := &SocketFilterSnooper{
+	snooper := &DNSSocketFilterSnooper{
 		source:          packetSrc,
 		parser:          newDNSParser(collectDNSStats),
 		cache:           cache,
@@ -109,18 +109,18 @@ func NewSocketFilterSnooper(
 }
 
 // Resolve IPs to DNS addresses
-func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Address][]string {
+func (s *DNSSocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Address][]string {
 	return s.cache.Get(connections, time.Now())
 }
 
-func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
+func (s *DNSSocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
 	if s.statKeeper == nil {
 		return nil
 	}
 	return s.statKeeper.GetAndResetAllStats()
 }
 
-func (s *SocketFilterSnooper) GetStats() map[string]int64 {
+func (s *DNSSocketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.cache.Stats()
 	stats["socket_polls"] = atomic.LoadInt64(&s.polls)
 	stats["packets_processed"] = atomic.LoadInt64(&s.processed)
@@ -136,7 +136,7 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 }
 
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
-func (s *SocketFilterSnooper) Close() {
+func (s *DNSSocketFilterSnooper) Close() {
 	close(s.exit)
 	s.wg.Wait()
 	s.source.Close()
@@ -152,7 +152,7 @@ func (s *SocketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 // The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
 // and much more reliable than calling time.Now() at the user layer.
-func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
+func (s *DNSSocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
@@ -182,7 +182,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 	}
 }
 
-func (s *SocketFilterSnooper) pollPackets() {
+func (s *DNSSocketFilterSnooper) pollPackets() {
 	for {
 		data, captureInfo, err := s.source.ZeroCopyReadPacketData()
 
@@ -208,7 +208,7 @@ func (s *SocketFilterSnooper) pollPackets() {
 	}
 }
 
-func (s *SocketFilterSnooper) pollStats() {
+func (s *DNSSocketFilterSnooper) pollStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -244,7 +244,7 @@ func (s *SocketFilterSnooper) pollStats() {
 	}
 }
 
-func (s *SocketFilterSnooper) getCachedTranslation() *translation {
+func (s *DNSSocketFilterSnooper) getCachedTranslation() *translation {
 	t := s.translation
 
 	// Recycle buffer if necessary
