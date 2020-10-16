@@ -1,16 +1,13 @@
 name "net-snmp"
-default_version "ed90aaaaea0d9cc6c5c5533f1863bae598d3b820"
-
-version "ed90aaaaea0d9cc6c5c5533f1863bae598d3b820" do
-  source sha256: "5cf1f605152c480abd549f543d05698fb32622a7a3f7dfcda7b649fbb804fd15"
-end
-
+default_version "e87651cd12a37571f81772b345aefe2370ecc21f"
 
 if windows?
-    source url: "https://github.com/net-snmp/net-snmp/archive/#{version}.zip"
+    source url: "https://github.com/AlexandreYang/net-snmp/archive/#{version}.zip"
+    source sha256: "fb2b77a57055ba2c0d7caebee91bb6c8d4d0fe7deb727f920325b8d35e7d13c4"
     source extract: :seven_zip
 else
-    source url: "https://github.com/net-snmp/net-snmp/archive/#{version}.tar.gz"
+    source url: "https://github.com/AlexandreYang/net-snmp/archive/#{version}.tar.gz"
+    source sha256: "d08fc4655b77361aad843731b6ec98480ec881dbbce037e753507d4007a4fc29"
 end
 
 relative_path "net-snmp-#{version}"
