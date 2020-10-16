@@ -43,4 +43,5 @@ build do
   make "install", env: env
 
   whitelist_file "#{install_dir}/embedded/lib/libnetsnmpmibs.so.40.0.0"
+  whitelist_file "#{install_dir}/embedded/lib/libnetsnmpagent.so.40.0.0"
 end
