@@ -11,9 +11,19 @@ name "net-snmp"
 
 default_version "5.9"
 
-source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip",
-       :sha256 => "1d86261db919fca112fcc594ed881761c5b54ce372f97ceb3bc8a3a91ff68511",
-       :extract => :seven_zip
+version "5.9" do
+  source sha256: "2492dc334faf5ef26fe9783b9be6dfd489a256030883f05004963cc0dc903dfd"
+end
+
+source url: "https://ddintegrations.blob.core.windows.net/snmp/net-snmp-#{version}.tar.gz"
+
+relative_path "net-snmp-#{version}"
+
+# default_version "5.9"
+#
+# source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip",
+#        :sha256 => "1d86261db919fca112fcc594ed881761c5b54ce372f97ceb3bc8a3a91ff68511",
+#        :extract => :seven_zip
 
 build do
 #   ship_license "./COPYING"
