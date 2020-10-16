@@ -41,7 +41,6 @@ build do
 
   configure_args = [
     "--prefix=#{install_dir}/embedded",
-    # "--enable-mini-agent",  # for a faster build
     "--with-default-snmp-version=2",
     "--with-sys-contact=contact",
     "--with-sys-location=Unknown",
@@ -53,6 +52,8 @@ build do
     "--disable-applications",
     "--disable-manuals",
     "--disable-scripts",
+
+    # mibs and mibs-loading cannot be disable, needed for python3-netsnmp bindings
     # "--disable-mibs",
     # "--disable-mib-loading",
   ]
