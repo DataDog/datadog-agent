@@ -1,11 +1,11 @@
 name "net-snmp"
-default_version "5.9"
+default_version "ed90aaaaea0d9cc6c5c5533f1863bae598d3b820"
 
-version "5.9" do
-  source sha256: "2492dc334faf5ef26fe9783b9be6dfd489a256030883f05004963cc0dc903dfd"
+version "ed90aaaaea0d9cc6c5c5533f1863bae598d3b820" do
+  source sha256: "5cf1f605152c480abd549f543d05698fb32622a7a3f7dfcda7b649fbb804fd15"
 end
 
-source url: "https://ddintegrations.blob.core.windows.net/snmp/net-snmp-#{version}.tar.gz"
+source url: "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.tar.gz"
 
 relative_path "net-snmp-#{version}"
 
