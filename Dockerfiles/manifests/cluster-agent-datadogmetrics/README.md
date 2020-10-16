@@ -5,13 +5,11 @@ version 2.4.25 with the following `values.yaml`:
 ```yaml
 datadog:
   collectEvents: true
-  leaderElection: true
-  logs:
-    enabled: true
-  apm:
-    enabled: true
   processAgent:
+    enabled: false
+clusterAgent:
+  enabled: true
+  metricsProvider:
     enabled: true
-  systemProbe:
-    enabled: true
+    useDatadogMetrics: true
 ```

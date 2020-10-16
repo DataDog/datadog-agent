@@ -68,21 +68,13 @@ spec:
         - name: DD_EXTERNAL_METRICS_PROVIDER_WPA_CONTROLLER
           value: "false"
         - name: DD_EXTERNAL_METRICS_PROVIDER_USE_DATADOGMETRIC_CRD
-          value: "false"
+          value: "true"
         - name: DD_EXTERNAL_METRICS_AGGREGATOR
           value: "avg"
-        - name: DD_CLUSTER_CHECKS_ENABLED
-          value: "true"
-        - name: DD_EXTRA_CONFIG_PROVIDERS
-          value: "kube_endpoints kube_services"
-        - name: DD_EXTRA_LISTENERS
-          value: "kube_endpoints kube_services"
         - name: DD_LOG_LEVEL
           value: "INFO"
         - name: DD_LEADER_ELECTION
           value: "true"
-        - name: DD_LEADER_LEASE_DURATION
-          value: "15"
         - name: DD_COLLECT_KUBERNETES_EVENTS
           value: "true"
         - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
