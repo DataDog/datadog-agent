@@ -41,7 +41,7 @@ build do
 
   configure_args = [
     "--prefix=#{install_dir}/embedded",
-    "--enable-mini-agent",  # for a faster build
+    # "--enable-mini-agent",  # for a faster build
     "--with-default-snmp-version=2",
     "--with-sys-contact=contact",
     "--with-sys-location=Unknown",
@@ -53,8 +53,8 @@ build do
     "--disable-applications",
     "--disable-manuals",
     "--disable-scripts",
-    "--disable-mibs",
-    "--disable-mib-loading",
+    # "--disable-mibs",
+    # "--disable-mib-loading",
   ]
 
   configure_command = configure_args.unshift("./configure").join(" ")
