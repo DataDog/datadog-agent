@@ -30,18 +30,11 @@ except NameError:
 
 PROFILE_COV = "profile.cov"
 
-DEFAULT_TOOL_MODULES = [
-    {"name": "", "targets": ["./pkg", "./cmd"]},
-    {"name": "pkg/trace/exportable", "targets": ["."]},
-    {"name": "pkg/util/log", "targets": ["."]},
-    {"name": "pkg/util/winutil", "targets": ["."], "condition": lambda: sys.platform == 'win32'},
-]
-
-DEFAULT_TEST_MODULES = [
-    {"name": "", "targets": ["./pkg", "./cmd"]},
-    {"name": "pkg/trace/exportable", "targets": ["."]},
-    {"name": "pkg/util/log", "targets": ["."]},
-    {"name": "pkg/util/winutil", "targets": ["."], "condition": lambda: sys.platform == 'win32'},
+DEFAULT_MODULES = [
+    {"name": ".", "targets": ["./pkg", "./cmd"]},
+    {"name": "./pkg/trace/exportable", "targets": ["."]},
+    {"name": "./pkg/util/log", "targets": ["."]},
+    {"name": "./pkg/util/winutil", "targets": ["."], "condition": lambda: sys.platform == 'win32'},
 ]
 
 
@@ -77,21 +70,30 @@ def test(
     go_mod="mod",
 ):
     """
-    Run all the tools and tests on the given targets. If targets are not specified,
-    the value from `invoke.yaml` will be used.
+    Run all the tools and tests on the given module and targets. 
+    module, if set, should be the relative path to one of the go modules in the repository.
+
+    targets, if set, should be a comma-separated list of relative paths within the given module.
+    If targets is set but module is not set, module defaults to ".".
+
+    If no module nor targets are set, the tests are run against all default modules and targets.
 
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
+        inv test --module=./pkg/trace/exportable --race
     """
-    if isinstance(module, basestring) and isinstance(targets, basestring):
+    if isinstance(module, basestring):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
-        tool_modules = test_modules = [{"name": module, "targets": targets.split(',')}]
-    elif targets is None:
-        tool_modules = DEFAULT_TOOL_MODULES
-        test_modules = DEFAULT_TEST_MODULES
+        if isinstance(targets, basestring):
+            modules = [{"name": module, "targets": targets.split(',')}]
+        else:
+            modules = [m for m in DEFAULT_MODULES if m["name"] == module]
+    elif isinstance(targets, basestring):
+        modules = [{"name": ".", "targets": targets.split(',')}]
     else:
-        tool_modules = test_modules = targets
+        print("Using default modules and targets.")
+        modules = DEFAULT_MODULES
 
     build_include = (
         get_default_build_tags(build="test-with-process-tags", arch=arch)
@@ -121,9 +123,9 @@ def test(
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
         print("--- Vetting and linting (legacy):")
-        for module in tool_modules:
+        for module in modules:
 
-            full_module = os.path.join(os.getcwd(), module["name"])
+            full_module = os.path.normpath(os.path.join(os.getcwd(), module["name"]))
             print("------ Module {}".format(full_module))
 
             if module.get("condition") and not module["condition"]():
@@ -140,8 +142,8 @@ def test(
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
             print("--- golangci_lint:")
-            for module in tool_modules:
-                full_module = os.path.join(os.getcwd(), module["name"])
+            for module in modules:
+                full_module = os.path.normpath(os.path.join(os.getcwd(), module["name"]))
                 print("------ Module {}".format(full_module))
 
                 if module.get("condition") and not module["condition"]():
@@ -219,8 +221,8 @@ def test(
         "nocache": nocache,
     }
 
-    for module in test_modules:
-        full_module = os.path.join(os.getcwd(), module["name"])
+    for module in modules:
+        full_module = os.path.normpath(os.path.join(os.getcwd(), module["name"]))
         print("------ Module {}".format(full_module))
         if module.get("condition") and not module["condition"]():
             print("------ Skipped")
