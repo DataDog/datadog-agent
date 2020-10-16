@@ -32,7 +32,11 @@ build do
     # "--disable-mib-loading",
   ]
 
-  configure_command = configure_args.unshift("./configure").join(" ")
+  if windows?
+    configure_command = configure_args.unshift("sh").unshift("configure").join(" ")
+  else
+    configure_command = configure_args.unshift("./configure").join(" ")
+  end
 
   command configure_command, env: env
   make env: env
