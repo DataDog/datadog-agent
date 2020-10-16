@@ -51,6 +51,7 @@ type Tracer struct {
 	perfHandler  *bytecode.PerfHandler
 	batchManager *PerfBatchManager
 	flushIdle    chan chan struct{}
+	stop         chan struct{}
 
 	// Telemetry
 	perfReceived  int64
@@ -242,6 +243,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		perfHandler:    perfHandler,
 		flushIdle:      make(chan chan struct{}),
+		stop:           make(chan struct{}),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
@@ -306,21 +308,34 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 
 func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
-	// starts running the body immediately instead waiting for the first tick
-	for ; true; <-ticker.C {
-		stats, err := t.getTelemetry()
-		if err != nil {
-			continue
-		}
+	defer ticker.Stop()
 
-		for name, stat := range stats {
-			for metric, val := range stat.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
-			}
+	// trigger first get immediately
+	_ = t.populateExpvarStats()
+	for {
+		select {
+		case <-t.stop:
+			return
+		case <-ticker.C:
+			_ = t.populateExpvarStats()
 		}
 	}
+}
+
+func (t *Tracer) populateExpvarStats() error {
+	stats, err := t.getTelemetry()
+	if err != nil {
+		return err
+	}
+
+	for name, stat := range stats {
+		for metric, val := range stat.(map[string]int64) {
+			currVal := &expvar.Int{}
+			currVal.Set(val)
+			expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+		}
+	}
+	return nil
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
@@ -415,6 +430,7 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 }
 
 func (t *Tracer) Stop() {
+	close(t.stop)
 	t.reverseDNS.Close()
 	_ = t.m.Stop(manager.CleanAll)
 	_ = t.perfMap.Stop(manager.CleanAll)
