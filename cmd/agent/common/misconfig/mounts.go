@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -41,16 +42,30 @@ func procMount() error {
 	if err != nil {
 		return fmt.Errorf("failed to get process groups: %v", err)
 	}
+
+	egid := os.Getegid()
+	var haveEgid bool
+	// From `man getgroups`:
+	// It is unspecified whether the effective group ID of the calling process is included in the returned list.
+	for _, gid := range groups {
+		if gid == egid {
+			haveEgid = true
+			break
+		}
+	}
+	if !haveEgid {
+		groups = append(groups, egid)
+	}
 	path := config.Datadog.GetString("container_proc_root")
 	if config.IsContainerized() && path != "/proc" {
 		path = filepath.Join(path, "1/mounts")
 	} else {
 		path = filepath.Join(path, "mounts")
 	}
-	return checkProcMountHidePid(path, groups)
+	return checkProcMountHidePid(path, os.Geteuid(), groups)
 }
 
-func checkProcMountHidePid(path string, groups []int) error {
+func checkProcMountHidePid(path string, uid int, groups []int) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return errors.Wrapf(err, "failed to open %s - proc fs inspection may not work", path)
@@ -76,6 +91,7 @@ func checkProcMountHidePid(path string, groups []int) error {
 
 		if _, ok := mountOptsLookup["hidepid=2"]; !ok {
 			// hidepid is not set, no further checks necessary
+			log.Tracef("Proc mounts hidepid=2 option is not set")
 			return nil
 		}
 
@@ -83,15 +99,19 @@ func checkProcMountHidePid(path string, groups []int) error {
 			mountOptsLookup["gid=0"] = struct{}{}
 		}
 
+		gidList := make([]string, 0, len(groups))
 		for _, gid := range groups {
 			gidOpt := fmt.Sprintf("gid=%d", gid)
+			gidList = append(gidList, strconv.Itoa(gid))
 			if _, ok := mountOptsLookup[gidOpt]; ok {
 				// While hidepid=2 is set, one of the groups is enabled
+				log.Tracef("Proc mounts hidepid=2 with %s - proc fs inspection is enabled", gidOpt)
 				return nil
 			}
 		}
 
-		return fmt.Errorf("hidepid=2 option detected in %s - proc fs inspection may not work", path)
+		return fmt.Errorf("hidepid=2 option detected in %s (options=%s) - proc fs inspection may not work (uid=%d, groups=[%s])",
+			path, fields[3], uid, strings.Join(gidList, ","))
 	}
 
 	return errors.Wrapf(scanner.Err(), "failed to scan %s", path)

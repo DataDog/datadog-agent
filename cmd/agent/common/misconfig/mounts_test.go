@@ -29,8 +29,14 @@ func TestCheckProcMountHidePid(t *testing.T) {
 		},
 		{
 			name:        "hidepid without groups",
-			file:        "./tests/proc-mounts-hidepid-2-groups",
-			expectError: "hidepid=2 option detected in ./tests/proc-mounts-hidepid-2-groups - proc fs inspection may not work",
+			file:        "./tests/proc-mounts-hidepid-2",
+			groups:      []int{1, 2, 3},
+			expectError: "hidepid=2 option detected in ./tests/proc-mounts-hidepid-2 (options=defaults,hidepid=2) - proc fs inspection may not work (uid=1001, groups=[1,2,3])",
+		},
+		{
+			name:   "hidepid without groups user has root group",
+			file:   "./tests/proc-mounts-hidepid-2",
+			groups: []int{0},
 		},
 		{
 			name:   "hidepid and groups",
@@ -45,7 +51,7 @@ func TestCheckProcMountHidePid(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := checkProcMountHidePid(test.file, test.groups)
+			err := checkProcMountHidePid(test.file, 1001, test.groups)
 			if test.expectError != "" {
 				assert.EqualError(err, test.expectError)
 			} else {
