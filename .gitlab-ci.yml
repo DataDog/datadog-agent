@@ -3112,7 +3112,7 @@ twistlock_scan-7:
 .google_container_registry_tag_job_definition: &google_container_registry_tag_job_definition
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-push:1.5.0
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-push:1.5.1
   variables:
     <<: *google_container_registry_variables
   before_script:
@@ -4007,6 +4007,25 @@ tag_release_7_linux:
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:${VERSION}
 
+tag_release_7_linux_google_container_registry:
+  rules:
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+  <<: *google_container_registry_tag_job_definition
+  stage: deploy7
+  dependencies:
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
+    - docker_build_dogstatsd_amd64
+  script:
+    - VERSION=$(inv -e agent.version --major-version 7)
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template gcr.io/datadoghq/agent-ARCH:${VERSION}
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template gcr.io/datadoghq/agent-ARCH:${VERSION}-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG}-amd64 gcr.io/datadoghq/dogstatsd:${VERSION}
+
 tag_release_7_windows:
   rules:
     - <<: *if_deploy_on_tag_7
@@ -4114,6 +4133,38 @@ latest_release_7:
       --image datadog/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
 
+latest_release_7_google_container_registry:
+  rules:
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+  <<: *google_container_registry_tag_job_definition
+  stage: deploy7
+  dependencies:
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
+    - docker_build_dogstatsd_amd64
+  script:
+    - VERSION=$(inv -e agent.version --major-version 7)
+    # Dogstatsd
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG}-amd64 gcr.io/datadoghq/dogstatsd:latest
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG}-amd64 gcr.io/datadoghq/dogstatsd:7
+    # Manifests
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest
+      --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-jmx
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7
+      --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-jmx
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
+
 #
 # Use these steps to revert the latest tags to a previous release
 # while maintaining content trust signatures
@@ -4170,6 +4221,32 @@ revert_dockerhub_latest_7:
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:latest
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:7
+
+revert_google_container_registry_latest_7:
+  rules:
+    - <<: *if_master_branch
+      when: manual
+      allow_failure: true
+  <<: *google_container_registry_tag_job_definition
+  stage: maintenance_jobs
+  variables:
+    <<: *google_container_registry_variables
+    NEW_LATEST_RELEASE_7: ""  # tag name of the non-jmx version, for example "7.21.0"
+  script:
+    - if [[ -z "$NEW_LATEST_RELEASE_7" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-jmx
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-jmx
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+    - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:latest
+    - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:7
 
 #
 # Use this step to delete a tag of a given image
