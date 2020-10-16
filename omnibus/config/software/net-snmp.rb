@@ -1,14 +1,4 @@
 name "net-snmp"
-# default_version "5.7.3"
-#
-# version "5.7.3" do
-#   source sha256: "12ef89613c7707dc96d13335f153c1921efc9d61d3708ef09f3fc4a7014fb4f0"
-# end
-#
-# source url: "https://deac-ams.dl.sourceforge.net/project/net-snmp/net-snmp/#{version}/net-snmp-#{version}.tar.gz"
-#
-# relative_path "net-snmp-#{version}"
-
 default_version "5.9"
 
 version "5.9" do
@@ -18,22 +8,6 @@ end
 source url: "https://ddintegrations.blob.core.windows.net/snmp/net-snmp-#{version}.tar.gz"
 
 relative_path "net-snmp-#{version}"
-
-# default_version "ed90aaaaea0d9cc6c5c5533f1863bae598d3b820"
-#
-# version "ed90aaaaea0d9cc6c5c5533f1863bae598d3b820" do
-#   source sha256: "5cf1f605152c480abd549f543d05698fb32622a7a3f7dfcda7b649fbb804fd15"
-# end
-#
-# source url: "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.tar.gz"
-#
-# relative_path "net-snmp-#{version}"
-
-# default_version "5.9"
-#
-# source :url => "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.zip",
-#        :sha256 => "1d86261db919fca112fcc594ed881761c5b54ce372f97ceb3bc8a3a91ff68511",
-#        :extract => :seven_zip
 
 build do
 #   ship_license "./COPYING"
@@ -63,10 +37,6 @@ build do
   command configure_command, env: env
   make env: env
   make "install", env: env
-
-  command ["ls", "-la", "#{install_dir}/embedded"]
-#   command ["ls", "-la", "src/snmplib/.libs"]
-#   copy "src/snmplib/.libs/libnetsnmp.so.35.0.0", "#{install_dir}/embedded/lib/libnetsnmp.so"
 
   whitelist_file "#{install_dir}/embedded/lib/libnetsnmpmibs.so.40.0.0"
 end
