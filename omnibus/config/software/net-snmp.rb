@@ -5,7 +5,13 @@ version "ed90aaaaea0d9cc6c5c5533f1863bae598d3b820" do
   source sha256: "5cf1f605152c480abd549f543d05698fb32622a7a3f7dfcda7b649fbb804fd15"
 end
 
-source url: "https://github.com/net-snmp/net-snmp/archive/ed90aaaaea0d9cc6c5c5533f1863bae598d3b820.tar.gz"
+
+if windows?
+    source url: "https://github.com/net-snmp/net-snmp/archive/#{version}.zip"
+    source extract: :seven_zip
+else
+    source url: "https://github.com/net-snmp/net-snmp/archive/#{version}.tar.gz"
+end
 
 relative_path "net-snmp-#{version}"
 
