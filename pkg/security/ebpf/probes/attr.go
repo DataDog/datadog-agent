@@ -89,14 +89,6 @@ func getAttrProbes() []*manager.Probe {
 	}, EntryAndExit|ExpandTime32)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		UID:             SecurityAgentUID,
-		SyscallFuncName: "utimesat",
-	}, EntryAndExit, true)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
-		SyscallFuncName: "utimesat",
-	}, EntryAndExit|ExpandTime32)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
 		SyscallFuncName: "futimesat",
 	}, EntryAndExit, true)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
