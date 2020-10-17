@@ -47,6 +47,7 @@ build do
 
   if windows?
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded/include/net-snmp/net-snmp-config.h"
+    copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
   end
 
   whitelist_file "#{install_dir}/embedded/lib/libnetsnmpmibs.so.40.0.0"
