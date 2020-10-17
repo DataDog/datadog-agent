@@ -21,6 +21,7 @@ type store struct {
 	nameToJMXMetrics  map[string]integration.Data
 	adIDToServices    map[string]map[string]bool
 	entityToService   map[string]listeners.Service
+	entityToAdIDs     map[string][]string
 	templateCache     *TemplateCache
 	m                 sync.RWMutex
 }
@@ -35,6 +36,7 @@ func newStore() *store {
 		nameToJMXMetrics:  make(map[string]integration.Data),
 		adIDToServices:    make(map[string]map[string]bool),
 		entityToService:   make(map[string]listeners.Service),
+		entityToAdIDs:     make(map[string][]string),
 		templateCache:     NewTemplateCache(),
 	}
 
@@ -186,4 +188,21 @@ func (s *store) getServiceEntitiesForADID(adID string) (map[string]bool, bool) {
 	defer s.m.Unlock()
 	services, found := s.adIDToServices[adID]
 	return services, found
+}
+
+func (s *store) setADIdentifiersForEntity(entity string, adIDs []string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	if _, ok := s.entityToAdIDs[entity]; ok {
+		s.entityToAdIDs[entity] = append(s.entityToAdIDs[entity], adIDs...)
+	} else {
+		s.entityToAdIDs[entity] = adIDs
+	}
+}
+
+func (s *store) getADIdentifiersForEntity(entity string) ([]string, bool) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	adIDs, found := s.entityToAdIDs[entity]
+	return adIDs, found
 }

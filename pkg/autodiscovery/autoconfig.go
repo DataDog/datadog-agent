@@ -503,6 +503,8 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 		}
 
 		for serviceID := range serviceIds {
+			// CELENE there is a bug here. even though we potentially store multiple services for an AD ID, we only store one service per entity.
+			// so we may not get the right one. is this a problem though? from looking at configresolver.Resolve it seems pretty innocuous.
 			svc := ac.store.getServiceForEntity(serviceID)
 			if svc == nil {
 				log.Warnf("Service %s was removed before we could resolve its config", serviceID)
@@ -578,22 +580,35 @@ func GetResolveWarnings() map[string][]string {
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// in any case, register the service and store its tag hash
-	ac.store.setServiceForEntity(svc, svc.GetEntity())
+	entity := svc.GetEntity()
+	ac.store.setServiceForEntity(svc, entity) // CELENE i think this is detrimental that we overwrite the service . but maybe all we need is the AD identifier?... and account for it in the other line.
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
 		tagger.GetEntityHash(svc.GetTaggerEntity()),
 	)
+	adIds, err := svc.GetADIdentifiers()
+	if err != nil {
+		log.Errorf("Failed to get AD identifiers for service %s: %s", entity, err)
+	} else {
+		ac.store.setADIdentifiersForEntity(entity, adIds) // CELENE
+		log.Debugf("CELENE set AD Identifiers %v for entity %s", adIds, entity)
+	}
 
 	// get all the templates matching service identifiers
 	var templates []integration.Config
-	ADIdentifiers, err := svc.GetADIdentifiers()
-	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+	// ADIdentifiers, err := svc.GetADIdentifiers() CELENE
+	// if err != nil {
+	// 	log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+	// 	return
+	// }
+	ADIdentifiers, found := ac.store.getADIdentifiersForEntity(entity)
+	if !found {
+		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", entity, err)
 		return
 	}
 	for _, adID := range ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
-		ac.store.setADIDForServices(adID, svc.GetEntity())
+		ac.store.setADIDForServices(adID, entity)
 		tpls, err := ac.store.templateCache.Get(adID)
 		if err != nil {
 			log.Debugf("Unable to fetch templates from the cache: %v", err)
@@ -615,7 +630,7 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	ac.schedule([]integration.Config{
 		{
 			LogsConfig:      integration.Data{},
-			Entity:          svc.GetEntity(),
+			Entity:          entity,
 			TaggerEntity:    svc.GetTaggerEntity(),
 			CreationTime:    svc.GetCreationTime(),
 			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
