@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/flags"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/flags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

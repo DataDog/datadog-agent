@@ -35,7 +35,7 @@ def build_aggregator(ctx, rebuild=False, arch="x64"):
     cmd = "go build -mod={go_mod} {build_type} -tags \"{build_tags}\" -o {bin_name} "
     cmd += "{ldflags} {gcflags} {REPO_PATH}/test/benchmarks/aggregator"
     args = {
-        "go_mod": "vendor",
+        "go_mod": "mod",
         "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("aggregator")),
@@ -55,7 +55,7 @@ def build_dogstatsd(ctx, arch="x64"):
 
     cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
     args = {
-        "go_mod": "vendor",
+        "go_mod": "mod",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("dogstatsd")),
         "REPO_PATH": REPO_PATH,

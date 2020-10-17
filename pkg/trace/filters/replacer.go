@@ -7,7 +7,7 @@ package filters
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
 )
 
 // Replacer is a filter which replaces tag values based on its

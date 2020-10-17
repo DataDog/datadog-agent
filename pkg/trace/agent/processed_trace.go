@@ -6,9 +6,9 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/stats"
 )
 
 // ProcessedTrace represents a trace being processed in the agent.

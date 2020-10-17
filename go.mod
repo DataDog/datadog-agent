@@ -8,8 +8,7 @@ replace (
 	github.com/fzipp/gocyclo => github.com/fzipp/gocyclo v0.0.0-20150627053110-6acd4345c835 // indirect
 	github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.27.0
 	github.com/gordonklaus/ineffassign => github.com/gordonklaus/ineffassign v0.0.0-20200309095847-7953dde2c7bf // indirect
-	// next line until pr https://github.com/ianlancetaylor/cgosymbolizer/pull/8 is merged
-	github.com/ianlancetaylor/cgosymbolizer => github.com/ianlancetaylor/cgosymbolizer v0.0.0-20170921033129-f5072df9c550
+	github.com/ianlancetaylor/cgosymbolizer => github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201002210021-dda951febc36
 	github.com/shuLhan/go-bindata => github.com/shuLhan/go-bindata v3.4.0+incompatible // indirect
 )
 
@@ -37,6 +36,13 @@ replace (
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.26.0
 )
 
+// Subpackages
+replace (
+	github.com/DataDog/datadog-agent/pkg/trace/exportable => ./pkg/trace/exportable
+	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
+)
+
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
@@ -53,6 +59,9 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.44.0+incompatible
+	github.com/DataDog/datadog-agent/pkg/trace/exportable v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0
 	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.2.1-0.20200709152311-9c71245c6822
 	github.com/DataDog/ebpf v0.0.0-20201006072253-4888b092bbfe
@@ -83,7 +92,6 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dgraph-io/ristretto v0.0.3
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200309214505-aa6a9891b09c+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
@@ -111,7 +119,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
-	github.com/ianlancetaylor/cgosymbolizer v0.0.0-00010101000000-000000000000 // indirect
+	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201002210021-dda951febc36 // indirect
 	github.com/iovisor/gobpf v0.0.0-20200329161226-8b2cce9dac28
 	github.com/itchyny/gojq v0.10.2
 	github.com/json-iterator/go v1.1.9
@@ -129,12 +137,11 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.2
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/philhofer/fwd v1.0.0
 	github.com/pierrec/lz4 v2.5.0+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil v2.20.3+incompatible
+	github.com/shirou/gopsutil v2.20.9+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/shuLhan/go-bindata v3.4.0+incompatible
 	github.com/soniah/gosnmp v1.26.0
@@ -142,7 +149,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.1
 	github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tinylib/msgp v1.1.2
@@ -151,7 +158,7 @@ require (
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df
 	github.com/vito/go-sse v1.0.0 // indirect
-	github.com/vmihailenco/msgpack/v4 v4.3.11
+	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
 	go.etcd.io/bbolt v1.3.4 // indirect
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
@@ -161,7 +168,7 @@ require (
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200831180312-196b9ba8737a
 	golang.org/x/text v0.3.2
-	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
+	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
 	golang.org/x/tools v0.0.0-20200327195553-82bb89366a1e
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gomodules.xyz/jsonpatch/v3 v3.0.1

@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/test/testutil"
 )
 
 func TestUDS(t *testing.T) {

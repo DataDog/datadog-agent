@@ -11,9 +11,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/exportable/test/testutil"
 )
 
 // The below example shows a common use-case scenario for the runner.

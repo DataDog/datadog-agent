@@ -5,7 +5,7 @@
 
 package info
 
-import "github.com/DataDog/datadog-agent/pkg/trace/sampler"
+import "github.com/DataDog/datadog-agent/pkg/trace/exportable/sampler"
 
 // SamplerInfo represents internal stats and state of a sampler
 type SamplerInfo struct {
