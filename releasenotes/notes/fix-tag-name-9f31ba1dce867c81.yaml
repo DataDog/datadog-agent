@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Change added node tag name from node_role to kube_node_role.
+    Rename node role tag from "node_role" to "kube_node_role" in orchestrator_explorer collection.
