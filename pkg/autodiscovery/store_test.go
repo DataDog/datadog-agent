@@ -45,3 +45,15 @@ func TestTemplateToConfig(t *testing.T) {
 	assert.Len(t, s.getConfigsForTemplate("digest1"), 1)
 	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
 }
+
+func TestSetGetADIdentifiersForEntity(t *testing.T) {
+	s := newStore()
+	s.setADIdentifiersForEntity("entity1", []string{"ad_id1", "ad_id2"})
+
+	result, found := s.getADIdentifiersForEntity("entity1")
+	assert.Len(t, result, 2)
+	assert.True(t, found)
+	result, found = s.getADIdentifiersForEntity("entity2")
+	assert.Len(t, result, 0)
+	assert.False(t, found)
+}
