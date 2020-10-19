@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -130,15 +129,22 @@ func (c *JetsonCheck) Run() error {
 		cmd = exec.Command("sh", "-c", cmdStr)
 	}
 
-	// Since we kill the process, err is always going to be != nil
-	tegrastatsOutput, _ := cmd.Output()
-	if len(tegrastatsOutput) > 0 {
-		log.Debugf("tegrastats output = %s\n", tegrastatsOutput)
-		if err := c.processTegraStatsOutput(string(tegrastatsOutput)); err != nil {
-			return fmt.Errorf("error processing tegrastats output: %s",  err)
+	tegrastatsOutput, err := cmd.Output()
+	if err != nil {
+		switch err := err.(type) {
+		case *exec.ExitError:
+			if len(tegrastatsOutput) <= 0 {
+				return fmt.Errorf("tegrastats did not produce any output: %s\n", err)
+			}
+			// We kill the process, so ExitError is expected - as long as
+			// we got our output.
+		default:
+			return err
 		}
-	} else {
-		return errors.New("tegrastats did not produce any output")
+	}
+	log.Debugf("tegrastats output = %s\n", tegrastatsOutput)
+	if err := c.processTegraStatsOutput(string(tegrastatsOutput)); err != nil {
+		return fmt.Errorf("error processing tegrastats output: %s",  err)
 	}
 
 	return nil
