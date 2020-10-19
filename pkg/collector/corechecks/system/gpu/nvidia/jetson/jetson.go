@@ -37,7 +37,7 @@ const (
 // The configuration for the jetson check
 type checkCfg struct {
 	TegraStatsPath string `yaml:"tegrastats_path,omitempty"`
-	UseSudo	bool `yaml:"use_sudo,omitempty"`
+	UseSudo        bool   `yaml:"use_sudo,omitempty"`
 }
 
 // JetsonCheck contains the field for the JetsonCheck
@@ -120,7 +120,7 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 // Run executes the check
 func (c *JetsonCheck) Run() error {
 	tegraStatsCmd := fmt.Sprintf("%s %s", c.tegraStatsPath, strings.Join(c.commandOpts, " "))
-	cmdStr := fmt.Sprintf("(%s) & pid=$!; (sleep %d && kill -9 $pid)", tegraStatsCmd, int((2*tegraStatsInterval).Seconds()))
+	cmdStr := fmt.Sprintf("(%s) & pid=$!; (sleep %d && kill -9 $pid)", tegraStatsCmd, int((2 * tegraStatsInterval).Seconds()))
 	var cmd *exec.Cmd
 	if c.useSudo {
 		// -n, non-interactive mode, no prompts are used
@@ -144,7 +144,7 @@ func (c *JetsonCheck) Run() error {
 	}
 	log.Debugf("tegrastats output = %s\n", tegrastatsOutput)
 	if err := c.processTegraStatsOutput(string(tegrastatsOutput)); err != nil {
-		return fmt.Errorf("error processing tegrastats output: %s",  err)
+		return fmt.Errorf("error processing tegrastats output: %s", err)
 	}
 
 	return nil
