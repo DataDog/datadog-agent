@@ -119,6 +119,7 @@ func Initialize(paths ...string) *python.PyThreadState {
 	initTagger()       // `tagger` module
 	initContainers()   // `containers` module
 	initTopology()     // The 'topology' module
+	initTelemetry()    // The 'telemetry' module
 	// return the state so the caller can resume
 	return state
 }

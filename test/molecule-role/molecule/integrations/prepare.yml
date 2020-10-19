@@ -1,6 +1,6 @@
 ---
-- name: Prepare Nagios and MySQL
-  hosts: agent-nagios-mysql
+- name: Prepare Integrations and Dependencies
+  hosts: agent-integrations-mysql
   gather_facts: false
   vars_files:
     - common_vars.yml
@@ -25,10 +25,15 @@
         - Dockerfile
         - mysql.cfg
         - nagios.cfg
-    - name: Copy agent files
+    - name: Copy nagios config files
       copy:
-        src: files/agent/conf.yaml
-        dest: /home/ubuntu/agent/
+        src: files/agent/nagios.d/conf.yaml
+        dest: /home/ubuntu/agent/nagios.d/
+        mode: preserve
+    - name: Copy agent integration config files
+      copy:
+        src: files/agent/agent_integration_sample.d/conf.yaml
+        dest: /home/ubuntu/agent/agent_integration_sample.d/
         mode: preserve
     - name: Gather facts (we need the docker network interface ip)
       setup:

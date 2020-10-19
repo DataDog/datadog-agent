@@ -1,0 +1,5 @@
+init_config:
+  min_collection_interval: 30
+
+instances:
+  - url: 'http://localhost'

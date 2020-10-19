@@ -557,18 +557,18 @@ molecule_tests_secrets:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
 
-molecule_tests_nagios:
+molecule_tests_integrations:
   stage: acceptance
   needs:
     - pre_release_image
   dependencies: []
   <<: *molecule_base
   script:
-    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s nagios
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s integrations
   artifacts:
     when: always
     paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/nagios/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
     expire_in: 1 week
 
 release_deb:

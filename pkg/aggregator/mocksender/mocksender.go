@@ -6,6 +6,7 @@
 package mocksender
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"time"
 
 	"github.com/stretchr/testify/mock"
@@ -28,6 +29,7 @@ func NewMockSender(id check.ID) *MockSender {
 //MockSender allows mocking of the checks sender for unit testing
 type MockSender struct {
 	mock.Mock
+	SentEvents metrics.Events
 }
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface

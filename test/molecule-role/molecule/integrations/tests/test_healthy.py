@@ -5,7 +5,7 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 
 import util
 
-testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent-nagios-mysql')
+testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent-integrations-mysql')
 
 
 @pytest.mark.first
