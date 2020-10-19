@@ -8,7 +8,7 @@ Forwarder
   Transactions
   ============
   {{- range $key, $value := .Transactions }}
-    {{- if and (ne $key "InputBytes") (ne $key "InputCount") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytes") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
+    {{- if and (ne $key "InputBytesByEndpoint") (ne $key "InputCountByEndpoint") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytesByEndpoint") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
     {{$key}}: {{humanize $value}}
     {{- end}}
   {{- end}}
