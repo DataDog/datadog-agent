@@ -15,6 +15,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
@@ -262,7 +263,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Agent
 		}
 
 		for _, role := range nodeModel.Roles {
-			nodeModel.Tags = append(nodeModel.Tags, fmt.Sprintf("node_role:%s", strings.ToLower(role)))
+			nodeModel.Tags = append(nodeModel.Tags, fmt.Sprintf("%s:%s", kubernetes.KubeNodeRoleTagName, strings.ToLower(role)))
 		}
 
 		nodeMsgs = append(nodeMsgs, nodeModel)
