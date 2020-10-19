@@ -134,7 +134,7 @@ build do
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install pip-tools==5.3.1"
 
-    command "#{pip} install git+https://github.com/AlexandreYang/python3-netsnmp.git@28106277f18acc4f66b4621408652217204d305b"
+    command "#{pip} install git+https://github.com/AlexandreYang/python3-netsnmp.git@e59ec825c249f4b33b3f7ea11475c8c0aeb15760"
 
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
