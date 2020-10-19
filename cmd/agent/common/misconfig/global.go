@@ -20,6 +20,7 @@ type checkFn func() error
 
 var checks = map[string]checkFn{}
 
+// nolint: deadcode, unused
 func registerCheck(name string, c checkFn) {
 	checks[name] = c
 }
