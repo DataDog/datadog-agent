@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix an issue where Autodiscovery (AD) checks may not be scheduled due to AD identifiers being unavailable
