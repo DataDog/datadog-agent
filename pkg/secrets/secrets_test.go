@@ -55,6 +55,12 @@ instances:
   user: test2
 `)
 
+	testConfDash = []byte(`---
+some_encoded_password: ENC[pass1]
+keys_with_dash_string_value:
+  foo: "-"
+`)
+
 	testConf2 = []byte(`---
 instances:
 - password: ENC[pass3]
@@ -73,6 +79,11 @@ instances:
   user: test
 - password: password2
   user: test2
+`)
+
+	testConfDecryptedDash = []byte(`keys_with_dash_string_value:
+  foo: '-'
+some_encoded_password: password1
 `)
 )
 
@@ -186,6 +197,32 @@ func TestDecryptSecretError(t *testing.T) {
 
 	_, err := Decrypt(testConf, "test")
 	require.NotNil(t, err)
+}
+
+func TestDecryptSecretStringMapString(t *testing.T) {
+	secretBackendCommand = "some_command"
+
+	defer func() {
+		secretBackendCommand = ""
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+		secretFetcher = fetchSecret
+	}()
+
+	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
+		sort.Strings(secrets)
+		assert.Equal(t, []string{
+			"pass1",
+		}, secrets)
+
+		return map[string]string{
+			"pass1": "password1",
+		}, nil
+	}
+
+	newConf, err := Decrypt(testConfDash, "test")
+	require.Nil(t, err)
+	assert.Equal(t, string(testConfDecryptedDash), string(newConf))
 }
 
 func TestDecryptSecretNoCache(t *testing.T) {
