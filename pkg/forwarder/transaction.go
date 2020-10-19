@@ -51,29 +51,29 @@ var (
 	transactionsHTTPErrors             = expvar.Int{}
 	transactionsHTTPErrorsByCode       = expvar.Map{}
 
-	tlmTxInputBytes = telemetry.NewCounter("forwarder_transactions", "input_bytes",
+	tlmTxInputBytes = telemetry.NewCounter("transactions", "input_bytes",
 		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
-	tlmConnectEvents = telemetry.NewCounter("forwarder_transactions", "connection_events",
+	tlmConnectEvents = telemetry.NewCounter("transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
-	tlmTxInputCount = telemetry.NewCounter("forwarder_transactions", "input_count",
+	tlmTxInputCount = telemetry.NewCounter("transactions", "input_count",
 		[]string{"domain", "endpoint"}, "Incoming transaction count")
-	tlmTxDropped = telemetry.NewCounter("forwarder_transactions", "dropped",
+	tlmTxDropped = telemetry.NewCounter("transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
-	tlmTxDroppedOnInput = telemetry.NewCounter("forwarder_transactions", "dropped_on_input",
+	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
 		[]string{"domain", "endpoint"}, "Count of transactions dropped on input")
-	tlmTxRequeued = telemetry.NewCounter("forwarder_transactions", "requeued",
+	tlmTxRequeued = telemetry.NewCounter("transactions", "requeued",
 		[]string{"domain", "endpoint"}, "Transaction requeue count")
-	tlmTxRetried = telemetry.NewCounter("forwarder_transactions", "retries",
+	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
 		[]string{"domain", "endpoint"}, "Transaction retry count")
-	tlmTxRetryQueueSize = telemetry.NewGauge("forwarder_transactions", "retry_queue_size",
+	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
-	tlmTxSuccessCount = telemetry.NewCounter("forwarder_transactions", "success",
+	tlmTxSuccessCount = telemetry.NewCounter("transactions", "success",
 		[]string{"domain", "endpoint"}, "Successful transaction count")
-	tlmTxSuccessBytes = telemetry.NewCounter("forwarder_transactions", "success_bytes",
+	tlmTxSuccessBytes = telemetry.NewCounter("transactions", "success_bytes",
 		[]string{"domain", "endpoint"}, "Successful transaction sizes in bytes")
-	tlmTxErrors = telemetry.NewCounter("forwarder_transactions", "errors",
+	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
 		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
-	tlmTxHTTPErrors = telemetry.NewCounter("forwarder_transactions", "http_errors",
+	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 
