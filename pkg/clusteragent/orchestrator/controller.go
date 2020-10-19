@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -151,6 +152,11 @@ func newController(ctx ControllerContext) (*Controller, error) {
 func (o *Controller) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting orchestrator controller")
 	defer log.Infof("Stopping orchestrator controller")
+
+	if err := o.runLeaderElection(); err != nil {
+		log.Errorf("error trying run or check the leader engine and status: %v", err)
+		return
+	}
 
 	if err := o.forwarder.Start(); err != nil {
 		log.Errorf("error starting pod forwarder: %s", err)
@@ -343,6 +349,19 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 
 		}
 	}
+}
+
+func (o *Controller) runLeaderElection() error {
+	//TODO: add leader election logic and check
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return err
+	}
+	err = engine.EnsureLeaderElectionRuns()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.Duration, stopCh <-chan struct{}) {
