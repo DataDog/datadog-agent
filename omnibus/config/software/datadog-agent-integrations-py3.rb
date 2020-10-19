@@ -70,7 +70,7 @@ blacklist_packages = Array.new
 
 # We build these manually
 blacklist_packages.push(/^aerospike==/)
-# blacklist_packages.push(/^python3-netsnmp==/)
+blacklist_packages.push(/^python3-netsnmp==/)
 
 if suse?
   blacklist_folders.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
@@ -133,6 +133,9 @@ build do
     #
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install pip-tools==5.3.1"
+
+    command "#{pip} install git+https://github.com/AlexandreYang/python3-netsnmp.git@28106277f18acc4f66b4621408652217204d305b"
+
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
