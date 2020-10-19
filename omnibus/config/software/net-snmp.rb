@@ -46,6 +46,8 @@ build do
   make "install", env: env
 
   if windows?
+    mkdir "#{install_dir}/embedded/include/net-snmp"
+    mkdir "#{install_dir}/embedded3/include/net-snmp"
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded/include/net-snmp/net-snmp-config.h"
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
   end
