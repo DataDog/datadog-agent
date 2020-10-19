@@ -46,6 +46,8 @@ build do
   make "install", env: env
 
   if windows?
+    # TODO: Use build env vars like this instead:
+    #       https://github.com/DataDog/datadog-agent/blob/892bd315ec45bf9ecfa40a3ba602e15e39fb75f6/omnibus/config/software/datadog-agent-integrations-py3.rb#L140-L146
     copy "include/net-snmp", "#{install_dir}/embedded3/include/net-snmp"
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
   end
