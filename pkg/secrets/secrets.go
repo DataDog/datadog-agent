@@ -52,34 +52,11 @@ func Init(command string, arguments []string, timeout int, maxSize int, groupExe
 
 type walkerCallback func(string) (string, error)
 
-// Viper support setting chunk of configuration through env variable using
-// Yaml/json. Sadly those are loaded on the fly when querying the
-// configuration, the underlying type remain a string. In order to support
-// nested `ENC` in JSON payload we try to unmarshal each string. This is costly
-// but only done once when loading the configuration when the agent starts.
-func handleString(str string, callback walkerCallback) (interface{}, error) {
-	var data interface{}
-	err := yaml.Unmarshal([]byte(str), &data)
-
-	if err == nil {
-		switch v := data.(type) {
-		case map[interface{}]interface{}:
-			err = walkHash(v, callback)
-			return v, err
-		case []interface{}:
-			err = walkSlice(v, callback)
-			return v, err
-		}
-	}
-
-	return callback(str)
-}
-
 func walkSlice(data []interface{}, callback walkerCallback) error {
 	for idx, k := range data {
 		switch v := k.(type) {
 		case string:
-			newValue, err := handleString(v, callback)
+			newValue, err := callback(v)
 			if err != nil {
 				return err
 			}
@@ -101,7 +78,7 @@ func walkHash(data map[interface{}]interface{}, callback walkerCallback) error {
 	for k := range data {
 		switch v := data[k].(type) {
 		case string:
-			newValue, err := handleString(v, callback)
+			newValue, err := callback(v)
 			if err != nil {
 				return err
 			}
@@ -124,7 +101,7 @@ func walkHash(data map[interface{}]interface{}, callback walkerCallback) error {
 func walk(data *interface{}, callback walkerCallback) error {
 	switch v := (*data).(type) {
 	case string:
-		newValue, err := handleString(v, callback)
+		newValue, err := callback(v)
 		if err != nil {
 			return err
 		}
