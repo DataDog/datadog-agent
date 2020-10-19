@@ -42,9 +42,9 @@ func TestTagFilter_Filter(t *testing.T) {
 			want: []string{"calling_service:foo"},
 		},
 		{
-			name: "keep match group that removes colon separator",
-			args: args{[]string{"keep:without colon"}},
-			want: []string{"keep:without colon"},
+			name: "check match group that removes colon separator",
+			args: args{[]string{"check:without colon"}},
+			want: []string{"check:without colon"},
 		},
 		{
 			name: "drop untitled match group",
@@ -77,7 +77,7 @@ func TestTagFilter_Filter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tf, err := NewTagFilter([]string{
+			tf, err := New([]string{
 				// A match group named "Keep" will remove anything not matched by the match group
 				"^(?P<Keep>calling_service:[^/]+)",
 				"(?P<Keep>without colon)",

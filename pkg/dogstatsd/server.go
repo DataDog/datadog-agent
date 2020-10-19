@@ -191,7 +191,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	tagFilters := config.Datadog.GetStringSlice("dogstatsd_tag_filters")
 	if len(tagFilters) > 0 {
 		var err error
-		if tagFilter, err = filter.NewTagFilter(tagFilters); err != nil {
+		if tagFilter, err = filter.New(tagFilters); err != nil {
 			log.Errorf("Dogstatsd: unable to create tag filters: %s", err.Error())
 		}
 	}
