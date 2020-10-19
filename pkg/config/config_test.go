@@ -887,3 +887,17 @@ dogstatsd_mapper_profiles:
 	assert.Contains(t, err.Error(), expectedErrorMsg)
 	assert.Empty(t, profiles)
 }
+
+func TestTagSplitValue(t *testing.T) {
+	datadogYaml := `
+tag_value_split_separator:
+  kafka_partition: "-"
+  grain: "-"
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	separatorConfig := testConfig.GetStringMapString("tag_value_split_separator")
+	kafkaSeparator, find := separatorConfig["kafka_partition"]
+	assert.True(t, find, "`kafka_partition` key should exist")
+	assert.Equal(t, "-", kafkaSeparator, "should be equal")
+	assert.Equal(t, "-", separatorConfig["grain"], "should be equal")
+}
