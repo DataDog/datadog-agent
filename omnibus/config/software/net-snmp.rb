@@ -46,13 +46,8 @@ build do
   make "install", env: env
 
   if windows?
-    mkdir "#{install_dir}/embedded/include/net-snmp"
-    mkdir "#{install_dir}/embedded3/include/net-snmp"
-    copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded/include/net-snmp/net-snmp-config.h"
+    copy "include/net-snmp", "#{install_dir}/embedded3/include/net-snmp"
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
-    copy "include/net-snmp/net-snmp-includes.h", "#{install_dir}/embedded/include/net-snmp/net-snmp-includes.h"
-    copy "include/net-snmp/net-snmp-includes.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-includes.h"
-    copy "include/net-snmp/net-snmp-types.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-types.h"
   end
 
   whitelist_file "#{install_dir}/embedded/lib/libnetsnmpmibs.so.40.0.0"
