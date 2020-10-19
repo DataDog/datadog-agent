@@ -1,0 +1,196 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tests
+spec:
+  templates:
+
+    - name: find-metrics-kubernetes
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            var nb = db.series.find({
+              metric: {$regex: "kubernetes*"},
+              tags: {$all: ["kube_namespace:kube-system", "pod_name:kube-controller-manager"]}
+            }).count();
+
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-container-meta
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            var nb = db.intake.find({
+              $and : [
+              {"apiKey":"123er"},
+              {"gohai":{$exists: 1}},
+              {"container-meta.kubelet_version":{$regex: "^v1."}},
+              {"container-meta.docker_swarm":"inactive"},
+              {"container-meta.docker_version":{$exists: 1}} ]
+            }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-kube-state-metrics
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          // This step is intended to test end-to-end scraping of prometheus metrics
+          // by asserting the value of a few simple metrics collected from the
+          // kubernetes_state integration.
+
+          while (1) {
+            var nb = db.series.find({
+            metric: "kubernetes_state.daemonset.ready",
+            tags: { $all: ["namespace:default", "daemonset:datadog-agent"] },
+            "points.0.1": { $eq: 1 } }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+          while (1) {
+            var nb = db.series.find({
+            metric: "kubernetes_state.deployment.replicas_available",
+            tags: { $all: ["namespace:default", "deployment:redis"] },
+            "points.0.1": { $eq: 1 } }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
+    - name: find-checks-hostname
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          while (1) {
+            sleep(2000);
+
+            // Go memory check
+            var nb = db.series.find({
+              metric: "system.cpu.idle",
+              host: "e2e-test"
+            }).count();
+            if (nb == 0) {
+              print("no system.cpu.idle metric with nominal hostname");
+              continue;
+            }
+            var nb = db.series.find({
+              metric: "system.mem.free",
+              host: ""
+            }).count();
+            if (nb == 0) {
+              print("no system.mem.free metric with empty hostname");
+              continue;
+            }
+
+            // Python network check
+            var nb = db.series.find({
+              metric: "system.net.bytes_sent",
+              host: "e2e-test"
+            }).count();
+            if (nb == 0) {
+              print("no system.net.bytes_sent metric with nominal hostname");
+              continue;
+            }
+            var nb = db.series.find({
+              metric: "system.net.bytes_sent",
+              host: ""
+            }).count();
+            if (nb == 0) {
+              print("no system.net.bytes_sent metric with empty hostname");
+              continue;
+            }
+
+            print("All good");
+            break;
+          }
+
+    - name: all
+      inputs:
+        parameters:
+          - name: namespace
+      steps:
+        - - name: find-metrics-kubernetes
+            template: find-metrics-kubernetes
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-container-meta
+            template: find-container-meta
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-kube-state-metrics
+            template: find-kube-state-metrics
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: test-redis
+            templateRef:
+              name: redis
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: test-cpu
+            templateRef:
+              name: cpu-stress
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: test-dsd
+            templateRef:
+              name: dsd-hostname
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-checks-hostname
+            template: find-checks-hostname
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"

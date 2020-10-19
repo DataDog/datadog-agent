@@ -1,0 +1,176 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: argo-datadog-agent-
+spec:
+  entrypoint: main
+  onExit: delete
+  arguments:
+    parameters:
+      - name: datadog-agent-image-repository
+      - name: datadog-agent-image-tag
+  templates:
+    - name: main
+      inputs:
+        parameters:
+          - name: datadog-agent-image-repository
+          - name: datadog-agent-image-tag
+      steps:
+        - - name: start-fake-datadog
+            templateRef:
+              name: fake-datadog
+              template: create
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: start-redis
+            templateRef:
+              name: redis
+              template: create
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: start-cpu-stress
+            templateRef:
+              name: cpu-stress
+              template: create
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: start-dsd-hostname
+            templateRef:
+              name: dsd-hostname
+              template: create
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: start-logs-hello-world
+            templateRef:
+              name: logs-hello-world
+              template: create
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+        - - name: fake-dd-reset
+            templateRef:
+              name: fake-datadog
+              template: reset
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+        - - name: start-datadog-agent
+            templateRef:
+              name: datadog-agent
+              template: create
+            arguments:
+              parameters:
+              - name: namespace
+                value: default
+              - name: image-repository
+                value: "{{inputs.parameters.datadog-agent-image-repository}}"
+              - name: image-tag
+                value: "{{inputs.parameters.datadog-agent-image-tag}}"
+
+        - - name: wait-datadog-agent
+            templateRef:
+              name: datadog-agent
+              template: wait
+            arguments:
+              parameters:
+              - name: namespace
+                value: default
+
+        - - name: tests
+            templateRef:
+              name: tests
+              template: all
+            arguments:
+              parameters:
+              - name: namespace
+                value: default
+
+        - - name: delete-redis
+            templateRef:
+              name: redis
+              template: delete
+            arguments:
+              parameters:
+              - name: namespace
+                value: default
+
+        - - name: no-more-redis
+            templateRef:
+              name: redis
+              template: no-more-metrics
+            arguments:
+              parameters:
+              - name: namespace
+                value: default
+
+    - name: delete
+      steps:
+        - - name: stop-datadog-agent
+            templateRef:
+              name: datadog-agent
+              template: delete
+            arguments:
+              parameters:
+              - name: namespace
+                value: default
+
+          - name: stop-redis
+            templateRef:
+              name: redis
+              template: delete
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: stop-cpu-stress
+            templateRef:
+              name: cpu-stress
+              template: delete
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: stop-dsd-hostname
+            templateRef:
+              name: dsd-hostname
+              template: delete
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: stop-logs-hello-world
+            templateRef:
+              name: logs-hello-world
+              template: delete
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: stop-fake-datadog
+            templateRef:
+              name: fake-datadog
+              template: delete
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
