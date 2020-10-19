@@ -58,7 +58,7 @@ OUTER:
 	for _, regex := range tf.filters {
 		if m := regex.FindStringSubmatch(tag); m != nil {
 			for i, name := range regex.SubexpNames() {
-				if strings.ToLower(name) == "check" {
+				if strings.ToLower(name) == "keep" {
 					if strings.Contains(m[i], tagSeparator) {
 						// overwrite tag as the match group
 						tag = m[i]
