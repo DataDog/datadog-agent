@@ -10,6 +10,7 @@ package orchestrator
 import (
 	"encoding/json"
 	"expvar"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 
 	"k8s.io/client-go/kubernetes"
 
@@ -83,10 +84,23 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status["CacheMiss"] = cacheMiss
 
 	// get cache efficiency
-	nodes := orchestrator.NodeTypes()
-	for _, node := range nodes {
-		statsKey := BuildStatsKey(node)
-		status[node.String()+"sStats"], _ = orchestrator.KubernetesResourceCache.Get(statsKey)
+	for _, node := range orchestrator.NodeTypes() {
+		if value, found := orchestrator.KubernetesResourceCache.Get(BuildStatsKey(node)); found {
+			status[node.String()+"sStats"] = value
+		}
+	}
+
+	// get Leader information
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		status["LeaderError"] = err
+	} else {
+		status["Leader"] = engine.IsLeader()
+		if ip, err := engine.GetLeaderIP(); err == nil {
+			status["LeaderIP"] = ip
+		} else {
+			status["LeaderError"] = err
+		}
 	}
 
 	// get options

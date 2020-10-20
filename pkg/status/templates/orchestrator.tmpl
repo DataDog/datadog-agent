@@ -50,6 +50,10 @@ Orchestrator Explorer
 {{- end -}}
 {{/* this line intentionally left blank */}}
 {{/* this line intentionally left blank */}}
+{{- if .LeaderError }}
+    LeaderError: {{.ClusterIDError}}
+{{else}}
+{{- if .Leader }}
   ===========
   Cache Stats
   ===========
@@ -64,4 +68,8 @@ Orchestrator Explorer
       Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
     Nodes:
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
+{{else}}
+  Status: Follower, redirecting to leader at: {{ .LeaderIP }}
+{{- end}}
+{{- end}}
 {{/* this line intentionally left blank */}}
