@@ -50,6 +50,7 @@ func NewDummyStreamer() collectors.Collector {
 	c := new(DummyCollector)
 	c.On("Detect", mock.Anything).Return(collectors.StreamCollection, nil)
 	c.On("Stream").Return(nil)
+	c.On("Stop").Return(nil)
 	return c
 }
 
@@ -57,12 +58,14 @@ func NewDummyPuller() collectors.Collector {
 	c := new(DummyCollector)
 	c.On("Detect", mock.Anything).Return(collectors.PullCollection, nil)
 	c.On("Pull").Return(nil)
+	c.On("Stop").Return(nil)
 	return c
 }
 
 func NewDummyFetcher() collectors.Collector {
 	c := new(DummyCollector)
 	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
+	c.On("Stop").Return(nil)
 	return c
 }
 
@@ -76,6 +79,7 @@ func TestInit(t *testing.T) {
 
 	tagger := newTagger()
 	tagger.Init(catalog)
+	defer tagger.Stop()
 
 	assert.Equal(t, 3, len(tagger.fetchers))
 	assert.Equal(t, 1, len(tagger.streamers))
@@ -98,6 +102,7 @@ func TestFetchAllMiss(t *testing.T) {
 	catalog := collectors.Catalog{"stream": NewDummyStreamer, "pull": NewDummyPuller}
 	tagger := newTagger()
 	tagger.Init(catalog)
+	defer tagger.Stop()
 
 	streamer := tagger.streamers["stream"].(*DummyCollector)
 	assert.NotNil(t, streamer)
@@ -120,6 +125,7 @@ func TestFetchAllCached(t *testing.T) {
 	catalog := collectors.Catalog{"stream": NewDummyStreamer, "pull": NewDummyPuller}
 	tagger := newTagger()
 	tagger.Init(catalog)
+	defer tagger.Stop()
 
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{
 		Entity:       "entity_name",
@@ -164,6 +170,7 @@ func TestFetchOneCached(t *testing.T) {
 	}
 	tagger := newTagger()
 	tagger.Init(catalog)
+	defer tagger.Stop()
 
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{
 		Entity:      "entity_name",
@@ -198,6 +205,7 @@ func TestEmptyEntity(t *testing.T) {
 	}
 	tagger := newTagger()
 	tagger.Init(catalog)
+	defer tagger.Stop()
 
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{
 		Entity:      "entity_name",
@@ -225,6 +233,7 @@ func TestRetryCollector(t *testing.T) {
 	}
 	tagger := newTagger()
 	tagger.Init(catalog)
+	defer tagger.Stop()
 
 	assert.Len(t, tagger.candidates, 1)
 	assert.Len(t, tagger.fetchers, 0)
@@ -261,6 +270,7 @@ func TestErrNotFound(t *testing.T) {
 	}
 	tagger := newTagger()
 	tagger.Init(catalog)
+	defer tagger.Stop()
 
 	// Result should not be cached
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, badErr).Once()
@@ -285,6 +295,7 @@ func TestSafeCache(t *testing.T) {
 	catalog := collectors.Catalog{"pull": NewDummyPuller}
 	tagger := newTagger()
 	tagger.Init(catalog)
+	defer tagger.Stop()
 
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{
 		Entity:      "entity_name",
