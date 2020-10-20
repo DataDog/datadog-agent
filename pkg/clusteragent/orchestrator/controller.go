@@ -8,7 +8,6 @@
 package orchestrator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -22,6 +21,7 @@ import (
 	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -74,6 +74,11 @@ func StartController(ctx ControllerContext) error {
 		log.Info("Orchestrator explorer is disabled")
 		return nil
 	}
+
+	if !config.Datadog.GetBool("leader_election") {
+		return log.Errorf("Leader Election not enabled. Resource collection only happens on the leader nodes.")
+	}
+
 	if ctx.ClusterName == "" {
 		log.Warn("Orchestrator explorer enabled but no cluster name set: disabling")
 		return nil
@@ -154,7 +159,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 	defer log.Infof("Stopping orchestrator controller")
 
 	if err := o.runLeaderElection(); err != nil {
-		log.Errorf("error trying run or check the leader engine and status: %v", err)
+		log.Errorf("error trying run or check the leader engine and status: %s", err)
 		return
 	}
 
@@ -352,7 +357,6 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 }
 
 func (o *Controller) runLeaderElection() error {
-	//TODO: add leader election logic and check
 	engine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return err

@@ -219,11 +219,6 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
-		// Only run if Leader Election is enabled.
-		if !config.Datadog.GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. Not running orchestrator_explorer.")
-		}
-		// TODO: think about leader election
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster
 		// so we store it in a configmap that we try and read before generating a new one.
