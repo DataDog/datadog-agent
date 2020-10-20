@@ -78,6 +78,9 @@ const (
 
 	// SocketDnsFilter is the socket probe for dns
 	SocketDnsFilter ProbeName = "socket/dns_filter"
+
+	// SocketHTTPFilter is the socket probe for HTTP
+	SocketHTTPFilter ProbeName = "socket/http_filter"
 )
 
 const (
@@ -100,6 +103,7 @@ const (
 	UdpPortBindingsMap BPFMapName = "udp_port_bindings"
 	TelemetryMap       BPFMapName = "telemetry"
 	TcpCloseBatchMap   BPFMapName = "tcp_close_batch"
+	HttpStatsMap       BPFMapName = "http_stats"
 )
 
 // SectionName returns the SectionName for the given BPF map

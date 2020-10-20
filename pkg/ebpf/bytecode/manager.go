@@ -42,6 +42,7 @@ func NewManager(closedHandler *PerfHandler) *manager.Manager {
 			{Name: "pending_sockets"},
 			{Name: "pending_bind"},
 			{Name: "unbound_sockets"},
+			{Name: string(HttpStatsMap)},
 			{Name: string(TelemetryMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
@@ -83,6 +84,7 @@ func NewManager(closedHandler *PerfHandler) *manager.Manager {
 			{Section: string(SysSocketRet), SyscallFuncName: "socket", KProbeMaxActive: maxActive},
 			{Section: string(TraceSysSocketExit)},
 			{Section: string(SocketDnsFilter)},
+			{Section: string(SocketHTTPFilter)},
 		},
 	}
 }

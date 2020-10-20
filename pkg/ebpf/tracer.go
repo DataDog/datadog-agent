@@ -81,6 +81,9 @@ type Tracer struct {
 	// Connections for the tracer to blacklist
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
+
+	// Callback to terminate HTTP traffic inspection
+	httpDoneFn func()
 }
 
 const (
@@ -131,6 +134,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 			string(bytecode.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(bytecode.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(bytecode.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(bytecode.HttpStatsMap):       {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 	mgrOptions.ConstantEditors, err = runOffsetGuessing(config, offsetBuf)
@@ -160,6 +164,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 				Value: uint64(1),
 			})
 		}
+	}
+
+	enableHTTPInspection := !pre410Kernel
+	if enableHTTPInspection {
+		enabledProbes[bytecode.SocketHTTPFilter] = struct{}{}
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
@@ -199,6 +208,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 			reverseDNS = snooper
 		} else {
 			return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
+		}
+	}
+
+	var httpDoneFn func()
+	if enableHTTPInspection {
+		filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketHTTPFilter)})
+		if filter == nil {
+			return nil, fmt.Errorf("error retrieving socket filter")
+		}
+
+		httpDoneFn, err = network.HeadlessSocketFilter(config.ProcRoot, filter)
+		if err != nil {
+			return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 		}
 	}
 
@@ -242,6 +264,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		perfHandler:    perfHandler,
 		flushIdle:      make(chan chan struct{}),
+		httpDoneFn:     httpDoneFn,
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
@@ -416,6 +439,9 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 
 func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
+	if t.httpDoneFn != nil {
+		t.httpDoneFn()
+	}
 	_ = t.m.Stop(manager.CleanAll)
 	_ = t.perfMap.Stop(manager.CleanAll)
 	t.perfHandler.Stop()

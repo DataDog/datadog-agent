@@ -18,6 +18,8 @@
  */
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
                                       : "=r"(var))
+#define HTTP_BUFFER_SIZE 15
+#define HTTP_STATUS_CODE_SIZE 3
 
 enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, udp_send_processed, udp_send_missed};
 
@@ -155,6 +157,16 @@ struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
     .key_size = sizeof(__u64),
     .value_size = sizeof(__u8),
     .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* This map is used to keep track of HTTP stats for each TCP connection */
+struct bpf_map_def SEC("maps/http_stats") http_stats = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(conn_tuple_t),
+    .value_size = sizeof(http_stats_t),
+    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
     .namespace = "",
 };
@@ -1131,25 +1143,46 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
 
 //endregion
 
-// This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
-// When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
-// All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
-SEC("socket/dns_filter")
-int socket__dns_filter(struct __sk_buff* skb) {
+static __always_inline __u64 read_conn_tuple_skb(conn_tuple_t* t, struct __sk_buff* skb, __u32* data_off, __u32* data_end) {
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto;
-    size_t ip_hdr_size;
-    size_t src_port_offset;
-    size_t dst_port_offset;
+
+    *data_off = ETH_HLEN;
+    *data_end = 0;
+
+    t->saddr_h = 0;
+    t->saddr_l = 0;
+    t->daddr_h = 0;
+    t->daddr_l = 0;
+    t->sport = 0;
+    t->dport = 0;
+    t->pid = 0;
+    t->metadata = 0;
 
     switch (l3_proto) {
     case ETH_P_IP:
-        ip_hdr_size = sizeof(struct iphdr);
-        l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
+        t->metadata |= CONN_V4;
+        l4_proto = load_byte(skb, *data_off + offsetof(struct iphdr, protocol));
+        t->saddr_l = load_word(skb, *data_off + offsetof(struct iphdr, saddr));
+        t->daddr_l = load_word(skb, *data_off + offsetof(struct iphdr, daddr));
+        *data_end = load_half(skb, *data_off + offsetof(struct iphdr, tot_len)) + (*data_off) - 1;
+        // TODO: add support for IP options
+        *data_off += sizeof(struct iphdr);
         break;
     case ETH_P_IPV6:
-        ip_hdr_size = sizeof(struct ipv6hdr);
-        l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct ipv6hdr, nexthdr));
+        // TODO: verify IPv6
+        t->metadata |= CONN_V6;
+        l4_proto = load_byte(skb, *data_off + offsetof(struct ipv6hdr, nexthdr));
+        t->saddr_l  = load_word(skb, *data_off + offsetof(struct ipv6hdr, saddr) + 0*sizeof(u32));
+        t->saddr_l |= load_word(skb, *data_off + offsetof(struct ipv6hdr, saddr) + 1*sizeof(u32)) << 32;
+        t->saddr_h  = load_word(skb, *data_off + offsetof(struct ipv6hdr, saddr) + 2*sizeof(u32));
+        t->saddr_h |= load_word(skb, *data_off + offsetof(struct ipv6hdr, saddr) + 3*sizeof(u32)) << 32;
+        t->daddr_l  = load_word(skb, *data_off + offsetof(struct ipv6hdr, daddr) + 0*sizeof(u32));
+        t->daddr_l |= load_word(skb, *data_off + offsetof(struct ipv6hdr, daddr) + 1*sizeof(u32)) << 32;
+        t->daddr_h  = load_word(skb, *data_off + offsetof(struct ipv6hdr, daddr) + 2*sizeof(u32));
+        t->daddr_h |= load_word(skb, *data_off + offsetof(struct ipv6hdr, daddr) + 3*sizeof(u32)) << 32;
+        *data_end += load_half(skb, *data_off + offsetof(struct ipv6hdr, payload_len)) + (*data_off) - 1;
+        *data_off += sizeof(struct ipv6hdr);
         break;
     default:
         return 0;
@@ -1157,24 +1190,186 @@ int socket__dns_filter(struct __sk_buff* skb) {
 
     switch (l4_proto) {
     case IPPROTO_UDP:
-        src_port_offset = offsetof(struct udphdr, source);
-        dst_port_offset = offsetof(struct udphdr, dest);
+        t->metadata |= CONN_TYPE_UDP;
+        t->sport = load_half(skb, *data_off + offsetof(struct udphdr, source));
+        t->dport = load_half(skb, *data_off + offsetof(struct udphdr, dest));
+        *data_off += sizeof(struct udphdr);
         break;
     case IPPROTO_TCP:
-        src_port_offset = offsetof(struct tcphdr, source);
-        dst_port_offset = offsetof(struct tcphdr, dest);
+        t->metadata |= CONN_TYPE_TCP;
+        t->sport = load_half(skb, *data_off + offsetof(struct tcphdr, source));
+        t->dport = load_half(skb, *data_off + offsetof(struct tcphdr, dest));
+        // Assuming __BIG_ENDIAN_BITFIELD
+        // TODO: Improve readability and explain the bit twiddling below
+        *data_off += ((load_byte(skb, *data_off + offsetof(struct tcphdr, ack_seq) + 4)& 0xF0) >> 4)*4;
         break;
     default:
         return 0;
     }
 
-    __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
-    __u16 dst_port = load_half(skb, ETH_HLEN + ip_hdr_size + dst_port_offset);
+    return 1;
+}
 
-    if (src_port != 53 && (!dns_stats_enabled() || dst_port != 53))
+static __always_inline void flip_tuple(conn_tuple_t* t) {
+    // TODO: we can probably replace this by swap operations
+    __u16 tmp_port = t->sport;
+    t->sport = t->dport;
+    t->dport = tmp_port;
+
+    __u64 tmp_ip_part = t->saddr_l;
+    t->saddr_l = t->daddr_l;
+    t->daddr_l = tmp_ip_part;
+
+    tmp_ip_part = t->saddr_h;
+    t->saddr_h = t->daddr_h;
+    t->daddr_h = tmp_ip_part;
+}
+
+// This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
+// When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
+// All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
+SEC("socket/dns_filter")
+int socket__dns_filter(struct __sk_buff* skb) {
+    conn_tuple_t t;
+    __u32 _data_off;
+    __u32 _data_end;
+
+    if (!read_conn_tuple_skb(&t, skb, &_data_off, &_data_end)) {
         return 0;
+    }
+
+    if (t.sport != 53 && (!dns_stats_enabled() || t.dport != 53)) {
+        return 0;
+    }
 
     return -1;
+}
+
+static __always_inline int http_begin_request(__u8 new_state, http_stats_t *http) {
+    http->state = new_state;
+    http->request_started = bpf_ktime_get_ns();
+    log_debug("HTTP request (%d)\n", http->state);
+    return 1;
+}
+
+static __always_inline int http_begin_response(char *buffer, int buffer_size, http_stats_t *http) {
+    // We missed the corresponding request so nothing to do
+    if (!(http->state&HTTP_REQUESTING)) {
+        return 0;
+    }
+
+    // Find next token
+    // HTTP/1.1 200 OK
+    // _________^_____
+    int status_offset = -1;
+#pragma unroll
+    for (int i = 0; i < buffer_size; i++) {
+        if (status_offset == -1 && buffer[i] == ' ') {
+            status_offset = i + 1;
+        }
+    }
+
+    if (status_offset == -1 || status_offset + HTTP_STATUS_CODE_SIZE - 1 >= buffer_size) {
+        return 0;
+    }
+
+    // Now we read 3 bytes representing the HTTP status code and
+    // convert it to numeric representation
+    __u16 response_code = 0;
+#pragma unroll
+    for (int i = 0; i < HTTP_STATUS_CODE_SIZE; i++) {
+        response_code = response_code*10 + (buffer[status_offset+i]-'0');
+    }
+
+    if (response_code < 200 || response_code >= 600) {
+        return 0;
+    }
+
+    // Bucket into the desired categories: 200x, 300x, 400x and 500x
+    response_code = (response_code/100)*100;
+
+    http->state = HTTP_RESPONDING;
+    http->response_code = response_code;
+    http->response_last_seen = bpf_ktime_get_ns();
+    log_debug("HTTP response (%d)\n", http->response_code);
+    return 1;
+}
+
+static __always_inline int http_handle_packet(struct __sk_buff* skb, __u32 data_off, __u32 data_end, conn_tuple_t *t) {
+    if (data_end - data_off + 1 < HTTP_BUFFER_SIZE) {
+        return 0;
+    }
+
+    // Read everything we need for parsing both requests and responses
+    // TODO: Figure out why this loop is not unrolling correctly when there is a conditional inside
+    char p[HTTP_BUFFER_SIZE+1];
+#pragma unroll
+    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
+        p[i] = load_byte(skb, data_off + i);
+    }
+    p[HTTP_BUFFER_SIZE] = '\0';
+
+    __u8 http_state = HTTP_UNKNOWN;
+    if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
+        http_state = HTTP_RESPONDING;
+    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T')) {
+        http_state = HTTP_REQUESTING_GET;
+    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T')) {
+        http_state = HTTP_REQUESTING_POST;
+    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T')) {
+        http_state = HTTP_REQUESTING_PUT;
+    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) {
+        http_state = HTTP_REQUESTING_DELETE;
+    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D')) {
+        http_state = HTTP_REQUESTING_HEAD;
+    }
+
+    http_stats_t empty = {};
+    bpf_map_update_elem(&http_stats, t, &empty, BPF_NOEXIST);
+
+    http_stats_t *stats;
+    stats = bpf_map_lookup_elem(&http_stats, t);
+    if (stats == NULL) {
+        return 0;
+    }
+
+    if (http_state == HTTP_RESPONDING) {
+        return http_begin_response(p, HTTP_BUFFER_SIZE, stats);
+    }
+
+    if (http_state&HTTP_REQUESTING) {
+        return http_begin_request(http_state, stats);
+    }
+
+    if (stats->state == HTTP_RESPONDING) {
+        stats->response_last_seen = bpf_ktime_get_ns();
+    }
+
+    return 0;
+}
+
+SEC("socket/http_filter")
+int socket__http_filter(struct __sk_buff* skb) {
+    conn_tuple_t t = {};
+    __u32 data_off;
+    __u32 data_end;
+
+    if (!read_conn_tuple_skb(&t, skb, &data_off, &data_end)) {
+        return 0;
+    }
+
+    if (t.sport != 80 && t.sport != 8080 && t.dport != 80 && t.dport != 8080) {
+        return 0;
+    }
+
+    if (t.sport == 80 || t.sport == 8080) {
+        // Normalize tuple
+        flip_tuple(&t);
+    }
+
+    http_handle_packet(skb, data_off, data_end, &t);
+
+    return 0;
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version
