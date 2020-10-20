@@ -71,7 +71,7 @@ def record_and_loads(filename: str, content_type: str, content_encoding: str, co
 
 def patch_data(data, patch_key, patch_leaf):
     if isinstance(data, dict):
-        return {patch_key(k): patch_data(v, patch_key, patch_leaf) for k,v in iter(data.items())}
+        return {patch_key(k): patch_data(v, patch_key, patch_leaf) for k, v in iter(data.items())}
     elif isinstance(data, list):
         return [patch_data(i, patch_key, patch_leaf) for i in data]
     else:
@@ -79,9 +79,11 @@ def patch_data(data, patch_key, patch_leaf):
 
 
 def fix_data(data):
-    return patch_data(data,
-                      patch_key  = lambda x: x.translate(str.maketrans('.$', '\uff0e\uff04')),
-                      patch_leaf = lambda x: float(x) if isinstance(x, int) and x > 2**63-1 else x)
+    return patch_data(
+        data,
+        patch_key=lambda x: x.translate(str.maketrans('.$', '\uff0e\uff04')),
+        patch_leaf=lambda x: float(x) if isinstance(x, int) and x > 2 ** 63 - 1 else x,
+    )
 
 
 def insert_series(data: dict):
