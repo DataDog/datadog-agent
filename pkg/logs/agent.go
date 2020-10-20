@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
@@ -67,6 +68,35 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
 		traps.NewLauncher(sources, pipelineProvider),
+	}
+
+	return &Agent{
+		auditor:          auditor,
+		destinationsCtx:  destinationsCtx,
+		pipelineProvider: pipelineProvider,
+		inputs:           inputs,
+		health:           health,
+	}
+}
+
+// NewServerless returns a Logs Agent instance to run in a serverless environment.
+// FIXME(remy): I should see if we should merge NewAgent and NewServerless or not. It'll mainly depend if the auditor has to be adapted.
+func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+	health := health.RegisterLiveness("logs-agent")
+
+	// setup the auditor
+	// We pass the health handle to the auditor because it's the end of the pipeline and the most
+	// critical part. Arguably it could also be plugged to the destination.
+	// FIXME(remy): what about the auditor?
+	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, health)
+	destinationsCtx := client.NewDestinationsContext()
+
+	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
+
+	// setup the inputs
+	inputs := []restart.Restartable{
+		channel.NewLauncher(sources, pipelineProvider),
 	}
 
 	return &Agent{

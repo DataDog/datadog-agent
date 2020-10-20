@@ -6,17 +6,26 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 )
 
 const (
-	name = "datadog-agent"
+	extensionName = "datadog-agent"
 
-	routeRegister  string = "http://localhost:9001/2020-01-01/extension/register"
-	routeEventNext string = "http://localhost:9001/2020-01-01/extension/event/next"
-	routeInitError string = "http://localhost:9001/2020-01-01/extension/init/error"
+	routeRegister      string = "http://localhost:9001/2020-01-01/extension/register"
+	routeEventNext     string = "http://localhost:9001/2020-01-01/extension/event/next"
+	routeInitError     string = "http://localhost:9001/2020-01-01/extension/init/error"
+	routeSubscribeLogs string = "http://localhost:9001/2020-08-15/logs"
+
+	headerExtName     string = "Lambda-Extension-Name"
+	headerExtId       string = "Lambda-Extension-Identifier"
+	headerExtErrType  string = "Lambda-Extension-Function-Error-Type"
+	headerContentType string = "Content-Type"
+
+	requestTimeout time.Duration = 5 * time.Second
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
 	// no API key has been set. Unused until we can report error
@@ -30,6 +39,9 @@ const (
 	// bad endpoints have been configured. Unused until we can report error
 	// without stopping the extension.
 	FatalBadEndpoint ErrorEnum = "Fatal.BadEndpoint"
+	// FatalBadEndpoint is the error reported to the AWS Extension environment when
+	// a connection failed.
+	FatalConnectFailed ErrorEnum = "Fatal.ConnectFailed"
 )
 
 // ID is the extension ID within the AWS Extension environment.
@@ -37,6 +49,16 @@ type ID string
 
 // ErrorEnum are errors reported to the AWS Extension environment.
 type ErrorEnum string
+
+// String returns the string value for this ID.
+func (i ID) String() string {
+	return string(i)
+}
+
+// String returns the string value for this ErrorEnum.
+func (e ErrorEnum) String() string {
+	return string(e)
+}
 
 // Payload is the payload read in the response while subscribing to
 // the AWS Extension env.
@@ -62,10 +84,10 @@ func Register() (ID, error) {
 	var request *http.Request
 	var response *http.Response
 
-	if request, err = http.NewRequest("POST", routeRegister, payload); err != nil {
+	if request, err = http.NewRequest(http.MethodPost, routeRegister, payload); err != nil {
 		return "", fmt.Errorf("Register: can't create the POST register request: %v", err)
 	}
-	request.Header.Set("Lambda-Extension-Name", name)
+	request.Header.Set(headerExtName, extensionName)
 
 	// call the service to register and retrieve the given Id
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -89,12 +111,63 @@ func Register() (ID, error) {
 	// read the ID
 	// -----------
 
-	id := response.Header.Get("Lambda-Extension-Identifier")
+	id := response.Header.Get(headerExtId)
 	if len(id) == 0 {
 		return "", fmt.Errorf("Register: didn't receive an identifier -- Response body content: %v", string(body))
 	}
 
 	return ID(id), nil
+}
+
+// SubscribeLogs subscribes to the logs collection on the platform.
+// FIXME(remy): complete this comment (what is collected, how, ...)
+func SubscribeLogs(id ID, httpAddr string) error {
+	var err error
+	var request *http.Request
+	var response *http.Response
+	var jsonBytes []byte
+
+	if _, err := url.ParseRequestURI(httpAddr); err != nil || httpAddr == "" {
+		return fmt.Errorf("SubscribeLogs: wrong http addr provided: %s", httpAddr)
+	}
+
+	// send a hit on a route to subscribe to the logs collection feature
+	// --------------------
+
+	if jsonBytes, err = json.Marshal(map[string]interface{}{
+		"destination": map[string]string{
+			"URI":      httpAddr,
+			"protocol": "HTTP",
+		},
+		"types": []string{"platform", "extension", "function"}, // FIXME(remy): should be configurable
+		"buffering": map[string]int{ // FIXME(remy): these should be better defined
+			"timeoutMs": 1000,
+			"maxBytes":  262144,
+			"maxItems":  1000,
+		},
+	}); err != nil {
+		return fmt.Errorf("SubscribeLogs: can't marshal subscribe JSON: %s", err)
+	}
+
+	if request, err = http.NewRequest(http.MethodPut, routeSubscribeLogs, bytes.NewBuffer(jsonBytes)); err != nil {
+		return fmt.Errorf("SubscribeLogs: can't create the PUT request: %v", err)
+	}
+	request.Header.Set(headerExtId, id.String())
+	request.Header.Set(headerContentType, "application/json")
+
+	client := &http.Client{
+		Transport: &http.Transport{IdleConnTimeout: requestTimeout},
+		Timeout:   requestTimeout,
+	}
+	if response, err = client.Do(request); err != nil {
+		return fmt.Errorf("SubscribeLogs: while PUT subscribe request: %s", err)
+	}
+
+	if response.StatusCode >= 300 {
+		return fmt.Errorf("SubscribeLogs: received an HTTP %s", response.Status)
+	}
+
+	return nil
 }
 
 // ReportInitError reports an init error to the environment.
@@ -110,19 +183,18 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 		return fmt.Errorf("ReportInitError: can't write the payload: %s", err)
 	}
 
-	if request, err = http.NewRequest("POST", routeInitError, bytes.NewBuffer(content)); err != nil {
+	if request, err = http.NewRequest(http.MethodPost, routeInitError, bytes.NewBuffer(content)); err != nil {
 		return fmt.Errorf("ReportInitError: can't create the POST request: %s", err)
 	}
 
-	request.Header.Set("Lambda-Extension-Identifier", string(id))
-	request.Header.Set("Lambda-Extension-Function-Error-Type", "Fatal.ConnectFailed")
+	request.Header.Set(headerExtId, id.String())
+	request.Header.Set(headerExtErrType, FatalConnectFailed.String())
 
-	tr := &http.Transport{
-		MaxIdleConns:       10,
-		IdleConnTimeout:    5 * time.Second,
-		DisableCompression: true,
+	client := &http.Client{
+		Transport: &http.Transport{IdleConnTimeout: requestTimeout},
+		Timeout:   requestTimeout,
 	}
-	client := &http.Client{Transport: tr, Timeout: 5 * time.Second}
+
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("ReportInitError: while POST init error route: %s", err)
 	}
@@ -145,10 +217,10 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	var request *http.Request
 	var response *http.Response
 
-	if request, err = http.NewRequest("GET", routeEventNext, nil); err != nil {
+	if request, err = http.NewRequest(http.MethodGet, routeEventNext, nil); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
-	request.Header.Set("Lambda-Extension-Identifier", string(id))
+	request.Header.Set(headerExtId, id.String())
 
 	// the blocking call is here
 	client := &http.Client{Timeout: 0} // this one should never timeout

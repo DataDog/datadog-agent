@@ -12,13 +12,14 @@ import (
 
 // Logs source types
 const (
-	TCPType          = "tcp"
-	UDPType          = "udp"
-	FileType         = "file"
-	DockerType       = "docker"
-	JournaldType     = "journald"
-	WindowsEventType = "windows_event"
-	SnmpTrapsType    = "snmp_traps"
+	TCPType           = "tcp"
+	UDPType           = "udp"
+	FileType          = "file"
+	DockerType        = "docker"
+	JournaldType      = "journald"
+	WindowsEventType  = "windows_event"
+	SnmpTrapsType     = "snmp_traps"
+	StringChannelType = "string_channel"
 
 	// UTF16BE for UTF-16 Big endian encoding
 	UTF16BE string = "utf-16-be"
@@ -51,6 +52,9 @@ type LogsConfig struct {
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
+
+	// used as input only by the Channel tailer.
+	Channel <-chan string
 
 	Service         string
 	Source          string

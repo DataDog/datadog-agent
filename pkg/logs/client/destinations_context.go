@@ -18,7 +18,7 @@ type DestinationsContext struct {
 	mutex   sync.Mutex
 }
 
-// NewDestinationsContext returns an initialized ConnectionManager
+// NewDestinationsContext returns an initialized DestinationsContext
 func NewDestinationsContext() *DestinationsContext {
 	return &DestinationsContext{}
 }

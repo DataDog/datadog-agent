@@ -41,7 +41,17 @@ var (
 // getAC is a func returning the prepared AutoConfig. It is nil until
 // the AutoConfig is ready, please consider using BlockUntilAutoConfigRanOnce
 // instead of directly using it.
+// The parameter serverless indicates whether or not this Logs Agent is running
+// in a serverless environment.
 func Start(getAC func() *autodiscovery.AutoConfig) error {
+	return start(getAC, false, nil)
+}
+
+func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan string) error {
+	return start(getAC, true, logsChan)
+}
+
+func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan string) error {
 	if IsAgentRunning() {
 		return nil
 	}
@@ -80,12 +90,31 @@ func Start(getAC func() *autodiscovery.AutoConfig) error {
 		return errors.New(message)
 	}
 
-	// setup and start the agent
-	agent = NewAgent(sources, services, processingRules, endpoints)
-	log.Info("Starting logs-agent...")
+	// setup and start the logs agent
+	if !serverless {
+		// regular logs agent
+		log.Info("Starting logs-agent...")
+		agent = NewAgent(sources, services, processingRules, endpoints)
+	} else {
+		// serverless logs agent
+		log.Info("Starting a serverless logs-agent...")
+		agent = NewServerless(sources, services, processingRules, endpoints)
+	}
+
 	agent.Start()
 	atomic.StoreInt32(&isRunning, 1)
 	log.Info("logs-agent started")
+
+	if serverless {
+		log.Debug("Adding AWS Logs collection source")
+		chanSource := config.NewLogSource("AWS Logs", &config.LogsConfig{
+			Type:    config.StringChannelType,
+			Service: "AWS Logs",
+			Source:  "AWS Logs",
+			Channel: logsChan,
+		})
+		sources.AddSource(chanSource)
+	}
 
 	// add SNMP traps source forwarding SNMP traps as logs if enabled.
 	if source := config.SNMPTrapsSource(); source != nil {

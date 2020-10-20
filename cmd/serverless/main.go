@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -24,10 +25,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -73,6 +77,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	apiKeyEnvVar    = "DD_API_KEY"
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
+
+	logsHttpPortEnvVar = "DD_LOGS_CONFIG_HTTP_SERVER_PORT"
 )
 
 const (
@@ -127,7 +133,6 @@ func main() {
 }
 
 func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
-
 	startTime := time.Now()
 
 	// setup logger
@@ -153,6 +158,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	// immediately starts the communication server
+	// FIXME(remy): should it also do the logs collection to avoid to open yet another port
 	daemon := serverless.StartDaemon(stopCh)
 
 	// serverless parts
@@ -229,6 +235,40 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		log.Error("No API key configured, exiting")
 	}
 
+	// starts logs collection if enabled
+	// ---------------------------------
+
+	if config.Datadog.GetBool("logs_enabled") {
+		httpPort := 8888
+		if v, exists := os.LookupEnv(logsHttpPortEnvVar); exists {
+			if i, err := strconv.Atoi(v); err != nil {
+				httpPort = i
+			}
+		}
+
+		log.Debugf("Enabling logs collection with HTTP server rwunning port %d", httpPort)
+		if httpAddr, logsChan, err := daemon.StartHttpLogsServer(httpPort); err != nil {
+			log.Error("While starting the HTTP Logs Server:", err)
+		} else {
+			// subscribe to the logs on the platform
+			if err := serverless.SubscribeLogs(serverlessID, httpAddr); err != nil {
+				log.Error("Can't subscribe to logs:", err)
+				// XXX(remy): we should probably stop the http logs server here
+				// TODO(remy): should we set a flag somewhere that it's not enabled?
+			} else {
+				log.Debug("Starting the draining routine")
+
+				// we subscribed to the logs collection on the platform, let's instanciate
+				// a logs agent to collect/process/flush the logs.
+				if err := logs.StartServerless(func() *autodiscovery.AutoConfig { return common.AC }, logsChan); err != nil {
+					log.Error("Could not start an instance of the Logs Agent:", err)
+					// XXX(remy): we should probably stop the http logs server here
+					// TODO(remy): should we set a flag somewhere that it's not enabled?
+				}
+			}
+		}
+	}
+
 	// setup the forwarder, serializer and aggregator
 	// ----------------------------------------------
 
@@ -237,6 +277,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
+		// serverless.ReportInitError(serverlessId, serverless.FatalBadEndpoint)
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
@@ -370,6 +411,7 @@ func readAPIKeyFromSSM() (string, error) {
 	log.Warn("SSM returned something but there seems to be no data available;")
 	return "", nil
 }
+
 func stopCallback(cancel context.CancelFunc) {
 	// gracefully shut down any component
 	cancel()

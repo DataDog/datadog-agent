@@ -1,8 +1,11 @@
 package serverless
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -11,9 +14,11 @@ import (
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
 type Daemon struct {
-	httpServer   *http.Server
-	statsdServer *dogstatsd.Server
-	stopCh       chan struct{}
+	httpServer *http.Server
+	// http server used to collect AWS logs
+	httpLogsServer *http.Server
+	statsdServer   *dogstatsd.Server
+	stopCh         chan struct{}
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instanciated)
 	ReadyWg *sync.WaitGroup
@@ -52,8 +57,42 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 			log.Error(err)
 		}
 	}()
-
 	return daemon
+}
+
+// StartHttpLogsServer starts an HTTP server, receiving logs from the AWS platform.
+// Returns the HTTP URL on which AWS should send the logs.
+// FIXME(remy): that would be awesome to have this directly running within the initial HTTP daemon?
+func (d *Daemon) StartHttpLogsServer(port int) (string, chan string, error) {
+	httpAddr := fmt.Sprintf("http://sandbox:%d", port)
+	listenAddr := fmt.Sprintf("0.0.0.0:%d", port)
+	// http server receiving logs from the AWS Lambda environment
+
+	logsChan := make(chan string) // FIXME(remy): is there some configuration field existing somewhere for the size of this buffr?
+
+	go func() {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// FIXME(remy): these log lines should be parsed and sent to the logs agent instance
+			data, _ := ioutil.ReadAll(r.Body)
+			defer r.Body.Close()
+			log.Debug("writing into the chan")
+			logsChan <- string(data) // FIXME(remy): memory usage
+			log.Debug("wrote into the chan")
+			w.WriteHeader(200)
+		})
+		s := &http.Server{
+			Addr:         listenAddr,
+			Handler:      handler,
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+		}
+		log.Debug("Logs collection HTTP server starts")
+		if err := s.ListenAndServe(); err != nil {
+			log.Error("ListenAndServe:", err)
+		}
+	}()
+
+	return httpAddr, logsChan, nil
 }
 
 // Hello implements the basic Hello route, creating a way for the runtime to
