@@ -212,6 +212,9 @@ api_key:
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
+## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
+## permission. See docs for further details:
+## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
 

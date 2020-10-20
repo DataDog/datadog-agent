@@ -67,13 +67,6 @@ instances:
 - password: ENC[pass2]
 `)
 
-	testConfJSON = []byte(`---
-instances:
-- "{\"password\": \"ENC[pass1]\", \"user\": \"test\"}"
-- password: ENC[pass2]
-  user: test2
-`)
-
 	testConfDecrypted = []byte(`instances:
 - password: password1
   user: test
@@ -252,34 +245,6 @@ func TestDecryptSecretNoCache(t *testing.T) {
 	}
 
 	newConf, err := Decrypt(testConf, "test")
-	require.Nil(t, err)
-	assert.Equal(t, string(testConfDecrypted), string(newConf))
-}
-
-func TestDecryptSecretNestedJSON(t *testing.T) {
-	secretBackendCommand = "some_command"
-
-	defer func() {
-		secretBackendCommand = ""
-		secretCache = map[string]string{}
-		secretOrigin = map[string]common.StringSet{}
-		secretFetcher = fetchSecret
-	}()
-
-	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
-		sort.Strings(secrets)
-		assert.Equal(t, []string{
-			"pass1",
-			"pass2",
-		}, secrets)
-
-		return map[string]string{
-			"pass1": "password1",
-			"pass2": "password2",
-		}, nil
-	}
-
-	newConf, err := Decrypt(testConfJSON, "test")
 	require.Nil(t, err)
 	assert.Equal(t, string(testConfDecrypted), string(newConf))
 }

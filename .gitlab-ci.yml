@@ -1322,6 +1322,7 @@ agent_dmg-x64-a6:
   rules:
     - <<: *if_not_version_6
       when: never
+    - <<: *if_master_branch
     - <<: *if_deploy
   allow_failure: true
   stage: package_build
