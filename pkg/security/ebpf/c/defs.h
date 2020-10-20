@@ -198,7 +198,7 @@ enum event_type
     EVENT_EXEC,
     EVENT_EXIT,
     EVENT_INVALIDATE_DENTRY,
-    EVENT_MAX, // has to be the last one and a power of two
+    EVENT_MAX, // has to be the last one
 };
 
 // closest power of 2 that is bigger than EVENT_MAX
@@ -305,6 +305,43 @@ static __attribute__((always_inline)) u32 is_flushing_discarders(void) {
     return prev_id != NULL && *prev_id;
 }
 
+// STATS_MAX_CPU_COUNT represent the maximum number of CPUs that the perf buffer monitoring will sample. Reduce this number
+// to monitor less CPUs and therefor reduce the in-kernel overhead.
+#define STATS_MAX_CPU_COUNT 64
+
+struct perf_map_stats_t {
+    u64 bytes;
+    u64 count;
+    u64 lost;
+};
+
+#define send_event_and_stats(ctx, kernel_event, perf_map, stats_buffer_one, stats_buffer_two)           \
+                                                                                                        \
+    u64 size = sizeof(event);                                                                           \
+    int perf_ret = bpf_perf_event_output(ctx, &perf_map, kernel_event.event.cpu, &kernel_event, size);  \
+                                                                                                        \
+    if ((kernel_event.event.cpu < STATS_MAX_CPU_COUNT) && (kernel_event.event.type < EVENT_MAX)) {      \
+        u32 buffer_key = PERF_BUFFER_MONITOR_KEY;                                                       \
+        u32 *buffer_id = bpf_map_lookup_elem(&buffer_selector, &buffer_key);                            \
+        if (buffer_id != NULL) {                                                                        \
+            u32 stats_key = kernel_event.event.type + kernel_event.event.cpu * EVENT_MAX;               \
+            struct perf_map_stats_t *stats;                                                             \
+            if (*buffer_id) {                                                                           \
+                stats = bpf_map_lookup_elem(&stats_buffer_one, &stats_key);                             \
+            } else {                                                                                    \
+                stats = bpf_map_lookup_elem(&stats_buffer_two, &stats_key);                             \
+            }                                                                                           \
+            if (stats != NULL) {                                                                        \
+                if (!perf_ret) {                                                                        \
+                    __sync_fetch_and_add(&stats->bytes, size + 4);                                      \
+                    __sync_fetch_and_add(&stats->count, 1);                                             \
+                } else {                                                                                \
+                    __sync_fetch_and_add(&stats->lost, 1);                                              \
+                }                                                                                       \
+            }                                                                                           \
+        }                                                                                               \
+    }                                                                                                   \
+
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
@@ -314,11 +351,33 @@ struct bpf_map_def SEC("maps/events") events = {
     .namespace = "",
 };
 
-#define send_event(ctx, event_type, event) \
-    event.event.type = event_type; \
-    event.event.cpu = bpf_get_smp_processor_id(); \
-    event.event.timestamp = bpf_ktime_get_ns(); \
-    bpf_perf_event_output(ctx, &events, event.event.cpu, &event, sizeof(event))
+struct bpf_map_def SEC("maps/events_stats_one") events_stats_one = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct perf_map_stats_t),
+    .max_entries = EVENT_MAX * STATS_MAX_CPU_COUNT,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/events_stats_two") events_stats_two = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct perf_map_stats_t),
+    .max_entries = EVENT_MAX * STATS_MAX_CPU_COUNT,
+    .pinning = 0,
+    .namespace = "",
+};
+
+#define send_event(ctx, event_type, kernel_event)                                                        \
+    kernel_event.event.type = event_type;                                                                \
+    kernel_event.event.cpu = bpf_get_smp_processor_id();                                                 \
+    kernel_event.event.timestamp = bpf_ktime_get_ns();                                                   \
+    #if PERF_BUFFER_MONITOR == 1                                                                         \
+        send_event_and_stats(ctx, kernel_event, events, events_stats_one, events_stats_two)              \
+    #else                                                                                                \
+        bpf_perf_event_output(ctx, &events, kernel_event.event.cpu, &kernel_event, sizeof(kernel_event)) \
+    #endif                                                                                               \
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {

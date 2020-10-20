@@ -54,7 +54,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	eventsStats := test.probe.GetEventsStats()
-	eventsStats.GetAndResetLost()
+	eventsStats.GetAndResetReadLostCount("events", -1)
 
 	events := 0
 	go func() {
@@ -108,7 +108,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	report.AddMetric("lost", float64(eventsStats.GetLost()), "lost")
+	report.AddMetric("lost", float64(eventsStats.GetReadLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 

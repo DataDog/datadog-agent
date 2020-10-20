@@ -56,6 +56,7 @@ def build(
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     bundle_ebpf=False,
+    perf_buffer_monitor=False,
 ):
     """
     Build the system_probe
@@ -63,7 +64,7 @@ def build(
 
     # Only build ebpf files on unix
     if not windows:
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+        build_object_files(ctx, bundle_ebpf=bundle_ebpf, perf_buffer_monitor=perf_buffer_monitor)
 
     ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
@@ -178,7 +179,7 @@ def build_in_docker(
 
 @task
 def test(
-    ctx, packages=TEST_PACKAGES, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=True, output_path=None
+    ctx, packages=TEST_PACKAGES, skip_object_files=False, only_check_bpf_bytes=False, bundle_ebpf=True, output_path=None, perf_buffer_monitor=True
 ):
     """
     Run tests on eBPF parts
@@ -190,7 +191,7 @@ def test(
     """
 
     if not skip_object_files:
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+        build_object_files(ctx, bundle_ebpf=bundle_ebpf, perf_buffer_monitor=perf_buffer_monitor)
 
     cmd = 'go test -mod=vendor -v -tags {bpf_tag} {output_params} {pkgs}'
     if not is_root():
@@ -282,7 +283,7 @@ def nettop(ctx, incremental_build=False, go_mod="vendor"):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, bundle_ebpf=False)
+    build_object_files(ctx, bundle_ebpf=False, perf_buffer_monitor=False)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags linux_bpf,ebpf_bindata -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -337,12 +338,12 @@ def build_dev_docker_image(ctx, image_name, push=False):
 
 
 @task
-def object_files(ctx, bundle_ebpf=True):
+def object_files(ctx, bundle_ebpf=True, perf_buffer_monitor=False):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+    build_object_files(ctx, bundle_ebpf=bundle_ebpf, perf_buffer_monitor=perf_buffer_monitor)
 
 
-def build_object_files(ctx, bundle_ebpf=False):
+def build_object_files(ctx, bundle_ebpf=False, perf_buffer_monitor=False):
     """build_object_files builds only the eBPF object
     set bundle_ebpf to False to disable replacing the assets
     """
@@ -461,6 +462,9 @@ def build_object_files(ctx, bundle_ebpf=False):
         bindata_files.extend([obj_file, debug_obj_file])
 
     # Build security runtime programs
+    if perf_buffer_monitor:
+        flags.append("-DPERF_BUFFER_MONITOR=1")
+
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")

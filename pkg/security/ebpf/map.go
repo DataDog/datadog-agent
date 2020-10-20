@@ -81,3 +81,10 @@ var (
 	ZeroUint32MapItem = BytesMapItem([]byte{0, 0, 0, 0})
 	ZeroUint64MapItem = BytesMapItem([]byte{0, 0, 0, 0, 0, 0, 0, 0})
 )
+
+var (
+	// BufferSelectorSyscallMonitorKey is the key used to select the active syscall monitor buffer key
+	BufferSelectorSyscallMonitorKey = ZeroUint32MapItem
+	// BufferSelectorPerfBufferMonitorKey is the key used to select the active perf buffer monitoring key
+	BufferSelectorPerfBufferMonitorKey = Uint32MapItem(1)
+)
