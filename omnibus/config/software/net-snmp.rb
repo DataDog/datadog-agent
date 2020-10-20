@@ -50,6 +50,8 @@ build do
     #       https://github.com/DataDog/datadog-agent/blob/892bd315ec45bf9ecfa40a3ba602e15e39fb75f6/omnibus/config/software/datadog-agent-integrations-py3.rb#L140-L146
     copy "include/net-snmp", "#{install_dir}/embedded3/include/net-snmp"
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
+
+    copy ".", "#{install_dir}/netsnmp"
   end
 
   whitelist_file "#{install_dir}/embedded/lib/libnetsnmpmibs.so.40.0.0"
