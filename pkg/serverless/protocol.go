@@ -46,7 +46,13 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 	// this wait group will be blocking until the DogStatsD server has been instanciated
 	daemon.ReadyWg.Add(1)
 
-	go daemon.httpServer.ListenAndServe()
+	// start the HTTP server used to communicate with the clients
+	go func() {
+		if err := daemon.httpServer.ListenAndServe(); err != nil {
+			log.Error(err)
+		}
+	}()
+
 	return daemon
 }
 

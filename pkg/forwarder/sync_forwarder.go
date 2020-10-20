@@ -39,7 +39,9 @@ func (f *SyncDefaultForwarder) Stop() {
 
 func (f *SyncDefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction) error {
 	for _, t := range transactions {
-		t.Process(context.Background(), f.client)
+		if err := t.Process(context.Background(), f.client); err != nil {
+			log.Errorf("SyncDefaultForwarder.sendHTTPTransactions: %s", err)
+		}
 	}
 	log.Debugf("SyncDefaultForwarder has flushed %d transactions", len(transactions))
 	return nil
