@@ -26,6 +26,10 @@ Bug Fixes
   EC2 tags from the metadata endpoint. This fixes a misleading warning log that was logged
   even when ``ec2_prefer_imdsv2`` was left disabled in the Agent configuration.
 
+- Support of secrets in JSON environment variables, added in `7.23.0`, is
+  reverted due to a side effect (e.g. a string value of `"-"` would be loaded as a list). This
+  feature will be fixed and added again in a future release.
+
 - The Windows installer can now install on domains where the domain name is different from the Netbios name.
 
 .. _Release Notes_7.23.0:
