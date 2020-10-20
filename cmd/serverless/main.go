@@ -265,7 +265,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessId); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessID); err != nil {
 				log.Error(err)
 			}
 		}
