@@ -178,7 +178,7 @@ func TestDefaultData(t *testing.T) {
 
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.flush(start, false)
+	agg.Flush(start, false)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 }
@@ -245,14 +245,14 @@ func TestRecurentSeries(t *testing.T) {
 	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.flush(start, false)
+	agg.Flush(start, false)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
 	// Assert that recurrentSeries are sent on each flushed
 	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
-	agg.flush(start, false)
+	agg.Flush(start, false)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
