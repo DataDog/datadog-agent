@@ -35,8 +35,11 @@ until [[ -n ${KUBE_SVC:+x} ]]; do
     sleep 1
     KUBE_SVC="$(sudo iptables -w -t nat -L KUBE-NODEPORTS -n -v | awk '/argo\/argo-server:web/ && $3 ~ /^KUBE-SVC-/ {print $3}')"
 done
-sudo iptables -w -t nat -A KUBE-NODEPORTS -m comment --comment 'argo/argo-server:web' -p tcp --dport 80 -j KUBE-MARK-MASQ
-sudo iptables -w -t nat -A KUBE-NODEPORTS -m comment --comment 'argo/argo-server:web' -p tcp --dport 80 -j "${KUBE_SVC}"
+sudo iptables -w -t nat -N HACK
+sudo iptables -w -t nat -A HACK -m comment --comment 'argo/argo-server:web' -p tcp --dport 80 -j KUBE-MARK-MASQ
+sudo iptables -w -t nat -A HACK -m comment --comment 'argo/argo-server:web' -p tcp --dport 80 -j "${KUBE_SVC}"
+sudo iptables -w -t nat -A PREROUTING -m addrtype --dst-type LOCAL -j HACK
+sudo iptables -w -t nat -A OUTPUT     -m addrtype --dst-type LOCAL -j HACK
 
 TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
 LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
