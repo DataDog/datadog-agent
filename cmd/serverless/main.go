@@ -35,8 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-const defaultLogFile = "/var/log/datadog/serverless-agent.log"
-
 var (
 	// serverlessAgentCmd is the root command
 	serverlessAgentCmd = &cobra.Command{
@@ -64,9 +62,6 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
 		},
 	}
-
-	confPath   string
-	socketPath string
 
 	statsdServer *dogstatsd.Server
 
@@ -152,7 +147,9 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		config.ChangeLogLevel(logLevel)
+		if err := config.ChangeLogLevel(logLevel); err != nil {
+			log.Errorf("While changing the loglevel: %s", err)
+		}
 	}
 
 	// immediately starts the communication server
@@ -268,7 +265,9 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
-			serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessID)
+			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessId); err != nil {
+				log.Error(err)
+			}
 		}
 	}()
 
