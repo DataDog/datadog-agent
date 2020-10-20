@@ -122,7 +122,7 @@ void initAggregatorModule(rtloader_t *rtloader) {
 // _util module
 //
 
-void GetSubprocessOutput(char **, char**, char **, char **, int*, char **);
+void GetSubprocessOutput(char **, char **, char **, char **, int*, char **);
 
 void initUtilModule(rtloader_t *rtloader) {
 	set_get_subprocess_output_cb(rtloader, GetSubprocessOutput);
