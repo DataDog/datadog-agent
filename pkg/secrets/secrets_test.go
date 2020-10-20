@@ -199,7 +199,11 @@ func TestDecryptSecretError(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestDecryptSecretStringMapString(t *testing.T) {
+// TestDecryptSecretStringMapStringWithDashValue checks that a nested string config value
+// that can be interpreted as YAML (such as a "-") is not interpreted as YAML by the secrets
+// decryption logic, but is left unchanged as a string instead.
+// See https://github.com/DataDog/datadog-agent/pull/6586 for details.
+func TestDecryptSecretStringMapStringWithDashValue(t *testing.T) {
 	secretBackendCommand = "some_command"
 
 	defer func() {
@@ -210,7 +214,6 @@ func TestDecryptSecretStringMapString(t *testing.T) {
 	}()
 
 	secretFetcher = func(secrets []string, origin string) (map[string]string, error) {
-		sort.Strings(secrets)
 		assert.Equal(t, []string{
 			"pass1",
 		}, secrets)
