@@ -1,9 +1,10 @@
 #!/bin/bash
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
 set -x
 
-cd "$(dirname $0)"
+cd "$(dirname "$0")"
 
 for i in {0..60}
 do
@@ -36,7 +37,9 @@ set +e
 
 for i in {0..60}
 do
-    ./argo list && break
+    ./argo list && exit 0
     /opt/bin/kubectl get hpa,svc,ep,ds,deploy,job,po --all-namespaces -o wide
     sleep 5
 done
+
+exit 1

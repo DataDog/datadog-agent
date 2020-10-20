@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -ex
+set -x
 
-test $1 || {
-    echo 'Must provide a ssh IP or DNS as $1'
+test "$1" || {
+    echo "Must provide a ssh IP or DNS as \$1"
     exit 1
 }
 MACHINE=$1
 
 # get into the repo to grab the last commit hash
-test ${COMMIT_ID} || {
-    cd $(dirname $0)
+test "${COMMIT_ID}" || {
+    cd "$(dirname "$0")"
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
@@ -19,20 +20,20 @@ SSH_OPTS="-o ServerAliveInterval=20 -o ConnectTimeout=6 -o StrictHostKeyChecking
 SEND_ENV="-o SendEnv DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master}"
 
 function _ssh() {
-    ssh ${SSH_OPTS} -lcore ${MACHINE} $@
+    # shellcheck disable=SC2086
+    ssh ${SSH_OPTS} -lcore "${MACHINE}" "$@"
 }
 
 function _ssh_logged() {
-    ssh ${SSH_OPTS} -lcore ${MACHINE} ${SEND_ENV} /bin/bash -l -c "$@"
+    # shellcheck disable=SC2086
+    ssh ${SSH_OPTS} -lcore "${MACHINE}" ${SEND_ENV} /bin/bash -l -c "$@"
 }
 
-until _ssh /bin/true
-do
+until _ssh /bin/true; do
     sleep 5
 done
 
-until _ssh systemctl is-system-running
-do
+until _ssh systemctl is-system-running; do
     sleep 5
 done
 
@@ -42,7 +43,7 @@ _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-a
     echo "Already cloned, fetching new changes"
     _ssh git -C /home/core/datadog-agent fetch
 }
-_ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
+_ssh git -C /home/core/datadog-agent checkout "${COMMIT_ID}"
 
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-wait.sh
 _ssh timeout 120 /home/core/datadog-agent/test/e2e/scripts/run-instance/11-pupernetes-ready.sh

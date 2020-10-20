@@ -1,12 +1,14 @@
 #!/bin/bash
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
 
 for f in /run/systemd/resolve/resolv.conf /etc/resolv.conf /etc/hosts /etc/os-release
 do
-    echo ${f}
+    [[ -e $f ]] || continue
+    echo $f
     echo "---"
-    cat ${f}
+    cat $f
     printf '=%.0s' {0..79} ; echo
 done
 

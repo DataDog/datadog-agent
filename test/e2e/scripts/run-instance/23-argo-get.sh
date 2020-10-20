@@ -1,12 +1,11 @@
 #!/bin/bash
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -o pipefail
 set -x
 
-cd "$(dirname $0)"
+cd "$(dirname "$0")"
 
-WORKFLOWS=0
 # Wait for any Running workflow
 until [[ -z $(./argo list -l workflows.argoproj.io/phase=Running -o name) ]]; do
     sleep 10

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -ex
+set -x
 
-cd "$(dirname $0)"
+cd "$(dirname "$0")"
 ssh-keygen -b 4096 -t rsa -C "datadog" -N "" -f "id_rsa"
 SSH_RSA=$(cat id_rsa.pub)
 
@@ -17,7 +18,7 @@ curl https://getfedora.org/static/fedora.gpg | gpg --import
 gpg --verify "${fcct}.asc" "$fcct"
 chmod +x "$fcct"
 
-./$fcct --pretty --strict <<EOF | tee ignition.json
+"./$fcct" --pretty --strict <<EOF | tee ignition.json
 variant: fcos
 version: 1.1.0
 passwd:

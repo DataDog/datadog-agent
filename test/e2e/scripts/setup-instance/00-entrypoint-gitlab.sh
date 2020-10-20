@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -ex
-set -o pipefail
+set -x
 
-cd "$(dirname $0)"
+cd "$(dirname "$0")"
 
 git clean -fdx .
 
@@ -48,13 +48,12 @@ echo "Using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
 echo "Running inside a gitlab pipeline, using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
 
 # Check is the image is hosted on a docker registry and if it's available
-if [[ "${DATADOG_AGENT_IMAGE:0:8}" == "datadog/" ]]
+if [[ "${DATADOG_AGENT_IMAGE%/*}" == "datadog" ]]
 then
     echo "${DATADOG_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
-    IMAGE_TAG=${DATADOG_AGENT_IMAGE:8}
-    IMAGE_NAME=$(echo -n ${IMAGE_TAG} | cut -f1 -d ':')
-    IMAGE_TAG=$(echo -n ${IMAGE_TAG} | cut -f2 -d ':')
-    curl -Lfs https://registry.hub.docker.com/v1/repositories/datadog/${IMAGE_NAME}/tags | \
+    IMAGE_REPOSITORY=${DATADOG_AGENT_IMAGE%:*}
+    IMAGE_TAG=${DATADOG_AGENT_IMAGE#*:}
+    curl -Lfs "https://registry.hub.docker.com/v1/repositories/${IMAGE_REPOSITORY}/tags" | \
         jq -re ".[] | select(.name==\"${IMAGE_TAG}\")" || {
             echo "The DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE} returns a 404 on the registry.hub.docker.com"
             exit 2
