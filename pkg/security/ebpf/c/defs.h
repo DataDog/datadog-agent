@@ -235,7 +235,7 @@ struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };
@@ -247,7 +247,7 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };

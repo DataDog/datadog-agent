@@ -48,10 +48,6 @@ SYSCALL_COMPAT_TIME_KPROBE0(utimensat) {
     return trace__sys_utimes();
 }
 
-SYSCALL_COMPAT_TIME_KPROBE0(utimesat) {
-    return trace__sys_utimes();
-}
-
 SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
     return trace__sys_utimes();
 }

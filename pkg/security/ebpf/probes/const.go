@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package ebpf
+// +build linux
 
-// KProbe describes a Linux Kprobe
-type KProbe struct {
-	Name      string
-	EntryFunc string
-	ExitFunc  string
-}
+package probes
+
+const (
+	// SecurityAgentUID is the UID used for all the runtime security module probes
+	SecurityAgentUID = "security"
+)
