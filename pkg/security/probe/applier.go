@@ -10,10 +10,13 @@ package probe
 import (
 	"math"
 
+	"github.com/DataDog/ebpf/manager"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuleSetApplier defines a rule set applier. It applies rules using an Applier
@@ -27,8 +30,7 @@ type Applier interface {
 	Init() error
 	ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error
 	ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error
-	RegisterKProbe(kprobe *ebpf.KProbe) error
-	RegisterTracepoint(tracepoint string) error
+	RegisterProbesSelectors(selectors []manager.ProbesSelector) error
 }
 
 func (rsa *RuleSetApplier) applyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag, applier Applier) error {
@@ -55,23 +57,14 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 	return nil
 }
 
-func (rsa *RuleSetApplier) registerKProbe(kprobe *ebpf.KProbe, applier Applier) error {
+func (rsa *RuleSetApplier) registerProbesSelectors(selectors []manager.ProbesSelector, applier Applier) error {
 	if applier != nil {
-		return applier.RegisterKProbe(kprobe)
+		return applier.RegisterProbesSelectors(selectors)
 	}
-
 	return nil
 }
 
-func (rsa *RuleSetApplier) registerTracepoint(tracepoint string, applier Applier) error {
-	if applier != nil {
-		return applier.RegisterTracepoint(tracepoint)
-	}
-
-	return nil
-}
-
-func (rsa *RuleSetApplier) setupKProbe(rs *rules.RuleSet, eventType eval.EventType, applier Applier) error {
+func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, applier Applier) error {
 	policyTable := allPolicyTables[eventType]
 	if policyTable == "" {
 		return nil
@@ -119,68 +112,51 @@ func (rsa *RuleSetApplier) setupKProbe(rs *rules.RuleSet, eventType eval.EventTy
 	return nil
 }
 
-// Apply applies the loaded set of rules and returns a report
-// of the applied approvers for it.
+// Apply setup the filters for the provided set of rules and returns the policy report.
 func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, error) {
-	alreadySetup := make(map[eval.EventType]bool)
-	alreadyRegistered := make(map[*HookPoint]bool)
-
-	if applier != nil {
-		if err := applier.Init(); err != nil {
-			return nil, err
+	for eventType := range probes.SelectorsPerEventType {
+		if rs.HasRulesForEventType(eventType) {
+			if err := rsa.setupFilters(rs, eventType, applier); err != nil {
+				return nil, err
+			}
 		}
 	}
+	return rsa.reporter.GetReport(), nil
+}
 
-	for _, hookPoint := range allHookPoints {
-		if hookPoint.EventTypes == nil {
-			continue
-		}
-
-		// first set policies
-		for _, eventType := range hookPoint.EventTypes {
-			if _, ok := alreadySetup[eventType]; ok {
-				continue
+// SelectProbes applies the loaded set of rules and returns a report
+// of the applied approvers for it.
+func (rsa *RuleSetApplier) SelectProbes(rs *rules.RuleSet, applier Applier) error {
+	var selectedIDs []manager.ProbeIdentificationPair
+	for eventType, selectors := range probes.SelectorsPerEventType {
+		if eventType == "*" || rs.HasRulesForEventType(eventType) {
+			// register probes selectors
+			if err := rsa.registerProbesSelectors(selectors, applier); err != nil {
+				return err
 			}
 
-			if rs.HasRulesForEventType(eventType) {
-				if err := rsa.setupKProbe(rs, eventType, applier); err != nil {
-					return nil, err
-				}
-				alreadySetup[eventType] = true
-			}
-		}
-
-		// then register kprobes
-		for _, eventType := range hookPoint.EventTypes {
-			if eventType == "*" || rs.HasRulesForEventType(eventType) {
-				if _, ok := alreadyRegistered[hookPoint]; ok {
-					continue
-				}
-
-				for _, kprobe := range hookPoint.KProbes {
-					// use hook point name if kprobe name not provided
-					if len(kprobe.Name) == 0 {
-						kprobe.Name = hookPoint.Name
-					}
-
-					if err := rsa.registerKProbe(kprobe, applier); err != nil {
-						if !hookPoint.Optional && len(hookPoint.KProbes) == 1 {
-							return nil, err
+			// Extract unique IDs for logging purposes only
+			for _, selector := range selectors {
+				for _, id := range selector.GetProbesIdentificationPairList() {
+					var exists bool
+					for _, selectedID := range selectedIDs {
+						if selectedID.Matches(id) {
+							exists = true
 						}
 					}
-				}
-
-				if len(hookPoint.Tracepoint) > 0 {
-					if err := rsa.registerTracepoint(hookPoint.Tracepoint, applier); err != nil {
-						return nil, err
+					if !exists {
+						selectedIDs = append(selectedIDs, id)
 					}
 				}
-				alreadyRegistered[hookPoint] = true
 			}
 		}
 	}
 
-	return rsa.reporter.GetReport(), nil
+	// Print the list of unique probe identification IDs that are registered
+	for _, id := range selectedIDs {
+		log.Debugf("probe %s registered", id)
+	}
+	return nil
 }
 
 // NewRuleSetApplier returns a new RuleSetApplier

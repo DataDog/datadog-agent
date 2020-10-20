@@ -17,7 +17,6 @@ func TestMountResolver(t *testing.T) {
 	// Prepare test cases
 	type testCase struct {
 		mountID               uint32
-		numlower              int32
 		expectedMountPath     string
 		expectedContainerPath string
 		expectedError         error
@@ -58,20 +57,17 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						127,
-						0,
 						"",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
 					},
 					{
 						127,
-						1,
 						"",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
 					},
 					{
-						0,
 						0,
 						"",
 						"",
@@ -79,7 +75,6 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						27,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -101,7 +96,6 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						127,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -165,21 +159,18 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						27,
-						0,
 						"",
 						"",
 						nil,
 					},
 					{
 						27,
-						1,
 						"",
 						"",
 						nil,
 					},
 					{
 						31,
-						0,
 						"/sys/fs/cgroup",
 						"",
 						nil,
@@ -201,21 +192,18 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						27,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						22,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						31,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -295,7 +283,6 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						639,
-						1,
 						"proc",
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
@@ -317,21 +304,18 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						176,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						638,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
 					},
 					{
 						639,
-						0,
 						"",
 						"",
 						ErrMountNotFound,
@@ -356,7 +340,7 @@ func TestMountResolver(t *testing.T) {
 				}
 			}
 			for _, testC := range tt.args.cases {
-				cp, p, _, err := mr.GetMountPath(testC.mountID, testC.numlower)
+				cp, p, _, err := mr.GetMountPath(testC.mountID)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())

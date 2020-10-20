@@ -9,7 +9,6 @@ package tests
 
 import (
 	"bytes"
-	"context"
 	"io/ioutil"
 	"net"
 	"os"
@@ -256,24 +255,6 @@ func (tm *testModule) Close() {
 	time.Sleep(time.Second)
 }
 
-func waitProcScan(test *testProbe) {
-	// Consume test.events so that testEventHandler.HandleEvent doesn't block
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		for {
-			select {
-			case <-test.events:
-			case <-test.discarders:
-				continue
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	time.Sleep(5 * time.Second)
-	cancel()
-}
-
 func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
 	st, err := newSimpleTest(macrosDef, rulesDef, opts.testDir)
 	if err != nil {
@@ -309,17 +290,34 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 	probe.SetEventHandler(handler)
 	ruleSet.AddListener(handler)
 
-	if err := probe.Start(); err != nil {
+	if err := probe.Init(); err != nil {
 		return nil, err
 	}
 
 	rsa := sprobe.NewRuleSetApplier(config)
 
-	if _, err := rsa.Apply(ruleSet, probe); err != nil {
+	if err := rsa.SelectProbes(ruleSet, probe); err != nil {
 		return nil, err
 	}
 
+	if err := probe.InitManager(); err != nil {
+		return nil, err
+	}
+
+	_, err = rsa.Apply(ruleSet, probe)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start and Snapshot are called in the reverse order in the real module. Calling the snapshot before some discarder
+	// tests is very noisy and makes the output unreadable. The (very unlikely) risk of missing a crucial mount point or
+	// process between the call of Snapshot and Start is acceptable for testing, and not worth delaying the tests or
+	// making them unreadable.
 	if err := probe.Snapshot(); err != nil {
+		return nil, err
+	}
+
+	if err := probe.Start(); err != nil {
 		return nil, err
 	}
 
@@ -330,8 +328,6 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		discarders: discarders,
 		rs:         ruleSet,
 	}
-
-	waitProcScan(test)
 
 	return test, nil
 }
@@ -355,8 +351,8 @@ func (tp *testProbe) Path(filename string) (string, unsafe.Pointer, error) {
 
 func (tp *testProbe) Close() {
 	tp.st.Close()
-	tp.probe.Stop()
-	time.Sleep(time.Second)
+	tp.probe.Close()
+	time.Sleep(10 * time.Second)
 }
 
 type simpleTest struct {

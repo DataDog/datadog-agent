@@ -60,7 +60,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 
     u64 count = 0;
     u64 *current_count;
-    
+
     if (*back_buffer) {
         current_count = bpf_map_lookup_elem(&noisy_processes_bb, &syscall);
     } else {
@@ -75,7 +75,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     if (*back_buffer) {
         bpf_map_update_elem(&noisy_processes_bb, &syscall, &count, BPF_ANY);
     } else {
-        bpf_map_update_elem(&noisy_processes_fb, &syscall, &count, BPF_ANY);        
+        bpf_map_update_elem(&noisy_processes_fb, &syscall, &count, BPF_ANY);
     }
 
     return 0;
