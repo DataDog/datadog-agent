@@ -112,11 +112,14 @@ core,"github.com/aws/aws-sdk-go/internal/sync/singleflight",NewBSD
 core,"github.com/aws/aws-sdk-go/private/protocol",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/ec2query",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/json/jsonutil",Apache-2.0
+core,"github.com/aws/aws-sdk-go/private/protocol/jsonrpc",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/query",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/query/queryutil",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/rest",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/ec2",Apache-2.0
+core,"github.com/aws/aws-sdk-go/service/kms",Apache-2.0
+core,"github.com/aws/aws-sdk-go/service/secretsmanager",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/sts",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/sts/stsiface",Apache-2.0
 core,"github.com/beevik/ntp",FreeBSD
