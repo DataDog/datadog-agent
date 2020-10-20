@@ -36,6 +36,117 @@ def add_prelude(ctx, version):
 
 
 @task
+def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
+    """
+    Release of the Cluster Agent should be pinned to a version of the Agent.
+    """
+    res = ctx.run("reno --rel-notes-dir releasenotes-dca new prelude-release-{0}".format(version))
+    new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
+
+    if agent6_version != "":
+        version_split = agent6_version.split(".")
+        agent6_version = "--6{}{}".format(
+            version_split[1], version_split[2]
+        )  # generate the right hyperlink to the agent's changelog.
+
+    with open(new_releasenote, "w") as f:
+        f.write(
+            """prelude:
+    |
+    Released on: {1}
+    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#{2}{3}>`_.""".format(
+                agent7_version, date.today(), agent7_version.replace('.', ''), agent6_version,
+            )
+        )
+
+    ctx.run("git add {}".format(new_releasenote))
+    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
+
+
+@task
+def update_dca_changelog(ctx, new_version, agent_version):
+    """
+    Quick task to generate the new CHANGELOG-DCA using reno when releasing a minor
+    version (linux/macOS only).
+    """
+    new_version_int = list(map(int, new_version.split(".")))
+
+    if len(new_version_int) != 3:
+        print("Error: invalid version: {}".format(new_version_int))
+        raise Exit(1)
+
+    agent_version_int = list(map(int, agent_version.split(".")))
+
+    if len(agent_version_int) != 3:
+        print("Error: invalid version: {}".format(agent_version_int))
+        raise Exit(1)
+
+    # let's avoid losing uncommitted change with 'git reset --hard'
+    try:
+        ctx.run("git diff --exit-code HEAD", hide="both")
+    except Failure:
+        print("Error: You have uncommitted change, please commit or stash before using update_changelog")
+        return
+
+    # make sure we are up to date
+    ctx.run("git fetch")
+
+    # let's check that the tag for the new version is present (needed by reno)
+    try:
+        ctx.run("git tag --list | grep {}".format(new_version))
+    except Failure:
+        print("Missing '{}' git tag: mandatory to use 'reno'".format(new_version))
+        raise
+
+    # removing releasenotes from bugfix on the old minor.
+    # cluster agent minor releases are in sync with the agent's, bugfixes are not necessarily.
+    branching_point_agent = "{}.{}.0-devel".format(agent_version_int[0], agent_version_int[1])
+    previous_minor_branchoff = "dca-{}.{}.X".format(new_version_int[0], new_version_int[1] - 1)
+    log_result = ctx.run(
+        "git log {}...remotes/origin/{} --name-only --oneline | \
+            grep releasenotes-dca/notes/ || true".format(
+            branching_point_agent, previous_minor_branchoff
+        )
+    )
+    log_result = log_result.stdout.replace('\n', ' ').strip()
+    if len(log_result) > 0:
+        ctx.run("git rm --ignore-unmatch {}".format(log_result))
+
+    current_branchoff = "dca-{}.{}.x".format(new_version_int[0], new_version_int[1])
+    # generate the new changelog
+    ctx.run(
+        "reno --rel-notes-dir releasenotes-dca report \
+            --ignore-cache \
+            --branch {} \
+            --version dca-{} \
+            --no-show-source > /tmp/new_changelog-dca.rst".format(
+            current_branchoff, new_version
+        )
+    )
+
+    # reseting git
+    ctx.run("git reset --hard HEAD")
+
+    # mac's `sed` has a different syntax for the "-i" paramter
+    sed_i_arg = "-i"
+    if sys.platform == 'darwin':
+        sed_i_arg = "-i ''"
+    # remove the old header from the existing changelog
+    ctx.run("sed {0} -e '1,4d' CHANGELOG-DCA.rst".format(sed_i_arg))
+
+    # merging to CHANGELOG.rst
+    ctx.run("cat CHANGELOG-DCA.rst >> /tmp/new_changelog-dca.rst && mv /tmp/new_changelog-dca.rst CHANGELOG-DCA.rst")
+
+    # commit new CHANGELOG
+    ctx.run(
+        "git add CHANGELOG-DCA.rst \
+            && git commit -m \"Update CHANGELOG for {}\"".format(
+            new_version
+        )
+    )
+
+
+@task
 def update_changelog(ctx, new_version):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
