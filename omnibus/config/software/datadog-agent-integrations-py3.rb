@@ -134,7 +134,6 @@ build do
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install pip-tools==5.3.1"
 
-    command "#{pip} install git+https://github.com/AlexandreYang/python3-netsnmp.git@65589c235e569ae0f86b08698fdf61585ba297f0"
 
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
@@ -144,6 +143,8 @@ build do
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
+
+    command "#{pip} install git+https://github.com/AlexandreYang/python3-netsnmp.git@65589c235e569ae0f86b08698fdf61585ba297f0", :env => nix_build_env
 
     #
     # Prepare the requirements file containing ALL the dependencies needed by
