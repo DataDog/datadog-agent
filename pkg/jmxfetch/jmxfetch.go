@@ -204,7 +204,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	default:
 		socketPath := config.Datadog.GetString("dogstatsd_socket")
 		if len(socketPath) > 0 {
-			reporter = fmt.Sprintf("statsd:%s", socketPath)
+			reporter = fmt.Sprintf("statsd:unix://%s", socketPath)
 		} else {
 			bindHost := config.Datadog.GetString("bind_host")
 			if bindHost == "" || bindHost == "0.0.0.0" {
