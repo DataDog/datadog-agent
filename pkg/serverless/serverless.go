@@ -12,19 +12,34 @@ import (
 )
 
 const (
-	Name                  = "datadog-agent"
-	RouteRegister  string = "http://localhost:9001/2020-01-01/extension/register"
-	RouteEventNext string = "http://localhost:9001/2020-01-01/extension/event/next"
-	RouteInitError string = "http://localhost:9001/2020-01-01/extension/init/error"
+	name = "datadog-agent"
 
-	FatalNoApiKey      ErrorEnum = "Fatal.NoApiKey"
+	routeRegister  string = "http://localhost:9001/2020-01-01/extension/register"
+	routeEventNext string = "http://localhost:9001/2020-01-01/extension/event/next"
+	routeInitError string = "http://localhost:9001/2020-01-01/extension/init/error"
+
+	// FatalNoAPIKey is the error reported to the AWS Extension environment when
+	// no API key has been set. Unused until we can report error
+	// without stopping the extension.
+	FatalNoAPIKey ErrorEnum = "Fatal.NoAPIKey"
+	// FatalDogstatsdInit is the error reported to the AWS Extension environment when
+	// DogStatsD fails to initialize properly. Unused until we can report error
+	// without stopping the extension.
 	FatalDogstatsdInit ErrorEnum = "Fatal.DogstatsdInit"
-	FatalBadEndpoint   ErrorEnum = "Fatal.BadEndpoint"
+	// FatalBadEndpoint is the error reported to the AWS Extension environment when
+	// bad endpoints have been configured. Unused until we can report error
+	// without stopping the extension.
+	FatalBadEndpoint ErrorEnum = "Fatal.BadEndpoint"
 )
 
-type Id string
+// ID is the extension ID within the AWS Extension environment.
+type ID string
+
+// ErrorEnum are errors reported to the AWS Extension environment.
 type ErrorEnum string
 
+// Payload is the payload read in the response while subscribing to
+// the AWS Extension env.
 type Payload struct {
 	EventType  string `json:"eventType"`
 	DeadlineMs int64  `json:"deadlineMs"`
@@ -34,7 +49,7 @@ type Payload struct {
 // Register registers the serverless daemon and subscribe to INVOKE and SHUTDOWN messages.
 // Returns either (the serverless ID assigned by the serverless daemon + the api key as read from
 // the environment) or an error.
-func Register() (Id, error) {
+func Register() (ID, error) {
 	var err error
 
 	// create the POST register request
@@ -47,10 +62,10 @@ func Register() (Id, error) {
 	var request *http.Request
 	var response *http.Response
 
-	if request, err = http.NewRequest("POST", RouteRegister, payload); err != nil {
+	if request, err = http.NewRequest("POST", routeRegister, payload); err != nil {
 		return "", fmt.Errorf("Register: can't create the POST register request: %v", err)
 	}
-	request.Header.Set("Lambda-Extension-Name", Name)
+	request.Header.Set("Lambda-Extension-Name", name)
 
 	// call the service to register and retrieve the given Id
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -79,11 +94,11 @@ func Register() (Id, error) {
 		return "", fmt.Errorf("Register: didn't receive an identifier -- Response body content: %v", string(body))
 	}
 
-	return Id(id), nil
+	return ID(id), nil
 }
 
 // ReportInitError reports an init error to the environment.
-func ReportInitError(id Id, errorEnum ErrorEnum) error {
+func ReportInitError(id ID, errorEnum ErrorEnum) error {
 	var err error
 	var content []byte
 	var request *http.Request
@@ -95,7 +110,7 @@ func ReportInitError(id Id, errorEnum ErrorEnum) error {
 		return fmt.Errorf("ReportInitError: can't write the payload: %s", err)
 	}
 
-	if request, err = http.NewRequest("POST", RouteInitError, bytes.NewBuffer(content)); err != nil {
+	if request, err = http.NewRequest("POST", routeInitError, bytes.NewBuffer(content)); err != nil {
 		return fmt.Errorf("ReportInitError: can't create the POST request: %s", err)
 	}
 
@@ -122,7 +137,7 @@ func ReportInitError(id Id, errorEnum ErrorEnum) error {
 // WaitForNextInvocation starts waiting and blocking until it receives a request.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN messages.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, id Id) error {
+func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, id ID) error {
 	var err error
 
 	// do the blocking HTTP GET call
@@ -130,7 +145,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	var request *http.Request
 	var response *http.Response
 
-	if request, err = http.NewRequest("GET", RouteEventNext, nil); err != nil {
+	if request, err = http.NewRequest("GET", routeEventNext, nil); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
 	request.Header.Set("Lambda-Extension-Identifier", string(id))
