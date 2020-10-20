@@ -43,8 +43,8 @@ func (f *SyncDefaultForwarder) SubmitV1Series(payload Payloads, extra http.Heade
 	transactions := f.defaultForwarder.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
-func (f *SyncDefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
+func (f *SyncDefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header, priority TransactionPriority) error {
+	transactions := f.defaultForwarder.createPriorityHTTPTransactions(v1IntakeEndpoint, payload, true, extra, priority)
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
 		t.Headers.Set("Content-Type", "application/json")
@@ -75,8 +75,8 @@ func (f *SyncDefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.H
 	transactions := f.defaultForwarder.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
-func (f *SyncDefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(metadataEndpoint, payload, false, extra)
+func (f *SyncDefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error {
+	transactions := f.defaultForwarder.createPriorityHTTPTransactions(metadataEndpoint, payload, false, extra, priority)
 	return f.sendHTTPTransactions(transactions)
 }
 func (f *SyncDefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
@@ -96,4 +96,9 @@ func (f *SyncDefaultForwarder) SubmitConnectionChecks(payload Payloads, extra ht
 }
 func (f *SyncDefaultForwarder) SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
+}
+
+// SubmitOrchestratorChecks sends orchestrator checks
+func (f *SyncDefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }
