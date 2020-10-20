@@ -347,7 +347,7 @@ func InitConfig(config Config) {
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
 	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
 
-	config.BindEnv("dogstatsd_mapper_profiles") //nolint:errcheck
+	_ = config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
 		var mappings []MappingProfile
 		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
