@@ -100,14 +100,17 @@ SYSCALL_KRETPROBE(rmdir) {
         return 0;
 
     int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
 
     // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->rmdir.path_key.ino;
     if (syscall->rmdir.real_inode) {
         inode = syscall->rmdir.real_inode;
         link_dentry_inode(syscall->rmdir.path_key, inode);
+    }
+
+    if (IS_UNHANDLED_ERROR(retval)) {
+        invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode);
+        return 0;
     }
 
     struct rmdir_event_t event = {

@@ -66,8 +66,6 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         return 0;
 
     int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
 
     // Warning: we use the src_dentry twice for compatibility with CentOS. Do not change it :)
     // (the mount id was set by kprobe/mnt_want_write)
@@ -76,9 +74,8 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.real_src_dentry);
     }
 
-    if (discarded_by_process(syscall->policy.mode, EVENT_RENAME)) {
+    if (discarded_by_process(syscall->policy.mode, EVENT_RENAME) || (IS_UNHANDLED_ERROR(retval))) {
         invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino);
-
         return 0;
     }
 

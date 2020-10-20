@@ -83,9 +83,10 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         return 0;
 
     int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
+        invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
         return 0;
-
+    }
 
     // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->unlink.path_key.ino;
