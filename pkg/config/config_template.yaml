@@ -163,7 +163,7 @@ api_key:
 #
 # forwarder_timeout: 20
 
-## @param forwarder_retry_queue_max_size - integer - optional - default: 30
+## @param forwarder_retry_queue_max_size - integer - optional - default: 0
 ## The forwarder retries failed requests. Use this setting to change the
 ## maximum length of the forwarder's retry queue (each request in the queue
 ## takes no more than 2MB in memory)
