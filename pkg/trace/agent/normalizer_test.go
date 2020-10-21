@@ -621,7 +621,7 @@ func benchToUTF8(s string) func(b *testing.B) {
 }
 
 func BenchmarkToUTF8(b *testing.B) {
-	b.Run("valid ascii", benchNormalizeTag("valid UTF8"))
-	b.Run("valid utf8", benchNormalizeTag("Data🐨dog🐶 繋がっ⛰てて"))
+	b.Run("ascii", benchNormalizeTag("valid UTF8"))
+	b.Run("utf8", benchNormalizeTag("Data🐨dog🐶 繋がっ⛰てて"))
 	b.Run("invalid", benchNormalizeTag("test\x99\x8f"))
 }
