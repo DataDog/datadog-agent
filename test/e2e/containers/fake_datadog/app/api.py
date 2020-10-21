@@ -143,6 +143,7 @@ def get_series_from_query(q: dict):
     points_list = []
     for elt in cur:
         for p in elt["points"]:
+            p[0] *= 1000
             points_list.append(p)
 
     result = {

@@ -44,20 +44,27 @@ tee specification.json << EOF
 }
 EOF
 
-echo "Using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
-echo "Running inside a gitlab pipeline, using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
+echo "Running inside a gitlab pipeline,"
+echo "using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
+echo "using DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE}"
 
-# Check is the image is hosted on a docker registry and if it's available
-if [[ "${DATADOG_AGENT_IMAGE%/*}" == "datadog" ]]
-then
-    echo "${DATADOG_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
-    IMAGE_REPOSITORY=${DATADOG_AGENT_IMAGE%:*}
-    IMAGE_TAG=${DATADOG_AGENT_IMAGE#*:}
-    curl -Lfs "https://registry.hub.docker.com/v1/repositories/${IMAGE_REPOSITORY}/tags" | \
-        jq -re ".[] | select(.name==\"${IMAGE_TAG}\")" || {
-            echo "The DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE} returns a 404 on the registry.hub.docker.com"
-            exit 2
-    }
+# Check if the image is hosted on a docker registry and if it's available
+echo "${DATADOG_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
+IMAGE_REPOSITORY=${DATADOG_AGENT_IMAGE%:*}
+IMAGE_TAG=${DATADOG_AGENT_IMAGE#*:}
+if ! curl -Lfs "https://registry.hub.docker.com/v1/repositories/${IMAGE_REPOSITORY}/tags" | \
+    jq -re ".[] | select(.name==\"${IMAGE_TAG}\")"; then
+        echo "The DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE} returns a 404 on the registry.hub.docker.com"
+        exit 2
+fi
+
+echo "${DATADOG_CLUSTER_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
+IMAGE_REPOSITORY=${DATADOG_CLUSTER_AGENT_IMAGE%:*}
+IMAGE_TAG=${DATADOG_CLUSTER_AGENT_IMAGE#*:}
+if ! curl -Lfs "https://registry.hub.docker.com/v1/repositories/${IMAGE_REPOSITORY}/tags" | \
+    jq -re ".[] | select(.name==\"${IMAGE_TAG}\")"; then
+        echo "The DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE} returns a 404 on the registry.hub.docker.com"
+        exit 2
 fi
 
 exec ./02-ec2.sh

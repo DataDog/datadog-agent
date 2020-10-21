@@ -17,7 +17,7 @@ test "${COMMIT_ID}" || {
 }
 
 SSH_OPTS="-o ServerAliveInterval=20 -o ConnectTimeout=6 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${PWD}/id_rsa "
-SEND_ENV="-o SendEnv DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master}"
+SEND_ENV="-o SendEnv=DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} -o SendEnv=DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}"
 
 function _ssh() {
     # shellcheck disable=SC2086

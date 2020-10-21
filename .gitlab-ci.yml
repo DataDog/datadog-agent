@@ -4179,23 +4179,23 @@ pupernetes-dev:
     - when: manual
       allow_failure: true
   <<: *pupernetes_template
-  needs: 
+  needs:
   - dev_branch_docker_hub-a6
   - dev_branch_docker_hub-a7
   script:
-  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
-  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
+  - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+  - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
 pupernetes-master:
   <<: *pupernetes_template
   rules:
     - <<: *if_master_branch
-  needs: 
+  needs:
   - dev_master_docker_hub-a6
   - dev_master_docker_hub-a7
   script:
-  - inv -e e2e-tests --image=datadog/agent-dev:master-py2
-  - inv -e e2e-tests --image=datadog/agent-dev:master-py3
+  - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
+  - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master
 
 pupernetes-tags-6:
   rules:
@@ -4204,8 +4204,9 @@ pupernetes-tags-6:
       allow_failure: true
   <<: *pupernetes_template
   script:
-  - VERSION=$(inv -e agent.version --major-version 6)
-  - inv -e e2e-tests --image=datadog/agent:${VERSION}
+  - AGENT_VERSION=$(inv -e agent.version --major-version 6)
+  - DCA_VERSION=$(inv -e cluster-agent.version)
+  - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
 
 pupernetes-tags-7:
   rules:
@@ -4214,8 +4215,9 @@ pupernetes-tags-7:
       allow_failure: true
   <<: *pupernetes_template
   script:
-  - VERSION=$(inv -e agent.version --major-version 7)
-  - inv -e e2e-tests --image=datadog/agent:${VERSION}
+  - AGENT_VERSION=$(inv -e agent.version --major-version 7)
+  - DCA_VERSION=$(inv -e cluster-agent.version)
+  - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
 
 notify-on-success:
   extends: .slack-notifier-base

@@ -9,12 +9,16 @@ spec:
     parameters:
       - name: datadog-agent-image-repository
       - name: datadog-agent-image-tag
+      - name: datadog-cluster-agent-image-repository
+      - name: datadog-cluster-agent-image-tag
   templates:
     - name: main
       inputs:
         parameters:
           - name: datadog-agent-image-repository
           - name: datadog-agent-image-tag
+          - name: datadog-cluster-agent-image-repository
+          - name: datadog-cluster-agent-image-tag
       steps:
         - - name: start-fake-datadog
             templateRef:
@@ -61,6 +65,15 @@ spec:
                 - name: namespace
                   value: default
 
+          - name: start-nginx
+            templateRef:
+              name: nginx
+              template: create
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
         - - name: fake-dd-reset
             templateRef:
               name: fake-datadog
@@ -78,10 +91,14 @@ spec:
               parameters:
               - name: namespace
                 value: default
-              - name: image-repository
+              - name: agent-image-repository
                 value: "{{inputs.parameters.datadog-agent-image-repository}}"
-              - name: image-tag
+              - name: agent-image-tag
                 value: "{{inputs.parameters.datadog-agent-image-tag}}"
+              - name: cluster-agent-image-repository
+                value: "{{inputs.parameters.datadog-cluster-agent-image-repository}}"
+              - name: cluster-agent-image-tag
+                value: "{{inputs.parameters.datadog-cluster-agent-image-tag}}"
 
         - - name: wait-datadog-agent
             templateRef:
@@ -101,9 +118,18 @@ spec:
               - name: namespace
                 value: default
 
-        - - name: delete-redis
+        - - name: stop-redis
             templateRef:
               name: redis
+              template: delete
+            arguments:
+              parameters:
+              - name: namespace
+                value: default
+
+          - name: stop-nginx
+            templateRef:
+              name: nginx
               template: delete
             arguments:
               parameters:
@@ -113,6 +139,15 @@ spec:
         - - name: no-more-redis
             templateRef:
               name: redis
+              template: no-more-metrics
+            arguments:
+              parameters:
+              - name: namespace
+                value: default
+
+          - name: no-more-nginx
+            templateRef:
+              name: nginx
               template: no-more-metrics
             arguments:
               parameters:
@@ -160,6 +195,15 @@ spec:
           - name: stop-logs-hello-world
             templateRef:
               name: logs-hello-world
+              template: delete
+            arguments:
+              parameters:
+                - name: namespace
+                  value: default
+
+          - name: stop-nginx
+            templateRef:
+              name: nginx
               template: delete
             arguments:
               parameters:

@@ -8,8 +8,10 @@ spec:
       inputs:
         parameters:
           - name: namespace
-          - name: image-repository
-          - name: image-tag
+          - name: agent-image-repository
+          - name: agent-image-tag
+          - name: cluster-agent-image-repository
+          - name: cluster-agent-image-tag
       script:
         image: alpine/helm
         command: [sh]
@@ -21,14 +23,22 @@ spec:
           helm --namespace {{inputs.parameters.namespace}} install \
             --set datadog.dd_url=http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local \
             --set datadog.apiKey=123er \
+            --set datadog.appKey=123er1 \
             --set datadog.env[0].name=DD_HOSTNAME \
             --set datadog.env[0].value=e2e-test \
             --set datadog.leaderElection=true \
             --set datadog.logs.enabled=true \
             --set datadog.logs.containerCollectAll=true \
-            --set agents.image.repository={{inputs.parameters.image-repository}} \
-            --set agents.image.tag={{inputs.parameters.image-tag}} \
+            --set agents.image.repository={{inputs.parameters.agent-image-repository}} \
+            --set agents.image.tag={{inputs.parameters.agent-image-tag}} \
             --set agents.image.doNotCheckTag=true \
+            --set clusterAgent.enabled=true \
+            --set clusterAgent.image.repository={{inputs.parameters.cluster-agent-image-repository}} \
+            --set clusterAgent.image.tag={{inputs.parameters.cluster-agent-image-tag}} \
+            --set clusterAgent.token=c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd \
+            --set clusterAgent.metricsProvider.enabled=true \
+            --set clusterAgent.env[0].name=DATADOG_HOST \
+            --set clusterAgent.env[0].value=http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local \
             --set datadog.confd.memory\\.yaml='instances:
             - empty_default_hostname: true
           ' \
