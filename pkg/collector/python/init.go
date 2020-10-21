@@ -81,7 +81,7 @@ void GetConfig(char*, char **);
 void GetHostname(char **);
 void GetVersion(char **);
 void Headers(char **);
-void ReadPersistentCache(char *);
+char * ReadPersistentCache(char *);
 void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
@@ -106,9 +106,9 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 // aggregator module
 //
 
-void SubmitMetric(char *, metric_type_t, char *, double, char **, int, char *);
-void SubmitServiceCheck(char *, char *, int, char **, int, char *, char *);
-void SubmitEvent(char *, event_t *, int);
+void SubmitMetric(char *, metric_type_t, char *, double, char **, char *);
+void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
+void SubmitEvent(char *, event_t *);
 void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);
 
 void initAggregatorModule(rtloader_t *rtloader) {
@@ -122,7 +122,7 @@ void initAggregatorModule(rtloader_t *rtloader) {
 // _util module
 //
 
-void GetSubprocessOutput(char **, int, char **, char **, int*, char **);
+void GetSubprocessOutput(char **, char **, char **, char **, int*, char **);
 
 void initUtilModule(rtloader_t *rtloader) {
 	set_get_subprocess_output_cb(rtloader, GetSubprocessOutput);
@@ -132,7 +132,7 @@ void initUtilModule(rtloader_t *rtloader) {
 // tagger module
 //
 
-char **Tags(char **, int);
+char **Tags(char *, int);
 
 void initTaggerModule(rtloader_t *rtloader) {
 	set_tags_cb(rtloader, Tags);
@@ -142,7 +142,7 @@ void initTaggerModule(rtloader_t *rtloader) {
 // containers module
 //
 
-int IsContainerExcluded(char *, char *);
+int IsContainerExcluded(char *, char *, char *);
 
 void initContainersModule(rtloader_t *rtloader) {
 	set_is_excluded_cb(rtloader, IsContainerExcluded);
@@ -152,7 +152,7 @@ void initContainersModule(rtloader_t *rtloader) {
 // kubeutil module
 //
 
-void GetKubeletConnectionInfo(char *);
+void GetKubeletConnectionInfo(char **);
 
 void initkubeutilModule(rtloader_t *rtloader) {
 	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
