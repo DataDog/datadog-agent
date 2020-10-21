@@ -44,11 +44,11 @@ type Options struct {
 	StatsdClient statsd.ClientInterface
 
 	// TagVersion (optional) contains the agent version to be sent along with the
-	// hearbeat metric
+	// heartbeat metric
 	TagVersion string
 
 	// TagRevision (optional) contains the agent revision to be sent along with the
-	// hearbeat metric
+	// heartbeat metric
 	TagRevision string
 
 	// MetricNameFn (optional) allows metric names to be specified
@@ -61,7 +61,7 @@ func NewModuleMonitor(opts Options) (*ModuleMonitor, error) {
 		net.SetSystemProbePath(opts.SysprobeSocketPath)
 	}
 
-	metricNameFn := HeartbeatMetricName
+	metricNameFn := MetricName
 	if opts.MetricNameFn != nil {
 		metricNameFn = opts.MetricNameFn
 	}

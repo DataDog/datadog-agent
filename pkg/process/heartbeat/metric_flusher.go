@@ -120,7 +120,7 @@ func tagsFromOptions(opts Options) []string {
 		tags = append(tags, fmt.Sprintf("version:%s", opts.TagVersion))
 	}
 	if opts.TagRevision != "" {
-		tags = append(tags, fmt.Sprintf("version:%s", opts.TagRevision))
+		tags = append(tags, fmt.Sprintf("revision:%s", opts.TagRevision))
 	}
 	return tags
 }

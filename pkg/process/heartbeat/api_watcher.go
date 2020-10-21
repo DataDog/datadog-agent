@@ -39,8 +39,8 @@ func (w *apiWatcher) state() int64 {
 
 	// if we have finished waiting the grace period, and there were no successes
 	// we can consider the API unreachable.
-	swaped := atomic.CompareAndSwapInt64(&w.apiState, apiUnknown, apiUnreachable)
-	if swaped {
+	swapped := atomic.CompareAndSwapInt64(&w.apiState, apiUnknown, apiUnreachable)
+	if swapped {
 		log.Warn("unable to flush heartbeats via API. switching over to statsd.")
 	}
 	return atomic.LoadInt64(&w.apiState)
