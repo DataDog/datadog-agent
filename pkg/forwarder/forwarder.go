@@ -69,6 +69,19 @@ func init() {
 	initOrchestratorExpVars()
 	initTransactionExpvars()
 	initForwarderHealthExpvars()
+	initEndpointExpvars()
+}
+
+func initEndpointExpvars() {
+	endpoints := []endpoint{v1SeriesEndpoint, v1CheckRunsEndpoint, v1IntakeEndpoint, v1SketchSeriesEndpoint,
+		v1ValidateEndpoint, seriesEndpoint, eventsEndpoint, serviceChecksEndpoint, sketchSeriesEndpoint,
+		hostMetadataEndpoint, metadataEndpoint, processesEndpoint, rtProcessesEndpoint, containerEndpoint,
+		rtContainerEndpoint, connectionsEndpoint, orchestratorEndpoint,
+	}
+
+	for _, endpoint := range endpoints {
+		transactionsSuccessByEndpoint.Set(endpoint.name, expvar.NewInt(endpoint.name))
+	}
 }
 
 func initOrchestratorExpVars() {
