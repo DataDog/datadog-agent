@@ -70,18 +70,19 @@ static const __u8 HTTP_REQUESTING = HTTP_REQUESTING_GET|HTTP_REQUESTING_POST|HTT
 
 // HTTP stats scoped to a certain response code (200x, 300x etc)
 typedef struct {
-    __u64 ocurrences;
+    __u64 hits;
     __u64 total_duration;
 } responses_by_code_t;
 
 // HTTP stats summary associated to a certain socket (tuple_t)
 typedef struct {
-    // These fields track an ongoing request/response
+    // These fields track the current request/response
     __u8 state;
     __u64 request_started;
     __u16 response_code;
     __u64 response_last_seen;
 
+    // These fields are responsible for storing an aggregated view of the previous transactions
     responses_by_code_t stats_200;
     responses_by_code_t stats_300;
     responses_by_code_t stats_400;

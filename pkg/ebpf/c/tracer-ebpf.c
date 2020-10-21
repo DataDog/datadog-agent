@@ -1245,7 +1245,49 @@ int socket__dns_filter(struct __sk_buff* skb) {
     return -1;
 }
 
+static __always_inline void http_end_response(http_stats_t *http) {
+    if (http->state != HTTP_RESPONDING) {
+        return;
+    }
+
+    __u64 duration = http->response_last_seen - http->request_started;
+    if (duration <= 0) {
+        return;
+    }
+
+    responses_by_code_t *response_family;
+    switch(http->response_code) {
+    case 200:
+        response_family = &http->stats_200;
+        break;
+    case 300:
+        response_family = &http->stats_300;
+        break;
+    case 400:
+        response_family = &http->stats_400;
+        break;
+    case 500:
+        response_family = &http->stats_500;
+        break;
+    default:
+        return;
+    }
+
+    http->state = HTTP_UNKNOWN;
+    http->request_started = 0;
+    http->response_last_seen = 0;
+    http->response_code = 0;
+
+    __sync_fetch_and_add(&response_family->hits, 1);
+    __sync_fetch_and_add(&response_family->total_duration, duration);
+}
+
 static __always_inline int http_begin_request(__u8 new_state, http_stats_t *http) {
+    // This can happen in the context of HTTP keep-alives;
+    if (http->state == HTTP_RESPONDING) {
+        http_end_response(http);
+    }
+
     http->state = new_state;
     http->request_started = bpf_ktime_get_ns();
     log_debug("HTTP request (%d)\n", http->state);
