@@ -51,7 +51,8 @@ build do
     copy "include/net-snmp", "#{install_dir}/embedded3/include/net-snmp"
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
 
-    copy ".", "#{install_dir}/netsnmp"
+    copy "../net-snmp", "#{install_dir}/netsnmp"
+    # C:\omnibus-ruby\src\net-snmp
   end
 
   whitelist_file "#{install_dir}/embedded/lib/libnetsnmpmibs.so.40.0.0"
