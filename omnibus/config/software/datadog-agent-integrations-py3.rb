@@ -144,7 +144,7 @@ build do
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
 
-    # command "#{pip} install git+https://github.com/AlexandreYang/python3-netsnmp.git@65589c235e569ae0f86b08698fdf61585ba297f0", :env => nix_build_env
+    command "#{pip} install git+https://github.com/AlexandreYang/python3-netsnmp.git@a6783de79df364b9ad03f75e02850c02b7c5fa7f"
 
     #
     # Prepare the requirements file containing ALL the dependencies needed by

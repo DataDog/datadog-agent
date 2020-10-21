@@ -17,7 +17,6 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   configure_args = [
-    "--prefix=#{install_dir}/embedded",
     "--with-default-snmp-version=2",
     "--with-sys-contact=contact",
     "--with-sys-location=Unknown",
@@ -36,9 +35,9 @@ build do
   ]
 
   if windows?
-    configure_command = configure_args.unshift("sh configure").join(" ")
+    configure_command = configure_args.unshift("sh configure --prefix=#{install_dir}/embedded3").join(" ")
   else
-    configure_command = configure_args.unshift("./configure").join(" ")
+    configure_command = configure_args.unshift("./configure --prefix=#{install_dir}/embedded").join(" ")
   end
 
   command configure_command, env: env
@@ -48,8 +47,8 @@ build do
   if windows?
     # TODO: Use build env vars like this instead:
     #       https://github.com/DataDog/datadog-agent/blob/892bd315ec45bf9ecfa40a3ba602e15e39fb75f6/omnibus/config/software/datadog-agent-integrations-py3.rb#L140-L146
-    copy "include/net-snmp", "#{install_dir}/embedded3/include/net-snmp"
-    copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
+    #     copy "include/net-snmp", "#{install_dir}/embedded3/include/net-snmp"
+    #     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
 
     mkdir "#{install_dir}/netsnmp"
     copy "win32", "#{install_dir}/netsnmp/win32"
