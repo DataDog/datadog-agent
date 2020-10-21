@@ -51,7 +51,13 @@ build do
     copy "include/net-snmp", "#{install_dir}/embedded3/include/net-snmp"
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
 
-    copy "../net-snmp", "#{install_dir}/netsnmp"
+    copy "win32", "#{install_dir}/netsnmp/win32"
+    copy "local", "#{install_dir}/netsnmp/local"
+    copy "snmplib", "#{install_dir}/netsnmp/snmplib"
+    copy "dist", "#{install_dir}/netsnmp/dist"
+    copy "agent", "#{install_dir}/netsnmp/agent"
+    copy "include", "#{install_dir}/netsnmp/include"
+    copy "include", "#{install_dir}/netsnmp/include"
     # C:\omnibus-ruby\src\net-snmp
   end
 
