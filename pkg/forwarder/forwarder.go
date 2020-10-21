@@ -204,7 +204,7 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 	retryQueuePayloadsTotalMaxSize := config.Datadog.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
 
 	if retryQueueSize > 0 {
-		log.Warnf("'%s' is used, but it is recommended to use '%s' as it takes the payload sizes into account.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
+		log.Warnf("'%s' is deprecated. It is recommended to use '%s' as it takes the payload sizes into account.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
 		retryQueuePayloadsTotalMaxSize = 0
 	}
 
