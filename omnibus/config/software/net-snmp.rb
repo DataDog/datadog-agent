@@ -51,6 +51,7 @@ build do
     copy "include/net-snmp", "#{install_dir}/embedded3/include/net-snmp"
     copy "win32/net-snmp/net-snmp-config.h", "#{install_dir}/embedded3/include/net-snmp/net-snmp-config.h"
 
+    mkdir "#{install_dir}/netsnmp"
     copy "win32", "#{install_dir}/netsnmp/win32"
     copy "local", "#{install_dir}/netsnmp/local"
     copy "snmplib", "#{install_dir}/netsnmp/snmplib"
