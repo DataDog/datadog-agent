@@ -3125,6 +3125,34 @@ twistlock_scan-7:
     - gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
     - python3 -m pip install -r requirements.txt
 
+.google_container_registry_tag_windows_job_definition: &google_container_registry_tag_windows_job_definition
+  stage: image_deploy
+  variables:
+    <<: *google_container_registry_variables
+  before_script:
+    - $ErrorActionPreference = "Stop"
+    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
+    - $SRC_TAG = "v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}"
+    - mkdir ci-scripts
+    - |
+      @"
+      Set-PSDebug -Trace 1
+      `$ErrorActionPreference = "Stop"
+      pip3 install -r requirements.txt
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      # GCR Login
+      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_LOGIN_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
+      aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text > /tmp/gcr_key.json
+      gcloud auth activate-service-account "`${DOCKER_REGISTRY_LOGIN}" --key-file=/tmp/gcr_key.json
+      gcloud config set project "`${GOOGLE_PROJECT_ID}"
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      # DockerHub login
+      gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      ridk enable # This is only needed because invoke docker.publish-manifest calls "cat" which doesn't exist on Windows
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      "@ | out-file ci-scripts/docker-publish.ps1
+
 dev_branch_docker_hub-a6:
   rules:
     - <<: *if_version_6
@@ -3989,7 +4017,7 @@ latest_release_6_docker_hub:
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${VERSION},linux/amd64 --image datadog/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64 --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
 
-tag_release_7_linux:
+tag_release_7_linux_docker_hub:
   rules:
     - <<: *if_deploy_on_tag_7
       when: manual
@@ -4008,7 +4036,7 @@ tag_release_7_linux:
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:${VERSION}
 
-tag_release_7_windows:
+tag_release_7_windows_docker_hub:
   rules:
     - <<: *if_deploy_on_tag_7
       when: manual
@@ -4041,7 +4069,7 @@ tag_release_7_windows:
     - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
-tag_release_7_manifests:
+tag_release_7_manifests_docker_hub:
   rules:
     - <<: *if_deploy_on_tag_7
       when: manual
@@ -4055,8 +4083,8 @@ tag_release_7_manifests:
   # However, this job implicitly still needs both of the below jobs,
   # and thus should be run after these two manual jobs.
   # needs:
-  #   - tag_release_7_linux
-  #   - tag_release_7_windows
+  #   - tag_release_7_linux_docker_hub
+  #   - tag_release_7_windows_docker_hub
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7)
@@ -4071,7 +4099,7 @@ tag_release_7_manifests:
       --image datadog/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
 
-latest_release_7:
+latest_release_7_docker_hub:
   rules:
     - <<: *if_deploy_on_tag_7
       when: manual
@@ -4178,6 +4206,69 @@ tag_release_7_linux_google_container_registry:
     - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template gcr.io/datadoghq/agent-ARCH:${VERSION}-jmx
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG}-amd64 gcr.io/datadoghq/dogstatsd:${VERSION}
 
+tag_release_7_windows_google_container_registry:
+  rules:
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+  stage: deploy7
+  extends: .google_container_registry_tag_windows_job_definition
+  variables:
+    VARIANT: 1909
+  tags: ["runner:windows-docker", "windowsversion:1909"]
+  dependencies:
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      @"
+      `$VERSION = inv -e agent.version --major-version 7
+      inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1809-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-jmx-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1909-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-jmx-win1909
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      "@ | Add-Content ci-scripts/docker-publish.ps1
+    - cat ci-scripts/docker-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+tag_release_7_manifests_google_container_registry:
+  rules:
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+  <<: *google_container_registry_tag_job_definition
+  stage: deploy7
+  # HACK: a job should not depend on manual jobs, otherwise it blocks
+  # the next stages of the pipeline until said manual jobs are run
+  # (the job remains in a pending state until all its dependencies
+  # are run).
+  # However, this job implicitly still needs both of the below jobs,
+  # and thus should be run after these two manual jobs.
+  # needs:
+  #   - tag_release_7_linux_google_container_registry
+  #   - tag_release_7_windows_google_container_registry
+  dependencies: []
+  script:
+    - VERSION=$(inv -e agent.version --major-version 7)
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag ${VERSION}
+      --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag ${VERSION}-jmx
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
+
 latest_release_7_google_container_registry:
   rules:
     - <<: *if_deploy_on_tag_7
@@ -4191,6 +4282,10 @@ latest_release_7_google_container_registry:
     - docker_build_agent7_jmx
     - docker_build_agent7_jmx_arm64
     - docker_build_dogstatsd_amd64
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
   script:
     - VERSION=$(inv -e agent.version --major-version 7)
     # Dogstatsd
@@ -4199,15 +4294,23 @@ latest_release_7_google_container_registry:
     # Manifests
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest
       --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-jmx
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7
       --image gcr.io/datadoghq/agent-amd64:${VERSION},linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-jmx
       --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${VERSION}-jmx,linux/arm64
 
 #
@@ -4216,7 +4319,7 @@ latest_release_7_google_container_registry:
 # - Create a pipeline on master with the RELEASE_6 and/or RELEASE_7 env vars
 # - in the gitlab pipeline view, trigger the step (in the first column)
 #
-revert_dockerhub_latest_6:
+revert_latest_6_docker_hub:
   rules:
     - <<: *if_master_branch
       when: manual
@@ -4233,7 +4336,7 @@ revert_dockerhub_latest_6:
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6},linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6},linux/arm64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${NEW_LATEST_RELEASE_6}-jmx,linux/amd64 --image datadog/agent-arm64:${NEW_LATEST_RELEASE_6}-jmx,linux/arm64
 
-revert_dockerhub_latest_7:
+revert_latest_7_docker_hub:
   rules:
     - <<: *if_master_branch
       when: manual
@@ -4267,7 +4370,7 @@ revert_dockerhub_latest_7:
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:latest
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:7
 
-revert_google_container_registry_latest_6:
+revert_latest_6_google_container_registry:
   rules:
     - <<: *if_master_branch
       when: manual
@@ -4284,7 +4387,7 @@ revert_google_container_registry_latest_6:
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 6 --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_6},linux/amd64 --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_6},linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 6-jmx --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_6}-jmx,linux/amd64 --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_6}-jmx,linux/arm64
 
-revert_google_container_registry_latest_7:
+revert_latest_7_google_container_registry:
   rules:
     - <<: *if_master_branch
       when: manual
