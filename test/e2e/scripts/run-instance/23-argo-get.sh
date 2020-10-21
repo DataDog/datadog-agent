@@ -18,13 +18,18 @@ fi
 
 set +x
 
+# argo get command outputs some utf-8 characters that are breaking GitLab
 for workflow in $(./argo list -l workflows.argoproj.io/phase=Succeeded -o name); do
-    ./argo get "$workflow"
+    if locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
+        ./argo get "$workflow"
+    fi
 done
 
 EXIT_CODE=0
 for workflow in $(./argo list -l workflows.argoproj.io/phase=Failed -o name); do
-    ./argo get "$workflow"
+    if locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
+        ./argo get "$workflow"
+    fi
     EXIT_CODE=2
 done
 
@@ -44,8 +49,6 @@ sudo iptables -w -t nat -A OUTPUT     -m addrtype --dst-type LOCAL -j HACK
 TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
 LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
 
-tput -T vt100 bold
 echo "The Argo UI will remain available at http://${LOCAL_IP} until ${TIME_LEFT}"
-tput -T vt100  sgr0
 
 exit ${EXIT_CODE}
