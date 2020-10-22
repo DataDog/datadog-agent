@@ -245,6 +245,31 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
 
+    - name: find-kube-state-metrics
+      inputs:
+        parameters:
+          - name: namespace
+      activeDeadlineSeconds: 200
+      script:
+        image: mongo:4.4.1
+        command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
+        source: |
+          // This step is intended to test end-to-end scraping of prometheus metrics
+          // by asserting the value of a few simple metrics collected from the
+          // kubernetes_state integration.
+
+          while (1) {
+            var nb = db.series.find({
+            metric: "kubernetes_state.deployment.replicas_available",
+            tags: { $all: ["namespace:{{inputs.parameters.namespace}}", "deployment:nginx"] },
+            "points.0.1": { $eq: 1 } }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              break;
+            }
+            sleep(2000);
+          }
+
     - name: find-metrics-nginx
       inputs:
         parameters:
@@ -308,21 +333,32 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      steps:
-        - - name: find-metrics-nginx
+      dag:
+        tasks:
+          - name: find-kube-state-metrics
+            template: find-kube-state-metrics
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: find-metrics-nginx
             template: find-metrics-nginx
             arguments:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
-        - - name: validate-hpa
+          - name: validate-hpa
             template: validate-hpa
+            dependencies:
+              - find-metrics-nginx
             arguments:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
-        - - name: run-hpa
+          - name: run-hpa
             template: run-hpa
+            dependencies:
+              - validate-hpa
             arguments:
               parameters:
                 - name: namespace
