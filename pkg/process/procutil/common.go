@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 )
 
+// HostProc returns the procfs location
 func HostProc(combineWith ...string) string {
 	return GetEnv("HOST_PROC", "/proc", combineWith...)
 }
