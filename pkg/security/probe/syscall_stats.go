@@ -13,9 +13,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-go/statsd"
+	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/statsd"
 )
 
 const syscallMetric = MetricPrefix + ".syscalls"
@@ -30,13 +34,18 @@ type ProcessSyscall struct {
 // UnmarshalBinary unmarshals a binary representation of a ProcessSyscall
 func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	var comm [16]byte
-	if err := binary.Read(bytes.NewBuffer(data[0:16]), byteOrder, &comm); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[0:16]), ebpf.ByteOrder, &comm); err != nil {
 		return err
 	}
 	p.Process = string(bytes.Trim(comm[:], "\x00"))
-	p.Pid = byteOrder.Uint32(data[16:20])
-	p.ID = byteOrder.Uint32(data[20:24])
+	p.Pid = ebpf.ByteOrder.Uint32(data[16:20])
+	p.ID = ebpf.ByteOrder.Uint32(data[20:24])
 	return nil
+}
+
+// IsNull returns true if a ProcessSyscall instance is empty
+func (p *ProcessSyscall) IsNull() bool {
+	return p.Process == "" && p.Pid == 0 && p.ID == 0
 }
 
 // SyscallStatsCollector is the interface implemented by an object that collect syscall statistics
@@ -74,9 +83,9 @@ func (s *SyscallStatsdCollector) Count(process string, syscallID Syscall, count 
 
 // SyscallMonitor monitors syscalls using eBPF maps filled using kernel tracepoints
 type SyscallMonitor struct {
-	bufferSelector     *ebpf.Table
-	buffers            [2]*ebpf.Table
-	activeKernelBuffer ebpf.Uint32TableItem
+	bufferSelector     *lib.Map
+	buffers            [2]*lib.Map
+	activeKernelBuffer uint32
 }
 
 // GetStats returns the syscall statistics
@@ -97,52 +106,62 @@ func (sm *SyscallMonitor) SendStats(statsdClient *statsd.Client) error {
 // CollectStats fetches the syscall statistics from the eBPF maps
 func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 	var (
-		zeroKey        [24]byte
-		prevKey        [24]byte
-		processSyscall ProcessSyscall
-		buffer         = sm.buffers[1-sm.activeKernelBuffer]
+		value             uint64
+		processSyscall    ProcessSyscall
+		processSyscallRaw []byte
+		buffer            = sm.buffers[1-sm.activeKernelBuffer]
 	)
 
-	for {
-		more, nextKey, value, err := buffer.GetNext(prevKey[:])
-		if err != nil {
+	mapIterator := buffer.Iterate()
+	for mapIterator.Next(&processSyscallRaw, &value) {
+		if err := processSyscall.UnmarshalBinary(processSyscallRaw); err != nil {
 			return err
 		}
 
-		if string(zeroKey[:]) != string(prevKey[:]) {
-			if err = buffer.Delete(prevKey[:]); err != nil {
+		if !processSyscall.IsNull() {
+			if err := buffer.Delete(processSyscallRaw); err != nil {
 				log.Debug(err)
 			}
 		}
 
-		if !more {
-			break
-		}
-
-		copy(prevKey[:], nextKey[:])
-		if err := processSyscall.UnmarshalBinary(nextKey); err != nil {
-			return err
-		}
-
-		count := byteOrder.Uint64(value[0:8])
-
-		if err := collector.Count(processSyscall.Process, Syscall(processSyscall.ID), count); err != nil {
+		if err := collector.Count(processSyscall.Process, Syscall(processSyscall.ID), value); err != nil {
 			return err
 		}
 	}
 
 	sm.activeKernelBuffer = 1 - sm.activeKernelBuffer
-	return sm.bufferSelector.Set(ebpf.ZeroUint32TableItem, sm.activeKernelBuffer)
+	return sm.bufferSelector.Put(ebpf.ZeroUint32MapItem, sm.activeKernelBuffer)
 }
 
 // NewSyscallMonitor instantiates a new syscall monitor
-func NewSyscallMonitor(module *ebpf.Module, bufferSelector, frontBuffer, backBuffer *ebpf.Table) (*SyscallMonitor, error) {
-	if err := module.RegisterTracepoint("tracepoint/raw_syscalls/sys_enter"); err != nil {
+func NewSyscallMonitor(manager *manager.Manager) (*SyscallMonitor, error) {
+	// select eBPF maps
+	bufferSelector, ok, err := manager.GetMap("noisy_processes_buffer")
+	if err != nil {
 		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("map noisy_processes_buffer not found")
+	}
+
+	frontBuffer, ok, err := manager.GetMap("noisy_processes_fb")
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("map noisy_processes_fb not found")
+	}
+
+	backBuffer, ok, err := manager.GetMap("noisy_processes_bb")
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("map noisy_processes_bb not found")
 	}
 
 	return &SyscallMonitor{
 		bufferSelector: bufferSelector,
-		buffers:        [2]*ebpf.Table{frontBuffer, backBuffer},
+		buffers:        [2]*lib.Map{frontBuffer, backBuffer},
 	}, nil
 }

@@ -73,7 +73,7 @@ api_key:
 #
 # env: <environment name>
 
-## @param tag_value_split_separator - list of key:value elements - optional
+## @param tag_value_split_separator - map - optional
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
 ## and tags collected by other integrations.
@@ -88,7 +88,7 @@ api_key:
 ##  results in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
 #
 # tag_value_split_separator:
-#   - <TAG_KEY>: <SEPARATOR>
+#   <TAG_KEY>: <SEPARATOR>
 
 ## @param checks_tag_cardinality - string - optional - default: low
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
@@ -212,6 +212,9 @@ api_key:
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
+## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
+## permission. See docs for further details:
+## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
 

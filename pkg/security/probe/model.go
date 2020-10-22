@@ -22,14 +22,14 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 var (
-	byteOrder              = ebpf.ByteOrder
 	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
 )
 
@@ -97,8 +97,8 @@ func (e *BaseEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.TimestampRaw = byteOrder.Uint64(data[0:8])
-	e.Retval = int64(byteOrder.Uint64(data[8:16]))
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[0:8])
+	e.Retval = int64(ebpf.ByteOrder.Uint64(data[8:16]))
 	return 16, nil
 }
 
@@ -140,7 +140,7 @@ type FileEvent struct {
 func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
 		if err == nil {
 			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
 				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
@@ -154,7 +154,7 @@ func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 // ResolveContainerPath resolves the inode to a path relative to the container
 func (e *FileEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
@@ -192,9 +192,9 @@ func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.Inode = byteOrder.Uint64(data[0:8])
-	e.MountID = byteOrder.Uint32(data[8:12])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[12:16]))
+	e.Inode = ebpf.ByteOrder.Uint64(data[0:8])
+	e.MountID = ebpf.ByteOrder.Uint32(data[8:12])
+	e.OverlayNumLower = int32(ebpf.ByteOrder.Uint32(data[12:16]))
 	return 16, nil
 }
 
@@ -243,7 +243,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = byteOrder.Uint32(data[0:4])
+	e.Mode = ebpf.ByteOrder.Uint32(data[0:4])
 	return n + 4, nil
 }
 
@@ -282,8 +282,8 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.UID = int32(byteOrder.Uint32(data[0:4]))
-	e.GID = int32(byteOrder.Uint32(data[4:8]))
+	e.UID = int32(ebpf.ByteOrder.Uint32(data[0:4]))
+	e.GID = int32(ebpf.ByteOrder.Uint32(data[4:8]))
 	return n + 8, nil
 }
 
@@ -323,7 +323,7 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 200 {
 		return n, ErrNotEnoughData
 	}
-	if err := binary.Read(bytes.NewBuffer(data[0:200]), byteOrder, &e.NameRaw); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[0:200]), ebpf.ByteOrder, &e.NameRaw); err != nil {
 		return 0, err
 	}
 	return n + 200, nil
@@ -383,8 +383,8 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Flags = byteOrder.Uint32(data[0:4])
-	e.Mode = byteOrder.Uint32(data[4:8])
+	e.Flags = ebpf.ByteOrder.Uint32(data[0:4])
+	e.Mode = ebpf.ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
 }
 
@@ -421,7 +421,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = int32(byteOrder.Uint32(data[0:4]))
+	e.Mode = int32(ebpf.ByteOrder.Uint32(data[0:4]))
 	return n + 4, nil
 }
 
@@ -473,7 +473,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Flags = byteOrder.Uint32(data[0:4])
+	e.Flags = ebpf.ByteOrder.Uint32(data[0:4])
 	return n + 4, nil
 }
 
@@ -524,12 +524,12 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	timeSec := byteOrder.Uint64(data[0:8])
-	timeNsec := byteOrder.Uint64(data[8:16])
+	timeSec := ebpf.ByteOrder.Uint64(data[0:8])
+	timeNsec := ebpf.ByteOrder.Uint64(data[8:16])
 	e.Atime = time.Unix(int64(timeSec), int64(timeNsec))
 
-	timeSec = byteOrder.Uint64(data[16:24])
-	timeNsec = byteOrder.Uint64(data[24:32])
+	timeSec = ebpf.ByteOrder.Uint64(data[16:24])
+	timeNsec = ebpf.ByteOrder.Uint64(data[24:32])
 	e.Mtime = time.Unix(int64(timeSec), int64(timeNsec))
 
 	return n + 32, nil
@@ -594,17 +594,17 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.NewMountID = byteOrder.Uint32(data[0:4])
-	e.NewGroupID = byteOrder.Uint32(data[4:8])
-	e.NewDevice = byteOrder.Uint32(data[8:12])
-	e.ParentMountID = byteOrder.Uint32(data[12:16])
-	e.ParentInode = byteOrder.Uint64(data[16:24])
-	e.RootInode = byteOrder.Uint64(data[24:32])
-	e.RootMountID = byteOrder.Uint32(data[32:36])
+	e.NewMountID = ebpf.ByteOrder.Uint32(data[0:4])
+	e.NewGroupID = ebpf.ByteOrder.Uint32(data[4:8])
+	e.NewDevice = ebpf.ByteOrder.Uint32(data[8:12])
+	e.ParentMountID = ebpf.ByteOrder.Uint32(data[12:16])
+	e.ParentInode = ebpf.ByteOrder.Uint64(data[16:24])
+	e.RootInode = ebpf.ByteOrder.Uint64(data[24:32])
+	e.RootMountID = ebpf.ByteOrder.Uint32(data[32:36])
 
 	// Notes: bytes 36 to 40 are used to pad the structure
 
-	if err := binary.Read(bytes.NewBuffer(data[40:56]), byteOrder, &e.FSTypeRaw); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[40:56]), ebpf.ByteOrder, &e.FSTypeRaw); err != nil {
 		return 40, err
 	}
 
@@ -662,7 +662,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.MountID = byteOrder.Uint32(data[0:4])
+	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
 	return 4, nil
 }
 
@@ -689,7 +689,7 @@ func (e *ContainerEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
-	if err := binary.Read(bytes.NewBuffer(data[0:64]), byteOrder, &e.IDRaw); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[0:64]), ebpf.ByteOrder, &e.IDRaw); err != nil {
 		return 0, err
 	}
 	return 64, nil
@@ -794,17 +794,17 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 120 {
 		return 0, ErrNotEnoughData
 	}
-	p.Pidns = byteOrder.Uint64(data[0:8])
-	if err := binary.Read(bytes.NewBuffer(data[8:24]), byteOrder, &p.CommRaw); err != nil {
+	p.Pidns = ebpf.ByteOrder.Uint64(data[0:8])
+	if err := binary.Read(bytes.NewBuffer(data[8:24]), ebpf.ByteOrder, &p.CommRaw); err != nil {
 		return 8, err
 	}
-	if err := binary.Read(bytes.NewBuffer(data[24:88]), byteOrder, &p.TTYNameRaw); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[24:88]), ebpf.ByteOrder, &p.TTYNameRaw); err != nil {
 		return 8 + len(p.CommRaw), err
 	}
-	p.Pid = byteOrder.Uint32(data[88:92])
-	p.Tid = byteOrder.Uint32(data[92:96])
-	p.UID = byteOrder.Uint32(data[96:100])
-	p.GID = byteOrder.Uint32(data[100:104])
+	p.Pid = ebpf.ByteOrder.Uint32(data[88:92])
+	p.Tid = ebpf.ByteOrder.Uint32(data[92:96])
+	p.UID = ebpf.ByteOrder.Uint32(data[96:100])
+	p.GID = ebpf.ByteOrder.Uint32(data[100:104])
 
 	read, err := p.FileEvent.UnmarshalBinary(data[104:])
 	if err != nil {
@@ -1063,7 +1063,7 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	e.Type = byteOrder.Uint64(data[0:8])
+	e.Type = ebpf.ByteOrder.Uint64(data[0:8])
 
 	n, err := unmarshalBinary(data[8:], &e.Process, &e.Container)
 	return n + 8, err

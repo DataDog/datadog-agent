@@ -8,29 +8,18 @@
 package probe
 
 import (
+	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/gopsutil/process"
+	"github.com/pkg/errors"
 	"os"
 	"syscall"
 
-	"github.com/DataDog/gopsutil/process"
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// SnapshotTables - eBPF tables used by the kprobe used by the snapshot
-var SnapshotTables = []string{
-	"inode_numlower",
-}
-
-// SnapshotProbes lists of open's hooks
-var SnapshotProbes = []*ebpf.KProbe{
-	{
-		Name:      "getattr",
-		EntryFunc: "kprobe/security_inode_getattr",
-	},
-}
 
 // ProcCache this structure holds the container context that we keep in kernel for each process
 type ProcCache struct {
@@ -41,20 +30,29 @@ type ProcCache struct {
 }
 
 // Bytes returns the bytes representation of process cache entry
-func (pc ProcCache) Bytes() []byte {
+func (pc ProcCache) MarshalBinary() []byte {
 	b := make([]byte, 16+utils.ContainerIDLen)
-	byteOrder.PutUint64(b[0:8], pc.Inode)
-	byteOrder.PutUint32(b[8:12], pc.Numlower)
+	ebpf.ByteOrder.PutUint64(b[0:8], pc.Inode)
+	ebpf.ByteOrder.PutUint32(b[8:12], pc.Numlower)
 	copy(b[16:16+utils.ContainerIDLen], pc.ID[:])
 	return b
+}
+
+// snapshotProbeIDs holds the list of probes that are required for the snapshot
+var snapshotProbeIDs = []manager.ProbeIdentificationPair{
+	{
+		UID:     probes.SecurityAgentUID,
+		Section: "kprobe/security_inode_getattr",
+	},
 }
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	probe            *Probe
-	inodeNumlowerMap *ebpf.Table
-	procCacheMap     *ebpf.Table
-	pidCookieMap     *ebpf.Table
+	snapshotProbes   []*manager.Probe
+	inodeNumlowerMap *lib.Map
+	procCacheMap     *lib.Map
+	pidCookieMap     *lib.Map
 
 	DentryResolver    *DentryResolver
 	MountResolver     *MountResolver
@@ -62,18 +60,29 @@ type Resolvers struct {
 	TimeResolver      *TimeResolver
 }
 
-// Start the resolvers
-func (r *Resolvers) Start() error {
-	// Select the in-kernel process cache that will be populated by the snapshot
-	r.procCacheMap = r.probe.Table("proc_cache")
-	if r.procCacheMap == nil {
-		return errors.New("proc_cache BPF_HASH table doesn't exist")
+// Init the resolvers
+func (r *Resolvers) Init() error {
+	// initializes the list of snapshot probes
+	for _, id := range snapshotProbeIDs {
+		p, ok := r.probe.manager.GetProbe(id)
+		if !ok {
+			return errors.Errorf("couldn't find probe %s", id)
+		}
+		r.snapshotProbes = append(r.snapshotProbes, p)
 	}
 
-	// Select the in-kernel pid <-> cookie cache
-	r.pidCookieMap = r.probe.Table("pid_cookie")
+	// select maps
+	r.inodeNumlowerMap = r.probe.Map("inode_numlower")
+	if r.inodeNumlowerMap == nil {
+		return errors.New("map inode_numlower not found")
+	}
+	r.procCacheMap = r.probe.Map("proc_cache")
+	if r.procCacheMap == nil {
+		return errors.New("map proc_cache not found")
+	}
+	r.pidCookieMap = r.probe.Map("pid_cookie")
 	if r.pidCookieMap == nil {
-		return errors.New("pid_cookie BPF_HASH table doesn't exist")
+		return errors.New("map pid_cookie not found")
 	}
 
 	if err := r.MountResolver.Start(); err != nil {
@@ -83,39 +92,53 @@ func (r *Resolvers) Start() error {
 	return r.DentryResolver.Start()
 }
 
+// startSnapshotProbes starts the probes required for the snapshot to complete
+func (r *Resolvers) startSnapshotProbes() error {
+	for _, p := range r.snapshotProbes {
+		// enable and start the probe
+		p.Enabled = true
+		if err := p.Init(r.probe.manager); err != nil {
+			return errors.Wrapf(err, "couldn't init probe %s", p.GetIdentificationPair())
+		}
+		if err := p.Attach(); err != nil {
+			return errors.Wrapf(err, "couldn't start probe %s", p.GetIdentificationPair())
+		}
+		log.Debugf("probe %s registered", p.GetIdentificationPair())
+	}
+	return nil
+}
+
+// stopSnapshotProbes stops the snapshot probes
+func (r *Resolvers) stopSnapshotProbes() {
+	for _, p := range r.snapshotProbes {
+		// Stop snapshot probes
+		if err := p.Stop(); err != nil {
+			log.Debugf("couldn't stop probe %s: %v", p.GetIdentificationPair(), err)
+		}
+		// the probes selectors mechanism of the manager will re-enable this probe if needed
+		p.Enabled = false
+		log.Debugf("probe %s stopped", p.GetIdentificationPair())
+	}
+	return
+}
+
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *Resolvers) Snapshot(retry int) error {
-	// Register snapshot tables
-	for _, t := range SnapshotTables {
-		err := r.probe.RegisterTable(t)
-		if err != nil {
-			return err
-		}
+	// start the snapshot probes
+	if err := r.startSnapshotProbes(); err != nil {
+		return err
 	}
 
 	// Select the inode numlower map to prepare for the snapshot
-	r.inodeNumlowerMap = r.probe.Table("inode_numlower")
+	r.inodeNumlowerMap = r.probe.Map("inode_numlower")
 	if r.inodeNumlowerMap == nil {
 		return errors.New("inode_numlower BPF_HASH table doesn't exist")
 	}
 
-	log.Debugf("Registering security_inode_getattr kprobe")
-	// Activate the probes required by the snapshot
-	for _, kp := range SnapshotProbes {
-		if err := r.probe.Module.RegisterKprobe(kp); err != nil {
-			return errors.Wrapf(err, "couldn't register kprobe %s", kp.Name)
-		}
-	}
-
 	err := r.snapshot(retry)
 
-	// Deregister probes
-	log.Debugf("Deregistering security_inode_getattr kprobe")
-	for _, kp := range SnapshotProbes {
-		if err := r.probe.Module.UnregisterKprobe(kp); err != nil {
-			log.Debugf("couldn't unregister kprobe %s: %v", kp.Name, err)
-		}
-	}
+	// stop and cleanup the snapshot probes
+	r.stopSnapshotProbes()
 
 	return err
 }
@@ -163,8 +186,8 @@ func (r *Resolvers) snapshotProcess(pid uint32) bool {
 	inodeb := make([]byte, 8)
 
 	// Check if there already is an entry in the pid <-> cookie cache
-	byteOrder.PutUint32(pidb, pid)
-	if _, err := r.pidCookieMap.Get(pidb); err == nil {
+	ebpf.ByteOrder.PutUint32(pidb, pid)
+	if value, _ := r.pidCookieMap.LookupBytes(pidb); len(value) > 0 {
 		// If there is a cookie, there is an entry in cache, we don't need to do anything else
 		return false
 	}
@@ -199,23 +222,25 @@ func (r *Resolvers) snapshotProcess(pid uint32) bool {
 	entry.Inode = stat.Ino
 
 	// Fetch the numlower value of the inode
-	byteOrder.PutUint64(inodeb, stat.Ino)
-	numlowerb, err := r.inodeNumlowerMap.Get(inodeb)
-	if err != nil {
-		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve numlower value (ino: %d)", pid, stat.Ino))
+	ebpf.ByteOrder.PutUint64(inodeb, stat.Ino)
+	numlowerb, err := r.inodeNumlowerMap.LookupBytes(inodeb)
+	if err != nil || len(numlowerb) == 0 {
+		if err == nil {
+			err = errors.Errorf("inode %d for binary %s not found in map", stat.Ino, fi.Name())
+		}
+		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve numlower value of inode %d", pid, stat.Ino))
 		return false
 	}
-	entry.Numlower = byteOrder.Uint32(numlowerb)
 
 	// Generate a new cookie for this pid
-	byteOrder.PutUint32(cookieb, utils.NewCookie())
+	ebpf.ByteOrder.PutUint32(cookieb, utils.NewCookie())
 
 	// Insert the new cache entry and then the cookie
-	if err := r.procCacheMap.SetP(cookieb, entry.Bytes()); err != nil {
+	if err := r.procCacheMap.Put(cookieb, entry); err != nil {
 		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't insert cache entry", pid))
 		return false
 	}
-	if err := r.pidCookieMap.SetP(pidb, cookieb); err != nil {
+	if err := r.pidCookieMap.Put(pidb, cookieb); err != nil {
 		log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't insert cookie", pid))
 		return false
 	}

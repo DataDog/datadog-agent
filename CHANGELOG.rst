@@ -2,6 +2,37 @@
 Release Notes
 =============
 
+.. _Release Notes_7.23.1:
+
+7.23.1
+======
+
+.. _Release Notes_7.23.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-10-21
+
+- Please refer to the `7.23.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7231>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.23.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The ``ec2_prefer_imdsv2`` parameter was ignored when fetching
+  EC2 tags from the metadata endpoint. This fixes a misleading warning log that was logged
+  even when ``ec2_prefer_imdsv2`` was left disabled in the Agent configuration.
+
+- Support of secrets in JSON environment variables, added in `7.23.0`, is
+  reverted due to a side effect (e.g. a string value of `"-"` would be loaded as a list). This
+  feature will be fixed and added again in a future release.
+
+- The Windows installer can now install on domains where the domain name is different from the Netbios name.
+
+
 .. _Release Notes_7.23.0:
 
 7.23.0 / 6.23.0
