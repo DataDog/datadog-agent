@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: refactor the SQL obfuscator to be significantly more efficient.
+    APM: refactored the SQL obfuscator to be significantly more efficient.
