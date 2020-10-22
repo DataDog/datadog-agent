@@ -95,3 +95,44 @@ func TestGetCmdline(t *testing.T) {
 		assert.Equal(t, expect, actual)
 	}
 }
+
+func TestParseStatus(t *testing.T) {
+	hostProc := "resources/linux_postgres/proc"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		actual := probe.parseStatus(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+
+		expName, err := expProc.Name()
+		assert.NoError(t, err)
+		expStatus, err := expProc.Status()
+		assert.NoError(t, err)
+		expUIDs, err := expProc.Uids()
+		expGIDs, err := expProc.Gids()
+		expThreads, err := expProc.NumThreads()
+		expMemInfo, err := expProc.MemoryInfo()
+		expCtxSwitches, err := expProc.NumCtxSwitches()
+
+		assert.Equal(t, expName, actual.name)
+		assert.Equal(t, expStatus, actual.status)
+		assert.EqualValues(t, expUIDs, actual.uids)
+		assert.EqualValues(t, expGIDs, actual.gids)
+		assert.Equal(t, expThreads, actual.numThreads)
+
+		assert.Equal(t, expMemInfo.RSS, actual.memInfo.RSS)
+		assert.Equal(t, expMemInfo.VMS, actual.memInfo.VMS)
+		assert.Equal(t, expMemInfo.Swap, actual.memInfo.Swap)
+
+		assert.Equal(t, expCtxSwitches.Voluntary, actual.ctxSwitches.Voluntary)
+		assert.Equal(t, expCtxSwitches.Involuntary, actual.ctxSwitches.Involuntary)
+	}
+}

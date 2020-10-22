@@ -7,10 +7,22 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/host"
 )
+
+type statusInfo struct {
+	name       string
+	status     string
+	uids       []int32
+	gids       []int32
+	numThreads int32
+
+	memInfo     *MemoryInfoStat
+	ctxSwitches *NumCtxSwitchesStat
+}
 
 // Probe is a service that fetches process related info on current host
 type Probe struct {
@@ -67,14 +79,33 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 			continue
 		}
 
+		statusInfo := p.parseStatus(pathForPID)
+
 		procsByPID[pid] = &Process{
-			Pid:     pid,     // /proc/{pid}
-			Ppid:    0,       // /proc/{pid}/stat
-			Cmdline: cmdline, // /proc/{pid}/cmdline
+			Pid:     pid,               // /proc/{pid}
+			Ppid:    0,                 // /proc/{pid}/stat
+			Cmdline: cmdline,           // /proc/{pid}/cmdline
+			Name:    statusInfo.name,   // /proc/{pid}/status
+			Status:  statusInfo.status, // /proc/{pid}/status
+			Uids:    statusInfo.uids,   // /proc/{pid}/status
+			Gids:    statusInfo.gids,   // /proc/{pid}/status
 		}
 	}
 
 	return procsByPID, nil
+}
+
+func (p *Probe) getRootProcFile() (*os.File, error) {
+	if p.procRootFile != nil { // TODO (sk): Should we consider refreshing the file descriptor occasionally?
+		return p.procRootFile, nil
+	}
+
+	f, err := os.Open(p.procRootLoc)
+	if err == nil {
+		p.procRootFile = f
+	}
+
+	return f, err
 }
 
 // getActivePIDs retrieves a list of IDs representing actively running processes.
@@ -116,6 +147,102 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
+func (p *Probe) parseStatus(pidPath string) *statusInfo {
+	path := filepath.Join(pidPath, "status")
+	var err error
+
+	sInfo := &statusInfo{
+		uids:        make([]int32, 0),
+		gids:        make([]int32, 0),
+		memInfo:     &MemoryInfoStat{},
+		ctxSwitches: &NumCtxSwitchesStat{},
+	}
+
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return sInfo
+	}
+
+	index := 0
+	for i, r := range contents {
+		if r == '\n' {
+			p.parseStatusLine(contents[index:i], sInfo)
+			index = i + 1
+		}
+	}
+
+	return sInfo
+}
+
+func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
+	for i := range line {
+		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
+			key := line[0:i]
+			value := line[i+2:]
+			p.parseStatusKV(string(key), string(value), sInfo)
+			break
+		}
+	}
+}
+
+func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
+	switch key {
+	case "Name":
+		sInfo.name = strings.Trim(value, " \t")
+	case "State":
+		sInfo.status = value[0:1]
+	case "Uid":
+		sInfo.uids = make([]int32, 0, 4)
+		for _, i := range strings.Split(value, "\t") {
+			v, err := strconv.ParseInt(i, 10, 32)
+			if err == nil {
+				sInfo.uids = append(sInfo.uids, int32(v))
+			}
+		}
+	case "Gid":
+		sInfo.gids = make([]int32, 0, 4)
+		for _, i := range strings.Split(value, "\t") {
+			v, err := strconv.ParseInt(i, 10, 32)
+			if err == nil {
+				sInfo.gids = append(sInfo.gids, int32(v))
+			}
+		}
+	case "Threads":
+		v, err := strconv.ParseInt(value, 10, 32)
+		if err == nil {
+			sInfo.numThreads = int32(v)
+		}
+	case "voluntary_ctxt_switches":
+		v, err := strconv.ParseInt(value, 10, 64)
+		if err == nil {
+			sInfo.ctxSwitches.Voluntary = v
+		}
+	case "nonvoluntary_ctxt_switches":
+		v, err := strconv.ParseInt(value, 10, 64)
+		if err == nil {
+			sInfo.ctxSwitches.Involuntary = v
+		}
+	case "VmRSS":
+		value := strings.Trim(value, " kB") // remove last "kB"
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			sInfo.memInfo.RSS = v * 1024
+		}
+	case "VmSize":
+		value := strings.Trim(value, " kB") // remove last "kB"
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			sInfo.memInfo.VMS = v * 1024
+		}
+	case "VmSwap":
+		value := strings.Trim(value, " kB") // remove last "kB"
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			sInfo.memInfo.Swap = v * 1024
+		}
+	}
+}
+
 // trimAndSplitBytes converts the raw command line bytes into a list of strings by trimming and splitting on null bytes
 func trimAndSplitBytes(bs []byte) []string {
 	var components []string
@@ -150,17 +277,4 @@ func trimAndSplitBytes(bs []byte) []string {
 	}
 
 	return components
-}
-
-func (p *Probe) getRootProcFile() (*os.File, error) {
-	if p.procRootFile != nil { // TODO (sk): Should we consider refreshing the file descriptor occasionally?
-		return p.procRootFile, nil
-	}
-
-	f, err := os.Open(p.procRootLoc)
-	if err == nil {
-		p.procRootFile = f
-	}
-
-	return f, err
 }
