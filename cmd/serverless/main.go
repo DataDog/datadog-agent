@@ -270,11 +270,12 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	for _, ep := range tc.Endpoints {
 		ep.APIKey = apiKey
 	}
+	tc.SynchronousFlushing = true
 	if err != nil {
 		log.Errorf("Unable to load trace agent config: %s", err)
 		return
 	}
-	ta := traceAgent.NewSyncAgent(ctx, tc)
+	ta := traceAgent.NewAgent(ctx, tc)
 	go func() {
 		ta.Run()
 	}()

@@ -32,6 +32,11 @@ const (
 	tagContainersTags = "_dd.tags.container"
 )
 
+type Writer interface {
+	Run()
+	Stop()
+}
+
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver           *api.HTTPReceiver
@@ -43,8 +48,7 @@ type Agent struct {
 	ExceptionSampler   *sampler.ExceptionSampler
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
-	TraceWriter        *writer.TraceWriter
-	StatsWriter        *writer.StatsWriter
+	Writers          []Writer
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -68,6 +72,19 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	out := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 
+	writers := []Writer {}
+	if conf.SynchronousFlushing {
+		writers = []Writer {
+			writer.NewTraceSyncWriter(conf, out),
+			writer.NewStatsSyncWriter(conf, statsChan)
+		}
+	} else {
+		writers = []Writer {
+			writer.NewTraceWriter(conf, out),
+			writer.NewStatsWriter(conf, statsChan)
+		}
+	}
+
 	return &Agent{
 		Receiver:           api.NewHTTPReceiver(conf, dynConf, in),
 		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
@@ -78,8 +95,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
-		TraceWriter:        writer.NewTraceWriter(conf, out),
-		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
+		Writers: writers,
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
 		Out:                out,
@@ -101,14 +117,21 @@ func (a *Agent) Run() {
 		starter.Start()
 	}
 
-	go a.TraceWriter.Run()
-	go a.StatsWriter.Run()
+	for _, writer := range a.Writers {
+		go writer.Run()
+	}
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		go a.work()
 	}
 
 	a.loop()
+}
+
+// Flush traces sychronously. This method only works when the agent is configured in synchronous flushing
+// mody.
+func (a *Agent) Flush() {
+
 }
 
 func (a *Agent) work() {
@@ -134,8 +157,11 @@ func (a *Agent) loop() {
 				log.Error(err)
 			}
 			a.Concentrator.Stop()
-			a.TraceWriter.Stop()
-			a.StatsWriter.Stop()
+
+			for _, writer := range a.Writers {
+				go writer.Stop()
+			}
+
 			a.ScoreSampler.Stop()
 			a.ExceptionSampler.Stop()
 			a.ErrorsScoreSampler.Stop()

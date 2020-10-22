@@ -268,6 +268,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.connection_reset_interval") {
 		c.ConnectionResetInterval = getDuration(config.Datadog.GetInt("apm_config.connection_reset_interval"))
 	}
+	if cfg.IsSet("apm_config.sync_flushing") {
+		c.SynchronousFlushing = cfg.GetBool("apm_config.sync_flushing")
+	}
 
 	// undocumented deprecated
 	if config.Datadog.IsSet("apm_config.analyzed_rate_by_service") {

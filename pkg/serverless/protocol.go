@@ -14,7 +14,7 @@ import (
 type Daemon struct {
 	httpServer   *http.Server
 	statsdServer *dogstatsd.Server
-	traceAgent   *traceAgent.SyncAgent
+	traceAgent   *traceAgent.Agent
 	stopCh       chan struct{}
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instanciated)
@@ -26,8 +26,8 @@ func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
 	d.statsdServer = statsdServer
 }
 
-// SetTraceAgent sets the SyncAgent instance for submitting traces
-func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.SyncAgent) {
+// SetTraceAgent sets the Agent instance for submitting traces
+func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.Agent) {
 	d.traceAgent = traceAgent
 }
 
