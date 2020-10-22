@@ -68,9 +68,7 @@ func (p *ProcessPath) UnmarshalBinary(data []byte) error {
 	if len(data) == 0 {
 		return errors.New("path empty")
 	}
-	if err := binary.Read(bytes.NewBuffer(data[0:256]), ebpf.ByteOrder, &p.PathRaw); err != nil {
-		return err
-	}
+	utils.SliceToArray(data[0:256], unsafe.Pointer(&p.PathRaw))
 	p.Path = C.GoString((*C.char)(unsafe.Pointer(&p.PathRaw)))
 	return nil
 }
@@ -183,11 +181,12 @@ func (sm *SyscallMonitor) CollectStats(collector SyscallStatsCollector) error {
 			if err := execBuffer.Delete(&processPath.PathRaw); err != nil {
 				log.Debug(err)
 			}
+
+			if err := collector.CountExec(processPath.Path, value); err != nil {
+				return err
+			}
 		}
 
-		if err := collector.CountExec(processPath.Path, value); err != nil {
-			return err
-		}
 	}
 	if mapIterator.Err() != nil {
 		log.Debugf("couldn't iterate over %s: %v", execBuffer.String(), mapIterator.Err())

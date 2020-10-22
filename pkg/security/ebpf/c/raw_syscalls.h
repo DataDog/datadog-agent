@@ -44,30 +44,17 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     bpf_probe_read(&syscall.id, sizeof(syscall.id), &args->id);
     bpf_get_current_comm(&syscall.comm, sizeof(syscall.comm));
 
-    u32 selector_key = SYSCALL_MONITOR_KEY;
-    u32 *buffer_id;
-    if (!(buffer_id = bpf_map_lookup_elem(&buffer_selector, &selector_key)))
+    struct bpf_map_def *noisy_processes = select_buffer(&noisy_processes_fb, &noisy_processes_bb);
+    if (noisy_processes == NULL)
         return 0;
 
-    u64 *count;
-    if (*buffer_id) {
-        count = bpf_map_lookup_elem(&noisy_processes_bb, &syscall);
-    } else {
-        count = bpf_map_lookup_elem(&noisy_processes_fb, &syscall);
+    u64 zero = 0;
+    u64 *count = bpf_map_lookup_or_try_init(noisy_processes, &syscall, &zero);
+    if (count == NULL) {
+        return 0;
     }
 
-    if (count) {
-        (*count)++;
-    } else {
-        u64 one = 1;
-        count = &one;
-
-        if (*buffer_id) {
-            bpf_map_update_elem(&noisy_processes_bb, &syscall, count, BPF_ANY);
-        } else {
-            bpf_map_update_elem(&noisy_processes_fb, &syscall, count, BPF_ANY);
-        }
-    }
+    __sync_fetch_and_add(count, 1);
 
     return 0;
 }
@@ -117,30 +104,18 @@ int sched_process_exec(struct _tracepoint_sched_sched_process_exec *ctx) {
     struct exec_path key = {};
     bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
 
-    u32 selector_key = SYSCALL_MONITOR_KEY;
-    u32 *buffer_id;
-    if (!(buffer_id = bpf_map_lookup_elem(&buffer_selector, &selector_key)))
+    struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb);
+    if (exec_count == NULL)
         return 0;
 
-    u64 *count;
-    if (*buffer_id) {
-        count = bpf_map_lookup_elem(&exec_count_fb, &key);
-    } else {
-        count = bpf_map_lookup_elem(&exec_count_bb, &key);
+    u64 zero = 0;
+    u64 *count = bpf_map_lookup_or_try_init(exec_count, &key, &zero);
+    if (count == NULL) {
+        return 0;
     }
 
-    if (count) {
-        __sync_fetch_and_add(count, 1);
-    } else {
-        u64 one = 1;
-        count = &one;
+    __sync_fetch_and_add(count, 1);
 
-        if (*buffer_id) {
-            bpf_map_update_elem(&exec_count_fb, &key, count, BPF_ANY);
-        } else {
-            bpf_map_update_elem(&exec_count_bb, &key, count, BPF_ANY);
-        }
-    }
     return 0;
 }
 
