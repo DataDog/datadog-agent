@@ -83,12 +83,16 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 
 		procsByPID[pid] = &Process{
 			Pid:     pid,               // /proc/{pid}
-			Ppid:    0,                 // /proc/{pid}/stat
 			Cmdline: cmdline,           // /proc/{pid}/cmdline
 			Name:    statusInfo.name,   // /proc/{pid}/status
 			Status:  statusInfo.status, // /proc/{pid}/status
 			Uids:    statusInfo.uids,   // /proc/{pid}/status
 			Gids:    statusInfo.gids,   // /proc/{pid}/status
+			Stats: &Stats{
+				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
+				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
+				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
+			},
 		}
 	}
 
@@ -132,7 +136,7 @@ func (p *Probe) getActivePIDs() ([]int32, error) {
 	return pids, nil
 }
 
-// getCmdline takes file path for a PID and retrieves the command line text
+// getCmdline retrieves the command line text from "cmdline" file for a process in procfs
 func (p *Probe) getCmdline(pidPath string) []string {
 	cmdline, err := ioutil.ReadFile(filepath.Join(pidPath, "cmdline"))
 	if err != nil {
@@ -147,6 +151,7 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
+// parseStatus retrieves status info from "status" file for a process in procfs
 func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	path := filepath.Join(pidPath, "status")
 	var err error
@@ -174,6 +179,7 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	return sInfo
 }
 
+// parseStatusLine takes each line in "status" file and parses info from it
 func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
 		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
@@ -185,6 +191,7 @@ func (p *Probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	}
 }
 
+// parseStatusKV takes tokens parsed from each line in "status" file and populates statusInfo object
 func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 	switch key {
 	case "Name":
