@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/gopsutil/host"
 )
 
+// Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
@@ -22,6 +23,7 @@ type Probe struct {
 	bootTime uint64
 }
 
+// NewProcessProbe initializes a new Probe object
 func NewProcessProbe() *Probe {
 	bootTime, _ := host.BootTime() // TODO (sk): Rewrite this w/o gopsutil
 
@@ -34,6 +36,7 @@ func NewProcessProbe() *Probe {
 	return p
 }
 
+// Close cleans up everything related to Probe object
 func (p *Probe) Close() {
 	if p.procRootFile != nil {
 		p.procRootFile.Close()
@@ -41,6 +44,7 @@ func (p *Probe) Close() {
 	}
 }
 
+// ProcessesByPID returns a map of process info indexed by PID
 func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
@@ -50,8 +54,8 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 	procsByPID := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !DoesDirExist(pathForPID) {
-			log.Debugf("Unable to create new process %d, it may have gone away", pid)
+		if exists, err := DoesDirExist(pathForPID); !exists || err != nil {
+			log.Debugf("Unable to create new process %d, dir exists: %t, error: %s", pid, exists, err)
 			continue
 		}
 
@@ -74,7 +78,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 	return procsByPID, nil
 }
 
-// Retrieve a list of IDs representing actively running processes.
+// getActivePIDs retrieves a list of IDs representing actively running processes.
 func (p *Probe) getActivePIDs() ([]int32, error) {
 	procFile, err := p.getRootProcFile()
 	if err != nil {
@@ -98,6 +102,7 @@ func (p *Probe) getActivePIDs() ([]int32, error) {
 	return pids, nil
 }
 
+// getCmdline takes file path for a PID and retrieves the command line text
 func (p *Probe) getCmdline(pidPath string) []string {
 	cmdline, err := ioutil.ReadFile(filepath.Join(pidPath, "cmdline"))
 	if err != nil {
@@ -112,6 +117,7 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
+// trimAndSplitBytes converts the raw command line bytes into a list of strings by trimming and splitting on null bytes
 func trimAndSplitBytes(bs []byte) []string {
 	var components []string
 
