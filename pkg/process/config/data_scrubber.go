@@ -181,29 +181,51 @@ func (ds *DataScrubber) IncrementCacheAge() {
 //	return newCmdline, changed
 //}
 
+type test struct {
+	index int
+	start int
+	end   int
+}
+
 // ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
 // It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
 func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
-	rawCmdline := cmdline
 	changed := false
 	var wordReplacesIndexes []int
-	for i, cmd := range rawCmdline {
-		for _, pattern := range ds.AltSensitivePatterns {
-			// if we found a word from the list, it means that the next word should be a password we want to replace.
-			if strings.Contains(cmd, pattern) {
-				wordReplacesIndexes = append(wordReplacesIndexes, i+1)
+	// preprocess, without the preprocessing it is needed to strip until the whitespaces.
+	var preprocessedCmdLines []string
+	for _, cmd := range cmdline {
+		preprocessedCmdLines = append(preprocessedCmdLines, strings.Split(cmd, " ")...) // TODO: ignore multiple whitespaces
+	}
+	for index, cmd := range preprocessedCmdLines {
+		for _, pattern := range ds.AltSensitivePatterns { // this can be optimized
+			// if we found a word from the list, it means that either the current or next word should be a password we want to replace.
+			if strings.Contains(strings.ToLower(cmd), pattern) { //password=1234
 				changed = true
+				v := strings.Split(cmd, "=") //password 1234
+				if len(v) > 1 {
+					preprocessedCmdLines[index] = v[0] + "=********"
+					break
+				} else {
+					wordReplacesIndexes = append(wordReplacesIndexes, index+1)
+					index = index + 1
+					break
+				}
 			}
 		}
 	}
+
+	// password 1234
 	for _, index := range wordReplacesIndexes {
 		// we still want to make sure that we are in the index e.g. the word is at the end and actually does not mean adding a password/token.
-		if index < len(cmdline) {
-			cmdline[index] = "********"
+		if index < len(preprocessedCmdLines) {
+			if preprocessedCmdLines != nil {
+				preprocessedCmdLines[index] = "********"
+			}
 		}
 	}
 
-	return cmdline, changed
+	return preprocessedCmdLines, changed
 }
 
 // Strip away all arguments from the command line
@@ -220,4 +242,5 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 	newPatterns := compileStringsToRegex(words)
 	ds.SensitivePatterns = append(ds.SensitivePatterns, newPatterns...)
+	ds.AltSensitivePatterns = append(ds.AltSensitivePatterns, words...)
 }
