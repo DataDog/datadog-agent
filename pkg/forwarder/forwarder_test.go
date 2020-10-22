@@ -495,3 +495,49 @@ func TestHighPriorityTransaction(t *testing.T) {
 	assert.Equal(t, string(data2), <-requestChan)
 	assert.Equal(t, string(data1), <-requestChan)
 }
+
+func TestCustomCompletionHandler(t *testing.T) {
+	transactionsDroppedOnInput.Set(0)
+
+	// Setup a test HTTP server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// Point agent configuration to it
+	cfg := config.Mock()
+	prevURL := cfg.Get("dd_url")
+	defer cfg.Set("dd_url", prevURL)
+	cfg.Set("dd_url", srv.URL)
+
+	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
+	done := make(chan struct{})
+	defer close(done)
+	var handler HTTPCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+		done <- struct{}{}
+	}
+
+	options := NewOptions(map[string][]string{
+		srv.URL: {"api_key1"},
+	})
+	options.CompletionHandler = handler
+
+	f := NewDefaultForwarder(options)
+	f.Start()
+	defer f.Stop()
+
+	data := []byte("payload_data")
+	payload := Payloads{&data}
+	assert.Nil(t, f.SubmitV1Series(payload, http.Header{}))
+
+	// And finally let's ensure the handler gets called
+	var handlerCalled bool
+	select {
+	case <-done:
+		handlerCalled = true
+	case <-time.After(time.Second):
+	}
+
+	assert.True(t, handlerCalled)
+}
