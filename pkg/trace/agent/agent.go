@@ -35,6 +35,7 @@ const (
 type Writer interface {
 	Run()
 	Stop()
+	SyncFlush()
 }
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -48,7 +49,7 @@ type Agent struct {
 	ExceptionSampler   *sampler.ExceptionSampler
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
-	Writers          []Writer
+	Writers            []Writer
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -72,16 +73,16 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	out := make(chan *writer.SampledSpans, 1000)
 	statsChan := make(chan []stats.Bucket)
 
-	writers := []Writer {}
+	writers := []Writer{}
 	if conf.SynchronousFlushing {
-		writers = []Writer {
+		writers = []Writer{
 			writer.NewTraceSyncWriter(conf, out),
-			writer.NewStatsSyncWriter(conf, statsChan)
+			writer.NewStatsSyncWriter(conf, statsChan),
 		}
 	} else {
-		writers = []Writer {
+		writers = []Writer{
 			writer.NewTraceWriter(conf, out),
-			writer.NewStatsWriter(conf, statsChan)
+			writer.NewStatsWriter(conf, statsChan),
 		}
 	}
 
@@ -95,7 +96,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
-		Writers: writers,
+		Writers:            writers,
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
 		Out:                out,
@@ -131,7 +132,9 @@ func (a *Agent) Run() {
 // Flush traces sychronously. This method only works when the agent is configured in synchronous flushing
 // mody.
 func (a *Agent) Flush() {
-
+	for _, writer := range a.Writers {
+		writer.SyncFlush()
+	}
 }
 
 func (a *Agent) work() {

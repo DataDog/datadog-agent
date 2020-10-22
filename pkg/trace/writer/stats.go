@@ -95,6 +95,11 @@ func (w *StatsWriter) Run() {
 	}
 }
 
+// SyncFlush is a no-op for TraceWriter
+func (w *StatsWriter) SyncFlush() {
+	log.Warn("SyncFlush called on StatsWriter, which is a no-op")
+}
+
 // Stop stops a running StatsWriter.
 func (w *StatsWriter) Stop() {
 	w.stop <- struct{}{}

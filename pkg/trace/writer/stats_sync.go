@@ -84,8 +84,8 @@ func (w *StatsSyncWriter) Run() {
 	}
 }
 
-// Flush immediately sends all pending payloads
-func (w *StatsSyncWriter) Flush() {
+// SyncFlush immediately sends all pending payloads
+func (w *StatsSyncWriter) SyncFlush() {
 	defer w.report()
 
 	// Collect all pending payloads from the channel

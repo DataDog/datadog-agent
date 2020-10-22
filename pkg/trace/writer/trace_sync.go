@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/gogo/protobuf/proto"
@@ -69,7 +68,7 @@ func NewTraceSyncWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *Trace
 			// or 500MB if unbound
 			maxmem = 500 * 1024 * 1024
 		}
-		qsize = int(math.Max(1, maxmem/float64(maxPayloadSize)))
+		qsize = int(math.Max(1, maxmem/float64(MaxPayloadSize)))
 	}
 	log.Debugf("Trace sync writer initialized (climit=%d qsize=%d)", climit, qsize)
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize)
@@ -81,7 +80,7 @@ func (w *TraceSyncWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
 	<-w.stop
-	w.Flush()
+	w.SyncFlush()
 	stopSenders(w.senders)
 }
 
@@ -109,7 +108,7 @@ func (w *TraceSyncWriter) Run() {
 }
 
 // Flush writes any pending payloads synchronously
-func (w *TraceSyncWriter) Flush() {
+func (w *TraceSyncWriter) SyncFlush() {
 	defer w.report()
 
 	// Collect all pending payloads from the channel
@@ -141,17 +140,17 @@ outer:
 }
 
 func (w *TraceSyncWriter) processPayload(pkg *SampledSpans) {
-	if pkg.Empty() {
+	if len(pkg.Traces) == 0 && len(pkg.Events) == 0 {
 		return
 	}
 
-	atomic.AddInt64(&w.stats.Spans, int64(len(pkg.Trace)))
+	atomic.AddInt64(&w.stats.Spans, int64(len(pkg.Traces)))
 	atomic.AddInt64(&w.stats.Traces, 1)
 	atomic.AddInt64(&w.stats.Events, int64(len(pkg.Events)))
 
 	defer timing.Since("datadog.trace_agent.trace_async_writer.encode_ms", time.Now())
 
-	traces := []*pb.APITrace{traceutil.APITrace(pkg.Trace)}
+	traces := pkg.Traces
 	log.Debugf("Serializing %d traces and %d APM events.", len(traces), len(pkg.Events))
 
 	tracePayload := pb.TracePayload{

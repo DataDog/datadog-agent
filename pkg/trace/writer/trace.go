@@ -136,6 +136,11 @@ func (w *TraceWriter) Run() {
 	}
 }
 
+// SyncFlush is a no-op for TraceWriter
+func (w *TraceWriter) SyncFlush() {
+	log.Warn("SyncFlush called on TraceWriter, which is a no-op")
+}
+
 func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 	atomic.AddInt64(&w.stats.Spans, pkg.SpanCount)
 	atomic.AddInt64(&w.stats.Traces, int64(len(pkg.Traces)))
