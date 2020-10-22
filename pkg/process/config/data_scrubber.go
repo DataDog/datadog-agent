@@ -11,12 +11,20 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
+// TODO: default words are only concentation
 var (
 	defaultSensitiveWords = []string{
 		"*password*", "*passwd*", "*mysql_pwd*",
 		"*access_token*", "*auth_token*",
 		"*api_key*", "*apikey*",
 		"*secret*", "*credentials*", "stripetoken"}
+)
+var (
+	defaultSensitiveWordsAlt = []string{
+		"password", "passwd", "mysql_pwd",
+		"access_token", "auth_token",
+		"api_key", "apikey",
+		"secret", "credentials", "stripetoken"}
 )
 
 const (
@@ -26,25 +34,27 @@ const (
 // DataScrubber allows the agent to blacklist cmdline arguments that match
 // a list of predefined and custom words
 type DataScrubber struct {
-	Enabled           bool
-	StripAllArguments bool
-	SensitivePatterns []*regexp.Regexp
-	seenProcess       map[string]struct{}
-	scrubbedCmdlines  map[string][]string
-	cacheCycles       uint32 // used to control the cache age
-	cacheMaxCycles    uint32 // number of cycles before resetting the cache content
+	Enabled              bool
+	StripAllArguments    bool
+	SensitivePatterns    []*regexp.Regexp
+	AltSensitivePatterns []string
+	seenProcess          map[string]struct{}
+	scrubbedCmdlines     map[string][]string
+	cacheCycles          uint32 // used to control the cache age
+	cacheMaxCycles       uint32 // number of cycles before resetting the cache content
 }
 
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled
 // and matching the default sensitive words
 func NewDefaultDataScrubber() *DataScrubber {
 	newDataScrubber := &DataScrubber{
-		Enabled:           true,
-		SensitivePatterns: compileStringsToRegex(defaultSensitiveWords),
-		seenProcess:       make(map[string]struct{}),
-		scrubbedCmdlines:  make(map[string][]string),
-		cacheCycles:       0,
-		cacheMaxCycles:    defaultCacheMaxCycles,
+		Enabled:              true,
+		SensitivePatterns:    compileStringsToRegex(defaultSensitiveWords),
+		AltSensitivePatterns: defaultSensitiveWordsAlt,
+		seenProcess:          make(map[string]struct{}),
+		scrubbedCmdlines:     make(map[string][]string),
+		cacheCycles:          0,
+		cacheMaxCycles:       defaultCacheMaxCycles,
 	}
 
 	return newDataScrubber
@@ -154,21 +164,46 @@ func (ds *DataScrubber) IncrementCacheAge() {
 
 // ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
 // It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
+//func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
+//	newCmdline := cmdline
+//	rawCmdline := strings.Join(cmdline, " ")
+//	changed := false
+//	for _, pattern := range ds.SensitivePatterns {
+//		if pattern.MatchString(rawCmdline) {
+//			changed = true
+//			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
+//		}
+//	}
+//
+//	if changed {
+//		newCmdline = strings.Split(rawCmdline, " ")
+//	}
+//	return newCmdline, changed
+//}
+
+// ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
+// It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
 func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
-	newCmdline := cmdline
-	rawCmdline := strings.Join(cmdline, " ")
+	rawCmdline := cmdline
 	changed := false
-	for _, pattern := range ds.SensitivePatterns {
-		if pattern.MatchString(rawCmdline) {
-			changed = true
-			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
+	var wordReplacesIndexes []int
+	for i, cmd := range rawCmdline {
+		for _, pattern := range ds.AltSensitivePatterns {
+			// if we found a word from the list, it means that the next word should be a password we want to replace.
+			if strings.Contains(cmd, pattern) {
+				wordReplacesIndexes = append(wordReplacesIndexes, i+1)
+				changed = true
+			}
+		}
+	}
+	for _, index := range wordReplacesIndexes {
+		// we still want to make sure that we are in the index e.g. the word is at the end and actually does not mean adding a password/token.
+		if index < len(cmdline) {
+			cmdline[index] = "********"
 		}
 	}
 
-	if changed {
-		newCmdline = strings.Split(rawCmdline, " ")
-	}
-	return newCmdline, changed
+	return cmdline, changed
 }
 
 // Strip away all arguments from the command line

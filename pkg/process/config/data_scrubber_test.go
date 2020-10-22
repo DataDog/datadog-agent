@@ -410,13 +410,13 @@ func benchmarkRegexMatching(nbProcesses int, b *testing.B) {
 	runningProcesses := make([][]string, nbProcesses)
 	foolCmdline := []string{"python ~/test/run.py --password=1234 -password 1234 -password=admin -secret 2345 -credentials=1234 -api_key 2808 &"}
 
-	customSensitiveWords := []string{
-		"*consul_token",
-		"*dd_password",
-		"*blocked_from_yaml",
-	}
+	//customSensitiveWords := []string{
+	//	"*consul_token",
+	//	"*dd_password",
+	//	"*blocked_from_yaml",
+	//}
 	scrubber := NewDefaultDataScrubber()
-	scrubber.AddCustomSensitiveWords(customSensitiveWords)
+	//scrubber.AddCustomSensitiveWords(customSensitiveWords)
 
 	for i := 0; i < nbProcesses; i++ {
 		runningProcesses = append(runningProcesses, foolCmdline)
