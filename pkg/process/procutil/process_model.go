@@ -40,7 +40,7 @@ type Stats struct {
 	CtxSwitches *NumCtxSwitchesStat
 }
 
-// CPUTimesStats holds CPU stat metrics of a process
+// CPUTimesStat holds CPU stat metrics of a process
 type CPUTimesStat struct {
 	CPU       string
 	User      float64
@@ -70,7 +70,7 @@ type MemoryInfoStat struct {
 	Swap uint64 // bytes
 }
 
-// MemoryInfoStat holds all memory metrics for a process
+// MemoryInfoExStat holds all memory metrics for a process
 type MemoryInfoExStat struct {
 	RSS    uint64 // bytes
 	VMS    uint64 // bytes

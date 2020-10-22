@@ -61,9 +61,8 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 
 		cmdline := p.getCmdline(pathForPID)
 		if len(cmdline) == 0 {
-			// Note: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
+			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
 			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			//
 			//       In the test resources for Postgres, this accounts for ~30% of processes.
 			continue
 		}
