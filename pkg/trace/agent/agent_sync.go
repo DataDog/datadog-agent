@@ -142,7 +142,7 @@ func (a *SyncAgent) loop() {
 // passes it downstream.
 func (a *SyncAgent) Process(t *api.Trace) {
 	if len(t.Spans) == 0 {
-		log.Debugf("Skipping received empty trace")
+		log.Debug("Skipping received empty trace")
 		return
 	}
 
@@ -160,13 +160,14 @@ func (a *SyncAgent) Process(t *api.Trace) {
 	// Depending on the sampling priority, count that trace differently.
 	stat := &ts.TracesPriorityNone
 	if hasPriority {
-		if priority < 0 {
+		switch {
+		case priority < 0:
 			stat = &ts.TracesPriorityNeg
-		} else if priority == 0 {
+		case priority == 0:
 			stat = &ts.TracesPriority0
-		} else if priority == 1 {
+		case priority == 1:
 			stat = &ts.TracesPriority1
-		} else {
+		default:
 			stat = &ts.TracesPriority2
 		}
 	}

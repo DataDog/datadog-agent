@@ -268,11 +268,10 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// --------------------------------
 	tc, err := traceConfig.Load(datadogConfigPath)
 	for _, ep := range tc.Endpoints {
-		ep.APIKey = config.Datadog.GetString("api_key")
+		ep.APIKey = apiKey
 	}
 	if err != nil {
-		serverless.ReportInitError(serverlessId, serverless.FatalDogstatsdInit)
-		log.Criticalf("Unable to load trace agent config: %s", err)
+		log.Errorf("Unable to load trace agent config: %s", err)
 		return
 	}
 	ta := traceAgent.NewSyncAgent(ctx, tc)
