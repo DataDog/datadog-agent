@@ -109,4 +109,8 @@ storage:
       mode: 0400
       contents:
         source: "data:,c0cd502d7dc8112e4c17e267068a12f150d334e1eca7e831130e462f5a431d044b10019af8533b756ee6d10a3fd4e9c72a62cee6d6a0045caa57807d06ede817%20%2Fusr%2Flocal%2Fbin%2Fpupernetes%0A"
+    - path: /etc/ssh/sshd_config.d/99-datadog.conf
+      mode: 0400
+      contents:
+        source: "data:,AcceptEnv%20DATADOG%5F%2AAGENT%5FIMAGE%0A"
 EOF

@@ -16,17 +16,14 @@ test "${COMMIT_ID}" || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS="-o ServerAliveInterval=20 -o ConnectTimeout=6 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${PWD}/id_rsa "
-SEND_ENV="-o SendEnv=DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} -o SendEnv=DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}"
+SSH_OPTS=("-o" "ServerAliveInterval=20" "-o" "ConnectTimeout=6" "-o" "StrictHostKeyChecking=no" "-o" "UserKnownHostsFile=/dev/null" "-i" "${PWD}/id_rsa" "-o" "SetEnv=DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master} DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE:-datadog/cluster-agent-dev:master}")
 
 function _ssh() {
-    # shellcheck disable=SC2086
-    ssh ${SSH_OPTS} -lcore "${MACHINE}" "$@"
+    ssh "${SSH_OPTS[@]}" -lcore "${MACHINE}" "$@"
 }
 
 function _ssh_logged() {
-    # shellcheck disable=SC2086
-    ssh ${SSH_OPTS} -lcore "${MACHINE}" ${SEND_ENV} /bin/bash -l -c "$@"
+    ssh "${SSH_OPTS[@]}" -lcore "${MACHINE}" /bin/bash -l -c "$@"
 }
 
 until _ssh /bin/true; do
