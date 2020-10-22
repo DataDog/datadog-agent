@@ -14,6 +14,13 @@ const (
 	apiReachable   = int64(2)
 )
 
+// apiWatcher is responsible for detecting if the Datadog API is reachable from
+// the host/container running the heartbeat.Monitor. The idea is to detect
+// critical issues after the agent initialization, such as lack of network
+// connectivity or a misconfigured API key.
+// Given that, the allowed state transitions are simply:
+// apiUnknown -> apiUnreachable
+// apiUnknown -> apiReachable
 type apiWatcher struct {
 	started     int64
 	apiState    int64
