@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.23.1:
 
-7.23.1
+7.23.1 / 6.23.1
 ======
 
 .. _Release Notes_7.23.1_Prelude:
@@ -13,9 +13,6 @@ Prelude
 -------
 
 Release on: 2020-10-21
-
-- Please refer to the `7.23.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7231>`_ for the list of changes on the Core Checks
-
 
 .. _Release Notes_7.23.1_Bug Fixes:
 
