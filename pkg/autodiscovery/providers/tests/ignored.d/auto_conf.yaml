@@ -1,0 +1,7 @@
+ad_identifiers:
+  - foo
+
+init_config:
+
+instances:
+  - host: '%%host%%'

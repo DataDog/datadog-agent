@@ -71,25 +71,16 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			case kubernetes.KubeAppManagedByLabelKey:
 				tags.AddLow(tagKeyKubeAppManagedBy, value)
 			}
-			for pattern, tmpl := range c.labelsAsTags {
-				n := strings.ToLower(name)
-				if g, ok := c.globMap[pattern]; ok {
-					if !g.Match(n) {
-						continue
-					}
-				} else if pattern != n {
-					continue
-				}
-				tags.AddAuto(resolveTag(tmpl, name), value)
-			}
+
+			// Pod labels as tags
+			utils.AddMetadataAsTags(name, value, c.labelsAsTags, c.globLabels, tags)
 		}
 
-		// Pod annotations
+		// Pod annotations as tags
 		for name, value := range pod.Metadata.Annotations {
-			if tagName, found := c.annotationsAsTags[strings.ToLower(name)]; found {
-				tags.AddAuto(tagName, value)
-			}
+			utils.AddMetadataAsTags(name, value, c.annotationsAsTags, c.globAnnotations, tags)
 		}
+
 		if podTags, found := extractTagsFromMap(podTagsAnnotation, pod.Metadata.Annotations); found {
 			for tagName, values := range podTags {
 				for _, val := range values {

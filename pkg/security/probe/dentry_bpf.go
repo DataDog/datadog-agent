@@ -9,11 +9,10 @@ package probe
 
 import (
 	"C"
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"unsafe"
 
+	lib "github.com/DataDog/ebpf"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -22,7 +21,7 @@ import (
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
 	probe     *Probe
-	pathnames *ebpf.Table
+	pathnames *lib.Map
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -35,29 +34,29 @@ func (e *ErrInvalidKeyPath) Error() string {
 	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
 }
 
-type pathKey struct {
-	inode   uint64
-	mountID uint32
+type PathKey struct {
+	Inode   uint64
+	MountID uint32
+	Padding uint32
 }
 
-func (p *pathKey) Write(buffer []byte) {
-	byteOrder.PutUint64(buffer[0:8], p.inode)
-	byteOrder.PutUint32(buffer[8:12], p.mountID)
-	byteOrder.PutUint32(buffer[12:16], 0)
+func (p *PathKey) Write(buffer []byte) {
+	ebpf.ByteOrder.PutUint64(buffer[0:8], p.Inode)
+	ebpf.ByteOrder.PutUint32(buffer[8:12], p.MountID)
+	ebpf.ByteOrder.PutUint32(buffer[12:16], 0)
 }
 
-func (p *pathKey) Read(buffer []byte) {
-	p.inode = byteOrder.Uint64(buffer[0:8])
-	p.mountID = byteOrder.Uint32(buffer[8:12])
+func (p *PathKey) IsNull() bool {
+	return p.Inode == 0 && p.MountID == 0
 }
 
-func (p *pathKey) IsNull() bool {
-	return p.inode == 0 && p.mountID == 0
+func (p *PathKey) String() string {
+	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
 }
 
-func (p *pathKey) Bytes() ([]byte, error) {
+func (p *PathKey) MarshalBinary() ([]byte, error) {
 	if p.IsNull() {
-		return nil, &ErrInvalidKeyPath{Inode: p.inode, MountID: p.mountID}
+		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
 	}
 
 	b := make([]byte, 16)
@@ -66,31 +65,20 @@ func (p *pathKey) Bytes() ([]byte, error) {
 	return b, nil
 }
 
-type pathValue struct {
-	parent pathKey
-	name   [256]byte
+type PathValue struct {
+	Parent PathKey
+	Name   [128]byte
 }
 
 func (dr *DentryResolver) getName(mountID uint32, inode uint64) (name string, err error) {
-	key := pathKey{mountID: mountID, inode: inode}
+	key := PathKey{MountID: mountID, Inode: inode}
+	var path PathValue
 
-	keyBuffer, err := key.Bytes()
-	if err != nil {
-		return "", err
-	}
-
-	pathRaw := []byte{}
-	var nameRaw [256]byte
-
-	if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
+	if err := dr.pathnames.Lookup(key, &path); err != nil {
 		return "", fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`", mountID, inode)
 	}
 
-	if err = binary.Read(bytes.NewBuffer(pathRaw[16:]), byteOrder, &nameRaw); err != nil {
-		return "", errors.Wrap(err, "failed to decode received data (pathLeaf)")
-	}
-
-	return C.GoString((*C.char)(unsafe.Pointer(&nameRaw))), nil
+	return C.GoString((*C.char)(unsafe.Pointer(&path.Name))), nil
 }
 
 // GetName resolves a couple of mountID/inode to a path
@@ -100,49 +88,42 @@ func (dr *DentryResolver) GetName(mountID uint32, inode uint64) string {
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (filename string, err error) {
-	key := pathKey{mountID: mountID, inode: inode}
+func (dr *DentryResolver) resolve(mountID uint32, inode uint64) (string, error) {
+	var done bool
+	var path PathValue
+	var filename string
+	key := PathKey{MountID: mountID, Inode: inode}
 
-	keyBuffer, err := key.Bytes()
+	keyBuffer, err := key.MarshalBinary()
 	if err != nil {
 		return "", err
 	}
 
-	done := false
-	pathRaw := []byte{}
-	var path pathValue
-
 	// Fetch path recursively
 	for !done {
-		if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
+		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
 			filename = dentryPathKeyNotFound
 			break
 		}
 
-		path.parent.Read(pathRaw)
-		if err = binary.Read(bytes.NewBuffer(pathRaw[16:]), byteOrder, &path.name); err != nil {
-			err = errors.Wrap(err, "failed to decode received data (pathLeaf)")
-			break
-		}
-
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if path.name[0] != '\x00' && path.name[0] != '/' {
-			filename = "/" + C.GoString((*C.char)(unsafe.Pointer(&path.name))) + filename
+		if path.Name[0] != '\x00' && path.Name[0] != '/' {
+			filename = "/" + C.GoString((*C.char)(unsafe.Pointer(&path.Name))) + filename
 		}
 
-		if path.parent.inode == 0 {
+		if path.Parent.Inode == 0 {
 			break
 		}
 
 		// Prepare next key
-		path.parent.Write(keyBuffer)
+		path.Parent.Write(keyBuffer)
 	}
 
 	if len(filename) == 0 {
 		filename = "/"
 	}
 
-	return
+	return filename, err
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
@@ -153,29 +134,24 @@ func (dr *DentryResolver) Resolve(mountID uint32, inode uint64) string {
 
 // GetParent - Return the parent mount_id/inode
 func (dr *DentryResolver) GetParent(mountID uint32, inode uint64) (uint32, uint64, error) {
-	key := pathKey{mountID: mountID, inode: inode}
+	key := PathKey{MountID: mountID, Inode: inode}
+	var path PathValue
 
-	keyBuffer, err := key.Bytes()
-	if err != nil {
+	if err := dr.pathnames.Lookup(key, &path); err != nil {
 		return 0, 0, err
 	}
 
-	pathRaw, err := dr.pathnames.Get(keyBuffer)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	var path pathValue
-	path.parent.Read(pathRaw)
-
-	return path.parent.mountID, path.parent.inode, nil
+	return path.Parent.MountID, path.Parent.Inode, nil
 }
 
 // Start the dentry resolver
 func (dr *DentryResolver) Start() error {
-	pathnames := dr.probe.Table("pathnames")
-	if pathnames == nil {
-		return errors.New("pathnames BPF_HASH table doesn't exist")
+	pathnames, ok, err := dr.probe.manager.GetMap("pathnames")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("map pathnames not found")
 	}
 	dr.pathnames = pathnames
 

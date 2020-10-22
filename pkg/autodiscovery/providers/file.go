@@ -7,6 +7,7 @@ package providers
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"gopkg.in/yaml.v2"
 
@@ -149,6 +151,13 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, integra
 	ext := filepath.Ext(fileName)
 	entry := configEntry{}
 	absPath := filepath.Join(path, fileName)
+
+	// skip auto conf files based on the agent configuration
+	if fileName == "auto_conf.yaml" && containsString(config.Datadog.GetStringSlice("ignore_autoconf"), integrationName) {
+		log.Infof("Skipping 'auto_conf.yaml' for integration '%s'", integrationName)
+		entry.err = fmt.Errorf("'auto_conf.yaml' for integration '%s' is skipped", integrationName)
+		return entry
+	}
 
 	// skip config files that are not of type:
 	//  * integration.yaml, integration.yml
@@ -318,4 +327,13 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	config.Source = "file:" + fpath
 
 	return config, err
+}
+
+func containsString(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
 }

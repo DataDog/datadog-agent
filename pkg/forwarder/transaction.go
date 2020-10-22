@@ -167,6 +167,7 @@ type Transaction interface {
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() TransactionPriority
+	GetPayloadSize() int
 }
 
 // NewHTTPTransaction returns a new HTTPTransaction.
@@ -301,4 +302,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
 	return resp.StatusCode, body, nil
+}
+
+// GetPayloadSize returns the size of the payload.
+func (t *HTTPTransaction) GetPayloadSize() int {
+	if t.Payload != nil {
+		return len(*t.Payload)
+	}
+	return 0
 }

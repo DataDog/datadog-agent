@@ -302,7 +302,8 @@ func InitConfig(config Config) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
+	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0)
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 30*megaByte)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -370,6 +371,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
+	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -692,6 +694,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_conntrack")
 	config.SetKnown("system_probe_config.sysprobe_socket")
 	config.SetKnown("system_probe_config.conntrack_rate_limit")
+	config.SetKnown("system_probe_config.enable_conntrack_all_namespaces")
 	config.SetKnown("system_probe_config.max_conns_per_message")
 	config.SetKnown("system_probe_config.max_tracked_connections")
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")

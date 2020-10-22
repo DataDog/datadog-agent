@@ -104,7 +104,7 @@
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
     SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
   #define SYSCALL_COMPAT_TIME_HOOKx(x,type,TYPE,name,...) \
-    SYSCALL_ABI_HOOKx(x,32,type,TYPE,,name,,__VA_ARGS__) \
+    SYSCALL_ABI_HOOKx(x,32,type,TYPE,compat_,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,32,type,TYPE,,name,_time32,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,_time32,__VA_ARGS__) \
@@ -235,7 +235,7 @@ struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };
@@ -247,7 +247,7 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };

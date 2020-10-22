@@ -9,9 +9,13 @@ package probe
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -19,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ebpflib "github.com/DataDog/ebpf"
 )
 
 const (
@@ -49,73 +52,74 @@ var (
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
-	*ebpf.Probe
+	manager          *manager.Manager
+	managerOptions   manager.Options
 	config           *config.Config
 	handler          EventHandler
 	resolvers        *Resolvers
 	onDiscardersFncs map[eval.EventType][]onDiscarderFnc
-	tables           map[string]*ebpf.Table
 	syscallMonitor   *SyscallMonitor
 	kernelVersion    uint32
 	_                uint32 // padding for goarch=386
 	eventsStats      EventsStats
+	startTime        time.Time
 }
 
-func (p *Probe) getTableNames() []string {
-	tables := []string{
-		"pathnames",
-		"noisy_processes_buffer",
-		"noisy_processes_fb",
-		"noisy_processes_bb",
-		"mount_id_offset",
+// Map returns a map by its name
+func (p *Probe) Map(name string) *lib.Map {
+	if p.manager == nil {
+		return nil
 	}
-
-	tables = append(tables, openTables...)
-	tables = append(tables, execTables...)
-	tables = append(tables, unlinkTables...)
-	tables = append(tables, mountTables...)
-
-	return tables
-}
-
-// Table returns either an eprobe Table or a LRU based eprobe Table
-func (p *Probe) Table(name string) *ebpf.Table {
-	if table, exists := p.tables[name]; exists {
-		return table
+	m, ok, err := p.manager.GetMap(name)
+	if !ok || err != nil {
+		return nil
 	}
-
-	return p.Probe.Table(name)
-}
-
-func (p *Probe) getPerfMaps() []*ebpf.PerfMapDefinition {
-	return []*ebpf.PerfMapDefinition{
-		{
-			Name:        "events",
-			Handler:     p.handleEvent,
-			LostHandler: p.handleLostEvents,
-		},
-		{
-			Name:        "mountpoints_events",
-			Handler:     p.handleEvent,
-			LostHandler: p.handleLostEvents,
-		},
-	}
+	return m
 }
 
 func (p *Probe) detectKernelVersion() {
-	if kernelVersion, err := ebpflib.CurrentKernelVersion(); err != nil {
+	if kernelVersion, err := lib.CurrentKernelVersion(); err != nil {
 		log.Warn("unable to detect the kernel version")
 	} else {
 		p.kernelVersion = kernelVersion
 	}
 }
 
-// Start the runtime security probe
-func (p *Probe) Start() error {
+// Init initialises the probe
+func (p *Probe) Init() error {
+	if !p.config.EnableKernelFilters {
+		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	}
+
+	// Set default options of the manager
+	p.managerOptions = ebpf.NewDefaultOptions()
+
+	if p.config.SyscallMonitor {
+		// Add syscall monitor probes
+		if err := p.RegisterProbesSelectors(probes.SyscallMonitorSelectors); err != nil {
+			return err
+		}
+	}
+
+	// Load discarders
+	for eventType, fnc := range allDiscarderFncs {
+		fncs := p.onDiscardersFncs[eventType]
+		fncs = append(fncs, fnc)
+		p.onDiscardersFncs[eventType] = fncs
+	}
+	return nil
+}
+
+// InitManager initializes the eBPF managers
+func (p *Probe) InitManager() error {
+	p.startTime = time.Now()
 	p.detectKernelVersion()
 
 	asset := "pkg/security/ebpf/c/runtime-security"
-	openSyscall := getSyscallFnName("open")
+	openSyscall, err := manager.GetSyscallFnName("open")
+	if err != nil {
+		return err
+	}
 	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
 		asset += "-syscall-wrapper"
 	}
@@ -125,49 +129,37 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	p.Module, err = ebpf.NewModuleFromReader(bytecodeReader)
-	if err != nil {
+	p.manager = ebpf.NewRuntimeSecurityManager()
+
+	// Set data and lost handlers
+	for _, perfMap := range p.manager.PerfMaps {
+		perfMap.PerfMapOptions = manager.PerfMapOptions{
+			DataHandler: p.handleEvent,
+			LostHandler: p.handleLostEvents,
+		}
+	}
+
+	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return err
 	}
 
-	if err = p.Load(); err != nil {
-		return err
-	}
-
-	if err := p.resolvers.Start(); err != nil {
+	if err := p.resolvers.Init(); err != nil {
 		return err
 	}
 
 	if p.config.SyscallMonitor {
-		p.syscallMonitor, err = NewSyscallMonitor(
-			p.Module,
-			p.Table("noisy_processes_buffer"),
-			p.Table("noisy_processes_fb"),
-			p.Table("noisy_processes_bb"),
-		)
+		p.syscallMonitor, err = NewSyscallMonitor(p.manager)
 		if err != nil {
 			return err
 		}
 	}
 
-	for _, hookpoint := range allHookPoints {
-		if hookpoint.EventTypes == nil {
-			continue
-		}
+	return nil
+}
 
-		for _, eventType := range hookpoint.EventTypes {
-			fnc, exists := allDiscarderFncs[eventType]
-			if !exists {
-				continue
-			}
-
-			fncs := p.onDiscardersFncs[eventType]
-			fncs = append(fncs, fnc)
-			p.onDiscardersFncs[eventType] = fncs
-		}
-	}
-
-	return p.Probe.Start()
+// Start the runtime security probe
+func (p *Probe) Start() error {
+	return p.manager.Start()
 }
 
 // SetEventHandler set the probe event handler
@@ -247,12 +239,12 @@ func (p *Probe) GetEventsStats() EventsStats {
 	return p.eventsStats
 }
 
-func (p *Probe) handleLostEvents(count uint64) {
+func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	log.Warnf("lost %d events\n", count)
 	p.eventsStats.CountLost(int64(count))
 }
 
-func (p *Probe) handleEvent(data []byte) {
+func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
 	offset := 0
 	event := NewEvent(p.resolvers)
 
@@ -386,19 +378,10 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 	return nil
 }
 
-// Init initialises the probe
-func (p *Probe) Init() error {
-	if !p.config.EnableKernelFilters {
-		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
-	}
-
-	return nil
-}
-
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
 func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, tableName string, mode PolicyMode, flags PolicyFlag) error {
 	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
-	table := p.Table(tableName)
+	table := p.Map(tableName)
 	if table == nil {
 		return fmt.Errorf("unable to find policy table `%s`", tableName)
 	}
@@ -408,7 +391,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, tableName string, mo
 		Flags: flags,
 	}
 
-	return table.Set(ebpf.ZeroUint32TableItem, policy)
+	return table.Put(ebpf.ZeroUint32MapItem, policy)
 }
 
 // ApplyApprovers applies approvers
@@ -425,27 +408,10 @@ func (p *Probe) ApplyApprovers(eventType eval.EventType, approvers rules.Approve
 	return err
 }
 
-// RegisterKProbe register the given kprobe
-func (p *Probe) RegisterKProbe(kprobe *ebpf.KProbe) error {
-	err := p.Module.RegisterKprobe(kprobe)
-	if err == nil {
-		log.Infof("kProbe `%s` registered", kprobe.Name)
-	} else {
-		log.Errorf("failed to register kProbe `%s`", kprobe.Name)
-	}
-
-	return err
-}
-
-// RegisterTracepoint registers the given tracepoint
-func (p *Probe) RegisterTracepoint(tracepoint string) error {
-	err := p.Module.RegisterTracepoint(tracepoint)
-	if err == nil {
-		log.Infof("tracepoint `%s` registered", tracepoint)
-	} else {
-		log.Errorf("failed to register tracepoint `%s`", tracepoint)
-	}
-	return err
+// RegisterProbesSelectors register the given probes selectors
+func (p *Probe) RegisterProbesSelectors(selectors []manager.ProbesSelector) error {
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
+	return nil
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -454,17 +420,15 @@ func (p *Probe) Snapshot() error {
 	return p.resolvers.Snapshot(5)
 }
 
+func (p *Probe) Close() error {
+	return p.manager.Stop(manager.CleanAll)
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config) (*Probe, error) {
 	p := &Probe{
 		config:           config,
 		onDiscardersFncs: make(map[eval.EventType][]onDiscarderFnc),
-		tables:           make(map[string]*ebpf.Table),
-	}
-
-	p.Probe = &ebpf.Probe{
-		Tables:   p.getTableNames(),
-		PerfMaps: p.getPerfMaps(),
 	}
 
 	resolvers, err := NewResolvers(p)

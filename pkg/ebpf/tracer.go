@@ -51,6 +51,7 @@ type Tracer struct {
 	perfHandler  *bytecode.PerfHandler
 	batchManager *PerfBatchManager
 	flushIdle    chan chan struct{}
+	stop         chan struct{}
 
 	// Telemetry
 	perfReceived  int64
@@ -165,18 +166,22 @@ func NewTracer(config *Config) (*Tracer, error) {
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
 		if _, enabled := enabledProbes[bytecode.ProbeName(p.Section)]; !enabled {
-			mgrOptions.ExcludedProbes = append(mgrOptions.ExcludedProbes, p.Section)
+			mgrOptions.ExcludedSections = append(mgrOptions.ExcludedSections, p.Section)
 		}
 	}
 	for probeName := range enabledProbes {
-		mgrOptions.ActivatedProbes = append(mgrOptions.ActivatedProbes, string(probeName))
+		mgrOptions.ActivatedProbes = append(
+			mgrOptions.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: string(probeName),
+				},
+			})
 	}
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
-
-	overrideProbeSectionNames(m)
 
 	reverseDNS := network.NewNullReverseDNS()
 	if enableSocketFilter {
@@ -210,7 +215,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit, config.EnableConntrackAllNamespaces); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -238,6 +243,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		perfHandler:    perfHandler,
 		flushIdle:      make(chan chan struct{}),
+		stop:           make(chan struct{}),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
@@ -254,17 +260,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 	return tr, nil
 }
 
-func overrideProbeSectionNames(m *manager.Manager) {
-	for _, p := range m.Probes {
-		if !p.Enabled {
-			continue
-		}
-		if override, ok := bytecode.KProbeOverrides[bytecode.ProbeName(p.Section)]; ok {
-			p.Section = string(override)
-		}
-	}
-}
-
 func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
 	// Enable kernel probes used for offset guessing.
 	offsetMgr := bytecode.NewOffsetManager()
@@ -277,11 +272,17 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 	enabledProbes := offsetGuessProbes(config)
 	for _, p := range offsetMgr.Probes {
 		if _, enabled := enabledProbes[bytecode.ProbeName(p.Section)]; !enabled {
-			offsetOptions.ExcludedProbes = append(offsetOptions.ExcludedProbes, p.Section)
+			offsetOptions.ExcludedSections = append(offsetOptions.ExcludedSections, p.Section)
 		}
 	}
 	for probeName := range enabledProbes {
-		offsetOptions.ActivatedProbes = append(offsetOptions.ActivatedProbes, string(probeName))
+		offsetOptions.ActivatedProbes = append(
+			offsetOptions.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: string(probeName),
+				},
+			})
 	}
 	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
 		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
@@ -307,21 +308,34 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 
 func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
-	// starts running the body immediately instead waiting for the first tick
-	for ; true; <-ticker.C {
-		stats, err := t.getTelemetry()
-		if err != nil {
-			continue
-		}
+	defer ticker.Stop()
 
-		for name, stat := range stats {
-			for metric, val := range stat.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
-			}
+	// trigger first get immediately
+	_ = t.populateExpvarStats()
+	for {
+		select {
+		case <-t.stop:
+			return
+		case <-ticker.C:
+			_ = t.populateExpvarStats()
 		}
 	}
+}
+
+func (t *Tracer) populateExpvarStats() error {
+	stats, err := t.getTelemetry()
+	if err != nil {
+		return err
+	}
+
+	for name, stat := range stats {
+		for metric, val := range stat.(map[string]int64) {
+			currVal := &expvar.Int{}
+			currVal.Set(val)
+			expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+		}
+	}
+	return nil
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
@@ -416,6 +430,7 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 }
 
 func (t *Tracer) Stop() {
+	close(t.stop)
 	t.reverseDNS.Close()
 	_ = t.m.Stop(manager.CleanAll)
 	_ = t.perfMap.Stop(manager.CleanAll)

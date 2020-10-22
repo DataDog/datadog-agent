@@ -1,4 +1,47 @@
-application_api_version: v1beta1
+x-google-marketplace:
+  schemaVersion: v2
+  applicationApiVersion: v1beta1
+  # The published version is required and MUST match the tag
+  # of the deployer image
+  publishedVersion: "$TAG"
+  publishedVersionMetadata:
+    releaseNote: >-
+      Migrate to use Datadog Operator
+  # The images property will be filled in during part 2
+  images:
+    datadog-operator:
+      properties:
+        datadog-operator.image.repository:
+          type: REPO_WITH_REGISTRY
+        datadog-operator.image.tag:
+          type: TAG
+  deployerServiceAccount:
+    description: >
+      Specific ServiceAccount to allow deployer to grant Datadog Operator ability to create roles/clusterroles for Datadog Agent/Cluster Agent
+    roles:
+    - type: Role
+      rulesType: PREDEFINED
+      rulesFromRoleName: cluster-admin
+    - type: ClusterRole
+      rulesType: CUSTOM
+      rules:
+      - apiGroups:
+        - apiextensions.k8s.io
+        resources:
+        - customresourcedefinitions
+        verbs:
+        - "*"
+      - apiGroups:
+        - rbac.authorization.k8s.io
+        - roles.rbac.authorization.k8s.io
+        - authorization.k8s.io
+        resources:
+        - clusterroles
+        - clusterrolebindings
+        - roles
+        - rolebindings
+        verbs:
+        - "*"
 properties:
   name:
     type: string
@@ -8,40 +51,146 @@ properties:
     type: string
     x-google-marketplace:
       type: NAMESPACE
-  datadogAgentImage:
-    type: string
-    default: 'gcr.io/datadog-public/datadog:6'
-    x-google-marketplace:
-      type: IMAGE
-  apiKey:
+  createAgent:
+    title: Automatically create Datadog Agent object (on top of installing Datadog Operator)
+    description: Required to be true if you want one-click deployment of default configuration. Otherwise you will need to create you own DatadogAgent object
+    type: boolean
+    default: true
+  datadog.credentials.apiKey:
     title: Datadog API key
     description: Get your Datadog API key at https://app.datadoghq.com/account/settings#api
     type: string
     maxLength: 45
     x-google-marketplace:
       type: STRING
-      string:
-        generatedProperties:
-          base64Encoded: apiKeyEncoded
-  serviceAccount:
-    title: Datadog Service Account
-    description: >-
-      Name of a service account in the target namespace that
-      has all permissions required by the Datadog Agent. Please create a ClusterRole
-      with the required permissions first.
-      See the full list at https://docs.datadoghq.com/integrations/faq/using-rbac-permission-with-your-kubernetes-integration/
+  datadog.credentials.appKey:
+    title: Datadog Application key (used by Cluster Agent to query external metrics)
+    description: Get your Datadog Application key at https://app.datadoghq.com/account/settings#api
+    type: string
+    maxLength: 45
+    x-google-marketplace:
+      type: STRING
+  datadog-operator.serviceAccount.name:
     type: string
     x-google-marketplace:
       type: SERVICE_ACCOUNT
       serviceAccount:
+        description: >
+          Service Account for Datadog Operator
         roles:
         - type: ClusterRole
-          rulesType: PREDEFINED
-          rulesFromRoleName: cluster-admin
-
+          rulesType: CUSTOM
+          rules:
+          - apiGroups:
+            - rbac.authorization.k8s.io
+            - roles.rbac.authorization.k8s.io
+            - authorization.k8s.io
+            resources:
+            - clusterroles
+            - clusterrolebindings
+            verbs:
+            - "*"
+          - apiGroups:
+            - datadoghq.com
+            resources:
+            - datadogagents
+            - datadogagents/status
+            - datadogagents/finalizers
+            verbs:
+            - '*'
+          - apiGroups:
+            - admissionregistration.k8s.io
+            resources:
+            - mutatingwebhookconfigurations
+            - secrets
+            verbs:
+            - get
+            - list
+            - watch
+            - update
+            - create
+          - apiGroups:
+            - apps
+            - batch
+            resources:
+            - replicasets
+            - deployments
+            - statefulsets
+            - jobs
+            - cronjobs
+            verbs:
+            - get
+          - apiGroups:
+            - apiregistration.k8s.io
+            resources:
+            - apiservices
+            verbs:
+            - get
+            - list
+            - watch
+            - update
+            - create
+            - delete
+          - apiGroups:
+            - "datadoghq.com"
+            resources:
+            - "watermarkpodautoscalers"
+            verbs:
+            - "list"
+            - "get"
+            - "watch"
+        - type: Role
+          rulesType: CUSTOM
+          rules:
+          - apiGroups:
+            - ""
+            resources:
+            - pods
+            - services
+            - endpoints
+            - events
+            - configmaps
+            - secrets
+            - serviceaccounts
+            verbs:
+            - '*'
+          - apiGroups:
+            - apps
+            resources:
+            - deployments
+            - daemonsets
+            verbs:
+            - '*'
+          - apiGroups:
+            - apps
+            resources:
+            - deployments/finalizers
+            verbs:
+            - update
+          - apiGroups:
+            - rbac.authorization.k8s.io
+            - roles.rbac.authorization.k8s.io
+            - authorization.k8s.io
+            resources:
+            - roles
+            - rolebindings
+            verbs:
+            - '*'
+          - apiGroups:
+            - policy
+            resources:
+            - poddisruptionbudgets
+            verbs:
+            - '*'
+          - apiGroups:
+            - datadoghq.com
+            resources:
+            - extendeddaemonsets
+            - datadogmetrics
+            verbs:
+            - '*'
 required:
 - name
 - namespace
-- datadogAgentImage
-- apiKey
-- serviceAccount
+- createAgent
+- datadog.credentials.apiKey

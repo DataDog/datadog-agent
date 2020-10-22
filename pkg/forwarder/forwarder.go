@@ -102,14 +102,18 @@ func init() {
 	transactionsExpvars.Set("Containers", &transactionsIntakeContainer)
 	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
 	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
+	initOrchestratorExpVars()
+	initDomainForwarderExpvars()
+	initTransactionExpvars()
+	initForwarderHealthExpvars()
+}
+
+func initOrchestratorExpVars() {
 	transactionsExpvars.Set("Pods", &transactionsIntakePod)
 	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
 	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
 	transactionsExpvars.Set("Services", &transactionsIntakeService)
 	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
-	initDomainForwarderExpvars()
-	initTransactionExpvars()
-	initForwarderHealthExpvars()
 }
 
 const (
@@ -178,12 +182,13 @@ var _ Forwarder = &DefaultForwarder{}
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
-	NumberOfWorkers          int
-	RetryQueueSize           int
-	DisableAPIKeyChecking    bool
-	APIKeyValidationInterval time.Duration
-	KeysPerDomain            map[string][]string
-	ConnectionResetInterval  time.Duration
+	NumberOfWorkers                int
+	RetryQueueSize                 int
+	RetryQueuePayloadsTotalMaxSize int
+	DisableAPIKeyChecking          bool
+	APIKeyValidationInterval       time.Duration
+	KeysPerDomain                  map[string][]string
+	ConnectionResetInterval        time.Duration
 }
 
 // NewOptions creates new Options with default values
@@ -197,14 +202,24 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 		)
 		validationInterval = config.DefaultAPIKeyValidationInterval
 	}
+	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
+	const forwarderRetryQueuePayloadsMaxSizeKey = "forwarder_retry_queue_payloads_max_size"
+	retryQueueSize := config.Datadog.GetInt(forwarderRetryQueueMaxSizeKey)
+	retryQueuePayloadsTotalMaxSize := config.Datadog.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
+
+	if retryQueueSize > 0 {
+		log.Warnf("'%s' is deprecated. It is recommended to use '%s' as it takes the payload sizes into account.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
+		retryQueuePayloadsTotalMaxSize = 0
+	}
 
 	return &Options{
-		NumberOfWorkers:          config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:           config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		DisableAPIKeyChecking:    false,
-		APIKeyValidationInterval: time.Duration(validationInterval) * time.Minute,
-		KeysPerDomain:            keysPerDomain,
-		ConnectionResetInterval:  time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
+		NumberOfWorkers:                config.Datadog.GetInt("forwarder_num_workers"),
+		RetryQueueSize:                 retryQueueSize,
+		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
+		DisableAPIKeyChecking:          false,
+		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
+		KeysPerDomain:                  keysPerDomain,
+		ConnectionResetInterval:        time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
 }
 
@@ -240,7 +255,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.ConnectionResetInterval)
+			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.RetryQueuePayloadsTotalMaxSize, options.ConnectionResetInterval)
 		}
 	}
 

@@ -32,7 +32,7 @@ int __attribute__((always_inline)) trace__sys_utimes() {
 
 // On old kernels, we have sys_utime and compat_sys_utime.
 // On new kernels, we have _x64_sys_utime32, __ia32_sys_utime32, __x64_sys_utime, __ia32_sys_utime
-SYSCALL_KPROBE0(utime) {
+SYSCALL_COMPAT_KPROBE0(utime) {
     return trace__sys_utimes();
 }
 
@@ -45,10 +45,6 @@ SYSCALL_COMPAT_TIME_KPROBE0(utimes) {
 }
 
 SYSCALL_COMPAT_TIME_KPROBE0(utimensat) {
-    return trace__sys_utimes();
-}
-
-SYSCALL_COMPAT_TIME_KPROBE0(utimesat) {
     return trace__sys_utimes();
 }
 
@@ -94,7 +90,7 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(utime) {
+SYSCALL_COMPAT_KRETPROBE(utime) {
     return trace__sys_utimes_ret(ctx);
 }
 

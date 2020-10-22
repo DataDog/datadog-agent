@@ -15,16 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-// openTables is the list of eBPF tables used by open's kProbes
-var openTables = []string{
-	"open_policy",
-	"open_basename_approvers",
-	"open_flags_approvers",
-	"open_flags_discarders",
-	"open_process_inode_approvers",
-	"open_path_inode_discarders",
-}
-
 func openOnNewApprovers(probe *Probe, approvers rules.Approvers) error {
 	stringValues := func(fvs rules.FilterValues) []string {
 		var values []string

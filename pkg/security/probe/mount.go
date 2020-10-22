@@ -17,50 +17,12 @@ import (
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 var (
 	// ErrMountNotFound is used when an unknown mount identifier is found
 	ErrMountNotFound = errors.New("unknown mount ID")
 )
-
-// mountHookPoints holds the list of probes required to track mounts
-var mountHookPoints = []*HookPoint{
-	{
-		Name: "attach_recursive_mnt",
-		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/attach_recursive_mnt",
-		}},
-		EventTypes: []eval.EventType{"*"},
-	},
-	{
-		Name: "propagate_mnt",
-		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/propagate_mnt",
-		}},
-		EventTypes: []eval.EventType{"*"},
-	},
-	{
-		Name:       "sys_mount",
-		KProbes:    syscallKprobe("mount", true),
-		EventTypes: []eval.EventType{"*"},
-	},
-	{
-		Name: "security_sb_umount",
-		KProbes: []*ebpf.KProbe{{
-			EntryFunc: "kprobe/security_sb_umount",
-		}},
-		EventTypes: []eval.EventType{"*"},
-	},
-	{
-		Name:       "sys_umount",
-		KProbes:    syscallKprobe("umount"),
-		EventTypes: []eval.EventType{"*"},
-	},
-}
 
 // newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
 func newMountEventFromMountInfo(mnt *mountinfo.Info) (*MountEvent, error) {
@@ -371,7 +333,7 @@ func (mr *MountResolver) insert(e *MountEvent) {
 
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
 // it exists
-func (mr *MountResolver) GetMountPath(mountID uint32, numlower int32) (string, string, string, error) {
+func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, error) {
 	mr.lock.RLock()
 	defer mr.lock.RUnlock()
 	m, ok := mr.mounts[mountID]
