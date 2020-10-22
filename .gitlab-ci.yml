@@ -4264,6 +4264,7 @@ revert_dockerhub_latest_7:
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:latest
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:7
 
@@ -4307,6 +4308,7 @@ revert_google_container_registry_latest_7:
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-jmx
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:latest
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:7
 
