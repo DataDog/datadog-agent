@@ -27,7 +27,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: start-redis
             templateRef:
@@ -36,7 +36,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: start-cpu-stress
             templateRef:
@@ -45,7 +45,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: start-dsd-hostname
             templateRef:
@@ -54,7 +54,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: start-logs-hello-world
             templateRef:
@@ -63,7 +63,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: start-nginx
             templateRef:
@@ -72,7 +72,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
         - - name: fake-dd-reset
             templateRef:
@@ -81,7 +81,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
         - - name: start-datadog-agent
             templateRef:
@@ -90,7 +90,7 @@ spec:
             arguments:
               parameters:
               - name: namespace
-                value: default
+                value: "{{workflow.namespace}}"
               - name: agent-image-repository
                 value: "{{inputs.parameters.datadog-agent-image-repository}}"
               - name: agent-image-tag
@@ -107,16 +107,52 @@ spec:
             arguments:
               parameters:
               - name: namespace
-                value: default
+                value: "{{workflow.namespace}}"
 
-        - - name: tests
+        - - name: test-datadog-agent
             templateRef:
-              name: tests
-              template: all
+              name: datadog-agent
+              template: test
             arguments:
               parameters:
-              - name: namespace
-                value: default
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
+          - name: test-redis
+            templateRef:
+              name: redis
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
+          - name: test-cpu
+            templateRef:
+              name: cpu-stress
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
+          - name: test-dsd
+            templateRef:
+              name: dsd-hostname
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
+          - name: test-nginx
+            templateRef:
+              name: nginx
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
         - - name: stop-redis
             templateRef:
@@ -125,7 +161,7 @@ spec:
             arguments:
               parameters:
               - name: namespace
-                value: default
+                value: "{{workflow.namespace}}"
 
           - name: stop-nginx
             templateRef:
@@ -134,7 +170,7 @@ spec:
             arguments:
               parameters:
               - name: namespace
-                value: default
+                value: "{{workflow.namespace}}"
 
         - - name: no-more-redis
             templateRef:
@@ -143,7 +179,7 @@ spec:
             arguments:
               parameters:
               - name: namespace
-                value: default
+                value: "{{workflow.namespace}}"
 
           - name: no-more-nginx
             templateRef:
@@ -152,7 +188,7 @@ spec:
             arguments:
               parameters:
               - name: namespace
-                value: default
+                value: "{{workflow.namespace}}"
 
     - name: delete
       steps:
@@ -163,7 +199,7 @@ spec:
             arguments:
               parameters:
               - name: namespace
-                value: default
+                value: "{{workflow.namespace}}"
 
           - name: stop-redis
             templateRef:
@@ -172,7 +208,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: stop-cpu-stress
             templateRef:
@@ -181,7 +217,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: stop-dsd-hostname
             templateRef:
@@ -190,7 +226,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: stop-logs-hello-world
             templateRef:
@@ -199,7 +235,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: stop-nginx
             templateRef:
@@ -208,7 +244,7 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
 
           - name: stop-fake-datadog
             templateRef:
@@ -217,4 +253,4 @@ spec:
             arguments:
               parameters:
                 - name: namespace
-                  value: default
+                  value: "{{workflow.namespace}}"
