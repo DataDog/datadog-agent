@@ -15,7 +15,7 @@ import (
 )
 
 func TestGetActivePIDs(t *testing.T) {
-	os.Setenv("HOST_PROC", "resources/linux_postgres/proc")
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
 
 	probe := NewProcessProbe()
@@ -74,7 +74,7 @@ func TestTrimAndSplitBytes(t *testing.T) {
 }
 
 func TestGetCmdline(t *testing.T) {
-	hostProc := "resources/linux_postgres/proc"
+	hostProc := "resources/test_procfs/proc"
 	os.Setenv("HOST_PROC", hostProc)
 	defer os.Unsetenv("HOST_PROC")
 
