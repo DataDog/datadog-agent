@@ -162,49 +162,45 @@ func (ds *DataScrubber) IncrementCacheAge() {
 	}
 }
 
-// ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
-// It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
-//func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
-//	newCmdline := cmdline
-//	rawCmdline := strings.Join(cmdline, " ")
-//	changed := false
-//	for _, pattern := range ds.SensitivePatterns {
-//		if pattern.MatchString(rawCmdline) {
-//			changed = true
-//			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
-//		}
-//	}
-//
-//	if changed {
-//		newCmdline = strings.Split(rawCmdline, " ")
-//	}
-//	return newCmdline, changed
-//}
+//ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
+//It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
+func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
+	newCmdline := cmdline
+	rawCmdline := strings.Join(cmdline, " ")
+	changed := false
+	for _, pattern := range ds.SensitivePatterns {
+		if pattern.MatchString(rawCmdline) {
+			changed = true
+			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
+		}
+	}
 
-type test struct {
-	index int
-	start int
-	end   int
+	if changed {
+		newCmdline = strings.Split(rawCmdline, " ")
+	}
+	return newCmdline, changed
 }
 
 // ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
 // It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
-func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
+func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 	changed := false
 	var wordReplacesIndexes []int
 	// preprocess, without the preprocessing it is needed to strip until the whitespaces.
 	var preprocessedCmdLines []string
 	for _, cmd := range cmdline {
-		preprocessedCmdLines = append(preprocessedCmdLines, strings.Split(cmd, " ")...) // TODO: ignore multiple whitespaces
+		preprocessedCmdLines = append(preprocessedCmdLines, strings.Split(cmd, " ")...)
 	}
 	for index, cmd := range preprocessedCmdLines {
 		for _, pattern := range ds.AltSensitivePatterns { // this can be optimized
 			// if we found a word from the list, it means that either the current or next word should be a password we want to replace.
 			if strings.Contains(strings.ToLower(cmd), pattern) { //password=1234
 				changed = true
-				v := strings.Split(cmd, "=") //password 1234
-				if len(v) > 1 {
-					preprocessedCmdLines[index] = v[0] + "=********"
+				v := strings.IndexAny(cmd, "=:") //password 1234
+				if v > 1 {
+					// password:1234  password=1234
+					preprocessedCmdLines[index] = cmd[:v+1] + "********"
+					// replace from v to end of string with ********
 					break
 				} else {
 					wordReplacesIndexes = append(wordReplacesIndexes, index+1)
@@ -220,11 +216,15 @@ func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 		// we still want to make sure that we are in the index e.g. the word is at the end and actually does not mean adding a password/token.
 		if index < len(preprocessedCmdLines) {
 			if preprocessedCmdLines != nil {
+				// we only want to replace words
+				for preprocessedCmdLines[index] == "" {
+					index += 1
+				}
 				preprocessedCmdLines[index] = "********"
 			}
 		}
 	}
-
+	// missing: <match> --<match>=<token>
 	return preprocessedCmdLines, changed
 }
 
