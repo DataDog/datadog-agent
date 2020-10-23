@@ -253,17 +253,25 @@ func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 }
 
-func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
+func (tm *testModule) GetEvent(eventType ...eval.EventType) (*sprobe.Event, *eval.Rule, error) {
 	timeout := time.After(3 * time.Second)
 
-	select {
-	case event := <-tm.events:
-		if e, ok := event.event.(*sprobe.Event); ok {
-			return e, event.rule, nil
+	for {
+		select {
+		case event := <-tm.events:
+			if e, ok := event.event.(*sprobe.Event); ok {
+				if len(eventType) > 0 {
+					if e.GetType() == eventType[0] {
+						return e, event.rule, nil
+					}
+				} else {
+					return e, event.rule, nil
+				}
+			}
+			return nil, nil, errors.New("invalid event")
+		case <-timeout:
+			return nil, nil, errors.New("timeout")
 		}
-		return nil, nil, errors.New("invalid event")
-	case <-timeout:
-		return nil, nil, errors.New("timeout")
 	}
 }
 
@@ -358,12 +366,22 @@ func (tp *testProbe) Root() string {
 	return tp.st.root
 }
 
-func (tp *testProbe) GetEvent(timeout time.Duration) (*sprobe.Event, error) {
-	select {
-	case event := <-tp.events:
-		return event, nil
-	case <-time.After(timeout):
-		return nil, errors.New("timeout")
+func (tp *testProbe) GetEvent(timeout time.Duration, eventType ...eval.EventType) (*sprobe.Event, error) {
+	t := time.After(timeout)
+
+	for {
+		select {
+		case event := <-tp.events:
+			if len(eventType) > 0 {
+				if event.GetType() == eventType[0] {
+					return event, nil
+				}
+			} else {
+				return event, nil
+			}
+		case <-t:
+			return nil, errors.New("timeout")
+		}
 	}
 }
 

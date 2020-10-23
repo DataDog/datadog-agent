@@ -50,7 +50,7 @@ func TestMount(t *testing.T) {
 			t.Fatalf("could not create bind mount: %s", err)
 		}
 
-		event, err := test.GetEvent(3 * time.Second)
+		event, err := test.GetEvent(3*time.Second, "mount")
 		if err != nil {
 			t.Error(err)
 		} else {
