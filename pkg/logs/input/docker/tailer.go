@@ -182,6 +182,7 @@ func (t *Tailer) readForever() {
 		default:
 			inBuf := make([]byte, 4096)
 			n, err := t.read(inBuf, t.readTimeout)
+			t.source.BytesRead.Add(int64(n))
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isReaderClosed(err):

@@ -281,8 +281,8 @@
             {{- end }}
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
-            {{- end }}
             BytesRead: {{ .bytes_read }}
+            {{- end }}
           {{- end }}
         </span>
       {{- end }}

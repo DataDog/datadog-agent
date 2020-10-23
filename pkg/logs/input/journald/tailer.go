@@ -135,6 +135,7 @@ func (t *Tailer) tail() {
 			return
 		default:
 			n, err := t.journal.Next()
+			t.source.BytesRead.Add(int64(n))
 			if err != nil && err != io.EOF {
 				err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
 				t.source.Status.Error(err)
