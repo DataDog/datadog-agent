@@ -47,6 +47,7 @@ type Module struct {
 	PkgPrefix string
 	BuildTags []string
 	Fields    map[string]*structField
+	Events    map[string]map[string]*structField
 }
 
 var module *Module
@@ -103,6 +104,14 @@ func handleBasic(name, alias, kind, event string) {
 			OrigType:   kind,
 		}
 	}
+
+	events, exists := module.Events[event]
+	if !exists {
+		events = make(map[string]*structField)
+		module.Events[event] = events
+	}
+
+	events[alias] = module.Fields[alias]
 }
 
 func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string) error {
@@ -179,7 +188,6 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 
 							fieldType, ok := field.Type.(*ast.Ident)
 							if ok {
-
 								module.Fields[fieldAlias] = &structField{
 									Name:       fmt.Sprintf("%s.%s", prefix, fieldName),
 									BasicType:  origTypeToBasicType(fieldType.Name),
@@ -189,6 +197,14 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 									Event:      event,
 									OrigType:   fieldType.Name,
 								}
+
+								events, exists := module.Events[event]
+								if !exists {
+									events = make(map[string]*structField)
+									module.Events[event] = events
+								}
+
+								events[fieldAlias] = module.Fields[fieldAlias]
 							}
 							continue
 						}
@@ -281,6 +297,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 		PkgPrefix: pkgPrefix,
 		BuildTags: buildTags,
 		Fields:    make(map[string]*structField),
+		Events:    make(map[string]map[string]*structField),
 	}
 
 	for _, decl := range astFile.Decls {
@@ -310,7 +327,12 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 
 func main() {
 	var err error
-	tmpl := template.Must(template.New("header").Parse(`{{- range .BuildTags }}// {{.}}{{end}}
+
+	funcMap := template.FuncMap{
+		"ToTitle": strings.Title,
+	}
+
+	tmpl := template.Must(template.New("header").Funcs(funcMap).Parse(`{{- range .BuildTags }}// {{.}}{{end}}
 
 // Code generated - DO NOT EDIT.
 
@@ -349,6 +371,53 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
+{{range $Name, $Fields := .Events}}
+{{if ne $Name "*"}}
+func (e *Event) zero{{$Name | ToTitle}}() {
+	{{range $Name, $Field := $Fields}}
+	{{$FieldName := $Field.Name | printf "e.%s"}}
+	{{if eq $Field.OrigType "string"}}
+		{{$FieldName}} = ""
+	{{else if eq $Field.BasicType "int"}}
+		{{$FieldName}} = 0
+	{{else if eq $Field.BasicType "bool"}}
+		{{$FieldName}} = false
+	{{end}}
+	{{end}}
+}
+{{end}}
+{{end}}
+
+func (e *Event) zeroWildcard() {
+	{{range $Name, $Fields := .Events}}
+	{{if eq $Name "*"}}
+		{{range $Name, $Field := $Fields}}
+		{{$FieldName := $Field.Name | printf "e.%s"}}
+		{{if eq $Field.OrigType "string"}}
+			{{$FieldName}} = ""
+		{{else if eq $Field.BasicType "int"}}
+			{{$FieldName}} = 0
+		{{else if eq $Field.BasicType "bool"}}
+			{{$FieldName}} = false
+		{{end}}
+		{{end}}
+	{{end}}
+	{{end}}
+}
+
+func (e *Event) Zero(eventType eval.EventType) {
+	e.zeroWildcard()
+
+	switch eventType {
+		{{range $Name, $Fields := .Events}}
+		{{if ne $Name "*"}}
+		case "{{$Name}}":
+			e.zero{{$Name | ToTitle}}()
+		{{end}}
+		{{end}}
+	}
+}
+
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 		{{range $Name, $Field := .Fields}}
@@ -366,9 +435,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return {{$Return}}, nil
 		{{end}}
 		{{end}}
-		}
+	}
 
-		return nil, &eval.ErrFieldNotFound{Field: field}
+	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
@@ -395,9 +464,9 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 			return reflect.Bool, nil
 		{{end}}
 		{{end}}
-		}
+	}
 
-		return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
@@ -425,9 +494,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return nil
 		{{end}}
 		{{end}}
-		}
+	}
 
-		return &eval.ErrFieldNotFound{Field: field}
+	return &eval.ErrFieldNotFound{Field: field}
 }
 
 `))

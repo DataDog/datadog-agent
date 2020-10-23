@@ -165,6 +165,7 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	KeysPerDomain                  map[string][]string
 	ConnectionResetInterval        time.Duration
+	CompletionHandler              HTTPCompletionHandler
 }
 
 // NewOptions creates new Options with default values
@@ -209,6 +210,8 @@ type DefaultForwarder struct {
 	healthChecker    *forwarderHealth
 	internalState    uint32
 	m                sync.Mutex // To control Start/Stop races
+
+	completionHandler HTTPCompletionHandler
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
@@ -223,6 +226,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
+		completionHandler: options.CompletionHandler,
 	}
 
 	for domain, keys := range options.KeysPerDomain {
@@ -344,6 +348,10 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
+				if f.completionHandler != nil {
+					t.completionHandler = f.completionHandler
+				}
 
 				tlmTxInputCount.Inc(domain, endpoint.name)
 				tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.name)
