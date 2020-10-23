@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/host"
 )
@@ -28,7 +29,7 @@ func NewProcessProbe() *Probe {
 	bootTime, _ := host.BootTime() // TODO (sk): Rewrite this w/o gopsutil
 
 	p := &Probe{
-		procRootLoc: HostProc(),
+		procRootLoc: util.HostProc(),
 		uid:         uint32(os.Getuid()),
 		euid:        uint32(os.Geteuid()),
 		bootTime:    bootTime,
@@ -54,8 +55,8 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 	procsByPID := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if exists, err := DoesDirExist(pathForPID); !exists || err != nil {
-			log.Debugf("Unable to create new process %d, dir exists: %t, error: %s", pid, exists, err)
+		if !util.PathExists(pathForPID) {
+			log.Debugf("Unable to create new process %d, dir doesn't exist", pid)
 			continue
 		}
 
