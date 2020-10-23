@@ -155,8 +155,11 @@ type HTTPTransaction struct {
 	Retryable bool `json:"retryable"`
 
 	// attemptHandler will be called with a transaction before the attempting to send the request
+	// Not call when the transaction is flushed to disk
 	attemptHandler HTTPAttemptHandler
-	// completionHandler will be called with a transaction after it has been successfully sent
+
+	// completionHandler will be called with a transaction after it has been successfully sent.
+	// Not call when the transaction is flushed to disk
 	completionHandler HTTPCompletionHandler
 
 	Priority TransactionPriority `json:"priority"`
