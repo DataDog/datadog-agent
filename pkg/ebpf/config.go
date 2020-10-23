@@ -108,6 +108,9 @@ type Config struct {
 
 	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
 	DriverBufferSize int
+
+	// DriverPollInterval (Windows only) interval between reads of the connections from the driver.
+	DriverPollInterval time.Duration
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -139,5 +142,6 @@ func NewDefaultConfig() *Config {
 		DNSTimeout:           15 * time.Second,
 		OffsetGuessThreshold: 400,
 		EnableMonotonicCount: false,
+		DriverPollInterval:   5 * time.Second,
 	}
 }

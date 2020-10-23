@@ -193,6 +193,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnableSystemProbe = true
 	}
 
+	if driverPollInterval := config.Datadog.GetDuration(key(spNS, "windows", "driver_poll_interval")); driverPollInterval > 0 {
+		a.Windows.DriverPollInterval = driverPollInterval
+	}
+
 	if !a.Enabled && util.StringInSlice(a.EnabledChecks, "connections") {
 		log.Info("enabling process-agent for connections check as the system-probe is enabled")
 		a.Enabled = true

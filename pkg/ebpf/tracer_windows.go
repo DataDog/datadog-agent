@@ -6,15 +6,12 @@ import (
 	"expvar"
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	defaultPollInterval = int(15)
 )
 
 var (
@@ -43,11 +40,9 @@ type Tracer struct {
 	connStatsClosed []network.ConnectionStats
 	driverBuffer    []uint8
 
-	timerInterval int
-
-	// ticker for the polling interval for writing
-	inTicker            *time.Ticker
-	stopInTickerRoutine chan bool
+	driverPollInterval time.Duration
+	// clientID used when polling driver
+	driverClientID string
 }
 
 // NewTracer returns an initialized tracer struct
@@ -65,17 +60,19 @@ func NewTracer(config *Config) (*Tracer, error) {
 	)
 
 	tr := &Tracer{
-		driverInterface: di,
-		stopChan:        make(chan struct{}),
-		timerInterval:   defaultPollInterval,
-		state:           state,
-		reverseDNS:      network.NewNullReverseDNS(),
-		connStatsActive: make([]network.ConnectionStats, 512),
-		connStatsClosed: make([]network.ConnectionStats, 512),
-		driverBuffer:    make([]uint8, config.DriverBufferSize),
+		driverInterface:    di,
+		stopChan:           make(chan struct{}),
+		state:              state,
+		reverseDNS:         network.NewNullReverseDNS(),
+		connStatsActive:    make([]network.ConnectionStats, 512),
+		connStatsClosed:    make([]network.ConnectionStats, 512),
+		driverBuffer:       make([]uint8, config.DriverBufferSize),
+		driverPollInterval: config.DriverPollInterval,
+		driverClientID:     fmt.Sprintf("%d", os.Getpid()),
 	}
 
 	go tr.expvarStats(tr.stopChan)
+	go tr.pollConnections()
 	return tr, nil
 }
 
@@ -117,10 +114,20 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 	}
 }
 
-// printStats can be used to debug the stats we pull from the driver
-func printStats(stats []network.ConnectionStats) {
-	for _, stat := range stats {
-		log.Infof("%v", stat)
+// pollConnections will read the connections from the driver on a different interval
+// than what the upstream clients do (for example, process-agent every 30s).
+// This reduces the amount of data the driver must buffer.
+func (t *Tracer) pollConnections() {
+	ticker := time.NewTicker(t.driverPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-t.stopChan:
+			return
+		case <-ticker.C:
+			_, _ = t.GetActiveConnections(t.driverClientID)
+		}
 	}
 }
 
@@ -197,9 +204,4 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 // DebugNetworkMaps returns all connections stored in the maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ErrNotImplemented
-}
-
-// CurrentKernelVersion is not implemented on this OS for Tracer
-func CurrentKernelVersion() (uint32, error) {
-	return 0, ErrNotImplemented
 }

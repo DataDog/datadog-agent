@@ -50,6 +50,9 @@ type WindowsConfig struct {
 
 	// DriverBufferSize (bytes) determines the size of the buffer we pass to the driver when reading flows
 	DriverBufferSize int
+
+	// DriverPollInterval is the length of time between connection reads from the driver
+	DriverPollInterval time.Duration
 }
 
 // AgentConfig is the global config for the process-agent. This information
