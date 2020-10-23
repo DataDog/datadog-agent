@@ -9,9 +9,10 @@ package probe
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
@@ -63,6 +64,7 @@ type Probe struct {
 	_                uint32 // padding for goarch=386
 	eventsStats      EventsStats
 	startTime        time.Time
+	event            *Event
 }
 
 // Map returns a map by its name
@@ -246,7 +248,7 @@ func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap
 
 func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
 	offset := 0
-	event := NewEvent(p.resolvers)
+	event := p.event
 
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
@@ -256,7 +258,11 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	offset += read
 
 	eventType := EventType(event.Type)
-	log.Tracef("Decoding event %s", eventType.String())
+
+	// zero the event first
+	event.Zero(eventType.String())
+
+	log.Tracef("Decoding event %s", eventType)
 
 	switch eventType {
 	case FileOpenEventType:
@@ -437,6 +443,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	}
 
 	p.resolvers = resolvers
+	p.event = NewEvent(p.resolvers)
 
 	return p, nil
 }
