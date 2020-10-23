@@ -3,7 +3,6 @@
 package procutil
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -114,9 +113,6 @@ func TestProcessesByPID(t *testing.T) {
 	// make sure the process that has no command line doesn't get included in the output
 	for _, pid := range pids {
 		cmd := strings.Join(probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid)))), " ")
-		if pid == 3 {
-			fmt.Println(cmd)
-		}
 		if cmd == "" {
 			assert.NotContains(t, procByPID, pid)
 		} else {
