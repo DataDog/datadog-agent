@@ -23,7 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool, scrubber *orchestrator.DataScrubber) ([]model.MessageBody, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
 
@@ -38,10 +38,10 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		// scrub & generate YAML
 		if withScrubbing {
 			for c := 0; c < len(depl.Spec.Template.Spec.InitContainers); c++ {
-				orchestrator.ScrubContainer(&depl.Spec.Template.Spec.InitContainers[c], cfg)
+				orchestrator.ScrubContainer(&depl.Spec.Template.Spec.InitContainers[c], scrubber)
 			}
 			for c := 0; c < len(deploymentList[d].Spec.Template.Spec.Containers); c++ {
-				orchestrator.ScrubContainer(&depl.Spec.Template.Spec.Containers[c], cfg)
+				orchestrator.ScrubContainer(&depl.Spec.Template.Spec.Containers[c], scrubber)
 			}
 		}
 		// k8s objects only have json "omitempty" annotations
@@ -95,7 +95,7 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 	return chunks
 }
 
-func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool, scrubber *orchestrator.DataScrubber) ([]model.MessageBody, error) {
 	start := time.Now()
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
 
@@ -111,10 +111,10 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		// scrub & generate YAML
 		if withScrubbing {
 			for c := 0; c < len(r.Spec.Template.Spec.InitContainers); c++ {
-				orchestrator.ScrubContainer(&r.Spec.Template.Spec.InitContainers[c], cfg)
+				orchestrator.ScrubContainer(&r.Spec.Template.Spec.InitContainers[c], scrubber)
 			}
 			for c := 0; c < len(r.Spec.Template.Spec.Containers); c++ {
-				orchestrator.ScrubContainer(&r.Spec.Template.Spec.Containers[c], cfg)
+				orchestrator.ScrubContainer(&r.Spec.Template.Spec.Containers[c], scrubber)
 			}
 		}
 

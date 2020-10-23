@@ -34,8 +34,8 @@ const (
 	nodeUnreachablePodReason = "NodeLost"
 )
 
-// ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool) ([]model.MessageBody, error) {
+// ProcessPodList processes a pod list into process messages
+func ProcessPodList(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool, scrubber *DataScrubber) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -71,10 +71,10 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		// scrub & generate YAML
 		if withScrubbing {
 			for c := 0; c < len(podList[p].Spec.Containers); c++ {
-				ScrubContainer(&podList[p].Spec.Containers[c], cfg)
+				ScrubContainer(&podList[p].Spec.Containers[c], scrubber)
 			}
 			for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
-				ScrubContainer(&podList[p].Spec.InitContainers[c], cfg)
+				ScrubContainer(&podList[p].Spec.InitContainers[c], scrubber)
 			}
 		}
 
@@ -112,9 +112,9 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 }
 
 // ScrubContainer scrubs sensitive information in the command line & env vars
-func ScrubContainer(c *v1.Container, cfg *config.AgentConfig) {
+func ScrubContainerOld(c *v1.Container, cfg *config.AgentConfig) bool {
 	// scrub command line
-	scrubbedCmd, _ := cfg.Scrubber.ScrubCommand(c.Command)
+	scrubbedCmd, changed := cfg.Scrubber.ScrubCommand(c.Command)
 	c.Command = scrubbedCmd
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
@@ -123,8 +123,26 @@ func ScrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 		scrubbedVal, err := log.CredentialsCleanerBytes([]byte(combination))
 		if err == nil && combination != string(scrubbedVal) {
 			c.Env[e].Value = redactedValue
+			changed = true
 		}
 	}
+	return changed
+}
+
+// ScrubContainer scrubs sensitive information in the command line & env vars
+func ScrubContainer(c *v1.Container, scrubber *DataScrubber) bool {
+	// scrub command line
+	scrubbedCmd, changed := scrubber.ScrubSimpleCommand(c.Command)
+	c.Command = scrubbedCmd
+	// scrub env vars
+	for e := 0; e < len(c.Env); e++ {
+		// use the "key: value" format to work with the regular credential cleaner
+		if scrubber.ContainsBlacklistedWord(c.Env[e].Name) {
+			c.Env[e].Value = redactedValue
+			changed = true
+		}
+	}
+	return changed
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.

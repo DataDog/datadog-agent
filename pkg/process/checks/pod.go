@@ -56,5 +56,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
-	return orchestrator.ProcessPodlist(podList, groupID, cfg, cfg.HostName, cfg.KubeClusterName, clusterID, cfg.IsScrubbingEnabled)
+	simpleScrubber := orchestrator.NewDefaultDataScrubber()
+
+	return orchestrator.ProcessPodList(podList, groupID, cfg, cfg.HostName, cfg.KubeClusterName, clusterID, cfg.IsScrubbingEnabled, simpleScrubber)
 }

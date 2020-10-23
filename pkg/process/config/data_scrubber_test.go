@@ -283,16 +283,6 @@ func TestBlacklistedArgs(t *testing.T) {
 	}
 }
 
-func TestBlacklistedArgsSimpleScrubber(t *testing.T) {
-	cases := setupSensitiveCmdlines()
-	scrubber := setupDataScrubber(t)
-
-	for i := range cases {
-		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
-		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
-	}
-}
-
 func TestBlacklistedArgsWhenDisabled(t *testing.T) {
 	cases := []struct {
 		cmdline       []string
@@ -417,19 +407,6 @@ func BenchmarkRegexMatching1000(b *testing.B) { benchmarkRegexMatching(1000, b) 
 var avoidOptimization []string
 
 func benchmarkRegexMatching(nbProcesses int, b *testing.B) {
-	runningProcesses, scrubber, r := prepareBenchmark(nbProcesses)
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		for _, p := range runningProcesses {
-			r, _ = scrubber.ScrubCommand(p)
-		}
-	}
-
-	avoidOptimization = r
-}
-
-
-func prepareBenchmark(nbProcesses int) ([][]string, *DataScrubber, []string) {
 	runningProcesses := make([][]string, nbProcesses)
 	foolCmdline := []string{"python ~/test/run.py --password=1234 -password 1234 -password=admin -secret 2345 -credentials=1234 -api_key 2808 &"}
 
@@ -438,7 +415,6 @@ func prepareBenchmark(nbProcesses int) ([][]string, *DataScrubber, []string) {
 		"*dd_password",
 		"*blocked_from_yaml",
 	}
-
 	scrubber := NewDefaultDataScrubber()
 	scrubber.AddCustomSensitiveWords(customSensitiveWords)
 
@@ -447,20 +423,10 @@ func prepareBenchmark(nbProcesses int) ([][]string, *DataScrubber, []string) {
 	}
 
 	var r []string
-	return runningProcesses, scrubber, r
-}
-
-func BenchmarkSimpleMatching1(b *testing.B)    { benchmarkSimpleMatching(1, b) }
-func BenchmarkSimpleMatching10(b *testing.B)   { benchmarkSimpleMatching(10, b) }
-func BenchmarkSimpleMatching100(b *testing.B)  { benchmarkSimpleMatching(100, b) }
-func BenchmarkSimpleMatching1000(b *testing.B) { benchmarkSimpleMatching(1000, b) }
-
-func benchmarkSimpleMatching(nbProcesses int, b *testing.B) {
-	runningProcesses, scrubber, r := prepareBenchmark(nbProcesses)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for _, p := range runningProcesses {
-			r, _ = scrubber.ScrubSimpleCommand(p)
+			r, _ = scrubber.ScrubCommand(p)
 		}
 	}
 

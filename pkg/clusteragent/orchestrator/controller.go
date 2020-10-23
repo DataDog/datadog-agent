@@ -63,6 +63,7 @@ type Controller struct {
 	clusterID               string
 	forwarder               forwarder.Forwarder
 	processConfig           *processcfg.AgentConfig
+	simpleDataScrubber      *orchestrator.DataScrubber
 	isLeaderFunc            func() bool
 	isScrubbingEnabled      bool
 }
@@ -138,6 +139,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		clusterName:             ctx.ClusterName,
 		clusterID:               clusterID,
 		processConfig:           cfg,
+		simpleDataScrubber:      orchestrator.NewDefaultDataScrubber(),
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		isLeaderFunc:            ctx.IsLeaderFunc,
 		isScrubbingEnabled:      config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled"),
@@ -187,7 +189,7 @@ func (o *Controller) processDeploys() {
 		return
 	}
 
-	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled, o.simpleDataScrubber)
 	if err != nil {
 		log.Errorf("Unable to process deployment list: %v", err)
 		return
@@ -215,7 +217,7 @@ func (o *Controller) processReplicaSets() {
 		return
 	}
 
-	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID, o.isScrubbingEnabled, o.simpleDataScrubber)
 	if err != nil {
 		log.Errorf("Unable to process replica set list: %v", err)
 		return
@@ -244,7 +246,7 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled)
+	msg, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID, o.isScrubbingEnabled, o.simpleDataScrubber)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return

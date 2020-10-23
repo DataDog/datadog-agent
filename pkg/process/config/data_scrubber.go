@@ -11,20 +11,12 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
-// TODO: default words are only concentation
 var (
 	defaultSensitiveWords = []string{
 		"*password*", "*passwd*", "*mysql_pwd*",
 		"*access_token*", "*auth_token*",
 		"*api_key*", "*apikey*",
 		"*secret*", "*credentials*", "stripetoken"}
-)
-var (
-	defaultSensitiveWordsAlt = []string{
-		"password", "passwd", "mysql_pwd",
-		"access_token", "auth_token",
-		"api_key", "apikey",
-		"secret", "credentials", "stripetoken"}
 )
 
 const (
@@ -50,7 +42,6 @@ func NewDefaultDataScrubber() *DataScrubber {
 	newDataScrubber := &DataScrubber{
 		Enabled:              true,
 		SensitivePatterns:    compileStringsToRegex(defaultSensitiveWords),
-		AltSensitivePatterns: defaultSensitiveWordsAlt,
 		seenProcess:          make(map[string]struct{}),
 		scrubbedCmdlines:     make(map[string][]string),
 		cacheCycles:          0,
@@ -179,53 +170,6 @@ func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 		newCmdline = strings.Split(rawCmdline, " ")
 	}
 	return newCmdline, changed
-}
-
-// ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
-// It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
-func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
-	changed := false
-	var wordReplacesIndexes []int
-	// preprocess, without the preprocessing it is needed to strip until the whitespaces.
-	var preprocessedCmdLines []string
-	for _, cmd := range cmdline {
-		preprocessedCmdLines = append(preprocessedCmdLines, strings.Split(cmd, " ")...)
-	}
-	for index, cmd := range preprocessedCmdLines {
-		for _, pattern := range ds.AltSensitivePatterns { // this can be optimized
-			// if we found a word from the list, it means that either the current or next word should be a password we want to replace.
-			if strings.Contains(strings.ToLower(cmd), pattern) { //password=1234
-				changed = true
-				v := strings.IndexAny(cmd, "=:") //password 1234
-				if v > 1 {
-					// password:1234  password=1234
-					preprocessedCmdLines[index] = cmd[:v+1] + "********"
-					// replace from v to end of string with ********
-					break
-				} else {
-					wordReplacesIndexes = append(wordReplacesIndexes, index+1)
-					index = index + 1
-					break
-				}
-			}
-		}
-	}
-
-	// password 1234
-	for _, index := range wordReplacesIndexes {
-		// we still want to make sure that we are in the index e.g. the word is at the end and actually does not mean adding a password/token.
-		if index < len(preprocessedCmdLines) {
-			if preprocessedCmdLines != nil {
-				// we only want to replace words
-				for preprocessedCmdLines[index] == "" {
-					index += 1
-				}
-				preprocessedCmdLines[index] = "********"
-			}
-		}
-	}
-	// missing: <match> --<match>=<token>
-	return preprocessedCmdLines, changed
 }
 
 // Strip away all arguments from the command line
