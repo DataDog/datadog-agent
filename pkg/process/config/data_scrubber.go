@@ -26,13 +26,13 @@ const (
 // DataScrubber allows the agent to blacklist cmdline arguments that match
 // a list of predefined and custom words
 type DataScrubber struct {
-	Enabled              bool
-	StripAllArguments    bool
-	SensitivePatterns    []*regexp.Regexp
-	seenProcess          map[string]struct{}
-	scrubbedCmdlines     map[string][]string
-	cacheCycles          uint32 // used to control the cache age
-	cacheMaxCycles       uint32 // number of cycles before resetting the cache content
+	Enabled           bool
+	StripAllArguments bool
+	SensitivePatterns []*regexp.Regexp
+	seenProcess       map[string]struct{}
+	scrubbedCmdlines  map[string][]string
+	cacheCycles       uint32 // used to control the cache age
+	cacheMaxCycles    uint32 // number of cycles before resetting the cache content
 }
 
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled
@@ -152,8 +152,8 @@ func (ds *DataScrubber) IncrementCacheAge() {
 	}
 }
 
-//ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
-//It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
+// ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
+// It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
 func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 	newCmdline := cmdline
 	rawCmdline := strings.Join(cmdline, " ")

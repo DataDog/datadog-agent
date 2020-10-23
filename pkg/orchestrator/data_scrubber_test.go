@@ -17,14 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
-func BenchmarkRegexMatching1(b *testing.B)          { benchmarkMatching(1, b) }
-func BenchmarkRegexMatching10(b *testing.B)         { benchmarkMatching(10, b) }
-func BenchmarkRegexMatching100(b *testing.B)        { benchmarkMatching(100, b) }
-func BenchmarkRegexMatching1000(b *testing.B)       { benchmarkMatching(1000, b) }
+func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }
+func BenchmarkNoRegexMatching10(b *testing.B)       { benchmarkMatching(10, b) }
+func BenchmarkNoRegexMatching100(b *testing.B)      { benchmarkMatching(100, b) }
+func BenchmarkNoRegexMatching1000(b *testing.B)     { benchmarkMatching(5000, b) }
 func BenchmarkRegexMatchingCustom1000(b *testing.B) { benchmarkMatchingCustomRegex(1000, b) }
 
 // https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go
-// always store the result to a package level variable
+// store the result to a package level variable
 // so the compiler cannot eliminate the Benchmark itself.
 //goland:noinspection ALL
 var avoidOptimization bool
@@ -42,6 +42,7 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 		containersBenchmarks = append(containersBenchmarks, containersToBenchmark...)
 	}
 	b.ResetTimer()
+
 	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
@@ -64,8 +65,9 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 	var changed bool
 
-	containersBenchmarks := make([]v1.Container, nbContainers)
-	containersToBenchmark := make([]v1.Container, nbContainers)
+	var containersBenchmarks []v1.Container
+	var containersToBenchmark []v1.Container
+
 	customRegs := []string{"pwd*", "*test"}
 	cfg := config.NewDefaultAgentConfig(true)
 	cfg.Scrubber.AddCustomSensitiveWords(customRegs)
@@ -98,7 +100,7 @@ func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 	avoidOptimization = changed
 }
 
-func TestMatchSimple(t *testing.T) {
+func TestMatchSimpleCommand(t *testing.T) {
 	cases := setupSensitiveCmdlines()
 	customSensitiveWords := []string{
 		"consul_token",
@@ -117,11 +119,9 @@ func TestMatchSimple(t *testing.T) {
 	}
 }
 
-func TestMatchSimpleRegex(t *testing.T) {
+func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 	cases := setupCmdlinesWithWildCards()
-	customSensitiveWords := []string{
-
-	}
+	customSensitiveWords := []string{"passwd"}
 
 	wildcards := []string{
 		"*path*",
@@ -129,7 +129,6 @@ func TestMatchSimpleRegex(t *testing.T) {
 		"*befpass",
 		"afterpass*",
 		"mi*le",
-		"*pass*d*",
 	}
 
 	scrubber := NewDefaultDataScrubber()
@@ -140,6 +139,52 @@ func TestMatchSimpleRegex(t *testing.T) {
 		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
+}
+
+func BenchmarkCommandMatching1(b *testing.B)    { benchmarkCommandMatching(1, b) }
+func BenchmarkCommandMatching10(b *testing.B)   { benchmarkCommandMatching(10, b) }
+func BenchmarkCommandMatching100(b *testing.B)  { benchmarkCommandMatching(100, b) }
+func BenchmarkCommandMatching1000(b *testing.B) { benchmarkCommandMatching(1000, b) }
+
+func benchmarkCommandMatching(nbCommands int, b *testing.B) {
+	runningProcesses := make([][]string, nbCommands)
+	var c bool
+	foolCmdline := []string{"python ~/test/run.py --dd_password=1234 -password 1234 -password=admin -secret 2345 -credentials=1234 -api_key 2808 &"}
+
+	customSensitiveRegex := []string{
+		"*consul_token",
+		"*dd_password",
+		"*blocked_from_yaml",
+	}
+	scrubber := NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveRegex(customSensitiveRegex)
+
+	cfgScrubber := config.NewDefaultDataScrubber()
+	cfgScrubber.AddCustomSensitiveWords(customSensitiveRegex)
+
+	for i := 0; i < nbCommands; i++ {
+		runningProcesses[i] = foolCmdline
+	}
+
+	b.ResetTimer()
+
+	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			for _, p := range runningProcesses {
+				_, c = scrubber.ScrubSimpleCommand(p)
+			}
+		}
+	})
+
+	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			for _, p := range runningProcesses {
+				_, c = cfgScrubber.ScrubCommand(p)
+			}
+		}
+	})
+
+	avoidOptimization = c
 }
 
 type testCase struct {
@@ -166,7 +211,7 @@ func setupSensitiveCmdlines() []testCase {
 		{[]string{"agent", "--PaSsWoRd=1234"}, []string{"agent", "--PaSsWoRd=********"}},
 		{[]string{"java -password      1234"}, []string{"java", "-password", "", "", "", "", "", "********"}},
 		{[]string{"process-agent --config=datadog.yaml --pid=process-agent.pid"}, []string{"process-agent", "--config=********", "--pid=********"}},
-		//{[]string{"1-password --config=12345"}, []string{"1-password", "--config=********"}}, // not working
+		{[]string{"1-password --config=12345"}, []string{"1-password", "--config=********"}}, // not working
 		{[]string{"java kafka password 1234"}, []string{"java", "kafka", "password", "********"}},
 		{[]string{"agent", "password:1234"}, []string{"agent", "password:********"}},
 		{[]string{"agent password:1234"}, []string{"agent", "password:********"}},
