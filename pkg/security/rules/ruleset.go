@@ -245,6 +245,14 @@ func (rs *RuleSet) HasRulesForEventType(eventType eval.EventType) bool {
 	return len(bucket.rules) > 0
 }
 
+// GetBucket returns rule bucket for the given event type
+func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
+	if bucket, exists := rs.eventRuleBuckets[eventType]; exists {
+		return bucket
+	}
+	return nil
+}
+
 // GetApprovers returns Approvers for the given event type and the fields
 func (rs *RuleSet) GetApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
@@ -270,15 +278,7 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 }
 
 // IsDiscarder partially evaluates an Event against a field
-func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error) {
-	event := rs.eventCtor()
-	if err := event.SetFieldValue(field, value); err != nil {
-		return false, err
-	}
-
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
-
+func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error) {
 	eventType, err := event.GetFieldEventType(field)
 	if err != nil {
 		return false, err
@@ -288,6 +288,9 @@ func (rs *RuleSet) IsDiscarder(field eval.Field, value interface{}) (bool, error
 	if !exists {
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
+
+	ctx := &eval.Context{}
+	ctx.SetObject(event.GetPointer())
 
 	for _, rule := range bucket.rules {
 		isTrue, err := rule.PartialEval(ctx, field)
