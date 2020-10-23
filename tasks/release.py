@@ -44,9 +44,9 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
 
     if agent6_version != "":
-        version_split = agent6_version.split(".")
-        agent6_version = "--6{}{}".format(
-            version_split[1], version_split[2]
+        agent6_version = "--{}".format(
+            agent6_version.replace('.', '')
+        )
         )  # generate the right hyperlink to the agent's changelog.
 
     with open(new_releasenote, "w") as f:
@@ -85,7 +85,7 @@ def update_dca_changelog(ctx, new_version, agent_version):
     try:
         ctx.run("git diff --exit-code HEAD", hide="both")
     except Failure:
-        print("Error: You have uncommitted change, please commit or stash before using update_changelog")
+        print("Error: You have uncommitted changes, please commit or stash before using update-dca-changelog")
         return
 
     # make sure we are up to date
@@ -93,9 +93,9 @@ def update_dca_changelog(ctx, new_version, agent_version):
 
     # let's check that the tag for the new version is present (needed by reno)
     try:
-        ctx.run("git tag --list | grep {}".format(new_version))
+        ctx.run("git tag --list | grep dca-{}".format(new_version))
     except Failure:
-        print("Missing '{}' git tag: mandatory to use 'reno'".format(new_version))
+        print("Missing 'dca-{}' git tag: mandatory to use 'reno'".format(new_version))
         raise
 
     # removing releasenotes from bugfix on the old minor.
@@ -112,7 +112,7 @@ def update_dca_changelog(ctx, new_version, agent_version):
     if len(log_result) > 0:
         ctx.run("git rm --ignore-unmatch {}".format(log_result))
 
-    current_branchoff = "dca-{}.{}.x".format(new_version_int[0], new_version_int[1])
+    current_branchoff = "dca-{}.{}.X".format(new_version_int[0], new_version_int[1])
     # generate the new changelog
     ctx.run(
         "reno --rel-notes-dir releasenotes-dca report \
@@ -140,7 +140,7 @@ def update_dca_changelog(ctx, new_version, agent_version):
     # commit new CHANGELOG
     ctx.run(
         "git add CHANGELOG-DCA.rst \
-            && git commit -m \"Update CHANGELOG for {}\"".format(
+            && git commit -m \"[DCA] Update CHANGELOG for {}\"".format(
             new_version
         )
     )
