@@ -10,6 +10,8 @@ package orchestrator
 import (
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 var (
@@ -55,7 +57,20 @@ func (ds *DataScrubber) ContainsBlacklistedWord(word string) bool {
 // future: we can add a check to do regex matching or simple matching depending whether we have RegexSensitivePatterns
 func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 	changed := false
+	regexChanged := false
 	var wordReplacesIndexes []int
+
+	rawCmdline := strings.Join(cmdline, " ")
+	for _, pattern := range ds.RegexSensitivePatterns {
+		if pattern.MatchString(rawCmdline) {
+			regexChanged = true
+			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
+		}
+	}
+	if regexChanged {
+		return strings.Split(rawCmdline, " "), true
+	}
+
 	// preprocess, without the preprocessing it is needed to strip until the whitespaces.
 	var preprocessedCmdLines []string
 	for _, cmd := range cmdline {
@@ -81,8 +96,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 		}
 	}
 
-	// password 1234
-	for _, index := range wordReplacesIndexes {
+	for _, index := range wordReplacesIndexes { // password 1234
 		// we still want to make sure that we are in the index e.g. the word is at the end and actually does not mean adding a password/token.
 		if index < len(preprocessedCmdLines) {
 			if preprocessedCmdLines != nil {
@@ -131,4 +145,10 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 // In the future we can add own regex expression
 func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 	ds.LiteralSensitivePatterns = append(ds.LiteralSensitivePatterns, words...)
+}
+
+// AddCustomSensitiveRegex adds custom sensitive regex on the DataScrubber object
+func (ds *DataScrubber) AddCustomSensitiveRegex(words []string) {
+	r := config.CompileStringsToRegex(words)
+	ds.RegexSensitivePatterns = append(ds.RegexSensitivePatterns, r...)
 }

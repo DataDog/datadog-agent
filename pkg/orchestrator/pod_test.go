@@ -9,7 +9,6 @@ package orchestrator
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"testing"
 	"time"
 
@@ -545,49 +544,6 @@ func getScrubCases() map[string]struct {
 		},
 	}
 	return tests
-}
-
-func BenchmarkRegexMatching1(b *testing.B)    { benchmarkRegexMatching(1, b) }
-func BenchmarkRegexMatching10(b *testing.B)   { benchmarkRegexMatching(10, b) }
-func BenchmarkRegexMatching100(b *testing.B)  { benchmarkRegexMatching(100, b) }
-func BenchmarkRegexMatching1000(b *testing.B) { benchmarkRegexMatching(1000, b) }
-
-// https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go
-// always store the result to a package level variable
-// so the compiler cannot eliminate the Benchmark itself.
-//goland:noinspection ALL
-var avoidOptimization bool
-
-func benchmarkRegexMatching(nbContainers int, b *testing.B) {
-	containersBenchmarks := make([]v1.Container, nbContainers)
-	containersToBenchmark := make([]v1.Container, nbContainers)
-	var changed bool
-	cfg := config.NewDefaultAgentConfig(true)
-	scrubber := NewDefaultDataScrubber()
-	for _, testCase := range getScrubCases() {
-		containersToBenchmark = append(containersToBenchmark, testCase.input)
-	}
-	for i := 0; i < nbContainers; i++ {
-		containersBenchmarks = append(containersBenchmarks, containersToBenchmark...)
-	}
-	b.ResetTimer()
-	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			for _, c := range containersBenchmarks {
-				changed = ScrubContainer(&c, scrubber)
-			}
-		}
-	})
-
-	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			for _, c := range containersBenchmarks {
-				changed = ScrubContainerOld(&c, cfg)
-			}
-		}
-	})
-
-	avoidOptimization = changed
 }
 
 func TestComputeStatus(t *testing.T) {
