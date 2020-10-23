@@ -5,50 +5,50 @@
 
 SEC("kprobe/mnt_want_write")
 int kprobe__mnt_want_write(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_UTIME | SYSCALL_CHMOD | SYSCALL_CHOWN | SYSCALL_RENAME | SYSCALL_RMDIR | SYSCALL_UNLINK | SYSCALL_SETXATTR | SYSCALL_REMOVEXATTR);
     if (!syscall)
         return 0;
 
     struct vfsmount *mnt = (struct vfsmount *)PT_REGS_PARM1(ctx);
 
     switch (syscall->type) {
-    case EVENT_UTIME:
+    case SYSCALL_UTIME:
         if (syscall->setattr.path_key.mount_id > 0)
             return 0;
         syscall->setattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case EVENT_CHMOD:
+    case SYSCALL_CHMOD:
         if (syscall->setattr.path_key.mount_id > 0)
             return 0;
         syscall->setattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case EVENT_CHOWN:
+    case SYSCALL_CHOWN:
         if (syscall->setattr.path_key.mount_id > 0)
             return 0;
         syscall->setattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case EVENT_RENAME:
+    case SYSCALL_RENAME:
         if (syscall->rename.src_key.mount_id > 0)
             return 0;
         syscall->rename.src_key.mount_id = get_vfsmount_mount_id(mnt);
         syscall->rename.target_key.mount_id = syscall->rename.src_key.mount_id;
         break;
-    case EVENT_RMDIR:
+    case SYSCALL_RMDIR:
         if (syscall->rmdir.path_key.mount_id > 0)
             return 0;
         syscall->rmdir.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case EVENT_UNLINK:
+    case SYSCALL_UNLINK:
         if (syscall->unlink.path_key.mount_id > 0)
             return 0;
         syscall->unlink.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case EVENT_SETXATTR:
+    case SYSCALL_SETXATTR:
         if (syscall->setxattr.path_key.mount_id > 0)
             return 0;
         syscall->setxattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case EVENT_REMOVEXATTR:
+    case SYSCALL_REMOVEXATTR:
         if (syscall->setxattr.path_key.mount_id > 0)
             return 0;
         syscall->setxattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
@@ -58,7 +58,7 @@ int kprobe__mnt_want_write(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_CHOWN | SYSCALL_SETXATTR | SYSCALL_REMOVEXATTR);
     if (!syscall)
         return 0;
 
@@ -67,17 +67,17 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ct
     bpf_probe_read(&mnt, sizeof(mnt), &file->f_path.mnt);
 
     switch (syscall->type) {
-    case EVENT_CHOWN:
+    case SYSCALL_CHOWN:
         if (syscall->setattr.path_key.mount_id > 0)
             return 0;
         syscall->setattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case EVENT_SETXATTR:
+    case SYSCALL_SETXATTR:
         if (syscall->setxattr.path_key.mount_id > 0)
             return 0;
         syscall->setxattr.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case EVENT_REMOVEXATTR:
+    case SYSCALL_REMOVEXATTR:
         if (syscall->setxattr.path_key.mount_id > 0)
             return 0;
         syscall->setxattr.path_key.mount_id = get_vfsmount_mount_id(mnt);

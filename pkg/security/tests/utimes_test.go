@@ -69,6 +69,12 @@ func TestUtime(t *testing.T) {
 			if mtime := event.Utimes.Mtime.Unix(); mtime != 456 {
 				t.Errorf("expected modification time of 456, got %d", mtime)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
+				t.Errorf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			}
+
+			testContainerPath(t, event, "utimes.container_path")
 		}
 	})
 
@@ -103,6 +109,12 @@ func TestUtime(t *testing.T) {
 			if atime := event.Utimes.Atime.UnixNano(); atime%int64(time.Second)/int64(time.Microsecond) != 222 {
 				t.Errorf("expected access microseconds of 222, got %d", atime%int64(time.Second)/int64(time.Microsecond))
 			}
+
+			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
+				t.Errorf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			}
+
+			testContainerPath(t, event, "utimes.container_path")
 		}
 	})
 
@@ -140,6 +152,12 @@ func TestUtime(t *testing.T) {
 			if mtime := event.Utimes.Mtime.UnixNano(); mtime%int64(time.Second)/int64(time.Nanosecond) != 666 {
 				t.Errorf("expected modification microseconds of 666, got %d (%d)", mtime%int64(time.Second)/int64(time.Nanosecond), mtime)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
+				t.Errorf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			}
+
+			testContainerPath(t, event, "utimes.container_path")
 		}
 	})
 }

@@ -140,6 +140,10 @@ type FileEvent struct {
 func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
+		if e.PathnameStr == dentryPathKeyNotFound {
+			return e.PathnameStr
+		}
+
 		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
 		if err == nil {
 			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
@@ -174,17 +178,21 @@ func (e *FileEvent) ResolveBasename(resolvers *Resolvers) string {
 	return e.BasenameStr
 }
 
-func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+func (e *FileEvent) marshalJSONInode(resolvers *Resolvers, inode uint64) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
 	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"inode":%d,`, inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
+}
+
+func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	return e.marshalJSONInode(resolvers, e.Inode)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -489,6 +497,27 @@ func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.BaseEvent, &e.Old, &e.New)
 }
 
+func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// use the new.inode as the old one is a fake one generated from the probe
+	buf.WriteString(`"old":`)
+	d, err := e.Old.marshalJSONInode(resolvers, e.New.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	buf.WriteString(`,"new":`)
+	d, err = e.New.marshalJSONInode(resolvers, e.New.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	return buf.Bytes(), nil
+}
+
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
 	BaseEvent
@@ -547,12 +576,33 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.BaseEvent, &e.Source, &e.Target)
 }
 
+func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// use the source.inode as the target one is a fake one generated from the probe
+	buf.WriteString(`"source":`)
+	d, err := e.Source.marshalJSONInode(resolvers, e.Source.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	buf.WriteString(`,"target":`)
+	d, err = e.Target.marshalJSONInode(resolvers, e.Source.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	return buf.Bytes(), nil
+}
+
 // MountEvent represents a mount event
 type MountEvent struct {
 	BaseEvent
-	NewMountID    uint32
-	NewGroupID    uint32
-	NewDevice     uint32
+	MountID       uint32
+	GroupID       uint32
+	Device        uint32
 	ParentMountID uint32
 	ParentInode   uint64
 	FSType        string
@@ -573,9 +623,9 @@ func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"root_inode":%d,`, e.RootInode)
 	fmt.Fprintf(&buf, `"root_mount_id":%d,`, e.RootInode)
 	fmt.Fprintf(&buf, `"root":"%s",`, e.ResolveRoot(resolvers))
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.NewMountID)
-	fmt.Fprintf(&buf, `"new_group_id":%d,`, e.NewGroupID)
-	fmt.Fprintf(&buf, `"new_device":%d,`, e.NewDevice)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"group_id":%d,`, e.GroupID)
+	fmt.Fprintf(&buf, `"device":%d,`, e.Device)
 	fmt.Fprintf(&buf, `"fstype":"%s"`, e.GetFSType())
 	buf.WriteRune('}')
 
@@ -594,9 +644,9 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.NewMountID = ebpf.ByteOrder.Uint32(data[0:4])
-	e.NewGroupID = ebpf.ByteOrder.Uint32(data[4:8])
-	e.NewDevice = ebpf.ByteOrder.Uint32(data[8:12])
+	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
+	e.GroupID = ebpf.ByteOrder.Uint32(data[4:8])
+	e.Device = ebpf.ByteOrder.Uint32(data[8:12])
 	e.ParentMountID = ebpf.ByteOrder.Uint32(data[12:16])
 	e.ParentInode = ebpf.ByteOrder.Uint64(data[16:24])
 	e.RootInode = ebpf.ByteOrder.Uint64(data[24:32])
@@ -949,12 +999,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 				marshalFnc: eventMarshalJSON(&e.Rename.BaseEvent),
 			},
 			eventMarshaler{
-				field:      "old",
-				marshalFnc: e.Rename.Old.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "new",
-				marshalFnc: e.Rename.New.marshalJSON,
+				marshalFnc: e.Rename.marshalJSON,
 			})
 	case FileUtimeEventType:
 		entries = append(entries,
@@ -973,12 +1018,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 				marshalFnc: eventMarshalJSON(&e.Link.BaseEvent),
 			},
 			eventMarshaler{
-				field:      "source",
-				marshalFnc: e.Link.Source.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "target",
-				marshalFnc: e.Link.Target.marshalJSON,
+				marshalFnc: e.Link.marshalJSON,
 			})
 	case FileMountEventType:
 		entries = append(entries,
@@ -1032,7 +1072,9 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			if prev {
 				buf.WriteRune(',')
 			}
-			buf.WriteString(`"` + entry.field + `":`)
+			if entry.field != "" {
+				buf.WriteString(`"` + entry.field + `":`)
+			}
 			buf.Write(d)
 			prev = true
 		}

@@ -9,10 +9,12 @@ package tests
 
 import (
 	"bytes"
+	"flag"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
+	"strings"
 	"syscall"
 	"testing"
 	"text/template"
@@ -50,7 +52,6 @@ system_probe_config:
 
 runtime_security_config:
   enabled: true
-  debug: false
   socket: /tmp/test-security-probe.sock
 {{if not .EnableFilters}}
   enable_kernel_filters: false
@@ -81,6 +82,13 @@ rules:
       {{$Rule.Expression}}
 {{end}}
 `
+
+var testEnvironment string
+
+const (
+	HostEnvironment   = "host"
+	DockerEnvironment = "docker"
+)
 
 type testEvent struct {
 	event eval.Event
@@ -129,6 +137,20 @@ func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
 
 func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 	h.discarders <- &testDiscarder{event: event, field: field}
+}
+
+func getInode(t *testing.T, path string) uint64 {
+	fileInfo, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stats, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Fatal(errors.New("Not a syscall.Stat_t"))
+	}
+
+	return stats.Ino
 }
 
 func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (string, error) {
@@ -231,17 +253,25 @@ func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
 }
 
-func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
+func (tm *testModule) GetEvent(eventType ...eval.EventType) (*sprobe.Event, *eval.Rule, error) {
 	timeout := time.After(3 * time.Second)
 
-	select {
-	case event := <-tm.events:
-		if e, ok := event.event.(*sprobe.Event); ok {
-			return e, event.rule, nil
+	for {
+		select {
+		case event := <-tm.events:
+			if e, ok := event.event.(*sprobe.Event); ok {
+				if len(eventType) > 0 {
+					if e.GetType() == eventType[0] {
+						return e, event.rule, nil
+					}
+				} else {
+					return e, event.rule, nil
+				}
+			}
+			return nil, nil, errors.New("invalid event")
+		case <-timeout:
+			return nil, nil, errors.New("timeout")
 		}
-		return nil, nil, errors.New("invalid event")
-	case <-timeout:
-		return nil, nil, errors.New("timeout")
 	}
 }
 
@@ -336,12 +366,22 @@ func (tp *testProbe) Root() string {
 	return tp.st.root
 }
 
-func (tp *testProbe) GetEvent(timeout time.Duration) (*sprobe.Event, error) {
-	select {
-	case event := <-tp.events:
-		return event, nil
-	case <-time.After(timeout):
-		return nil, errors.New("timeout")
+func (tp *testProbe) GetEvent(timeout time.Duration, eventType ...eval.EventType) (*sprobe.Event, error) {
+	t := time.After(timeout)
+
+	for {
+		select {
+		case event := <-tp.events:
+			if len(eventType) > 0 {
+				if event.GetType() == eventType[0] {
+					return event, nil
+				}
+			} else {
+				return event, nil
+			}
+		case <-t:
+			return nil, errors.New("timeout")
+		}
 	}
 }
 
@@ -464,4 +504,33 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 
 	return t, nil
+}
+
+func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+	if testEnvironment != DockerEnvironment {
+		return
+	}
+
+	path, err := event.GetFieldValue(fieldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(path.(string), "docker") {
+		t.Errorf("incorrect container_path, should contain `docker`: %s", path)
+	}
+}
+
+func TestEnv(t *testing.T) {
+	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
+		t.Fatal("invalid environment")
+	}
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+}
+
+func init() {
+	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 }

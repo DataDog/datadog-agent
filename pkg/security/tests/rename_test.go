@@ -60,6 +60,13 @@ func TestRename(t *testing.T) {
 			if event.GetType() != "rename" {
 				t.Errorf("expected rename event, got %s", event.GetType())
 			}
+
+			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
+				t.Errorf("expected inode %d, got %d", event.Rename.New.Inode, inode)
+			}
+
+			testContainerPath(t, event, "rename.old.container_path")
+			testContainerPath(t, event, "rename.new.container_path")
 		}
 	})
 
@@ -80,6 +87,13 @@ func TestRename(t *testing.T) {
 			if event.GetType() != "rename" {
 				t.Errorf("expected rename event, got %s", event.GetType())
 			}
+
+			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
+				t.Errorf("expected inode %d, got %d", event.Rename.New.Inode, inode)
+			}
+
+			testContainerPath(t, event, "rename.old.container_path")
+			testContainerPath(t, event, "rename.new.container_path")
 		}
 	})
 
@@ -110,6 +124,13 @@ func TestRename(t *testing.T) {
 			if event.GetType() != "rename" {
 				t.Errorf("expected rename event, got %s", event.GetType())
 			}
+
+			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
+				t.Errorf("expected inode %d, got %d", event.Rename.New.Inode, inode)
+			}
+
+			testContainerPath(t, event, "rename.old.container_path")
+			testContainerPath(t, event, "rename.new.container_path")
 		}
 	})
 }
