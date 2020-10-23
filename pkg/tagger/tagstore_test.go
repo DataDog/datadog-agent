@@ -42,9 +42,7 @@ func (s *StoreTestSuite) TestIngest() {
 	defer s.store.storeMutex.RUnlock()
 
 	assert.Len(s.T(), s.store.store, 1)
-	assert.Len(s.T(), s.store.store["test"].lowCardTags, 2)
-	assert.Len(s.T(), s.store.store["test"].orchestratorCardTags, 2)
-	assert.Len(s.T(), s.store.store["test"].highCardTags, 2)
+	assert.Len(s.T(), s.store.store["test"].sourceTags, 2)
 }
 
 func (s *StoreTestSuite) TestLookup() {
@@ -132,14 +130,14 @@ func (s *StoreTestSuite) TestPrune() {
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:               "source1",
 		Entity:               "test1",
-		LowCardTags:          []string{"tag"},
-		OrchestratorCardTags: []string{"tag"},
-		HighCardTags:         []string{"tag"},
+		LowCardTags:          []string{"s1tag"},
+		OrchestratorCardTags: []string{"s1tag"},
+		HighCardTags:         []string{"s1tag"},
 	})
 	s.store.processTagInfo(&collectors.TagInfo{
-		Source:      "source2",
-		Entity:      "test1",
-		LowCardTags: []string{"tag"},
+		Source:       "source2",
+		Entity:       "test1",
+		HighCardTags: []string{"s2tag"},
 	})
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:       "source1",
@@ -163,11 +161,11 @@ func (s *StoreTestSuite) TestPrune() {
 	tagsHigh, sourcesHigh, hashHigh := s.store.lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 4)
 	assert.Len(s.T(), sourcesHigh, 2)
-	assert.Equal(s.T(), "a8db65bfc184cd6d", hashHigh)
+	assert.Equal(s.T(), "8c7f8ffba40b5400", hashHigh)
 	tagsOrch, sourcesOrch, hashOrch := s.store.lookup("test1", collectors.OrchestratorCardinality)
-	assert.Len(s.T(), tagsOrch, 3)
+	assert.Len(s.T(), tagsOrch, 2)
 	assert.Len(s.T(), sourcesOrch, 2)
-	assert.Equal(s.T(), "a8db65bfc184cd6d", hashOrch)
+	assert.Equal(s.T(), "8c7f8ffba40b5400", hashOrch)
 	tagsHigh, sourcesHigh, hashHigh = s.store.lookup("test2", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
@@ -180,31 +178,45 @@ func (s *StoreTestSuite) TestPrune() {
 	assert.Len(s.T(), s.store.toDelete, 0)
 	s.store.toDeleteMutex.RUnlock()
 
-	// test1 should be removed, test2 still present
+	// test1 should only have tags from source2, source1 should be removed
 	tagsHigh, sourcesHigh, hashHigh = s.store.lookup("test1", collectors.HighCardinality)
-	assert.Nil(s.T(), tagsHigh)
-	assert.Nil(s.T(), sourcesHigh)
-	assert.Empty(s.T(), hashHigh)
+	assert.Len(s.T(), tagsHigh, 1)
+	assert.Len(s.T(), sourcesHigh, 1)
+	assert.Equal(s.T(), "b870a930ef16a95e", hashHigh)
 	tagsOrch, sourcesOrch, hashOrch = s.store.lookup("test1", collectors.OrchestratorCardinality)
-	assert.Nil(s.T(), tagsOrch)
-	assert.Nil(s.T(), sourcesOrch)
-	assert.Empty(s.T(), hashOrch)
+	assert.Len(s.T(), tagsOrch, 0)
+	assert.Len(s.T(), sourcesOrch, 1)
+	assert.Equal(s.T(), "b870a930ef16a95e", hashOrch)
+
+	// test2 should still be present
 	tagsHigh, sourcesHigh, hashHigh = s.store.lookup("test2", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 	assert.Equal(s.T(), "c84d937037763631", hashHigh)
 
+	// re-add tags from removed source, then remove another one
+	s.store.processTagInfo(&collectors.TagInfo{
+		Source:      "source1",
+		Entity:      "test1",
+		LowCardTags: []string{"s1tag"},
+	})
+
+	// Deletion, to be batched
+	s.store.processTagInfo(&collectors.TagInfo{
+		Source:       "source2",
+		Entity:       "test1",
+		DeleteEntity: true,
+	})
+
 	err := s.store.prune()
 	assert.Nil(s.T(), err)
 
-	// No impact if nothing is queued
 	tagsHigh, sourcesHigh, _ = s.store.lookup("test1", collectors.HighCardinality)
-	assert.Nil(s.T(), tagsHigh)
-	assert.Nil(s.T(), sourcesHigh)
+	assert.Len(s.T(), tagsHigh, 1)
+	assert.Len(s.T(), sourcesHigh, 1)
 	tagsHigh, sourcesHigh, _ = s.store.lookup("test2", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
-
 }
 
 func TestStoreSuite(t *testing.T) {
@@ -212,12 +224,7 @@ func TestStoreSuite(t *testing.T) {
 }
 
 func TestGetEntityTags(t *testing.T) {
-	etags := entityTags{
-		lowCardTags:  make(map[string][]string),
-		highCardTags: make(map[string][]string),
-		cacheValid:   false,
-	}
-	assert.False(t, etags.cacheValid)
+	etags := newEntityTags()
 
 	// Get empty tags and make sure cache is now set to valid
 	tags, sources, hash := etags.get(collectors.HighCardinality)
@@ -227,8 +234,10 @@ func TestGetEntityTags(t *testing.T) {
 	assert.Empty(t, hash)
 
 	// Add tags but don't invalidate the cache, we should return empty arrays
-	etags.lowCardTags["source"] = []string{"low1", "low2"}
-	etags.highCardTags["source"] = []string{"high1", "high2"}
+	etags.sourceTags["source"] = sourceTags{
+		lowCardTags:  []string{"low1", "low2"},
+		highCardTags: []string{"high1", "high2"},
+	}
 	tags, sources, hash = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
@@ -251,12 +260,7 @@ func TestGetEntityTags(t *testing.T) {
 }
 
 func TestDuplicateSourceTags(t *testing.T) {
-	etags := entityTags{
-		lowCardTags:  make(map[string][]string),
-		highCardTags: make(map[string][]string),
-		cacheValid:   false,
-	}
-	assert.False(t, etags.cacheValid)
+	etags := newEntityTags()
 
 	// Get empty tags and make sure cache is now set to valid
 	tags, sources, hash := etags.get(collectors.HighCardinality)
@@ -273,12 +277,21 @@ func TestDuplicateSourceTags(t *testing.T) {
 	}
 
 	// Add tags but don't invalidate the cache, we should return empty arrays
-	etags.lowCardTags["sourceNodeOrchestrator"] = []string{"bar", "tag1:sourceHigh", "tag2:sourceHigh"}
-	etags.lowCardTags["sourceNodeRuntime"] = []string{"foo", "tag1:sourceLow", "tag2:sourceLow"}
-	etags.highCardTags["sourceNodeRuntime"] = []string{"tag3:sourceLow", "tag5:sourceLow"}
-	etags.highCardTags["sourceNodeOrchestrator"] = []string{"tag3:sourceHigh", "tag4:sourceHigh"}
-	etags.highCardTags["sourceClusterOrchestrator"] = []string{"tag4:sourceClusterLow"}
-	etags.lowCardTags["sourceClusterOrchestrator"] = []string{"tag3:sourceClusterHigh", "tag1:sourceClusterLow"}
+	etags.sourceTags["sourceNodeOrchestrator"] = sourceTags{
+		lowCardTags:  []string{"bar", "tag1:sourceHigh", "tag2:sourceHigh"},
+		highCardTags: []string{"tag3:sourceHigh", "tag4:sourceHigh"},
+	}
+
+	etags.sourceTags["sourceNodeRuntime"] = sourceTags{
+		lowCardTags:  []string{"foo", "tag1:sourceLow", "tag2:sourceLow"},
+		highCardTags: []string{"tag3:sourceLow", "tag5:sourceLow"},
+	}
+
+	etags.sourceTags["sourceClusterOrchestrator"] = sourceTags{
+		lowCardTags:  []string{"tag3:sourceClusterHigh", "tag1:sourceClusterLow"},
+		highCardTags: []string{"tag4:sourceClusterLow"},
+	}
+
 	tags, sources, hash = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
