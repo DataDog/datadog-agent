@@ -78,7 +78,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 	return procsByPID, nil
 }
 
-// getActivePIDs retrieves a list of IDs representing actively running processes.
+// getActivePIDs retrieves a list of PIDs representing actively running processes.
 func (p *Probe) getActivePIDs() ([]int32, error) {
 	procFile, err := p.getRootProcFile()
 	if err != nil {
@@ -90,8 +90,11 @@ func (p *Probe) getActivePIDs() ([]int32, error) {
 		return nil, err
 	}
 
-	// reset read offset to 0
-	_, _ = procFile.Seek(0, 0)
+	// reset read offset to 0, so next time we could read the whole directory again
+	_, err = procFile.Seek(0, 0)
+	if err != nil {
+		return nil, err
+	}
 
 	pids := make([]int32, 0, len(fnames))
 	for _, fname := range fnames {

@@ -164,25 +164,25 @@ func TestProcfsChange(t *testing.T) {
 	procByPID, err := probe.ProcessesByPID()
 	assert.NoError(t, err)
 
-	// update the procfs file structure, make sure next time it reads in the updates
+	// update the procfs file structure to add a pid, make sure next time it reads in the updates
 	err = os.Rename("resources/10389", "resources/test_procfs/proc/10389")
 	assert.NoError(t, err)
 	defer func() {
 		err = os.Rename("resources/test_procfs/proc/10389", "resources/10389")
 		assert.NoError(t, err)
 	}()
-
 	newProcByPID1, err := probe.ProcessesByPID()
 	assert.NoError(t, err)
 	assert.Contains(t, newProcByPID1, int32(10389))
 	assert.NotContains(t, procByPID, int32(10389))
 
+	// remove a pid from procfs, make sure it's gone from the result
 	err = os.Rename("resources/test_procfs/proc/29613", "resources/29613")
 	assert.NoError(t, err)
 	defer func() {
 		err = os.Rename("resources/29613", "resources/test_procfs/proc/29613")
+		assert.NoError(t, err)
 	}()
-
 	newProcByPID2, err := probe.ProcessesByPID()
 	assert.NoError(t, err)
 	assert.NotContains(t, newProcByPID2, int32(29613))
