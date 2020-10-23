@@ -90,6 +90,9 @@ func (p *Probe) getActivePIDs() ([]int32, error) {
 		return nil, err
 	}
 
+	// reset read offset to 0
+	_, _ = procFile.Seek(0, 0)
+
 	pids := make([]int32, 0, len(fnames))
 	for _, fname := range fnames {
 		pid, err := strconv.ParseInt(fname, 10, 32)
