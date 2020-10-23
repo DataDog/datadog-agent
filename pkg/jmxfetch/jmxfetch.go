@@ -202,9 +202,8 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		socketPath := config.Datadog.GetString("dogstatsd_socket")
-		if len(socketPath) > 0 {
-			reporter = fmt.Sprintf("statsd:unix://%s", socketPath)
+		if common.DSD != nil && common.DSD.UdsListenerRunning {
+			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog.GetString("dogstatsd_socket"))
 		} else {
 			bindHost := config.Datadog.GetString("bind_host")
 			if bindHost == "" || bindHost == "0.0.0.0" {
