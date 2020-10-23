@@ -167,6 +167,7 @@ func TestForwarderRetry(t *testing.T) {
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetTarget").Return("blocked").Times(1)
+	notReady.On("GetPayloadSize").Return(0).Times(1)
 
 	forwarder.retryTransactions(time.Now())
 	<-ready.processed
@@ -224,9 +225,11 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
 	transaction1.On("GetTarget").Return("blocked").Times(1)
+	transaction1.On("GetPayloadSize").Return(0).Times(1)
 
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
 	transaction2.On("GetTarget").Return("blocked").Times(1)
+	transaction2.On("GetPayloadSize").Return(0).Times(1)
 
 	forwarder.retryTransactions(time.Now())
 

@@ -38,7 +38,10 @@ func TestUtime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	defer os.Remove(testFile)
 
 	t.Run("utime", func(t *testing.T) {
@@ -48,7 +51,7 @@ func TestUtime(t *testing.T) {
 		}
 
 		if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-			t.Fatal(err)
+			t.Fatal(errno)
 		}
 
 		event, _, err := test.GetEvent()
@@ -66,6 +69,12 @@ func TestUtime(t *testing.T) {
 			if mtime := event.Utimes.Mtime.Unix(); mtime != 456 {
 				t.Errorf("expected modification time of 456, got %d", mtime)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
+				t.Errorf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			}
+
+			testContainerPath(t, event, "utimes.container_path")
 		}
 	})
 
@@ -82,7 +91,7 @@ func TestUtime(t *testing.T) {
 		}
 
 		if _, _, errno := syscall.Syscall(syscall.SYS_UTIMES, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
-			t.Fatal(err)
+			t.Fatal(errno)
 		}
 
 		event, _, err := test.GetEvent()
@@ -100,6 +109,12 @@ func TestUtime(t *testing.T) {
 			if atime := event.Utimes.Atime.UnixNano(); atime%int64(time.Second)/int64(time.Microsecond) != 222 {
 				t.Errorf("expected access microseconds of 222, got %d", atime%int64(time.Second)/int64(time.Microsecond))
 			}
+
+			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
+				t.Errorf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			}
+
+			testContainerPath(t, event, "utimes.container_path")
 		}
 	})
 
@@ -137,6 +152,12 @@ func TestUtime(t *testing.T) {
 			if mtime := event.Utimes.Mtime.UnixNano(); mtime%int64(time.Second)/int64(time.Nanosecond) != 666 {
 				t.Errorf("expected modification microseconds of 666, got %d (%d)", mtime%int64(time.Second)/int64(time.Nanosecond), mtime)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Utimes.Inode {
+				t.Errorf("expected inode %d, got %d", event.Utimes.Inode, inode)
+			}
+
+			testContainerPath(t, event, "utimes.container_path")
 		}
 	})
 }

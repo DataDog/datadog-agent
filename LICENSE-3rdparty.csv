@@ -13,6 +13,7 @@ core,"code.cloudfoundry.org/garden/routes",Apache-2.0
 core,"code.cloudfoundry.org/garden/transport",Apache-2.0
 core,"code.cloudfoundry.org/lager",Apache-2.0
 core,"code.cloudfoundry.org/tlsconfig",Apache-2.0
+core,"github.com/avast/retry-go",MIT
 core,"github.com/DataDog/agent-payload/gogen",NewBSD
 core,"github.com/DataDog/agent-payload/process",NewBSD
 core,"github.com/DataDog/datadog-go/statsd",MIT
@@ -81,6 +82,7 @@ core,"github.com/alecthomas/participle/lexer/ebnf",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf/internal",MIT
 core,"github.com/alecthomas/repr",MIT
 core,"github.com/armon/go-metrics",MIT
+core,"github.com/avast/retry-go",MIT
 core,"github.com/aws/aws-sdk-go/aws",Apache-2.0
 core,"github.com/aws/aws-sdk-go/aws/awserr",Apache-2.0
 core,"github.com/aws/aws-sdk-go/aws/awsutil",Apache-2.0
@@ -127,6 +129,7 @@ core,"github.com/cenkalti/backoff",MIT
 core,"github.com/cespare/xxhash",MIT
 core,"github.com/cihub/seelog",NewBSD
 core,"github.com/clbanning/mxj",MIT
+core,"github.com/cobaugh/osrelease",NewBSD
 core,"github.com/containerd/cgroups/stats/v1",Apache-2.0
 core,"github.com/containerd/containerd",Apache-2.0
 core,"github.com/containerd/containerd/api/events",Apache-2.0
@@ -260,6 +263,8 @@ core,"github.com/fatih/color",MIT
 core,"github.com/florianl/go-conntrack",MIT
 core,"github.com/florianl/go-conntrack/internal/unix",MIT
 core,"github.com/florianl/go-tc",MIT
+core,"github.com/florianl/go-tc/core",MIT
+core,"github.com/florianl/go-tc/internal/unix",MIT
 core,"github.com/frapposelli/wwhrd",MIT
 core,"github.com/freddierice/go-losetup",MIT
 core,"github.com/fsnotify/fsnotify",NewBSD
@@ -362,8 +367,6 @@ core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
 core,"github.com/iovisor/gobpf/bcc",Apache-2.0
-core,"github.com/iovisor/gobpf/elf",Apache-2.0
-core,"github.com/iovisor/gobpf/pkg/bpffs",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
 core,"github.com/itchyny/astgen-go",MIT
 core,"github.com/itchyny/gojq",MIT

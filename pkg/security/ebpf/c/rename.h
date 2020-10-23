@@ -14,7 +14,7 @@ struct rename_event_t {
 
 int __attribute__((always_inline)) trace__sys_rename() {
     struct syscall_cache_t syscall = {
-        .type = EVENT_RENAME,
+        .type = SYSCALL_RENAME,
     };
     cache_syscall(&syscall);
 
@@ -35,15 +35,19 @@ SYSCALL_KPROBE0(renameat2) {
 
 SEC("kprobe/vfs_rename")
 int kprobe__vfs_rename(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_RENAME);
     if (!syscall)
         return 0;
-    // In a container, vfs_rename can be called multiple times to handle the different layers of the overlay filesystem.
-    // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-    if (syscall->rename.src_dentry)
-        return 0;
 
-    syscall->rename.src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+
+    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+    if (syscall->rename.src_dentry) {
+        syscall->rename.real_src_dentry = dentry;
+        return 0;
+    }
+
+    syscall->rename.src_dentry = dentry;
     syscall->rename.src_overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry);
 
     // we generate a fake source key as the inode is (can be ?) reused
@@ -56,7 +60,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_RENAME);
     if (!syscall)
         return 0;
 
@@ -67,6 +71,10 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     // Warning: we use the src_dentry twice for compatibility with CentOS. Do not change it :)
     // (the mount id was set by kprobe/mnt_want_write)
     syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.src_dentry);
+    if (syscall->rename.real_src_dentry) {
+        syscall->rename.target_key.ino = get_dentry_ino(syscall->rename.real_src_dentry);
+    }
+
     struct rename_event_t event = {
         .event.type = EVENT_RENAME,
         .syscall = {

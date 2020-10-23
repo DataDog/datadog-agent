@@ -102,14 +102,18 @@ func init() {
 	transactionsExpvars.Set("Containers", &transactionsIntakeContainer)
 	transactionsExpvars.Set("RTContainers", &transactionsIntakeRTContainer)
 	transactionsExpvars.Set("Connections", &transactionsIntakeConnections)
+	initOrchestratorExpVars()
+	initDomainForwarderExpvars()
+	initTransactionExpvars()
+	initForwarderHealthExpvars()
+}
+
+func initOrchestratorExpVars() {
 	transactionsExpvars.Set("Pods", &transactionsIntakePod)
 	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
 	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
 	transactionsExpvars.Set("Services", &transactionsIntakeService)
 	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
-	initDomainForwarderExpvars()
-	initTransactionExpvars()
-	initForwarderHealthExpvars()
 }
 
 const (
@@ -186,6 +190,7 @@ type Options struct {
 	KeysPerDomain                  map[string][]string
 	ConnectionResetInterval        time.Duration
 	RunPath                        string
+	CompletionHandler              HTTPCompletionHandler
 	RetryTransactionMaxStorage     int64
 }
 
@@ -200,11 +205,20 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 		)
 		validationInterval = config.DefaultAPIKeyValidationInterval
 	}
+	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
+	const forwarderRetryQueuePayloadsMaxSizeKey = "forwarder_retry_queue_payloads_max_size"
+	retryQueueSize := config.Datadog.GetInt(forwarderRetryQueueMaxSizeKey)
+	retryQueuePayloadsTotalMaxSize := config.Datadog.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
+
+	if retryQueueSize > 0 {
+		log.Warnf("'%s' is deprecated. It is recommended to use '%s' as it takes the payload sizes into account.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
+		retryQueuePayloadsTotalMaxSize = 0
+	}
 
 	return &Options{
 		NumberOfWorkers:                config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:                 config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		RetryQueuePayloadsTotalMaxSize: config.Datadog.GetInt("forwarder_retry_queue_all_payloads_max_size"),
+		RetryQueueSize:                 retryQueueSize,
+		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
 		DisableAPIKeyChecking:          false,
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		KeysPerDomain:                  keysPerDomain,
@@ -224,6 +238,8 @@ type DefaultForwarder struct {
 	healthChecker    *forwarderHealth
 	internalState    uint32
 	m                sync.Mutex // To control Start/Stop races
+
+	completionHandler HTTPCompletionHandler
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
@@ -238,6 +254,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
+		completionHandler: options.CompletionHandler,
 	}
 
 	for domain, keys := range options.KeysPerDomain {
@@ -368,6 +385,10 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
+				if f.completionHandler != nil {
+					t.completionHandler = f.completionHandler
+				}
 
 				tlm.Inc(domain, endpoint.name)
 

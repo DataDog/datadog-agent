@@ -30,10 +30,11 @@ func mockAggregator() *aggregator.BufferedAggregator {
 
 func buildPacketConent(numberOfMetrics int) []byte {
 	rawPacket := "daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"
+	packets := rawPacket
 	for i := 1; i < numberOfMetrics; i++ {
-		rawPacket += "\ndaemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"
+		packets += "\n" + rawPacket
 	}
-	return []byte(rawPacket)
+	return []byte(packets)
 }
 
 func BenchmarkParsePackets(b *testing.B) {
@@ -43,6 +44,19 @@ func BenchmarkParsePackets(b *testing.B) {
 	agg := mockAggregator()
 	s, _ := NewServer(agg)
 	defer s.Stop()
+
+	done := make(chan struct{})
+	go func() {
+		s, _, _ := agg.GetBufferedChannels()
+		for {
+			select {
+			case <-s:
+			case <-done:
+				return
+			}
+		}
+	}()
+	defer close(done)
 
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(agg)
@@ -96,6 +110,19 @@ func BenchmarkMapperControl(b *testing.B) {
 	agg := mockAggregator()
 	s, _ := NewServer(agg)
 	defer s.Stop()
+
+	done := make(chan struct{})
+	go func() {
+		s, _, _ := agg.GetBufferedChannels()
+		for {
+			select {
+			case <-s:
+			case <-done:
+				return
+			}
+		}
+	}()
+	defer close(done)
 
 	batcher := newBatcher(agg)
 	parser := newParser()

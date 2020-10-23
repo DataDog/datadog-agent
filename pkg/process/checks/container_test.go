@@ -136,6 +136,9 @@ func TestCalculateCtrPct(t *testing.T) {
 	// Div by zero on sys2/sys1, fallback to normal cpu calculation
 	assert.InEpsilon(t, 2, calculateCtrPct(3, 1, 1, 1, 1, before), epsilon)
 
+	// use cur=2, prev=0, sys1=0, sys2=2 simulating first check on new container
+	assert.InEpsilon(t, float32(200), calculateCtrPct(2, 0, 1, 0, 1, before), epsilon)
+
 	// Calculate based off cur & prev
 	assert.InEpsilon(t, 2, calculateCtrPct(3, 1, 0, 0, 1, before), epsilon)
 

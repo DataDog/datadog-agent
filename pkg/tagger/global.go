@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,6 +61,18 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 // standard tags (env, version, service) from cache or sources.
 func StandardTags(entity string) ([]string, error) {
 	return defaultTagger.Standard(entity)
+}
+
+// AgentTags returns the agent tags
+// It relies on the container provider utils to get the Agent container ID
+func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
+	ctrID, err := providers.ContainerImpl().GetAgentCID()
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := containers.BuildTaggerEntityName(ctrID)
+	return Tag(entityID, cardinality)
 }
 
 // OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)

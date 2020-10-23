@@ -8,11 +8,11 @@
 package collectors
 
 import (
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -34,7 +34,8 @@ type KubeletCollector struct {
 	expireFreq        time.Duration
 	labelsAsTags      map[string]string
 	annotationsAsTags map[string]string
-	globMap           map[string]glob.Glob
+	globLabels        map[string]glob.Glob
+	globAnnotations   map[string]glob.Glob
 }
 
 // Detect tries to connect to the kubelet
@@ -59,28 +60,8 @@ func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagIn
 	c.lastExpire = time.Now()
 	c.expireFreq = kubeletExpireFreq
 
-	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
-	c.globMap = map[string]glob.Glob{}
-	for label, value := range labelsAsTags {
-		delete(labelsAsTags, label)
-		pattern := strings.ToLower(label)
-		labelsAsTags[pattern] = value
-		if strings.Index(pattern, "*") != -1 {
-			g, err := glob.Compile(pattern)
-			if err != nil {
-				log.Errorf("Failed to compile glob for [%s]: %v", pattern, err)
-				continue
-			}
-			c.globMap[pattern] = g
-		}
-	}
-	c.labelsAsTags = labelsAsTags
-
-	for annotation, value := range annotationsAsTags {
-		delete(annotationsAsTags, annotation)
-		annotationsAsTags[strings.ToLower(annotation)] = value
-	}
-	c.annotationsAsTags = annotationsAsTags
+	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
+	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
 }
 
 // Pull triggers a podlist refresh and sends new info. It also triggers
