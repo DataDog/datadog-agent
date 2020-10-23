@@ -97,7 +97,7 @@ func TestGetCmdline(t *testing.T) {
 }
 
 func TestParseStatus(t *testing.T) {
-	hostProc := "resources/linux_postgres/proc"
+	hostProc := "resources/test_procfs/proc"
 	os.Setenv("HOST_PROC", hostProc)
 	defer os.Unsetenv("HOST_PROC")
 
