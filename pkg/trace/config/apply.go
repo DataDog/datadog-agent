@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -288,7 +289,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 				log.Errorf("Error parsing names: %v", err)
 				continue
 			}
-			if floatrate, ok := rate.(float64); ok {
+			if floatrate, err := toFloat64(rate); err != nil {
+				log.Errorf("Invalid value (%v) for apm_config.analyzed_spans: %v", rate, err)
+			} else {
 				if _, ok := c.AnalyzedSpansByService[serviceName]; !ok {
 					c.AnalyzedSpansByService[serviceName] = make(map[string]float64)
 				}
@@ -395,6 +398,30 @@ func parseServiceAndOp(name string) (string, string, error) {
 		return "", "", fmt.Errorf("Bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
 	}
 	return splits[0], splits[1], nil
+}
+
+func toFloat64(i interface{}) (float64, error) {
+	switch v := i.(type) {
+	case float64:
+		return v, nil
+	case float32:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int32:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case uint:
+		return float64(v), nil
+	case uint32:
+		return float64(v), nil
+	case uint64:
+		return float64(v), nil
+	case string:
+		return strconv.ParseFloat(v, 64)
+	}
+	return 0, fmt.Errorf("%v cannot be converted to float64", i)
 }
 
 func splitString(s string, sep rune) ([]string, error) {
