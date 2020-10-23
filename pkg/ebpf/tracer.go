@@ -805,7 +805,7 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 	netNs := uint64(conn.NetNS)
 	if conn.Type == network.UDP {
 		pm = t.udpPortMapping
-		netNs = 0
+		netNs = 0 // namespace is always 0 for udp since we can't get namespace info from ebpf
 	}
 	if pm.IsListening(netNs, conn.SPort) {
 		return network.INCOMING
