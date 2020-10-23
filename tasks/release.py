@@ -46,7 +46,6 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
     if agent6_version != "":
         agent6_version = "--{}".format(
             agent6_version.replace('.', '')
-        )
         )  # generate the right hyperlink to the agent's changelog.
 
     with open(new_releasenote, "w") as f:
@@ -98,8 +97,8 @@ def update_dca_changelog(ctx, new_version, agent_version):
         print("Missing 'dca-{}' git tag: mandatory to use 'reno'".format(new_version))
         raise
 
-    # removing releasenotes from bugfix on the old minor.
-    # cluster agent minor releases are in sync with the agent's, bugfixes are not necessarily.
+    # Cluster agent minor releases are in sync with the agent's, bugfixes are not necessarily.
+    # We rely on the agent's devel tag to enforce the sync between both releases.
     branching_point_agent = "{}.{}.0-devel".format(agent_version_int[0], agent_version_int[1])
     previous_minor_branchoff = "dca-{}.{}.X".format(new_version_int[0], new_version_int[1] - 1)
     log_result = ctx.run(
@@ -109,11 +108,14 @@ def update_dca_changelog(ctx, new_version, agent_version):
         )
     )
     log_result = log_result.stdout.replace('\n', ' ').strip()
+
+    # Do not include release notes that were added in the previous minor release branch (previous_minor_branchoff)
+    # and the branch-off points for the current release (pined by the agent's devel tag)
     if len(log_result) > 0:
         ctx.run("git rm --ignore-unmatch {}".format(log_result))
 
     current_branchoff = "dca-{}.{}.X".format(new_version_int[0], new_version_int[1])
-    # generate the new changelog
+    # generate the new changelog. Specifying branch in case this is run outside the release branch that contains the tag.
     ctx.run(
         "reno --rel-notes-dir releasenotes-dca report \
             --ignore-cache \
