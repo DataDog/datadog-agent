@@ -13,6 +13,7 @@ core,"code.cloudfoundry.org/garden/routes",Apache-2.0
 core,"code.cloudfoundry.org/garden/transport",Apache-2.0
 core,"code.cloudfoundry.org/lager",Apache-2.0
 core,"code.cloudfoundry.org/tlsconfig",Apache-2.0
+core,"github.com/avast/retry-go",MIT
 core,"github.com/DataDog/agent-payload/gogen",NewBSD
 core,"github.com/DataDog/agent-payload/process",NewBSD
 core,"github.com/DataDog/datadog-go/statsd",MIT
@@ -366,8 +367,6 @@ core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
 core,"github.com/iovisor/gobpf/bcc",Apache-2.0
-core,"github.com/iovisor/gobpf/elf",Apache-2.0
-core,"github.com/iovisor/gobpf/pkg/bpffs",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
 core,"github.com/itchyny/astgen-go",MIT
 core,"github.com/itchyny/gojq",MIT

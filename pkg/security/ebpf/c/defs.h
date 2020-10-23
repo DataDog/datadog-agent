@@ -196,6 +196,24 @@ enum event_type
     EVENT_EXEC,
 };
 
+enum syscall_type
+{
+    SYSCALL_OPEN        = 1 << EVENT_OPEN,
+    SYSCALL_MKDIR       = 1 << EVENT_MKDIR,
+    SYSCALL_LINK        = 1 << EVENT_LINK,
+    SYSCALL_RENAME      = 1 << EVENT_RENAME,
+    SYSCALL_UNLINK      = 1 << EVENT_UNLINK,
+    SYSCALL_RMDIR       = 1 << EVENT_RMDIR,
+    SYSCALL_CHMOD       = 1 << EVENT_CHMOD,
+    SYSCALL_CHOWN       = 1 << EVENT_CHOWN,
+    SYSCALL_UTIME       = 1 << EVENT_UTIME,
+    SYSCALL_MOUNT       = 1 << EVENT_MOUNT,
+    SYSCALL_UMOUNT      = 1 << EVENT_UMOUNT,
+    SYSCALL_SETXATTR    = 1 << EVENT_SETXATTR,
+    SYSCALL_REMOVEXATTR = 1 << EVENT_REMOVEXATTR,
+    SYSCALL_EXEC        = 1 << EVENT_EXEC,
+};
+
 struct kevent_t {
     u64 type;
 };
@@ -235,7 +253,7 @@ struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };
@@ -247,7 +265,7 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
-    .max_entries = 1024,
+    .max_entries = 0,
     .pinning = 0,
     .namespace = "",
 };

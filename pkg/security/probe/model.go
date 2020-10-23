@@ -22,14 +22,14 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 var (
-	byteOrder              = ebpf.ByteOrder
 	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
 )
 
@@ -97,8 +97,8 @@ func (e *BaseEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.TimestampRaw = byteOrder.Uint64(data[0:8])
-	e.Retval = int64(byteOrder.Uint64(data[8:16]))
+	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[0:8])
+	e.Retval = int64(ebpf.ByteOrder.Uint64(data[8:16]))
 	return 16, nil
 }
 
@@ -140,7 +140,11 @@ type FileEvent struct {
 func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.MountID, e.Inode)
-		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		if e.PathnameStr == dentryPathKeyNotFound {
+			return e.PathnameStr
+		}
+
+		_, mountPath, rootPath, err := resolvers.MountResolver.GetMountPath(e.MountID)
 		if err == nil {
 			if strings.HasPrefix(e.PathnameStr, rootPath) && rootPath != "/" {
 				e.PathnameStr = strings.Replace(e.PathnameStr, rootPath, "", 1)
@@ -154,7 +158,7 @@ func (e *FileEvent) ResolveInode(resolvers *Resolvers) string {
 // ResolveContainerPath resolves the inode to a path relative to the container
 func (e *FileEvent) ResolveContainerPath(resolvers *Resolvers) string {
 	if len(e.ContainerPath) == 0 {
-		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID, e.OverlayNumLower)
+		containerPath, _, _, err := resolvers.MountResolver.GetMountPath(e.MountID)
 		if err == nil {
 			e.ContainerPath = containerPath
 		}
@@ -174,12 +178,12 @@ func (e *FileEvent) ResolveBasename(resolvers *Resolvers) string {
 	return e.BasenameStr
 }
 
-func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+func (e *FileEvent) marshalJSONInode(resolvers *Resolvers, inode uint64) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
 	fmt.Fprintf(&buf, `"container_path":"%s",`, e.ResolveContainerPath(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"inode":%d,`, inode)
 	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"overlay_numlower":%d`, e.OverlayNumLower)
 	buf.WriteRune('}')
@@ -187,14 +191,18 @@ func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func (e *FileEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	return e.marshalJSONInode(resolvers, e.Inode)
+}
+
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.Inode = byteOrder.Uint64(data[0:8])
-	e.MountID = byteOrder.Uint32(data[8:12])
-	e.OverlayNumLower = int32(byteOrder.Uint32(data[12:16]))
+	e.Inode = ebpf.ByteOrder.Uint64(data[0:8])
+	e.MountID = ebpf.ByteOrder.Uint32(data[8:12])
+	e.OverlayNumLower = int32(ebpf.ByteOrder.Uint32(data[12:16]))
 	return 16, nil
 }
 
@@ -243,7 +251,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = byteOrder.Uint32(data[0:4])
+	e.Mode = ebpf.ByteOrder.Uint32(data[0:4])
 	return n + 4, nil
 }
 
@@ -282,8 +290,8 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.UID = int32(byteOrder.Uint32(data[0:4]))
-	e.GID = int32(byteOrder.Uint32(data[4:8]))
+	e.UID = int32(ebpf.ByteOrder.Uint32(data[0:4]))
+	e.GID = int32(ebpf.ByteOrder.Uint32(data[4:8]))
 	return n + 8, nil
 }
 
@@ -323,7 +331,7 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 200 {
 		return n, ErrNotEnoughData
 	}
-	if err := binary.Read(bytes.NewBuffer(data[0:200]), byteOrder, &e.NameRaw); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[0:200]), ebpf.ByteOrder, &e.NameRaw); err != nil {
 		return 0, err
 	}
 	return n + 200, nil
@@ -383,8 +391,8 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Flags = byteOrder.Uint32(data[0:4])
-	e.Mode = byteOrder.Uint32(data[4:8])
+	e.Flags = ebpf.ByteOrder.Uint32(data[0:4])
+	e.Mode = ebpf.ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
 }
 
@@ -421,7 +429,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = int32(byteOrder.Uint32(data[0:4]))
+	e.Mode = int32(ebpf.ByteOrder.Uint32(data[0:4]))
 	return n + 4, nil
 }
 
@@ -473,7 +481,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Flags = byteOrder.Uint32(data[0:4])
+	e.Flags = ebpf.ByteOrder.Uint32(data[0:4])
 	return n + 4, nil
 }
 
@@ -487,6 +495,27 @@ type RenameEvent struct {
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.BaseEvent, &e.Old, &e.New)
+}
+
+func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// use the new.inode as the old one is a fake one generated from the probe
+	buf.WriteString(`"old":`)
+	d, err := e.Old.marshalJSONInode(resolvers, e.New.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	buf.WriteString(`,"new":`)
+	d, err = e.New.marshalJSONInode(resolvers, e.New.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	return buf.Bytes(), nil
 }
 
 // UtimesEvent represents a utime event
@@ -524,12 +553,12 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	timeSec := byteOrder.Uint64(data[0:8])
-	timeNsec := byteOrder.Uint64(data[8:16])
+	timeSec := ebpf.ByteOrder.Uint64(data[0:8])
+	timeNsec := ebpf.ByteOrder.Uint64(data[8:16])
 	e.Atime = time.Unix(int64(timeSec), int64(timeNsec))
 
-	timeSec = byteOrder.Uint64(data[16:24])
-	timeNsec = byteOrder.Uint64(data[24:32])
+	timeSec = ebpf.ByteOrder.Uint64(data[16:24])
+	timeNsec = ebpf.ByteOrder.Uint64(data[24:32])
 	e.Mtime = time.Unix(int64(timeSec), int64(timeNsec))
 
 	return n + 32, nil
@@ -547,12 +576,33 @@ func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	return unmarshalBinary(data, &e.BaseEvent, &e.Source, &e.Target)
 }
 
+func (e *LinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// use the source.inode as the target one is a fake one generated from the probe
+	buf.WriteString(`"source":`)
+	d, err := e.Source.marshalJSONInode(resolvers, e.Source.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	buf.WriteString(`,"target":`)
+	d, err = e.Target.marshalJSONInode(resolvers, e.Source.Inode)
+	if err != nil {
+		return d, err
+	}
+	buf.Write(d)
+
+	return buf.Bytes(), nil
+}
+
 // MountEvent represents a mount event
 type MountEvent struct {
 	BaseEvent
-	NewMountID    uint32
-	NewGroupID    uint32
-	NewDevice     uint32
+	MountID       uint32
+	GroupID       uint32
+	Device        uint32
 	ParentMountID uint32
 	ParentInode   uint64
 	FSType        string
@@ -573,9 +623,9 @@ func (e *MountEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	fmt.Fprintf(&buf, `"root_inode":%d,`, e.RootInode)
 	fmt.Fprintf(&buf, `"root_mount_id":%d,`, e.RootInode)
 	fmt.Fprintf(&buf, `"root":"%s",`, e.ResolveRoot(resolvers))
-	fmt.Fprintf(&buf, `"new_mount_id":%d,`, e.NewMountID)
-	fmt.Fprintf(&buf, `"new_group_id":%d,`, e.NewGroupID)
-	fmt.Fprintf(&buf, `"new_device":%d,`, e.NewDevice)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"group_id":%d,`, e.GroupID)
+	fmt.Fprintf(&buf, `"device":%d,`, e.Device)
 	fmt.Fprintf(&buf, `"fstype":"%s"`, e.GetFSType())
 	buf.WriteRune('}')
 
@@ -594,17 +644,17 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.NewMountID = byteOrder.Uint32(data[0:4])
-	e.NewGroupID = byteOrder.Uint32(data[4:8])
-	e.NewDevice = byteOrder.Uint32(data[8:12])
-	e.ParentMountID = byteOrder.Uint32(data[12:16])
-	e.ParentInode = byteOrder.Uint64(data[16:24])
-	e.RootInode = byteOrder.Uint64(data[24:32])
-	e.RootMountID = byteOrder.Uint32(data[32:36])
+	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
+	e.GroupID = ebpf.ByteOrder.Uint32(data[4:8])
+	e.Device = ebpf.ByteOrder.Uint32(data[8:12])
+	e.ParentMountID = ebpf.ByteOrder.Uint32(data[12:16])
+	e.ParentInode = ebpf.ByteOrder.Uint64(data[16:24])
+	e.RootInode = ebpf.ByteOrder.Uint64(data[24:32])
+	e.RootMountID = ebpf.ByteOrder.Uint32(data[32:36])
 
 	// Notes: bytes 36 to 40 are used to pad the structure
 
-	if err := binary.Read(bytes.NewBuffer(data[40:56]), byteOrder, &e.FSTypeRaw); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[40:56]), ebpf.ByteOrder, &e.FSTypeRaw); err != nil {
 		return 40, err
 	}
 
@@ -662,7 +712,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.MountID = byteOrder.Uint32(data[0:4])
+	e.MountID = ebpf.ByteOrder.Uint32(data[0:4])
 	return 4, nil
 }
 
@@ -689,7 +739,7 @@ func (e *ContainerEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
-	if err := binary.Read(bytes.NewBuffer(data[0:64]), byteOrder, &e.IDRaw); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[0:64]), ebpf.ByteOrder, &e.IDRaw); err != nil {
 		return 0, err
 	}
 	return 64, nil
@@ -794,17 +844,17 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 120 {
 		return 0, ErrNotEnoughData
 	}
-	p.Pidns = byteOrder.Uint64(data[0:8])
-	if err := binary.Read(bytes.NewBuffer(data[8:24]), byteOrder, &p.CommRaw); err != nil {
+	p.Pidns = ebpf.ByteOrder.Uint64(data[0:8])
+	if err := binary.Read(bytes.NewBuffer(data[8:24]), ebpf.ByteOrder, &p.CommRaw); err != nil {
 		return 8, err
 	}
-	if err := binary.Read(bytes.NewBuffer(data[24:88]), byteOrder, &p.TTYNameRaw); err != nil {
+	if err := binary.Read(bytes.NewBuffer(data[24:88]), ebpf.ByteOrder, &p.TTYNameRaw); err != nil {
 		return 8 + len(p.CommRaw), err
 	}
-	p.Pid = byteOrder.Uint32(data[88:92])
-	p.Tid = byteOrder.Uint32(data[92:96])
-	p.UID = byteOrder.Uint32(data[96:100])
-	p.GID = byteOrder.Uint32(data[100:104])
+	p.Pid = ebpf.ByteOrder.Uint32(data[88:92])
+	p.Tid = ebpf.ByteOrder.Uint32(data[92:96])
+	p.UID = ebpf.ByteOrder.Uint32(data[96:100])
+	p.GID = ebpf.ByteOrder.Uint32(data[100:104])
 
 	read, err := p.FileEvent.UnmarshalBinary(data[104:])
 	if err != nil {
@@ -949,12 +999,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 				marshalFnc: eventMarshalJSON(&e.Rename.BaseEvent),
 			},
 			eventMarshaler{
-				field:      "old",
-				marshalFnc: e.Rename.Old.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "new",
-				marshalFnc: e.Rename.New.marshalJSON,
+				marshalFnc: e.Rename.marshalJSON,
 			})
 	case FileUtimeEventType:
 		entries = append(entries,
@@ -973,12 +1018,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 				marshalFnc: eventMarshalJSON(&e.Link.BaseEvent),
 			},
 			eventMarshaler{
-				field:      "source",
-				marshalFnc: e.Link.Source.marshalJSON,
-			},
-			eventMarshaler{
-				field:      "target",
-				marshalFnc: e.Link.Target.marshalJSON,
+				marshalFnc: e.Link.marshalJSON,
 			})
 	case FileMountEventType:
 		entries = append(entries,
@@ -1032,7 +1072,9 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			if prev {
 				buf.WriteRune(',')
 			}
-			buf.WriteString(`"` + entry.field + `":`)
+			if entry.field != "" {
+				buf.WriteString(`"` + entry.field + `":`)
+			}
 			buf.Write(d)
 			prev = true
 		}
@@ -1063,7 +1105,7 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	e.Type = byteOrder.Uint64(data[0:8])
+	e.Type = ebpf.ByteOrder.Uint64(data[0:8])
 
 	n, err := unmarshalBinary(data[8:], &e.Process, &e.Container)
 	return n + 8, err

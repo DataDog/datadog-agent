@@ -23,8 +23,8 @@ struct bpf_map_def SEC("maps/mount_id_offset") mount_id_offset = {
 };
 
 struct path_key_t {
-    unsigned long ino;
-    int mount_id;
+    u64 ino;
+    u32 mount_id;
     u32 padding;
 };
 
@@ -50,7 +50,7 @@ unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) 
     return ino;
 }
 
-void __attribute__((always_inline)) write_inode_ino(struct inode *inode, unsigned long *ino) {
+void __attribute__((always_inline)) write_inode_ino(struct inode *inode, u64 *ino) {
     bpf_probe_read(ino, sizeof(inode), &inode->i_ino);
 }
 
@@ -198,12 +198,35 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 
 #define get_key(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 
+#define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
+
+static __attribute__((always_inline)) void link_dentry_inode(struct path_key_t key, u64 inode) {
+    // avoid a infinite loop, parent a child have the same inode
+    if (key.ino == inode) {
+        return;
+    }
+
+    struct path_key_t new_key = {
+        .mount_id = key.mount_id,
+        .ino = inode,
+    };
+    struct path_leaf_t map_value = {
+        .parent = key
+    };
+
+    bpf_map_update_elem(&pathnames, &new_key, &map_value, BPF_ANY);
+}
+
 static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, struct bpf_map_def *discarders_table) {
     struct path_leaf_t map_value = {};
     struct path_key_t next_key = key;
     struct qstr qstr;
     struct dentry *d_parent;
     struct inode *d_inode = NULL;
+
+    if (key.ino == 0 || key.mount_id == 0) {
+        return -1;
+    }
 
 #pragma unroll
     for (int i = 0; i < DENTRY_MAX_DEPTH; i++)

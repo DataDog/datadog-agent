@@ -19,6 +19,7 @@ SYSCALL_KPROBE0(umount) {
 SEC("kprobe/security_sb_umount")
 int kprobe__security_sb_umount(struct pt_regs *ctx) {
     struct syscall_cache_t syscall = {
+        .type = SYSCALL_UMOUNT,
         .umount = {
             .vfs = (struct vfsmount *)PT_REGS_PARM1(ctx),
         }
@@ -29,7 +30,7 @@ int kprobe__security_sb_umount(struct pt_regs *ctx) {
 }
 
 SYSCALL_KRETPROBE(umount) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_UMOUNT);
     if (!syscall)
         return 0;
 

@@ -40,6 +40,13 @@ const (
 // ConnectionFamily will be either v4 or v6
 type ConnectionFamily uint8
 
+func (c ConnectionFamily) String() string {
+	if c == AFINET {
+		return "v4"
+	}
+	return "v6"
+}
+
 // ConnectionDirection indicates if the connection is incoming to the host or outbound
 type ConnectionDirection uint8
 

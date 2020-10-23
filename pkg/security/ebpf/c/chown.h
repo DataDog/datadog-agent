@@ -15,7 +15,7 @@ struct chown_event_t {
 
 int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
     struct syscall_cache_t syscall = {
-        .type = EVENT_CHOWN,
+        .type = SYSCALL_CHOWN,
         .setattr = {
             .user = user,
             .group = group
@@ -55,13 +55,20 @@ SYSCALL_KPROBE4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t,
 }
 
 int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_CHOWN);
     if (!syscall)
         return 0;
 
     int retval = PT_REGS_RC(ctx);
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
+
+    // add an real entry to reach the first dentry with the proper inode
+    u64 inode = syscall->setattr.path_key.ino;
+    if (syscall->setattr.real_inode) {
+        inode = syscall->setattr.real_inode;
+        link_dentry_inode(syscall->setattr.path_key, inode);
+    }
 
     struct chown_event_t event = {
         .event.type = EVENT_CHOWN,
@@ -70,7 +77,7 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
             .timestamp = bpf_ktime_get_ns(),
         },
         .file = {
-            .inode = syscall->setattr.path_key.ino,
+            .inode = inode,
             .mount_id = syscall->setattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
         },
