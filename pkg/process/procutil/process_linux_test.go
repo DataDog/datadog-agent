@@ -3,6 +3,7 @@
 package procutil
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -96,8 +97,8 @@ func TestGetCmdline(t *testing.T) {
 	}
 }
 
-func TestParseStatus(t *testing.T) {
-	hostProc := "resources/test_procfs/proc"
+func TestProcessesByPID(t *testing.T) {
+	hostProc := "resources/test_procfs/proc/"
 	os.Setenv("HOST_PROC", hostProc)
 	defer os.Unsetenv("HOST_PROC")
 
@@ -139,5 +140,99 @@ func TestParseStatus(t *testing.T) {
 
 		assert.Equal(t, expCtxSwitches.Voluntary, actual.ctxSwitches.Voluntary)
 		assert.Equal(t, expCtxSwitches.Involuntary, actual.ctxSwitches.Involuntary)
+	}
+}
+
+func TestMultipleProbes(t *testing.T) {
+	hostProc := "resources/test_procfs/proc/"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe1 := NewProcessProbe()
+	defer probe1.Close()
+
+	probe2 := NewProcessProbe()
+	defer probe2.Close()
+
+	procByPID1, err := probe1.ProcessesByPID()
+	assert.NoError(t, err)
+	procByPID2, err := probe2.ProcessesByPID()
+	assert.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		currProcByPID1, err := probe1.ProcessesByPID()
+		assert.NoError(t, err)
+		currProcByPID2, err := probe2.ProcessesByPID()
+		assert.NoError(t, err)
+		assert.EqualValues(t, currProcByPID1, currProcByPID2)
+		assert.EqualValues(t, currProcByPID1, procByPID1)
+		assert.EqualValues(t, currProcByPID2, procByPID2)
+		procByPID1 = currProcByPID1
+		procByPID2 = currProcByPID2
+	}
+}
+
+func TestProcfsChange(t *testing.T) {
+	hostProc := "resources/test_procfs/proc/"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	procByPID, err := probe.ProcessesByPID()
+	assert.NoError(t, err)
+
+	// update the procfs file structure to add a pid, make sure next time it reads in the updates
+	err = os.Rename("resources/10389", "resources/test_procfs/proc/10389")
+	assert.NoError(t, err)
+	defer func() {
+		err = os.Rename("resources/test_procfs/proc/10389", "resources/10389")
+		assert.NoError(t, err)
+	}()
+	newProcByPID1, err := probe.ProcessesByPID()
+	assert.NoError(t, err)
+	assert.Contains(t, newProcByPID1, int32(10389))
+	assert.NotContains(t, procByPID, int32(10389))
+
+	// remove a pid from procfs, make sure it's gone from the result
+	err = os.Rename("resources/test_procfs/proc/29613", "resources/29613")
+	assert.NoError(t, err)
+	defer func() {
+		err = os.Rename("resources/29613", "resources/test_procfs/proc/29613")
+		assert.NoError(t, err)
+	}()
+	newProcByPID2, err := probe.ProcessesByPID()
+	assert.NoError(t, err)
+	assert.NotContains(t, newProcByPID2, int32(29613))
+	assert.Contains(t, procByPID, int32(29613))
+}
+
+func TestParseStatus(t *testing.T) {
+	hostProc := "resources/test_procfs/proc/"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	procByPID, err := probe.ProcessesByPID()
+	assert.NoError(t, err)
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	// make sure the process that has no command line doesn't get included in the output
+	for _, pid := range pids {
+		cmd := strings.Join(probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid)))), " ")
+		if pid == 3 {
+			fmt.Println(cmd)
+		}
+		if cmd == "" {
+			assert.NotContains(t, procByPID, pid)
+		} else {
+			assert.Contains(t, procByPID, pid)
+		}
 	}
 }

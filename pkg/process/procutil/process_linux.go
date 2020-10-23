@@ -113,7 +113,7 @@ func (p *Probe) getRootProcFile() (*os.File, error) {
 	return f, err
 }
 
-// getActivePIDs retrieves a list of IDs representing actively running processes.
+// getActivePIDs retrieves a list of PIDs representing actively running processes.
 func (p *Probe) getActivePIDs() ([]int32, error) {
 	procFile, err := p.getRootProcFile()
 	if err != nil {
@@ -121,6 +121,12 @@ func (p *Probe) getActivePIDs() ([]int32, error) {
 	}
 
 	fnames, err := procFile.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	// reset read offset to 0, so next time we could read the whole directory again
+	_, err = procFile.Seek(0, 0)
 	if err != nil {
 		return nil, err
 	}
