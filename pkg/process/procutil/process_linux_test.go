@@ -108,38 +108,20 @@ func TestProcessesByPID(t *testing.T) {
 	pids, err := probe.getActivePIDs()
 	assert.NoError(t, err)
 
+	procByPID, err := probe.ProcessesByPID()
+	assert.NoError(t, err)
+
+	// make sure the process that has no command line doesn't get included in the output
 	for _, pid := range pids {
-		actual := probe.parseStatus(filepath.Join(hostProc, strconv.Itoa(int(pid))))
-		expProc, err := process.NewProcess(pid)
-		assert.NoError(t, err)
-
-		expName, err := expProc.Name()
-		assert.NoError(t, err)
-		expStatus, err := expProc.Status()
-		assert.NoError(t, err)
-		expUIDs, err := expProc.Uids()
-		assert.NoError(t, err)
-		expGIDs, err := expProc.Gids()
-		assert.NoError(t, err)
-		expThreads, err := expProc.NumThreads()
-		assert.NoError(t, err)
-		expMemInfo, err := expProc.MemoryInfo()
-		assert.NoError(t, err)
-		expCtxSwitches, err := expProc.NumCtxSwitches()
-		assert.NoError(t, err)
-
-		assert.Equal(t, expName, actual.name)
-		assert.Equal(t, expStatus, actual.status)
-		assert.EqualValues(t, expUIDs, actual.uids)
-		assert.EqualValues(t, expGIDs, actual.gids)
-		assert.Equal(t, expThreads, actual.numThreads)
-
-		assert.Equal(t, expMemInfo.RSS, actual.memInfo.RSS)
-		assert.Equal(t, expMemInfo.VMS, actual.memInfo.VMS)
-		assert.Equal(t, expMemInfo.Swap, actual.memInfo.Swap)
-
-		assert.Equal(t, expCtxSwitches.Voluntary, actual.ctxSwitches.Voluntary)
-		assert.Equal(t, expCtxSwitches.Involuntary, actual.ctxSwitches.Involuntary)
+		cmd := strings.Join(probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid)))), " ")
+		if pid == 3 {
+			fmt.Println(cmd)
+		}
+		if cmd == "" {
+			assert.NotContains(t, procByPID, pid)
+		} else {
+			assert.Contains(t, procByPID, pid)
+		}
 	}
 }
 
@@ -215,24 +197,40 @@ func TestParseStatus(t *testing.T) {
 	probe := NewProcessProbe()
 	defer probe.Close()
 
-	procByPID, err := probe.ProcessesByPID()
-	assert.NoError(t, err)
-	os.Setenv("HOST_PROC", hostProc)
-	defer os.Unsetenv("HOST_PROC")
-
 	pids, err := probe.getActivePIDs()
 	assert.NoError(t, err)
 
-	// make sure the process that has no command line doesn't get included in the output
 	for _, pid := range pids {
-		cmd := strings.Join(probe.getCmdline(filepath.Join(hostProc, strconv.Itoa(int(pid)))), " ")
-		if pid == 3 {
-			fmt.Println(cmd)
-		}
-		if cmd == "" {
-			assert.NotContains(t, procByPID, pid)
-		} else {
-			assert.Contains(t, procByPID, pid)
-		}
+		actual := probe.parseStatus(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+
+		expName, err := expProc.Name()
+		assert.NoError(t, err)
+		expStatus, err := expProc.Status()
+		assert.NoError(t, err)
+		expUIDs, err := expProc.Uids()
+		assert.NoError(t, err)
+		expGIDs, err := expProc.Gids()
+		assert.NoError(t, err)
+		expThreads, err := expProc.NumThreads()
+		assert.NoError(t, err)
+		expMemInfo, err := expProc.MemoryInfo()
+		assert.NoError(t, err)
+		expCtxSwitches, err := expProc.NumCtxSwitches()
+		assert.NoError(t, err)
+
+		assert.Equal(t, expName, actual.name)
+		assert.Equal(t, expStatus, actual.status)
+		assert.EqualValues(t, expUIDs, actual.uids)
+		assert.EqualValues(t, expGIDs, actual.gids)
+		assert.Equal(t, expThreads, actual.numThreads)
+
+		assert.Equal(t, expMemInfo.RSS, actual.memInfo.RSS)
+		assert.Equal(t, expMemInfo.VMS, actual.memInfo.VMS)
+		assert.Equal(t, expMemInfo.Swap, actual.memInfo.Swap)
+
+		assert.Equal(t, expCtxSwitches.Voluntary, actual.ctxSwitches.Voluntary)
+		assert.Equal(t, expCtxSwitches.Involuntary, actual.ctxSwitches.Involuntary)
 	}
 }
