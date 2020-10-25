@@ -124,9 +124,10 @@ const (
 )
 
 const (
-	apiHTTPHeaderKey       = "DD-Api-Key"
-	versionHTTPHeaderKey   = "DD-Agent-Version"
-	useragentHTTPHeaderKey = "User-Agent"
+	apiHTTPHeaderKey          = "DD-Api-Key"
+	versionHTTPHeaderKey      = "DD-Agent-Version"
+	useragentHTTPHeaderKey    = "User-Agent"
+	arbitraryTagHTTPHeaderKey = "Allow-Arbitrary-Tag-Value"
 )
 
 // The amount of time the forwarder will wait to receive process-like response payloads before giving up
@@ -373,6 +374,9 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+				if config.Datadog.GetBool("allow_arbitrary_tags") {
+					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+				}
 
 				if f.completionHandler != nil {
 					t.completionHandler = f.completionHandler
