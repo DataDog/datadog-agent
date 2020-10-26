@@ -13,7 +13,7 @@ struct rmdir_event_t {
 
 SYSCALL_KPROBE0(rmdir) {
     struct syscall_cache_t syscall = {
-        .type = EVENT_RMDIR,
+        .type = SYSCALL_RMDIR,
     };
     cache_syscall(&syscall);
 
@@ -22,36 +22,48 @@ SYSCALL_KPROBE0(rmdir) {
 
 SEC("kprobe/security_inode_rmdir")
 int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_RMDIR | SYSCALL_UNLINK);
     if (!syscall)
         return 0;
+
     struct path_key_t key = {};
     struct dentry *dentry = NULL;
-    if (syscall->type == EVENT_RMDIR) {
-        // In a container, security_inode_rmdir can be called multiple times to handle the different layers of the overlay filesystem.
-        // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-        if (syscall->rmdir.path_key.ino)
-            return 0;
 
-        dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-        syscall->rmdir.path_key.ino = get_dentry_ino(dentry);
-        syscall->rmdir.overlay_numlower = get_overlay_numlower(dentry);
-        // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-        key = syscall->rmdir.path_key;
-    }
-    if (syscall->type == EVENT_UNLINK) {
-        // In a container, vfs_unlink can be called multiple times to handle the different layers of the overlay filesystem.
-        // The first call is the only one we really care about, the subsequent calls contain paths to the overlay work layer.
-        if (syscall->unlink.path_key.ino)
-            return 0;
+    switch (syscall->type) {
+        case SYSCALL_RMDIR:
+            // we resolve all the information before the file is actually removed
+            dentry = (struct dentry *)PT_REGS_PARM2(ctx);
 
-        // we resolve all the information before the file is actually removed
-        dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-        syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
-        syscall->unlink.path_key.ino = get_dentry_ino(dentry);
-        // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-        key = syscall->unlink.path_key;
+            // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+            if (syscall->rmdir.path_key.ino) {
+                syscall->rmdir.real_inode = get_dentry_ino(dentry);
+                return 0;
+            }
+
+            syscall->rmdir.path_key.ino = get_dentry_ino(dentry);
+            syscall->rmdir.overlay_numlower = get_overlay_numlower(dentry);
+            // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+            key = syscall->rmdir.path_key;
+
+            break;
+        case SYSCALL_UNLINK:
+            // we resolve all the information before the file is actually removed
+            dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+
+            // if second pass, ex: overlayfs, just cache the inode that will be used in ret
+            if (syscall->unlink.path_key.ino) {
+                syscall->unlink.real_inode = get_dentry_ino(dentry);
+                return 0;
+            }
+
+            syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
+            syscall->unlink.path_key.ino = get_dentry_ino(dentry);
+            // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+            key = syscall->unlink.path_key;
+
+            break;
     }
+
     if (dentry != NULL) {
         resolve_dentry(dentry, key, NULL);
     }
@@ -60,13 +72,20 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 }
 
 SYSCALL_KRETPROBE(rmdir) {
-    struct syscall_cache_t *syscall = pop_syscall();
+    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_RMDIR | SYSCALL_UNLINK);
     if (!syscall)
         return 0;
 
     int retval = PT_REGS_RC(ctx);
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
+
+    // add an real entry to reach the first dentry with the proper inode
+    u64 inode = syscall->rmdir.path_key.ino;
+    if (syscall->rmdir.real_inode) {
+        inode = syscall->rmdir.real_inode;
+        link_dentry_inode(syscall->rmdir.path_key, inode);
+    }
 
     struct rmdir_event_t event = {
         .event.type = EVENT_RMDIR,
@@ -75,7 +94,7 @@ SYSCALL_KRETPROBE(rmdir) {
             .timestamp = bpf_ktime_get_ns(),
         },
         .file = {
-            .inode = syscall->rmdir.path_key.ino,
+            .inode = inode,
             .mount_id = syscall->rmdir.path_key.mount_id,
             .overlay_numlower = syscall->rmdir.overlay_numlower,
         }

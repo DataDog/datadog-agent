@@ -3,6 +3,8 @@
 
 #include "filters.h"
 
+#define FSTYPE_LEN 16
+
 struct ktimeval {
     long tv_sec;
     long tv_nsec;
@@ -17,15 +19,16 @@ struct syscall_cache_t {
         struct {
             int flags;
             umode_t mode;
-            struct path *dir;
             struct dentry *dentry;
             struct path_key_t path_key;
+            u64 real_inode;
         } open;
 
         struct {
             umode_t mode;
-            struct path *dir;
             struct dentry *dentry;
+            struct dentry *real_dentry;
+            struct path *path;
             struct path_key_t path_key;
         } mkdir;
 
@@ -33,17 +36,20 @@ struct syscall_cache_t {
             struct path_key_t path_key;
             int overlay_numlower;
             int flags;
+            u64 real_inode;
         } unlink;
 
         struct {
             struct path_key_t path_key;
             int overlay_numlower;
+            u64 real_inode;
         } rmdir;
 
         struct {
             struct path_key_t src_key;
             unsigned long src_inode;
             struct dentry *src_dentry;
+            struct dentry *real_src_dentry;
             struct path_key_t target_key;
             int src_overlay_numlower;
         } rename;
@@ -63,6 +69,7 @@ struct syscall_cache_t {
                     struct ktimeval mtime;
                 };
             };
+            u64 real_inode;
         } setattr;
 
         struct {
@@ -83,12 +90,14 @@ struct syscall_cache_t {
             struct dentry *target_dentry;
             struct path_key_t target_key;
             int src_overlay_numlower;
+            u64 real_src_inode;
         } link;
 
         struct {
             struct dentry *dentry;
             struct path_key_t path_key;
             const char *name;
+            u64 real_inode;
         } setxattr;
     };
 };
@@ -107,17 +116,22 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) peek_syscall() {
+struct syscall_cache_t * __attribute__((always_inline)) peek_syscall(u16 type) {
     u64 key = bpf_get_current_pid_tgid();
-    return (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    if (syscall && (syscall->type & type) > 0)
+        return syscall;
+    return NULL;
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) pop_syscall() {
+struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u16 type) {
     u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t*) bpf_map_lookup_elem(&syscalls, &key);
-    if (syscall)
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
+    if (syscall && (syscall->type & type) > 0) {
         bpf_map_delete_elem(&syscalls, &key);
-    return syscall;
+        return syscall;
+    }
+    return NULL;
 }
 
 #endif

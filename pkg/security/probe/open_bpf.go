@@ -81,7 +81,7 @@ func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder
 			return nil
 		}
 
-		isDiscarded, err := discardParentInode(probe, rs, "open", value, fsEvent.MountID, fsEvent.Inode, table)
+		isDiscarded, err := discardParentInode(probe, rs, "open", "open.filename", value, fsEvent.MountID, fsEvent.Inode, table)
 		if !isDiscarded {
 			if _, ok := err.(*ErrInvalidKeyPath); !ok {
 				// not able to discard the parent then only discard the filename
