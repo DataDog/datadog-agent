@@ -164,7 +164,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 	}
 
 	if err := o.forwarder.Start(); err != nil {
-		log.Errorf("error starting pod forwarder: %s", err)
+		log.Errorf("Error starting pod forwarder: %s", err)
 		return
 	}
 
