@@ -17,7 +17,11 @@ type Check interface {
 	Run() error
 	// Stop stops the check if it's running
 	Stop()
-	// String provide a printable version of the check name
+	// Cancel cancels the check. Cancel is called when the check is unscheduled:
+	// - unlike Stop, it is called even if the check is not running when it's unscheduled
+	// - if the check is running, Cancel is called after Stop and may be called before the call to Stop completes
+	Cancel()
+	// String provides a printable version of the check name
 	String() string
 	// Configure configures the check
 	Configure(config, initConfig integration.Data, source string) error

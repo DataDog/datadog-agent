@@ -111,6 +111,10 @@ func (c *PythonCheck) RunSimple() error {
 // Stop does nothing
 func (c *PythonCheck) Stop() {}
 
+// Cancel does nothing
+// TODO: implement Cancel for python checks
+func (c *PythonCheck) Cancel() {}
+
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {
 	return c.ModuleName

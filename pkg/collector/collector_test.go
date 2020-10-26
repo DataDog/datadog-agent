@@ -12,18 +12,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
 // FIXTURE
 type TestCheck struct {
 	check.StubCheck
+	mock.Mock
 	uniqueID check.ID
 	name     string
 	stop     chan bool
 }
 
 func (c *TestCheck) Stop()                   { c.stop <- true }
+func (c *TestCheck) Cancel()                 { c.Called() }
 func (c *TestCheck) Interval() time.Duration { return 1 * time.Minute }
 func (c *TestCheck) Run() error              { <-c.stop; return nil }
 func (c *TestCheck) ID() check.ID {
@@ -39,9 +42,27 @@ func (c *TestCheck) String() string {
 	return "TestCheck"
 }
 
-func NewCheck() *TestCheck { return &TestCheck{stop: make(chan bool)} }
+func NewCheck() *TestCheck {
+	c := &TestCheck{
+		stop: make(chan bool),
+	}
+	c.On("Cancel").Maybe()
+	return c
+}
+
 func NewCheckUnique(id check.ID, name string) *TestCheck {
-	return &TestCheck{uniqueID: id, name: name, stop: make(chan bool)}
+	c := NewCheck()
+	c.uniqueID = id
+	c.name = name
+	return c
+}
+
+func NewCheckSlowCancel(after time.Duration) *TestCheck {
+	c := &TestCheck{
+		stop: make(chan bool),
+	}
+	c.On("Cancel").After(after)
+	return c
 }
 
 // ChecksList is a sort.Interface so we can use the Sort function
@@ -105,13 +126,29 @@ func (suite *CollectorTestSuite) TestStopCheck() {
 	err = suite.c.StopCheck("TestCheck")
 	assert.Nil(suite.T(), err)
 	assert.Zero(suite.T(), len(suite.c.checks))
+	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
 }
 
-func (suite *CollectorTestSuite) TestFind() {
-	assert.False(suite.T(), suite.c.find("bar"))
-	suite.c.checks["bar"] = nil
-	assert.False(suite.T(), suite.c.find("foo"))
-	assert.True(suite.T(), suite.c.find("bar"))
+func (suite *CollectorTestSuite) TestCancelCheck_TimeoutIsApplied() {
+	ch := NewCheckSlowCancel(10 * time.Second)
+
+	start := time.Now()
+	err := suite.c.cancelCheck(ch, time.Millisecond)
+	assert.NotNil(suite.T(), err)
+	assert.WithinDuration(suite.T(), start, time.Now(), 5*time.Second)
+	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
+}
+
+func (suite *CollectorTestSuite) TestGet() {
+	_, found := suite.c.get("bar")
+	assert.False(suite.T(), found)
+
+	suite.c.checks["bar"] = NewCheck()
+	_, found = suite.c.get("foo")
+	assert.False(suite.T(), found)
+	c, found := suite.c.get("bar")
+	assert.True(suite.T(), found)
+	assert.Equal(suite.T(), suite.c.checks["bar"], c)
 }
 
 func (suite *CollectorTestSuite) TestDelete() {
@@ -121,9 +158,11 @@ func (suite *CollectorTestSuite) TestDelete() {
 
 	// for good
 	suite.c.checks["bar"] = nil
-	assert.True(suite.T(), suite.c.find("bar"))
+	_, found := suite.c.get("bar")
+	assert.True(suite.T(), found)
 	suite.c.delete("bar")
-	assert.False(suite.T(), suite.c.find("bar"))
+	_, found = suite.c.get("bar")
+	assert.False(suite.T(), found)
 }
 
 func (suite *CollectorTestSuite) TestStarted() {
@@ -176,10 +215,14 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	sort.Sort(ChecksList(killed))
 	assert.Equal(suite.T(), killed, []check.ID{"bar", "foo"})
 
-	assert.False(suite.T(), suite.c.find("foo"))
-	assert.False(suite.T(), suite.c.find("bar"))
-	assert.True(suite.T(), suite.c.find("baz"))
-	assert.True(suite.T(), suite.c.find("qux"))
+	_, found := suite.c.get("foo")
+	assert.False(suite.T(), found)
+	_, found = suite.c.get("bar")
+	assert.False(suite.T(), found)
+	_, found = suite.c.get("baz")
+	assert.True(suite.T(), found)
+	_, found = suite.c.get("qux")
+	assert.True(suite.T(), found)
 
 	// Reload check: kill 2 & start no new instances
 	killed, err = suite.c.ReloadAllCheckInstances("TestCheck", []check.Check{})
