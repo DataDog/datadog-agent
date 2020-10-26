@@ -10,7 +10,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
@@ -120,47 +119,6 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 
 	c.checks[ch.ID()] = ch
 	return ch.ID(), nil
-}
-
-// ReloadCheck stops and restart a check with a new configuration
-func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data, newSource string) error {
-	if !c.started() {
-		return fmt.Errorf("the collector is not running")
-	}
-
-	// do we know this check instance?
-	// BUG(massi): we could create the Check if it doesn't exist, see https://github.com/DataDog/datadog-agent/pull/148
-	// for reference
-	if !c.find(id) {
-		return fmt.Errorf("cannot find a check with ID %s", id)
-	}
-
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	// unschedule the instance
-	err := c.scheduler.Cancel(id)
-	if err != nil {
-		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
-	}
-
-	// stop the instance
-	err = c.runner.StopCheck(id)
-	if err != nil {
-		return fmt.Errorf("an error occurred while stopping the check: %s", err)
-	}
-
-	// re-configure
-	check := c.checks[id]
-	err = check.Configure(config, initConfig, newSource)
-	if err != nil {
-		return fmt.Errorf("error configuring the check with ID %s", id)
-	}
-
-	// re-schedule
-	c.scheduler.Enter(check) //nolint:errcheck
-
-	return nil
 }
 
 // StopCheck halts a check and remove the instance

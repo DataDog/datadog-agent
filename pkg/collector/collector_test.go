@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -18,18 +17,15 @@ import (
 
 // FIXTURE
 type TestCheck struct {
+	check.StubCheck
 	uniqueID check.ID
 	name     string
 	stop     chan bool
 }
 
-func (c *TestCheck) Stop()                                                { c.stop <- true }
-func (c *TestCheck) Configure(a, b integration.Data, source string) error { return nil }
-func (c *TestCheck) Interval() time.Duration                              { return 1 * time.Minute }
-func (c *TestCheck) Run() error                                           { <-c.stop; return nil }
-func (c *TestCheck) GetWarnings() []error                                 { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error)            { return make(map[string]int64), nil }
-func (c *TestCheck) IsTelemetryEnabled() bool                             { return false }
+func (c *TestCheck) Stop()                   { c.stop <- true }
+func (c *TestCheck) Interval() time.Duration { return 1 * time.Minute }
+func (c *TestCheck) Run() error              { <-c.stop; return nil }
 func (c *TestCheck) ID() check.ID {
 	if c.uniqueID != "" {
 		return c.uniqueID
@@ -41,14 +37,6 @@ func (c *TestCheck) String() string {
 		return c.name
 	}
 	return "TestCheck"
-}
-
-func (c *TestCheck) Version() string {
-	return ""
-}
-
-func (c *TestCheck) ConfigSource() string {
-	return ""
 }
 
 func NewCheck() *TestCheck { return &TestCheck{stop: make(chan bool)} }
@@ -104,23 +92,6 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	_, err = suite.c.RunCheck(ch)
 	assert.NotNil(suite.T(), err)
 	assert.Equal(suite.T(), "a check with ID TestCheck is already running", err.Error())
-}
-
-func (suite *CollectorTestSuite) TestReloadCheck() {
-	ch := NewCheck()
-	empty := integration.Data{}
-
-	// schedule a check
-	_, err := suite.c.RunCheck(ch)
-
-	// check doesn't exist
-	err = suite.c.ReloadCheck("foo", empty, empty, "test")
-	assert.NotNil(suite.T(), err)
-	assert.Equal(suite.T(), "cannot find a check with ID foo", err.Error())
-
-	// all good
-	err = suite.c.ReloadCheck("TestCheck", empty, empty, "test")
-	assert.Nil(suite.T(), err)
 }
 
 func (suite *CollectorTestSuite) TestStopCheck() {
