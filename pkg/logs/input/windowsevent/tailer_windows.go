@@ -93,6 +93,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 		return
 	}
 
+	t.source.BytesRead.Add(len(msg))
 	t.outputChan <- msg
 }
 
@@ -138,7 +139,6 @@ func EvtRender(h C.ULONGLONG) (richEvt *richEvent, err error) {
 	// Call will set error anyway.  Clear it so we don't return an error
 	err = nil
 
-	t.source.BytesRead.Add(int64(bufSize))
 	xml := ConvertWindowsString(buf)
 
 	richEvt = enrichEvent(h, xml)
