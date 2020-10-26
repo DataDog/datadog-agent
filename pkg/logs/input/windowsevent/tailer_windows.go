@@ -93,7 +93,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 		return
 	}
 
-	t.source.BytesRead.Add(len(msg))
+	t.source.BytesRead.Add(len(msg.Content))
 	t.outputChan <- msg
 }
 
