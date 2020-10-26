@@ -20,6 +20,11 @@
                                       : "=r"(var))
 #define HTTP_BUFFER_SIZE 15
 #define HTTP_STATUS_CODE_SIZE 3
+#define TCPHDR_FIN 0x01
+
+// From include/net/tcp.h
+// tcp_flag_byte(th) (((u_int8_t *)th)[13])
+#define TCP_FLAGS_OFFSET 13
 
 enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, udp_send_processed, udp_send_missed};
 
@@ -165,7 +170,7 @@ struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
 struct bpf_map_def SEC("maps/http_stats") http_stats = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(conn_tuple_t),
-    .value_size = sizeof(http_stats_t),
+    .value_size = sizeof(http_transaction_t),
     .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
     .namespace = "",
@@ -1143,46 +1148,36 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
 
 //endregion
 
-static __always_inline __u64 read_conn_tuple_skb(conn_tuple_t* t, struct __sk_buff* skb, __u32* data_off, __u32* data_end) {
+static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info_t* info) {
+    info->data_off = ETH_HLEN;
+    info->data_end = 0;
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto;
 
-    *data_off = ETH_HLEN;
-    *data_end = 0;
-
-    t->saddr_h = 0;
-    t->saddr_l = 0;
-    t->daddr_h = 0;
-    t->daddr_l = 0;
-    t->sport = 0;
-    t->dport = 0;
-    t->pid = 0;
-    t->metadata = 0;
-
     switch (l3_proto) {
     case ETH_P_IP:
-        t->metadata |= CONN_V4;
-        l4_proto = load_byte(skb, *data_off + offsetof(struct iphdr, protocol));
-        t->saddr_l = load_word(skb, *data_off + offsetof(struct iphdr, saddr));
-        t->daddr_l = load_word(skb, *data_off + offsetof(struct iphdr, daddr));
-        *data_end = load_half(skb, *data_off + offsetof(struct iphdr, tot_len)) + (*data_off) - 1;
-        // TODO: add support for IP options
-        *data_off += sizeof(struct iphdr);
+        l4_proto = load_byte(skb, info->data_off + offsetof(struct iphdr, protocol));
+
+        info->tup.metadata |= CONN_V4;
+        info->tup.saddr_l = load_word(skb, info->data_off + offsetof(struct iphdr, saddr));
+        info->tup.daddr_l = load_word(skb, info->data_off + offsetof(struct iphdr, daddr));
+        info->data_end = load_half(skb, info->data_off + offsetof(struct iphdr, tot_len)) + (info->data_off) - 1;
+        info->data_off += sizeof(struct iphdr); // TODO: this assumes there are no IP options
         break;
-    case ETH_P_IPV6:
-        // TODO: verify IPv6
-        t->metadata |= CONN_V6;
-        l4_proto = load_byte(skb, *data_off + offsetof(struct ipv6hdr, nexthdr));
-        t->saddr_l  = load_word(skb, *data_off + offsetof(struct ipv6hdr, saddr) + 0*sizeof(u32));
-        t->saddr_l |= load_word(skb, *data_off + offsetof(struct ipv6hdr, saddr) + 1*sizeof(u32)) << 32;
-        t->saddr_h  = load_word(skb, *data_off + offsetof(struct ipv6hdr, saddr) + 2*sizeof(u32));
-        t->saddr_h |= load_word(skb, *data_off + offsetof(struct ipv6hdr, saddr) + 3*sizeof(u32)) << 32;
-        t->daddr_l  = load_word(skb, *data_off + offsetof(struct ipv6hdr, daddr) + 0*sizeof(u32));
-        t->daddr_l |= load_word(skb, *data_off + offsetof(struct ipv6hdr, daddr) + 1*sizeof(u32)) << 32;
-        t->daddr_h  = load_word(skb, *data_off + offsetof(struct ipv6hdr, daddr) + 2*sizeof(u32));
-        t->daddr_h |= load_word(skb, *data_off + offsetof(struct ipv6hdr, daddr) + 3*sizeof(u32)) << 32;
-        *data_end += load_half(skb, *data_off + offsetof(struct ipv6hdr, payload_len)) + (*data_off) - 1;
-        *data_off += sizeof(struct ipv6hdr);
+    case ETH_P_IPV6: // TODO: this needs to be tested
+        l4_proto = load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
+
+        info->tup.metadata |= CONN_V6;
+        info->tup.saddr_l  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, saddr) + 0*sizeof(u32));
+        info->tup.saddr_l |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, saddr) + 1*sizeof(u32)) << 32;
+        info->tup.saddr_h  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, saddr) + 2*sizeof(u32));
+        info->tup.saddr_h |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, saddr) + 3*sizeof(u32)) << 32;
+        info->tup.daddr_l  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 0*sizeof(u32));
+        info->tup.daddr_l |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 1*sizeof(u32)) << 32;
+        info->tup.daddr_h  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 2*sizeof(u32));
+        info->tup.daddr_h |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 3*sizeof(u32)) << 32;
+        info->data_end += load_half(skb, info->data_off + offsetof(struct ipv6hdr, payload_len)) + (info->data_off) - 1;
+        info->data_off += sizeof(struct ipv6hdr);
         break;
     default:
         return 0;
@@ -1190,18 +1185,19 @@ static __always_inline __u64 read_conn_tuple_skb(conn_tuple_t* t, struct __sk_bu
 
     switch (l4_proto) {
     case IPPROTO_UDP:
-        t->metadata |= CONN_TYPE_UDP;
-        t->sport = load_half(skb, *data_off + offsetof(struct udphdr, source));
-        t->dport = load_half(skb, *data_off + offsetof(struct udphdr, dest));
-        *data_off += sizeof(struct udphdr);
+        info->tup.metadata |= CONN_TYPE_UDP;
+        info->tup.sport = load_half(skb, info->data_off + offsetof(struct udphdr, source));
+        info->tup.dport = load_half(skb, info->data_off + offsetof(struct udphdr, dest));
+        info->data_off += sizeof(struct udphdr);
         break;
     case IPPROTO_TCP:
-        t->metadata |= CONN_TYPE_TCP;
-        t->sport = load_half(skb, *data_off + offsetof(struct tcphdr, source));
-        t->dport = load_half(skb, *data_off + offsetof(struct tcphdr, dest));
-        // Assuming __BIG_ENDIAN_BITFIELD
+        info->tup.metadata |= CONN_TYPE_TCP;
+        info->tup.sport = load_half(skb, info->data_off + offsetof(struct tcphdr, source));
+        info->tup.dport = load_half(skb, info->data_off + offsetof(struct tcphdr, dest));
+
+        info->tcp_flags = load_byte(skb, info->data_off + TCP_FLAGS_OFFSET);
         // TODO: Improve readability and explain the bit twiddling below
-        *data_off += ((load_byte(skb, *data_off + offsetof(struct tcphdr, ack_seq) + 4)& 0xF0) >> 4)*4;
+        info->data_off += ((load_byte(skb, info->data_off + offsetof(struct tcphdr, ack_seq) + 4)& 0xF0) >> 4)*4;
         break;
     default:
         return 0;
@@ -1230,71 +1226,43 @@ static __always_inline void flip_tuple(conn_tuple_t* t) {
 // All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
 SEC("socket/dns_filter")
 int socket__dns_filter(struct __sk_buff* skb) {
-    conn_tuple_t t;
-    __u32 _data_off;
-    __u32 _data_end;
+    skb_info_t skb_info = {{0}, 0};
 
-    if (!read_conn_tuple_skb(&t, skb, &_data_off, &_data_end)) {
+    if (!read_conn_tuple_skb(skb, &skb_info)) {
         return 0;
     }
 
-    if (t.sport != 53 && (!dns_stats_enabled() || t.dport != 53)) {
+    if (skb_info.tup.sport != 53 && (!dns_stats_enabled() || skb_info.tup.dport != 53)) {
         return 0;
     }
 
     return -1;
 }
 
-static __always_inline void http_end_response(http_stats_t *http) {
+static __always_inline void http_end_response(http_transaction_t *http) {
     if (http->state != HTTP_RESPONDING) {
         return;
     }
 
-    __u64 duration = http->response_last_seen - http->request_started;
-    if (duration <= 0) {
-        return;
-    }
-
-    responses_by_code_t *response_family;
-    switch(http->response_code) {
-    case 200:
-        response_family = &http->stats_200;
-        break;
-    case 300:
-        response_family = &http->stats_300;
-        break;
-    case 400:
-        response_family = &http->stats_400;
-        break;
-    case 500:
-        response_family = &http->stats_500;
-        break;
-    default:
-        return;
-    }
-
-    http->state = HTTP_UNKNOWN;
-    http->request_started = 0;
-    http->response_last_seen = 0;
-    http->response_code = 0;
-
-    __sync_fetch_and_add(&response_family->hits, 1);
-    __sync_fetch_and_add(&response_family->total_duration, duration);
+    log_debug("HTTP response ended. code=%d duration=%d(ms)\n", http->response_code, (http->response_last_seen-http->request_started)/(1000*1000));
+    // TODO: Add perf-ring flush logic here
 }
 
-static __always_inline int http_begin_request(__u8 new_state, http_stats_t *http) {
+static __always_inline int http_begin_request(http_transaction_t *http, http_state_t new_state) {
     // This can happen in the context of HTTP keep-alives;
     if (http->state == HTTP_RESPONDING) {
         http_end_response(http);
     }
 
+    log_debug("HTTP request started\n");
     http->state = new_state;
     http->request_started = bpf_ktime_get_ns();
-    log_debug("HTTP request (%d)\n", http->state);
+    http->response_last_seen = 0;
+    http->response_code = 0;
     return 1;
 }
 
-static __always_inline int http_begin_response(char *buffer, int buffer_size, http_stats_t *http) {
+static __always_inline int http_begin_response(http_transaction_t *http, char *buffer) {
     // We missed the corresponding request so nothing to do
     if (!(http->state&HTTP_REQUESTING)) {
         return 0;
@@ -1305,13 +1273,13 @@ static __always_inline int http_begin_response(char *buffer, int buffer_size, ht
     // _________^_____
     int status_offset = -1;
 #pragma unroll
-    for (int i = 0; i < buffer_size; i++) {
+    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
         if (status_offset == -1 && buffer[i] == ' ') {
             status_offset = i + 1;
         }
     }
 
-    if (status_offset == -1 || status_offset + HTTP_STATUS_CODE_SIZE - 1 >= buffer_size) {
+    if (status_offset == -1 || status_offset + HTTP_STATUS_CODE_SIZE - 1 >= HTTP_BUFFER_SIZE) {
         return 0;
     }
 
@@ -1333,58 +1301,76 @@ static __always_inline int http_begin_response(char *buffer, int buffer_size, ht
     http->state = HTTP_RESPONDING;
     http->response_code = response_code;
     http->response_last_seen = bpf_ktime_get_ns();
-    log_debug("HTTP response (%d)\n", http->response_code);
+    log_debug("HTTP response [%d]\n", http->response_code);
     return 1;
 }
 
-static __always_inline int http_handle_packet(struct __sk_buff* skb, __u32 data_off, __u32 data_end, conn_tuple_t *t) {
-    if (data_end - data_off + 1 < HTTP_BUFFER_SIZE) {
-        return 0;
+static __always_inline http_state_t http_read_data(struct __sk_buff* skb, skb_info_t* skb_info, char* p) {
+    if (skb_info->data_end - skb_info->data_off + 1 < HTTP_BUFFER_SIZE) {
+        return HTTP_UNKNOWN;
     }
 
-    // Read everything we need for parsing both requests and responses
-    // TODO: Figure out why this loop is not unrolling correctly when there is a conditional inside
-    char p[HTTP_BUFFER_SIZE+1];
+    // TODO: Try to read as much as possible, like adding a conditional in the middle;
+    // The verifier problem might be the fact we're not initializing `p`
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        p[i] = load_byte(skb, data_off + i);
+        p[i] = load_byte(skb, skb_info->data_off + i);
     }
-    p[HTTP_BUFFER_SIZE] = '\0';
 
-    __u8 http_state = HTTP_UNKNOWN;
+    http_state_t packet_type = HTTP_UNKNOWN;
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
-        http_state = HTTP_RESPONDING;
+        packet_type = HTTP_RESPONDING;
     } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T')) {
-        http_state = HTTP_REQUESTING_GET;
+        packet_type = HTTP_REQUESTING_GET;
     } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T')) {
-        http_state = HTTP_REQUESTING_POST;
+        packet_type = HTTP_REQUESTING_POST;
     } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T')) {
-        http_state = HTTP_REQUESTING_PUT;
+        packet_type = HTTP_REQUESTING_PUT;
     } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) {
-        http_state = HTTP_REQUESTING_DELETE;
+        packet_type = HTTP_REQUESTING_DELETE;
     } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D')) {
-        http_state = HTTP_REQUESTING_HEAD;
+        packet_type = HTTP_REQUESTING_HEAD;
     }
 
-    http_stats_t empty = {};
-    bpf_map_update_elem(&http_stats, t, &empty, BPF_NOEXIST);
+    return packet_type;
+}
 
-    http_stats_t *stats;
-    stats = bpf_map_lookup_elem(&http_stats, t);
-    if (stats == NULL) {
+static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t* skb_info) {
+    char buffer[HTTP_BUFFER_SIZE];
+    http_state_t packet_type = http_read_data(skb, skb_info, buffer);
+
+    if (packet_type&HTTP_REQUESTING) {
+        // Ensure the creation of a http_transaction_t entry for tracking this request
+        http_transaction_t empty = {};
+        bpf_map_update_elem(&http_stats, &skb_info->tup, &empty, BPF_NOEXIST);
+    }
+
+    http_transaction_t *http = bpf_map_lookup_elem(&http_stats, &skb_info->tup);
+    if (http == NULL) {
+        // This happens when we lose the beginning of a HTTP request
         return 0;
     }
 
-    if (http_state == HTTP_RESPONDING) {
-        return http_begin_response(p, HTTP_BUFFER_SIZE, stats);
+    if (packet_type&HTTP_REQUESTING) {
+        // We intercepted the first segment of the HTTP *request*
+        http_begin_request(http, packet_type);
+    } else if (packet_type == HTTP_RESPONDING) {
+        // We intercepted the first segment of the HTTP *response*
+        http_begin_response(http, buffer);
     }
 
-    if (http_state&HTTP_REQUESTING) {
-        return http_begin_request(http_state, stats);
-    }
+    if (http->state == HTTP_RESPONDING) {
+        if (skb_info->data_end > skb_info->data_off) {
+            // Only if we have a payload we want to update the response_last_seen
+            // This is to prevent things such as a keep-alive adding up to the transaction latency
+            http->response_last_seen = bpf_ktime_get_ns();
+        }
 
-    if (stats->state == HTTP_RESPONDING) {
-        stats->response_last_seen = bpf_ktime_get_ns();
+        if (skb_info->tcp_flags&TCPHDR_FIN) {
+            // The HTTP response has ended
+            http_end_response(http);
+            bpf_map_delete_elem(&http_stats, &skb_info->tup);
+        }
     }
 
     return 0;
@@ -1392,24 +1378,22 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, __u32 data_
 
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
-    conn_tuple_t t = {};
-    __u32 data_off;
-    __u32 data_end;
+    skb_info_t skb_info = {{0}, 0};
 
-    if (!read_conn_tuple_skb(&t, skb, &data_off, &data_end)) {
+    if (!read_conn_tuple_skb(skb, &skb_info)) {
         return 0;
     }
 
-    if (t.sport != 80 && t.sport != 8080 && t.dport != 80 && t.dport != 8080) {
+    if (skb_info.tup.sport != 80 && skb_info.tup.sport != 8080 && skb_info.tup.dport != 80 && skb_info.tup.dport != 8080) {
         return 0;
     }
 
-    if (t.sport == 80 || t.sport == 8080) {
+    if (skb_info.tup.sport == 80 || skb_info.tup.sport == 8080) {
         // Normalize tuple
-        flip_tuple(&t);
+        flip_tuple(&skb_info.tup);
     }
 
-    http_handle_packet(skb, data_off, data_end, &t);
+    http_handle_packet(skb, &skb_info);
 
     return 0;
 }

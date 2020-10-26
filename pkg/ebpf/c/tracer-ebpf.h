@@ -56,9 +56,17 @@ typedef struct {
     tcp_stats_t tcp_stats;
 } tcp_conn_t;
 
+// Data generated from parsing a skb struct
+typedef struct {
+    conn_tuple_t tup;
+    __u32 data_off;
+    __u32 data_end;
+    __u8 tcp_flags;
+} skb_info_t;
+
 typedef enum {
     HTTP_UNKNOWN = 0,
-    HTTP_RESPONDING = 1 << 0,
+    HTTP_RESPONDING = 1,
     HTTP_REQUESTING_GET = 1 << 1,
     HTTP_REQUESTING_POST = 1 << 2,
     HTTP_REQUESTING_PUT = 1 << 3,
@@ -68,26 +76,13 @@ typedef enum {
 
 static const __u8 HTTP_REQUESTING = HTTP_REQUESTING_GET|HTTP_REQUESTING_POST|HTTP_REQUESTING_PUT|HTTP_REQUESTING_DELETE|HTTP_REQUESTING_HEAD;
 
-// HTTP stats scoped to a certain response code (200x, 300x etc)
-typedef struct {
-    __u64 hits;
-    __u64 total_duration;
-} responses_by_code_t;
-
 // HTTP stats summary associated to a certain socket (tuple_t)
 typedef struct {
-    // These fields track the current request/response
     __u8 state;
     __u64 request_started;
     __u16 response_code;
     __u64 response_last_seen;
-
-    // These fields are responsible for storing an aggregated view of the previous transactions
-    responses_by_code_t stats_200;
-    responses_by_code_t stats_300;
-    responses_by_code_t stats_400;
-    responses_by_code_t stats_500;
-} http_stats_t;
+} http_transaction_t;
 
 // Must match the number of tcp_conn_t objects embedded in the batch_t struct
 #ifndef TCP_CLOSED_BATCH_SIZE
