@@ -29,6 +29,11 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		return status
 	}
 
+	if !config.Datadog.GetBool("leader_election") {
+		status["Disabled"] = "Leader election is not enabled on the Cluster Agent. The orchestrator explorer needs leader election for resource collection."
+		return status
+	}
+
 	// get cluster uid
 	clusterID, err := common.GetOrCreateClusterID(apiCl.CoreV1())
 	if err != nil {

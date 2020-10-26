@@ -26,7 +26,7 @@ Orchestrator Explorer
 {{- if .ContainerScrubbing }}
   {{.ContainerScrubbing}}
 {{- end}}
-
+{{- if and (not .Error) (not .Disabled) }}
   ======================
   Orchestrator Endpoints
   ======================
@@ -70,6 +70,7 @@ Orchestrator Explorer
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
 {{else}}
   Status: Follower, redirecting to leader at: {{ .LeaderIP }}
+{{- end}}
 {{- end}}
 {{- end}}
 {{/* this line intentionally left blank */}}
