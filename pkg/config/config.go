@@ -190,8 +190,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("c_core_dump", false)
 	config.BindEnvAndSetDefault("memtrack_enabled", true)
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
-	config.BindEnvAndSetDefault("tracemalloc_whitelist", "")
-	config.BindEnvAndSetDefault("tracemalloc_blacklist", "")
+	config.BindEnvAndSetDefault("tracemalloc_include", "")
+	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
+	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
+	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
 
 	// Python 3 linter timeout, in seconds
