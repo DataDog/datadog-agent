@@ -544,25 +544,14 @@
       <?if $(var.IncludePython2) = true ?>
         <ComponentRef Id="MSVCRUNTIME" />
       <?endif ?>
-    </Feature>
     <?if $(var.IncludeSysprobe) = true ?>
       <!-- don't install by default (indicated by level 100)  Only things with level
            <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
-      <Feature Id="WindowsNP" 
-               Level="100"  
-               Title="Network Performance Monitoring" 
-               ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
-               Absent="allow"
-               AllowAdvertise="no"
-               >
         <ComponentRef Id="DATADOGSYSPROBESERVICE" />
         <MergeRef Id="ddnpminstall"/>
         <ComponentRef Id="system_probe.yaml.example" />
-        <!--
-        <Condition Level="1"><![CDATA[ADDLOCAL >< "WindowsNP" OR ADDLOCAL = "ALL" ]]></Condition>
-        -->
-      </Feature>
     <?endif ?>
+    </Feature>
     <!-- UI Stuff: 100% Omnibus Generated -->
     <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
