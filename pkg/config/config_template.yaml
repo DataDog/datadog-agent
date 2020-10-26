@@ -404,17 +404,17 @@ api_key:
 #
 # tracemalloc_debug: false
 
-## @param tracemalloc_whitelist - string - optional
+## @param tracemalloc_include - string - optional
 ## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled.
 #
-# tracemalloc_whitelist: <TRACEMALLOC_WHITELIST>
+# tracemalloc_include: <TRACEMALLOC_EXCLUDE>
 
-## @param tracemalloc_blacklist - string - optional
+## @param tracemalloc_exclude - string - optional
 ## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
-## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_whitelist`.
+## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_include`.
 #
-# tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
+# tracemalloc_exclude: <TRACEMALLOC_INCLUDE>
 
 ## @param windows_use_pythonpath - boolean - optional
 ## Whether to honour the value of the PYTHONPATH env var when set on Windows.
