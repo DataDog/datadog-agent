@@ -114,25 +114,6 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 	return newCmdline, changed || regexChanged
 }
 
-//ScrubRegexCommand hides the argument value for any key which matches a "sensitive word" pattern.
-//It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
-func (ds *DataScrubber) ScrubRegexCommand(cmdline []string) ([]string, bool) {
-	newCmdline := cmdline
-	rawCmdline := strings.Join(cmdline, " ")
-	changed := false
-	for _, pattern := range ds.RegexSensitivePatterns {
-		if pattern.MatchString(rawCmdline) {
-			changed = true
-			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
-		}
-	}
-
-	if changed {
-		newCmdline = strings.Split(rawCmdline, " ")
-	}
-	return newCmdline, changed
-}
-
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object
 // In the future we can add own regex expression
 func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
