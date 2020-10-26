@@ -101,7 +101,13 @@ func runAgent(exit <-chan struct{}) {
 
 	// if a debug port is specified, we expose the default handler to that port
 	if cfg.SystemProbeDebugPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
+		go func() {
+			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux)
+			if err != nil && err != http.ErrServerClosed {
+				log.Criticalf("Error creating debug HTTP server: %v", err)
+				cleanupAndExit(1)
+			}
+		}()
 	}
 
 	loader := NewLoader()
