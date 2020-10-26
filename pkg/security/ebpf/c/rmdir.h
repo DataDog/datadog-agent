@@ -84,7 +84,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 
     if (dentry != NULL) {
         int ret = resolve_dentry(dentry, key, syscall->policy.mode != NO_FILTER ? event_type : 0);
-        if (ret < 0) {
+        if (ret == DENTRY_DISCARDED) {
             invalidate_inode(ctx, key.mount_id, key.ino);
 
             pop_syscall(syscall->type);

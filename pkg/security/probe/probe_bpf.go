@@ -499,7 +499,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 
-		p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, &event.Exec.ProcessCacheEntry)
+		p.resolvers.ProcessResolver.AddEntry(event.Exec.Pid, event.Exec.ProcessCacheEntry)
 
 		return
 	case ExitEventType:
@@ -514,7 +514,6 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 
 		// no need to dispatch
 		return
-
 	case InvalidateDentryEventType:
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, len(data))

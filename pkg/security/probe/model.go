@@ -220,7 +220,7 @@ func (e *FileEvent) Bytes() []byte {
 	ebpf.ByteOrder.PutUint64(b[0:8], e.Inode)
 	ebpf.ByteOrder.PutUint32(b[8:12], e.MountID)
 	ebpf.ByteOrder.PutUint32(b[12:16], uint32(e.OverlayNumLower))
-	ebpf.ByteOrder.PutUint32(b[16:20], uint32(e.PathID))
+	ebpf.ByteOrder.PutUint32(b[16:20], e.PathID)
 	return b
 }
 
@@ -813,7 +813,7 @@ func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 4, nil
 }
 
-// ExecEvent represents a exec event
+// InvalidateDentryEvent defines a invalidate dentry event
 type InvalidateDentryEvent struct {
 	Inode   uint64
 	MountID uint32
@@ -849,6 +849,7 @@ type ProcessEvent struct {
 	CommRaw [16]byte `field:"-"`
 }
 
+// ResolveTimestamp converts a raw timestamp to a time object
 func (p *ProcessEvent) ResolveTimestamp(resolvers *Resolvers) time.Time {
 	if p.Timestamp.IsZero() {
 		entry := resolvers.ProcessResolver.Resolve(p.Pid)
@@ -1271,6 +1272,12 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	e.TimestampRaw = ebpf.ByteOrder.Uint64(data[8:16])
 
 	return 16, nil
+}
+
+// Clone returns a copy on the event
+func (e *Event) Clone() *Event {
+	clone := *e
+	return &clone
 }
 
 // NewEvent returns a new event

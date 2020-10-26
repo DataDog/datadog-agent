@@ -55,7 +55,7 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
     }
 
     int ret = resolve_dentry(syscall->setattr.dentry, syscall->setattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
-    if (ret < 0) {
+    if (ret == DENTRY_DISCARDED) {
         pop_syscall(syscall->type);
     }
 

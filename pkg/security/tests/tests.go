@@ -131,14 +131,14 @@ type testEventHandler struct {
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
-	h.events <- event
+	h.events <- event.Clone()
 	h.ruleSet.Evaluate(event)
 }
 
 func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
 
 func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	h.discarders <- &testDiscarder{event: event, field: field, eventType: eventType}
+	h.discarders <- &testDiscarder{event: event.(*sprobe.Event).Clone(), field: field, eventType: eventType}
 }
 
 func getInode(t *testing.T, path string) uint64 {
@@ -249,7 +249,7 @@ func (tm *testModule) Root() string {
 }
 
 func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
-	tm.events <- testEvent{event: event, rule: rule}
+	tm.events <- testEvent{event: event.(*sprobe.Event).Clone(), rule: rule}
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {

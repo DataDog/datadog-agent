@@ -60,7 +60,11 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // AddEntry add an entry to the local cache
-func (p *ProcessResolver) AddEntry(pid uint32, entry *ProcessCacheEntry) {
+func (p *ProcessResolver) AddEntry(pid uint32, entry ProcessCacheEntry) {
+	p.addEntry(pid, &entry)
+}
+
+func (p *ProcessResolver) addEntry(pid uint32, entry *ProcessCacheEntry) {
 	// resolve now, so that the dentry cache is up to date
 	entry.FileEvent.ResolveInode(p.resolvers)
 	entry.FileEvent.ResolveContainerPath(p.resolvers)
@@ -100,7 +104,7 @@ func (p *ProcessResolver) resolve(pid uint32) *ProcessCacheEntry {
 		return nil
 	}
 
-	p.AddEntry(pid, &entry)
+	p.addEntry(pid, &entry)
 
 	return &entry
 }
@@ -115,7 +119,7 @@ func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 		return entry
 	}
 
-	// fallback request the map directly, the perf event should be delayed
+	// fallback request the map directly, the perf event may be delayed
 	return p.resolve(pid)
 }
 
@@ -128,6 +132,15 @@ func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
 
 // Start starts the resolver
 func (p *ProcessResolver) Start() error {
+	// initializes the list of snapshot probes
+	for _, id := range snapshotProbeIDs {
+		probe, ok := p.probe.manager.GetProbe(id)
+		if !ok {
+			return errors.Errorf("couldn't find probe %s", id)
+		}
+		p.snapshotProbes = append(p.snapshotProbes, probe)
+	}
+
 	p.inodeInfoMap = p.probe.Map("inode_info_cache")
 	if p.inodeInfoMap == nil {
 		return errors.New("map inode_info_cache not found")
@@ -181,6 +194,10 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 	data, err := p.inodeInfoMap.LookupBytes(inodeb)
 	if err != nil {
 		return nil, err
+	}
+
+	if data == nil {
+		return nil, errors.New("not found")
 	}
 
 	var info InodeInfo
@@ -265,7 +282,7 @@ func (p *ProcessResolver) snapshotProcess(proc *process.FilledProcess) bool {
 		TTYName:   utils.PidTTY(pid),
 	}
 
-	p.AddEntry(pid, entry)
+	p.addEntry(pid, entry)
 
 	return true
 }

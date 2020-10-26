@@ -12,6 +12,9 @@
 #define DENTRY_MAX_DEPTH 16
 #define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
 
+#define DENTRY_INVALID -1
+#define DENTRY_DISCARDED -2
+
 // temporary fix before constant edition
 struct bpf_map_def SEC("maps/mount_id_offset") mount_id_offset = {
     .type = BPF_MAP_TYPE_ARRAY,
@@ -219,7 +222,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     struct inode *d_inode = NULL;
 
     if (key.ino == 0 || key.mount_id == 0) {
-        return -1;
+        return DENTRY_INVALID;
     }
 
 #pragma unroll
@@ -237,7 +240,7 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
         // discard filename and its parent only in order to limit the number of lookup
         if (event_type && i < 2) {
             if (discarded_by_inode(event_type, key.mount_id, key.ino)) {
-                return -1;
+                return DENTRY_DISCARDED;
             }
         }
 

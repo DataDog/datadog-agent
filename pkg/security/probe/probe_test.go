@@ -9,19 +9,9 @@ package probe
 
 import (
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 func TestInvalidDiscarders(t *testing.T) {
-	discarders := map[eval.Field][]interface{}{
-		"open.filename": {
-			"aaa",
-			111,
-			false,
-		},
-	}
-
 	probe := NewProbe(nil)
 
 	if !probe.isInvalidDiscarder("open.filename", dentryInvalidDiscarder) {

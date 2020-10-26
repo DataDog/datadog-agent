@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// ProcCacheEntry this structure holds the container context that we keep in kernel for each process
+// ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
 type ProcessCacheEntry struct {
 	FileEvent
 	ContainerEvent
@@ -49,6 +49,7 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte) (int, error) {
 	return read + 80, nil
 }
 
+// GetTTY returns the TTY
 func (pc *ProcessCacheEntry) GetTTY() string {
 	if len(pc.TTYName) == 0 {
 		pc.TTYName = string(bytes.Trim(pc.TTYNameRaw[:], "\x00"))

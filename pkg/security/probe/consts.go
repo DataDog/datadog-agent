@@ -104,6 +104,7 @@ func (t EventType) String() string {
 
 // parseEvalEventType convert a eval.EventType (string) to its uint64 representation
 // the current algorithm is not efficient but allow us to only keep few conversion implementations
+//nolint:deadcode,unused
 func parseEvalEventType(eventType eval.EventType) EventType {
 	for i := uint64(0); i != uint64(maxEventType); i++ {
 		if EventType(i).String() == eventType {

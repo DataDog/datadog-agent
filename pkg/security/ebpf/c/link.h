@@ -59,7 +59,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
 
     syscall->link.src_key.path_id = bpf_get_prandom_u32();
     int ret = resolve_dentry(dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
-    if (ret < 0) {
+    if (ret == DENTRY_DISCARDED) {
         pop_syscall(SYSCALL_LINK);
     }
 

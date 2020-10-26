@@ -59,7 +59,6 @@ func AllMaps() []*manager.Map {
 		// Open tables
 		{Name: "open_basename_approvers"},
 		{Name: "open_flags_approvers"},
-		{Name: "open_flags_discarders"},
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cookie"},

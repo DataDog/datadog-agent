@@ -86,13 +86,11 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     if (parent_entry) {
         // inherit container ID
         copy_container_id(entry.container.container_id, parent_entry->container.container_id);
-    } else {
-        syscall->open.path_key.path_id = tgid;
-
-        // cache dentry
-        struct dentry *dentry = get_path_dentry(path);
-        resolve_dentry(dentry, syscall->open.path_key, 0);
     }
+    syscall->open.path_key.path_id = tgid;
+
+    // cache dentry
+    resolve_dentry(syscall->open.dentry, syscall->open.path_key, 0);
 
     // insert new proc cache entry
     bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);

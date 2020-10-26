@@ -86,7 +86,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u16 
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     int ret = resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
-    if (ret < 0) {
+    if (ret == DENTRY_DISCARDED) {
         pop_syscall(type);
     }
 

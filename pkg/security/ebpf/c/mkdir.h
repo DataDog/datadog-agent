@@ -41,7 +41,7 @@ SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 }
 
 SEC("kprobe/vfs_mkdir")
-int kprobe__security_path_mkdir(struct pt_regs *ctx) {
+int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MKDIR);
     if (!syscall)
         return 0;
@@ -74,7 +74,7 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
 
     syscall->mkdir.path_key.path_id = bpf_get_prandom_u32();
     int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
-    if (ret < 0) {
+    if (ret == DENTRY_DISCARDED) {
         return 0;
     }
 

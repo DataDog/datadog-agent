@@ -24,15 +24,6 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -242,7 +233,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     };
 
     int ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
-    if (ret < 0) {
+    if (ret == DENTRY_DISCARDED) {
         return 0;
     }
 
