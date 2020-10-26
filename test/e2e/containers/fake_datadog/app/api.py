@@ -81,7 +81,13 @@ def patch_data(data, patch_key, patch_leaf):
 def fix_data(data):
     return patch_data(
         data,
+        # Whereas dot (.) and dollar ($) are valid characters inside a JSON dict key,
+        # they are not allowed as keys in a MongoDB BSON object.
+        # The official MongoDB documentation suggests to replace them with their
+        # unicode full width equivalent:
+        # https://docs.mongodb.com/v2.6/faq/developers/#dollar-sign-operator-escaping
         patch_key=lambda x: x.translate(str.maketrans('.$', '\uff0e\uff04')),
+        # Values that cannot fit in a 64 bits integer must be represented as a float.
         patch_leaf=lambda x: float(x) if isinstance(x, int) and x > 2 ** 63 - 1 else x,
     )
 
