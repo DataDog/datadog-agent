@@ -74,7 +74,7 @@ self.monotonic_count(name, value, tags, hostname): # Sample an increasing counte
 
 Each method takes the following arguments:
 
-- `metric`: The name of the metric
+- `name`: The name of the metric
 - `value`: The value for the metric (defaults to 1 on increment, -1 on decrement)
 - `tags`: (optional) A list of tags to associate with this metric.
 - `hostname`: (optional) A hostname to associate with this metric. Defaults to the current host.
