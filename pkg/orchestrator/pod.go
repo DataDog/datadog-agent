@@ -137,7 +137,7 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) bool {
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
 		// use the "key: value" format to work with the regular credential cleaner
-		if scrubber.ContainsBlacklistedWord(c.Env[e].Name) {
+		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
 			c.Env[e].Value = redactedValue
 			changed = true
 		}

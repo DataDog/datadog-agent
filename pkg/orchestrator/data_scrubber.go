@@ -22,7 +22,7 @@ var (
 		"secret", "credentials", "stripetoken"}
 )
 
-// DataScrubber allows the agent to blacklist cmdline arguments that match
+// DataScrubber allows the agent to block cmdline arguments that match
 // a list of predefined and custom words
 type DataScrubber struct {
 	Enabled                  bool
@@ -42,7 +42,7 @@ func NewDefaultDataScrubber() *DataScrubber {
 
 	return newDataScrubber
 }
-func (ds *DataScrubber) ContainsBlacklistedWord(word string) bool {
+func (ds *DataScrubber) ContainsSensitiveWord(word string) bool {
 	for _, pattern := range ds.LiteralSensitivePatterns {
 		if strings.Contains(strings.ToLower(word), pattern) {
 			return true
@@ -51,9 +51,8 @@ func (ds *DataScrubber) ContainsBlacklistedWord(word string) bool {
 	return false
 }
 
-// ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
-// It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
-// future: we can add a check to do regex matching or simple matching depending whether we have RegexSensitivePatterns
+// ScrubSimpleCommand hides the argument value for any key which matches a "sensitive word" pattern.
+// It returns the updated cmdline, as well as a boolean representing whether it was scrubbed.
 func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 	changed := false
 	regexChanged := false
@@ -94,15 +93,14 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 		// we still want to make sure that we are in the index e.g. the word is at the end and actually does not mean adding a password/token.
 		index := wordReplacesIndexes[i]
 		if index < len(newCmdline) {
-			if newCmdline != nil {
-				// we only want to replace words
-				for newCmdline[index] == "" {
-					index++
-				}
-				if index < len(newCmdline) {
-					newCmdline[index] = "********"
-				}
+			// we only want to replace words
+			for newCmdline[index] == "" {
+				index++
 			}
+			if index < len(newCmdline) {
+				newCmdline[index] = "********"
+			}
+
 		}
 	}
 

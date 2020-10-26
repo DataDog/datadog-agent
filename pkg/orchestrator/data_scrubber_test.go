@@ -119,6 +119,17 @@ func TestMatchSimpleCommand(t *testing.T) {
 	}
 }
 
+func TestMatchNoMatchCommand(t *testing.T) {
+	cases := setupInsensitiveCmdLines()
+
+	scrubber := NewDefaultDataScrubber()
+
+	for i := range cases {
+		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
+	}
+}
+
 func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 	cases := setupCmdlinesWithWildCards()
 	customSensitiveWords := []string{"passwd"}
@@ -137,6 +148,7 @@ func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 
 	for i := range cases {
 		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		println(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -286,3 +298,23 @@ func setupCmdlinesWithWildCards() []testCase {
 		{[]string{"process", "‑XXpath:/secret/"}, []string{"process", "‑XXpath:********"}},
 	}
 }
+
+func setupInsensitiveCmdLines() []testCase {
+	return []testCase{
+		{[]string{"spidly", "--debug_port=2043"}, []string{"spidly", "--debug_port=2043"}},
+		{[]string{"agent", "start", "-p", "config.cfg"}, []string{"agent", "start", "-p", "config.cfg"}},
+		{[]string{"p1", "-user=admin"}, []string{"p1", "-user=admin"}},
+		{[]string{"p1", "-user", "admin"}, []string{"p1", "-user", "admin"}},
+		{[]string{"java -xMg 1234"}, []string{"java -xMg 1234"}},
+		{[]string{"java -open_pword 1234"}, []string{"java -open_pword 1234"}},
+		{[]string{"java -pwordOpen 1234"}, []string{"java -pwordOpen 1234"}},
+		{[]string{"java -pword_open 1234"}, []string{"java -pword_open 1234"}},
+		{[]string{"java -pword1 1234"}, []string{"java -pword1 1234"}},
+		{[]string{"java -pword_1 1234"}, []string{"java -pword_1 1234"}},
+		{[]string{"java -1pword 1234"}, []string{"java -1pword 1234"}},
+		{[]string{"java -1_pword 1234"}, []string{"java -1_pword 1234"}},
+		{[]string{"agent", "1_pword:1234"}, []string{"agent", "1_pword:1234"}},
+		{[]string{"agent 1_pword:1234"}, []string{"agent 1_pword:1234"}},
+	}
+}
+
