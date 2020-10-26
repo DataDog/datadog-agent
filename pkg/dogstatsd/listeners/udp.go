@@ -44,6 +44,7 @@ type UDPListener struct {
 	packetsBuffer   *packetsBuffer
 	packetAssembler *packetAssembler
 	buffer          []byte
+	Origin          string
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -115,6 +116,7 @@ func (l *UDPListener) Listen() {
 		tlmUDPPacketsBytes.Add(float64(n))
 
 		// packetAssembler merges multiple packets together and sends them when its buffer is full
+		l.packetAssembler.Origin = l.Origin
 		l.packetAssembler.addMessage(l.buffer[:n])
 	}
 }

@@ -246,6 +246,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	// ----------------------
 
 	s.handleMessages()
+	if config.Datadog.GetBool("dogstatsd_netns_listeners_enable") == true {
+		s.setupNetNsListeners()
+	}
 
 	// start the debug loop
 	// ----------------------

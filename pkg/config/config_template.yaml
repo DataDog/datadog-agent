@@ -172,7 +172,7 @@ api_key:
 
 ## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 31457280 (30Mb)
 ## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
-## If "forwarder_retry_queue_max_size" is greater than 0, this parameter is ignored. 
+## If "forwarder_retry_queue_max_size" is greater than 0, this parameter is ignored.
 #
 # forwarder_retry_queue_payloads_max_size: 31457280
 
@@ -1040,6 +1040,11 @@ api_key:
 ## Publish DogStatsD's internal stats as Go expvars.
 #
 # dogstatsd_stats_enable: false
+
+## @param dogstatsd_netns_listeners_enable - boolean - optional - default: false
+## Inject UDP listeners in containers' network namespaces.
+#
+# dogstatsd_netns_listeners_enable: false
 
 ## @param dogstatsd_queue_size - integer - optional - default: 1024
 ## Configure the internal queue size of the Dogstatsd server.

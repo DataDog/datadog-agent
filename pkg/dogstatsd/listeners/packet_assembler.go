@@ -22,6 +22,7 @@ type packetAssembler struct {
 	sharedPacketPool *PacketPool
 	flushTimer       *time.Ticker
 	closeChannel     chan struct{}
+	Origin           string
 	sync.Mutex
 }
 
@@ -54,6 +55,7 @@ func (p *packetAssembler) flushLoop() {
 
 func (p *packetAssembler) addMessage(message []byte) {
 	p.Lock()
+	p.packet.Origin = p.Origin
 	if p.packetLength == 0 {
 		p.packetLength = copy(p.packet.buffer, message)
 	} else if len(p.packet.buffer) >= len(message)+p.packetLength+1 {
