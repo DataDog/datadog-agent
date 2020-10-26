@@ -59,7 +59,7 @@ spec:
               spec:
                 containers:
                 - name: api
-                  image: l3n41c/fake-datadog:latest
+                  image: datadog/fake-datadog:20201026
                 - name: mongo
                   image: mongo:4.4.1
 
