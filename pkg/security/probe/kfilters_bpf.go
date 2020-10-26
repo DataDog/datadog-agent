@@ -15,17 +15,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+type pidDiscarder struct {
+	eventType EventType
+	pid       uint32
+	padding   uint32
+}
+
+func discardPID(probe *Probe, eventType EventType, pid uint32) (bool, error) {
+	key := pidDiscarder{
+		eventType: eventType,
+		pid:       pid,
+	}
+
+	table := probe.Map("pid_discarders")
+	if err := table.Put(&key, ebpf.ZeroUint8MapItem); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 type inodeDiscarder struct {
 	eventType EventType
 	pathKey   PathKey
-}
-
-func (i *inodeDiscarder) Bytes() ([]byte, error) {
-	b := make([]byte, 24)
-	ebpf.ByteOrder.PutUint64(b[0:8], uint64(i.eventType))
-	i.pathKey.Write(b[8:])
-
-	return b, nil
 }
 
 func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint64) (bool, error) {

@@ -667,7 +667,12 @@ func NewProbe(config *config.Config) (*Probe, error) {
 func processDiscarderWrapper(eventType EventType, fnc onDiscarderFnc) onDiscarderFnc {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.filename" {
-			log.Tracef("apply process.filename discarder for event `%s`", eventType)
+			log.Tracef("apply process.filename discarder for event `%s`, inode: %d", eventType, event.Process.Inode)
+
+			// discard by PID for long running process
+			if _, err := discardPID(probe, eventType, event.Process.Pid); err != nil {
+				return err
+			}
 
 			_, err := discardInode(probe, eventType, event.Process.MountID, event.Process.Inode)
 			return err

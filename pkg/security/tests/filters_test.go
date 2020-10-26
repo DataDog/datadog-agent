@@ -202,7 +202,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 func TestOpenProcessPidDiscarder(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename =~ "{{.Root}}/test-oba-1" && process.filename == "/bin/cat"`,
+		Expression: `open.filename =="{{.Root}}/test-oba-1" && process.filename == "/bin/cat"`,
 	}
 
 	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})

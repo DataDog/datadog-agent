@@ -978,7 +978,7 @@ type Event struct {
 	ID           string    `field:"-"`
 	Type         uint64    `field:"-"`
 	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"-"`
+	Timestamp    time.Time `field:"timestamp"`
 
 	Process          ProcessEvent          `yaml:"process" field:"process" event:"*"`
 	Container        ContainerEvent        `yaml:"container" field:"container"`
