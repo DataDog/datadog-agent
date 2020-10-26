@@ -190,6 +190,11 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		logFile = common.DefaultLogFile
 	}
 
+	jmxLogFile := config.Datadog.GetString("jmx_log_file")
+	if jmxLogFile == "" {
+		jmxLogFile = common.DefaultJmxLogFile
+	}
+
 	// Set session token
 	e = util.SetAuthToken()
 	if e != nil {
@@ -206,7 +211,7 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		}
 		log.Debug("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, []string{logFile}, nil)
+		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil)
 		if e != nil {
 			log.Errorf("The flare zipfile failed to be created: %s\n", e)
 			return

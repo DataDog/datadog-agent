@@ -43,16 +43,15 @@ type DatadogLogger struct {
 
 // SetupLogger setup agent wide logger
 func SetupLogger(i seelog.LoggerInterface, level string) {
-	logger = SetupCommonLogger(i, level)
+	logger = setupCommonLogger(i, level)
 }
 
 // SetupJMXLogger setup JMXfetch specific logger
 func SetupJMXLogger(i seelog.LoggerInterface, level string) {
-	jmxLogger = SetupCommonLogger(i, level)
+	jmxLogger = setupCommonLogger(i, level)
 }
 
-// SetupCommonLogger configures logger singleton with seelog interface
-func SetupCommonLogger(i seelog.LoggerInterface, level string) *DatadogLogger {
+func setupCommonLogger(i seelog.LoggerInterface, level string) *DatadogLogger {
 
 	l := &DatadogLogger{
 		inner: i,
