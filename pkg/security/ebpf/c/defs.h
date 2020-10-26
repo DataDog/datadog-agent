@@ -3,6 +3,8 @@
 
 #include "../../../ebpf/c/bpf_helpers.h"
 
+#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
+
 #if defined(__x86_64__)
   #define SYSCALL64_PREFIX "__x64_"
   #define SYSCALL32_PREFIX "__ia32_"

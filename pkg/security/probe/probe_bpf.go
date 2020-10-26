@@ -48,6 +48,7 @@ type onDiscarderFnc func(rs *rules.RuleSet, event *Event, probe *Probe, discarde
 var (
 	allApproversFncs = make(map[eval.EventType]onApproversFnc)
 	allDiscarderFncs = make(map[eval.EventType]onDiscarderFnc)
+	constantEditors  = make(map[eval.EventType][]manager.ConstantEditor)
 )
 
 // Probe represents the runtime security eBPF probe in charge of
@@ -115,7 +116,7 @@ func (p *Probe) Init() error {
 }
 
 // InitManager initializes the eBPF managers
-func (p *Probe) InitManager() error {
+func (p *Probe) InitManager(rs *rules.RuleSet) error {
 	p.startTime = time.Now()
 	p.detectKernelVersion()
 
@@ -148,6 +149,13 @@ func (p *Probe) InitManager() error {
 				DataHandler: p.handleMountEvent,
 				LostHandler: p.handleLostEvents,
 			}
+		}
+	}
+
+	// ApplyConstants is called to apply
+	for _, eventType := range rs.GetEventTypes() {
+		if constants, exists := constantEditors[eventType]; exists {
+			p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constants...)
 		}
 	}
 
@@ -681,7 +689,7 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 		field, mountID, inode, pathID, isDeleted := getter(event)
 
 		if discarder.Field == field {
-			value, err := event.GetFieldValue(discarder.Field)
+			value, err := event.GetFieldValue(field)
 			if err != nil {
 				return err
 			}
@@ -691,11 +699,11 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 				return nil
 			}
 
-			if probe.IsInvalidDiscarder(discarder.Field, filename) {
+			if probe.IsInvalidDiscarder(field, filename) {
 				return nil
 			}
 
-			isDiscarded, err := discardParentInode(probe, rs, eventType, filename, mountID, inode, pathID)
+			isDiscarded, err := discardParentInode(probe, rs, eventType, field, filename, mountID, inode, pathID)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
 					log.Tracef("apply `%s.filename` inode discarder for event `%s`", eventType, eventType)
@@ -795,4 +803,18 @@ func init() {
 				return "removexattr.filename", event.RemoveXAttr.MountID, event.RemoveXAttr.Inode, event.RemoveXAttr.PathID, false
 			}))
 	SupportedDiscarders["removexattr.filename"] = true
+
+	// constant rewrites
+	constantEditors["unlink"] = []manager.ConstantEditor{
+		{Name: "unlink_event_enabled", Value: uint64(1)},
+	}
+
+	constantEditors["rmdir"] = []manager.ConstantEditor{
+		{Name: "rmdir_event_enabled", Value: uint64(1)},
+		{Name: "unlink_event_enabled", Value: uint64(1)},
+	}
+
+	constantEditors["rename"] = []manager.ConstantEditor{
+		{Name: "rename_event_enabled", Value: uint64(1)},
+	}
 }

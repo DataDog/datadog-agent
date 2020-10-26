@@ -79,31 +79,36 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         return 0;
     }
 
-    syscall->rename.target_key.path_id = bpf_get_prandom_u32();
+    u64 enabled;
+    LOAD_CONSTANT("rename_event_enabled", enabled);
 
-    struct rename_event_t event = {
-        .event.type = EVENT_RENAME,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .syscall.retval = retval,
-        .old = {
-            .inode = syscall->rename.src_key.ino,
-            .mount_id = syscall->rename.src_key.mount_id,
-            .overlay_numlower = syscall->rename.src_overlay_numlower,
-        },
-        .new = {
-            .inode = syscall->rename.target_key.ino,
-            .mount_id = syscall->rename.target_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
-            .path_id = syscall->rename.target_key.path_id,
-        }
-    };
+    if (enabled) {
+        syscall->rename.target_key.path_id = bpf_get_prandom_u32();
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+        struct rename_event_t event = {
+            .event.type = EVENT_RENAME,
+            .event.timestamp = bpf_ktime_get_ns(),
+            .syscall.retval = retval,
+            .old = {
+                .inode = syscall->rename.src_key.ino,
+                .mount_id = syscall->rename.src_key.mount_id,
+                .overlay_numlower = syscall->rename.src_overlay_numlower,
+            },
+            .new = {
+                .inode = syscall->rename.target_key.ino,
+                .mount_id = syscall->rename.target_key.mount_id,
+                .overlay_numlower = get_overlay_numlower(syscall->rename.src_dentry),
+                .path_id = syscall->rename.target_key.path_id,
+            }
+        };
 
-    resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
+        struct proc_cache_t *entry = fill_process_data(&event.process);
+        fill_container_data(entry, &event.container);
 
-    send_event(ctx, event);
+        resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_key, 0);
+
+        send_event(ctx, event);
+    }
 
     invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino);
 

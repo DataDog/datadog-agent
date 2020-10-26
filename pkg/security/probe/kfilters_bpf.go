@@ -45,7 +45,7 @@ func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint6
 	return true, nil
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, error) {
+func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, error) {
 	isDiscarder, err := isParentPathDiscarder(rs, eventType, field, filename)
 	if !isDiscarder {
 		return false, err

@@ -27,11 +27,9 @@ const (
 
 // Policy flags
 const (
-	PolicyFlagBasename     PolicyFlag = 1
-	PolicyFlagFlags        PolicyFlag = 2
-	PolicyFlagMode         PolicyFlag = 4
-	PolicyFlagProcessInode PolicyFlag = 8
-	PolicyFlagProcessName  PolicyFlag = 16
+	PolicyFlagBasename PolicyFlag = 1
+	PolicyFlagFlags    PolicyFlag = 2
+	PolicyFlagMode     PolicyFlag = 4
 
 	// need to be aligned with the kernel size
 	BasenameFilterSize = 32
@@ -43,6 +41,8 @@ func (m PolicyMode) String() string {
 		return "accept"
 	case PolicyModeDeny:
 		return "deny"
+	case PolicyModeNoFilter:
+		return "no filter"
 	}
 	return ""
 }
@@ -68,12 +68,6 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 	}
 	if f&PolicyFlagMode != 0 {
 		flags = append(flags, `"mode"`)
-	}
-	if f&PolicyFlagProcessInode != 0 {
-		flags = append(flags, `"inode"`)
-	}
-	if f&PolicyFlagProcessName != 0 {
-		flags = append(flags, `"name"`)
 	}
 	return []byte("[" + strings.Join(flags, ",") + "]"), nil
 }

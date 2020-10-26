@@ -113,22 +113,27 @@ SYSCALL_KRETPROBE(rmdir) {
         return 0;
     }
 
-    struct rmdir_event_t event = {
-        .event.type = EVENT_RMDIR,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .syscall.retval = retval,
-        .file = {
-            .inode = inode,
-            .mount_id = syscall->rmdir.path_key.mount_id,
-            .overlay_numlower = syscall->rmdir.overlay_numlower,
-            .path_id = syscall->rmdir.path_key.path_id,
-        }
-    };
+    u64 enabled;
+    LOAD_CONSTANT("rmdir_event_enabled", enabled);
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    if (enabled) {
+        struct rmdir_event_t event = {
+            .event.type = EVENT_RMDIR,
+            .event.timestamp = bpf_ktime_get_ns(),
+            .syscall.retval = retval,
+            .file = {
+                .inode = inode,
+                .mount_id = syscall->rmdir.path_key.mount_id,
+                .overlay_numlower = syscall->rmdir.overlay_numlower,
+                .path_id = syscall->rmdir.path_key.path_id,
+            }
+        };
 
-    send_event(ctx, event);
+        struct proc_cache_t *entry = fill_process_data(&event.process);
+        fill_container_data(entry, &event.container);
+
+        send_event(ctx, event);
+    }
 
     invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode);
 

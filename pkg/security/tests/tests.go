@@ -334,7 +334,7 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
-	if err := probe.InitManager(); err != nil {
+	if err := probe.InitManager(ruleSet); err != nil {
 		return nil, err
 	}
 

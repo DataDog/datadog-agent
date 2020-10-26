@@ -95,25 +95,30 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         link_dentry_inode(syscall->unlink.path_key, inode);
     }
 
-    struct unlink_event_t event = {
-        .event.type = syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .syscall.retval = retval,
-        .file = {
-            .mount_id = syscall->unlink.path_key.mount_id,
-            .inode = inode,
-            .overlay_numlower = syscall->unlink.overlay_numlower,
-            .path_id = syscall->unlink.path_key.path_id,
-        },
-        .flags = syscall->unlink.flags,
-    };
+    u64 enabled;
+    LOAD_CONSTANT("unlink_event_enabled", enabled);
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    if (enabled) {
+        struct unlink_event_t event = {
+            .event.type = syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK,
+            .event.timestamp = bpf_ktime_get_ns(),
+            .syscall.retval = retval,
+            .file = {
+                .mount_id = syscall->unlink.path_key.mount_id,
+                .inode = inode,
+                .overlay_numlower = syscall->unlink.overlay_numlower,
+                .path_id = syscall->unlink.path_key.path_id,
+            },
+            .flags = syscall->unlink.flags,
+        };
 
-    send_event(ctx, event);
+        struct proc_cache_t *entry = fill_process_data(&event.process);
+        fill_container_data(entry, &event.container);
 
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
+        send_event(ctx, event);
+    }
+
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode);
 
     return 0;
 }

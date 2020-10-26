@@ -100,11 +100,9 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
 func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, applier Applier) (*Report, error) {
-	for eventType := range probes.SelectorsPerEventType {
-		if rs.HasRulesForEventType(eventType) {
-			if err := rsa.setupFilters(rs, eventType, applier); err != nil {
-				return nil, err
-			}
+	for _, eventType := range rs.GetEventTypes() {
+		if err := rsa.setupFilters(rs, eventType, applier); err != nil {
+			return nil, err
 		}
 	}
 	return rsa.reporter.GetReport(), nil
@@ -140,7 +138,7 @@ func (rsa *RuleSetApplier) SelectProbes(rs *rules.RuleSet, applier Applier) erro
 
 	// Print the list of unique probe identification IDs that are registered
 	for _, id := range selectedIDs {
-		log.Debugf("probe %s registered", id)
+		log.Debugf("probe %s selected", id)
 	}
 	return nil
 }

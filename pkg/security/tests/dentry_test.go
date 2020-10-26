@@ -185,7 +185,7 @@ func TestDentryRmdir(t *testing.T) {
 	}
 	defer test.Close()
 
-	for i := 0; i != 50; i++ {
+	for i := 0; i != 2; i++ {
 		testFile, _, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
 		if err != nil {
 			t.Fatal(err)
@@ -195,6 +195,7 @@ func TestDentryRmdir(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fmt.Printf("UUUUUUUUUUUUUUU\n")
 		if err := syscall.Rmdir(testFile); err != nil {
 			t.Fatal(err)
 		}

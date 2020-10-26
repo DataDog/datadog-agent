@@ -84,7 +84,7 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
-	if err := m.probe.InitManager(); err != nil {
+	if err := m.probe.InitManager(m.ruleSet); err != nil {
 		return err
 	}
 
