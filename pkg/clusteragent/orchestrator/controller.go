@@ -159,7 +159,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 	defer log.Infof("Stopping orchestrator controller")
 
 	if err := o.runLeaderElection(); err != nil {
-		log.Errorf("error trying run or check the leader engine and status: %s", err)
+		log.Errorf("Error running the leader engine: %s", err)
 		return
 	}
 
