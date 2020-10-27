@@ -91,6 +91,7 @@ bool CustomActionData::parseSysprobeData()
         WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT explicitly disabled %S", sysprobePresent.c_str());
         return true;
     }
+    this->doInstallSysprobe = true;
     return true;
 }
 
