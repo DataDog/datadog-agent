@@ -317,4 +317,3 @@ func setupInsensitiveCmdLines() []testCase {
 		{[]string{"agent 1_pword:1234"}, []string{"agent 1_pword:1234"}},
 	}
 }
-
