@@ -180,7 +180,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// Enable network and connections check
 	if config.Datadog.GetBool("network_config.enabled") {
-		log.Info(fmt.Sprintf("network_config found.enabled found, enabling system-probe with network module enabled"))
+		log.Info(fmt.Sprintf("network_config.enabled was true: enabling system-probe with network module running."))
 		a.EnabledChecks = append(a.EnabledChecks, "connections", "Network")
 		a.EnableSystemProbe = true // system-probe is implicitly enabled if networks is enabled
 	} else if config.Datadog.IsSet(key(spNS, "enabled")) && config.Datadog.GetBool(key(spNS, "enabled")) && !config.Datadog.IsSet(key("network_config", "enabled")) {

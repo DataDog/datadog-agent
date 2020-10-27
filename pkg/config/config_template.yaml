@@ -925,7 +925,7 @@ api_key:
 ########################################
 
 # network_config:
-  ## @param enabled - boolean - optional - default: true
+  ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Network Module of the System Probe
   #
   # enabled: false
