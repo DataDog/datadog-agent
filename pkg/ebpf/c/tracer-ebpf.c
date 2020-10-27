@@ -176,6 +176,25 @@ struct bpf_map_def SEC("maps/http_stats") http_stats = {
     .namespace = "",
 };
 
+/* Complete HTTP transactions are flushed in this perf-ring */
+struct bpf_map_def SEC("maps/http_event") http_event = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = 0, // This will get overridden at runtime
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/http_enqueued") http_enqueued = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(http_batch_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This map is used for telemetry in kernelspace
  * only key 0 is used
  * value is a telemetry object
@@ -602,6 +621,21 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     return handle_message(&t, size, 0);
 }
 
+static __always_inline void http_try_flush(struct pt_regs* ctx) {
+    u32 cpu = bpf_get_smp_processor_id();
+    http_batch_t *batch = bpf_map_lookup_elem(&http_enqueued, &cpu);
+    if (batch == NULL || batch->pos < HTTP_BATCH_SIZE) {
+        return;
+    }
+
+    http_batch_t batch_copy = {};
+    __builtin_memcpy(&batch_copy, batch, sizeof(batch_copy));
+    bpf_perf_event_output(ctx, &http_event, cpu, &batch_copy, sizeof(batch_copy));
+
+    log_debug("http batch flushed: lost_events: %d batch_size: %d(bytes)\n", batch_copy.pos-HTTP_BATCH_SIZE, sizeof(batch_copy));
+    batch->pos = 0;
+}
+
 SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     int ret = PT_REGS_RC(ctx);
@@ -612,6 +646,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     if (ret < 0) {
         increment_telemetry_count(tcp_sent_miscounts);
     }
+    http_try_flush(ctx);
 
     return 0;
 }
@@ -1249,8 +1284,25 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         return;
     }
 
-    log_debug("HTTP response ended. code=%d duration=%d(ms)\n", http->response_code, (http->response_last_seen-http->request_started)/(1000*1000));
-    // TODO: Add perf-ring flush logic here
+    u32 cpu = bpf_get_smp_processor_id();
+
+    // TODO: Preemptively create this batches on userspace
+    http_batch_t empty = {};
+    __builtin_memset(&empty, 0, sizeof(empty));
+    bpf_map_update_elem(&http_enqueued, &cpu, &empty, BPF_NOEXIST);
+
+    http_batch_t *batch = bpf_map_lookup_elem(&http_enqueued, &cpu);
+    if (batch == NULL) {
+        return;
+    }
+
+    __u16 pos = batch->pos;
+    if (pos >= 0 && pos < HTTP_BATCH_SIZE) {
+        batch->transactions[pos] = *http;
+    }
+
+    batch->pos++;
+    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_code, (http->response_last_seen-http->request_started)/(1000*1000));
 }
 
 static __always_inline int http_begin_request(http_transaction_t *http, http_state_t new_state) {
@@ -1259,7 +1311,7 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_sta
         http_end_response(http);
     }
 
-    log_debug("HTTP request started\n");
+    log_debug("http request started\n");
     http->state = new_state;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
@@ -1306,7 +1358,7 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
     http->state = HTTP_RESPONDING;
     http->response_code = response_code;
     http->response_last_seen = bpf_ktime_get_ns();
-    log_debug("HTTP response [%d]\n", http->response_code);
+    log_debug("http response started: code: %d\n", http->response_code);
     return 1;
 }
 
@@ -1346,8 +1398,9 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
 
     if (packet_type&HTTP_REQUESTING) {
         // Ensure the creation of a http_transaction_t entry for tracking this request
-        http_transaction_t empty = {};
-        bpf_map_update_elem(&http_stats, &skb_info->tup, &empty, BPF_NOEXIST);
+        http_transaction_t new_entry = {};
+        __builtin_memcpy(&new_entry.tup, &skb_info->tup, sizeof(conn_tuple_t));
+        bpf_map_update_elem(&http_stats, &skb_info->tup, &new_entry, BPF_NOEXIST);
     }
 
     http_transaction_t *http = bpf_map_lookup_elem(&http_stats, &skb_info->tup);

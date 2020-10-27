@@ -47,10 +47,12 @@ type Tracer struct {
 
 	reverseDNS network.ReverseDNS
 
-	perfMap      *manager.PerfMap
-	perfHandler  *bytecode.PerfHandler
-	batchManager *PerfBatchManager
-	flushIdle    chan chan struct{}
+	perfMap         *manager.PerfMap
+	perfHandlerTCP  *bytecode.PerfHandler
+	perfMapHTTP     *manager.PerfMap
+	perfHandlerHTTP *bytecode.PerfHandler
+	batchManager    *PerfBatchManager
+	flushIdle       chan chan struct{}
 
 	// Telemetry
 	perfReceived  int64
@@ -146,8 +148,9 @@ func NewTracer(config *Config) (*Tracer, error) {
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
 	}
-	perfHandler := bytecode.NewPerfHandler(closedChannelSize)
-	m := bytecode.NewManager(perfHandler)
+	perfHandlerTCP := bytecode.NewPerfHandler(closedChannelSize)
+	perfHandlerHTTP := bytecode.NewPerfHandler(closedChannelSize)
+	m := bytecode.NewManager(perfHandlerTCP, perfHandlerHTTP)
 
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := config.EnabledProbes(pre410Kernel)
@@ -251,25 +254,31 @@ func NewTracer(config *Config) (*Tracer, error) {
 	)
 
 	tr := &Tracer{
-		m:              m,
-		config:         config,
-		state:          state,
-		portMapping:    portMapping,
-		udpPortMapping: udpPortMapping,
-		reverseDNS:     reverseDNS,
-		buffer:         make([]network.ConnectionStats, 0, 512),
-		buf:            &bytes.Buffer{},
-		conntracker:    conntracker,
-		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		perfHandler:    perfHandler,
-		flushIdle:      make(chan chan struct{}),
-		httpDoneFn:     httpDoneFn,
+		m:               m,
+		config:          config,
+		state:           state,
+		portMapping:     portMapping,
+		udpPortMapping:  udpPortMapping,
+		reverseDNS:      reverseDNS,
+		buffer:          make([]network.ConnectionStats, 0, 512),
+		buf:             &bytes.Buffer{},
+		conntracker:     conntracker,
+		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		perfHandlerTCP:  perfHandlerTCP,
+		perfHandlerHTTP: perfHandlerHTTP,
+		flushIdle:       make(chan chan struct{}),
+		httpDoneFn:      httpDoneFn,
 	}
 
-	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
+	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
 	if err != nil {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
+	}
+
+	tr.perfMapHTTP, err = tr.initPerfPollingHTTP(perfHandlerHTTP)
+	if err != nil {
+		return nil, fmt.Errorf("could not start polling http bpf events: %s", err)
 	}
 
 	if err = m.Start(); err != nil {
@@ -410,6 +419,40 @@ func (t *Tracer) initPerfPolling(perf *bytecode.PerfHandler) (*manager.PerfMap, 
 	return pm, batchManager, nil
 }
 
+// *Temporary* code for HTTP polling
+func (t *Tracer) initPerfPollingHTTP(perf *bytecode.PerfHandler) (*manager.PerfMap, error) {
+	pm, found := t.m.GetPerfMap(string(bytecode.HttpEventMap))
+	if !found {
+		return nil, fmt.Errorf("unable to find perf map %s", bytecode.HttpEventMap)
+	}
+
+	if err := pm.Start(); err != nil {
+		return nil, fmt.Errorf("error starting perf map: %s", err)
+	}
+
+	go func() {
+		for {
+			select {
+			case data, ok := <-perf.ClosedChannel:
+				if !ok {
+					return
+				}
+
+				for _, http := range toHTTPTransactions(data) {
+					duration := (http.response_last_seen - http.request_started) / 1000
+					log.Debugf("HTTP status=%d duration=%d(µs)", http.response_code, duration)
+				}
+			case _, ok := <-perf.LostChannel:
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
+
+	return pm, nil
+}
+
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
 //  • Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
@@ -444,7 +487,9 @@ func (t *Tracer) Stop() {
 	}
 	_ = t.m.Stop(manager.CleanAll)
 	_ = t.perfMap.Stop(manager.CleanAll)
-	t.perfHandler.Stop()
+	_ = t.perfMapHTTP.Stop(manager.CleanAll)
+	t.perfHandlerTCP.Stop()
+	t.perfHandlerHTTP.Stop()
 	close(t.flushIdle)
 	t.conntracker.Close()
 }

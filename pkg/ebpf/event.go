@@ -93,6 +93,18 @@ func toBatch(data []byte) *batch {
 	return (*batch)(unsafe.Pointer(&data[0]))
 }
 
+type httpTransaction C.http_transaction_t
+
+func toHTTPTransactions(data []byte) []httpTransaction {
+	batch := (*C.http_batch_t)(unsafe.Pointer(&data[0]))
+	result := make([]httpTransaction, int(C.HTTP_BATCH_SIZE))
+	for i := range result {
+		ptr := uintptr(i)*C.sizeof_http_transaction_t + uintptr(unsafe.Pointer(&batch.transactions))
+		result[i] = httpTransaction(*(*C.http_transaction_t)(unsafe.Pointer(ptr)))
+	}
+	return result
+}
+
 // ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
 func ExtractBatchInto(buffer []network.ConnectionStats, b *batch, start, end int) []network.ConnectionStats {

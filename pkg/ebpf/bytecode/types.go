@@ -104,6 +104,7 @@ const (
 	TelemetryMap       BPFMapName = "telemetry"
 	TcpCloseBatchMap   BPFMapName = "tcp_close_batch"
 	HttpStatsMap       BPFMapName = "http_stats"
+	HttpEventMap       BPFMapName = "http_event"
 )
 
 // SectionName returns the SectionName for the given BPF map

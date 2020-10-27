@@ -78,11 +78,18 @@ static const __u8 HTTP_REQUESTING = HTTP_REQUESTING_GET|HTTP_REQUESTING_POST|HTT
 
 // HTTP stats summary associated to a certain socket (tuple_t)
 typedef struct {
+    conn_tuple_t tup;
     __u8 state;
     __u64 request_started;
     __u16 response_code;
     __u64 response_last_seen;
 } http_transaction_t;
+
+#define HTTP_BATCH_SIZE 3
+typedef struct {
+    __u8 pos;
+    http_transaction_t transactions[HTTP_BATCH_SIZE];
+} http_batch_t;
 
 // Must match the number of tcp_conn_t objects embedded in the batch_t struct
 #ifndef TCP_CLOSED_BATCH_SIZE
