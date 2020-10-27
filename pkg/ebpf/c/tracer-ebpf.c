@@ -1203,6 +1203,12 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info
         return 0;
     }
 
+    // Convert IPs to host byte-order;
+    info->tup.saddr_l = bpf_ntohl(info->tup.saddr_l);
+    info->tup.saddr_h = bpf_ntohl(info->tup.saddr_h);
+    info->tup.daddr_l = bpf_ntohl(info->tup.daddr_l);
+    info->tup.daddr_h = bpf_ntohl(info->tup.daddr_h);
+
     return 1;
 }
 
