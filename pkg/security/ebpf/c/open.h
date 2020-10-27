@@ -162,7 +162,7 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
 
 SEC("kretprobe/ovl_dentry_upper")
 int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
 
@@ -174,7 +174,7 @@ int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
 
 SEC("kretprobe/ovl_d_real")
 int kretprobe__ovl_d_real(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
 
@@ -186,7 +186,7 @@ int kretprobe__ovl_d_real(struct pt_regs *ctx) {
 
 SEC("kprobe/do_dentry_open")
 int kprobe__do_dentry_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;   
 
@@ -200,14 +200,16 @@ int kprobe__do_dentry_open(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx, u64 ev) {
+    int retval = PT_REGS_RC(ctx);
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
     struct syscall_cache_t *syscall = pop_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
 
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
+    syscall->open.path_key.path_id = bpf_get_prandom_u32();
 
     // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->open.path_key.ino;
@@ -215,8 +217,6 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
         inode = syscall->open.real_inode;
         link_dentry_inode(syscall->open.path_key, inode);
     }
-
-    syscall->open.path_key.path_id = bpf_get_prandom_u32();
 
     struct open_event_t event = {
         .event.type = EVENT_OPEN,
@@ -233,8 +233,8 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     };
 
     int ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
-    if (ret == DENTRY_DISCARDED) {
-        return 0;
+    if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
+       return 0;
     }
 
     fill_process_data(&event.process);
@@ -245,23 +245,31 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 }
 
 SYSCALL_KRETPROBE(creat) {
-    return trace__sys_open_ret(ctx);
+    return trace__sys_open_ret(ctx, 1);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
-    return trace__sys_open_ret(ctx);
+    return trace__sys_open_ret(ctx, 2);
 }
 
 SYSCALL_COMPAT_KRETPROBE(truncate) {
-    return trace__sys_open_ret(ctx);
+    return trace__sys_open_ret(ctx, 3);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open) {
-    return trace__sys_open_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    if (retval >= 0 && retval <= 2)
+        return 0;
+
+    return trace__sys_open_ret(ctx, 4);
 }
 
 SYSCALL_COMPAT_KRETPROBE(openat) {
-    return trace__sys_open_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    if (retval >= 0 && retval <= 2)
+        return 0;
+
+    return trace__sys_open_ret(ctx, 5);
 }
 
 #endif
