@@ -71,7 +71,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 
     struct proc_cache_t entry = {
         .executable = {
-            .inode = get_path_ino(path),
+            .inode = syscall->open.path_key.ino,
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
             .path_id = tgid,
@@ -112,8 +112,10 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
     struct proc_cache_t *parent_entry = get_pid_cache(ppid);
     if (parent_entry) {
+        u32 cookie = parent_entry->cookie;
+
         // Ensures pid and ppid point to the same cookie
-        bpf_map_update_elem(&pid_cookie, &pid, &parent_entry->cookie, BPF_ANY);
+        bpf_map_update_elem(&pid_cookie, &pid, &cookie, BPF_ANY);
     }
 
     return 0;

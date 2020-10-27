@@ -98,6 +98,17 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "unlink"}, EntryAndExit),
 		},
+
+		// exec probes
+		&manager.OneOf{Selectors: []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/ovl_d_real"}},
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/ovl_dentry_upper"}},
+			}},
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_dentry_open"}},
+			}},
+		}},
 	},
 
 	// List of probes to activate to capture chmod events
@@ -180,15 +191,8 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 
 	// List of probes to activate to capture open events
 	"open": {
-		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/ovl_d_real"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/ovl_dentry_upper"}},
-			}},
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_dentry_open"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/vfs_truncate"}},
-			}},
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/vfs_truncate"}},
 		}},
 		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "open"}, EntryAndExit, true),

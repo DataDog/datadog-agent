@@ -162,7 +162,7 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
 
 SEC("kretprobe/ovl_dentry_upper")
 int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
         return 0;
 
@@ -174,7 +174,7 @@ int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
 
 SEC("kretprobe/ovl_d_real")
 int kretprobe__ovl_d_real(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
         return 0;
 
