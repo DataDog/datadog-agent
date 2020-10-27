@@ -90,6 +90,7 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
+			t.source.BytesRead.Add(int64(len(data)))
 			t.decoder.InputChan <- decoder.NewInput(data)
 		}
 	}

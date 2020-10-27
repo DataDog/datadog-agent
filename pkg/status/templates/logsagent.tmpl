@@ -62,6 +62,7 @@ Logs Agent
     {{- end }}
     {{- if .inputs }}
     Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
+    BytesRead: {{ .bytes_read }}
     {{- end }}
   {{- end }}
 {{- end }}
