@@ -71,7 +71,7 @@ func NewTCPQueueLengthTracer(cfg *Config) (*TCPQueueLengthTracer, error) {
 		return nil, fmt.Errorf("Failed to attach tcp_sendmsg: %s\n", err)
 	}
 
-	table := bpflib.NewTable(m.TableId("stats"), m)
+	table := bpflib.NewTable(m.TableId("tcp_queue_stats"), m)
 
 	return &TCPQueueLengthTracer{
 		m:        m,

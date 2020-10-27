@@ -9,10 +9,10 @@
 #include "pkg/ebpf/tcp-queue-length-kern-user.h"
 
 /*
- * The `stats` map is used to share with the userland program system-probe
+ * The `tcp_queue_stats` map is used to share with the userland program system-probe
  * the statistics (max size of receive/send buffer)
  */
-BPF_TABLE("percpu_hash", struct stats_key, struct stats_value, stats, 1024);
+BPF_TABLE("percpu_hash", struct stats_key, struct stats_value, tcp_queue_stats, 1024);
 
 /*
  * the `who_recvmsg` and `who_sendmsg` maps are used to remind the sock pointer
@@ -31,7 +31,7 @@ static inline int check_sock(struct sock* sk) {
     struct stats_key k;
     get_cgroup_name(k.cgroup_name, sizeof(k.cgroup_name));
 
-    struct stats_value* v = stats.lookup_or_init(&k, &zero);
+    struct stats_value* v = tcp_queue_stats.lookup_or_init(&k, &zero);
     if (v == NULL)
         return 0;
 
