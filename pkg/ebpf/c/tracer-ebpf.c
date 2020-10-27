@@ -1149,8 +1149,8 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
 //endregion
 
 static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info_t* info) {
+    __builtin_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
-    info->data_end = 0;
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto;
 
@@ -1232,7 +1232,7 @@ static __always_inline void flip_tuple(conn_tuple_t* t) {
 // All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
 SEC("socket/dns_filter")
 int socket__dns_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info = {{0}, 0};
+    skb_info_t skb_info;
 
     if (!read_conn_tuple_skb(skb, &skb_info)) {
         return 0;
@@ -1384,7 +1384,7 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
 
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info = {{0}, 0};
+    skb_info_t skb_info;
 
     if (!read_conn_tuple_skb(skb, &skb_info)) {
         return 0;
