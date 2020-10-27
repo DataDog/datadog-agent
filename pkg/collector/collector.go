@@ -183,8 +183,8 @@ func (c *Collector) get(id check.ID) (check.Check, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	ch, err := c.checks[id]
-	return ch, err
+	ch, found := c.checks[id]
+	return ch, found
 }
 
 // remove the check from the list
