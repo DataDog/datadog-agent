@@ -359,6 +359,8 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint endpoint, payloads Pa
 
 func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority TransactionPriority) []*HTTPTransaction {
 	transactions := make([]*HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
+	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
+
 	for _, payload := range payloads {
 		for domain, apiKeys := range f.keysPerDomains {
 			for _, apiKey := range apiKeys {
@@ -374,7 +376,7 @@ func (f *DefaultForwarder) createPriorityHTTPTransactions(endpoint endpoint, pay
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
-				if config.Datadog.GetBool("allow_arbitrary_tags") {
+				if allowArbitraryTags {
 					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
 				}
 
