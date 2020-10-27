@@ -65,6 +65,7 @@ type Probe struct {
 	eventsStats      EventsStats
 	startTime        time.Time
 	event            *Event
+	mountEvent       *Event
 }
 
 // Map returns a map by its name
@@ -135,9 +136,17 @@ func (p *Probe) InitManager() error {
 
 	// Set data and lost handlers
 	for _, perfMap := range p.manager.PerfMaps {
-		perfMap.PerfMapOptions = manager.PerfMapOptions{
-			DataHandler: p.handleEvent,
-			LostHandler: p.handleLostEvents,
+		switch perfMap.Name {
+		case "events":
+			perfMap.PerfMapOptions = manager.PerfMapOptions{
+				DataHandler: p.handleEvent,
+				LostHandler: p.handleLostEvents,
+			}
+		case "mountpoints_events":
+			perfMap.PerfMapOptions = manager.PerfMapOptions{
+				DataHandler: p.handleMountEvent,
+				LostHandler: p.handleLostEvents,
+			}
 		}
 	}
 
@@ -248,16 +257,65 @@ func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap
 
 var eventZero Event
 
-func (p *Probe) zeroEvent() {
+func (p *Probe) zeroEvent() *Event {
 	*p.event = eventZero
 	p.event.resolvers = p.resolvers
+	return p.event
+}
+
+func (p *Probe) zeroMountEvent() *Event {
+	*p.mountEvent = eventZero
+	p.event.resolvers = p.resolvers
+	return p.mountEvent
+}
+
+func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
+	offset := 0
+	event := p.zeroMountEvent()
+
+	read, err := event.UnmarshalBinary(data)
+	if err != nil {
+		log.Errorf("failed to decode event: %s", err)
+		return
+	}
+	offset += read
+
+	eventType := EventType(event.Type)
+	log.Tracef("Decoding event %s", eventType)
+
+	switch eventType {
+	case FileMountEventType:
+		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		// Resolve mount point
+		event.Mount.ResolveMountPoint(p.resolvers)
+		// Resolve root
+		event.Mount.ResolveRoot(p.resolvers)
+		// Insert new mount point in cache
+		p.resolvers.MountResolver.Insert(event.Mount)
+	case FileUmountEventType:
+		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		// Delete new mount point from cache
+		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
+			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
+		}
+	default:
+		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
+		return
+	}
+
+	p.eventsStats.CountEventType(eventType, 1)
 }
 
 func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
 	offset := 0
-
-	p.zeroEvent()
-	event := p.event
+	event := p.zeroEvent()
 
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
@@ -315,27 +373,6 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-	case FileMountEventType:
-		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		// Resolve mount point
-		event.Mount.ResolveMountPoint(p.resolvers)
-		// Resolve root
-		event.Mount.ResolveRoot(p.resolvers)
-		// Insert new mount point in cache
-		p.resolvers.MountResolver.Insert(&event.Mount)
-	case FileUmountEventType:
-		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-		// Delete new mount point from cache
-		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
-			log.Errorf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
-		}
 	case FileSetXAttrEventType:
 		if _, err := event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, len(data))
@@ -347,7 +384,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	default:
-		log.Errorf("unsupported event type %d", eventType)
+		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
 		return
 	}
 
@@ -450,6 +487,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 
 	p.resolvers = resolvers
 	p.event = NewEvent(p.resolvers)
+	p.mountEvent = NewEvent(p.resolvers)
 
 	return p, nil
 }

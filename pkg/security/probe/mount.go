@@ -92,7 +92,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 			return err
 		}
 
-		mr.insert(e)
+		mr.insert(*e)
 	}
 
 	return nil
@@ -148,21 +148,21 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 }
 
 // Insert a new mount point in the cache
-func (mr *MountResolver) Insert(e *MountEvent) {
+func (mr *MountResolver) Insert(e MountEvent) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 	mr.insert(e)
 }
 
-func (mr *MountResolver) insert(e *MountEvent) {
+func (mr *MountResolver) insert(e MountEvent) {
 	mounts := mr.devices[e.Device]
 	if mounts == nil {
 		mounts = make(map[uint32]*MountEvent)
 		mr.devices[e.Device] = mounts
 	}
-	mounts[e.MountID] = e
+	mounts[e.MountID] = &e
 
-	mr.mounts[e.MountID] = e
+	mr.mounts[e.MountID] = &e
 }
 
 func (mr *MountResolver) getParentPath(mountID uint32) string {
