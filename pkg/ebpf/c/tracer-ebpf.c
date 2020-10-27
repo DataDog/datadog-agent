@@ -1151,9 +1151,10 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
 static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info_t* info) {
     __builtin_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
+    info->data_end = skb->len-1;
+
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto;
-
     switch (l3_proto) {
     case ETH_P_IP:
         l4_proto = load_byte(skb, info->data_off + offsetof(struct iphdr, protocol));
@@ -1161,7 +1162,6 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info
         info->tup.metadata |= CONN_V4;
         info->tup.saddr_l = load_word(skb, info->data_off + offsetof(struct iphdr, saddr));
         info->tup.daddr_l = load_word(skb, info->data_off + offsetof(struct iphdr, daddr));
-        info->data_end = load_half(skb, info->data_off + offsetof(struct iphdr, tot_len)) + (info->data_off) - 1;
         info->data_off += sizeof(struct iphdr); // TODO: this assumes there are no IP options
         break;
     case ETH_P_IPV6: // TODO: this needs to be tested
@@ -1176,7 +1176,6 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info
         info->tup.daddr_l |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 1*sizeof(u32)) << 32;
         info->tup.daddr_h  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 2*sizeof(u32));
         info->tup.daddr_h |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 3*sizeof(u32)) << 32;
-        info->data_end += load_half(skb, info->data_off + offsetof(struct ipv6hdr, payload_len)) + (info->data_off) - 1;
         info->data_off += sizeof(struct ipv6hdr);
         break;
     default:
