@@ -58,11 +58,6 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
-		a.EnabledChecks = append(a.EnabledChecks, "connections")
-		if !a.Enabled {
-			log.Info("enabling process-agent for connections check as the system-probe is enabled")
-			a.Enabled = true
-		}
 		a.EnableSystemProbe = true
 	}
 
@@ -159,11 +154,18 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
+		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
+		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
+	}
+
+	if config.Datadog.GetBool("runtime_security_config.enabled") {
+		log.Info("runtime_security_config.enabled=true, enabling system-probe")
+		a.EnableSystemProbe = true
 	}
 
 	if config.Datadog.IsSet(key(spNS, "enable_tracepoints")) {
@@ -176,24 +178,24 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.Windows.DriverBufferSize = driverBufferSize
 	}
 
-	// If there is no network_config, assume it is an old version of the config, and enable
-	// the network check. This has the downside that if the network_config is deleted, network
-	// check will be enabled.  However, this seems like the best option for backwards compatibility.
-	//
-	// The network check won't be run if sysprobe isn't enabled so there's no need to check
-	// EnableSystemProbe here.
-	networkEnabled := true
-	// network_config is a top-level config, not a subconfig of system_probe_config
-	if config.Datadog.IsSet("network_config") {
-		// System probe can be run without the network module as determined on the network_config.enabled value
-		networkEnabled = config.Datadog.GetBool("network_config.enabled")
-		log.Info(fmt.Sprintf("network_config found, enabled = %v", networkEnabled))
-	} else {
-		log.Info("network_config not found, enabling network check by default")
+	// Enable network and connections check
+	if config.Datadog.GetBool("network_config.enabled") {
+		log.Info(fmt.Sprintf("network_config found.enabled found, enabling system-probe with network module enabled"))
+		a.EnabledChecks = append(a.EnabledChecks, "connections", "Network")
+		a.EnableSystemProbe = true // system-probe is implicity enabled if networks is enabled
+	} else if config.Datadog.IsSet(key(spNS, "enabled")) && config.Datadog.GetBool(key(spNS, "enabled")) && !config.Datadog.IsSet(key("network_config", "enabled")) {
+		// This case exists to preserve backwards compatibility. If system_probe.enabled is explicitlty set to true, and there is no network_config block,
+		// enable the connections/network check.
+		log.Info("network_config not found, but system-probe was enabled, enabling network module by default")
+		a.EnabledChecks = append(a.EnabledChecks, "Network", "connections")
+		a.EnableSystemProbe = true
 	}
-	if networkEnabled {
-		a.EnabledChecks = append(a.EnabledChecks, "Network")
+
+	if !a.Enabled && util.StringInSlice(a.EnabledChecks, "connections") {
+		log.Info("enabling process-agent for connections check as the system-probe is enabled")
+		a.Enabled = true
 	}
+
 	return nil
 }
 
