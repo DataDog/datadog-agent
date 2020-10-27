@@ -2,7 +2,7 @@
 
 CustomActionData::CustomActionData()
     : domainUser(false)
-    , doInstallSysprobe(false)
+    , doInstallSysprobe(true)
     , userParamMismatch(false)
 {
 }
@@ -143,26 +143,7 @@ bool CustomActionData::parseSysprobeData()
         WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT explicitly disabled %S", sysprobePresent.c_str());
         return true;
     }
-    if (!this->value(L"ADDLOCAL", addlocal))
-    {
-        // should never happen.  But if the addlocalkey isn't there,
-        // don't bother trying
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL not present");
-
-        return true;
-    }
-    WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
-    if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
-    {
-        // installing all components, do it
-        this->doInstallSysprobe = true;
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
-    }
-    else if (addlocal.find(L"WindowsNP") != std::wstring::npos)
-    {
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains WindowsNP %S", addlocal.c_str());
-        this->doInstallSysprobe = true;
-    }
+    this->doInstallSysprobe = true;
     return true;
 }
 
