@@ -154,11 +154,13 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
+		log.Info("system_probe_config.enable_tcp_queue_length detected, will enable system-probe with TCP queue length check")
 		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
+		log.Info("system_probe_config.enable_oom_kill detected, will enable system-probe with OOM Kill check")
 		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
 	}
@@ -180,7 +182,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// Enable network and connections check
 	if config.Datadog.GetBool("network_config.enabled") {
-		log.Info(fmt.Sprintf("network_config.enabled was true: enabling system-probe with network module running."))
+		log.Info(fmt.Sprintf("network_config.enabled detected: enabling system-probe with network module running."))
 		a.EnabledChecks = append(a.EnabledChecks, "connections", "Network")
 		a.EnableSystemProbe = true // system-probe is implicitly enabled if networks is enabled
 	} else if config.Datadog.IsSet(key(spNS, "enabled")) && config.Datadog.GetBool(key(spNS, "enabled")) && !config.Datadog.IsSet(key("network_config", "enabled")) {
