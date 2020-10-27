@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -349,7 +350,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
 	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
-	config.SetKnown("dogstatsd_mapper_profiles")
+
+	_ = config.BindEnv("dogstatsd_mapper_profiles")
+	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
+		var mappings []MappingProfile
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Warnf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
