@@ -246,8 +246,17 @@ func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap
 	p.eventsStats.CountLost(int64(count))
 }
 
+var eventZero Event
+
+func (p *Probe) zeroEvent() {
+	*p.event = eventZero
+	p.event.resolvers = p.resolvers
+}
+
 func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
 	offset := 0
+
+	p.zeroEvent()
 	event := p.event
 
 	read, err := event.UnmarshalBinary(data)
@@ -258,10 +267,6 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	offset += read
 
 	eventType := EventType(event.Type)
-
-	// zero the event first
-	event.Zero(eventType.String())
-
 	log.Tracef("Decoding event %s", eventType)
 
 	switch eventType {
