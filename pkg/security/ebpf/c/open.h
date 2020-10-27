@@ -162,7 +162,7 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
 
 SEC("kretprobe/ovl_dentry_upper")
 int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
         return 0;
 
@@ -174,7 +174,7 @@ int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
 
 SEC("kretprobe/ovl_d_real")
 int kretprobe__ovl_d_real(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
         return 0;
 
@@ -186,7 +186,7 @@ int kretprobe__ovl_d_real(struct pt_regs *ctx) {
 
 SEC("kprobe/do_dentry_open")
 int kprobe__do_dentry_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
         return 0;   
 
@@ -200,7 +200,7 @@ int kprobe__do_dentry_open(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx, u64 ev) {
+int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
@@ -245,15 +245,15 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx, u64 
 }
 
 SYSCALL_KRETPROBE(creat) {
-    return trace__sys_open_ret(ctx, 1);
+    return trace__sys_open_ret(ctx);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
-    return trace__sys_open_ret(ctx, 2);
+    return trace__sys_open_ret(ctx);
 }
 
 SYSCALL_COMPAT_KRETPROBE(truncate) {
-    return trace__sys_open_ret(ctx, 3);
+    return trace__sys_open_ret(ctx);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open) {
@@ -261,7 +261,7 @@ SYSCALL_COMPAT_KRETPROBE(open) {
     if (retval >= 0 && retval <= 2)
         return 0;
 
-    return trace__sys_open_ret(ctx, 4);
+    return trace__sys_open_ret(ctx);
 }
 
 SYSCALL_COMPAT_KRETPROBE(openat) {
@@ -269,7 +269,7 @@ SYSCALL_COMPAT_KRETPROBE(openat) {
     if (retval >= 0 && retval <= 2)
         return 0;
 
-    return trace__sys_open_ret(ctx, 5);
+    return trace__sys_open_ret(ctx);
 }
 
 #endif

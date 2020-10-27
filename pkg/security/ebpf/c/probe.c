@@ -37,6 +37,9 @@ struct invalidate_dentry_event_t {
 };
 
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode) {
+    if (!inode || !mount_id)
+        return;
+
 #pragma unroll
     for (int i = 1; i < EVENT_MAX; i++) {
         remove_inode_discarder(i, mount_id, inode);

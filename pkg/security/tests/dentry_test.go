@@ -75,7 +75,7 @@ func TestDentryRename(t *testing.T) {
 func TestDentryRenameFolder(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename =~ "{{.Root}}/folder/*" &&  (open.flags & O_CREAT) > 0`,
+		Expression: `open.filename =~ "{{.Root}}/folder/*" && (open.flags & O_CREAT) > 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -195,7 +195,6 @@ func TestDentryRmdir(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fmt.Printf("UUUUUUUUUUUUUUU\n")
 		if err := syscall.Rmdir(testFile); err != nil {
 			t.Fatal(err)
 		}
