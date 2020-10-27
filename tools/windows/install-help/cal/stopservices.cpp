@@ -932,6 +932,22 @@ int verifyServices(CustomActionData& data)
         WcaLog(LOGMSG_STANDARD, "updating service %d", i);
         retval = services[i].verify(hScManager);
         if (retval != 0) {
+            if(ERROR_SERVICE_DOES_NOT_EXIST == retval && i > 1)
+            {
+                // i > 1 b/c we can't do this for core or trace, since they run as
+                // ddagentuser and we don't have the password.  process & npm run
+                // as local system, so there's no password to need.
+                
+                // since we're adding a new service later (npm), on upgrade we
+                // must have the core agent.  Any of the subservices, if they're not
+                // present, accept that (they might be newly added) and just try
+                // to install it instead.
+
+                // this only works b/c the NPM service is running as LOCAL_SYSTEM rather
+                // than ddagentuser; otherwise, we wouldn't have the password at this
+                // point and this wouldn't work.
+                retval = services[i].create(hScManager);
+            }
             WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
             break;
         }
