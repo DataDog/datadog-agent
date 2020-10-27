@@ -180,6 +180,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
+	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
