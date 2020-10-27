@@ -904,7 +904,6 @@ api_key:
 ##################################
 
 ## @param system_probe_config - custom object - optional
-## Beta Agent
 ## Enter specific configurations for your System Probe data collection.
 ## Uncomment this parameter and the one below to enable them.
 #
@@ -929,7 +928,7 @@ api_key:
   ## @param enabled - boolean - optional - default: true
   ## Set to true to enable the Network Module of the System Probe
   #
-  # enabled: true
+  # enabled: false
 
 {{ end -}}
 
