@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
 // sendRunningMetrics exports a metric to distinguish between security-agent modules that are activated
-func sendRunningMetrics(moduleName string) *time.Ticker {
+func sendRunningMetrics(statsdClient *ddgostatsd.Client, moduleName string) *time.Ticker {
 	// Retrieve the agent version using a dedicated package
 	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 
@@ -22,7 +22,7 @@ func sendRunningMetrics(moduleName string) *time.Ticker {
 	heartbeat := time.NewTicker(15 * time.Second)
 	go func() {
 		for range heartbeat.C {
-			statsd.Client.Gauge(fmt.Sprintf("datadog.security_agent.%s.running", moduleName), 1, tags, 1) //nolint:errcheck
+			statsdClient.Gauge(fmt.Sprintf("datadog.security_agent.%s.running", moduleName), 1, tags, 1) //nolint:errcheck
 		}
 	}()
 

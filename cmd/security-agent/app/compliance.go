@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
 var (
@@ -119,7 +120,7 @@ func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType strin
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
-func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper) error {
+func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper, statsdClient *ddgostatsd.Client) error {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil
@@ -176,7 +177,7 @@ func startCompliance(hostname string, endpoints *config.Endpoints, context *clie
 	log.Infof("Running compliance checks every %s", checkInterval.String())
 
 	// Send the compliance 'running' metrics periodically
-	ticker := sendRunningMetrics("compliance")
+	ticker := sendRunningMetrics(statsdClient, "compliance")
 	stopper.Add(ticker)
 
 	return nil
