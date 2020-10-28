@@ -413,7 +413,7 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
-	config.BindEnvAndSetDefault("kubelet_client_ca", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+	config.BindEnvAndSetDefault("kubelet_client_ca", "")
 
 	config.BindEnvAndSetDefault("kubelet_auth_token_path", "")
 	config.BindEnvAndSetDefault("kubelet_client_crt", "")
