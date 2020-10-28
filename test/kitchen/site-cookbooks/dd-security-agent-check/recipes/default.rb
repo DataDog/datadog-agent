@@ -42,7 +42,8 @@ if node['platform_family'] != 'windows'
       tag 'bullseye'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
       command "sleep 3600"
-      volumes '/tmp/security-agent:/tmp/security-agent'
+      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc']
+      env ['HOST_PROC=/host/proc']
       privileged true
     end
 
