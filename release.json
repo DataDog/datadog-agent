@@ -1,7 +1,7 @@
 {
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
+        "OMNIBUS_SOFTWARE_VERSION": "cc/snowflake-patch",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.39.2",
         "JMXFETCH_HASH": "c59021fa9a02102ffb8a28e9083007aed5e11f6eef2b199f5446533d3a89ede4",
@@ -12,7 +12,7 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
+        "OMNIBUS_SOFTWARE_VERSION": "cc/snowflake-patch",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.39.2",
         "JMXFETCH_HASH": "c59021fa9a02102ffb8a28e9083007aed5e11f6eef2b199f5446533d3a89ede4",
