@@ -1275,9 +1275,8 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // Clone returns a copy on the event
-func (e *Event) Clone() *Event {
-	clone := *e
-	return &clone
+func (e *Event) Clone() Event {
+	return *e
 }
 
 // NewEvent returns a new event

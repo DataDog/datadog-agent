@@ -131,14 +131,16 @@ type testEventHandler struct {
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
-	h.events <- event.Clone()
+	e := event.Clone()
+	h.events <- &e
 	h.ruleSet.Evaluate(event)
 }
 
 func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
 
 func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	h.discarders <- &testDiscarder{event: event.(*sprobe.Event).Clone(), field: field, eventType: eventType}
+	e := event.(*sprobe.Event).Clone()
+	h.discarders <- &testDiscarder{event: &e, field: field, eventType: eventType}
 }
 
 func getInode(t *testing.T, path string) uint64 {
@@ -249,7 +251,8 @@ func (tm *testModule) Root() string {
 }
 
 func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
-	tm.events <- testEvent{event: event.(*sprobe.Event).Clone(), rule: rule}
+	e := event.(*sprobe.Event).Clone()
+	tm.events <- testEvent{event: &e, rule: rule}
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
@@ -343,15 +346,15 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
+	if err := probe.Start(); err != nil {
+		return nil, err
+	}
+
 	// Start and Snapshot are called in the reverse order in the real module. Calling the snapshot before some discarder
 	// tests is very noisy and makes the output unreadable. The (very unlikely) risk of missing a crucial mount point or
 	// process between the call of Snapshot and Start is acceptable for testing, and not worth delaying the tests or
 	// making them unreadable.
 	if err := probe.Snapshot(); err != nil {
-		return nil, err
-	}
-
-	if err := probe.Start(); err != nil {
 		return nil, err
 	}
 
