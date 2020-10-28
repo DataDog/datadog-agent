@@ -56,6 +56,14 @@ typedef struct {
     tcp_stats_t tcp_stats;
 } tcp_conn_t;
 
+#define HTTP_BUFFER_SIZE 15
+#define HTTP_STATUS_CODE_SIZE 3
+#define TCPHDR_FIN 0x01
+
+// From include/net/tcp.h
+// tcp_flag_byte(th) (((u_int8_t *)th)[13])
+#define TCP_FLAGS_OFFSET 13
+
 // Data generated from parsing a skb struct
 typedef struct {
     conn_tuple_t tup;

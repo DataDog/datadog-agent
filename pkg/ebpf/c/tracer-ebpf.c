@@ -18,14 +18,6 @@
  */
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
                                       : "=r"(var))
-#define HTTP_BUFFER_SIZE 15
-#define HTTP_STATUS_CODE_SIZE 3
-#define TCPHDR_FIN 0x01
-
-// From include/net/tcp.h
-// tcp_flag_byte(th) (((u_int8_t *)th)[13])
-#define TCP_FLAGS_OFFSET 13
-
 enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, udp_send_processed, udp_send_missed};
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
@@ -1284,9 +1276,8 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         return;
     }
 
+    // TODO: Preemptively create these batches on userspace
     u32 cpu = bpf_get_smp_processor_id();
-
-    // TODO: Preemptively create this batches on userspace
     http_batch_t empty = {};
     __builtin_memset(&empty, 0, sizeof(empty));
     bpf_map_update_elem(&http_enqueued, &cpu, &empty, BPF_NOEXIST);
@@ -1305,7 +1296,7 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_code, (http->response_last_seen-http->request_started)/(1000*1000));
 }
 
-static __always_inline int http_begin_request(http_transaction_t *http, http_state_t new_state) {
+static __always_inline int http_begin_request(http_transaction_t *http, http_state_t new_state, char *buffer) {
     // This can happen in the context of HTTP keep-alives;
     if (http->state == HTTP_RESPONDING) {
         http_end_response(http);
@@ -1363,16 +1354,16 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
 }
 
 static __always_inline http_state_t http_read_data(struct __sk_buff* skb, skb_info_t* skb_info, char* p) {
-    if (skb_info->data_end - skb_info->data_off + 1 < HTTP_BUFFER_SIZE) {
-        return HTTP_UNKNOWN;
-    }
-
-    // TODO: Try to read as much as possible, like adding a conditional in the middle;
-    // The verifier problem might be the fact we're not initializing `p`
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        p[i] = load_byte(skb, skb_info->data_off + i);
+        if (skb_info->data_off + i <= skb_info->data_end) {
+            p[i] = load_byte(skb, skb_info->data_off + i);
+        } else {
+            // Without this else branch the verifier rejects the program, even if you memset the buffer
+            p[i] = '\0';
+        }
     }
+    p[HTTP_BUFFER_SIZE-1] = '\0';
 
     http_state_t packet_type = HTTP_UNKNOWN;
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
@@ -1394,6 +1385,8 @@ static __always_inline http_state_t http_read_data(struct __sk_buff* skb, skb_in
 
 static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t* skb_info) {
     char buffer[HTTP_BUFFER_SIZE];
+    __builtin_memset(&buffer, '\0', sizeof(HTTP_BUFFER_SIZE));
+
     http_state_t packet_type = http_read_data(skb, skb_info, buffer);
 
     if (packet_type&HTTP_REQUESTING) {
@@ -1411,7 +1404,7 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
 
     if (packet_type&HTTP_REQUESTING) {
         // We intercepted the first segment of the HTTP *request*
-        http_begin_request(http, packet_type);
+        http_begin_request(http, packet_type, buffer);
     } else if (packet_type == HTTP_RESPONDING) {
         // We intercepted the first segment of the HTTP *response*
         http_begin_response(http, buffer);
