@@ -136,6 +136,14 @@ def update_dca_changelog(ctx, new_version, agent_version):
     # remove the old header from the existing changelog
     ctx.run("sed {0} -e '1,4d' CHANGELOG-DCA.rst".format(sed_i_arg))
 
+    if sys.platform != 'darwin':
+        # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
+        ctx.run(
+            "sed -z {0} -e 's/dca-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-dca.rst".format(
+                sed_i_arg, new_version, '=' * len(new_version)
+            )
+        )
+
     # merging to CHANGELOG.rst
     ctx.run("cat CHANGELOG-DCA.rst >> /tmp/new_changelog-dca.rst && mv /tmp/new_changelog-dca.rst CHANGELOG-DCA.rst")
 
