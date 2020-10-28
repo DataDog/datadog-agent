@@ -36,7 +36,7 @@ import (
 // |                                                        |
 // + ------------------------------------------------------ +
 type Agent struct {
-	auditor          *auditor.Auditor
+	auditor          auditor.Auditor
 	destinationsCtx  *client.DestinationsContext
 	pipelineProvider pipeline.Provider
 	inputs           []restart.Restartable
@@ -80,15 +80,13 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 }
 
 // NewServerless returns a Logs Agent instance to run in a serverless environment.
-// FIXME(remy): I should see if we should merge NewAgent and NewServerless or not. It'll mainly depend if the auditor has to be adapted.
+// The Serverless Logs Agent has only one input being the channel to receive the logs to process.
+// It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
-	// setup the auditor
-	// We pass the health handle to the auditor because it's the end of the pipeline and the most
-	// critical part. Arguably it could also be plugged to the destination.
-	// FIXME(remy): what about the auditor?
-	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, health)
+	// setup the a null auditor, not tracking data in any registry
+	auditor := auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
