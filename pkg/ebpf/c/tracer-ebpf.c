@@ -1307,6 +1307,7 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_sta
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
     http->response_code = 0;
+    __builtin_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
     return 1;
 }
 
@@ -1363,7 +1364,6 @@ static __always_inline http_state_t http_read_data(struct __sk_buff* skb, skb_in
             p[i] = '\0';
         }
     }
-    p[HTTP_BUFFER_SIZE-1] = '\0';
 
     http_state_t packet_type = HTTP_UNKNOWN;
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {

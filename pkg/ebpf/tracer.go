@@ -440,7 +440,7 @@ func (t *Tracer) initPerfPollingHTTP(perf *bytecode.PerfHandler) (*manager.PerfM
 
 				for _, http := range toHTTPTransactions(data) {
 					duration := (http.response_last_seen - http.request_started) / 1000
-					log.Debugf("HTTP status=%d duration=%d(µs)", http.response_code, duration)
+					log.Debugf("HTTP status=%d duration=%d(µs) path=%s", http.response_code, duration, http.Path())
 				}
 			case _, ok := <-perf.LostChannel:
 				if !ok {

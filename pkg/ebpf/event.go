@@ -105,6 +105,28 @@ func toHTTPTransactions(data []byte) []httpTransaction {
 	return result
 }
 
+// Path returns the URL from the request fragment captured in eBPF
+// Usually the request fragment will look like
+// GET /foo HTTP/1.1
+func (tx *httpTransaction) Path() string {
+	b := C.GoBytes(unsafe.Pointer(&tx.request_fragment), C.int(C.HTTP_BUFFER_SIZE))
+
+	var i, j int
+	for i = 0; i < len(b) && b[i] != ' '; i++ {
+	}
+
+	i++
+
+	for j = i; j < len(b) && b[j] != ' '; j++ {
+	}
+
+	if i < j && j <= len(b) {
+		return string(b[i:j])
+	}
+
+	return ""
+}
+
 // ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
 func ExtractBatchInto(buffer []network.ConnectionStats, b *batch, start, end int) []network.ConnectionStats {

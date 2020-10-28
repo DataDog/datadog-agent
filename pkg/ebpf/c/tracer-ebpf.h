@@ -58,11 +58,12 @@ typedef struct {
 
 #define HTTP_BUFFER_SIZE 15
 #define HTTP_STATUS_CODE_SIZE 3
-#define TCPHDR_FIN 0x01
+#define HTTP_BATCH_SIZE 2
 
 // From include/net/tcp.h
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])
 #define TCP_FLAGS_OFFSET 13
+#define TCPHDR_FIN 0x01
 
 // Data generated from parsing a skb struct
 typedef struct {
@@ -91,9 +92,9 @@ typedef struct {
     __u64 request_started;
     __u16 response_code;
     __u64 response_last_seen;
+    char request_fragment[HTTP_BUFFER_SIZE];
 } http_transaction_t;
 
-#define HTTP_BATCH_SIZE 3
 typedef struct {
     __u8 pos;
     http_transaction_t transactions[HTTP_BATCH_SIZE];
