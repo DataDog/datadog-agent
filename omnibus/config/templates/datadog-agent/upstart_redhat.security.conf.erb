@@ -20,6 +20,9 @@ script
 end script
 
 pre-start script
+  # Do not run if security-agent.yaml does not exist
+  test -f <%= etc_dir %>/security-agent.yaml || { stop ; exit 0; }
+
   # Manual rotation of errors log
   log_file_size=`du -b /var/log/datadog/security-errors.log | cut -f1`
   if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then

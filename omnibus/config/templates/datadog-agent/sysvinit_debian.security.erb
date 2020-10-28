@@ -17,6 +17,7 @@ INSTALL_DIR="<%= install_dir %>"
 AGENTPATH="$INSTALL_DIR/embedded/bin/security-agent"
 PIDFILE="$INSTALL_DIR/run/security-agent.pid"
 AGENT_ARGS="start -c=$ETC_DIR/datadog.yaml -p=$PIDFILE"
+SECURITY_AGENT_CONFIG_FILE="$ETC_DIR/security-agent.yaml"
 NAME="datadog-agent-security"
 DESC="Datadog Security Agent"
 
@@ -24,6 +25,11 @@ DESC="Datadog Security Agent"
 
 if [ ! -x $AGENTPATH ]; then
 	echo "$AGENTPATH not found. Exiting."
+	exit 0
+fi
+
+if [ ! -x $SECURITY_AGENT_CONFIG_FILE ]; then
+	echo "$SECURITY_AGENT_CONFIG_FILE not found. Exiting."
 	exit 0
 fi
 
