@@ -10,6 +10,7 @@ name 'datadog-agent-integrations-py3'
 
 dependency 'datadog-agent'
 dependency 'pip3'
+dependency 'snowflake-connector-python'
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
