@@ -39,7 +39,7 @@ monitoring and performance data.`,
 
 // loggerName is the name of the core agent logger
 const loggerName config.LoggerName = "CORE"
-const jmxLoggerName config.LoggerName = "JMX"
+const jmxLoggerName config.LoggerName = "JMXFETCH"
 
 func init() {
 	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
