@@ -78,7 +78,7 @@ func TestMount(t *testing.T) {
 			t.Fatalf("could not unmount test-mount: %s", err)
 		}
 
-		event, err := test.GetEvent(3 * time.Second)
+		event, err := test.GetEvent(3*time.Second, "umount")
 		if err != nil {
 			t.Error(err)
 		} else {

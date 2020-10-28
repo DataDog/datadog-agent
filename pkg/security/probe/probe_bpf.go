@@ -311,6 +311,7 @@ func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap,
 	}
 
 	p.eventsStats.CountEventType(eventType, 1)
+	p.DispatchEvent(event)
 }
 
 func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
