@@ -283,7 +283,7 @@ func (p *ProcessResolver) snapshotProcess(proc *process.FilledProcess) bool {
 		TTYName:   utils.PidTTY(pid),
 	}
 
-	log.Tracef("Add process cache entry: %d/%d", pid, inode)
+	log.Tracef("Add process cache entry: %s %s %d/%d", proc.Name, pathnameStr, pid, inode)
 
 	p.addEntry(pid, entry)
 

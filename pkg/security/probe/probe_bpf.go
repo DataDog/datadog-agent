@@ -278,6 +278,20 @@ func (p *Probe) zeroMountEvent() *Event {
 	return p.mountEvent
 }
 
+func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error) {
+	read, err := unmarshalBinary(data, &event.Process, &event.Container)
+	if err != nil {
+		return 0, err
+	}
+
+	if entry := p.resolvers.ProcessResolver.Get(event.Process.Pid); entry != nil {
+		event.Process.FileEvent = entry.FileEvent
+		event.Container = entry.ContainerEvent
+	}
+
+	return read, nil
+}
+
 func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
 	offset := 0
 	event := p.zeroMountEvent()
@@ -290,11 +304,12 @@ func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap,
 	offset += read
 
 	eventType := EventType(event.Type)
-	log.Tracef("Decoding event %s", eventType)
+
+	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
 	switch eventType {
 	case FileMountEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `utimes`: %s", err)
 			return
@@ -311,9 +326,9 @@ func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap,
 		// Resolve root
 		event.Mount.ResolveRoot(p.resolvers)
 		// Insert new mount point in cache
-		p.resolvers.MountResolver.Insert(&event.Mount)
+		p.resolvers.MountResolver.Insert(event.Mount)
 	case FileUmountEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `utimes`: %s", err)
 			return
@@ -350,27 +365,11 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 
 	eventType := EventType(event.Type)
 
-	p.eventsStats.CountEventType(eventType, 1)
-
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
-
-	unmarshalProcessContainer := func(data []byte) (int, error) {
-		read, err := unmarshalBinary(data, &event.Process, &event.Container)
-		if err != nil {
-			return 0, err
-		}
-
-		if entry := p.resolvers.ProcessResolver.Get(event.Process.Pid); entry != nil {
-			event.Process.FileEvent = entry.FileEvent
-			event.Container = entry.ContainerEvent
-		}
-
-		return read, nil
-	}
 
 	switch eventType {
 	case FileOpenEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `open`: %s", err)
 			return
@@ -382,7 +381,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileMkdirEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `mkdir`: %s", err)
 			return
@@ -394,7 +393,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileRmdirEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `rmdir`: %s", err)
 			return
@@ -406,7 +405,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileUnlinkEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `unlink`: %s", err)
 			return
@@ -418,7 +417,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileRenameEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `rename`: %s", err)
 			return
@@ -430,7 +429,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileChmodEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `chmod`: %s", err)
 			return
@@ -442,7 +441,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileChownEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `chown`: %s", err)
 			return
@@ -454,7 +453,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileUtimeEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `utimes`: %s", err)
 			return
@@ -466,7 +465,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileLinkEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `link`: %s", err)
 			return
@@ -478,7 +477,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileSetXAttrEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `utimes`: %s", err)
 			return
@@ -490,7 +489,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 	case FileRemoveXAttrEventType:
-		read, err = unmarshalProcessContainer(data[offset:])
+		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
 			log.Errorf("failed to decode event `utimes`: %s", err)
 			return
@@ -538,6 +537,8 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	}
 
 	log.Tracef("Dispatching event %+v\n", event)
+
+	p.eventsStats.CountEventType(eventType, 1)
 	p.DispatchEvent(event)
 }
 
