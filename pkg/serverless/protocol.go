@@ -1,6 +1,7 @@
 package serverless
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -72,13 +73,21 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan string, error) {
 
 	go func() {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// FIXME(remy): these log lines should be parsed and sent to the logs agent instance
 			data, _ := ioutil.ReadAll(r.Body)
 			defer r.Body.Close()
-			log.Debug("writing into the chan")
-			logsChan <- string(data) // FIXME(remy): memory usage
-			log.Debug("wrote into the chan")
-			w.WriteHeader(200)
+			var messages []LogMessage
+			if err := json.Unmarshal(data, &messages); err != nil {
+				log.Error("Can't read log message")
+				w.WriteHeader(400)
+			} else {
+				for _, message := range messages {
+					if message.Type != "" {
+						// TODO(remy): what about the timestamp of the log available in the message?
+						logsChan <- message.Record
+					}
+				}
+				w.WriteHeader(200)
+			}
 		})
 		s := &http.Server{
 			Addr:         listenAddr,
