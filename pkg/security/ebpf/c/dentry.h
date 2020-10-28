@@ -90,6 +90,13 @@ int __attribute__((always_inline)) get_path_mount_id(struct path *path) {
     return get_vfsmount_mount_id(mnt);
 }
 
+int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
+    struct vfsmount *mnt;
+    bpf_probe_read(&mnt, sizeof(mnt), &file->f_path.mnt);
+    return get_vfsmount_mount_id(mnt);
+}
+
+
 int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     int mount_id;
 

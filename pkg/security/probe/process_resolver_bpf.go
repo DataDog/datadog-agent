@@ -27,7 +27,7 @@ import (
 var snapshotProbeIDs = []manager.ProbeIdentificationPair{
 	{
 		UID:     probes.SecurityAgentUID,
-		Section: "kprobe/security_inode_getattr",
+		Section: "kretprobe/get_task_exe_file",
 	},
 }
 

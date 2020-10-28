@@ -14,7 +14,7 @@ struct ktimeval {
 struct syscall_cache_t {
     struct policy_t policy;
 
-    u16 type;
+    u64 type;
 
     union {
         struct {
@@ -130,7 +130,7 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) peek_syscall(u16 type) {
+struct syscall_cache_t * __attribute__((always_inline)) peek_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
     if (syscall && (syscall->type & type) > 0)
@@ -138,7 +138,7 @@ struct syscall_cache_t * __attribute__((always_inline)) peek_syscall(u16 type) {
     return NULL;
 }
 
-struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u16 type) {
+struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
     if (syscall && (syscall->type & type) > 0) {

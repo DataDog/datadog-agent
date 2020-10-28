@@ -39,7 +39,7 @@ func AllProbes() []*manager.Probe {
 		// Snapshot probe
 		&manager.Probe{
 			UID:     SecurityAgentUID,
-			Section: "kprobe/security_inode_getattr",
+			Section: "kretprobe/get_task_exe_file",
 		},
 	)
 

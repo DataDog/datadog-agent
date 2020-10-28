@@ -15,25 +15,23 @@ struct bpf_map_def SEC("maps/inode_info_cache") inode_info_cache = {
     .namespace = "",
 };
 
-SEC("kprobe/security_inode_getattr")
-int kprobe__security_inode_getattr(struct pt_regs *ctx) {
-    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
-    struct dentry *dentry = get_path_dentry(path);
+SEC("kretprobe/get_task_exe_file")
+int kretprobe__get_task_exe_file(struct pt_regs *ctx) {
+    struct file *file = (struct file *)PT_REGS_RC(ctx);
+
+    struct dentry *dentry = get_file_dentry(file);
 
     u64 inode = get_dentry_ino(dentry);
     u32 overlay_numlower = get_overlay_numlower(dentry);
-    u32 mount_id = get_path_mount_id(path);
+    u32 mount_id = get_file_mount_id(file);
 
     struct inode_info_entry_t entry = {
         .mount_id = mount_id,
         .overlay_numlower = overlay_numlower,
     };
 
-    // security_inode_getattr might be called multiple times on overlay filesystem, we only care about the first call
-    int *current_entry = bpf_map_lookup_elem(&inode_info_cache, &inode);
-    if (!current_entry) {
-        bpf_map_update_elem(&inode_info_cache, &inode, &entry, BPF_ANY);
-    }
+    bpf_map_update_elem(&inode_info_cache, &inode, &entry, BPF_ANY);
+
     return 0;
 }
 #endif

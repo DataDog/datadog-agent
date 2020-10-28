@@ -26,7 +26,7 @@
 #include "umount.h"
 #include "link.h"
 #include "raw_syscalls.h"
-#include "getattr.h"
+#include "procfs.h"
 #include "setxattr.h"
 
 struct invalidate_dentry_event_t {
