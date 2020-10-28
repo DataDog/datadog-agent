@@ -383,7 +383,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 
 // NewSystemProbeConfig returns a system-probe specific AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig, error) {
+func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath, probeYamlPath string) (*AgentConfig, error) {
 	cfg := NewDefaultAgentConfig(false) // We don't access the container APIs in the system-probe
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
@@ -395,8 +395,13 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 		return cfg, nil
 	}
 
-	loadConfigIfExists(yamlPath) //nolint:errcheck
-	if err := cfg.loadSysProbeYamlConfig(yamlPath); err != nil {
+	// load agent global config
+	if err := loadConfigIfExists(yamlPath); err != nil {
+		return nil, err
+	}
+
+	mergeConfigIfExists(probeYamlPath) //nolint:errcheck
+	if err := cfg.loadSysProbeYamlConfig(probeYamlPath); err != nil {
 		return nil, err
 	}
 

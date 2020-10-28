@@ -35,11 +35,12 @@ var factories = []api.Factory{
 
 // Flag values
 var opts struct {
-	configPath  string
-	pidFilePath string
-	debug       bool
-	version     bool
-	console     bool // windows only; execute on console rather than via SCM
+	agentConfigPath string
+	configPath      string
+	pidFilePath     string
+	debug           bool
+	version         bool
+	console         bool // windows only; execute on console rather than via SCM
 }
 
 // Version info sourced from build flags
@@ -75,7 +76,7 @@ func runAgent(exit <-chan struct{}) {
 	}
 
 	// Parsing YAML config files
-	cfg, err := config.NewSystemProbeConfig(loggerName, opts.configPath)
+	cfg, err := config.NewSystemProbeConfig(loggerName, opts.agentConfigPath, opts.configPath)
 	if err != nil {
 		log.Criticalf("Failed to create agent config: %s", err)
 		cleanupAndExit(1)
