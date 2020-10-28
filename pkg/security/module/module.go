@@ -70,19 +70,37 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 
 	go m.statsMonitor(context.Background())
 
-	if err := m.probe.Start(); err != nil {
+	// initialize the default values of the probe
+	if err := m.probe.Init(); err != nil {
 		return err
 	}
 
 	rsa := sprobe.NewRuleSetApplier(m.config)
 
-	report, err := rsa.Apply(m.ruleSet, m.probe)
-	if err != nil {
-		log.Warn(err)
+	// based on the ruleset and the requested rules, select the probes that need to be activated
+	if err := rsa.SelectProbes(m.ruleSet, m.probe); err != nil {
+		return err
 	}
 
-	// now that the probes have started, run the snapshot functions for the probes that require
-	// to fetch the current state of the system (example: mount points probes, process probes, ...)
+	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
+	// running yet.
+	if err := m.probe.InitManager(); err != nil {
+		return err
+	}
+
+	// analyze the ruleset, push default policies in the kernel and generate the policy report
+	report, err := rsa.Apply(m.ruleSet, m.probe)
+	if err != nil {
+		return err
+	}
+
+	// start the manager and its probes / perf maps
+	if err := m.probe.Start(); err != nil {
+		return err
+	}
+
+	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
+	// context is ready when we start the probes
 	if err := m.probe.Snapshot(); err != nil {
 		return err
 	}
@@ -104,7 +122,7 @@ func (m *Module) Close() {
 		os.Remove(m.config.SocketPath)
 	}
 
-	m.probe.Stop()
+	m.probe.Close()
 }
 
 // RuleMatch is called by the ruleset when a rule matches

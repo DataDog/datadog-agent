@@ -16,16 +16,30 @@ import (
 // entityTags holds the tag information for a given entity
 type entityTags struct {
 	sync.RWMutex
-	lowCardTags          map[string][]string
-	orchestratorCardTags map[string][]string
-	highCardTags         map[string][]string
-	standardTags         map[string][]string
-	cacheValid           bool
-	cachedSource         []string
-	cachedAll            []string // Low + orchestrator + high
-	cachedOrchestrator   []string // Low + orchestrator (subslice of cachedAll)
-	cachedLow            []string // Sub-slice of cachedAll
-	tagsHash             string
+	sourceTags         map[string]sourceTags
+	cacheValid         bool
+	cachedSource       []string
+	cachedAll          []string // Low + orchestrator + high
+	cachedOrchestrator []string // Low + orchestrator (subslice of cachedAll)
+	cachedLow          []string // Sub-slice of cachedAll
+	tagsHash           string
+	toDelete           map[string]struct{}
+}
+
+func newEntityTags() *entityTags {
+	return &entityTags{
+		sourceTags: make(map[string]sourceTags),
+		toDelete:   make(map[string]struct{}),
+	}
+}
+
+// sourceTags holds the tags for a given entity collected from a single source,
+// grouped by their cardinality.
+type sourceTags struct {
+	lowCardTags          []string
+	orchestratorCardTags []string
+	highCardTags         []string
+	standardTags         []string
 }
 
 // tagStore stores entity tags in memory and handles search and collation.
@@ -54,46 +68,53 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	if info.Source == "" {
 		return fmt.Errorf("empty source name, skipping message")
 	}
-	if info.DeleteEntity {
-		s.toDeleteMutex.Lock()
-		s.toDelete[info.Entity] = struct{}{}
-		s.toDeleteMutex.Unlock()
-		return nil
-	}
 
-	// TODO: check if real change
 	s.storeMutex.Lock()
 	defer s.storeMutex.Unlock()
 	storedTags, exist := s.store[info.Entity]
-	if !exist {
-		storedTags = &entityTags{
-			lowCardTags:          make(map[string][]string),
-			orchestratorCardTags: make(map[string][]string),
-			highCardTags:         make(map[string][]string),
-			standardTags:         make(map[string][]string),
+
+	if info.DeleteEntity {
+		if exist {
+			storedTags.Lock()
+			defer storedTags.Unlock()
+			s.toDeleteMutex.Lock()
+			defer s.toDeleteMutex.Unlock()
+
+			s.toDelete[info.Entity] = struct{}{}
+			storedTags.toDelete[info.Source] = struct{}{}
 		}
+
+		return nil
+	}
+
+	if !exist {
+		storedTags = newEntityTags()
 		s.store[info.Entity] = storedTags
 
 		storedEntities.Inc()
 	}
 
+	// TODO: check if real change
+
 	updatedEntities.Inc()
 
 	storedTags.Lock()
 	defer storedTags.Unlock()
-	_, found := storedTags.lowCardTags[info.Source]
+	_, found := storedTags.sourceTags[info.Source]
 	if found && info.CacheMiss {
 		// check if the source tags is already present for this entry
-		// Only check once since we always write all cardinality tag levels.
 		err := fmt.Errorf("try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
 		log.Tracef("processTagInfo err: %v", err)
 		return err
 	}
-	storedTags.lowCardTags[info.Source] = info.LowCardTags
-	storedTags.orchestratorCardTags[info.Source] = info.OrchestratorCardTags
-	storedTags.highCardTags[info.Source] = info.HighCardTags
-	storedTags.standardTags[info.Source] = info.StandardTags
+
 	storedTags.cacheValid = false
+	storedTags.sourceTags[info.Source] = sourceTags{
+		lowCardTags:          info.LowCardTags,
+		orchestratorCardTags: info.OrchestratorCardTags,
+		highCardTags:         info.HighCardTags,
+		standardTags:         info.StandardTags,
+	}
 
 	return nil
 }
@@ -126,7 +147,25 @@ func (s *tagStore) prune() error {
 	s.storeMutex.Lock()
 	defer s.storeMutex.Unlock()
 	for entity := range s.toDelete {
-		delete(s.store, entity)
+		storedTags, ok := s.store[entity]
+		if !ok {
+			continue
+		}
+
+		storedTags.Lock()
+
+		for source := range storedTags.toDelete {
+			delete(storedTags.sourceTags, source)
+		}
+
+		if len(storedTags.sourceTags) == 0 {
+			delete(s.store, entity)
+		} else {
+			storedTags.cacheValid = false
+			storedTags.toDelete = make(map[string]struct{})
+		}
+
+		storedTags.Unlock()
 	}
 
 	remainingEntities := len(s.store)
@@ -170,8 +209,8 @@ func (e *entityTags) getStandard() []string {
 	e.RLock()
 	defer e.RUnlock()
 	tags := []string{}
-	for _, t := range e.standardTags {
-		tags = append(tags, t...)
+	for _, t := range e.sourceTags {
+		tags = append(tags, t.standardTags...)
 	}
 	return tags
 }
@@ -200,17 +239,11 @@ func (e *entityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 	var sources []string
 	tagPrioMapper := make(map[string][]tagPriority)
 
-	for source, tags := range e.lowCardTags {
+	for source, tags := range e.sourceTags {
 		sources = append(sources, source)
-		insertWithPriority(tagPrioMapper, tags, source, collectors.LowCardinality)
-	}
-
-	for source, tags := range e.orchestratorCardTags {
-		insertWithPriority(tagPrioMapper, tags, source, collectors.OrchestratorCardinality)
-	}
-
-	for source, tags := range e.highCardTags {
-		insertWithPriority(tagPrioMapper, tags, source, collectors.HighCardinality)
+		insertWithPriority(tagPrioMapper, tags.lowCardTags, source, collectors.LowCardinality)
+		insertWithPriority(tagPrioMapper, tags.orchestratorCardTags, source, collectors.OrchestratorCardinality)
+		insertWithPriority(tagPrioMapper, tags.highCardTags, source, collectors.HighCardinality)
 	}
 
 	var lowCardTags []string

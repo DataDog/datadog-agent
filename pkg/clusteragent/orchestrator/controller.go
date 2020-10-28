@@ -21,6 +21,7 @@ import (
 	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -73,6 +74,11 @@ func StartController(ctx ControllerContext) error {
 		log.Info("Orchestrator explorer is disabled")
 		return nil
 	}
+
+	if !config.Datadog.GetBool("leader_election") {
+		return log.Errorf("Leader Election not enabled. Resource collection only happens on the leader nodes.")
+	}
+
 	if ctx.ClusterName == "" {
 		log.Warn("Orchestrator explorer enabled but no cluster name set: disabling")
 		return nil
@@ -152,8 +158,13 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting orchestrator controller")
 	defer log.Infof("Stopping orchestrator controller")
 
+	if err := o.runLeaderElection(); err != nil {
+		log.Errorf("Error running the leader engine: %s", err)
+		return
+	}
+
 	if err := o.forwarder.Start(); err != nil {
-		log.Errorf("error starting pod forwarder: %s", err)
+		log.Errorf("Error starting pod forwarder: %s", err)
 		return
 	}
 
@@ -343,6 +354,18 @@ func (o *Controller) sendMessages(msg []model.MessageBody, payloadType string) {
 
 		}
 	}
+}
+
+func (o *Controller) runLeaderElection() error {
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return err
+	}
+	err = engine.EnsureLeaderElectionRuns()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func spreadProcessors(processors []func(), spreadInterval, processorPeriod time.Duration, stopCh <-chan struct{}) {

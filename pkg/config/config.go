@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -179,6 +180,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
+	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -190,8 +192,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("c_core_dump", false)
 	config.BindEnvAndSetDefault("memtrack_enabled", true)
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
-	config.BindEnvAndSetDefault("tracemalloc_whitelist", "")
-	config.BindEnvAndSetDefault("tracemalloc_blacklist", "")
+	config.BindEnvAndSetDefault("tracemalloc_include", "")
+	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
+	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
+	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
 
 	// Python 3 linter timeout, in seconds
@@ -281,6 +285,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
+	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
@@ -302,7 +307,8 @@ func InitConfig(config Config) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
+	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0)
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 30*megaByte)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -345,7 +351,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
 	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
-	config.SetKnown("dogstatsd_mapper_profiles")
+
+	_ = config.BindEnv("dogstatsd_mapper_profiles")
+	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
+		var mappings []MappingProfile
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Warnf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)

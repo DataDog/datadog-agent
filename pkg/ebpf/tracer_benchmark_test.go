@@ -9,6 +9,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkTCPLatency(b *testing.B) {
@@ -36,7 +38,8 @@ func benchLatencyEchoTCP(size int) func(b *testing.B) {
 	return func(b *testing.B) {
 		end := make(chan struct{})
 		server := NewTCPServer(echoOnMessage)
-		server.Run(end)
+		err := server.Run(end)
+		require.NoError(b, err)
 		defer close(end)
 
 		c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -70,7 +73,8 @@ func benchLatencyEchoUDP(size int) func(b *testing.B) {
 	return func(b *testing.B) {
 		end := make(chan struct{})
 		server := NewUDPServer(echoOnMessage)
-		server.Run(end, size)
+		err := server.Run(end, size)
+		require.NoError(b, err)
 		defer close(end)
 
 		c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)

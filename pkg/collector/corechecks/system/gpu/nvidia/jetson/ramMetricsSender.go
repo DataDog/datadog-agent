@@ -9,9 +9,10 @@ package nvidia
 
 import (
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 type ramMetricSender struct {
@@ -39,13 +40,13 @@ func (ramMetricSender *ramMetricSender) SendMetrics(sender aggregator.Sender, fi
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.used", usedRAM*ramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.mem.used", usedRAM*ramMultiplier, "", nil)
 
 	totalRAM, err := strconv.ParseFloat(ramFields["totalRam"], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.total", totalRAM*ramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.mem.total", totalRAM*ramMultiplier, "", nil)
 
 	// lfb NxXMB, X is the largest free block. N is the number of free blocks of this size.
 	lfbMultiplier := getSizeMultiplier(ramFields["lfbUnit"])
@@ -54,13 +55,13 @@ func (ramMetricSender *ramMetricSender) SendMetrics(sender aggregator.Sender, fi
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.lfb", largestFreeBlock*lfbMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.mem.lfb", largestFreeBlock*lfbMultiplier, "", nil)
 
 	numFreeBlocks, err := strconv.ParseFloat(ramFields["numFreeBlock"], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.mem.n_lfb", numFreeBlocks, "", nil)
+	sender.Gauge("nvidia.jetson.mem.n_lfb", numFreeBlocks, "", nil)
 
 	return nil
 }

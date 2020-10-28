@@ -51,6 +51,7 @@ type Tracer struct {
 	perfHandler  *bytecode.PerfHandler
 	batchManager *PerfBatchManager
 	flushIdle    chan chan struct{}
+	stop         chan struct{}
 
 	// Telemetry
 	perfReceived  int64
@@ -242,6 +243,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		perfHandler:    perfHandler,
 		flushIdle:      make(chan chan struct{}),
+		stop:           make(chan struct{}),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
@@ -306,21 +308,34 @@ func runOffsetGuessing(config *Config, buf bytecode.AssetReader) ([]manager.Cons
 
 func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
-	// starts running the body immediately instead waiting for the first tick
-	for ; true; <-ticker.C {
-		stats, err := t.getTelemetry()
-		if err != nil {
-			continue
-		}
+	defer ticker.Stop()
 
-		for name, stat := range stats {
-			for metric, val := range stat.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
-			}
+	// trigger first get immediately
+	_ = t.populateExpvarStats()
+	for {
+		select {
+		case <-t.stop:
+			return
+		case <-ticker.C:
+			_ = t.populateExpvarStats()
 		}
 	}
+}
+
+func (t *Tracer) populateExpvarStats() error {
+	stats, err := t.getTelemetry()
+	if err != nil {
+		return err
+	}
+
+	for name, stat := range stats {
+		for metric, val := range stat.(map[string]int64) {
+			currVal := &expvar.Int{}
+			currVal.Set(val)
+			expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+		}
+	}
+	return nil
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
@@ -415,6 +430,7 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 }
 
 func (t *Tracer) Stop() {
+	close(t.stop)
 	t.reverseDNS.Close()
 	_ = t.m.Stop(manager.CleanAll)
 	_ = t.perfMap.Stop(manager.CleanAll)
@@ -566,12 +582,14 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	t.state.RemoveExpiredClients(time.Now())
 
 	for _, key := range closedPortBindings {
-		t.portMapping.RemoveMapping(key)
+		port := uint16(key.port)
+		t.portMapping.RemoveMapping(uint64(key.net_ns), port)
 		_ = portMp.Delete(unsafe.Pointer(&key))
 	}
 
 	for _, key := range closedUDPPortBindings {
-		t.udpPortMapping.RemoveMapping(key)
+		port := uint16(key.port)
+		t.udpPortMapping.RemoveMapping(uint64(key.net_ns), port)
 		_ = udpPortMp.Delete(unsafe.Pointer(&key))
 	}
 
@@ -765,38 +783,33 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // closed ports will be returned.
 // the map will be one of port_bindings  or udp_port_bindings, and the mapping will be one of tracer#portMapping
 // tracer#udpPortMapping respectively.
-func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping) ([]uint16, error) {
-	var key, emptyKey uint16
+func (t *Tracer) populatePortMapping(mp *ebpf.Map, mapping *network.PortMapping) (closed []portBindingTuple, err error) {
+	var key, emptyKey portBindingTuple
 	var state uint8
-
-	closedPortBindings := make([]uint16, 0)
 
 	entries := mp.IterateFrom(unsafe.Pointer(&emptyKey))
 	for entries.Next(unsafe.Pointer(&key), unsafe.Pointer(&state)) {
-		port := key
-
-		mapping.AddMapping(port)
-
+		log.Tracef("port mapping added port=%d net_ns=%d", key.port, key.net_ns)
+		mapping.AddMapping(uint64(key.net_ns), uint16(key.port))
 		if isPortClosed(state) {
-			closedPortBindings = append(closedPortBindings, port)
+			log.Tracef("port mapping closed port=%d net_ns=%d", key.port, key.net_ns)
+			closed = append(closed, key)
 		}
 	}
 
-	return closedPortBindings, nil
+	return closed, nil
 }
 
 func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) network.ConnectionDirection {
+	pm := t.portMapping
+	netNs := uint64(conn.NetNS)
 	if conn.Type == network.UDP {
-		if t.udpPortMapping.IsListening(conn.SPort) {
-			return network.INCOMING
-		}
-		return network.OUTGOING
+		pm = t.udpPortMapping
+		netNs = 0 // namespace is always 0 for udp since we can't get namespace info from ebpf
 	}
-
-	if t.portMapping.IsListening(conn.SPort) {
+	if pm.IsListening(netNs, conn.SPort) {
 		return network.INCOMING
 	}
-
 	return network.OUTGOING
 }
 

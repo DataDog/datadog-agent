@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: logs-hello-world
+spec:
+  templates:
+    - name: create
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: logs-hello-world
+            namespace: {{inputs.parameters.namespace}}
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: logs-hello-world
+            template:
+              metadata:
+                labels:
+                  app: logs-hello-world
+                annotations:
+                  ad.datadoghq.com/logs-short-lived-container.logs: '[{"source":"shell","service":"logs"}]'
+              spec:
+                initContainers:
+                - name: logs-init-container
+                  image: busybox:latest
+                  command: ['sh', '-c', 'echo hello world']
+                  resources:
+                    requests:
+                      memory: "32Mi"
+                      cpu: "50m"
+                    limits:
+                      memory: "64Mi"
+                      cpu: "100m"
+                containers:
+                - name: logs-short-lived-container
+                  image: busybox:latest
+                  command: ['sh', '-c', 'echo goodbye']
+                  resources:
+                    requests:
+                      memory: "32Mi"
+                      cpu: "50m"
+                    limits:
+                      memory: "64Mi"
+                      cpu: "100m"
+
+    - name: delete
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: delete
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: logs-hello-world
+            namespace: {{inputs.parameters.namespace}}

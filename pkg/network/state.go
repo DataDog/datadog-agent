@@ -159,7 +159,10 @@ func (ns *networkState) Connections(
 			ns.storeDNSStats(dnsStats)
 			ns.addDNSStats(id, latestConns)
 		}
-		return latestConns
+		// copy to ensure return value doesn't get clobbered
+		conns := make([]ConnectionStats, len(latestConns))
+		copy(conns, latestConns)
+		return conns
 	}
 
 	// Update all connections with relevant up-to-date stats for client
