@@ -161,6 +161,11 @@ def test(
         else:
             race_opt = "-race"
 
+        # Needed to fix an issue when using -race + gcc 10.x on Windows
+        # https://github.com/bazelbuild/rules_go/issues/2614
+        if sys.platform == 'win32':
+            ldflags += " -linkmode=external"
+
     if coverage:
         if race:
             # atomic is quite expensive but it's the only way to run
