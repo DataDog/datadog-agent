@@ -74,7 +74,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
             .inode = syscall->open.path_key.ino,
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
-            .path_id = tgid,
+            .path_id = cookie,
         },
         .container = {},
         .timestamp = bpf_ktime_get_ns(),
@@ -87,7 +87,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         // inherit container ID
         copy_container_id(entry.container.container_id, parent_entry->container.container_id);
     }
-    syscall->open.path_key.path_id = tgid;
+    syscall->open.path_key.path_id = cookie;
 
     // cache dentry
     resolve_dentry(syscall->open.dentry, syscall->open.path_key, 0);
@@ -184,7 +184,7 @@ int kprobe_do_close_on_exec(struct pt_regs *ctx) {
                 .inode = entry->executable.inode,
                 .overlay_numlower = entry->executable.overlay_numlower,
                 .mount_id = entry->executable.mount_id,
-                .path_id = tgid,
+                .path_id = entry->executable.path_id,
             },
             .cache_entry.container = {},
             .cache_entry.timestamp = entry->timestamp,

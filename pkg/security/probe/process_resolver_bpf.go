@@ -66,7 +66,8 @@ func (p *ProcessResolver) AddEntry(pid uint32, entry ProcessCacheEntry) {
 
 func (p *ProcessResolver) addEntry(pid uint32, entry *ProcessCacheEntry) {
 	// resolve now, so that the dentry cache is up to date
-	entry.FileEvent.ResolveInode(p.resolvers)
+	p.resolvers.DentryResolver.ResolveFromMap(entry.FileEvent.MountID, entry.FileEvent.Inode, entry.FileEvent.PathID)
+
 	entry.FileEvent.ResolveContainerPath(p.resolvers)
 	entry.ContainerEvent.ResolveContainerID(p.resolvers)
 
@@ -282,7 +283,7 @@ func (p *ProcessResolver) snapshotProcess(proc *process.FilledProcess) bool {
 		TTYName:   utils.PidTTY(pid),
 	}
 
-	log.Tracef("Add process cache entry: %+v", entry)
+	log.Tracef("Add process cache entry: %d/%d", pid, inode)
 
 	p.addEntry(pid, entry)
 

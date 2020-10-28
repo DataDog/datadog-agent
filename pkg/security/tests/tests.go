@@ -346,15 +346,15 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
-	if err := probe.Start(); err != nil {
-		return nil, err
-	}
-
 	// Start and Snapshot are called in the reverse order in the real module. Calling the snapshot before some discarder
 	// tests is very noisy and makes the output unreadable. The (very unlikely) risk of missing a crucial mount point or
 	// process between the call of Snapshot and Start is acceptable for testing, and not worth delaying the tests or
 	// making them unreadable.
 	if err := probe.Snapshot(); err != nil {
+		return nil, err
+	}
+
+	if err := probe.Start(); err != nil {
 		return nil, err
 	}
 

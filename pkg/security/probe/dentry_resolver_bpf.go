@@ -106,7 +106,8 @@ func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) s
 	return name
 }
 
-func (dr *DentryResolver) resolveFromCache(mountID uint32, inode uint64) (filename string, err error) {
+// ResolveFromCache resolve from the cache
+func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filename string, err error) {
 	key := PathKey{MountID: mountID, Inode: inode}
 	var path PathValue
 
@@ -140,7 +141,8 @@ func (dr *DentryResolver) resolveFromCache(mountID uint32, inode uint64) (filena
 	return
 }
 
-func (dr *DentryResolver) resolveFromMap(mountID uint32, inode uint64, pathID uint32) (filename string, err error) {
+// ResolveFromMap resolves from kernel map
+func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32) (filename string, err error) {
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var path PathValue
 
@@ -182,9 +184,9 @@ func (dr *DentryResolver) resolveFromMap(mountID uint32, inode uint64, pathID ui
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) string {
-	path, err := dr.resolveFromCache(mountID, inode)
+	path, err := dr.ResolveFromCache(mountID, inode)
 	if err != nil {
-		path, _ = dr.resolveFromMap(mountID, inode, pathID)
+		path, _ = dr.ResolveFromMap(mountID, inode, pathID)
 	}
 	return path
 }
