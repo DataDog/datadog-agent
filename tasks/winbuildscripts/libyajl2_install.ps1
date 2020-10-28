@@ -14,4 +14,4 @@ gem install ./libyajl2-1.2.0.gem
 
 # Cleanup
 cd ..
-rm -r libyajl2
+Remove-Item -Recurse -Force libyajl2
