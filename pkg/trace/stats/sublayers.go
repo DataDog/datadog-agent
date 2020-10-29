@@ -311,12 +311,11 @@ func SetSublayersOnSpan(span *pb.Span, values []SublayerValue) {
 	}
 
 	for _, value := range values {
-		name := value.Metric
-
-		if value.Tag.Name != "" {
-			name = name + "." + value.Tag.Name + ":" + value.Tag.Value
+		if value.Metric != "_sublayers.duration.by_service" && value.Tag.Name != "sublayer_service" {
+			continue
 		}
 
-		span.Metrics[name] = value.Value
+		key := value.Metric + "." + value.Tag.Name + ":" + value.Tag.Value
+		span.Metrics[key] = value.Value
 	}
 }
