@@ -28,6 +28,10 @@ if node['platform_family'] != 'windows'
   end
 
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
+    if ['ubuntu', 'debian'].include?(node[:platform])
+      apt_update
+    end
+
     docker_service 'default' do
       action [:create, :start]
     end
