@@ -48,7 +48,7 @@ func TestDentryRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i != 2; i++ {
+	for i := 0; i != 5; i++ {
 		if err := os.Rename(testOldFile, testNewFile); err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +96,7 @@ func TestDentryRenameFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i != 2; i++ {
+	for i := 0; i != 5; i++ {
 		filename := fmt.Sprintf("%s/test-rename", testOldFolder)
 
 		testFile, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0755)
@@ -114,7 +114,7 @@ func TestDentryRenameFolder(t *testing.T) {
 			}
 
 			if value, _ := event.GetFieldValue("open.filename"); value.(string) != filename {
-				t.Errorf("expected filename not found")
+				t.Errorf("expected filename not found, `%s` != `%s`", value.(string), filename)
 			}
 		}
 
@@ -143,7 +143,7 @@ func TestDentryUnlink(t *testing.T) {
 	}
 	defer test.Close()
 
-	for i := 0; i != 2; i++ {
+	for i := 0; i != 5; i++ {
 		filename := fmt.Sprintf("test-unlink-%d", i)
 
 		testFile, _, err := test.Path(filename)
@@ -185,7 +185,7 @@ func TestDentryRmdir(t *testing.T) {
 	}
 	defer test.Close()
 
-	for i := 0; i != 2; i++ {
+	for i := 0; i != 5; i++ {
 		testFile, _, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
 		if err != nil {
 			t.Fatal(err)

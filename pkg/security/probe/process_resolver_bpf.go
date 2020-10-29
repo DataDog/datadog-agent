@@ -66,8 +66,7 @@ func (p *ProcessResolver) AddEntry(pid uint32, entry ProcessCacheEntry) {
 
 func (p *ProcessResolver) addEntry(pid uint32, entry *ProcessCacheEntry) {
 	// resolve now, so that the dentry cache is up to date
-	p.resolvers.DentryResolver.ResolveFromMap(entry.FileEvent.MountID, entry.FileEvent.Inode, entry.FileEvent.PathID)
-
+	entry.FileEvent.ResolveInode(p.resolvers)
 	entry.FileEvent.ResolveContainerPath(p.resolvers)
 	entry.ContainerEvent.ResolveContainerID(p.resolvers)
 

@@ -313,27 +313,15 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				}
 			}
 
-			evaluator, err := rs.model.GetEvaluator(field)
-			if err != nil {
-				continue
-			}
-
-			// wrapper this evaluator in order to get value only during logging
-			vs := eval.NewEvaluatorStringer(ctx, evaluator)
-
 			isDiscarder := true
 			for _, rule := range bucket.rules {
 				isTrue, err := rule.PartialEval(ctx, field)
-
-				log.Tracef("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.ID, rule.Expression, field, vs, isTrue)
-
 				if err != nil || isTrue {
 					isDiscarder = false
 					break
 				}
 			}
 			if isDiscarder {
-				log.Tracef("Found a `%s` discarder for event type `%s` with value `%s`\n", field, eventType, vs)
 				rs.NotifyDiscarderFound(event, field, eventType)
 			}
 		}

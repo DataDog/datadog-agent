@@ -68,7 +68,7 @@ func TestProcess(t *testing.T) {
 func TestProcessContext(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`open.filename == "/etc/hosts"`),
+		Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process"`),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{enableFilters: true})
@@ -77,13 +77,34 @@ func TestProcessContext(t *testing.T) {
 	}
 	defer test.Close()
 
+	testFile, _, err := test.Path("test-process")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	// consume the open creation event
+	_, _, err = test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	}
+
 	t.Run("inode", func(t *testing.T) {
 		executable, err := os.Executable()
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		f, err := os.Open("/etc/hosts")
+		f, err := os.Open(testFile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,7 +133,7 @@ func TestProcessContext(t *testing.T) {
 			executable = "/bin/cat"
 		}
 
-		cmd := exec.Command("sh", "-c", executable+" /etc/hosts")
+		cmd := exec.Command("sh", "-c", executable+" "+testFile)
 		if _, err := cmd.CombinedOutput(); err != nil {
 			t.Error(err)
 		}
@@ -143,7 +164,7 @@ func TestProcessContext(t *testing.T) {
 			executable = "/bin/cat"
 		}
 
-		cmd := exec.Command("script", "/dev/null", "-c", executable+" /etc/hosts")
+		cmd := exec.Command("script", "/dev/null", "-c", executable+" "+testFile)
 		if _, err := cmd.CombinedOutput(); err != nil {
 			t.Error(err)
 		}
