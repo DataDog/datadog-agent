@@ -9,12 +9,12 @@ package probe
 
 import (
 	"os"
-	"sync"
 	"syscall"
 	"time"
 
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -39,14 +39,13 @@ type InodeInfo struct {
 
 // ProcessResolver resolved process context
 type ProcessResolver struct {
-	sync.RWMutex
 	probe          *Probe
 	resolvers      *Resolvers
 	snapshotProbes []*manager.Probe
 	inodeInfoMap   *lib.Map
 	procCacheMap   *lib.Map
 	pidCookieMap   *lib.Map
-	entryCache     map[uint32]*ProcessCacheEntry
+	entryCache     *lru.Cache
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -74,15 +73,11 @@ func (p *ProcessResolver) addEntry(pid uint32, entry *ProcessCacheEntry) {
 		entry.Timestamp = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.TimestampRaw)
 	}
 
-	p.Lock()
-	p.entryCache[pid] = entry
-	p.Unlock()
+	p.entryCache.Add(pid, entry)
 }
 
 func (p *ProcessResolver) DelEntry(pid uint32) {
-	p.Lock()
-	delete(p.entryCache, pid)
-	p.Unlock()
+	p.entryCache.Remove(pid)
 }
 
 func (p *ProcessResolver) resolve(pid uint32) *ProcessCacheEntry {
@@ -111,12 +106,9 @@ func (p *ProcessResolver) resolve(pid uint32) *ProcessCacheEntry {
 
 // Resolve returns the cache entry for the given pid
 func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
-	p.RLock()
-	entry, ok := p.entryCache[pid]
-	p.RUnlock()
-
-	if ok {
-		return entry
+	entry, exists := p.entryCache.Get(pid)
+	if exists {
+		return entry.(*ProcessCacheEntry)
 	}
 
 	// fallback request the map directly, the perf event may be delayed
@@ -124,10 +116,11 @@ func (p *ProcessResolver) Resolve(pid uint32) *ProcessCacheEntry {
 }
 
 func (p *ProcessResolver) Get(pid uint32) *ProcessCacheEntry {
-	p.RLock()
-	defer p.RUnlock()
-
-	return p.entryCache[pid]
+	entry, exists := p.entryCache.Get(pid)
+	if exists {
+		return entry.(*ProcessCacheEntry)
+	}
+	return nil
 }
 
 // Start starts the resolver
@@ -212,11 +205,7 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*InodeInfo, error) {
 func (p *ProcessResolver) snapshotProcess(proc *process.FilledProcess) bool {
 	pid := uint32(proc.Pid)
 
-	p.RLock()
-	_, exists := p.entryCache[pid]
-	p.RUnlock()
-
-	if exists {
+	if _, exists := p.entryCache.Get(pid); exists {
 		return false
 	}
 
@@ -345,9 +334,14 @@ func (p *ProcessResolver) Snapshot(containerResolver *ContainerResolver, mountRe
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers) (*ProcessResolver, error) {
+	cache, err := lru.New(10000)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ProcessResolver{
 		probe:      probe,
 		resolvers:  resolvers,
-		entryCache: make(map[uint32]*ProcessCacheEntry),
+		entryCache: cache,
 	}, nil
 }
