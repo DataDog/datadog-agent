@@ -9,5 +9,5 @@
 enhancements:
   - |
     APM: The trace-agent now automatically sets the GOMAXPROCS value in
-    Linux containers to whatever the container has allocated, as opposed
-    to the machine node value.
+    Linux containers to match allocated CPU quota, as opposed to the matching
+    the entire node's quota.
