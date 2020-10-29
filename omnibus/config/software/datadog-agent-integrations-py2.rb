@@ -298,7 +298,6 @@ build do
       patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
     end
 
-  end
 
     # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
     if windows?
@@ -306,6 +305,7 @@ build do
     else
       command "#{pip} check"
     end
+  end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version

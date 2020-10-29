@@ -284,14 +284,13 @@ build do
         command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
-  end
-
     # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
     if windows?
       command "#{python} -m pip check"
     else
       command "#{pip} check"
     end
+  end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
