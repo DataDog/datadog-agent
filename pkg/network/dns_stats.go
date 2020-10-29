@@ -44,7 +44,8 @@ type dnsPacketInfo struct {
 	transactionID uint16
 	key           dnsKey
 	pktType       DNSPacketType
-	rCode         uint8 // responseCode
+	rCode         uint8  // responseCode
+	question      string // only relevant for query packets
 }
 
 type stateKey struct {
@@ -52,10 +53,17 @@ type stateKey struct {
 	id  uint16
 }
 
+type stateValue struct {
+	ts       uint64
+	question domain
+}
+
+type domain string
+
 type dnsStatKeeper struct {
 	mux              sync.Mutex
-	stats            map[dnsKey]dnsStats
-	state            map[stateKey]uint64
+	stats            map[dnsKey]map[domain]dnsStats
+	state            map[stateKey]stateValue
 	expirationPeriod time.Duration
 	exit             chan struct{}
 	maxSize          int // maximum size of the state map
@@ -64,8 +72,8 @@ type dnsStatKeeper struct {
 
 func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
-		stats:            make(map[dnsKey]dnsStats),
-		state:            make(map[stateKey]uint64),
+		stats:            make(map[dnsKey]map[domain]dnsStats),
+		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
 		maxSize:          MaxStateMapSize,
@@ -90,12 +98,8 @@ func microSecs(t time.Time) uint64 {
 	return uint64(t.UnixNano() / 1000)
 }
 
-func (d *dnsStatKeeper) getStats(key dnsKey) dnsStats {
-	stats, ok := d.stats[key]
-	if !ok {
-		stats.countByRcode = make(map[uint8]uint32)
-	}
-	return stats
+func (d *dnsStatKeeper) getStats(key dnsKey) map[domain]dnsStats {
+	return d.stats[key]
 }
 
 func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
@@ -109,7 +113,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		}
 
 		if _, ok := d.state[sk]; !ok {
-			d.state[sk] = microSecs(ts)
+			d.state[sk] = stateValue{question: domain(info.question), ts: microSecs(ts)}
 		}
 		return
 	}
@@ -124,9 +128,16 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	delete(d.state, sk)
 	d.deleteCount++
 
-	latency := microSecs(ts) - start
+	latency := microSecs(ts) - start.ts
 
-	stats := d.getStats(info.key)
+	allStats, ok := d.stats[info.key]
+	if !ok {
+		allStats = make(map[domain]dnsStats)
+	}
+	stats, ok := allStats[start.question]
+	if !ok {
+		stats.countByRcode = make(map[uint8]uint32)
+	}
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
@@ -140,14 +151,15 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		}
 	}
 
-	d.stats[info.key] = stats
+	allStats[start.question] = stats
+	d.stats[info.key] = allStats
 }
 
-func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]dnsStats {
+func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]map[domain]dnsStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
-	d.stats = make(map[dnsKey]dnsStats)
+	d.stats = make(map[dnsKey]map[domain]dnsStats)
 	return ret
 }
 
@@ -157,12 +169,20 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 	defer d.mux.Unlock()
 	threshold := microSecs(earliestTs)
 	for k, v := range d.state {
-		if v < threshold {
+		if v.ts < threshold {
 			delete(d.state, k)
-			d.deleteCount++
-			stats := d.getStats(k.key)
+			allStats, ok := d.stats[k.key]
+			if !ok {
+				allStats = make(map[domain]dnsStats)
+			}
+			stats, ok := allStats[v.question]
+			if !ok {
+				stats.countByRcode = make(map[uint8]uint32)
+				d.deleteCount++
+			}
 			stats.timeouts++
-			d.stats[k.key] = stats
+			allStats[v.question] = stats
+			d.stats[k.key] = allStats
 		}
 	}
 
@@ -171,7 +191,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 	}
 
 	// golang/go#20135 : maps do not shrink after elements removal (delete)
-	copied := make(map[stateKey]uint64, len(d.state))
+	copied := make(map[stateKey]stateValue, len(d.state))
 	for k, v := range d.state {
 		copied[k] = v
 	}

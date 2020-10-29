@@ -1170,13 +1170,9 @@ int socket__dns_filter(struct __sk_buff* skb) {
     size_t dst_port_offset;
 
     switch (l3_proto) {
-    case ETH_P_IP:
+    case ETH_P_IP: // We are processing only IPv4 packets for now
         ip_hdr_size = sizeof(struct iphdr);
         l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
-        break;
-    case ETH_P_IPV6:
-        ip_hdr_size = sizeof(struct ipv6hdr);
-        l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct ipv6hdr, nexthdr));
         break;
     default:
         return 0;

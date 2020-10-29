@@ -31,6 +31,7 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 		DnsSuccessLatencySum:   conn.DNSSuccessLatencySum,
 		DnsFailureLatencySum:   conn.DNSFailureLatencySum,
 		DnsCountByRcode:        conn.DNSCountByRcode,
+		DnsStatsByDomain:       conn.DNSStatsByDomain,
 	}
 }
 

@@ -140,6 +140,7 @@ func (p *dnsParser) parseAnswerInto(
 	// Only consider responses
 	if !dns.QR {
 		pktInfo.pktType = Query
+		pktInfo.question = question
 		return nil
 	}
 

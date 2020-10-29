@@ -2,6 +2,7 @@ package network
 
 import (
 	"bytes"
+	"github.com/DataDog/dd-go/pb/alertingpb"
 	"sync"
 	"time"
 
@@ -78,7 +79,7 @@ type client struct {
 
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
-	dnsStats          map[dnsKey]dnsStats
+	dnsStats          map[dnsKey]map[domain]dnsStats
 }
 
 type networkState struct {
@@ -129,7 +130,7 @@ func (ns *networkState) Connections(
 	id string,
 	latestTime uint64,
 	latestConns []ConnectionStats,
-	dnsStats map[dnsKey]dnsStats,
+	dnsStats map[dnsKey]map[domain]dnsStats,
 ) []ConnectionStats {
 	ns.Lock()
 	defer ns.Unlock()
@@ -208,24 +209,36 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 			continue
 		}
 
-		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
-			conn.DNSTimeouts = dnsStats.timeouts
-			conn.DNSSuccessfulResponses = dnsStats.countByRcode[DNSResponseCodeNoError]
-			conn.DNSSuccessLatencySum = dnsStats.successLatencySum
-			conn.DNSFailureLatencySum = dnsStats.failureLatencySum
-			conn.DNSCountByRcode = make(map[uint32]uint32)
-			var total uint32
-			for rcode, count := range dnsStats.countByRcode {
-				conn.DNSCountByRcode[uint32(rcode)] = count
-				total += count
+		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
+			for domain, dnsStats := range dnsStatsByDomain {
+				var ds DNSStats
+				ds.DNSCountByRcode = make(map[uint32]uint32)
+				ds.DNSTimeouts = dnsStats.timeouts
+				ds.DNSSuccessLatencySum = dnsStats.successLatencySum
+				ds.DNSFailureLatencySum = dnsStats.failureLatencySum
+				for rcode, count := range dnsStats.countByRcode {
+					ds.DNSCountByRcode[uint32(rcode)] = count
+				}
+				conn.DNSStatsByDomain[string(domain)] = ds
 			}
-			conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
+
+			// conn.DNSTimeouts = dnsStats.timeouts
+			// conn.DNSSuccessfulResponses = dnsStats.countByRcode[DNSResponseCodeNoError]
+			// conn.DNSSuccessLatencySum = dnsStats.successLatencySum
+			// conn.DNSFailureLatencySum = dnsStats.failureLatencySum
+			// conn.DNSCountByRcode = make(map[uint32]uint32)
+			// var total uint32
+			// for rcode, count := range dnsStats.countByRcode {
+			// 	conn.DNSCountByRcode[uint32(rcode)] = count
+			// 	total += count
+			// }
+			// conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
 		}
 		seen[key] = struct{}{}
 	}
 
 	// flush the DNS stats
-	ns.clients[id].dnsStats = make(map[dnsKey]dnsStats)
+	ns.clients[id].dnsStats = make(map[dnsKey]map[domain]]dnsStats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -281,23 +294,31 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 }
 
 // storeDNSStats stores latest DNS stats for all clients
-func (ns *networkState) storeDNSStats(stats map[dnsKey]dnsStats) {
-	for key, dns := range stats {
+func (ns *networkState) storeDNSStats(stats map[dnsKey]map[domain]dnsStats) {
+	for key, statsByDomain := range stats {
 		for _, client := range ns.clients {
 			// If we've seen DNS stats for this key already, let's combine the two
-			if prev, ok := client.dnsStats[key]; ok {
-				prev.timeouts += dns.timeouts
-				prev.successLatencySum += dns.successLatencySum
-				prev.failureLatencySum += dns.failureLatencySum
-				for rcode, count := range dns.countByRcode {
-					prev.countByRcode[rcode] += count
+			if prevByDomain, ok := client.dnsStats[key]; ok {
+				for domain, dns := range statsByDomain {
+					if prev, ok := prevByDomain[domain]; ok {
+						prev.timeouts += dns.timeouts
+						prev.successLatencySum += dns.successLatencySum
+						prev.failureLatencySum += dns.failureLatencySum
+						for rcode, count := range dns.countByRcode {
+							prev.countByRcode[rcode] += count
+						}
+						prevByDomain[domain] = prev
+					} else {
+						prevByDomain[domain] = dns
+					}
+
 				}
-				client.dnsStats[key] = prev
+				client.dnsStats[key] = prevByDomain
 			} else if len(client.dnsStats) >= ns.maxDNSStats {
 				ns.telemetry.dnsStatsDropped++
 				continue
 			} else {
-				client.dnsStats[key] = dns
+				client.dnsStats[key] = statsByDomain
 			}
 		}
 	}
