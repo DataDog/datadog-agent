@@ -39,6 +39,7 @@ type Source struct {
 	Status        string                 `json:"status"`
 	Inputs        []string               `json:"inputs"`
 	Messages      []string               `json:"messages"`
+	BytesRead     int64                  `json:"bytes_read"`
 }
 
 // Integration provides some information about a logs integration.
