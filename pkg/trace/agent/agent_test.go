@@ -734,7 +734,7 @@ func BenchmarkThroughput(b *testing.B) {
 		b.SkipNow()
 	}
 
-	ddlog.SetupDatadogLogger(seelog.Disabled, "") // disable logging
+	ddlog.SetupLogger(seelog.Disabled, "") // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
