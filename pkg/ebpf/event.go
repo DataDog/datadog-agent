@@ -141,6 +141,10 @@ func (t *ConnTuple) SourceEndpoint() string {
 	return net.JoinHostPort(t.SourceAddress().String(), strconv.Itoa(int(t.sport)))
 }
 
+func (t *ConnTuple) SourcePort() uint16 {
+	return uint16(t.sport)
+}
+
 func (t *ConnTuple) DestAddress() util.Address {
 	if t.isIPv4() {
 		return util.V4Address(uint32(t.daddr_l))
@@ -151,6 +155,18 @@ func (t *ConnTuple) DestAddress() util.Address {
 // DestEndpoint returns the destination address in the ip:port format (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 func (t *ConnTuple) DestEndpoint() string {
 	return net.JoinHostPort(t.DestAddress().String(), strconv.Itoa(int(t.dport)))
+}
+
+func (t *ConnTuple) DestPort() uint16 {
+	return uint16(t.dport)
+}
+
+func (t *ConnTuple) Pid() uint32 {
+	return uint32(t.pid)
+}
+
+func (t *ConnTuple) NetNS() uint64 {
+	return uint64(t.netns)
 }
 
 func (t *ConnTuple) String() string {
