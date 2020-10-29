@@ -15,7 +15,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -35,7 +34,7 @@ const (
 )
 
 // ProcessPodList processes a pod list into process messages
-func ProcessPodList(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string, withScrubbing bool, scrubber *DataScrubber) ([]model.MessageBody, error) {
+func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterName string, clusterID string, withScrubbing bool, maxPerMessage int, scrubber *DataScrubber) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -90,11 +89,11 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		podMsgs = append(podMsgs, podModel)
 	}
 
-	groupSize := len(podMsgs) / cfg.MaxPerMessage
-	if len(podMsgs)%cfg.MaxPerMessage != 0 {
+	groupSize := len(podMsgs) / maxPerMessage
+	if len(podMsgs)%maxPerMessage != 0 {
 		groupSize++
 	}
-	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
+	chunked := chunkPods(podMsgs, groupSize, maxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
@@ -109,24 +108,6 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 
 	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
-}
-
-// ScrubContainer scrubs sensitive information in the command line & env vars
-func ScrubContainerOld(c *v1.Container, cfg *config.AgentConfig) bool {
-	// scrub command line
-	scrubbedCmd, changed := cfg.Scrubber.ScrubCommand(c.Command)
-	c.Command = scrubbedCmd
-	// scrub env vars
-	for e := 0; e < len(c.Env); e++ {
-		// use the "key: value" format to work with the regular credential cleaner
-		combination := c.Env[e].Name + ": " + c.Env[e].Value
-		scrubbedVal, err := log.CredentialsCleanerBytes([]byte(combination))
-		if err == nil && combination != string(scrubbedVal) {
-			c.Env[e].Value = redactedValue
-			changed = true
-		}
-	}
-	return changed
 }
 
 // ScrubContainer scrubs sensitive information in the command line & env vars

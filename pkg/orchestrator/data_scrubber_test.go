@@ -9,6 +9,7 @@ package orchestrator
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"testing"
 
@@ -20,7 +21,7 @@ import (
 func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }
 func BenchmarkNoRegexMatching10(b *testing.B)       { benchmarkMatching(10, b) }
 func BenchmarkNoRegexMatching100(b *testing.B)      { benchmarkMatching(100, b) }
-func BenchmarkNoRegexMatching1000(b *testing.B)     { benchmarkMatching(5000, b) }
+func BenchmarkNoRegexMatching1000(b *testing.B)     { benchmarkMatching(1000, b) }
 func BenchmarkRegexMatchingCustom1000(b *testing.B) { benchmarkMatchingCustomRegex(1000, b) }
 
 // https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go
@@ -33,7 +34,6 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 	containersBenchmarks := make([]v1.Container, nbContainers)
 	containersToBenchmark := make([]v1.Container, nbContainers)
 	var changed bool
-	cfg := config.NewDefaultAgentConfig(true)
 	scrubber := NewDefaultDataScrubber()
 	for _, testCase := range getScrubCases() {
 		containersToBenchmark = append(containersToBenchmark, testCase.input)
@@ -47,14 +47,6 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
 				changed = ScrubContainer(&c, scrubber)
-			}
-		}
-	})
-
-	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			for _, c := range containersBenchmarks {
-				changed = ScrubContainerOld(&c, cfg)
 			}
 		}
 	})
@@ -80,19 +72,12 @@ func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 	for i := 0; i < nbContainers; i++ {
 		containersBenchmarks = append(containersBenchmarks, containersToBenchmark...)
 	}
+
 	b.ResetTimer()
 	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
 				changed = ScrubContainer(&c, scrubber)
-			}
-		}
-	})
-
-	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			for _, c := range containersBenchmarks {
-				changed = ScrubContainerOld(&c, cfg)
 			}
 		}
 	})
@@ -192,6 +177,45 @@ func benchmarkCommandMatching(nbCommands int, b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, p := range runningProcesses {
 				_, c = cfgScrubber.ScrubCommand(p)
+			}
+		}
+	})
+
+	avoidOptimization = c
+}
+
+func BenchmarkEnvScrubbing1(b *testing.B)    { benchmarkEnvScrubbing(1, b) }
+func BenchmarkEnvScrubbing10(b *testing.B)   { benchmarkEnvScrubbing(10, b) }
+func BenchmarkEnvScrubbing100(b *testing.B)  { benchmarkEnvScrubbing(100, b) }
+func BenchmarkEnvScrubbing1000(b *testing.B) { benchmarkEnvScrubbing(1000, b) }
+
+func benchmarkEnvScrubbing(nEnvs int, b *testing.B) {
+
+	runningEnvs := make([]string, nEnvs)
+	var c bool
+
+	for i := 0; i < nEnvs; i++ {
+		runningEnvs[i] = "randomEnv" + string(rune(i))
+	}
+	scrubber := NewDefaultDataScrubber()
+
+	b.ResetTimer()
+
+	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			for _, p := range runningEnvs {
+				c = scrubber.ContainsSensitiveWord(p)
+			}
+		}
+	})
+
+	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			for _, p := range runningEnvs {
+				if scrubbedVal, _ := log.CredentialsCleanerBytes([]byte(p)); scrubbedVal != nil {
+					c = true
+				}
+
 			}
 		}
 	})

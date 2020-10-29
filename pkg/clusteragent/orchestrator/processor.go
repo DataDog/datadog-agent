@@ -14,7 +14,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -23,7 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool, scrubber *orchestrator.DataScrubber) ([]model.MessageBody, error) {
+func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterName string, clusterID string, withScrubbing bool, scrubber *orchestrator.DataScrubber) ([]model.MessageBody, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
 
@@ -95,7 +95,7 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 	return chunks
 }
 
-func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string, withScrubbing bool, scrubber *orchestrator.DataScrubber) ([]model.MessageBody, error) {
+func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.OrchestratorConfig, clusterName string, clusterID string, withScrubbing bool, scrubber *orchestrator.DataScrubber) ([]model.MessageBody, error) {
 	start := time.Now()
 	rsMsgs := make([]*model.ReplicaSet, 0, len(rsList))
 
@@ -170,7 +170,7 @@ func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int
 }
 
 // processServiceList process a service list into process messages.
-func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *config.OrchestratorConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	serviceMsgs := make([]*model.Service, 0, len(serviceList))
 
@@ -237,7 +237,7 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 }
 
 // processNodesList process a nodes list into process messages.
-func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.AgentConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
+func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterName string, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	nodeMsgs := make([]*model.Node, 0, len(nodesList))
 

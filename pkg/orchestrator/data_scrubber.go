@@ -25,10 +25,12 @@ var (
 // DataScrubber allows the agent to block cmdline arguments that match
 // a list of predefined and custom words
 type DataScrubber struct {
-	Enabled                  bool
-	RegexSensitivePatterns   []*regexp.Regexp
+	Enabled bool
+	// RegexSensitivePatterns are custom regex patterns which are currently not exposed externally
+	RegexSensitivePatterns []*regexp.Regexp
+	// LiteralSensitivePatterns are custom words which use to match against
 	LiteralSensitivePatterns []string
-	scrubbedCmdlines         map[string][]string
+	scrubbedCmdLines         map[string][]string
 }
 
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled
@@ -37,7 +39,7 @@ func NewDefaultDataScrubber() *DataScrubber {
 	newDataScrubber := &DataScrubber{
 		Enabled:                  true,
 		LiteralSensitivePatterns: defaultSensitiveWords,
-		scrubbedCmdlines:         make(map[string][]string),
+		scrubbedCmdLines:         make(map[string][]string),
 	}
 
 	return newDataScrubber
@@ -58,6 +60,11 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 	regexChanged := false
 	var wordReplacesIndexes []int
 
+	if len(cmdline) == 0 {
+		return cmdline, false
+	}
+
+	// in case we have custom regexes we have to join them and perform regex find and replace
 	rawCmdline := strings.Join(cmdline, " ")
 	for _, pattern := range ds.RegexSensitivePatterns {
 		if pattern.MatchString(rawCmdline) {
@@ -65,16 +72,16 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
 		}
 	}
+
 	newCmdline := strings.Split(rawCmdline, " ")
-	// preprocess, without the preprocessing it is needed to strip until the whitespaces.
-	for index, cmd := range newCmdline {
+
+	// preprocess, without the preprocessing we would need to strip until whitespaces.
+	// the first index can be skipped because it should be the program name.
+	for index := 1; index < len(newCmdline); index++ {
+		cmd := newCmdline[index]
 		for _, pattern := range ds.LiteralSensitivePatterns { // this can be optimized
 			// if we found a word from the list, it means that either the current or next word should be a password we want to replace.
 			if strings.Contains(strings.ToLower(cmd), pattern) { // password=1234
-				if index == 0 {
-					// the first index | should be the command name which shouldn't be matched
-					continue
-				}
 				changed = true
 				v := strings.IndexAny(cmd, "=:")
 				if v > 1 {
@@ -83,24 +90,22 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 					// replace from v to end of string with ********
 					break
 				} else {
-					wordReplacesIndexes = append(wordReplacesIndexes, index+1)
+					if index < len(newCmdline) {
+						wordReplacesIndexes = append(wordReplacesIndexes, index+1)
+					}
 					break
 				}
 			}
 		}
 	}
-	for i := 0; i < len(wordReplacesIndexes); i++ {
-		// we still want to make sure that we are in the index e.g. the word is at the end and actually does not mean adding a password/token.
-		index := wordReplacesIndexes[i]
-		if index < len(newCmdline) {
-			// we only want to replace words
-			for newCmdline[index] == "" {
-				index++
-			}
-			if index < len(newCmdline) {
-				newCmdline[index] = "********"
-			}
 
+	for _, index := range wordReplacesIndexes {
+		// we only want to replace words, hence we jump to the next index and try to scrub that instead
+		for newCmdline[index] == "" {
+			index++
+		}
+		if index < len(newCmdline) {
+			newCmdline[index] = "********"
 		}
 	}
 
@@ -113,7 +118,6 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 }
 
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object
-// In the future we can add own regex expression
 func (ds *DataScrubber) AddCustomSensitiveWords(words []string) {
 	ds.LiteralSensitivePatterns = append(ds.LiteralSensitivePatterns, words...)
 }
