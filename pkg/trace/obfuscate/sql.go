@@ -265,19 +265,15 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the
 // given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
-	filters := []tokenFilter{
-		&discardFilter{},
-		&replaceFilter{},
-		&groupingFilter{},
-	}
-	tableFinder := &tableFinderFilter{}
-	if config.HasFeature("table_names") {
-		filters = append(filters, tableFinder)
-	}
 	var (
-		out       bytes.Buffer
-		err       error
-		lastToken TokenKind
+		tableFinder    = &tableFinderFilter{}
+		useTableFinder = config.HasFeature("table_names")
+		out            = *bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
+		err            error
+		lastToken      TokenKind
+		discard        discardFilter
+		replace        replaceFilter
+		grouping       groupingFilter
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
@@ -290,8 +286,18 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		if token == LexError {
 			return nil, fmt.Errorf("%v", tokenizer.Err())
 		}
-		for _, f := range filters {
-			if token, buff, err = f.Filter(token, lastToken, buff); err != nil {
+
+		if token, buff, err = discard.Filter(token, lastToken, buff); err != nil {
+			return nil, err
+		}
+		if token, buff, err = replace.Filter(token, lastToken, buff); err != nil {
+			return nil, err
+		}
+		if token, buff, err = grouping.Filter(token, lastToken, buff); err != nil {
+			return nil, err
+		}
+		if useTableFinder {
+			if token, buff, err = tableFinder.Filter(token, lastToken, buff); err != nil {
 				return nil, err
 			}
 		}
