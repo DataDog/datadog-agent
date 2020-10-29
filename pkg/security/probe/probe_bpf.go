@@ -527,6 +527,8 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			return
 		}
 
+		log.Tracef("remove dentry cache entry for inode %d", event.InvalidateDentry.Inode)
+
 		p.resolvers.DentryResolver.DelCacheEntry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
 
 		// no need to dispatch
@@ -692,7 +694,7 @@ type inodeEventGetter = func(event *Event) (eval.Field, uint32, uint64, uint32, 
 
 func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter inodeEventGetter) onDiscarderFnc {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
-		field, mountID, inode, pathID, isDeleted := getter(event)
+		field, _, _, _, _ := getter(event)
 
 		if discarder.Field == field {
 			value, err := event.GetFieldValue(field)
@@ -709,23 +711,25 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 				return nil
 			}
 
-			isDiscarded, err := discardParentInode(probe, rs, eventType, field, filename, mountID, inode, pathID)
+			/*isDiscarded, err := discardParentInode(probe, rs, eventType, field, filename, mountID, inode, pathID)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
-					log.Tracef("apply `%s.filename` inode discarder for event `%s`", eventType, eventType)
+					log.Tracef("apply `%s.filename` inode discarder for event `%s`, inode", eventType, eventType, inode)
 
 					// not able to discard the parent then only discard the filename
 					_, err = discardInode(probe, eventType, mountID, inode)
 				}
 			} else {
-				log.Tracef("apply `%s.filename` parent inode discarder for event `%s`", eventType, eventType)
+				log.Tracef("apply `%s.filename` parent inode discarder for event `%s` with value `%s`", eventType, eventType, filename)
 			}
 
 			if err != nil {
 				err = errors.Wrapf(err, "unable to set inode discarders for `%s` for event `%s`", filename, eventType)
-			}
+			}*/
 
-			return err
+			return nil
+
+			//return err
 		}
 
 		if fnc != nil {
@@ -762,7 +766,7 @@ func init() {
 	allDiscarderFncs["rename"] = processDiscarderWrapper(FileRenameEventType, nil)
 
 	allDiscarderFncs["unlink"] = processDiscarderWrapper(FileUnlinkEventType,
-		filenameDiscarderWrapper(FileMkdirEventType, nil,
+		filenameDiscarderWrapper(FileUnlinkEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "unlink.filename", event.Unlink.MountID, event.Unlink.Inode, event.Unlink.PathID, true
 			}))

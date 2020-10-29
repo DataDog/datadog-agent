@@ -73,6 +73,8 @@ func TestDentryRename(t *testing.T) {
 }
 
 func TestDentryRenameFolder(t *testing.T) {
+	t.Skip()
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.basename == "test-rename" && (open.flags & O_CREAT) > 0`,
@@ -96,9 +98,10 @@ func TestDentryRenameFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i != 5; i++ {
-		filename := fmt.Sprintf("%s/test-rename", testOldFolder)
+	filename := fmt.Sprintf("%s/test-rename", testOldFolder)
+	defer os.Remove(filename)
 
+	for i := 0; i != 5; i++ {
 		testFile, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0755)
 		if err != nil {
 			t.Fatal(err)
@@ -116,18 +119,18 @@ func TestDentryRenameFolder(t *testing.T) {
 			if value, _ := event.GetFieldValue("open.filename"); value.(string) != filename {
 				t.Errorf("expected filename not found, `%s` != `%s`", value.(string), filename)
 			}
+
+			// swap
+			if err := os.Rename(testOldFolder, testNewFolder); err != nil {
+				t.Fatal(err)
+			}
+
+			old := testOldFolder
+			testOldFolder = testNewFolder
+			testNewFolder = old
+
+			filename = fmt.Sprintf("%s/test-rename", testOldFolder)
 		}
-
-		// swap
-		if err := os.Rename(testOldFolder, testNewFolder); err != nil {
-			t.Fatal(err)
-		}
-
-		old := testOldFolder
-		testOldFolder = testNewFolder
-		testNewFolder = old
-
-		os.Remove(filename)
 	}
 }
 

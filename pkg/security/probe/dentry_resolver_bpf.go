@@ -151,6 +151,8 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		return "", err
 	}
 
+	toAdd := make(map[PathKey]PathValue)
+
 	// Fetch path recursively
 	for {
 		key.Write(keyBuffer)
@@ -160,7 +162,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		}
 
 		cacheKey := PathKey{MountID: key.MountID, Inode: key.Inode}
-		dr.cache.Add(cacheKey, path)
+		toAdd[cacheKey] = path
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '\x00' && path.Name[0] != '/' {
@@ -177,6 +179,12 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 	if len(filename) == 0 {
 		filename = "/"
+	}
+
+	if err != nil {
+		for k, v := range toAdd {
+			dr.cache.Add(k, v)
+		}
 	}
 
 	return filename, err

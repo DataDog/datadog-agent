@@ -44,22 +44,24 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     // we resolve all the information before the file is actually removed
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
 
+    u64 inode = get_dentry_ino(dentry);
+
+    // ensure that we invalidate all the layers
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode);
+
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->unlink.path_key.ino) {
-        syscall->unlink.real_inode = get_dentry_ino(dentry);
+        syscall->unlink.real_inode = inode;
         return 0;
     }
 
-    syscall->unlink.path_key.ino = get_dentry_ino(dentry);
+    syscall->unlink.path_key.ino = inode;
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
     if (!syscall->unlink.path_key.path_id)
         syscall->unlink.path_key.path_id = bpf_get_prandom_u32();
 
     if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
-        // discard here as the event wont be sent
-        invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
-
         pop_syscall(SYSCALL_UNLINK);
 
         return 0;
@@ -68,9 +70,6 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     int ret = resolve_dentry(dentry, syscall->unlink.path_key, syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0);
     if (ret < 0) {
-        // discard here as the event wont be sent
-        invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
-
         pop_syscall(SYSCALL_UNLINK);
     }
 
@@ -84,7 +83,6 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
 
     int retval = PT_REGS_RC(ctx);
     if (IS_UNHANDLED_ERROR(retval)) {
-        invalidate_inode(ctx, syscall->unlink.path_key.mount_id, syscall->unlink.path_key.ino);
         return 0;
     }
 
