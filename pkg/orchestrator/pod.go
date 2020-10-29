@@ -34,7 +34,7 @@ const (
 )
 
 // ProcessPodList processes a pod list into process messages
-func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterName string, clusterID string, withScrubbing bool, maxPerMessage int, scrubber *DataScrubber) ([]model.MessageBody, error) {
+func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterName string, clusterID string, withScrubbing bool, maxPerMessage int, scrubber *DataScrubber, extraTags []string) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -64,8 +64,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 		}
 
 		// additional tags
-		tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
-		podModel.Tags = tags
+		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 
 		// scrub & generate YAML
 		if withScrubbing {
@@ -103,6 +102,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
 			ClusterId:   clusterID,
+			Tags:        extraTags,
 		})
 	}
 

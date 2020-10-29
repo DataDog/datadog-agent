@@ -58,5 +58,5 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
-	return orchestrator.ProcessPodList(podList, groupID, cfg.HostName, cfg.KubeClusterName, clusterID, cfg.IsScrubbingEnabled, cfg.MaxPerMessage, c.scrubber)
+	return orchestrator.ProcessPodList(podList, groupID, cfg.HostName, cfg.KubeClusterName, clusterID, cfg.IsScrubbingEnabled, cfg.MaxPerMessage, c.scrubber, nil)
 }

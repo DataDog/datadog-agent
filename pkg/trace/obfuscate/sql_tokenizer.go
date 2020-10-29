@@ -8,7 +8,6 @@ package obfuscate
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -80,10 +79,11 @@ const escapeCharacter = '\\'
 // SQLTokenizer is the struct used to generate SQL
 // tokens for the parser.
 type SQLTokenizer struct {
-	rd       *strings.Reader // the "rune" reader
-	pos      int             // byte offset of lastChar
-	lastChar rune            // last read rune
-	err      error           // any error occurred while reading
+	pos      int    // byte offset of lastChar
+	lastChar rune   // last read rune
+	buf      []byte // buf holds the query that we are parsing
+	off      int    // off is the index into buf where the unread portion of the query begins.
+	err      error  // any error occurred while reading
 
 	literalEscapes bool // indicates we should not treat backslashes as escape characters
 	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
@@ -93,16 +93,17 @@ type SQLTokenizer struct {
 // whether escape characters should be treated literally or as such.
 func NewSQLTokenizer(sql string, literalEscapes bool) *SQLTokenizer {
 	return &SQLTokenizer{
-		rd:             strings.NewReader(sql),
+		buf:            []byte(sql),
 		literalEscapes: literalEscapes,
 	}
 }
 
 // Reset the underlying buffer and positions
 func (tkn *SQLTokenizer) Reset(in string) {
-	tkn.rd.Reset(in)
 	tkn.pos = 0
 	tkn.lastChar = 0
+	tkn.buf = []byte(in)
+	tkn.off = 0
 	tkn.err = nil
 }
 
@@ -135,7 +136,7 @@ func (tkn *SQLTokenizer) SeenEscape() bool { return tkn.seenEscape }
 // the token type and the token buffer.
 func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	if tkn.lastChar == 0 {
-		tkn.next()
+		tkn.advance()
 	}
 	tkn.skipBlank()
 
@@ -145,13 +146,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	case isDigit(ch):
 		return tkn.scanNumber(false)
 	default:
-		tkn.next()
+		tkn.advance()
 		switch ch {
 		case EOFChar:
 			return EOFChar, nil
 		case ':':
 			if tkn.lastChar == ':' {
-				tkn.next()
+				tkn.advance()
 				return ColonCast, []byte("::")
 			}
 			if tkn.lastChar != '=' {
@@ -159,62 +160,62 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			}
 			fallthrough
 		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '~', '[', ']', '?':
-			return TokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), tkn.bytes()
 		case '.':
 			if isDigit(tkn.lastChar) {
 				return tkn.scanNumber(true)
 			}
-			return TokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), tkn.bytes()
 		case '/':
 			switch tkn.lastChar {
 			case '/':
-				tkn.next()
+				tkn.advance()
 				return tkn.scanCommentType1("//")
 			case '*':
-				tkn.next()
+				tkn.advance()
 				return tkn.scanCommentType2()
 			default:
-				return TokenKind(ch), runeBytes(ch)
+				return TokenKind(ch), tkn.bytes()
 			}
 		case '-':
 			if tkn.lastChar == '-' {
-				tkn.next()
+				tkn.advance()
 				return tkn.scanCommentType1("--")
 			}
-			return TokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), tkn.bytes()
 		case '#':
-			tkn.next()
+			tkn.advance()
 			return tkn.scanCommentType1("#")
 		case '<':
 			switch tkn.lastChar {
 			case '>':
-				tkn.next()
+				tkn.advance()
 				return NE, []byte("<>")
 			case '=':
-				tkn.next()
+				tkn.advance()
 				switch tkn.lastChar {
 				case '>':
-					tkn.next()
+					tkn.advance()
 					return NullSafeEqual, []byte("<=>")
 				default:
 					return LE, []byte("<=")
 				}
 			default:
-				return TokenKind(ch), runeBytes(ch)
+				return TokenKind(ch), tkn.bytes()
 			}
 		case '>':
 			if tkn.lastChar == '=' {
-				tkn.next()
+				tkn.advance()
 				return GE, []byte(">=")
 			}
-			return TokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), tkn.bytes()
 		case '!':
 			if tkn.lastChar == '=' {
-				tkn.next()
+				tkn.advance()
 				return NE, []byte("!=")
 			}
 			tkn.setErr(`expected "=" after "!", got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
-			return LexError, []byte("!")
+			return LexError, tkn.bytes()
 		case '\'':
 			return tkn.scanString(ch, String)
 		case '"':
@@ -230,178 +231,195 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return tkn.scanFormatParameter('%')
 			}
 			// modulo operator (e.g. 'id % 8')
-			return TokenKind(ch), runeBytes(ch)
+			return TokenKind(ch), tkn.bytes()
 		case '$':
 			return tkn.scanPreparedStatement('$')
 		case '{':
 			return tkn.scanEscapeSequence('{')
 		default:
 			tkn.setErr(`unexpected byte %d`, ch)
-			return LexError, runeBytes(ch)
+			return LexError, tkn.bytes()
 		}
 	}
 }
 
 func (tkn *SQLTokenizer) skipBlank() {
 	for unicode.IsSpace(tkn.lastChar) {
-		tkn.next()
+		tkn.advance()
 	}
+	tkn.bytes()
+}
+
+// toUpper is a modified version of bytes.ToUpper. It returns an upper-cased version of the byte
+// slice src with all Unicode letters mapped to their upper case. It is modified to also accept a
+// byte slice dst as an argument, the underlying storage of which (up to the capacity of dst)
+// will be used as the destination of the upper-case copy of src, if it fits. As a special case,
+// toUpper will return src if the byte slice is already upper-case. This function is used rather
+// than bytes.ToUpper to improve the memory performance of the obfuscator by saving unnecessary
+// allocations happening in bytes.ToUpper
+func toUpper(src, dst []byte) []byte {
+	dst = dst[:0]
+	isASCII, hasLower := true, false
+	for i := 0; i < len(src); i++ {
+		c := src[i]
+		if c >= utf8.RuneSelf {
+			isASCII = false
+			break
+		}
+		hasLower = hasLower || ('a' <= c && c <= 'z')
+	}
+	if cap(dst) < len(src) {
+		dst = make([]byte, 0, len(src))
+	}
+	if isASCII { // optimize for ASCII-only byte slices.
+		if !hasLower {
+			// Just return src.
+			return src
+		}
+		dst = dst[:len(src)]
+		for i := 0; i < len(src); i++ {
+			c := src[i]
+			if 'a' <= c && c <= 'z' {
+				c -= 'a' - 'A'
+			}
+			dst[i] = c
+		}
+		return dst
+	}
+	// This *could* be optimized, but it's an uncommon case.
+	return bytes.Map(unicode.ToUpper, src)
 }
 
 func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-	buffer.WriteRune(tkn.lastChar)
-	tkn.next()
-
+	tkn.advance()
 	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' || tkn.lastChar == '*' {
-		buffer.WriteRune(tkn.lastChar)
-		tkn.next()
+		tkn.advance()
 	}
-	upper := bytes.ToUpper(buffer.Bytes())
+
+	t := tkn.bytes()
+	// Space allows us to upper-case identifiers 256 bytes long or less without allocating heap
+	// storage for them, since space is allocated on the stack. A size of 256 bytes was chosen
+	// based on the allowed length of sql identifiers in various sql implementations.
+	var space [256]byte
+	upper := toUpper(t, space[:0])
 	if keywordID, found := keywords[string(upper)]; found {
-		return keywordID, buffer.Bytes()
+		return keywordID, t
 	}
-	return ID, buffer.Bytes()
+	return ID, t
 }
 
 func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-	buffer.WriteRune(tkn.lastChar)
+	tkn.bytes() // throw away initial quote
 	if !isLetter(tkn.lastChar) && !isDigit(tkn.lastChar) {
 		tkn.setErr(`unexpected character "%c" (%d) in literal identifier`, tkn.lastChar, tkn.lastChar)
-		return LexError, buffer.Bytes()
+		return LexError, tkn.bytes()
 	}
-	for tkn.next(); skipNonLiteralIdentifier(tkn.lastChar); tkn.next() {
-		buffer.WriteRune(tkn.lastChar)
+	for tkn.advance(); skipNonLiteralIdentifier(tkn.lastChar); tkn.advance() {
 	}
+
+	t := tkn.bytes()
 	// literals identifier are enclosed between quotes
 	if tkn.lastChar != quote {
 		tkn.setErr(`literal identifiers must end in "%c", got "%c" (%d)`, quote, tkn.lastChar, tkn.lastChar)
-		return LexError, buffer.Bytes()
+		return LexError, t
 	}
-	tkn.next()
-	return ID, buffer.Bytes()
+	tkn.advance()
+	return ID, t
 }
 
 func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-	buffer.WriteRune(prefix)
-	buffer.WriteRune(tkn.lastChar)
-
-	for tkn.next(); tkn.lastChar != ')' && tkn.lastChar != EOFChar; tkn.next() {
-		buffer.WriteRune(tkn.lastChar)
+	for tkn.advance(); tkn.lastChar != ')' && tkn.lastChar != EOFChar; tkn.advance() {
 	}
-
-	buffer.WriteRune(tkn.lastChar)
-	tkn.next()
-	buffer.WriteRune(tkn.lastChar)
+	tkn.advance()
 	if !isLetter(tkn.lastChar) {
 		tkn.setErr(`invalid character after variable identifier: "%c" (%d)`, tkn.lastChar, tkn.lastChar)
-		return LexError, buffer.Bytes()
+		return LexError, tkn.bytes()
 	}
-	tkn.next()
-	return Variable, buffer.Bytes()
+	tkn.advance()
+	return Variable, tkn.bytes()
 }
 
 func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-	buffer.WriteRune(prefix)
-	buffer.WriteRune(tkn.lastChar)
-
-	tkn.next()
-	return Variable, buffer.Bytes()
+	tkn.advance()
+	return Variable, tkn.bytes()
 }
 
 func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-
 	// a prepared statement expect a digit identifier like $1
 	if !isDigit(tkn.lastChar) {
 		tkn.setErr(`prepared statements must start with digits, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
-		return LexError, buffer.Bytes()
+		return LexError, tkn.bytes()
 	}
 
+	// scanNumber keeps the prefix rune intact.
 	// read numbers and return an error if any
 	token, buff := tkn.scanNumber(false)
 	if token == LexError {
 		tkn.setErr("invalid number")
-		return LexError, buffer.Bytes()
+		return LexError, tkn.bytes()
 	}
-
-	buffer.WriteRune(prefix)
-	buffer.Write(buff)
-	return PreparedStatement, buffer.Bytes()
+	return PreparedStatement, buff
 }
 
 func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-	buffer.WriteRune(braces)
-
 	for tkn.lastChar != '}' && tkn.lastChar != EOFChar {
-		buffer.WriteRune(tkn.lastChar)
-		tkn.next()
+		tkn.advance()
 	}
 
 	// we've reached the end of the string without finding
 	// the closing curly braces
 	if tkn.lastChar == EOFChar {
 		tkn.setErr("unexpected EOF in escape sequence")
-		return LexError, buffer.Bytes()
+		return LexError, tkn.bytes()
 	}
 
-	buffer.WriteRune(tkn.lastChar)
-	tkn.next()
-	return EscapeSequence, buffer.Bytes()
+	tkn.advance()
+	return EscapeSequence, tkn.bytes()
 }
 
 func (tkn *SQLTokenizer) scanBindVar() (TokenKind, []byte) {
-	buffer := bytes.NewBufferString(":")
 	token := ValueArg
 	if tkn.lastChar == ':' {
 		token = ListArg
-		buffer.WriteRune(tkn.lastChar)
-		tkn.next()
+		tkn.advance()
 	}
 	if !isLetter(tkn.lastChar) {
 		tkn.setErr(`bind variables should start with letters, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
-		return LexError, buffer.Bytes()
+		return LexError, tkn.bytes()
 	}
 	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' {
-		buffer.WriteRune(tkn.lastChar)
-		tkn.next()
+		tkn.advance()
 	}
-	return token, buffer.Bytes()
+	return token, tkn.bytes()
 }
 
-func (tkn *SQLTokenizer) scanMantissa(base int, buffer *bytes.Buffer) {
+func (tkn *SQLTokenizer) scanMantissa(base int) {
 	for digitVal(tkn.lastChar) < base {
-		tkn.consumeNext(buffer)
+		tkn.advance()
 	}
 }
 
 func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
 	if seenDecimalPoint {
-		buffer.WriteByte('.')
-		tkn.scanMantissa(10, buffer)
+		tkn.scanMantissa(10)
 		goto exponent
 	}
 
 	if tkn.lastChar == '0' {
 		// int or float
-		tkn.consumeNext(buffer)
+		tkn.advance()
 		if tkn.lastChar == 'x' || tkn.lastChar == 'X' {
 			// hexadecimal int
-			tkn.consumeNext(buffer)
-			tkn.scanMantissa(16, buffer)
+			tkn.advance()
+			tkn.scanMantissa(16)
 		} else {
 			// octal int or float
 			seenDecimalDigit := false
-			tkn.scanMantissa(8, buffer)
+			tkn.scanMantissa(8)
 			if tkn.lastChar == '8' || tkn.lastChar == '9' {
 				// illegal octal int or float
 				seenDecimalDigit = true
-				tkn.scanMantissa(10, buffer)
+				tkn.scanMantissa(10)
 			}
 			if tkn.lastChar == '.' || tkn.lastChar == 'e' || tkn.lastChar == 'E' {
 				goto fraction
@@ -409,46 +427,47 @@ func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (TokenKind, []byte) {
 			// octal int
 			if seenDecimalDigit {
 				// tkn.setErr called in caller
-				return LexError, buffer.Bytes()
+				return LexError, tkn.bytes()
 			}
 		}
 		goto exit
 	}
 
 	// decimal int or float
-	tkn.scanMantissa(10, buffer)
+	tkn.scanMantissa(10)
 
 fraction:
 	if tkn.lastChar == '.' {
-		tkn.consumeNext(buffer)
-		tkn.scanMantissa(10, buffer)
+		tkn.advance()
+		tkn.scanMantissa(10)
 	}
 
 exponent:
 	if tkn.lastChar == 'e' || tkn.lastChar == 'E' {
-		tkn.consumeNext(buffer)
+		tkn.advance()
 		if tkn.lastChar == '+' || tkn.lastChar == '-' {
-			tkn.consumeNext(buffer)
+			tkn.advance()
 		}
-		tkn.scanMantissa(10, buffer)
+		tkn.scanMantissa(10)
 	}
 
 exit:
-	if buffer.Len() == 0 {
+	t := tkn.bytes()
+	if len(t) == 0 {
 		return LexError, nil
 	}
-	return Number, buffer.Bytes()
+	return Number, t
 }
 
 func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
 	buffer := &bytes.Buffer{}
 	for {
 		ch := tkn.lastChar
-		tkn.next()
+		tkn.advance()
 		if ch == delim {
 			if tkn.lastChar == delim {
 				// doubling a delimiter is the default way to embed the delimiter within a string
-				tkn.next()
+				tkn.advance()
 			} else {
 				// a single delimiter denotes the end of the string
 				break
@@ -459,7 +478,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 			if !tkn.literalEscapes {
 				// treat as an escape character
 				ch = tkn.lastChar
-				tkn.next()
+				tkn.advance()
 			}
 		}
 		if ch == EOFChar {
@@ -480,60 +499,67 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 }
 
 func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-	buffer.WriteString(prefix)
 	for tkn.lastChar != EOFChar {
 		if tkn.lastChar == '\n' {
-			tkn.consumeNext(buffer)
+			tkn.advance()
 			break
 		}
-		tkn.consumeNext(buffer)
+		tkn.advance()
 	}
-	return Comment, buffer.Bytes()
+	return Comment, tkn.bytes()
 }
 
 func (tkn *SQLTokenizer) scanCommentType2() (TokenKind, []byte) {
-	buffer := &bytes.Buffer{}
-	buffer.WriteString("/*")
 	for {
 		if tkn.lastChar == '*' {
-			tkn.consumeNext(buffer)
+			tkn.advance()
 			if tkn.lastChar == '/' {
-				tkn.consumeNext(buffer)
+				tkn.advance()
 				break
 			}
 			continue
 		}
 		if tkn.lastChar == EOFChar {
 			tkn.setErr("unexpected EOF in comment")
-			return LexError, buffer.Bytes()
+			return LexError, tkn.bytes()
 		}
-		tkn.consumeNext(buffer)
+		tkn.advance()
 	}
-	return Comment, buffer.Bytes()
+	return Comment, tkn.bytes()
 }
 
-func (tkn *SQLTokenizer) consumeNext(buffer *bytes.Buffer) {
-	if tkn.lastChar == EOFChar {
-		// This should never happen.
-		panic("unexpected EOF")
+// advance advances the tokenizer to the next rune. If this is not possible, tkn.lastChar will
+// be set to EOFChar.
+func (tkn *SQLTokenizer) advance() {
+	ch, n := utf8.DecodeRune(tkn.buf[tkn.off:])
+	if ch == utf8.RuneError && n == 0 {
+		// only EOF is possible
+		tkn.pos++
+		tkn.lastChar = EOFChar
+		return
 	}
-	buffer.WriteRune(tkn.lastChar)
-	tkn.next()
-}
 
-func (tkn *SQLTokenizer) next() {
-	ch, _, err := tkn.rd.ReadRune()
+	len := utf8.RuneLen(ch)
 	if tkn.lastChar != 0 || tkn.pos > 0 {
 		// we are past the first character
-		tkn.pos += utf8.RuneLen(ch)
+		tkn.pos += len
 	}
-	if err != nil {
-		// only EOF is possible
-		tkn.lastChar = EOFChar
-	} else {
-		tkn.lastChar = ch
+	tkn.off += len
+	tkn.lastChar = ch
+}
+
+// bytes returns all the bytes that were advanced over since its last call.
+func (tkn *SQLTokenizer) bytes() []byte {
+	if tkn.lastChar == EOFChar {
+		ret := tkn.buf[:tkn.off]
+		tkn.buf = tkn.buf[tkn.off:]
+		tkn.off = 0
+		return ret
 	}
+	ret := tkn.buf[:tkn.off-1]
+	tkn.buf = tkn.buf[tkn.off-1:]
+	tkn.off = 1
+	return ret
 }
 
 func skipNonLiteralIdentifier(ch rune) bool {

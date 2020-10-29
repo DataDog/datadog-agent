@@ -7,6 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func init() {
+	retrySleepTime = 0
+}
+
 func TestGetHostTags(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3"})

@@ -88,7 +88,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		}
 
 		if queryResult, found := results[datadogMetric.Query]; found {
-			log.Debug("QueryResult from DD: %v", queryResult)
+			log.Debugf("QueryResult from DD: %v", queryResult)
 
 			if queryResult.Valid {
 				datadogMetricFromStore.Value = queryResult.Value

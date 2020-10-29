@@ -155,7 +155,6 @@ func (r *Resolvers) snapshot(retry int) error {
 	}
 
 	cacheModified := false
-
 	for _, p := range processes {
 		// If Exe is not set, the process is a short lived process and its /proc entry has already expired, move on.
 		if len(p.Exe) == 0 {

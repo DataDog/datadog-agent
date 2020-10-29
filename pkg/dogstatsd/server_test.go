@@ -409,6 +409,7 @@ func TestDebugStatsSpike(t *testing.T) {
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
+	time.Sleep(500 * time.Millisecond)
 	assert.True(s.hasSpike())
 
 	s.EnableMetricsStats()
@@ -417,6 +418,7 @@ func TestDebugStatsSpike(t *testing.T) {
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
+	time.Sleep(500 * time.Millisecond)
 	// it is no more considered a spike because we had another second with 500 metrics
 	assert.False(s.hasSpike())
 }

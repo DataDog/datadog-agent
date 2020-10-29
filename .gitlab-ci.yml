@@ -4264,6 +4264,7 @@ revert_dockerhub_latest_7:
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
+      --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:latest
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:7
 
@@ -4307,6 +4308,7 @@ revert_google_container_registry_latest_7:
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-jmx
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
+      --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:latest
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:7
 
@@ -4431,8 +4433,8 @@ pupernetes-dev:
   # engineers trigger the correct sequence of jobs when needed.
   needs: []
   script:
-  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
-  - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
+  - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+  - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
 pupernetes-master:
   <<: *pupernetes_template
@@ -4442,8 +4444,8 @@ pupernetes-master:
   - dev_master_docker_hub-a6
   - dev_master_docker_hub-a7
   script:
-  - inv -e e2e-tests --image=datadog/agent-dev:master-py2
-  - inv -e e2e-tests --image=datadog/agent-dev:master-py3
+  - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
+  - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master
 
 pupernetes-tags-6:
   rules:
@@ -4452,8 +4454,9 @@ pupernetes-tags-6:
       allow_failure: true
   <<: *pupernetes_template
   script:
-  - VERSION=$(inv -e agent.version --major-version 6)
-  - inv -e e2e-tests --image=datadog/agent:${VERSION}
+  - AGENT_VERSION=$(inv -e agent.version --major-version 6)
+  - DCA_VERSION=$(inv -e cluster-agent.version)
+  - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
 
 pupernetes-tags-7:
   rules:
@@ -4462,8 +4465,9 @@ pupernetes-tags-7:
       allow_failure: true
   <<: *pupernetes_template
   script:
-  - VERSION=$(inv -e agent.version --major-version 7)
-  - inv -e e2e-tests --image=datadog/agent:${VERSION}
+  - AGENT_VERSION=$(inv -e agent.version --major-version 7)
+  - DCA_VERSION=$(inv -e cluster-agent.version)
+  - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
 
 notify-on-success:
   extends: .slack-notifier-base

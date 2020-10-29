@@ -43,32 +43,34 @@ func initDomainForwarderExpvars() {
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
-	isRetrying              int32
-	domain                  string
-	numberOfWorkers         int
-	highPrio                chan Transaction // use to receive new transactions
-	lowPrio                 chan Transaction // use to retry transactions
-	requeuedTransaction     chan Transaction
-	stopRetry               chan bool
-	stopConnectionReset     chan bool
-	workers                 []*Worker
-	retryQueue              []Transaction
-	retryQueueLimit         int
-	connectionResetInterval time.Duration
-	internalState           uint32
-	m                       sync.Mutex // To control Start/Stop races
+	isRetrying                   int32
+	domain                       string
+	numberOfWorkers              int
+	highPrio                     chan Transaction // use to receive new transactions
+	lowPrio                      chan Transaction // use to retry transactions
+	requeuedTransaction          chan Transaction
+	stopRetry                    chan bool
+	stopConnectionReset          chan bool
+	workers                      []*Worker
+	retryQueue                   []Transaction
+	retryQueueLimit              int
+	retryQueueAllPayloadsMaxSize int
+	connectionResetInterval      time.Duration
+	internalState                uint32
+	m                            sync.Mutex // To control Start/Stop races
 
 	blockedList *blockedEndpoints
 }
 
-func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int, connectionResetInterval time.Duration) *domainForwarder {
+func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int, retryQueueAllPayloadsMaxSize int, connectionResetInterval time.Duration) *domainForwarder {
 	return &domainForwarder{
-		domain:                  domain,
-		numberOfWorkers:         numberOfWorkers,
-		retryQueueLimit:         retryQueueLimit,
-		connectionResetInterval: connectionResetInterval,
-		internalState:           Stopped,
-		blockedList:             newBlockedEndpoints(),
+		domain:                       domain,
+		numberOfWorkers:              numberOfWorkers,
+		retryQueueLimit:              retryQueueLimit,
+		retryQueueAllPayloadsMaxSize: retryQueueAllPayloadsMaxSize,
+		connectionResetInterval:      connectionResetInterval,
+		internalState:                Stopped,
+		blockedList:                  newBlockedEndpoints(),
 	}
 }
 
@@ -97,6 +99,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	droppedWorkerBusy := 0
 
 	sort.Sort(byCreatedTimeAndPriority(f.retryQueue))
+	totalPayloadsSize := 0
 
 	for _, t := range f.retryQueue {
 		if !f.blockedList.isBlock(t.GetTarget()) {
@@ -109,14 +112,25 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 				transactionsDropped.Add(1)
 				tlmTxDropped.Inc(f.domain)
 			}
-		} else if len(newQueue) < f.retryQueueLimit {
-			newQueue = append(newQueue, t)
-			transactionsRequeued.Add(1)
-			tlmTxRequeud.Inc(f.domain)
 		} else {
-			droppedRetryQueueFull++
-			transactionsDropped.Add(1)
-			tlmTxDropped.Inc(f.domain)
+			var retry bool
+			newTotalPayloadsSize := totalPayloadsSize + t.GetPayloadSize()
+			if f.retryQueueAllPayloadsMaxSize > 0 {
+				retry = newTotalPayloadsSize <= f.retryQueueAllPayloadsMaxSize
+			} else {
+				retry = len(newQueue) < f.retryQueueLimit
+			}
+
+			if retry {
+				newQueue = append(newQueue, t)
+				transactionsRequeued.Add(1)
+				tlmTxRequeud.Inc(f.domain)
+				totalPayloadsSize = newTotalPayloadsSize
+			} else {
+				droppedRetryQueueFull++
+				transactionsDropped.Add(1)
+				tlmTxDropped.Inc(f.domain)
+			}
 		}
 	}
 
@@ -125,8 +139,15 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
-		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
-			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.retryQueueLimit, droppedWorkerBusy)
+		var errorMessage string
+		if f.retryQueueAllPayloadsMaxSize > 0 {
+			errorMessage = fmt.Sprintf("the retry queue payloads size limit of %d", f.retryQueueAllPayloadsMaxSize)
+		} else {
+			errorMessage = fmt.Sprintf("the retry queue size limit of %d", f.retryQueueLimit)
+		}
+
+		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding %s, %d because the workers are too busy",
+			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, errorMessage, droppedWorkerBusy)
 	}
 }
 
