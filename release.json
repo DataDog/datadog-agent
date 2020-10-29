@@ -21,7 +21,7 @@
         "WINDOWS_DDNPM_VERSION": "0.98.2.git.34.5e242e3",
         "WINDOWS_DDNPM_SHASUM": "22bb7c300c0aea6b194d06fccbb38c278cf4fcec3b60b1625a59d71db2abf882" 
     },
-    "6.23.2-beta1-rc.1": {
+    "6.23.2-beta1-rc.2": {
         "INTEGRATIONS_CORE_VERSION": "7.23.0",
         "OMNIBUS_SOFTWARE_VERSION": "7.23.1",
         "OMNIBUS_RUBY_VERSION": "7.23.0",
@@ -33,7 +33,7 @@
         "WINDOWS_DDNPM_VERSION": "0.98.2.git.34.5e242e3",
         "WINDOWS_DDNPM_SHASUM": "22bb7c300c0aea6b194d06fccbb38c278cf4fcec3b60b1625a59d71db2abf882" 
     },
-    "7.23.2-beta1-rc.1": {
+    "7.23.2-beta1-rc.2": {
         "INTEGRATIONS_CORE_VERSION": "7.23.0",
         "OMNIBUS_SOFTWARE_VERSION": "7.23.1",
         "OMNIBUS_RUBY_VERSION": "7.23.0",
