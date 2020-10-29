@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -41,6 +42,10 @@ var (
 )
 
 func TestTracerExpvar(t *testing.T) {
+	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	require.NoError(t, err)
+	pre410Kernel := isPre410Kernel(currKernelVersion)
+
 	cfg := NewDefaultConfig()
 	// BPFDebug must be true for kretprobe/tcp_sendmsg to be included
 	cfg.BPFDebug = true
@@ -99,10 +104,6 @@ func TestTracerExpvar(t *testing.T) {
 			"TruncatedPackets",
 		},
 		"kprobes": {
-			"PXSysBindHits",
-			"PXSysBindMisses",
-			"PXSysSocketHits",
-			"PXSysSocketMisses",
 			"PTcpCleanupRbufHits",
 			"PTcpCleanupRbufMisses",
 			"PTcpCloseHits",
@@ -121,10 +122,6 @@ func TestTracerExpvar(t *testing.T) {
 			"PUdpRecvmsgMisses",
 			"PIpMakeSkbHits",
 			"PIpMakeSkbMisses",
-			"RXSysBindHits",
-			"RXSysBindMisses",
-			"RXSysSocketHits",
-			"RXSysSocketMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
@@ -136,11 +133,42 @@ func TestTracerExpvar(t *testing.T) {
 		},
 	}
 
+	archSpecificKprobes := [][]string{
+		{"PSySBindHits", "PXSysBindHits"},
+		{"PSySBindMisses", "PXSysBindMisses"},
+		{"PSySSocketHits", "PXSysSocketHits"},
+		{"PSySSocketMisses", "PXSysSocketMisses"},
+		{"RSySBindHits", "RXSysBindHits"},
+		{"RSySBindMisses", "RXSysBindMisses"},
+		{"RSySSocketHits", "RXSysSocketHits"},
+		{"RSySSocketMisses", "RXSysSocketMisses"},
+	}
+
 	for _, et := range expvarTypes {
+		if et == "dns" && pre410Kernel {
+			// DNS stats not supported on <4.1.0
+			continue
+		}
+
 		expvar := map[string]float64{}
 		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
 		for _, name := range expected[et] {
 			assert.Contains(t, expvar, name, "%s actual is missing %s", et, name)
+		}
+		// check variants of arch-specific syscall kprobes
+		if et == "kprobes" {
+			for _, options := range archSpecificKprobes {
+				inMap := false
+				for _, opt := range options {
+					_, inMap = expvar[opt]
+					if inMap {
+						break
+					}
+				}
+				if !inMap {
+					assert.Failf(t, "missing kprobe in expvar", "one of %v", options)
+				}
+			}
 		}
 	}
 }
@@ -166,7 +194,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 	if err != nil {
@@ -220,7 +249,8 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 		_, _ = c.Write(genPayload(serverMessageSize))
 		_ = c.Close()
 	})
-	server.Run(doneChan)
+	err := server.Run(doneChan)
+	require.NoError(t, err)
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 	require.NoError(t, err)
@@ -259,11 +289,8 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 
 func TestDNATIntraHostIntegration(t *testing.T) {
 	t.SkipNow()
-	cmd := exec.Command("../network/netlink/testdata/setup_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("setup command output: %s", string(out))
-	}
-	defer teardown(t)
+	setupDNAT(t)
+	defer teardownDNAT(t)
 
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
@@ -284,7 +311,8 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 		},
 	}
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	conn, err := net.Dial("tcp", "2.2.2.2:5432")
@@ -310,7 +338,7 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 		}
 
 		return false
-	}, "did not find 1.1.1.1 connection classified as local")
+	}, "did not find 1.1.1.1 connection classified as local: %v", conns)
 
 	assert.Condition(t, func() bool {
 		for _, c := range conns {
@@ -323,14 +351,10 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
-	t.SkipNow()
 	config := NewDefaultConfig()
 	config.TCPConnTimeout = 100 * time.Millisecond
 	tr, err := NewTracer(config)
-
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	// Create a dummy TCP Server
@@ -338,19 +362,17 @@ func TestTCPRemoveEntries(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Write a message
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
 	defer c.Close()
 
 	// Write a bunch of messages with blocking iptable rule to create retransmits
@@ -367,14 +389,11 @@ func TestTCPRemoveEntries(t *testing.T) {
 
 	// Create a new client
 	c2, err := net.DialTimeout("tcp", server.address, 1*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Send a messages
-	if _, err = c2.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c2.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
 	defer c2.Close()
 
 	// Retrieve the list of connections
@@ -384,13 +403,24 @@ func TestTCPRemoveEntries(t *testing.T) {
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.False(t, ok)
 
-	// Assert the TCP map is empty because of the clean up
-	key, nextKey := &ConnTuple{}, &ConnTuple{}
+	// Assert the TCP map does not contain first connection because of the clean up
 	tcpMp, err := tr.getMap(bytecode.TcpStatsMap)
-	assert.Nil(t, err)
-	// This should return false and an error
-	err = tcpMp.NextKey(unsafe.Pointer(key), unsafe.Pointer(nextKey))
-	assert.EqualError(t, err, ebpf.ErrKeyNotExist.Error())
+	require.NoError(t, err)
+
+	key, err := connTupleFromConn(c, 0)
+	require.NoError(t, err)
+	stats := new(TCPStats)
+	err = tcpMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
+	if !assert.True(t, errors.Is(err, ebpf.ErrKeyNotExist)) {
+		t.Logf("tcp_stats map entries:\n")
+		ek := &ConnTuple{}
+		sv := new(TCPStats)
+		entries := tcpMp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
+		for entries.Next(unsafe.Pointer(ek), unsafe.Pointer(sv)) {
+			t.Logf("%s => %+v\n", ek, sv)
+		}
+		require.NoError(t, entries.Err())
+	}
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
 	require.True(t, ok)
@@ -417,7 +447,8 @@ func TestTCPRetransmit(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	// Connect to server
@@ -465,7 +496,8 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	// Connect to server
@@ -527,7 +559,8 @@ func TestTCPRTT(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
@@ -552,8 +585,8 @@ func TestTCPRTT(t *testing.T) {
 	require.True(t, ok)
 
 	// Assert that values returned from syscall match ones generated by eBPF program
-	assert.Equal(t, tcpInfo.Rtt, conn.RTT)
-	assert.Equal(t, tcpInfo.Rttvar, conn.RTTVar)
+	assert.EqualValues(t, int(tcpInfo.Rtt), int(conn.RTT))
+	assert.EqualValues(t, int(tcpInfo.Rttvar), int(conn.RTTVar))
 }
 
 type AddrPair struct {
@@ -582,7 +615,8 @@ func TestTCPShortlived(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	// Connect to server
@@ -706,7 +740,8 @@ func TestTCPCollectionDisabled(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	// Connect to server
@@ -740,6 +775,10 @@ func TestUDPSendAndReceive(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Errorf("simulate_udp failed: %s", err)
 	}
+
+	defer func() {
+		exec.Command("testdata/teardown_simulate_udp.sh").Run()
+	}()
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -785,7 +824,8 @@ func TestUDPDisabled(t *testing.T) {
 	})
 
 	doneChan := make(chan struct{})
-	server.Run(doneChan, clientMessageSize)
+	err = server.Run(doneChan, clientMessageSize)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	// Connect to server
@@ -875,13 +915,10 @@ func isLocalDNS(c network.ConnectionStats) bool {
 }
 
 func TestShouldSkipExcludedConnection(t *testing.T) {
-	// BEWARE: if you have multiple simultaneous SSH connections to the agent VM, this test will fail.
-	// This is because it picks up the sshd connection for the "other" SSH connections besides the one
-	// used to run the tests.
-
 	// exclude connections from 127.0.0.1:80
 	config := NewDefaultConfig()
-	config.ExcludedSourceConnections = map[string][]string{"127.0.0.1": {"80"}}
+	// exclude source SSH connections to make this pass in VM
+	config.ExcludedSourceConnections = map[string][]string{"127.0.0.1": {"80"}, "*": {"22"}}
 	config.ExcludedDestinationConnections = map[string][]string{"127.0.0.1": {"tcp 80"}}
 	tr, err := NewTracer(config)
 	if err != nil {
@@ -925,7 +962,8 @@ func TestTooSmallBPFMap(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	// Connect to server two times
@@ -977,7 +1015,7 @@ func TestIsExpired(t *testing.T) {
 }
 
 func TestTCPMiscount(t *testing.T) {
-	t.SkipNow()
+	t.Skip("skipping because this test will pass/fail depending on host performance")
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -993,7 +1031,8 @@ func TestTCPMiscount(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -1012,7 +1051,7 @@ func TestTCPMiscount(t *testing.T) {
 		Sec:  0,
 		Usec: 1,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// 100 MB payload
 	x := make([]byte, 100*1024*1024)
@@ -1107,7 +1146,8 @@ func TestConnectionExpirationRegression(t *testing.T) {
 		connClosed <- struct{}{}
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
@@ -1230,7 +1270,8 @@ func benchEchoUDP(size int) func(b *testing.B) {
 	return func(b *testing.B) {
 		end := make(chan struct{})
 		server := NewUDPServer(echoOnMessage)
-		server.Run(end, size)
+		err := server.Run(end, size)
+		require.NoError(b, err)
 		defer close(end)
 
 		c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
@@ -1297,7 +1338,8 @@ func benchEchoTCP(size int) func(b *testing.B) {
 	return func(b *testing.B) {
 		end := make(chan struct{})
 		server := NewTCPServer(echoOnMessage)
-		server.Run(end)
+		err := server.Run(end)
+		require.NoError(b, err)
 		defer close(end)
 
 		c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -1336,7 +1378,8 @@ func benchSendTCP(size int) func(b *testing.B) {
 	return func(b *testing.B) {
 		end := make(chan struct{})
 		server := NewTCPServer(dropOnMessage)
-		server.Run(end)
+		err := server.Run(end)
+		require.NoError(b, err)
 		defer close(end)
 
 		c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -1368,11 +1411,10 @@ func NewTCPServer(onMessage func(c net.Conn)) *TCPServer {
 	}
 }
 
-func (s *TCPServer) Run(done chan struct{}) {
+func (s *TCPServer) Run(done chan struct{}) error {
 	ln, err := net.Listen("tcp", s.address)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
 	s.address = ln.Addr().String()
 
@@ -1390,6 +1432,8 @@ func (s *TCPServer) Run(done chan struct{}) {
 			s.onMessage(conn)
 		}
 	}()
+
+	return nil
 }
 
 type UDPServer struct {
@@ -1408,11 +1452,10 @@ func NewUDPServerOnAddress(addr string, onMessage func(b []byte, n int) []byte) 
 	}
 }
 
-func (s *UDPServer) Run(done chan struct{}, payloadSize int) {
+func (s *UDPServer) Run(done chan struct{}, payloadSize int) error {
 	ln, err := net.ListenPacket("udp", s.address)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	s.address = ln.LocalAddr().String()
@@ -1440,6 +1483,8 @@ func (s *UDPServer) Run(done chan struct{}, payloadSize int) {
 
 		ln.Close()
 	}()
+
+	return nil
 }
 
 var letterBytes = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -1498,19 +1543,19 @@ func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	return connections
 }
 
-func teardown(t *testing.T) {
-	cmd := exec.Command("../network/netlink/testdata/teardown_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("teardown command output: %s", string(out))
-		t.Errorf("error tearing down: %s", err)
-	}
-}
-
 const (
 	validDNSServer = "8.8.8.8"
 )
 
 func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
+	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	require.NoError(t, err)
+	pre410Kernel := isPre410Kernel(currKernelVersion)
+	if pre410Kernel {
+		t.Skip("DNS feature not available on pre 4.1.0 kernels")
+		return
+	}
+
 	config := NewDefaultConfig()
 	config.CollectDNSStats = true
 	config.DNSTimeout = 1 * time.Second
@@ -1573,11 +1618,8 @@ func TestDNSStatsForTimeout(t *testing.T) {
 }
 
 func TestConntrackExpiration(t *testing.T) {
-	cmd := exec.Command("../network/netlink/testdata/setup_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Errorf("setup command output: %s", string(out))
-	}
-	defer teardown(t)
+	setupDNAT(t)
+	defer teardownDNAT(t)
 
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
@@ -1594,7 +1636,8 @@ func TestConntrackExpiration(t *testing.T) {
 		return nil
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan, clientMessageSize)
+	err = server.Run(doneChan, clientMessageSize)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	c, err := net.Dial("udp", fmt.Sprintf("2.2.2.2:%d", port))
@@ -1635,7 +1678,8 @@ func TestTCPEstablished(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err = server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -1668,7 +1712,8 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 		c.Close()
 	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	err := server.Run(doneChan)
+	require.NoError(t, err)
 	defer close(doneChan)
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -1747,4 +1792,121 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
 	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+}
+
+func TestConnectionClobber(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
+	srvRecvBuf := make([]byte, 4)
+	server := NewTCPServer(func(c net.Conn) {
+		_, _ = io.ReadFull(c, srvRecvBuf)
+		_, _ = c.Write(srvRecvBuf)
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// we only need 1/4 since both send and recv sides will be registered
+	sendCount := (cap(tr.buffer) / 4) + 1
+	sendAndRecv := func(closeCh chan struct{}) *sync.WaitGroup {
+		sendWg := sync.WaitGroup{}
+		doneWg := sync.WaitGroup{}
+		sendBuf := make([]byte, 4)
+		recvBuf := make([]byte, 4)
+		for i := 0; i < sendCount; i++ {
+			senderNum := i
+			sendWg.Add(1)
+			doneWg.Add(1)
+			go func() {
+				defer doneWg.Done()
+
+				c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+				if err != nil {
+					t.Logf("dial error %d: %s\n", senderNum, err)
+					return
+				}
+				defer c.Close()
+
+				if _, err = c.Write(sendBuf); err != nil {
+					t.Fatal(err)
+				}
+				_, _ = io.ReadFull(c, recvBuf)
+				sendWg.Done()
+				<-closeCh
+			}()
+		}
+		sendWg.Wait()
+		return &doneWg
+	}
+
+	closeCh := make(chan struct{})
+	dg := sendAndRecv(closeCh)
+
+	preCap := cap(tr.buffer)
+	firstConnections := getConnections(t, tr)
+	// ensure we didn't grow or shrink the buffer
+	require.Equal(t, preCap, cap(tr.buffer))
+	src := firstConnections.Conns[0].SPort
+	dst := firstConnections.Conns[0].DPort
+	t.Logf("before src: %d dst: %d\n", src, dst)
+
+	close(closeCh)
+	dg.Wait()
+
+	// send second batch so that underlying array gets clobbered
+	closeCh = make(chan struct{})
+	dg = sendAndRecv(closeCh)
+	_ = getConnections(t, tr)
+	require.Equal(t, preCap, cap(tr.buffer))
+
+	t.Logf("after src: %d dst: %d\n", firstConnections.Conns[0].SPort, firstConnections.Conns[0].DPort)
+	assert.EqualValues(t, int(src), int(firstConnections.Conns[0].SPort), "source port should not change")
+	assert.EqualValues(t, int(dst), int(firstConnections.Conns[0].DPort), "dest port should not change")
+
+	close(closeCh)
+	dg.Wait()
+
+	doneChan <- struct{}{}
+}
+
+func setupDNAT(t *testing.T) {
+	if _, err := exec.LookPath("conntrack"); err != nil {
+		t.Errorf("conntrack not found in PATH: %s", err)
+		return
+	}
+
+	cmds := []string{
+		"ip link add dummy0 type dummy",
+		"ip address add 1.1.1.1 broadcast + dev dummy0",
+		"ip link set dummy0 up",
+		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
+	}
+	runCommands(t, cmds)
+}
+
+func teardownDNAT(t *testing.T) {
+	cmds := []string{
+		// tear down the testing interface, and iptables rule
+		"ip link del dummy0",
+		"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
+		// clear out the conntrack table
+		"conntrack -F",
+	}
+	runCommands(t, cmds)
+}
+
+func runCommands(t *testing.T, cmds []string) {
+	for _, c := range cmds {
+		args := strings.Split(c, " ")
+		c := exec.Command(args[0], args[1:]...)
+		out, err := c.CombinedOutput()
+		if err != nil {
+			t.Errorf("%s: %s", err, out)
+			return
+		}
+	}
 }

@@ -21,6 +21,7 @@ ALL_TAGS = set(
         "fargateprocess",
         "gce",
         "jmx",
+        "jetson",
         "kubeapiserver",
         "kubelet",
         "linux_bpf",
@@ -94,7 +95,7 @@ TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks",]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["containerd", "cri", "netcgo", "systemd",])
+LINUX_ONLY_TAGS = set(["containerd", "cri", "netcgo", "systemd", "jetson",])
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = set(["linux_bpf"])

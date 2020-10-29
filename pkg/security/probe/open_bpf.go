@@ -15,16 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-// openTables is the list of eBPF tables used by open's kProbes
-var openTables = []string{
-	"open_policy",
-	"open_basename_approvers",
-	"open_flags_approvers",
-	"open_flags_discarders",
-	"open_process_inode_approvers",
-	"open_path_inode_discarders",
-}
-
 func openOnNewApprovers(probe *Probe, approvers rules.Approvers) error {
 	stringValues := func(fvs rules.FilterValues) []string {
 		var values []string
@@ -91,7 +81,7 @@ func openOnNewDiscarder(rs *rules.RuleSet, event *Event, probe *Probe, discarder
 			return nil
 		}
 
-		isDiscarded, err := discardParentInode(probe, rs, "open", value, fsEvent.MountID, fsEvent.Inode, table)
+		isDiscarded, err := discardParentInode(probe, rs, "open", "open.filename", value, fsEvent.MountID, fsEvent.Inode, table)
 		if !isDiscarded {
 			if _, ok := err.(*ErrInvalidKeyPath); !ok {
 				// not able to discard the parent then only discard the filename

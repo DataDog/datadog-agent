@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !windows
+// +build jetson
 
 package nvidia
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 type swapMetricsSender struct {
@@ -40,20 +41,20 @@ func (swapMetricsSender *swapMetricsSender) SendMetrics(sender aggregator.Sender
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.swap.used", swapUsed*swapMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.swap.used", swapUsed*swapMultiplier, "", nil)
 
 	totalSwap, err := strconv.ParseFloat(swapFields["totalSwap"], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.swap.total", totalSwap*swapMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.swap.total", totalSwap*swapMultiplier, "", nil)
 
 	cacheMultiplier := getSizeMultiplier(swapFields["cachedUnit"])
 	cached, err := strconv.ParseFloat(swapFields["cached"], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.swap.cached", cached*cacheMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.swap.cached", cached*cacheMultiplier, "", nil)
 
 	return nil
 }

@@ -132,6 +132,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
+	assert.Equal(t, "", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 	assert.Equal(t, p1, *(transactions[0].Payload))
 	assert.Equal(t, p1, *(transactions[1].Payload))
 	assert.Equal(t, p2, *(transactions[2].Payload))
@@ -143,6 +144,21 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Contains(t, transactions[1].Endpoint, "api_key=api-key-2")
 	assert.Contains(t, transactions[2].Endpoint, "api_key=api-key-1")
 	assert.Contains(t, transactions[3].Endpoint, "api_key=api-key-2")
+}
+
+func TestArbitraryTagsHTTPHeader(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("allow_arbitrary_tags", true)
+	defer mockConfig.Set("allow_arbitrary_tags", false)
+
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	endpoint := endpoint{"/api/foo", "foo"}
+	payload := []byte("A payload")
+	headers := make(http.Header)
+
+	transactions := forwarder.createHTTPTransactions(endpoint, Payloads{&payload}, false, headers)
+	require.True(t, len(transactions) > 0)
+	assert.Equal(t, "true", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 }
 
 func TestSendHTTPTransactions(t *testing.T) {
@@ -494,4 +510,50 @@ func TestHighPriorityTransaction(t *testing.T) {
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)
 	assert.Equal(t, string(data1), <-requestChan)
+}
+
+func TestCustomCompletionHandler(t *testing.T) {
+	transactionsDroppedOnInput.Set(0)
+
+	// Setup a test HTTP server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// Point agent configuration to it
+	cfg := config.Mock()
+	prevURL := cfg.Get("dd_url")
+	defer cfg.Set("dd_url", prevURL)
+	cfg.Set("dd_url", srv.URL)
+
+	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
+	done := make(chan struct{})
+	defer close(done)
+	var handler HTTPCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+		done <- struct{}{}
+	}
+
+	options := NewOptions(map[string][]string{
+		srv.URL: {"api_key1"},
+	})
+	options.CompletionHandler = handler
+
+	f := NewDefaultForwarder(options)
+	f.Start()
+	defer f.Stop()
+
+	data := []byte("payload_data")
+	payload := Payloads{&data}
+	assert.Nil(t, f.SubmitV1Series(payload, http.Header{}))
+
+	// And finally let's ensure the handler gets called
+	var handlerCalled bool
+	select {
+	case <-done:
+		handlerCalled = true
+	case <-time.After(time.Second):
+	}
+
+	assert.True(t, handlerCalled)
 }

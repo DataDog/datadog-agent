@@ -55,6 +55,12 @@ func TestChmod(t *testing.T) {
 			if mode := event.Chmod.Mode; mode != 0707 {
 				t.Errorf("expected chmod mode 0707, got %#o", mode)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Errorf("expected inode %d, got %d", event.Chmod.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chmod.container_path")
 		}
 	})
 
@@ -74,6 +80,12 @@ func TestChmod(t *testing.T) {
 			if mode := event.Chmod.Mode; mode != 0707 {
 				t.Errorf("expected chmod mode 0707, got %#o", mode)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Errorf("expected inode %d, got %d", event.Chmod.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chmod.container_path")
 		}
 	})
 
@@ -93,6 +105,12 @@ func TestChmod(t *testing.T) {
 			if mode := event.Chmod.Mode; mode != 0757 {
 				t.Errorf("expected chmod mode 0757, got %#o", mode)
 			}
+
+			if inode := getInode(t, testFile); inode != event.Chmod.Inode {
+				t.Errorf("expected inode %d, got %d", event.Chmod.Inode, inode)
+			}
+
+			testContainerPath(t, event, "chmod.container_path")
 		}
 	})
 }

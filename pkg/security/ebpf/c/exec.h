@@ -44,7 +44,7 @@ struct bpf_map_def SEC("maps/pid_cookie") pid_cookie = {
 
 int __attribute__((always_inline)) trace__sys_execveat() {
     struct syscall_cache_t syscall = {
-        .type = EVENT_EXEC,
+        .type = SYSCALL_EXEC,
     };
 
     cache_syscall(&syscall);
@@ -72,13 +72,18 @@ struct proc_cache_t * __attribute__((always_inline)) get_pid_cache(u32 tgid) {
     return entry;
 }
 
-int __attribute__((always_inline)) vfs_handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
-    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
+    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
+    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
+    struct path *path = &file->f_path;
+
+    syscall->open.dentry = get_file_dentry(file);
+    syscall->open.path_key = get_inode_key_path(inode, &file->f_path);
 
     // new cache entry
     struct proc_cache_t entry = {
         .executable = {
-            .inode = get_path_ino(path),
+            .inode = syscall->open.path_key.ino,
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
         },
@@ -102,14 +107,13 @@ int __attribute__((always_inline)) vfs_handle_exec_event(struct pt_regs *ctx, st
     // insert pid <-> cookie mapping
     bpf_map_update_elem(&pid_cookie, &tgid, &cookie, BPF_ANY);
 
-    pop_syscall();
+    pop_syscall(SYSCALL_EXEC);
 
     return 0;
 }
 
 SEC("tracepoint/sched/sched_process_fork")
-int sched_process_fork(struct _tracepoint_sched_process_fork *args)
-{
+int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     u32 pid = 0;
     u32 ppid = 0;
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);

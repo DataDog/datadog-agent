@@ -156,7 +156,7 @@ func configureLogger() error {
 		return err
 	}
 
-	log.SetupDatadogLogger(logger, logLevel)
+	log.SetupLogger(logger, logLevel)
 	return nil
 }
 

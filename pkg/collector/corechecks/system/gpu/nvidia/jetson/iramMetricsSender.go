@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !windows
+// +build jetson
 
 package nvidia
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 type iramMetricSender struct {
@@ -39,20 +40,20 @@ func (iramMetricSender *iramMetricSender) SendMetrics(sender aggregator.Sender, 
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.iram.used", usedIRAM*iramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.iram.used", usedIRAM*iramMultiplier, "", nil)
 
 	totalIRAM, err := strconv.ParseFloat(iramFields["iramTotal"], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.iram.total", totalIRAM*iramMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.iram.total", totalIRAM*iramMultiplier, "", nil)
 
 	iramLfbMultiplier := getSizeMultiplier(iramFields["iramLfbUnit"])
 	iramLfb, err := strconv.ParseFloat(iramFields["iramLfb"], 64)
 	if err != nil {
 		return err
 	}
-	sender.Gauge("nvidia.jetson.gpu.iram.lfb", iramLfb*iramLfbMultiplier, "", nil)
+	sender.Gauge("nvidia.jetson.iram.lfb", iramLfb*iramLfbMultiplier, "", nil)
 
 	return nil
 }

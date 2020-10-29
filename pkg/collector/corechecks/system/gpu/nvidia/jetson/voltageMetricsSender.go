@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !windows
+// +build jetson
 
 package nvidia
 
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 type voltageMetricsSender struct {
@@ -42,13 +43,13 @@ func (voltageMetricsSender *voltageMetricsSender) SendMetrics(sender aggregator.
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.gpu.vdd.instant", instantVoltage, "", voltageProbeTags)
+		sender.Gauge("nvidia.jetson.vdd.instant", instantVoltage, "", voltageProbeTags)
 
 		averageVoltage, err := strconv.ParseFloat(voltageFields[i][regexSubexpIndex(r, "averageVoltage")], 64)
 		if err != nil {
 			return err
 		}
-		sender.Gauge("nvidia.jetson.gpu.vdd.average", averageVoltage, "", voltageProbeTags)
+		sender.Gauge("nvidia.jetson.vdd.average", averageVoltage, "", voltageProbeTags)
 	}
 
 	return nil
