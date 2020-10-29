@@ -71,6 +71,7 @@ blacklist_packages = Array.new
 
 # We build these manually
 blacklist_packages.push(/^aerospike==/)
+blacklist_packages.push(/^snowflake-connector-python==/)
 
 if suse?
   blacklist_folders.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
@@ -285,12 +286,12 @@ build do
     end
   end
 
-  # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-  if windows?
-    command "#{python} -m pip check"
-  else
-    command "#{pip} check"
-  end
+    # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
+    if windows?
+      command "#{python} -m pip check"
+    else
+      command "#{pip} check"
+    end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version

@@ -12,4 +12,3 @@ source :url => "https://github.com/snowflakedb/snowflake-connector-python/archiv
 build do
     ship_license "https://raw.githubusercontent.com/snowflakedb/snowflake-connector-python/v#{version}/LICENSE.txt"
     patch :source => "snowflake-connector-python-cryptography.patch", :target => "setup.py"
-end
