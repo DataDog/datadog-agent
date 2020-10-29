@@ -19,8 +19,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -82,14 +82,14 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
-	pidfilePath string
-	confPath    string
-	flagNoColor bool
-	stopCh      chan struct{}
+	pidfilePath   string
+	confPathArray []string
+	flagNoColor   bool
+	stopCh        chan struct{}
 )
 
 func init() {
-	SecurityAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", nil, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
 	SecurityAgentCmd.AddCommand(versionCmd)
@@ -123,11 +123,9 @@ func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
 func start(cmd *cobra.Command, args []string) error {
 	defer log.Flush()
 
-	// we'll search for a config file named `datadog.yaml`
-	coreconfig.Datadog.SetConfigName("datadog")
-	err := common.SetupConfig(confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+		return err
 	}
 
 	// Setup logger
@@ -138,7 +136,7 @@ func start(cmd *cobra.Command, args []string) error {
 		logFile = ""
 	}
 
-	err = coreconfig.SetupLogger(
+	err := coreconfig.SetupLogger(
 		loggerName,
 		coreconfig.Datadog.GetString("log_level"),
 		logFile,
