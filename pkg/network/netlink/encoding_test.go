@@ -53,18 +53,18 @@ func TestEncodeConn(t *testing.T) {
 	require.Len(t, connections, 1)
 	c := connections[0]
 
-	assert.True(t, net.ParseIP("10.0.2.15").Equal(*c.Origin.Src))
-	assert.True(t, net.ParseIP("2.2.2.2").Equal(*c.Origin.Dst))
+	assert.True(t, conn.Con.Origin.Src.Equal(*c.Origin.Src))
+	assert.True(t, conn.Con.Origin.Dst.Equal(*c.Origin.Dst))
 
-	assert.Equal(t, uint16(58472), *c.Origin.Proto.SrcPort)
-	assert.Equal(t, uint16(5432), *c.Origin.Proto.DstPort)
-	assert.Equal(t, uint8(unix.IPPROTO_TCP), *c.Origin.Proto.Number)
+	assert.Equal(t, *conn.Con.Origin.Proto.SrcPort, *c.Origin.Proto.SrcPort)
+	assert.Equal(t, *conn.Con.Origin.Proto.DstPort, *c.Origin.Proto.DstPort)
+	assert.Equal(t, *conn.Con.Origin.Proto.Number, *c.Origin.Proto.Number)
 
-	assert.True(t, net.ParseIP("1.1.1.1").Equal(*c.Reply.Src))
-	assert.True(t, net.ParseIP("10.0.2.15").Equal(*c.Reply.Dst))
+	assert.True(t, conn.Con.Reply.Src.Equal(*c.Reply.Src))
+	assert.True(t, conn.Con.Reply.Dst.Equal(*c.Reply.Dst))
 
-	assert.Equal(t, uint16(5432), *c.Reply.Proto.SrcPort)
-	assert.Equal(t, uint16(58472), *c.Reply.Proto.DstPort)
-	assert.Equal(t, uint8(unix.IPPROTO_TCP), *c.Reply.Proto.Number)
+	assert.Equal(t, *conn.Con.Reply.Proto.SrcPort, *c.Reply.Proto.SrcPort)
+	assert.Equal(t, *conn.Con.Reply.Proto.DstPort, *c.Reply.Proto.DstPort)
+	assert.Equal(t, *conn.Con.Reply.Proto.Number, *c.Reply.Proto.Number)
 
 }
