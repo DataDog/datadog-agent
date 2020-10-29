@@ -460,7 +460,7 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		if err != nil {
 			return nil, err
 		}
-		log.SetupDatadogLogger(logger, logLevel.String())
+		log.SetupLogger(logger, logLevel.String())
 
 		logInitilialized = true
 	}
