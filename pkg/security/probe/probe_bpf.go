@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -61,6 +62,7 @@ type Probe struct {
 	resolvers         *Resolvers
 	onDiscardersFncs  map[eval.EventType][]onDiscarderFnc
 	syscallMonitor    *SyscallMonitor
+	loadController    *LoadController
 	kernelVersion     uint32
 	_                 uint32 // padding for goarch=386
 	eventsStats       EventsStats
@@ -179,7 +181,11 @@ func (p *Probe) InitManager(rs *rules.RuleSet) error {
 
 // Start the runtime security probe
 func (p *Probe) Start() error {
-	return p.manager.Start()
+	if err := p.manager.Start(); err != nil {
+		return err
+	}
+	go p.loadController.Start(context.Background())
+	return nil
 }
 
 // SetEventHandler set the probe event handler
@@ -260,7 +266,7 @@ func (p *Probe) GetEventsStats() EventsStats {
 }
 
 func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
-	log.Warnf("lost %d events\n", count)
+	log.Tracef("lost %d events\n", count)
 	p.eventsStats.CountLost(int64(count))
 }
 
@@ -307,15 +313,15 @@ func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap,
 
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
+	read, err = p.unmarshalProcessContainer(data[offset:], event)
+	if err != nil {
+		log.Errorf("failed to decode event `%s`: %s", err, eventType)
+		return
+	}
+	offset += read
+
 	switch eventType {
 	case FileMountEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `utimes`: %s", err)
-			return
-		}
-		offset += read
-
 		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, len(data))
 			return
@@ -328,13 +334,6 @@ func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap,
 		// Insert new mount point in cache
 		p.resolvers.MountResolver.Insert(event.Mount)
 	case FileUmountEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `utimes`: %s", err)
-			return
-		}
-		offset += read
-
 		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, len(data))
 			return
@@ -349,6 +348,7 @@ func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap,
 	}
 
 	p.eventsStats.CountEventType(eventType, 1)
+	p.loadController.Count(eventType, event.Process.Pid)
 	p.DispatchEvent(event)
 }
 
@@ -368,148 +368,6 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
 
 	switch eventType {
-	case FileOpenEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `open`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileMkdirEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `mkdir`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileRmdirEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `rmdir`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		log.Tracef("remove dentry cache entry for inode %d", event.Rmdir.Inode)
-		p.resolvers.DentryResolver.DelCacheEntry(event.Rmdir.MountID, event.Rmdir.Inode)
-	case FileUnlinkEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `unlink`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		log.Tracef("remove dentry cache entry for inode %d", event.Unlink.Inode)
-		p.resolvers.DentryResolver.DelCacheEntry(event.Unlink.MountID, event.Unlink.Inode)
-	case FileRenameEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `rename`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		log.Tracef("remove dentry cache entry for inode %d", event.Rename.New.Inode)
-		// use the new.inode as the old one is a fake one generated from the probe. See RenameEvent.MarshalJSON
-		p.resolvers.DentryResolver.DelCacheEntry(event.Rename.New.MountID, event.Rename.New.Inode)
-	case FileChmodEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `chmod`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileChownEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `chown`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Chown.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileUtimeEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `utimes`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileLinkEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `link`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.Link.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileSetXAttrEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `utimes`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileRemoveXAttrEventType:
-		read, err = p.unmarshalProcessContainer(data[offset:], event)
-		if err != nil {
-			log.Errorf("failed to decode event `utimes`: %s", err)
-			return
-		}
-		offset += read
-
-		if _, err := event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
 	case ExecEventType:
 		if _, err := event.Exec.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
@@ -550,6 +408,81 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 
 		// no need to dispatch
 		return
+	}
+
+	read, err = p.unmarshalProcessContainer(data[offset:], event)
+	if err != nil {
+		log.Errorf("failed to decode event `%s`: %s", eventType, err)
+		return
+	}
+	offset += read
+
+	switch eventType {
+	case FileOpenEventType:
+		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileMkdirEventType:
+		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileRmdirEventType:
+		if _, err := event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		log.Tracef("remove dentry cache entry for inode %d", event.Rmdir.Inode)
+		p.resolvers.DentryResolver.DelCacheEntry(event.Rmdir.MountID, event.Rmdir.Inode)
+	case FileUnlinkEventType:
+		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		log.Tracef("remove dentry cache entry for inode %d", event.Unlink.Inode)
+		p.resolvers.DentryResolver.DelCacheEntry(event.Unlink.MountID, event.Unlink.Inode)
+	case FileRenameEventType:
+		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		log.Tracef("remove dentry cache entry for inode %d", event.Rename.New.Inode)
+		// use the new.inode as the old one is a fake one generated from the probe. See RenameEvent.MarshalJSON
+		p.resolvers.DentryResolver.DelCacheEntry(event.Rename.New.MountID, event.Rename.New.Inode)
+	case FileChmodEventType:
+		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileChownEventType:
+		if _, err := event.Chown.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileUtimeEventType:
+		if _, err := event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileLinkEventType:
+		if _, err := event.Link.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileSetXAttrEventType:
+		if _, err := event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileRemoveXAttrEventType:
+		if _, err := event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d on perf map %s", eventType, perfMap.Name)
 		return
@@ -558,6 +491,7 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 	log.Tracef("Dispatching event %+v\n", event)
 
 	p.eventsStats.CountEventType(eventType, 1)
+	p.loadController.Count(eventType, event.Process.Pid)
 	p.DispatchEvent(event)
 }
 
@@ -665,7 +599,7 @@ func getInvalidDiscarders() map[eval.Field]map[interface{}]bool {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config) (*Probe, error) {
+func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p := &Probe{
 		config:            config,
 		onDiscardersFncs:  make(map[eval.EventType][]onDiscarderFnc),
@@ -680,6 +614,10 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	p.resolvers = resolvers
 	p.event = NewEvent(p.resolvers)
 	p.mountEvent = NewEvent(p.resolvers)
+	p.loadController, err = NewLoadController(p, client)
+	if err != nil {
+		return nil, err
+	}
 
 	return p, nil
 }

@@ -87,10 +87,14 @@ struct pid_discarder_t {
     u32 padding;
 };
 
+struct pid_discarder_parameters_t {
+    u64 timestamp;
+};
+
 struct bpf_map_def SEC("maps/pid_discarders") pid_discarders = { \
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct pid_discarder_t),
-    .value_size = sizeof(struct filter_t),
+    .value_size = sizeof(struct pid_discarder_parameters_t),
     .max_entries = 512,
     .pinning = 0,
     .namespace = "",
@@ -102,14 +106,15 @@ int __attribute__((always_inline)) discarded_by_pid(u64 event_type, u32 tgid) {
         .tgid = tgid,
     };
 
-    struct filter_t *filter = bpf_map_lookup_elem(&pid_discarders, &key);
-    if (filter) {
+    struct pid_discarder_parameters_t *params = bpf_map_lookup_elem(&pid_discarders, &key);
+    if (params == NULL || params->timestamp <= bpf_ktime_get_ns()) {
+        return 0;
+    }
+
 #ifdef DEBUG
         bpf_printk("process with pid %d discarded\n", tgid);
 #endif
-        return 1;
-    }
-    return 0;
+    return 1;
 }
 
 // cache_syscall checks the event policy in order to see if the syscall struct can be cached

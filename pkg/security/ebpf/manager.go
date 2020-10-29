@@ -26,7 +26,7 @@ func NewDefaultOptions() manager.Options {
 		DefaultKProbeMaxActive: 512,
 
 		// DefaultPerfRingBufferSize is the default buffer size of the perf buffers
-		DefaultPerfRingBufferSize: 128 * os.Getpagesize(),
+		DefaultPerfRingBufferSize: 4096 * os.Getpagesize(),
 
 		// DefaultProbeAttach is the default number of attach / detach retries on error
 		DefaultProbeRetry:      3,
