@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -29,6 +32,36 @@ const (
 var (
 	openmetricsDefaultMetrics = []string{"*"}
 )
+
+// PrometheusConfigProvider TODO
+type PrometheusConfigProvider struct {
+	checks []*PrometheusCheck
+}
+
+// setupConfigs reads and initializes the checks from the configuration
+// It defines a default openmetrics instances with default AD if the checks configuration is empty
+func (p *PrometheusConfigProvider) setupConfigs() error {
+	checks := []*PrometheusCheck{}
+	if err := config.Datadog.UnmarshalKey("prometheus_scrape.checks", &checks); err != nil {
+		return err
+	}
+
+	if len(checks) == 0 {
+		log.Info("The 'prometheus_scrape.checks' configuration is empty, a default openmetrics check configuration will be used")
+		p.checks = []*PrometheusCheck{defaultCheck}
+		return nil
+	}
+
+	for i, check := range checks {
+		if err := check.init(); err != nil {
+			log.Errorf("Ignoring check configuration (# %d): %v", i+1, err)
+			continue
+		}
+		p.checks = append(p.checks, check)
+	}
+
+	return nil
+}
 
 // PrometheusCheck represents the openmetrics check instances and the corresponding autodiscovery rules
 type PrometheusCheck struct {

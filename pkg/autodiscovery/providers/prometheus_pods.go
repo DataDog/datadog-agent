@@ -20,7 +20,7 @@ import (
 // PrometheusPodsConfigProvider implements the ConfigProvider interface for prometheus pods.
 type PrometheusPodsConfigProvider struct {
 	kubelet kubelet.KubeUtilInterface
-	checks  []*PrometheusCheck
+	PrometheusConfigProvider
 }
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
@@ -33,32 +33,32 @@ func NewPrometheusPodsConfigProvider(config config.ConfigurationProviders) (Conf
 
 // setupConfigs reads and initializes the checks from the configuration
 // It defines a default openmetrics instances with default AD if the checks configuration is empty
-func (p *PrometheusPodsConfigProvider) setupConfigs() error {
-	checks := []*PrometheusCheck{}
-	if err := config.Datadog.UnmarshalKey("prometheus_scrape.checks", &checks); err != nil {
-		return err
-	}
+// func (p *PrometheusPodsConfigProvider) setupConfigs() error {
+// 	checks := []*PrometheusCheck{}
+// 	if err := config.Datadog.UnmarshalKey("prometheus_scrape.checks", &checks); err != nil {
+// 		return err
+// 	}
 
-	if len(checks) == 0 {
-		log.Info("The 'prometheus_scrape.checks' configuration is empty, a default openmetrics check configuration will be used")
-		p.checks = []*PrometheusCheck{defaultCheck}
-		return nil
-	}
+// 	if len(checks) == 0 {
+// 		log.Info("The 'prometheus_scrape.checks' configuration is empty, a default openmetrics check configuration will be used")
+// 		p.checks = []*PrometheusCheck{defaultCheck}
+// 		return nil
+// 	}
 
-	for i, check := range checks {
-		if err := check.init(); err != nil {
-			log.Errorf("Ignoring check configuration (# %d): %v", i+1, err)
-			continue
-		}
-		p.checks = append(p.checks, check)
-	}
+// 	for i, check := range checks {
+// 		if err := check.init(); err != nil {
+// 			log.Errorf("Ignoring check configuration (# %d): %v", i+1, err)
+// 			continue
+// 		}
+// 		p.checks = append(p.checks, check)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // String returns a string representation of the PrometheusPodsConfigProvider
 func (p *PrometheusPodsConfigProvider) String() string {
-	return names.Prometheus
+	return names.PrometheusPods
 }
 
 // Collect retrieves templates from the kubelet's podlist, builds config objects and returns them
@@ -131,7 +131,7 @@ func (pc *PrometheusCheck) configsForPod(pod *kubelet.Pod) []integration.Config 
 					Name:          openmetricsCheckName,
 					InitConfig:    integration.Data(openmetricsInitConfig),
 					Instances:     instances,
-					Provider:      names.Prometheus,
+					Provider:      names.PrometheusPods,
 					Source:        "kubelet:" + container.ID,
 					ADIdentifiers: []string{container.ID},
 				})
