@@ -67,7 +67,11 @@ func RegisterSource(id, source, service, env string) *RegisteredSource {
 
 func GetSourceById(id string) (*RegisteredSource, bool) {
 	source, err := registrationMap.Get(id)
-	return source.(*RegisteredSource), err
+	if s, ok := source.(*RegisteredSource); ok {
+		return s, err
+	}
+
+	return nil, false
 }
 
 func GetSourcesByServiceAndEnv(service, env string) map[string]*RegisteredSource {
