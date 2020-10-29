@@ -2653,6 +2653,10 @@ send_pkg_size-a7:
 
 .docker_build_job_definition: &docker_build_job_definition
   stage: image_build
+  variables:
+    DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
+    DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+    DOCKER_REGISTRY_URL: docker.io
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
@@ -2660,6 +2664,10 @@ send_pkg_size-a7:
     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX-$ARCH
     # Pull base image(s) with content trust enabled
     - python3 -m pip install -r requirements.txt
+    # DockerHub login event for build to limit rate limit when pulling base images
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    # Pull base images
     - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/$ARCH/Dockerfile
     # Build testing stage if provided
     - test "$TESTING_ARG" && docker build --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
