@@ -94,8 +94,8 @@ func (l *Launcher) run() {
 				InitialInterval:     500 * time.Millisecond,
 				RandomizationFactor: 0,
 				Multiplier:          2,
-				MaxInterval:         15 * time.Second,
-				MaxElapsedTime:      60 * time.Second,
+				MaxInterval:         5 * time.Second,
+				MaxElapsedTime:      30 * time.Second,
 				Clock:               backoff.SystemClock,
 			}
 			_ = backoff.RetryNotify(addSourceRetriableOps(l, service), exp, addSourceNotify(service.Identifier))
