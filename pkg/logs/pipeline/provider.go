@@ -20,6 +20,8 @@ type Provider interface {
 	Start()
 	Stop()
 	NextPipelineChan() chan *message.Message
+	// Flush flushes all pipeline contained in this Provider
+	Flush()
 }
 
 // provider implements providing logic
@@ -81,4 +83,11 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	defer atomic.StoreInt32(&p.currentPipelineIndex, int32(index))
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
+}
+
+// Flush flushes synchronously all the contained pipeline of this provider.
+func (p *provider) Flush() {
+	for _, p := range p.pipelines {
+		p.Flush()
+	}
 }

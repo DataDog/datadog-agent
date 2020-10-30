@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -137,5 +138,8 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// synchronous flush
-	f.daemon.statsdServer.Flush(true)
+	//	f.daemon.statsdServer.Flush(true)
+	// synchronous flush of the logs agent
+	logs.Flush()
+	log.Debug("Sync flush done")
 }

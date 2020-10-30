@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -16,7 +17,8 @@ import (
 // Strategy should contain all logic to send logs to a remote destination
 // and forward them the next stage of the pipeline.
 type Strategy interface {
-	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error)
+	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex)
+	Flush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex)
 }
 
 // Sender sends logs to different destinations.
@@ -26,6 +28,7 @@ type Sender struct {
 	destinations *client.Destinations
 	strategy     Strategy
 	done         chan struct{}
+	mu           sync.Mutex
 }
 
 // NewSender returns a new sender.
@@ -51,11 +54,18 @@ func (s *Sender) Stop() {
 	<-s.done
 }
 
+func (s *Sender) Flush() {
+	//	log.Debug("Sender.Flush start")
+	//	log.Debug("Sender.Flush after lock")
+	s.strategy.Flush(s.inputChan, s.outputChan, s.send, &s.mu)
+	//	log.Debug("Sender.Flush end")
+}
+
 func (s *Sender) run() {
 	defer func() {
 		s.done <- struct{}{}
 	}()
-	s.strategy.Send(s.inputChan, s.outputChan, s.send)
+	s.strategy.Send(s.inputChan, s.outputChan, s.send, &s.mu)
 }
 
 // send sends a payload to multiple destinations,

@@ -8,5 +8,6 @@ func Fqdn(hostname string) string {
 }
 
 func GetHostname() (string, error) {
+	// TODO(remy): we should return the ARN here.
 	return "", nil
 }

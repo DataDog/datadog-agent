@@ -54,7 +54,8 @@ type LogsConfig struct {
 	Query       string // Windows Event
 
 	// used as input only by the Channel tailer.
-	Channel <-chan string
+	// could have been unidirectional but the tailer could not close it in this case.
+	Channel chan string
 
 	Service         string
 	Source          string

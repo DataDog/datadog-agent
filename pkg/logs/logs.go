@@ -107,10 +107,11 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 
 	if serverless {
 		log.Debug("Adding AWS Logs collection source")
+
 		chanSource := config.NewLogSource("AWS Logs", &config.LogsConfig{
 			Type:    config.StringChannelType,
-			Service: "AWS Logs",
-			Source:  "AWS Logs",
+			Service: "dd-agent", // FIXME(remy):
+			Source:  "agent",
 			Channel: logsChan,
 		})
 		sources.AddSource(chanSource)
@@ -167,6 +168,15 @@ func Stop() {
 		atomic.StoreInt32(&isRunning, 0)
 	}
 	log.Info("logs-agent stopped")
+}
+
+func Flush() {
+	log.Info("Triggering a flush in the logs-agent")
+	if IsAgentRunning() {
+		if agent != nil {
+			agent.Flush()
+		}
+	}
 }
 
 // IsAgentRunning returns true if the logs-agent is running.

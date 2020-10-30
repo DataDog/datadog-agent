@@ -116,6 +116,10 @@ func (a *Agent) Start() {
 	starter.Start()
 }
 
+func (a *Agent) Flush() {
+	a.pipelineProvider.Flush()
+}
+
 // Stop stops all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Stop() {

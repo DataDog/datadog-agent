@@ -236,6 +236,8 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	// starts logs collection if enabled
+	// TODO(remy): should we set a flag somewhere that it's not enabled in case of an error?
+	// FIXME(remy): the error management in this part is messy
 	// ---------------------------------
 
 	if config.Datadog.GetBool("logs_enabled") {
@@ -253,17 +255,13 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 			// subscribe to the logs on the platform
 			if err := serverless.SubscribeLogs(serverlessID, httpAddr); err != nil {
 				log.Error("Can't subscribe to logs:", err)
-				// XXX(remy): we should probably stop the http logs server here
-				// TODO(remy): should we set a flag somewhere that it's not enabled?
+				// FIXME(remy): we should probably stop the http logs server here
 			} else {
-				log.Debug("Starting the draining routine")
-
 				// we subscribed to the logs collection on the platform, let's instanciate
 				// a logs agent to collect/process/flush the logs.
 				if err := logs.StartServerless(func() *autodiscovery.AutoConfig { return common.AC }, logsChan); err != nil {
 					log.Error("Could not start an instance of the Logs Agent:", err)
-					// XXX(remy): we should probably stop the http logs server here
-					// TODO(remy): should we set a flag somewhere that it's not enabled?
+					// FIXME(remy): we should probably stop the http logs server here
 				}
 			}
 		}
@@ -306,6 +304,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// the invocation route, we can't report init errors anymore.
 	go func() {
 		for {
+			// TODO(remy): shouldn't we wait for the logs agent to finish? + dogstatsd server before listening again?
 			if err := serverless.WaitForNextInvocation(stopCh, statsdServer, serverlessID); err != nil {
 				log.Error(err)
 			}

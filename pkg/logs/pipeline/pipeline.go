@@ -81,3 +81,8 @@ func (p *Pipeline) Stop() {
 	p.processor.Stop()
 	p.sender.Stop()
 }
+
+func (p *Pipeline) Flush() {
+	p.processor.Flush() // flush messages in the processor into the sender
+	p.sender.Flush()    // flush the sender
+}

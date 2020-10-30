@@ -13,13 +13,13 @@ import (
 // Tailer consumes and processes a stream of trap packets, and sends them to a stream of log messages.
 type Tailer struct {
 	source     *config.LogSource
-	inputChan  <-chan string
+	inputChan  chan string
 	outputChan chan *message.Message
 	done       chan interface{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, inputChan <-chan string, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *config.LogSource, inputChan chan string, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		inputChan:  inputChan,
@@ -35,6 +35,7 @@ func (t *Tailer) Start() {
 
 // WaitFlush waits for all items in the input channel to be processed.
 func (t *Tailer) WaitFlush() {
+	close(t.inputChan)
 	<-t.done
 }
 
@@ -43,11 +44,14 @@ func (t *Tailer) run() {
 		t.done <- true
 	}()
 
-	// Loop terminates when the channel is closed. FIXME(remy): is that true?
+	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {
-		// FIXME(remy): read the logline
 		origin := message.NewOrigin(t.source)
 		//		origin.SetTags()
+		tags := origin.Tags()
+		tags = append(tags, "source:agent") // FIXME(remy): to remove
+		tags = append(tags, t.source.Config.Tags...)
+		origin.SetTags(tags)
 		t.outputChan <- message.NewMessage([]byte(logline), origin, message.StatusInfo)
 	}
 }

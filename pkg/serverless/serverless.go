@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/serverless/arn"
 )
 
 const (
@@ -63,8 +65,9 @@ func (e ErrorEnum) String() string {
 // Payload is the payload read in the response while subscribing to
 // the AWS Extension env.
 type Payload struct {
-	EventType  string `json:"eventType"`
-	DeadlineMs int64  `json:"deadlineMs"`
+	EventType          string `json:"eventType"`
+	DeadlineMs         int64  `json:"deadlineMs"`
+	InvokedFunctionArn string `json:"invokedFunctionArn"`
 	//    RequestId string `json:"requestId"` // unused
 }
 
@@ -209,6 +212,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation starts waiting and blocking until it receives a request.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN messages.
 // Write into stopCh to stop the main thread of the running program.
+// Returns the current ARN.
 func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server, id ID) error {
 	var err error
 
@@ -241,10 +245,19 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 		return fmt.Errorf("WaitForNextInvocation: can't unmarshal the payload: %v", err)
 	}
 
+	// sets the current ARN.
+	// TODO(remy): we could probably do this once
+	if payload.InvokedFunctionArn != "" {
+		arn.Set(payload.InvokedFunctionArn)
+	}
+
 	if payload.EventType == "SHUTDOWN" {
 		if statsdServer != nil {
 			// flush metrics synchronously
 			statsdServer.Flush(true)
+		}
+		if logs.IsAgentRunning() {
+			logs.Stop()
 		}
 		// shutdown the serverless agent
 		stopCh <- struct{}{}
