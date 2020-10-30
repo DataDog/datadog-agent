@@ -110,13 +110,15 @@ func (lc *LoadController) discardNoisiestProcess() {
 	// update current total and remove biggest entry from cache
 	atomic.AddInt64(&lc.total, -int64(atomic.SwapUint64(maxCount, 0)))
 
-	// send load_controller.pids_discarder metric
-	tags := []string{
-		fmt.Sprintf("event_type:%s", maxKey.Event),
-	}
-	if err := lc.statsdClient.Count(MetricPrefix+".load_controller.pids_discarder", 1, tags, 1.0); err != nil {
-		log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
-		return
+	if lc.statsdClient != nil {
+		// send load_controller.pids_discarder metric
+		tags := []string{
+			fmt.Sprintf("event_type:%s", maxKey.Event),
+		}
+		if err := lc.statsdClient.Count(MetricPrefix+".load_controller.pids_discarder", 1, tags, 1.0); err != nil {
+			log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
+			return
+		}
 	}
 }
 

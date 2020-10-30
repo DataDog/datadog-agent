@@ -20,20 +20,35 @@ type Policy struct {
 
 // Config holds the configuration for the runtime security agent
 type Config struct {
-	Enabled                            bool
-	BPFDir                             string
-	PoliciesDir                        string
-	EnableKernelFilters                bool
-	EnableApprovers                    bool
-	EnableDiscarders                   bool
-	SocketPath                         string
-	SyscallMonitor                     bool
-	EventServerBurst                   int
-	EventServerRate                    int
-	PIDCacheSize                       int
+	// Enabled defines if the runtime security module should be enabled
+	Enabled bool
+	// BPFDir defines where the eBPF programs are stored
+	BPFDir string
+	// PoliciesDir defines the folder in which the policy files are located
+	PoliciesDir string
+	// EnableKernelFilters defines if in-kernel filtering should be activated or not
+	EnableKernelFilters bool
+	// EnableApprovers defines if in-kernel approvers should be activated or not
+	EnableApprovers bool
+	// EnableDiscarders defines if in-kernel discarders should be activated or not
+	EnableDiscarders bool
+	// SocketPath is the path to the socket that is used to communicate with the security agent
+	SocketPath string
+	// SyscallMonitor defines if the syscall monitor should be activated or not
+	SyscallMonitor bool
+	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
+	EventServerBurst int
+	// EventServerRate defines the grpc server rate at which events can be sent
+	EventServerRate int
+	// PIDCacheSize is the size of the user space PID caches
+	PIDCacheSize int
+	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
 	LoadControllerEventsCountThreshold int64
-	LoadControllerDiscarderTimeout     time.Duration
-	LoadControllerControlPeriod        time.Duration
+	// LoadControllerDiscarderTimeout defines the amount of time discarders set by the load controller should last
+	LoadControllerDiscarderTimeout time.Duration
+	// LoadControllerControlPeriod defines the period at which the load controller will empty the user space counter used
+	// to evaluate the amount of events brought back to user space
+	LoadControllerControlPeriod time.Duration
 }
 
 // NewConfig returns a new Config object
