@@ -227,7 +227,7 @@ labels that can be use:
   process (example: for a documentation only PRs).
 - `major_change`: to flag the PR as a major change impacting many/all teams
   working on the agent and will require deeper QA (example: when we change the
-  Python version ship in the agent).
+  Python version shipped in the agent).
 
 ## Integrations
 
