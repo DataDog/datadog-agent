@@ -221,7 +221,7 @@ For internal PRs (from people in the Datadog organisation), you have few extra
 labels that can be use:
 - `community/help-wanted`: for community PRs where help is needed to finish it.
 - `community`: for community PRs.
-- `changelog/no-changelog`: for PRs who don't require a reno releasenote
+- `changelog/no-changelog`: for PRs that don't require a reno releasenote
   (useful for PRs only changing documentation or tests).
 - `qa/skip-qa`: this will skip creating a QA card for the PR during the release
   process (example: for a documentation only PRs).
