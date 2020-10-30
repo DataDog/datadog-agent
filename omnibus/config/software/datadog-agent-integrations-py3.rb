@@ -285,6 +285,7 @@ build do
       end
     end
 
+    # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
     if windows?
       command "#{python} -m pip check"
     else
