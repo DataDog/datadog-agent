@@ -130,7 +130,7 @@ func (a *Agent) Run() {
 }
 
 // Flush traces sychronously. This method only works when the agent is configured in synchronous flushing
-// mody.
+// mode.
 func (a *Agent) Flush() {
 	for _, writer := range a.Writers {
 		writer.SyncFlush()

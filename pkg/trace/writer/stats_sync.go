@@ -149,7 +149,6 @@ func (w *StatsSyncWriter) addStats(s []stats.Bucket) {
 		default:
 			log.Errorf("Channel full. Discarding trace")
 		}
-		sendPayloads(w.senders, req)
 	}
 }
 
