@@ -11,8 +11,15 @@ source :url => "https://github.com/snowflakedb/snowflake-connector-python/archiv
 
 relative_path "snowflake-connector-python-#{version}"
 
+
 build do
-    ship_license "https://raw.githubusercontent.com/snowflakedb/snowflake-connector-python/v#{version}/LICENSE.txt"
-    patch :source => "cryptography-dependency.patch", :target => "setup.py"
-    command "#{install_dir}/embedded/bin/pip2 install ."
+  if windows?
+    pip = "#{windows_safe_path(python_2_embedded)}\\Scripts\\pip.exe"
+  else
+    pip = "#{install_dir}/embedded/bin/pip2"
+  end
+
+  ship_license "https://raw.githubusercontent.com/snowflakedb/snowflake-connector-python/v#{version}/LICENSE.txt"
+  patch :source => "cryptography-dependency.patch", :target => "setup.py"
+  command "#{pip} install ."
 end
