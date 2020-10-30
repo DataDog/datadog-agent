@@ -311,6 +311,7 @@ func SetSublayersOnSpan(span *pb.Span, values []SublayerValue) {
 	}
 
 	for _, value := range values {
+		// filtering out sublayer metrics that are not used on spans
 		if value.Metric != "_sublayers.duration.by_service" && value.Tag.Name != "sublayer_service" {
 			continue
 		}
