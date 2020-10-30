@@ -1191,21 +1191,8 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info
         info->tup.daddr_l = load_word(skb, info->data_off + offsetof(struct iphdr, daddr));
         info->data_off += sizeof(struct iphdr); // TODO: this assumes there are no IP options
         break;
-    case ETH_P_IPV6: // TODO: this needs to be tested
-        l4_proto = load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
-
-        info->tup.metadata |= CONN_V6;
-        info->tup.saddr_l  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, saddr) + 0*sizeof(u32));
-        info->tup.saddr_l |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, saddr) + 1*sizeof(u32)) << 32;
-        info->tup.saddr_h  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, saddr) + 2*sizeof(u32));
-        info->tup.saddr_h |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, saddr) + 3*sizeof(u32)) << 32;
-        info->tup.daddr_l  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 0*sizeof(u32));
-        info->tup.daddr_l |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 1*sizeof(u32)) << 32;
-        info->tup.daddr_h  = load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 2*sizeof(u32));
-        info->tup.daddr_h |= load_word(skb, info->data_off + offsetof(struct ipv6hdr, daddr) + 3*sizeof(u32)) << 32;
-        info->data_off += sizeof(struct ipv6hdr);
-        break;
     default:
+        // TODO: add case for ETH_P_IPV6
         return 0;
     }
 
@@ -1287,9 +1274,11 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         return;
     }
 
-    __u16 pos = batch->pos;
-    if (pos >= 0 && pos < HTTP_BATCH_SIZE) {
-        batch->transactions[pos] = *http;
+#pragma unroll
+    for (int i = 0; i < HTTP_BATCH_SIZE; i++) {
+        if (batch->pos == i) {
+            __builtin_memcpy(&(batch->transactions[i]), http, sizeof(http_transaction_t));
+        }
     }
 
     batch->pos++;
@@ -1317,35 +1306,20 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
         return 0;
     }
 
-    // Find next token
+    // Find digit following space and multiply it by 100 to obtain the response code
     // HTTP/1.1 200 OK
     // _________^_____
-    int status_offset = -1;
+    __u16 response_code = 0;
 #pragma unroll
-    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (status_offset == -1 && buffer[i] == ' ') {
-            status_offset = i + 1;
+    for (int i = 0; i < HTTP_BUFFER_SIZE-1; i++) {
+        if (response_code == 0 && buffer[i] == ' ') {
+            response_code = (buffer[i+1]-'0')*100;
         }
     }
 
-    if (status_offset == -1 || status_offset + HTTP_STATUS_CODE_SIZE - 1 >= HTTP_BUFFER_SIZE) {
+    if (response_code < 100 || response_code >= 600) {
         return 0;
     }
-
-    // Now we read 3 bytes representing the HTTP status code and
-    // convert it to numeric representation
-    __u16 response_code = 0;
-#pragma unroll
-    for (int i = 0; i < HTTP_STATUS_CODE_SIZE; i++) {
-        response_code = response_code*10 + (buffer[status_offset+i]-'0');
-    }
-
-    if (response_code < 200 || response_code >= 600) {
-        return 0;
-    }
-
-    // Bucket into the desired categories: 200x, 300x, 400x and 500x
-    response_code = (response_code/100)*100;
 
     http->state = HTTP_RESPONDING;
     http->response_code = response_code;
