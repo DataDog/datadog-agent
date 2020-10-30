@@ -1,7 +1,6 @@
 name "snowflake-connector-python-py3"
 
 dependency "pip3"
-
 dependency "snowflake-connector-python"
 
 build do
