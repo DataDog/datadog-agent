@@ -404,6 +404,9 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
+		log.Tracef("remove dentry cache entry for inode %d", event.Rmdir.Inode)
+		p.resolvers.DentryResolver.DelCacheEntry(event.Rmdir.MountID, event.Rmdir.Inode)
 	case FileUnlinkEventType:
 		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
@@ -416,6 +419,9 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
+		log.Tracef("remove dentry cache entry for inode %d", event.Unlink.Inode)
+		p.resolvers.DentryResolver.DelCacheEntry(event.Unlink.MountID, event.Unlink.Inode)
 	case FileRenameEventType:
 		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {
@@ -428,6 +434,10 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+
+		log.Tracef("remove dentry cache entry for inode %d", event.Rename.New.Inode)
+		// use the new.inode as the old one is a fake one generated from the probe. See RenameEvent.MarshalJSON
+		p.resolvers.DentryResolver.DelCacheEntry(event.Rename.New.MountID, event.Rename.New.Inode)
 	case FileChmodEventType:
 		read, err = p.unmarshalProcessContainer(data[offset:], event)
 		if err != nil {

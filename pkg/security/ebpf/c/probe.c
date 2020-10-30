@@ -36,7 +36,7 @@ struct invalidate_dentry_event_t {
     u32 padding;
 };
 
-void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode) {
+void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event) {
     if (!inode || !mount_id)
         return;
 
@@ -45,14 +45,16 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
         remove_inode_discarder(i, mount_id, inode);
     }
 
-    // invalidate dentry
-    struct invalidate_dentry_event_t event = {
-        .event.type = EVENT_INVALIDATE_DENTRY,
-        .inode = inode,
-        .mount_id = mount_id,
-    };
+    if (send_invalidate_event) {
+        // invalidate dentry
+        struct invalidate_dentry_event_t event = {
+            .event.type = EVENT_INVALIDATE_DENTRY,
+            .inode = inode,
+            .mount_id = mount_id,
+        };
 
-    send_event(ctx, event);
+        send_event(ctx, event);
+    }
 }
 
 __u32 _version SEC("version") = 0xFFFFFFFE;

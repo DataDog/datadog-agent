@@ -77,7 +77,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     }
 
     if (discarded_by_process(syscall->policy.mode, event_type)) {
-        invalidate_inode(ctx, key.mount_id, key.ino);
+        invalidate_inode(ctx, key.mount_id, key.ino, 1);
 
         return 0;
     }
@@ -85,7 +85,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     if (dentry != NULL) {
         int ret = resolve_dentry(dentry, key, syscall->policy.mode != NO_FILTER ? event_type : 0);
         if (ret == DENTRY_DISCARDED) {
-            invalidate_inode(ctx, key.mount_id, key.ino);
+            invalidate_inode(ctx, key.mount_id, key.ino, 1);
 
             pop_syscall(syscall->type);
         }
@@ -109,7 +109,7 @@ SYSCALL_KRETPROBE(rmdir) {
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode);
+        invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode, 0);
         return 0;
     }
 
@@ -135,7 +135,7 @@ SYSCALL_KRETPROBE(rmdir) {
         send_event(ctx, event);
     }
 
-    invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode);
+    invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode, !enabled);
 
     return 0;
 }

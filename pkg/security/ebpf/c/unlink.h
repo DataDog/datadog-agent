@@ -47,7 +47,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     u64 inode = get_dentry_ino(dentry);
 
     // ensure that we invalidate all the layers
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode);
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, 1);
 
     // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->unlink.path_key.ino) {
@@ -116,7 +116,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         send_event(ctx, event);
     }
 
-    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode);
+    invalidate_inode(ctx, syscall->unlink.path_key.mount_id, inode, 0);
 
     return 0;
 }

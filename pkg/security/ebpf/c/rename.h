@@ -68,7 +68,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
 
     // invalidate non ovl inode, case of folder renamed
-    invalidate_inode(ctx, syscall->rename.target_key.mount_id, get_dentry_ino(syscall->rename.src_dentry));
+    invalidate_inode(ctx, syscall->rename.target_key.mount_id, get_dentry_ino(syscall->rename.src_dentry), 1);
 
     // Warning: we use the src_dentry twice for compatibility with CentOS. Do not change it :)
     // (the mount id was set by kprobe/mnt_want_write)
@@ -78,7 +78,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     }
 
     if (discarded_by_process(syscall->policy.mode, EVENT_RENAME) || (IS_UNHANDLED_ERROR(retval))) {
-        invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino);
+        invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, 1);
         return 0;
     }
 
@@ -113,7 +113,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
         send_event(ctx, event);
     }
 
-    invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino);
+    invalidate_inode(ctx, syscall->rename.target_key.mount_id, syscall->rename.target_key.ino, !enabled);
 
     return 0;
 }
