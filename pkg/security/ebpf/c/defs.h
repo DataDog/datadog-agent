@@ -326,6 +326,6 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
 }
 
 // implemented in the probe.c file
-void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode);
+void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event);
 
 #endif
