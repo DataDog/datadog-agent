@@ -15,10 +15,12 @@ build do
   if windows?
     pip = "#{windows_safe_path(python_2_embedded)}\\Scripts\\pip.exe"
 
-    # HACK: remove misbehaving symlinks. They point to the test folder, thus
-    # they're very likely not needed for the package build.
+    # HACK: replace misbehaving symlinks by real copies of what they
+    # linked.
     delete "connector_python2"
     delete "connector_python3"
+    copy "test", "connector_python2"
+    copy "test", "connector_python3"
   else
     pip = "#{install_dir}/embedded/bin/pip2"
   end
