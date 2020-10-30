@@ -224,11 +224,11 @@ func (dr *DentryResolver) getParentFromMap(mountID uint32, inode uint64, pathID 
 
 // GetParent - Return the parent mount_id/inode
 func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
-	mountID, inode, err := dr.getParentFromCache(mountID, inode)
+	parentMountID, parentInode, err := dr.getParentFromCache(mountID, inode)
 	if err != nil {
-		mountID, inode, err = dr.getParentFromMap(mountID, inode, pathID)
+		parentMountID, parentInode, err = dr.getParentFromMap(mountID, inode, pathID)
 	}
-	return mountID, inode, err
+	return parentMountID, parentInode, err
 }
 
 // Start the dentry resolver

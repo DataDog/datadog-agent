@@ -531,6 +531,13 @@ func (p *Probe) handleEvent(CPU int, data []byte, perfMap *manager.PerfMap, mana
 
 		p.resolvers.DentryResolver.DelCacheEntry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
 
+		// If a temporary file is created and deleted in a row a discarder can be added
+		// after the in-kernel discarder cleanup and thus a discarder will be pushed for a deleted file.
+		// If the inode is reused this can be a problem.
+		// Call a user space remove function to ensure the discarder will be removed.
+		// Disabled for now as it is coslty to do this this way.
+		// removeDiscarderInode(p, event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
+
 		// no need to dispatch
 		return
 	default:
@@ -694,7 +701,7 @@ type inodeEventGetter = func(event *Event) (eval.Field, uint32, uint64, uint32, 
 
 func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter inodeEventGetter) onDiscarderFnc {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
-		field, _, _, _, _ := getter(event)
+		field, mountID, inode, pathID, isDeleted := getter(event)
 
 		if discarder.Field == field {
 			value, err := event.GetFieldValue(field)
@@ -711,10 +718,10 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 				return nil
 			}
 
-			/*isDiscarded, err := discardParentInode(probe, rs, eventType, field, filename, mountID, inode, pathID)
+			isDiscarded, err := discardParentInode(probe, rs, eventType, field, filename, mountID, inode, pathID)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
-					log.Tracef("apply `%s.filename` inode discarder for event `%s`, inode", eventType, eventType, inode)
+					log.Tracef("apply `%s.filename` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
 
 					// not able to discard the parent then only discard the filename
 					_, err = discardInode(probe, eventType, mountID, inode)
@@ -725,11 +732,9 @@ func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter in
 
 			if err != nil {
 				err = errors.Wrapf(err, "unable to set inode discarders for `%s` for event `%s`", filename, eventType)
-			}*/
+			}
 
-			return nil
-
-			//return err
+			return err
 		}
 
 		if fnc != nil {

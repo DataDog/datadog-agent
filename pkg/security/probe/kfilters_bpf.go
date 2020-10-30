@@ -40,6 +40,21 @@ type inodeDiscarder struct {
 	pathKey   PathKey
 }
 
+func removeDiscarderInode(probe *Probe, mountID uint32, inode uint64) {
+	key := inodeDiscarder{
+		pathKey: PathKey{
+			MountID: mountID,
+			Inode:   inode,
+		},
+	}
+
+	table := probe.Map("inode_discarders")
+	for eventType := UnknownEventType + 1; eventType != maxEventType; eventType++ {
+		key.eventType = eventType
+		table.Delete(&key)
+	}
+}
+
 func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint64) (bool, error) {
 	key := inodeDiscarder{
 		eventType: eventType,

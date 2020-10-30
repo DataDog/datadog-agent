@@ -123,16 +123,16 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 func TestOpenParentDiscarderFilter(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename == "/etc/passwd"`,
+		Expression: `open.filename =~ "/usr/bin" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true, disableApprovers: true})
+	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	fd1, testFile1, err := openTestFile(test, "test-obd-2", syscall.O_CREAT)
+	fd1, testFile1, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT)
+	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 func TestOpenFlagsApproverFilter(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.flags & (O_CREAT | O_TRUNC) > 0`,
+		Expression: `open.flags & (O_SYNC | O_NOCTTY) > 0`,
 	}
 
 	test, err := newTestProbe(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: true})
@@ -167,7 +167,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	fd1, testFile1, err := openTestFile(test, "test-ofa-1", syscall.O_CREAT)
+	fd1, testFile1, err := openTestFile(test, "test-ofa-1", syscall.O_CREAT|syscall.O_NOCTTY)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fd2, testFile2, err := openTestFile(test, "test-ofa-1", syscall.O_TRUNC)
+	fd2, testFile2, err := openTestFile(test, "test-ofa-1", syscall.O_SYNC)
 	if err != nil {
 		t.Fatal(err)
 	}
