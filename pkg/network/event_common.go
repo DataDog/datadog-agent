@@ -146,7 +146,7 @@ type ConnectionStats struct {
 	DNSSuccessLatencySum   uint64
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
-	DNSStatsByDomain	map[string]DNSStats
+	DNSStatsByDomain       map[string]DNSStats
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -176,7 +176,7 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	binary.LittleEndian.PutUint64(buf[:], p0)
 
 	if _, err := buffer.Write(buf[:]); err != nil {
-		greturn nil, err
+		return nil, err
 	}
 
 	// Family (4 bits) + Type (4 bits) = 8 bits
@@ -269,8 +269,8 @@ func printAddress(address util.Address, names []string) string {
 }
 
 type DNSStats struct {
-	DNSTimeouts            uint32
-	DNSSuccessLatencySum   uint64
-	DNSFailureLatencySum   uint64
-	DNSCountByRcode        map[uint32]uint32
+	DNSTimeouts          uint32
+	DNSSuccessLatencySum uint64
+	DNSFailureLatencySum uint64
+	DNSCountByRcode      map[uint32]uint32
 }

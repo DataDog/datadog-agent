@@ -8,6 +8,15 @@ import (
 
 // FormatConnection converts a ConnectionStats into an model.Connection
 func FormatConnection(conn network.ConnectionStats) *model.Connection {
+	m := make(map[string]*model.DNSStats)
+	for d, s := range conn.DNSStatsByDomain {
+		var ms model.DNSStats
+		ms.DnsCountByRcode = s.DNSCountByRcode
+		ms.DnsFailureLatencySum = s.DNSFailureLatencySum
+		ms.DnsSuccessLatencySum = s.DNSSuccessLatencySum
+		ms.DnsTimeouts = s.DNSTimeouts
+		m[d] = &ms
+	}
 	return &model.Connection{
 		Pid:                    int32(conn.Pid),
 		Laddr:                  formatAddr(conn.Source, conn.SPort),
@@ -31,7 +40,7 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 		DnsSuccessLatencySum:   conn.DNSSuccessLatencySum,
 		DnsFailureLatencySum:   conn.DNSFailureLatencySum,
 		DnsCountByRcode:        conn.DNSCountByRcode,
-		DnsStatsByDomain:       conn.DNSStatsByDomain,
+		DnsStatsByDomain:       m,
 	}
 }
 

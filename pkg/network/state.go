@@ -2,7 +2,6 @@ package network
 
 import (
 	"bytes"
-	"github.com/DataDog/dd-go/pb/alertingpb"
 	"sync"
 	"time"
 
@@ -34,7 +33,7 @@ type State interface {
 		clientID string,
 		latestTime uint64,
 		latestConns []ConnectionStats,
-		dns map[dnsKey]dnsStats,
+		dns map[dnsKey]map[domain]dnsStats,
 	) []ConnectionStats
 
 	// StoreClosedConnection stores a new closed connection
@@ -210,35 +209,33 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 		}
 
 		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
+			conn.DNSStatsByDomain = make(map[string]DNSStats)
+			conn.DNSCountByRcode = make(map[uint32]uint32)
+			var total uint32
 			for domain, dnsStats := range dnsStatsByDomain {
 				var ds DNSStats
 				ds.DNSCountByRcode = make(map[uint32]uint32)
+				conn.DNSTimeouts += dnsStats.timeouts
 				ds.DNSTimeouts = dnsStats.timeouts
+				conn.DNSSuccessLatencySum += dnsStats.successLatencySum
 				ds.DNSSuccessLatencySum = dnsStats.successLatencySum
+				conn.DNSFailureLatencySum += dnsStats.failureLatencySum
 				ds.DNSFailureLatencySum = dnsStats.failureLatencySum
 				for rcode, count := range dnsStats.countByRcode {
 					ds.DNSCountByRcode[uint32(rcode)] = count
+					conn.DNSCountByRcode[uint32(rcode)] += count
+					total += count
 				}
 				conn.DNSStatsByDomain[string(domain)] = ds
+				conn.DNSSuccessfulResponses += dnsStats.countByRcode[DNSResponseCodeNoError]
 			}
-
-			// conn.DNSTimeouts = dnsStats.timeouts
-			// conn.DNSSuccessfulResponses = dnsStats.countByRcode[DNSResponseCodeNoError]
-			// conn.DNSSuccessLatencySum = dnsStats.successLatencySum
-			// conn.DNSFailureLatencySum = dnsStats.failureLatencySum
-			// conn.DNSCountByRcode = make(map[uint32]uint32)
-			// var total uint32
-			// for rcode, count := range dnsStats.countByRcode {
-			// 	conn.DNSCountByRcode[uint32(rcode)] = count
-			// 	total += count
-			// }
-			// conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
+			conn.DNSFailedResponses = total - conn.DNSSuccessfulResponses
 		}
 		seen[key] = struct{}{}
 	}
 
 	// flush the DNS stats
-	ns.clients[id].dnsStats = make(map[dnsKey]map[domain]]dnsStats)
+	ns.clients[id].dnsStats = make(map[dnsKey]map[domain]dnsStats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -334,7 +331,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
-		dnsStats:          map[dnsKey]dnsStats{},
+		dnsStats:          map[dnsKey]map[domain]dnsStats{},
 	}
 	ns.clients[clientID] = c
 	return c, false

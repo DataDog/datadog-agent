@@ -1146,12 +1146,15 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 
 	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 
-	getStats := func() map[dnsKey]dnsStats {
-		stats := make(map[dnsKey]dnsStats)
+	getStats := func() map[dnsKey]map[domain]dnsStats {
+		var d domain = "foo.com"
+		statsByDomain := make(map[dnsKey]map[domain]dnsStats)
+		stats := make(map[domain]dnsStats)
 		countByRcode := make(map[uint8]uint32)
 		countByRcode[uint8(DNSResponseCodeNoError)] = 1
-		stats[dKey] = dnsStats{countByRcode: countByRcode}
-		return stats
+		stats[d] = dnsStats{countByRcode: countByRcode}
+		statsByDomain[dKey] = stats
+		return statsByDomain
 	}
 
 	client1 := "client1"
@@ -1193,11 +1196,14 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 		DPort:  53,
 	}
 
+	var d domain = "foo.com"
 	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
-	stats := make(map[dnsKey]dnsStats)
+	statsByDomain := make(map[dnsKey]map[domain]dnsStats)
+	stats := make(map[domain]dnsStats)
 	countByRcode := make(map[uint8]uint32)
 	countByRcode[DNSResponseCodeNoError] = 1
-	stats[dKey] = dnsStats{countByRcode: countByRcode}
+	stats[d] = dnsStats{countByRcode: countByRcode}
+	statsByDomain[dKey] = stats
 
 	client := "client"
 	state := newDefaultState()
@@ -1212,7 +1218,7 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 	c.Pid++
 	state.StoreClosedConnection(c)
 
-	conns := state.Connections(client, latestEpochTime(), nil, stats)
+	conns := state.Connections(client, latestEpochTime(), nil, statsByDomain)
 	require.Len(t, conns, 2)
 	assert.Equal(t, int64(1), state.(*networkState).telemetry.dnsPidCollisions)
 }
