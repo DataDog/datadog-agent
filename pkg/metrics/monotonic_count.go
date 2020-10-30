@@ -31,7 +31,7 @@ func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
 	// To handle cases where the samples are not monotonically increasing, we always add the difference
 	// between 2 consecutive samples to the value that'll be flushed (if the difference is >0).
 	diff := mc.currentSample - mc.previousSample
-	if mc.sampledSinceLastFlush && mc.hasPreviousSample && diff > 0. {
+	if mc.hasPreviousSample && diff > 0. {
 		mc.value += diff
 	}
 }
@@ -44,6 +44,7 @@ func (mc *MonotonicCount) flush(timestamp float64) ([]*Serie, error) {
 	value := mc.value
 	// reset struct fields
 	mc.previousSample, mc.currentSample, mc.value = mc.currentSample, 0., 0.
+	mc.hasPreviousSample = true
 	mc.sampledSinceLastFlush = false
 
 	return []*Serie{

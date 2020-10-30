@@ -22,16 +22,25 @@ func TestMonotonicCountSampling(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Flush with one sample only and no prior samples: error
-	monotonicCount.addSample(&MetricSample{Value: 1}, 45)
+	monotonicCount.addSample(&MetricSample{Value: 2}, 45)
 	_, err = monotonicCount.flush(40)
 	assert.NotNil(t, err)
+
+	// Add another sample with lower value: flush 0.
+	monotonicCount.addSample(&MetricSample{Value: 1}, 48)
+	series, err := monotonicCount.flush(50)
+	assert.Nil(t, err)
+	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
+		assert.Equal(t, 0., series[0].Points[0].Value)
+		assert.EqualValues(t, 50, series[0].Points[0].Ts)
+	}
 
 	// Add samples
 	monotonicCount.addSample(&MetricSample{Value: 2}, 50)
 	monotonicCount.addSample(&MetricSample{Value: 3}, 55)
 	monotonicCount.addSample(&MetricSample{Value: 6}, 55)
 	monotonicCount.addSample(&MetricSample{Value: 7}, 58)
-	series, err := monotonicCount.flush(60)
+	series, err = monotonicCount.flush(60)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.InEpsilon(t, 6, series[0].Points[0].Value, epsilon)
@@ -51,6 +60,15 @@ func TestMonotonicCountSampling(t *testing.T) {
 		assert.EqualValues(t, 80, series[0].Points[0].Ts)
 	}
 
+	// Add another sample with lower value: flush 0.
+	monotonicCount.addSample(&MetricSample{Value: 9}, 81)
+	series, err = monotonicCount.flush(82)
+	assert.Nil(t, err)
+	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
+		assert.Equal(t, 0., series[0].Points[0].Value)
+		assert.EqualValues(t, 82, series[0].Points[0].Ts)
+	}
+
 	// Add sequence of non-monotonic samples
 	monotonicCount.addSample(&MetricSample{Value: 12}, 85)
 	monotonicCount.addSample(&MetricSample{Value: 10}, 85)
@@ -60,9 +78,9 @@ func TestMonotonicCountSampling(t *testing.T) {
 	series, err = monotonicCount.flush(90)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
-		// should skip when counter is reset, i.e. between 12 and 10, and btw 20 and 13
-		// 15 = (12 - 11) + (20 - 10) + (17 - 13)
-		assert.InEpsilon(t, 15, series[0].Points[0].Value, epsilon)
+		// should skip when counter is reset, i.e. between 12 and 9, and btw 20 and 13
+		// 17 = (12 - 9) + (20 - 10) + (17 - 13)
+		assert.InEpsilon(t, 17, series[0].Points[0].Value, epsilon)
 		assert.EqualValues(t, 90, series[0].Points[0].Ts)
 	}
 }
