@@ -43,7 +43,7 @@ when submitting your PR:
   * use [Reno](#reno) to create a releasenote.
   * open your PR against the `master` branch.
   * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
-    + set the `team/agent-core` label
+    + set the relevant `team/` label
     + add a milestone to your PR (use the highest available, ex: `6.8.0`)
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
