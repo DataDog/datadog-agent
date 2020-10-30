@@ -127,7 +127,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	// We slowly want to migrate from processcfg to orchestratorCfg
 	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
 	if err := orchestratorCfg.LoadYamlConfig(ctx.ConfigPath); err != nil {
-		log.Errorf("Error loading the process config: %s", err)
+		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 	orchestratorCfg.MaxPerMessage = processCfg.MaxPerMessage
 
