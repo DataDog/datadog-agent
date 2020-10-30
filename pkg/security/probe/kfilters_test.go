@@ -33,67 +33,67 @@ func addRuleExpr(t *testing.T, rs *rules.RuleSet, exprs ...string) {
 }
 
 func TestIsParentDiscarder(t *testing.T) {
-	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `unlink.filename =~ "/var/log/*" && unlink.filename != "/var/log/datadog/system-probe.log"`)
 
-	if is, _ := isParentPathDiscarder(rs, "unlink", "unlink.filename", "/var/log/datadog/system-probe.log"); is {
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/var/log/datadog/system-probe.log"); is {
 		t.Fatal("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `unlink.filename =~ "/var/log/*" && unlink.filename != "/var/log/datadog/system-probe.log"`)
 
-	if is, _ := isParentPathDiscarder(rs, "unlink", "unlink.filename", "/var/lib/datadog/system-probe.sock"); !is {
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/var/lib/datadog/system-probe.sock"); !is {
 		t.Fatal("should be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `unlink.filename == "/var/log/datadog/system-probe.log"`, `unlink.basename == "datadog"`)
 
-	if is, _ := isParentPathDiscarder(rs, "unlink", "unlink.filename", "/var/log/datadog/datadog-agent.log"); is {
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/var/log/datadog/datadog-agent.log"); is {
 		t.Fatal("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `unlink.filename =~ "/var/log/*" && unlink.basename =~ ".*"`)
 
-	if is, _ := isParentPathDiscarder(rs, "unlink", "unlink.filename", "/var/lib/.runc/1234"); !is {
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/var/lib/.runc/1234"); !is {
 		t.Fatal("should be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `unlink.filename == "/etc/conf.d/httpd.conf" || unlink.basename == "conf.d"`)
 
-	if is, _ := isParentPathDiscarder(rs, "unlink", "unlink.filename", "/etc/conf.d/nginx.conf"); is {
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/etc/conf.d/nginx.conf"); is {
 		t.Fatal("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `unlink.filename == "/etc/conf.d/httpd.conf" || unlink.basename == "sys.d"`)
 
-	if is, _ := isParentPathDiscarder(rs, "unlink", "unlink.filename", "/etc/sys.d/nginx.conf"); is {
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/etc/sys.d/nginx.conf"); is {
 		t.Fatal("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `unlink.basename == "conf.d"`)
 
-	if is, _ := isParentPathDiscarder(rs, "unlink", "unlink.filename", "/etc/conf.d/nginx.conf"); is {
+	if is, _ := isParentPathDiscarder(rs, FileUnlinkEventType, "unlink.filename", "/etc/conf.d/nginx.conf"); is {
 		t.Fatal("shouldn't be a parent discarder")
 	}
 
 	// field that doesn't exists shouldn't return any discarders
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `rename.old.filename == "/etc/conf.d/abc"`)
 
-	if is, _ := isParentPathDiscarder(rs, "rename", "rename.filename", "/etc/conf.d/nginx.conf"); is {
+	if is, _ := isParentPathDiscarder(rs, FileRenameEventType, "rename.filename", "/etc/conf.d/nginx.conf"); is {
 		t.Fatal("shouldn't be a parent discarder")
 	}
 
-	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(true, SECLConstants, nil))
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(SECLConstants, nil))
 	addRuleExpr(t, rs, `rename.old.filename == "/etc/conf.d/abc"`)
 
-	if is, _ := isParentPathDiscarder(rs, "rename", "rename.old.filename", "/etc/nginx/nginx.conf"); !is {
+	if is, _ := isParentPathDiscarder(rs, FileRenameEventType, "rename.old.filename", "/etc/nginx/nginx.conf"); !is {
 		t.Fatal("should be a parent discarder")
 	}
 }

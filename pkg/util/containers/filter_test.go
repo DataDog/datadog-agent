@@ -203,6 +203,22 @@ func TestFilter(t *testing.T) {
 			},
 			ns: "default",
 		},
+		{
+			c: Container{
+				ID:    "26",
+				Name:  "private_jfrog",
+				Image: "foo.jfrog.io/google_containers/pause",
+			},
+			ns: "default",
+		},
+		{
+			c: Container{
+				ID:    "27",
+				Name:  "private_ecr_upstream",
+				Image: "2342834325.ecr.us-east-1.amazonaws.com/upstream/pause",
+			},
+			ns: "default",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -211,25 +227,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27"},
 		},
 		{
 			excludeList: []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27"},
 		},
 		{
 			excludeList: []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27"},
 		},
 		{
 			includeList: []string{},
 			excludeList: []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27"},
 		},
 		{
 			includeList: []string{"name:mysql"},
 			excludeList: []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27"},
 		},
 		{
 			excludeList: []string{"kube_namespace:.*"},
@@ -238,7 +254,7 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			excludeList: []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27"},
 		},
 		// Test kubernetes defaults
 		{
@@ -247,6 +263,7 @@ func TestFilter(t *testing.T) {
 				pauseContainerOpenshift,
 				pauseContainerOpenshift3,
 				pauseContainerKubernetes,
+				pauseContainerGoogle,
 				pauseContainerAzure,
 				pauseContainerECS,
 				pauseContainerEKS,
@@ -255,6 +272,7 @@ func TestFilter(t *testing.T) {
 				pauseContainerWin,
 				pauseContainerAKS,
 				pauseContainerECR,
+				pauseContainerUpstream,
 			},
 			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15"},
 		},

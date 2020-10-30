@@ -16,6 +16,9 @@ JMXFetch
   {{- range $k,$v := .info }}
     {{ $k }} : {{ $v }}
   {{- end }}
+  {{- if .errors }}
+    Socket errors: {{ .errors }}
+  {{- end }}
   {{- if and (not .timestamp) (not .checks) }}
   no JMX status available
   {{- else }}

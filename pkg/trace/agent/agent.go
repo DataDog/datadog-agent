@@ -227,7 +227,7 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 		for _, subtrace := range subtraces {
 			subtraceSublayers := sublayerCalculator.ComputeSublayers(subtrace.Trace)
 			pt.Sublayers[subtrace.Root] = subtraceSublayers
-			if keep || len(events) > 0 {
+			if keep {
 				stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
 			}
 		}

@@ -95,6 +95,11 @@ func GetEntityHash(entity string) string {
 	return defaultTagger.GetEntityHash(entity)
 }
 
+// GetDefaultTagger returns the global Tagger instance
+func GetDefaultTagger() *Tagger {
+	return defaultTagger
+}
+
 func init() {
 	defaultTagger = newTagger()
 }

@@ -22,7 +22,12 @@ int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_CHOWN);
+
+    if (discarded_by_process(syscall.policy.mode, EVENT_CHOWN)) {
+        pop_syscall(SYSCALL_CHOWN);
+    }
+
     return 0;
 }
 
@@ -72,14 +77,13 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
 
     struct chown_event_t event = {
         .event.type = EVENT_CHOWN,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .file = {
             .inode = inode,
             .mount_id = syscall->setattr.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
+            .path_id = syscall->setattr.path_key.path_id,
         },
         .user = syscall->setattr.user,
         .group = syscall->setattr.group,
@@ -87,6 +91,8 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
 
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
+
+    // dentry resolution in setattr.h
 
     send_event(ctx, event);
 

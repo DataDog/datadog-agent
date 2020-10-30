@@ -16,7 +16,12 @@ int __attribute__((always_inline)) trace__sys_link() {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_LINK,
     };
-    cache_syscall(&syscall);
+
+    cache_syscall(&syscall, EVENT_LINK);
+
+    if (discarded_by_process(syscall.policy.mode, EVENT_LINK)) {
+        pop_syscall(SYSCALL_LINK);
+    }
 
     return 0;
 }
@@ -47,12 +52,16 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     syscall->link.src_overlay_numlower = get_overlay_numlower(dentry);
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
-    syscall->link.src_key = get_key(dentry, syscall->link.target_path);
+    syscall->link.src_key = get_dentry_key_path(dentry, syscall->link.target_path);
     // we generate a fake target key as the inode is the same
     syscall->link.target_key.ino = bpf_get_prandom_u32() << 32 | bpf_get_prandom_u32();
     syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
 
-    resolve_dentry(dentry, syscall->link.src_key, NULL);
+    syscall->link.src_key.path_id = bpf_get_prandom_u32();
+    int ret = resolve_dentry(dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
+    if (ret == DENTRY_DISCARDED) {
+        pop_syscall(SYSCALL_LINK);
+    }
 
     return 0;
 }
@@ -75,14 +84,13 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
 
     struct link_event_t event = {
         .event.type = EVENT_LINK,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .source = {
             .inode = inode,
             .mount_id = syscall->link.src_key.mount_id,
             .overlay_numlower = syscall->link.src_overlay_numlower,
+            .path_id = syscall->link.src_key.path_id,
         },
         .target = {
             .inode = syscall->link.target_key.ino,
@@ -94,7 +102,7 @@ int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
     struct proc_cache_t *entry = fill_process_data(&event.process);
     fill_container_data(entry, &event.container);
 
-    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, NULL);
+    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
 
     send_event(ctx, event);
 

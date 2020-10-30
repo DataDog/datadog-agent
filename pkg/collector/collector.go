@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
@@ -21,6 +21,8 @@ const (
 	stopped uint32 = iota
 	started
 )
+
+const cancelCheckTimeout time.Duration = 500 * time.Millisecond
 
 // Collector abstract common operations about running a Check
 type Collector struct {
@@ -122,54 +124,14 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	return ch.ID(), nil
 }
 
-// ReloadCheck stops and restart a check with a new configuration
-func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data, newSource string) error {
-	if !c.started() {
-		return fmt.Errorf("the collector is not running")
-	}
-
-	// do we know this check instance?
-	// BUG(massi): we could create the Check if it doesn't exist, see https://github.com/DataDog/datadog-agent/pull/148
-	// for reference
-	if !c.find(id) {
-		return fmt.Errorf("cannot find a check with ID %s", id)
-	}
-
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	// unschedule the instance
-	err := c.scheduler.Cancel(id)
-	if err != nil {
-		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
-	}
-
-	// stop the instance
-	err = c.runner.StopCheck(id)
-	if err != nil {
-		return fmt.Errorf("an error occurred while stopping the check: %s", err)
-	}
-
-	// re-configure
-	check := c.checks[id]
-	err = check.Configure(config, initConfig, newSource)
-	if err != nil {
-		return fmt.Errorf("error configuring the check with ID %s", id)
-	}
-
-	// re-schedule
-	c.scheduler.Enter(check) //nolint:errcheck
-
-	return nil
-}
-
 // StopCheck halts a check and remove the instance
 func (c *Collector) StopCheck(id check.ID) error {
 	if !c.started() {
 		return fmt.Errorf("the collector is not running")
 	}
 
-	if !c.find(id) {
+	ch, found := c.get(id)
+	if !found {
 		return fmt.Errorf("cannot find a check with ID %s", id)
 	}
 
@@ -181,7 +143,14 @@ func (c *Collector) StopCheck(id check.ID) error {
 
 	err = c.runner.StopCheck(id)
 	if err != nil {
+		// still attempt to cancel the check before returning the error
+		_ = c.cancelCheck(ch, cancelCheckTimeout)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
+	}
+
+	err = c.cancelCheck(ch, cancelCheckTimeout)
+	if err != nil {
+		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
 
 	// remove the check from the stats map
@@ -193,13 +162,29 @@ func (c *Collector) StopCheck(id check.ID) error {
 	return nil
 }
 
-// check if the check is on the list
-func (c *Collector) find(id check.ID) bool {
+// cancelCheck calls Cancel on the passed check, with a timeout
+func (c *Collector) cancelCheck(ch check.Check, timeout time.Duration) error {
+	done := make(chan struct{})
+
+	go func() {
+		ch.Cancel()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-time.After(timeout):
+		return fmt.Errorf("timeout while calling check.Cancel() on check ID %s", ch.ID())
+	}
+}
+
+func (c *Collector) get(id check.ID) (check.Check, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	_, found := c.checks[id]
-	return found
+	ch, found := c.checks[id]
+	return ch, found
 }
 
 // remove the check from the list

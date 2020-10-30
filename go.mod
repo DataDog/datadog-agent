@@ -154,6 +154,7 @@ require (
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
 	go.etcd.io/bbolt v1.3.4 // indirect
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
+	go.uber.org/automaxprocs v1.2.0
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
@@ -177,6 +178,7 @@ require (
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.0.0
+	k8s.io/klog v1.0.0
 	k8s.io/kube-state-metrics v1.8.1-0.20200108124505-369470d6ead8
 	k8s.io/kubernetes v1.16.2
 	k8s.io/metrics v0.17.3
