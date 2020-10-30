@@ -15,6 +15,11 @@ relative_path "snowflake-connector-python-#{version}"
 build do
   if windows?
     pip = "#{windows_safe_path(python_2_embedded)}\\Scripts\\pip.exe"
+
+    # HACK: remove misbehaving symlinks. They point to the test folder, thus
+    # they're very likely not needed for the package build.
+    delete "connector_python2"
+    delete "connector_python3"
   else
     pip = "#{install_dir}/embedded/bin/pip2"
   end
