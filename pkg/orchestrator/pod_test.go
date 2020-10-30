@@ -13,8 +13,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -490,7 +488,20 @@ func TestConvertResourceRequirements(t *testing.T) {
 }
 
 func TestScrubContainer(t *testing.T) {
-	cfg := config.NewDefaultAgentConfig(true)
+	scrubber := NewDefaultDataScrubber()
+	tests := getScrubCases()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ScrubContainer(&tc.input, scrubber)
+			assert.Equal(t, tc.expected, tc.input)
+		})
+	}
+}
+
+func getScrubCases() map[string]struct {
+	input    v1.Container
+	expected v1.Container
+} {
 	tests := map[string]struct {
 		input    v1.Container
 		expected v1.Container
@@ -532,12 +543,7 @@ func TestScrubContainer(t *testing.T) {
 			},
 		},
 	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			ScrubContainer(&tc.input, cfg)
-			assert.Equal(t, tc.expected, tc.input)
-		})
-	}
+	return tests
 }
 
 func TestComputeStatus(t *testing.T) {
