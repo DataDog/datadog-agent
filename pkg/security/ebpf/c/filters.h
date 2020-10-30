@@ -107,7 +107,7 @@ int __attribute__((always_inline)) discarded_by_pid(u64 event_type, u32 tgid) {
     };
 
     struct pid_discarder_parameters_t *params = bpf_map_lookup_elem(&pid_discarders, &key);
-    if (params == NULL || params->timestamp <= bpf_ktime_get_ns()) {
+    if (params == NULL || (params->timestamp != 0 && params->timestamp <= bpf_ktime_get_ns())) {
         return 0;
     }
 
