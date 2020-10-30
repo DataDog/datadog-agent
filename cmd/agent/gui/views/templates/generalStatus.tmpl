@@ -121,6 +121,9 @@
             {{- range $k,$v := .info }}
               {{ $k }} : {{ $v }}<br>
             {{- end }}
+            {{- if .errors }}
+              Socket errors: {{ .errors }}
+            {{- end }}
           </span>
           <span class="stat_subtitle">Initialized Checks</span>
           <span class="stat_subdata">
