@@ -194,10 +194,6 @@ func (j *JMXFetch) Start(manage bool) error {
 	if len(j.JavaCustomJarPaths) > 0 {
 		classpath = fmt.Sprintf("%s%s%s", strings.Join(j.JavaCustomJarPaths, string(os.PathListSeparator)), string(os.PathListSeparator), classpath)
 	}
-	bindHost := config.Datadog.GetString("bind_host")
-	if bindHost == "" || bindHost == "0.0.0.0" {
-		bindHost = "localhost"
-	}
 
 	var reporter string
 	switch j.Reporter {
@@ -206,7 +202,15 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		reporter = fmt.Sprintf("statsd:%s:%s", bindHost, config.Datadog.GetString("dogstatsd_port"))
+		if common.DSD != nil && common.DSD.UdsListenerRunning {
+			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog.GetString("dogstatsd_socket"))
+		} else {
+			bindHost := config.Datadog.GetString("bind_host")
+			if bindHost == "" || bindHost == "0.0.0.0" {
+				bindHost = "localhost"
+			}
+			reporter = fmt.Sprintf("statsd:%s:%s", bindHost, config.Datadog.GetString("dogstatsd_port"))
+		}
 	}
 
 	//TODO : support auto discovery
