@@ -25,7 +25,7 @@ int kprobe__security_sb_umount(struct pt_regs *ctx) {
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall(&syscall, EVENT_UMOUNT);
     return 0;
 }
 
@@ -36,10 +36,8 @@ SYSCALL_KRETPROBE(umount) {
 
     struct umount_event_t event = {
         .event.type = EVENT_UMOUNT,
-        .syscall = {
-            .retval = PT_REGS_RC(ctx),
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall .retval = PT_REGS_RC(ctx),
         .mount_id = get_vfsmount_mount_id(syscall->umount.vfs),
     };
 

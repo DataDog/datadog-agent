@@ -38,23 +38,12 @@ func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) 
 	ctx := &Context{}
 	ctx.SetObject(unsafe.Pointer(event))
 
-	opts := NewOptsWithParams(false, testConstants)
+	opts := NewOptsWithParams(testConstants)
 	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		return false, nil, err
 	}
 	r1 := rule.Eval(ctx)
-
-	opts = NewOptsWithParams(true, testConstants)
-	rule, err = parseRule(expr, model, opts)
-	if err != nil {
-		return false, rule.GetAst(), err
-	}
-	r2 := rule.Eval(ctx)
-
-	if r1 != r2 {
-		t.Fatalf("different result for non-debug and debug evalutators with rule `%s`", expr)
-	}
 
 	return r1, rule.GetAst(), nil
 }
@@ -458,7 +447,7 @@ func TestMacroList(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	opts := NewOptsWithParams(make(map[string]interface{}))
 	opts.Macros = map[string]*Macro{
 		"list": macro,
 	}
@@ -503,7 +492,7 @@ func TestMacroExpression(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	opts := NewOptsWithParams(make(map[string]interface{}))
 	opts.Macros = map[string]*Macro{
 		"is_passwd": macro,
 	}
@@ -548,7 +537,7 @@ func TestMacroPartial(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	opts := NewOptsWithParams(make(map[string]interface{}))
 	opts.Macros = map[string]*Macro{
 		"is_passwd": macro,
 	}
@@ -614,7 +603,7 @@ func TestNestedMacros(t *testing.T) {
 
 	model := &testModel{}
 
-	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	opts := NewOptsWithParams(make(map[string]interface{}))
 	opts.Macros = map[string]*Macro{
 		"sensitive_files":     macro1,
 		"is_sensitive_opened": macro2,

@@ -28,6 +28,10 @@ if node['platform_family'] != 'windows'
   end
 
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
+    if ['ubuntu', 'debian'].include?(node[:platform])
+      apt_update
+    end
+
     docker_service 'default' do
       action [:create, :start]
     end
@@ -42,7 +46,8 @@ if node['platform_family'] != 'windows'
       tag 'bullseye'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
       command "sleep 3600"
-      volumes '/tmp/security-agent:/tmp/security-agent'
+      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc']
+      env ['HOST_PROC=/host/proc']
       privileged true
     end
 

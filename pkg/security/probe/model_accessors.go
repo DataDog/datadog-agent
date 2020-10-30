@@ -469,14 +469,6 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 			Field: field,
 		}, nil
 
-	case "process.pidns":
-
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int { return int((*Event)(ctx.Object).Process.Pidns) },
-
-			Field: field,
-		}, nil
-
 	case "process.tid":
 
 		return &eval.IntEvaluator{
@@ -936,299 +928,6 @@ func (m *Model) GetEvaluator(field eval.Field) (eval.Evaluator, error) {
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
-func (e *Event) zeroChmod() {
-
-	e.Chmod.BasenameStr = ""
-
-	e.Chmod.ContainerPath = ""
-
-	e.Chmod.PathnameStr = ""
-
-	e.Chmod.Inode = 0
-
-	e.Chmod.Mode = 0
-
-	e.Chmod.OverlayNumLower = 0
-
-	e.Chmod.Retval = 0
-
-}
-
-func (e *Event) zeroChown() {
-
-	e.Chown.BasenameStr = ""
-
-	e.Chown.ContainerPath = ""
-
-	e.Chown.PathnameStr = ""
-
-	e.Chown.GID = 0
-
-	e.Chown.Inode = 0
-
-	e.Chown.OverlayNumLower = 0
-
-	e.Chown.Retval = 0
-
-	e.Chown.UID = 0
-
-}
-
-func (e *Event) zeroLink() {
-
-	e.Link.Retval = 0
-
-	e.Link.Source.BasenameStr = ""
-
-	e.Link.Source.ContainerPath = ""
-
-	e.Link.Source.PathnameStr = ""
-
-	e.Link.Source.Inode = 0
-
-	e.Link.Source.OverlayNumLower = 0
-
-	e.Link.Target.BasenameStr = ""
-
-	e.Link.Target.ContainerPath = ""
-
-	e.Link.Target.PathnameStr = ""
-
-	e.Link.Target.Inode = 0
-
-	e.Link.Target.OverlayNumLower = 0
-
-}
-
-func (e *Event) zeroMkdir() {
-
-	e.Mkdir.BasenameStr = ""
-
-	e.Mkdir.ContainerPath = ""
-
-	e.Mkdir.PathnameStr = ""
-
-	e.Mkdir.Inode = 0
-
-	e.Mkdir.Mode = 0
-
-	e.Mkdir.OverlayNumLower = 0
-
-	e.Mkdir.Retval = 0
-
-}
-
-func (e *Event) zeroOpen() {
-
-	e.Open.BasenameStr = ""
-
-	e.Open.ContainerPath = ""
-
-	e.Open.PathnameStr = ""
-
-	e.Open.Flags = 0
-
-	e.Open.Inode = 0
-
-	e.Open.Mode = 0
-
-	e.Open.OverlayNumLower = 0
-
-	e.Open.Retval = 0
-
-}
-
-func (e *Event) zeroRemovexattr() {
-
-	e.RemoveXAttr.BasenameStr = ""
-
-	e.RemoveXAttr.ContainerPath = ""
-
-	e.RemoveXAttr.PathnameStr = ""
-
-	e.RemoveXAttr.Inode = 0
-
-	e.RemoveXAttr.Name = ""
-
-	e.RemoveXAttr.Namespace = ""
-
-	e.RemoveXAttr.OverlayNumLower = 0
-
-	e.RemoveXAttr.Retval = 0
-
-}
-
-func (e *Event) zeroRename() {
-
-	e.Rename.New.BasenameStr = ""
-
-	e.Rename.New.ContainerPath = ""
-
-	e.Rename.New.PathnameStr = ""
-
-	e.Rename.New.Inode = 0
-
-	e.Rename.New.OverlayNumLower = 0
-
-	e.Rename.Old.BasenameStr = ""
-
-	e.Rename.Old.ContainerPath = ""
-
-	e.Rename.Old.PathnameStr = ""
-
-	e.Rename.Old.Inode = 0
-
-	e.Rename.Old.OverlayNumLower = 0
-
-	e.Rename.Retval = 0
-
-}
-
-func (e *Event) zeroRmdir() {
-
-	e.Rmdir.BasenameStr = ""
-
-	e.Rmdir.ContainerPath = ""
-
-	e.Rmdir.PathnameStr = ""
-
-	e.Rmdir.Inode = 0
-
-	e.Rmdir.OverlayNumLower = 0
-
-	e.Rmdir.Retval = 0
-
-}
-
-func (e *Event) zeroSetxattr() {
-
-	e.SetXAttr.BasenameStr = ""
-
-	e.SetXAttr.ContainerPath = ""
-
-	e.SetXAttr.PathnameStr = ""
-
-	e.SetXAttr.Inode = 0
-
-	e.SetXAttr.Name = ""
-
-	e.SetXAttr.Namespace = ""
-
-	e.SetXAttr.OverlayNumLower = 0
-
-	e.SetXAttr.Retval = 0
-
-}
-
-func (e *Event) zeroUnlink() {
-
-	e.Unlink.BasenameStr = ""
-
-	e.Unlink.ContainerPath = ""
-
-	e.Unlink.PathnameStr = ""
-
-	e.Unlink.Flags = 0
-
-	e.Unlink.Inode = 0
-
-	e.Unlink.OverlayNumLower = 0
-
-	e.Unlink.Retval = 0
-
-}
-
-func (e *Event) zeroUtimes() {
-
-	e.Utimes.BasenameStr = ""
-
-	e.Utimes.ContainerPath = ""
-
-	e.Utimes.PathnameStr = ""
-
-	e.Utimes.Inode = 0
-
-	e.Utimes.OverlayNumLower = 0
-
-	e.Utimes.Retval = 0
-
-}
-
-func (e *Event) zeroWildcard() {
-
-	e.Container.ID = ""
-
-	e.Process.BasenameStr = ""
-
-	e.Process.ContainerPath = ""
-
-	e.Process.PathnameStr = ""
-
-	e.Process.GID = 0
-
-	e.Process.Group = ""
-
-	e.Process.Inode = 0
-
-	e.Process.Comm = ""
-
-	e.Process.OverlayNumLower = 0
-
-	e.Process.Pid = 0
-
-	e.Process.Pidns = 0
-
-	e.Process.Tid = 0
-
-	e.Process.TTYName = ""
-
-	e.Process.UID = 0
-
-	e.Process.User = ""
-
-}
-
-func (e *Event) Zero(eventType eval.EventType) {
-	e.zeroWildcard()
-
-	switch eventType {
-
-	case "chmod":
-		e.zeroChmod()
-
-	case "chown":
-		e.zeroChown()
-
-	case "link":
-		e.zeroLink()
-
-	case "mkdir":
-		e.zeroMkdir()
-
-	case "open":
-		e.zeroOpen()
-
-	case "removexattr":
-		e.zeroRemovexattr()
-
-	case "rename":
-		e.zeroRename()
-
-	case "rmdir":
-		e.zeroRmdir()
-
-	case "setxattr":
-		e.zeroSetxattr()
-
-	case "unlink":
-		e.zeroUnlink()
-
-	case "utimes":
-		e.zeroUtimes()
-
-	}
-}
-
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 
@@ -1435,10 +1134,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.pid":
 
 		return int(e.Process.Pid), nil
-
-	case "process.pidns":
-
-		return int(e.Process.Pidns), nil
 
 	case "process.tid":
 
@@ -1801,9 +1496,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.pid":
 		return "*", nil
 
-	case "process.pidns":
-		return "*", nil
-
 	case "process.tid":
 		return "*", nil
 
@@ -2163,10 +1855,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.pid":
-
-		return reflect.Int, nil
-
-	case "process.pidns":
 
 		return reflect.Int, nil
 
@@ -2788,15 +2476,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Process.Pid"}
 		}
 		e.Process.Pid = uint32(v)
-		return nil
-
-	case "process.pidns":
-
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Process.Pidns"}
-		}
-		e.Process.Pidns = uint64(v)
 		return nil
 
 	case "process.tid":

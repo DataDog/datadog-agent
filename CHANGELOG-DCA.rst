@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.9.1_dca-1.9.x:
+
+1.9.1
+=====
+
+.. _Release Notes_dca-1.9.1_dca-1.9.x_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-10-21
+Pinned to datadog-agent v7.23.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7231>`_..
+
+.. _Release Notes_dca-1.9.1_dca-1.9.x_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Support of secrets in JSON environment variables, added in `7.23.0`, is
+  reverted due to a side effect (e.g. a string value of `"-"` would be loaded as a list). This
+  feature will be fixed and added again in a future release.
+
 
 .. _Release Notes_1.9.0:
 

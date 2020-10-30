@@ -123,15 +123,16 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
 	assert.Equal(t, testVersionDomain, transactions[2].Domain)
 	assert.Equal(t, testVersionDomain, transactions[3].Domain)
-	assert.Equal(t, endpoint.route, transactions[0].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[1].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[2].Endpoint)
-	assert.Equal(t, endpoint.route, transactions[3].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[0].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[1].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[2].Endpoint.route)
+	assert.Equal(t, endpoint.route, transactions[3].Endpoint.route)
 	assert.Len(t, transactions[0].Headers, 4)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
+	assert.Equal(t, "", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 	assert.Equal(t, p1, *(transactions[0].Payload))
 	assert.Equal(t, p1, *(transactions[1].Payload))
 	assert.Equal(t, p2, *(transactions[2].Payload))
@@ -139,10 +140,25 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 4)
-	assert.Contains(t, transactions[0].Endpoint, "api_key=api-key-1")
-	assert.Contains(t, transactions[1].Endpoint, "api_key=api-key-2")
-	assert.Contains(t, transactions[2].Endpoint, "api_key=api-key-1")
-	assert.Contains(t, transactions[3].Endpoint, "api_key=api-key-2")
+	assert.Contains(t, transactions[0].Endpoint.route, "api_key=api-key-1")
+	assert.Contains(t, transactions[1].Endpoint.route, "api_key=api-key-2")
+	assert.Contains(t, transactions[2].Endpoint.route, "api_key=api-key-1")
+	assert.Contains(t, transactions[3].Endpoint.route, "api_key=api-key-2")
+}
+
+func TestArbitraryTagsHTTPHeader(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("allow_arbitrary_tags", true)
+	defer mockConfig.Set("allow_arbitrary_tags", false)
+
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
+	endpoint := endpoint{"/api/foo", "foo"}
+	payload := []byte("A payload")
+	headers := make(http.Header)
+
+	transactions := forwarder.createHTTPTransactions(endpoint, Payloads{&payload}, false, headers)
+	require.True(t, len(transactions) > 0)
+	assert.Equal(t, "true", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 }
 
 func TestSendHTTPTransactions(t *testing.T) {

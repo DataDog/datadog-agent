@@ -394,7 +394,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def e2e_tests(ctx, target="gitlab", image=""):
+def e2e_tests(ctx, target="gitlab", agent_image="", dca_image=""):
     """
     Run e2e tests in several environments.
     """
@@ -403,10 +403,15 @@ def e2e_tests(ctx, target="gitlab", image=""):
         print('target %s not in %s' % (target, choices))
         raise Exit(1)
     if not os.getenv("DATADOG_AGENT_IMAGE"):
-        if not image:
+        if not agent_image:
             print("define DATADOG_AGENT_IMAGE envvar or image flag")
             raise Exit(1)
-        os.environ["DATADOG_AGENT_IMAGE"] = image
+        os.environ["DATADOG_AGENT_IMAGE"] = agent_image
+    if not os.getenv("DATADOG_CLUSTER_AGENT_IMAGE"):
+        if not dca_image:
+            print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
+            raise Exit(1)
+        os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
 
     ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
 

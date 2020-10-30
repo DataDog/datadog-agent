@@ -54,6 +54,12 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType - Removexattr event
 	FileRemoveXAttrEventType
+	// ExecEventType - Exec event
+	ExecEventType
+	// ExitEventType - Exit event
+	ExitEventType
+	// InvalidateDentryEventType - Dentry invalidated event
+	InvalidateDentryEventType
 	// internalEventType - used internally to get the maximum number of event. Has to be the last one
 	maxEventType
 )
@@ -86,8 +92,27 @@ func (t EventType) String() string {
 		return "setxattr"
 	case FileRemoveXAttrEventType:
 		return "removexattr"
+	case ExecEventType:
+		return "exec"
+	case ExitEventType:
+		return "exit"
+	case InvalidateDentryEventType:
+		return "invalidate_dentry"
 	}
 	return "unknown"
+}
+
+// parseEvalEventType convert a eval.EventType (string) to its uint64 representation
+// the current algorithm is not efficient but allow us to only keep few conversion implementations
+//nolint:deadcode,unused
+func parseEvalEventType(eventType eval.EventType) EventType {
+	for i := uint64(0); i != uint64(maxEventType); i++ {
+		if EventType(i).String() == eventType {
+			return EventType(i)
+		}
+	}
+
+	return UnknownEventType
 }
 
 var (

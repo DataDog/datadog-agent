@@ -13,11 +13,11 @@ type DentryResolver struct {
 }
 
 // GetName resolves a couple of mountID/inode to a path
-func (dr *DentryResolver) GetName(mountID uint32, inode uint64) string {
+func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) string {
 	return ""
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) Resolve(mountID uint32, inode uint64) string {
+func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) string {
 	return ""
 }

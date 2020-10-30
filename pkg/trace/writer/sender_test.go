@@ -28,7 +28,7 @@ import (
 const testAPIKey = "123"
 
 func TestMain(m *testing.M) {
-	log.SetupDatadogLogger(seelog.Disabled, "error")
+	log.SetupLogger(seelog.Disabled, "error")
 	os.Exit(m.Run())
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -32,7 +33,6 @@ import (
 
 const (
 	kubeStateMetricsCheckName = "kubernetes_state_core"
-	defaultResyncPeriod       = 30
 )
 
 // KSMConfig contains the check config parameters
@@ -76,7 +76,7 @@ type KSMConfig struct {
 	//   - kube-system
 	Namespaces []string `yaml:"namespaces"`
 
-	// ResyncPeriod is the frequency of resync'ing the metrics cache in seconds, default 30.
+	// ResyncPeriod is the frequency of resync'ing the metrics cache in seconds, default 5 minutes (kubernetes_informers_resync_period).
 	ResyncPeriod int `yaml:"resync_period"`
 
 	// Telemetry enables telemetry check's metrics, default false.
@@ -90,6 +90,7 @@ type KSMCheck struct {
 	instance  *KSMConfig
 	store     []cache.Store
 	telemetry *telemetryCache
+	cancel    context.CancelFunc
 }
 
 // JoinsConfig contains the config parameters for label joins
@@ -124,12 +125,12 @@ func init() {
 
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
+	k.BuildID(config, initConfig)
+
 	err := k.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}
-
-	k.BuildID(config, initConfig)
 
 	err = k.instance.parse(config)
 	if err != nil {
@@ -189,11 +190,14 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	}
 
 	builder.WithKubeClient(c.Cl)
-	builder.WithContext(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	k.cancel = cancel
+	builder.WithContext(ctx)
 
 	resyncPeriod := k.instance.ResyncPeriod
 	if resyncPeriod == 0 {
-		resyncPeriod = defaultResyncPeriod
+		resyncPeriod = ddconfig.Datadog.GetInt("kubernetes_informers_resync_period")
 	}
 
 	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
@@ -240,6 +244,12 @@ func (k *KSMCheck) Run() error {
 	k.sendTelemetry(sender)
 
 	return nil
+}
+
+// Cancel is called when the check is unscheduled, it stops the informers used by the metrics store
+func (k *KSMCheck) Cancel() {
+	log.Infof("Shutting down informers used by the check '%s'", k.ID())
+	k.cancel()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator

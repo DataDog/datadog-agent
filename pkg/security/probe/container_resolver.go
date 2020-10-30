@@ -8,8 +8,6 @@
 package probe
 
 import (
-	"os"
-
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -17,17 +15,9 @@ import (
 type ContainerResolver struct{}
 
 // GetContainerID returns the container id of the given pid
-func (cr *ContainerResolver) GetContainerID(pid uint32) (*utils.ContainerID, error) {
+func (cr *ContainerResolver) GetContainerID(pid uint32) (utils.ContainerID, error) {
 	// Parse /proc/[pid]/moutinfo
-	containerID, err := utils.GetProcContainerID(pid, pid)
-	if err != nil {
-		pErr, ok := err.(*os.PathError)
-		if !ok {
-			return nil, err
-		}
-		return nil, pErr
-	}
-	return &containerID, nil
+	return utils.GetProcContainerID(pid, pid)
 }
 
 // ResolveLabels resolves the label of a container from its container ID

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -434,8 +435,9 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	watcher, err := NewPodWatcher(5*time.Minute, false)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), watcher)
-	<-kubelet.Requests // Throwing away the first /pods GET
+	<-kubelet.Requests // Throwing away the first /spec GET
 
+	ResetCache() // If we want to be sure to get a /pods request after
 	pods, err := watcher.PullChanges()
 	require.Nil(suite.T(), err)
 	<-kubelet.Requests // Throwing away /pods GET

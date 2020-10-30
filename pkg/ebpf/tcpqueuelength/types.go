@@ -1,29 +1,15 @@
 package tcpqueuelength
 
-import (
-	"net"
-)
-
-// QueueLength contains the size and fullness extremums of a TCP Queue
-type QueueLength struct {
-	Size int    `json:"size"`
-	Min  uint32 `json:"min"`
-	Max  uint32 `json:"max"`
+// StatsKey is the type of the `Stats` map key: the container ID
+type StatsKey struct {
+	ContainerID string `json:"containerid"`
 }
 
-// Conn contains a TCP connection quadruplet
-type Conn struct {
-	Saddr net.IP `json:"saddr"`
-	Daddr net.IP `json:"daddr"`
-	Sport uint16 `json:"sport"`
-	Dport uint16 `json:"dport"`
+// StatsValue is the type of the `Stats` map value: the maximum fill rate of busiest read and write buffers
+type StatsValue struct {
+	ReadBufferMaxFillRate  uint32 `json:"read_buffer_max_fill_rate"`
+	WriteBufferMaxFillRate uint32 `json:"write_buffer_max_fill_rate"`
 }
 
-// Stats contains the statistics of a given socket
-type Stats struct {
-	Pid         uint32      `json:"pid"`
-	ContainerID string      `json:"containerid"`
-	Conn        Conn        `json:"conn"`
-	Rqueue      QueueLength `json:"read queue"`
-	Wqueue      QueueLength `json:"write queue"`
-}
+// Stats is the map of the maximum fill rate of the read and write buffers per container
+type Stats map[string]StatsValue
