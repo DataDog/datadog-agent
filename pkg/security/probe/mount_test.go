@@ -39,7 +39,7 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
+							SyscallEvent:  SyscallEvent{},
 							MountID:       127,
 							GroupID:       71,
 							Device:        52,
@@ -82,8 +82,8 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &UmountEvent{
-							BaseEvent: BaseEvent{},
-							MountID:   127,
+							SyscallEvent: SyscallEvent{},
+							MountID:      127,
 						},
 					},
 				},
@@ -103,7 +103,7 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
+							SyscallEvent:  SyscallEvent{},
 							MountID:       27,
 							GroupID:       0,
 							Device:        1,
@@ -119,7 +119,7 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
+							SyscallEvent:  SyscallEvent{},
 							MountID:       22,
 							GroupID:       0,
 							Device:        21,
@@ -135,7 +135,7 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
+							SyscallEvent:  SyscallEvent{},
 							MountID:       31,
 							GroupID:       0,
 							Device:        26,
@@ -178,8 +178,8 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &UmountEvent{
-							BaseEvent: BaseEvent{},
-							MountID:   27,
+							SyscallEvent: SyscallEvent{},
+							MountID:      27,
 						},
 					},
 				},
@@ -211,7 +211,7 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
+							SyscallEvent:  SyscallEvent{},
 							MountID:       27,
 							GroupID:       0,
 							Device:        1,
@@ -227,7 +227,7 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
+							SyscallEvent:  SyscallEvent{},
 							MountID:       176,
 							GroupID:       71,
 							Device:        52,
@@ -243,7 +243,7 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
+							SyscallEvent:  SyscallEvent{},
 							MountID:       638,
 							GroupID:       71,
 							Device:        52,
@@ -259,7 +259,7 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &MountEvent{
-							BaseEvent:     BaseEvent{},
+							SyscallEvent:  SyscallEvent{},
 							MountID:       639,
 							GroupID:       0,
 							Device:        54,
@@ -290,8 +290,8 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &UmountEvent{
-							BaseEvent: BaseEvent{},
-							MountID:   176,
+							SyscallEvent: SyscallEvent{},
+							MountID:      176,
 						},
 					},
 				},

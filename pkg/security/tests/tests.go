@@ -100,6 +100,7 @@ type testOpts struct {
 	disableApprovers  bool
 	disableDiscarders bool
 	testDir           string
+	withoutHandler    bool
 }
 
 type testModule struct {
@@ -110,8 +111,9 @@ type testModule struct {
 }
 
 type testDiscarder struct {
-	event eval.Event
-	field string
+	event     eval.Event
+	field     string
+	eventType eval.EventType
 }
 
 type testProbe struct {
@@ -129,14 +131,16 @@ type testEventHandler struct {
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
-	h.events <- event
+	e := event.Clone()
+	h.events <- &e
 	h.ruleSet.Evaluate(event)
 }
 
 func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
 
-func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
-	h.discarders <- &testDiscarder{event: event, field: field}
+func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	e := event.(*sprobe.Event).Clone()
+	h.discarders <- &testDiscarder{event: &e, field: field, eventType: eventType}
 }
 
 func getInode(t *testing.T, path string) uint64 {
@@ -247,10 +251,11 @@ func (tm *testModule) Root() string {
 }
 
 func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
-	tm.events <- testEvent{event: event, rule: rule}
+	e := event.(*sprobe.Event).Clone()
+	tm.events <- testEvent{event: &e, rule: rule}
 }
 
-func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
+func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 }
 
 func (tm *testModule) GetEvent(eventType ...eval.EventType) (*sprobe.Event, *eval.Rule, error) {
@@ -307,7 +312,7 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(false, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
 
 	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err
@@ -316,9 +321,11 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 	events := make(chan *sprobe.Event, eventChanLength)
 	discarders := make(chan *testDiscarder, discarderChanLength)
 
-	handler := &testEventHandler{events: events, discarders: discarders, ruleSet: ruleSet}
-	probe.SetEventHandler(handler)
-	ruleSet.AddListener(handler)
+	if !opts.withoutHandler {
+		handler := &testEventHandler{events: events, discarders: discarders, ruleSet: ruleSet}
+		probe.SetEventHandler(handler)
+		ruleSet.AddListener(handler)
+	}
 
 	if err := probe.Init(); err != nil {
 		return nil, err
@@ -330,7 +337,7 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
-	if err := probe.InitManager(); err != nil {
+	if err := probe.InitManager(ruleSet); err != nil {
 		return nil, err
 	}
 
@@ -460,7 +467,7 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		if err != nil {
 			return nil, err
 		}
-		log.SetupDatadogLogger(logger, logLevel.String())
+		log.SetupLogger(logger, logLevel.String())
 
 		logInitilialized = true
 	}

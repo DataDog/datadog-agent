@@ -41,22 +41,6 @@ instances:
     namespace: datadog.agent
     metrics:
       # datadog-agent forwarder monitoring
-      - path: forwarder/Transactions/Series
-        type: rate
-      - path: forwarder/Transactions/Events
-        type: rate
-      - path: forwarder/Transactions/ServiceChecks
-        type: rate
-      - path: forwarder/Transactions/HostMetadata
-        type: rate
-      - path: forwarder/Transactions/Metadata
-        type: rate
-      - path: forwarder/Transactions/TimeseriesV1
-        type: rate
-      - path: forwarder/Transactions/CheckRunsV1
-        type: rate
-      - path: forwarder/Transactions/IntakeV1
-        type: rate
       - path: forwarder/Transactions/DroppedOnInput
         type: rate
       - path: forwarder/Transactions/RetryQueueSize

@@ -173,7 +173,7 @@ func (j *JMXFetch) setDefaults() {
 		j.Checks = []string{}
 	}
 	if j.Output == nil {
-		j.Output = log.Info
+		j.Output = log.JMXInfo
 	}
 }
 
@@ -317,7 +317,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	scan:
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
-			log.Error(in.Text())
+			log.JMXError(in.Text())
 		}
 		if in.Err() == bufio.ErrTooLong {
 			goto scan

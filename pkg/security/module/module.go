@@ -84,7 +84,7 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
-	if err := m.probe.InitManager(); err != nil {
+	if err := m.probe.InitManager(m.ruleSet); err != nil {
 		return err
 	}
 
@@ -135,8 +135,8 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field string) {
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field); err != nil {
+func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
 		log.Trace(err)
 	}
 }
@@ -221,7 +221,7 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		return nil, err
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(config.Debug, sprobe.SECLConstants, sprobe.InvalidDiscarders))
+	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
 	if err := policy.LoadPolicies(config, ruleSet); err != nil {
 		return nil, err
 	}

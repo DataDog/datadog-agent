@@ -20,7 +20,6 @@ type Policy struct {
 // Config holds the configuration for the runtime security agent
 type Config struct {
 	Enabled             bool
-	Debug               bool
 	BPFDir              string
 	PoliciesDir         string
 	EnableKernelFilters bool
@@ -36,7 +35,6 @@ type Config struct {
 func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 	c := &Config{
 		Enabled:             aconfig.Datadog.GetBool("runtime_security_config.enabled"),
-		Debug:               aconfig.Datadog.GetBool("runtime_security_config.debug"),
 		EnableKernelFilters: aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:     aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:    aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),

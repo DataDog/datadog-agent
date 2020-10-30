@@ -153,6 +153,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
+	config.BindEnvAndSetDefault("jmx_log_file", "")
 	config.BindEnvAndSetDefault("log_payloads", false)
 	config.BindEnvAndSetDefault("log_file", "")
 	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
@@ -308,7 +309,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0)
-	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 30*megaByte)
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 15*megaByte)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -748,7 +749,6 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)

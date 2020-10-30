@@ -6,15 +6,6 @@
 #include "process.h"
 #include "open_filter.h"
 
-struct bpf_map_def SEC("maps/open_policy") open_policy = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct policy_t),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct bpf_map_def SEC("maps/open_basename_approvers") open_basename_approvers = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = BASENAME_FILTER_SIZE,
@@ -29,33 +20,6 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/open_process_inode_approvers") open_process_inode_approvers = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),
-    .value_size = sizeof(struct filter_t),
-    .max_entries = 256,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/open_path_inode_discarders") open_path_inode_discarders = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(struct path_key_t),
-    .value_size = sizeof(struct filter_t),
-    .max_entries = 512,
     .pinning = 0,
     .namespace = "",
 };
@@ -80,14 +44,11 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
         }
     };
 
-    u32 key = 0;
-    struct policy_t *policy = bpf_map_lookup_elem(&open_policy, &key);
-    if (policy) {
-        syscall.policy.mode = policy->mode;
-        syscall.policy.flags = policy->flags;
-    }
+    cache_syscall(&syscall, EVENT_OPEN);
 
-    cache_syscall(&syscall);
+    if (discarded_by_process(syscall.policy.mode, EVENT_OPEN)) {
+        pop_syscall(SYSCALL_OPEN);
+    }
 
     return 0;
 }
@@ -142,37 +103,6 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     return 0;
 }
 
-int __attribute__((always_inline)) discard_by_flags(struct syscall_cache_t *syscall) {
-    u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &key);
-    if (flags != NULL && (syscall->open.flags & *flags) > 0) {
-#ifdef DEBUG
-        bpf_printk("open flags %d discarded\n", syscall->open.flags);
-#endif
-        return 1;
-    }
-    return 0;
-}
-
-int __attribute__((always_inline)) approve_by_process_inode(struct syscall_cache_t *syscall) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-
-    struct proc_cache_t *proc = get_pid_cache(tgid);
-    if (!proc) {
-        return 0;
-    }
-    u64 inode = proc->executable.inode;
-    struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_approvers, &inode);
-    if (filter) {
-#ifdef DEBUG
-        bpf_printk("open pid %d with inode %d approved\n", tgid, inode);
-#endif
-        return 1;
-    }
-    return 0;
-}
-
 int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) {
     if (syscall->policy.mode == NO_FILTER)
         return 0;
@@ -184,16 +114,8 @@ int __attribute__((always_inline)) filter_open(struct syscall_cache_t *syscall) 
             pass_to_userspace = approve_by_basename(syscall);
         }
 
-        if (!pass_to_userspace && ((syscall->policy.flags & PROCESS_INODE))) {
-            pass_to_userspace = approve_by_process_inode(syscall);
-        }
-
         if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
            pass_to_userspace = approve_by_flags(syscall);
-        }
-    } else {
-        if (pass_to_userspace && ((syscall->policy.flags & FLAGS))) {
-            pass_to_userspace = !discard_by_flags(syscall);
         }
     }
 
@@ -228,22 +150,21 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     struct path *path = (struct path *)PT_REGS_PARM1(ctx);
 
     if (syscall->open.dentry) {
-        syscall->open.real_inode = get_key(syscall->open.dentry, path).ino;
+        syscall->open.real_inode = get_dentry_key_path(syscall->open.dentry, path).ino;
         return 0;
     }
 
     syscall->open.dentry = get_path_dentry(path);
-    syscall->open.path_key = get_key(syscall->open.dentry, path);
+    syscall->open.path_key = get_dentry_key_path(syscall->open.dentry, path);
 
     return filter_open(syscall);
 }
 
 SEC("kretprobe/ovl_dentry_upper")
 int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
         return 0;
-
 
     struct dentry *dentry = (struct dentry *)PT_REGS_RC(ctx);
     syscall->open.path_key.ino = get_dentry_ino(dentry);
@@ -253,7 +174,7 @@ int kprobe__ovl_dentry_upper(struct pt_regs *ctx) {
 
 SEC("kretprobe/ovl_d_real")
 int kretprobe__ovl_d_real(struct pt_regs *ctx) {
-   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+   struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN | SYSCALL_EXEC);
     if (!syscall)
         return 0;
 
@@ -280,13 +201,15 @@ int kprobe__do_dentry_open(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
     struct syscall_cache_t *syscall = pop_syscall(SYSCALL_OPEN);
     if (!syscall)
         return 0;
 
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
+    syscall->open.path_key.path_id = bpf_get_prandom_u32();
 
     // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->open.path_key.ino;
@@ -297,31 +220,24 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 
     struct open_event_t event = {
         .event.type = EVENT_OPEN,
-        .syscall = {
-            .retval = retval,
-            .timestamp = bpf_ktime_get_ns(),
-        },
+        .event.timestamp = bpf_ktime_get_ns(),
+        .syscall.retval = retval,
         .file = {
             .inode = inode,
             .mount_id = syscall->open.path_key.mount_id,
             .overlay_numlower = get_overlay_numlower(syscall->open.dentry),
+            .path_id = syscall->open.path_key.path_id,
         },
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
     };
 
-    int ret = 0;
-    if (syscall->policy.mode == NO_FILTER) {
-        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, NULL);
-    } else {
-        ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, &open_path_inode_discarders);
-    }
-    if (ret < 0) {
-        return 0;
+    int ret = resolve_dentry(syscall->open.dentry, syscall->open.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
+    if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
+       return 0;
     }
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    fill_process_data(&event.process);
 
     send_event(ctx, event);
 
@@ -341,10 +257,18 @@ SYSCALL_COMPAT_KRETPROBE(truncate) {
 }
 
 SYSCALL_COMPAT_KRETPROBE(open) {
+    int retval = PT_REGS_RC(ctx);
+    if (retval >= 0 && retval <= 2)
+        return 0;
+
     return trace__sys_open_ret(ctx);
 }
 
 SYSCALL_COMPAT_KRETPROBE(openat) {
+    int retval = PT_REGS_RC(ctx);
+    if (retval >= 0 && retval <= 2)
+        return 0;
+
     return trace__sys_open_ret(ctx);
 }
 

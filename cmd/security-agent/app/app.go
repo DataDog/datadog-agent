@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -213,12 +214,23 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	stopper.Add(dstContext)
 
-	if err = startCompliance(hostname, endpoints, dstContext, stopper); err != nil {
+	// Retrieve statsd host and port from the datadog agent configuration file
+	statsdHost := coreconfig.Datadog.GetString("bind_host")
+	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
+
+	// Create a statsd Client
+	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	statsdClient, err := ddgostatsd.New(statsdAddr)
+	if err != nil {
+		return log.Criticalf("Error creating statsd Client: %s", err)
+	}
+
+	if err = startCompliance(hostname, endpoints, dstContext, stopper, statsdClient); err != nil {
 		return err
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper)
+	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
