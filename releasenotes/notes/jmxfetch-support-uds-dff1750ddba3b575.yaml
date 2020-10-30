@@ -9,4 +9,4 @@
 enhancements:
   - |
     Added UDS support for JMXFetch
-    JMXFetch upgraded to `0.40.0 <https://github.com/DataDog/jmxfetch/releases/0.40.0>`
+    JMXFetch upgraded to `0.40.1 <https://github.com/DataDog/jmxfetch/releases/0.40.1>`
