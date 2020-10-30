@@ -138,7 +138,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// synchronous flush
-	//	f.daemon.statsdServer.Flush(true)
+	f.daemon.statsdServer.Flush(true)
 	// synchronous flush of the logs agent
 	logs.Flush()
 	log.Debug("Sync flush done")

@@ -110,7 +110,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 
 		chanSource := config.NewLogSource("AWS Logs", &config.LogsConfig{
 			Type:    config.StringChannelType,
-			Service: "dd-agent", // FIXME(remy):
+			Service: "agent", // FIXME(remy):
 			Source:  "agent",
 			Channel: logsChan,
 		})

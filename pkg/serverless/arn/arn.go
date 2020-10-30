@@ -17,17 +17,6 @@ func Get() string {
 	defer currentARN.Unlock()
 
 	return currentARN.value
-	//	region, exists := os.LookupEnv("AWS_REGION")
-	//	if !exists {
-	//		return "", fmt.Errorf("BuildARN: no region information available")
-	//	}
-	//	functionName, exists := os.LookupEnv("AWS_LAMBDA_FUNCTION_NAME")
-	//	if !exists {
-	//		return "", fmt.Errorf("BuildARN: no function information available")
-	//	}
-	//
-	//	 arn:aws:lambda:us-east-1:123456789123:function:the-function-name
-	//	return fmt.Sprintf("arn:aws:lambda:%s:123456789123:function:%s", region, functionName), nil
 }
 
 func Set(arn string) {

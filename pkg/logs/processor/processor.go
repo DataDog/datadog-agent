@@ -58,7 +58,6 @@ func (p *Processor) Flush() {
 			break
 		}
 		msg := <-p.inputChan
-		log.Debug("processed one")
 		p.processMessage(msg)
 	}
 	p.mu.Unlock()
