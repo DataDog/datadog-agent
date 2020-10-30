@@ -42,7 +42,7 @@ when submitting your PR:
     changes, cross-referencing any related bugs/PRs.
   * use [Reno](#reno) to create a releasenote.
   * open your PR against the `master` branch.
-  * for internal PR from Datadog (we will set them when reviewing for community PRs):
+  * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
     + set the `team/agent-core` label
     + add a milestone to your PR (use the highest available, ex: `6.8.0`)
 
