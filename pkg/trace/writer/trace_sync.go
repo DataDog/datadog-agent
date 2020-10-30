@@ -24,7 +24,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-const maxPendingTracePayloads = 10
+const maxPendingTracePayloads = 100
 
 // TraceSyncWriter buffers traces and APM events, flushing them only when the Flush method
 // is manually called.
@@ -37,8 +37,8 @@ type TraceSyncWriter struct {
 	stop     chan struct{}
 	stats    *info.TraceWriterInfo
 
-	processedTraces sync.WaitGroup
-	payloads        chan *payload // payloads buffered
+	wg       sync.WaitGroup // Wait group for payload processors
+	payloads chan *payload  // payloads buffered
 
 	easylog *logutil.ThrottledLogger
 }
@@ -75,7 +75,7 @@ func NewTraceSyncWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *Trace
 	return tw
 }
 
-// Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
+// Stop the TraceWriter and attempts to flush whatever is left in the senders buffers.
 func (w *TraceSyncWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
@@ -90,26 +90,19 @@ func (w *TraceSyncWriter) Run() {
 	for {
 		select {
 		case pkg := <-w.in:
-			w.processPayload(pkg)
+			go w.processPayload(pkg)
 		case <-w.stop:
-			// drain the input channel before stopping
-		outer:
-			for {
-				select {
-				case pkg := <-w.in:
-					w.processPayload(pkg)
-				default:
-					break outer
-				}
-			}
 			return
 		}
 	}
 }
 
-// Flush writes any pending payloads synchronously
+// SyncFlush writes any pending payloads synchronously
 func (w *TraceSyncWriter) SyncFlush() {
 	defer w.report()
+
+	// Wait for all processing payloads to finish
+	w.wg.Wait()
 
 	// Collect all pending payloads from the channel
 	// and send them.
@@ -121,7 +114,7 @@ outer:
 			pc++
 			sendPayloads(w.senders, p)
 		default:
-			break outer
+			break outer // Breaks for loop
 		}
 	}
 	log.Debugf("Payload count (payloads=%d)", pc)
@@ -140,6 +133,9 @@ outer:
 }
 
 func (w *TraceSyncWriter) processPayload(pkg *SampledSpans) {
+	w.wg.Add(1)
+	defer w.wg.Done()
+
 	if len(pkg.Traces) == 0 && len(pkg.Events) == 0 {
 		return
 	}

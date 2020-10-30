@@ -82,7 +82,7 @@ func TestStatsWriter(t *testing.T) {
 			}
 
 			expectedCounts := countsByEntries(stats)
-			payloads, nbStatBuckets, nbEntries := sw.buildPayloads(stats, 12)
+			payloads, nbStatBuckets, nbEntries := buildPayloads(stats, 12, sw.hostname, sw.env)
 
 			assert.Equal(expectedNbPayloads, len(payloads))
 			assert.Equal(expectedNbPayloads, nbStatBuckets)
@@ -139,7 +139,7 @@ func TestStatsWriter(t *testing.T) {
 			}
 
 			expectedCounts := countsByEntries(stats)
-			payloads, nbStatBuckets, nbEntries := sw.buildPayloads(stats, 12)
+			payloads, nbStatBuckets, nbEntries := buildPayloads(stats, 12, sw.hostname, sw.env)
 
 			assert.Equal(expectedNbPayloads, len(payloads))
 			assert.Equal(expectedNbPayloads, nbStatBuckets)
@@ -166,7 +166,7 @@ func TestStatsWriter(t *testing.T) {
 				testutil.RandomBucket(5),
 			}
 
-			payloads, nbStatBuckets, nbEntries := sw.buildPayloads(stats, 1337)
+			payloads, nbStatBuckets, nbEntries := buildPayloads(stats, 1337, sw.hostname, sw.env)
 
 			assert.Equal(1, len(payloads))
 			assert.Equal(3, nbStatBuckets)
