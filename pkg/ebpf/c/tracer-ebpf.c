@@ -613,18 +613,23 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     return handle_message(&t, size, 0);
 }
 
-static __always_inline void http_try_flush(struct pt_regs* ctx) {
+static __always_inline void http_notify_batch(struct pt_regs* ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     http_batch_t *batch = bpf_map_lookup_elem(&http_enqueued, &cpu);
     if (batch == NULL || batch->pos < HTTP_BATCH_SIZE) {
         return;
     }
 
-    http_batch_t batch_copy = {};
-    __builtin_memcpy(&batch_copy, batch, sizeof(batch_copy));
-    bpf_perf_event_output(ctx, &http_event, cpu, &batch_copy, sizeof(batch_copy));
+    // It's important to zero the struct so we account for the padding introduced in the compilation
+    // Otherwise you get a `invalid indirect read from stack off`
+    // More information in https://docs.cilium.io/en/v1.8/bpf/ under the alignment/padding section
+    http_batch_notification_t notification = {0};
+    notification.cpu = cpu;
+    notification.batch_idx = batch->idx;
 
-    log_debug("http batch flushed: lost_events: %d batch_size: %d(bytes)\n", batch_copy.pos-HTTP_BATCH_SIZE, sizeof(batch_copy));
+    bpf_perf_event_output(ctx, &http_event, cpu, &notification, sizeof(http_batch_notification_t));
+    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch->idx, batch->pos-HTTP_BATCH_SIZE);
+    batch->idx++;
     batch->pos = 0;
 }
 
@@ -638,7 +643,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     if (ret < 0) {
         increment_telemetry_count(tcp_sent_miscounts);
     }
-    http_try_flush(ctx);
+    http_notify_batch(ctx);
 
     return 0;
 }
@@ -1263,21 +1268,24 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         return;
     }
 
-    // TODO: Preemptively create these batches on userspace
     u32 cpu = bpf_get_smp_processor_id();
-    http_batch_t empty = {};
-    __builtin_memset(&empty, 0, sizeof(empty));
-    bpf_map_update_elem(&http_enqueued, &cpu, &empty, BPF_NOEXIST);
-
+    // This entries are pre-allocated in userspace
     http_batch_t *batch = bpf_map_lookup_elem(&http_enqueued, &cpu);
     if (batch == NULL) {
         return;
     }
 
+    if (batch->pos >= HTTP_BATCH_SIZE) {
+        // We keep incrementing this so we can track how many transactions we're dropping
+        batch->pos++;
+        return;
+    }
+
+    int batch_slot = (batch->idx%HTTP_BATCH_PAGES)*HTTP_BATCH_SIZE + batch->pos;
 #pragma unroll
-    for (int i = 0; i < HTTP_BATCH_SIZE; i++) {
-        if (batch->pos == i) {
-            __builtin_memcpy(&(batch->transactions[i]), http, sizeof(http_transaction_t));
+    for (int i = 0; i < HTTP_BATCH_PAGES*HTTP_BATCH_SIZE; i++) {
+        if (i == batch_slot) {
+            __builtin_memcpy(&batch->txs[i], http, sizeof(http_transaction_t));
         }
     }
 

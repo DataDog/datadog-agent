@@ -58,7 +58,9 @@ typedef struct {
 
 #define HTTP_BUFFER_SIZE 15
 #define HTTP_STATUS_CODE_SIZE 3
-#define HTTP_BATCH_SIZE 2
+#define HTTP_BATCH_SIZE 5
+// The greater this number is the less likely are colisions/data-races between the flushes
+#define HTTP_BATCH_PAGES 10
 
 // From include/net/tcp.h
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])
@@ -95,10 +97,30 @@ typedef struct {
     char request_fragment[HTTP_BUFFER_SIZE];
 } http_transaction_t;
 
+// batch struct enclosing all finished HTTP transactions
+// we pre-allocate one entry per CPU during program startup
 typedef struct {
-    __u8 pos;
-    http_transaction_t transactions[HTTP_BATCH_SIZE];
+    // idx is a monotonic counter.
+    // the batch page can be retrieved via (idx % HTTP_BATCH_PAGES).
+    __u64 idx;
+    // given a certain page, pos indicates where the the latest
+    // http_transaction_t should be written to
+    __u16 pos;
+    http_transaction_t txs[HTTP_BATCH_PAGES * HTTP_BATCH_SIZE];
 } http_batch_t;
+
+// http_batch_notification_t is flushed to userspace every time we complete a
+// batch (that is, when we fill a page with HTTP_BATCH_SIZE entries). uppon
+// receiving this notification the userpace program is then supposed to fetch
+// the full batch by doing a map lookup using `cpu` and then retrieving the full
+// page using batch_idx param. why just not flush the batch itself via the
+// perf-ring? we do this because prior to Kernel 4.11 bpf_perf_event_output
+// requires the data to be allocated in the eBPF stack. that makes batching
+// virtually impossible given the stack limit of 512bytes.
+typedef struct {
+    __u32 cpu;
+    __u64 batch_idx;
+} http_batch_notification_t;
 
 // Must match the number of tcp_conn_t objects embedded in the batch_t struct
 #ifndef TCP_CLOSED_BATCH_SIZE

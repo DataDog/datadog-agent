@@ -105,6 +105,7 @@ const (
 	TcpCloseBatchMap   BPFMapName = "tcp_close_batch"
 	HttpStatsMap       BPFMapName = "http_stats"
 	HttpEventMap       BPFMapName = "http_event"
+	HttpBatchMap       BPFMapName = "http_enqueued"
 )
 
 // SectionName returns the SectionName for the given BPF map

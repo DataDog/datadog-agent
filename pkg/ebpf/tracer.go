@@ -426,9 +426,26 @@ func (t *Tracer) initPerfPollingHTTP(perf *bytecode.PerfHandler) (*manager.PerfM
 		return nil, fmt.Errorf("unable to find perf map %s", bytecode.HttpEventMap)
 	}
 
+	httpEventMap, _ := t.getMap(bytecode.HttpEventMap)
+	numCPUs := int(httpEventMap.ABI().MaxEntries)
+
+	httpBatchMap, _ := t.getMap(bytecode.HttpBatchMap)
+	for i := 0; i < numCPUs; i++ {
+		batch := new(httpBatch)
+		httpBatchMap.Put(unsafe.Pointer(&i), unsafe.Pointer(batch))
+	}
+
 	if err := pm.Start(); err != nil {
 		return nil, fmt.Errorf("error starting perf map: %s", err)
 	}
+
+	var (
+		txs         *[HTTPBatchPages]httpTX
+		lostBatches int
+		then        = time.Now()
+		hits        = make(map[int]int)
+		report      = time.NewTicker(10 * time.Second)
+	)
 
 	go func() {
 		for {
@@ -438,14 +455,39 @@ func (t *Tracer) initPerfPollingHTTP(perf *bytecode.PerfHandler) (*manager.PerfM
 					return
 				}
 
-				for _, http := range toHTTPTransactions(data) {
-					duration := (http.response_last_seen - http.request_started) / 1000
-					log.Debugf("HTTP status=%d duration=%d(µs) path=%s", http.response_code, duration, http.Path())
+				notification := toHTTPNotification(data)
+				// log.Debugf("HTTP batch is ready cpu=%d idx=%d", notification.cpu, notification.batch_idx)
+				batch := new(httpBatch)
+				err := httpBatchMap.Lookup(unsafe.Pointer(&notification.cpu), unsafe.Pointer(batch))
+				if err != nil {
+					log.Errorf("error retrieving http batch for cpu=%d", notification.cpu)
+				}
+
+				if int(batch.idx) >= int(notification.batch_idx)+HTTPBatchPages {
+					lostBatches++
+					continue
+				}
+
+				pageID := int(notification.batch_idx) % HTTPBatchPages
+				txs = (*[HTTPBatchPages]httpTX)(unsafe.Pointer(&batch.txs[pageID*HTTPBatchSize]))
+				for _, tx := range txs {
+					hits[int(tx.response_code)]++
 				}
 			case _, ok := <-perf.LostChannel:
 				if !ok {
 					return
 				}
+			case now := <-report.C:
+				delta := float64(now.Sub(then).Seconds())
+				log.Infof("http report: 200(%d requests, %.2f/s) 300(%d requests, %.2f/s), 400(%d requests, %.2f/s) 500(%d requests, %.2f/s) monotonic_drops: %d",
+					hits[200], float64(hits[200])/delta,
+					hits[300], float64(hits[300])/delta,
+					hits[400], float64(hits[400])/delta,
+					hits[500], float64(hits[500])/delta,
+					lostBatches,
+				)
+				hits = make(map[int]int)
+				then = time.Now()
 			}
 		}
 	}()

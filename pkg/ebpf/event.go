@@ -93,22 +93,23 @@ func toBatch(data []byte) *batch {
 	return (*batch)(unsafe.Pointer(&data[0]))
 }
 
-type httpTransaction C.http_transaction_t
+const (
+	HTTPBatchSize  = int(C.HTTP_BATCH_SIZE)
+	HTTPBatchPages = int(C.HTTP_BATCH_PAGES)
+)
 
-func toHTTPTransactions(data []byte) []httpTransaction {
-	batch := (*C.http_batch_t)(unsafe.Pointer(&data[0]))
-	result := make([]httpTransaction, int(C.HTTP_BATCH_SIZE))
-	for i := range result {
-		ptr := uintptr(i)*C.sizeof_http_transaction_t + uintptr(unsafe.Pointer(&batch.transactions))
-		result[i] = httpTransaction(*(*C.http_transaction_t)(unsafe.Pointer(ptr)))
-	}
-	return result
+type httpTX C.http_transaction_t
+type httpNotification C.http_batch_notification_t
+type httpBatch C.http_batch_t
+
+func toHTTPNotification(data []byte) httpNotification {
+	return *(*httpNotification)(unsafe.Pointer(&data[0]))
 }
 
 // Path returns the URL from the request fragment captured in eBPF
 // Usually the request fragment will look like
 // GET /foo HTTP/1.1
-func (tx *httpTransaction) Path() string {
+func (tx *httpTX) Path() string {
 	b := C.GoBytes(unsafe.Pointer(&tx.request_fragment), C.int(C.HTTP_BUFFER_SIZE))
 
 	var i, j int

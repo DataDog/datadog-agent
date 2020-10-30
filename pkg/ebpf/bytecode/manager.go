@@ -43,6 +43,7 @@ func NewManager(closedHandler, httpHandler *PerfHandler) *manager.Manager {
 			{Name: "pending_bind"},
 			{Name: "unbound_sockets"},
 			{Name: string(HttpStatsMap)},
+			{Name: string(HttpBatchMap)},
 			{Name: string(TelemetryMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
