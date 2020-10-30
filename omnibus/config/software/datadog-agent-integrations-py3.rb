@@ -284,6 +284,12 @@ build do
         command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
+
+    if windows?
+      command "#{python} -m pip check"
+    else
+      command "#{pip} check"
+    end
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
