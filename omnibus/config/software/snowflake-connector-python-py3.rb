@@ -1,7 +1,6 @@
 name "snowflake-connector-python-py3"
 
 dependency "pip3"
-dependency "cython3"
 
 default_version "2.1.3"
 

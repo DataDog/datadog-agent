@@ -1,7 +1,6 @@
 name "snowflake-connector-python-py2"
 
 dependency "pip2"
-dependency "cython2"
 
 default_version "2.1.3"
 
