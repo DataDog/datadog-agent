@@ -8,9 +8,6 @@
 package probe
 
 import (
-	"os"
-	"syscall"
-
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -18,13 +15,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-func discardInode(probe *Probe, mountID uint32, inode uint64, tableName string) (bool, error) {
-	key := PathKey{MountID: mountID, Inode: inode}
+type pidDiscarder struct {
+	eventType EventType
+	pid       uint32
+	padding   uint32
+}
 
-	table := probe.Map(tableName)
-	if table == nil {
-		return false, errors.Errorf("map %s not found", tableName)
+func discardPID(probe *Probe, eventType EventType, pid uint32) (bool, error) {
+	key := pidDiscarder{
+		eventType: eventType,
+		pid:       pid,
 	}
+
+	table := probe.Map("pid_discarders")
 	if err := table.Put(&key, ebpf.ZeroUint8MapItem); err != nil {
 		return false, err
 	}
@@ -32,18 +35,55 @@ func discardInode(probe *Probe, mountID uint32, inode uint64, tableName string) 
 	return true, nil
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType eval.EventType, field eval.Field, filename string, mountID uint32, inode uint64, tableName string) (bool, error) {
+type inodeDiscarder struct {
+	eventType EventType
+	pathKey   PathKey
+}
+
+func removeDiscarderInode(probe *Probe, mountID uint32, inode uint64) {
+	key := inodeDiscarder{
+		pathKey: PathKey{
+			MountID: mountID,
+			Inode:   inode,
+		},
+	}
+
+	table := probe.Map("inode_discarders")
+	for eventType := UnknownEventType + 1; eventType != maxEventType; eventType++ {
+		key.eventType = eventType
+		table.Delete(&key)
+	}
+}
+
+func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint64) (bool, error) {
+	key := inodeDiscarder{
+		eventType: eventType,
+		pathKey: PathKey{
+			MountID: mountID,
+			Inode:   inode,
+		},
+	}
+
+	table := probe.Map("inode_discarders")
+	if err := table.Put(&key, ebpf.ZeroUint8MapItem); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, error) {
 	isDiscarder, err := isParentPathDiscarder(rs, eventType, field, filename)
 	if !isDiscarder {
 		return false, err
 	}
 
-	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode)
+	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode, pathID)
 	if err != nil {
 		return false, err
 	}
 
-	return discardInode(probe, parentMountID, parentInode, tableName)
+	return discardInode(probe, eventType, parentMountID, parentInode)
 }
 
 func approveBasename(probe *Probe, tableName string, basename string) error {
@@ -91,36 +131,4 @@ func setFlagsFilter(probe *Probe, tableName string, flags ...int) error {
 
 func approveFlags(probe *Probe, tableName string, flags ...int) error {
 	return setFlagsFilter(probe, tableName, flags...)
-}
-
-func discardFlags(probe *Probe, tableName string, flags ...int) error {
-	return setFlagsFilter(probe, tableName, flags...)
-}
-
-func approveProcessFilename(probe *Probe, tableName string, filename string) error {
-	fileinfo, err := os.Stat(filename)
-	if err != nil {
-		return err
-	}
-	stat, _ := fileinfo.Sys().(*syscall.Stat_t)
-	key := ebpf.Uint64MapItem(uint64(stat.Ino))
-
-	table := probe.Map(tableName)
-	if table == nil {
-		return errors.Errorf("map %s not found", tableName)
-	}
-	if err := table.Put(key, ebpf.ZeroUint8MapItem); err != nil {
-		return err
-	}
-	return nil
-}
-
-func approveProcessFilenames(probe *Probe, tableName string, filenames ...string) error {
-	for _, filename := range filenames {
-		if err := approveProcessFilename(probe, tableName, filename); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

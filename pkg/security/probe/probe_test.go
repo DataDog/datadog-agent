@@ -3,18 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package eval
+// +build linux_bpf
+
+package probe
 
 import (
-	"unsafe"
+	"testing"
 )
 
-// Context describes the context used during a rule evaluation
-type Context struct {
-	Object unsafe.Pointer
-}
+func TestInvalidDiscarders(t *testing.T) {
+	probe := NewProbe(nil)
 
-// SetObject set the given object to the context
-func (c *Context) SetObject(obj unsafe.Pointer) {
-	c.Object = obj
+	if !probe.isInvalidDiscarder("open.filename", dentryInvalidDiscarder) {
+		t.Errorf("should be an invalid discarder")
+	}
 }

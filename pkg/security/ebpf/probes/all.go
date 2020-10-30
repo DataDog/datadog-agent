@@ -39,7 +39,7 @@ func AllProbes() []*manager.Probe {
 		// Snapshot probe
 		&manager.Probe{
 			UID:     SecurityAgentUID,
-			Section: "kprobe/security_inode_getattr",
+			Section: "kretprobe/get_task_exe_file",
 		},
 	)
 
@@ -49,25 +49,23 @@ func AllProbes() []*manager.Probe {
 // AllMaps returns the list of maps of the runtime security module
 func AllMaps() []*manager.Map {
 	return []*manager.Map{
-		// Dentry resolver map
+		// Filters
+		{Name: "filter_policy"},
+		{Name: "inode_discarders"},
+		{Name: "pid_discarders"},
+		// Dentry resolver table
 		{Name: "pathnames"},
-		// Snapshot map
-		{Name: "inode_numlower"},
-		// Open maps
-		{Name: "open_policy"},
+		// Snapshot table
+		{Name: "inode_info_cache"},
+		// Open tables
 		{Name: "open_basename_approvers"},
 		{Name: "open_flags_approvers"},
-		{Name: "open_flags_discarders"},
-		{Name: "open_process_inode_approvers"},
-		{Name: "open_path_inode_discarders"},
-		// Exec maps
+		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cookie"},
-		// Unlink maps
-		{Name: "unlink_path_inode_discarders"},
-		// Mount map
+		// Mount tables
 		{Name: "mount_id_offset"},
-		// Syscall monitor maps
+		// Syscall monitor tables
 		{Name: "noisy_processes_buffer"},
 		{Name: "noisy_processes_fb"},
 		{Name: "noisy_processes_bb"},

@@ -26,17 +26,33 @@
 #include "umount.h"
 #include "link.h"
 #include "raw_syscalls.h"
-#include "getattr.h"
+#include "procfs.h"
 #include "setxattr.h"
 
-void __attribute__((always_inline)) remove_inode_discarders(struct file_t *file) {
-    struct path_key_t path_key = {
-        .ino = file->inode,
-        .mount_id = file->mount_id,
+struct invalidate_dentry_event_t {
+    struct kevent_t event;
+    u64 inode;
+    u32 mount_id;
+    u32 padding;
+};
+
+void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode) {
+    if (!inode || !mount_id)
+        return;
+
+#pragma unroll
+    for (int i = 1; i < EVENT_MAX; i++) {
+        remove_inode_discarder(i, mount_id, inode);
+    }
+
+    // invalidate dentry
+    struct invalidate_dentry_event_t event = {
+        .event.type = EVENT_INVALIDATE_DENTRY,
+        .inode = inode,
+        .mount_id = mount_id,
     };
 
-    bpf_map_delete_elem(&open_path_inode_discarders, &path_key);
-    bpf_map_delete_elem(&unlink_path_inode_discarders, &path_key);
+    send_event(ctx, event);
 }
 
 __u32 _version SEC("version") = 0xFFFFFFFE;

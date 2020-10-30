@@ -35,7 +35,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
     struct qstr container_qstr;
     bpf_probe_read(&container_d, sizeof(container_d), &dentry->d_parent);
     bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
-    bpf_probe_read(&new_entry.container_id, sizeof(new_entry.container_id), (void*) container_qstr.name);
+    bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), (void*) container_qstr.name);
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
 
     if (new_cookie) {
