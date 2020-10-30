@@ -106,12 +106,17 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		// Find provider ID from cache or find via node spec from APIserver
 		hostProviderID, hit := providerIDCache.Get(b.nodename)
 		if hit {
-			tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderID))
+			if hostProviderID != "" {
+				tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderID))
+			}
 		} else {
 			hostProviderID := getHostProviderID(b.nodename)
 			if hostProviderID != "" {
 				providerIDCache.Set(b.nodename, hostProviderID, cache.NoExpiration)
 				tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderID))
+			} else {
+				log.Debugf("Failed to find the host provider ID for node %s. Caching this negative result for 1 min", b.nodename)
+				providerIDCache.Set(b.nodename, "", 1*time.Minute)
 			}
 		}
 	}
