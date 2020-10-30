@@ -1,6 +1,3 @@
-fixes:
-  - |
-    Add normal bug fixes here, or remove this section.
 other:
   - |
-    Activate security-agent service by default in the Linux packages of the Agent (RPM/DEB). The security-agent will stop immediately if not activated in the main configuration file.
+    Activate security-agent service by default in the Linux packages of the Agent (RPM/DEB). The security-agent won't be started if the file /etc/datadog-agent/security-agent.yaml does not exist.
