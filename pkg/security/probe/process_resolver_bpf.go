@@ -334,7 +334,7 @@ func (p *ProcessResolver) Snapshot(containerResolver *ContainerResolver, mountRe
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers) (*ProcessResolver, error) {
-	cache, err := lru.New(10000)
+	cache, err := lru.New(probe.config.PIDCacheSize)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ package probe
 
 import (
 	"github.com/pkg/errors"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -21,6 +22,10 @@ type pidDiscarder struct {
 	padding   uint32
 }
 
+type pidDiscarderParameters struct {
+	timestamp uint64
+}
+
 func discardPID(probe *Probe, eventType EventType, pid uint32) (bool, error) {
 	key := pidDiscarder{
 		eventType: eventType,
@@ -28,7 +33,24 @@ func discardPID(probe *Probe, eventType EventType, pid uint32) (bool, error) {
 	}
 
 	table := probe.Map("pid_discarders")
-	if err := table.Put(&key, ebpf.ZeroUint8MapItem); err != nil {
+	if err := table.Put(&key, &pidDiscarderParameters{}); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func discardPIDWithTimeout(probe *Probe, eventType EventType, pid uint32, timeout time.Duration) (bool, error) {
+	key := pidDiscarder{
+		eventType: eventType,
+		pid:       pid,
+	}
+	params := pidDiscarderParameters{
+		timestamp: uint64(probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now().Add(timeout))),
+	}
+
+	table := probe.Map("pid_discarders")
+	if err := table.Put(&key, &params); err != nil {
 		return false, err
 	}
 

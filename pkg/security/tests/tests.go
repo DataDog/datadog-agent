@@ -307,7 +307,7 @@ func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefi
 		return nil, err
 	}
 
-	probe, err := sprobe.NewProbe(config)
+	probe, err := sprobe.NewProbe(config, nil)
 	if err != nil {
 		return nil, err
 	}

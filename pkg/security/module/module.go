@@ -130,7 +130,7 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	if m.rateLimiter.Allow(rule.ID) {
 		m.eventServer.SendEvent(rule, event)
 	} else {
-		log.Debugf("Event on rule %s was dropped due to rate limiting", rule.ID)
+		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
 }
 
@@ -216,7 +216,7 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		log.Warn("Logs won't be send to DataDog")
 	}
 
-	probe, err := sprobe.NewProbe(config)
+	probe, err := sprobe.NewProbe(config, statsdClient)
 	if err != nil {
 		return nil, err
 	}
