@@ -44,8 +44,6 @@ func TestConntrackExists(t *testing.T) {
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	tcpLaddr := tcpConn.LocalAddr().(*net.TCPAddr)
-	udpLaddr := udpConn.LocalAddr().(*net.UDPAddr)
 	ctrks := map[int]Conntrack{}
 	defer func() {
 		for _, ctrk := range ctrks {
@@ -53,98 +51,100 @@ func TestConntrackExists(t *testing.T) {
 		}
 	}()
 
-	for _, proto := range []string{"tcp", "udp"} {
-		var ipProto uint8 = unix.IPPROTO_UDP
-		laddrIP := udpLaddr.IP.String()
-		laddrPort := udpLaddr.Port
-		if proto == "tcp" {
-			ipProto = unix.IPPROTO_TCP
-			laddrIP = tcpLaddr.IP.String()
-			laddrPort = tcpLaddr.Port
-		}
-		tests := []struct {
-			desc   string
-			c      Con
-			exists bool
-			ns     int
-		}{
-			{
-				desc: fmt.Sprintf("net ns 0, origin exists, proto %s", proto),
-				c: Con{
-					Con: ct.Con{
-						Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
-					},
-				},
-				exists: true,
-				ns:     0,
-			},
-			{
-				desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
-				c: Con{
-					Con: ct.Con{
-						Reply: newIPTuple("2.2.2.4", laddrIP, 80, uint16(laddrPort), ipProto),
-					},
-				},
-				exists: true,
-				ns:     0,
-			},
-			{
-				desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
-				c: Con{
-					Con: ct.Con{
-						Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
-					},
-				},
-				exists: false,
-				ns:     0,
-			},
-			{
-				desc: fmt.Sprintf("net ns %d, origin exists, proto %s", int(testNs), proto),
-				c: Con{
-					Con: ct.Con{
-						Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
-					},
-				},
-				exists: true,
-				ns:     int(testNs),
-			},
-			{
-				desc: fmt.Sprintf("net ns %d, reply exists, proto %s", int(testNs), proto),
-				c: Con{
-					Con: ct.Con{
-						Reply: newIPTuple("2.2.2.4", laddrIP, 8080, uint16(laddrPort), ipProto),
-					},
-				},
-				exists: true,
-				ns:     int(testNs),
-			},
-			{
-				desc: fmt.Sprintf("net ns %d, origin does not exist, proto %s", int(testNs), proto),
-				c: Con{
-					Con: ct.Con{
-						Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
-					},
-				},
-				exists: false,
-				ns:     int(testNs),
-			},
-		}
+	tcpLaddr := tcpConn.LocalAddr().(*net.TCPAddr)
+	udpLaddr := udpConn.LocalAddr().(*net.UDPAddr)
+	// test a combination of (tcp, udp) x (root ns, test ns)
+	testConntrackExists(t, tcpLaddr.IP.String(), tcpLaddr.Port, "tcp", testNs, ctrks)
+	testConntrackExists(t, udpLaddr.IP.String(), udpLaddr.Port, "udp", testNs, ctrks)
+}
 
-		for _, te := range tests {
-			t.Run(te.desc, func(t *testing.T) {
-				ctrk, ok := ctrks[te.ns]
-				if !ok {
-					var err error
-					ctrk, err = NewConntrack(te.ns)
-					require.NoError(t, err)
+func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[int]Conntrack) {
+	var ipProto uint8 = unix.IPPROTO_UDP
+	if proto == "tcp" {
+		ipProto = unix.IPPROTO_TCP
+	}
+	tests := []struct {
+		desc   string
+		c      Con
+		exists bool
+		ns     int
+	}{
+		{
+			desc: fmt.Sprintf("net ns 0, origin exists, proto %s", proto),
+			c: Con{
+				Con: ct.Con{
+					Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
+				},
+			},
+			exists: true,
+			ns:     0,
+		},
+		{
+			desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
+			c: Con{
+				Con: ct.Con{
+					Reply: newIPTuple("2.2.2.4", laddrIP, 80, uint16(laddrPort), ipProto),
+				},
+			},
+			exists: true,
+			ns:     0,
+		},
+		{
+			desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
+			c: Con{
+				Con: ct.Con{
+					Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
+				},
+			},
+			exists: false,
+			ns:     0,
+		},
+		{
+			desc: fmt.Sprintf("net ns %d, origin exists, proto %s", int(testNs), proto),
+			c: Con{
+				Con: ct.Con{
+					Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
+				},
+			},
+			exists: true,
+			ns:     int(testNs),
+		},
+		{
+			desc: fmt.Sprintf("net ns %d, reply exists, proto %s", int(testNs), proto),
+			c: Con{
+				Con: ct.Con{
+					Reply: newIPTuple("2.2.2.4", laddrIP, 8080, uint16(laddrPort), ipProto),
+				},
+			},
+			exists: true,
+			ns:     int(testNs),
+		},
+		{
+			desc: fmt.Sprintf("net ns %d, origin does not exist, proto %s", int(testNs), proto),
+			c: Con{
+				Con: ct.Con{
+					Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
+				},
+			},
+			exists: false,
+			ns:     int(testNs),
+		},
+	}
 
-					ctrks[te.ns] = ctrk
-				}
-
-				ok, err := ctrk.Exists(&te.c)
+	for _, te := range tests {
+		t.Run(te.desc, func(t *testing.T) {
+			ctrk, ok := ctrks[te.ns]
+			if !ok {
+				var err error
+				ctrk, err = NewConntrack(te.ns)
 				require.NoError(t, err)
-				require.Equal(t, te.exists, ok)
-			})
-		}
+
+				ctrks[te.ns] = ctrk
+			}
+
+			ok, err := ctrk.Exists(&te.c)
+			require.NoError(t, err)
+			require.Equal(t, te.exists, ok)
+		})
 	}
 }
