@@ -7,10 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"syscall"
 
 	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/sys/unix"
 )
 
@@ -32,7 +30,7 @@ type Conntrack interface {
 // `netNS` is the network namespace for the conntrack operations.
 // A value of `0` will use the current thread's network namespace
 func NewConntrack(netNS int) (Conntrack, error) {
-	conn, err := netlink.Dial(unix.AF_INET, &netlink.Config{NetNS: netNS})
+	conn, err := netlink.Dial(unix.NETLINK_NETFILTER, &netlink.Config{NetNS: netNS})
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +45,7 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 	msg := netlink.Message{
 		Header: netlink.Header{
 			Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
-			Flags: netlink.Request,
+			Flags: netlink.Request | netlink.Acknowledge,
 		},
 		Data: []byte{unix.AF_INET, unix.NFNETLINK_V0, 0, 0},
 	}
@@ -61,20 +59,14 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 
 	replies, err := c.conn.Execute(msg)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+
 		return false, err
 	}
 
-	for _, r := range replies {
-		if r.Header.Type == netlink.Error {
-			// looking for ENOENT
-			errno := syscall.Errno(-int32(nlenc.NativeEndian().Uint32(r.Data[0:4])))
-			if errors.Is(errno, os.ErrNotExist) {
-				return false, nil
-			}
-
-			return false, errno
-		}
-
+	if len(replies) > 0 {
 		return true, nil
 	}
 
