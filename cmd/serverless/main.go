@@ -313,6 +313,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	// DogStatsD daemon ready.
 	daemon.SetStatsdServer(statsdServer)
+	daemon.SetAggregator(aggregatorInstance)
 	daemon.ReadyWg.Done()
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))

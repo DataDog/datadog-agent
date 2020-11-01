@@ -8,8 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/arn"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,7 +23,9 @@ type Daemon struct {
 	// http server used to collect AWS logs
 	httpLogsServer *http.Server
 	statsdServer   *dogstatsd.Server
-	stopCh         chan struct{}
+	// aggregator used by the statsd server
+	aggregator *aggregator.BufferedAggregator
+	stopCh     chan struct{}
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instanciated)
 	ReadyWg *sync.WaitGroup
@@ -29,6 +34,13 @@ type Daemon struct {
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
 func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
 	d.statsdServer = statsdServer
+}
+
+// SetAggregator sets the aggregator used within the DogStatsD server.
+// Use this aggregator `GetChannels()` or `GetBufferedChannels()` to send metrics
+// directly to the aggregator, with caution.
+func (d *Daemon) SetAggregator(aggregator *aggregator.BufferedAggregator) {
+	d.aggregator = aggregator
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime.
@@ -82,9 +94,44 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan string, error) {
 				w.WriteHeader(400)
 			} else {
 				for _, message := range messages {
-					if message.Type != "" {
+					switch message.Type {
+					case logTypeExtension, logTypeFunction:
 						// TODO(remy): what about the timestamp of the log available in the message?
-						logsChan <- message.Record
+						logsChan <- message.StringRecord
+					case logTypePlatformReport:
+						functionName := arn.FunctionNameFromARN()
+						if functionName != "" {
+							// report enhanced metrics using DogStatsD
+							tags := []string{fmt.Sprintf("functionname:%s", functionName)}
+							metricsChan, _, _ := d.aggregator.GetBufferedChannels()
+							metricsChan <- []metrics.MetricSample{metrics.MetricSample{
+								Name:       "aws.lambda.enhanced.max_memory_used",
+								Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
+								Mtype:      metrics.GaugeType,
+								Tags:       tags,
+								SampleRate: 1,
+							}, metrics.MetricSample{
+								Name:       "aws.lambda.enhanced.billed_duration",
+								Value:      float64(message.ObjectRecord.Metrics.BilledDurationMs),
+								Mtype:      metrics.GaugeType,
+								Tags:       tags,
+								SampleRate: 1,
+							}, metrics.MetricSample{
+								Name:       "aws.lambda.enhanced.duration",
+								Value:      message.ObjectRecord.Metrics.DurationMs,
+								Mtype:      metrics.GaugeType,
+								Tags:       tags,
+								SampleRate: 1,
+							}, metrics.MetricSample{
+								Name:       "aws.lambda.enhanced.init_duration",
+								Value:      message.ObjectRecord.Metrics.InitDurationMs,
+								Mtype:      metrics.GaugeType,
+								Tags:       tags,
+								SampleRate: 1,
+							}}
+						}
+
+						// FIXME(remy): emit some enhanced metrics containing those infos
 					}
 				}
 				w.WriteHeader(200)
