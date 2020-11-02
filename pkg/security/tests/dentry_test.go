@@ -23,7 +23,7 @@ func TestDentryRename(t *testing.T) {
 		Expression: `rename.old.filename in ["{{.Root}}/test-rename", "{{.Root}}/test2-rename"]`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: false})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,14 +73,12 @@ func TestDentryRename(t *testing.T) {
 }
 
 func TestDentryRenameFolder(t *testing.T) {
-	t.Skip()
-
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.basename == "test-rename" && (open.flags & O_CREAT) > 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: false})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,6 +107,8 @@ func TestDentryRenameFolder(t *testing.T) {
 		testFile.Close()
 
 		event, _, err := test.GetEvent()
+		t.Logf("#%d Event: %+v", i, event)
+
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -117,7 +117,7 @@ func TestDentryRenameFolder(t *testing.T) {
 			}
 
 			if value, _ := event.GetFieldValue("open.filename"); value.(string) != filename {
-				t.Errorf("expected filename not found, `%s` != `%s`", value.(string), filename)
+				t.Errorf("#%d expected filename not found, `%s` != `%s`", i, value.(string), filename)
 			}
 
 			// swap
@@ -140,7 +140,7 @@ func TestDentryUnlink(t *testing.T) {
 		Expression: `unlink.filename =~ "{{.Root}}/test-unlink-*"`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: false})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestDentryRmdir(t *testing.T) {
 		Expression: `rmdir.filename =~ "{{.Root}}/test-rmdir-*"`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{enableFilters: false})
 	if err != nil {
 		t.Fatal(err)
 	}

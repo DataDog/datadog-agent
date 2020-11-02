@@ -30,6 +30,8 @@ if node['platform_family'] != 'windows'
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update
+
+      package 'gnupg'
     end
 
     docker_service 'default' do
