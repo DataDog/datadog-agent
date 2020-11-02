@@ -9,31 +9,35 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSetupConfigs(t *testing.T) {
+	trueVar := true
+	falseVar := false
 	tests := []struct {
 		name       string
-		config     []*PrometheusCheck
-		wantChecks []*PrometheusCheck
+		config     []*common.PrometheusCheck
+		wantChecks []*common.PrometheusCheck
 		wantErr    bool
 	}{
 		{
 			name:   "empty config, default check",
-			config: []*PrometheusCheck{},
-			wantChecks: []*PrometheusCheck{
+			config: []*common.PrometheusCheck{},
+			wantChecks: []*common.PrometheusCheck{
 				{
-					Instances: []*OpenmetricsInstance{
+					Instances: []*common.OpenmetricsInstance{
 						{
 							Metrics:   []string{"*"},
 							Namespace: "",
 						},
 					},
-					AD: &ADConfig{
-						ExcludeAutoconf: boolPointer(true),
-						KubeAnnotations: &InclExcl{
+					AD: &common.ADConfig{
+						ExcludeAutoconf: &trueVar,
+						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
 						},
@@ -45,27 +49,27 @@ func TestSetupConfigs(t *testing.T) {
 		},
 		{
 			name: "custom instance, set required fields",
-			config: []*PrometheusCheck{
+			config: []*common.PrometheusCheck{
 				{
-					Instances: []*OpenmetricsInstance{
+					Instances: []*common.OpenmetricsInstance{
 						{
 							Timeout: 20,
 						},
 					},
 				},
 			},
-			wantChecks: []*PrometheusCheck{
+			wantChecks: []*common.PrometheusCheck{
 				{
-					Instances: []*OpenmetricsInstance{
+					Instances: []*common.OpenmetricsInstance{
 						{
 							Metrics:   []string{"*"},
 							Namespace: "",
 							Timeout:   20,
 						},
 					},
-					AD: &ADConfig{
-						ExcludeAutoconf: boolPointer(true),
-						KubeAnnotations: &InclExcl{
+					AD: &common.ADConfig{
+						ExcludeAutoconf: &trueVar,
+						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
 						},
@@ -77,32 +81,32 @@ func TestSetupConfigs(t *testing.T) {
 		},
 		{
 			name: "custom AD, set required fields",
-			config: []*PrometheusCheck{
+			config: []*common.PrometheusCheck{
 				{
-					AD: &ADConfig{
-						KubeAnnotations: &InclExcl{
+					AD: &common.ADConfig{
+						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"custom/annotation": "exclude"},
 						},
 						KubeContainerNames: []string{"foo*"},
 					},
 				},
 			},
-			wantChecks: []*PrometheusCheck{
+			wantChecks: []*common.PrometheusCheck{
 				{
-					Instances: []*OpenmetricsInstance{
+					Instances: []*common.OpenmetricsInstance{
 						{
 							Metrics:   []string{"*"},
 							Namespace: "",
 						},
 					},
-					AD: &ADConfig{
-						ExcludeAutoconf: boolPointer(true),
-						KubeAnnotations: &InclExcl{
+					AD: &common.ADConfig{
+						ExcludeAutoconf: &trueVar,
+						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"custom/annotation": "exclude"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
 						},
 						KubeContainerNames: []string{"foo*"},
-						containersRe:       regexp.MustCompile("foo*"),
+						ContainersRe:       regexp.MustCompile("foo*"),
 					},
 				},
 			},
@@ -110,18 +114,18 @@ func TestSetupConfigs(t *testing.T) {
 		},
 		{
 			name: "custom instances and AD",
-			config: []*PrometheusCheck{
+			config: []*common.PrometheusCheck{
 				{
-					Instances: []*OpenmetricsInstance{
+					Instances: []*common.OpenmetricsInstance{
 						{
 							Metrics:       []string{"foo", "bar"},
 							Namespace:     "custom_ns",
 							IgnoreMetrics: []string{"baz"},
 						},
 					},
-					AD: &ADConfig{
-						ExcludeAutoconf: boolPointer(false),
-						KubeAnnotations: &InclExcl{
+					AD: &common.ADConfig{
+						ExcludeAutoconf: &falseVar,
+						KubeAnnotations: &common.InclExcl{
 							Incl: map[string]string{"custom/annotation": "include"},
 							Excl: map[string]string{"custom/annotation": "exclude"},
 						},
@@ -129,18 +133,18 @@ func TestSetupConfigs(t *testing.T) {
 					},
 				},
 			},
-			wantChecks: []*PrometheusCheck{
+			wantChecks: []*common.PrometheusCheck{
 				{
-					Instances: []*OpenmetricsInstance{
+					Instances: []*common.OpenmetricsInstance{
 						{
 							Metrics:       []string{"foo", "bar"},
 							Namespace:     "custom_ns",
 							IgnoreMetrics: []string{"baz"},
 						},
 					},
-					AD: &ADConfig{
-						ExcludeAutoconf: boolPointer(false),
-						KubeAnnotations: &InclExcl{
+					AD: &common.ADConfig{
+						ExcludeAutoconf: &falseVar,
+						KubeAnnotations: &common.InclExcl{
 							Incl: map[string]string{"custom/annotation": "include"},
 							Excl: map[string]string{"custom/annotation": "exclude"},
 						},
@@ -152,9 +156,9 @@ func TestSetupConfigs(t *testing.T) {
 		},
 		{
 			name: "invalid check",
-			config: []*PrometheusCheck{
+			config: []*common.PrometheusCheck{
 				{
-					AD: &ADConfig{
+					AD: &common.ADConfig{
 						KubeContainerNames: []string{"*"},
 					},
 				},
@@ -164,34 +168,34 @@ func TestSetupConfigs(t *testing.T) {
 		},
 		{
 			name: "two checks, one invalid check",
-			config: []*PrometheusCheck{
+			config: []*common.PrometheusCheck{
 				{
-					AD: &ADConfig{
+					AD: &common.ADConfig{
 						KubeContainerNames: []string{"*"},
 					},
 				},
 				{
-					AD: &ADConfig{
+					AD: &common.ADConfig{
 						KubeContainerNames: []string{"foo", "bar"},
 					},
 				},
 			},
-			wantChecks: []*PrometheusCheck{
+			wantChecks: []*common.PrometheusCheck{
 				{
-					Instances: []*OpenmetricsInstance{
+					Instances: []*common.OpenmetricsInstance{
 						{
 							Metrics:   []string{"*"},
 							Namespace: "",
 						},
 					},
-					AD: &ADConfig{
-						ExcludeAutoconf: boolPointer(true),
-						KubeAnnotations: &InclExcl{
+					AD: &common.ADConfig{
+						ExcludeAutoconf: &trueVar,
+						KubeAnnotations: &common.InclExcl{
 							Excl: map[string]string{"prometheus.io/scrape": "false"},
 							Incl: map[string]string{"prometheus.io/scrape": "true"},
 						},
 						KubeContainerNames: []string{"foo", "bar"},
-						containersRe:       regexp.MustCompile("foo|bar"),
+						ContainersRe:       regexp.MustCompile("foo|bar"),
 					},
 				},
 			},
@@ -208,71 +212,4 @@ func TestSetupConfigs(t *testing.T) {
 			assert.EqualValues(t, tt.wantChecks, p.checks)
 		})
 	}
-}
-
-func TestBuildURL(t *testing.T) {
-	tests := []struct {
-		name        string
-		annotations map[string]string
-		want        string
-	}{
-		{
-			name: "nominal case",
-			annotations: map[string]string{
-				"foo": "bar",
-			},
-			want: "http://%%host%%:%%port%%/metrics",
-		},
-		{
-			name: "custom port",
-			annotations: map[string]string{
-				"foo":                "bar",
-				"prometheus.io/port": "1337",
-			},
-			want: "http://%%host%%:1337/metrics",
-		},
-		{
-			name: "custom path",
-			annotations: map[string]string{
-				"foo":                "bar",
-				"prometheus.io/path": "/metrix",
-			},
-			want: "http://%%host%%:%%port%%/metrix",
-		},
-		{
-			name: "custom port and path",
-			annotations: map[string]string{
-				"foo":                "bar",
-				"prometheus.io/port": "1337",
-				"prometheus.io/path": "/metrix",
-			},
-			want: "http://%%host%%:1337/metrix",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := buildURL(tt.annotations); got != tt.want {
-				t.Errorf("buildURL() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestContainerRegex(t *testing.T) {
-	ad := &ADConfig{}
-	ad.setContainersRegex()
-	assert.Nil(t, ad.containersRe)
-	assert.True(t, ad.matchContainer("a-random-string"))
-
-	ad = &ADConfig{KubeContainerNames: []string{"foo"}}
-	ad.setContainersRegex()
-	assert.NotNil(t, ad.containersRe)
-	assert.True(t, ad.matchContainer("foo"))
-	assert.False(t, ad.matchContainer("bar"))
-
-	ad = &ADConfig{KubeContainerNames: []string{"foo", "b*"}}
-	ad.setContainersRegex()
-	assert.NotNil(t, ad.containersRe)
-	assert.True(t, ad.matchContainer("foo"))
-	assert.True(t, ad.matchContainer("bar"))
 }
