@@ -102,36 +102,34 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan string, error) {
 						functionName := arn.FunctionNameFromARN()
 						if functionName != "" {
 							// report enhanced metrics using DogStatsD
-							tags := []string{fmt.Sprintf("functionname:%s", functionName)}
+							tags := []string{fmt.Sprintf("functionname:%s", functionName)} // FIXME(remy): could this be exported to properly get all tags?
 							metricsChan, _, _ := d.aggregator.GetBufferedChannels()
 							metricsChan <- []metrics.MetricSample{metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.max_memory_used",
 								Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
-								Mtype:      metrics.GaugeType,
+								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
 							}, metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.billed_duration",
 								Value:      float64(message.ObjectRecord.Metrics.BilledDurationMs),
-								Mtype:      metrics.GaugeType,
+								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
 							}, metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.duration",
 								Value:      message.ObjectRecord.Metrics.DurationMs,
-								Mtype:      metrics.GaugeType,
+								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
 							}, metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.init_duration",
 								Value:      message.ObjectRecord.Metrics.InitDurationMs,
-								Mtype:      metrics.GaugeType,
+								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
 							}}
 						}
-
-						// FIXME(remy): emit some enhanced metrics containing those infos
 					}
 				}
 				w.WriteHeader(200)
