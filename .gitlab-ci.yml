@@ -2467,7 +2467,7 @@ testkitchen_cleanup_s3-a6:
       when: never
     - <<: *if_not_test_kitchen_deploy
       when: never
-    - when: always
+    - when: on_success
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -2481,7 +2481,7 @@ testkitchen_cleanup_s3-a7:
       when: never
     - <<: *if_not_test_kitchen_deploy
       when: never
-    - when: always
+    - when: on_success
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
