@@ -182,9 +182,12 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("DogStatsD server not ready"))
 		return
 	}
+	// synchronous flush of the logs agent
+	// FIXME(remy): could the enhanced metrics be generated at this point? if not
+	//              and they're already generated when REPORT is received on the http server,
+	//              we could make this run in parallel with the statsd flush
+	logs.Flush()
 	// synchronous flush
 	f.daemon.statsdServer.Flush(true)
-	// synchronous flush of the logs agent
-	logs.Flush()
 	log.Debug("Sync flush done")
 }
