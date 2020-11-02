@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/heartbeat"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -126,7 +127,7 @@ func runAgent(exit chan struct{}) {
 
 	// Initialize system-probe heartbeats
 	sysprobeMonitor, err := heartbeat.NewModuleMonitor(heartbeat.Options{
-		KeysPerDomain:      keysPerDomains(cfg.APIEndpoints),
+		KeysPerDomain:      api.KeysPerDomains(cfg.APIEndpoints),
 		SysprobeSocketPath: cfg.SystemProbeAddress,
 		HostName:           cfg.HostName,
 		TagVersion:         Version,
