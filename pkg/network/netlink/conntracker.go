@@ -18,6 +18,8 @@ import (
 
 const (
 	initializationTimeout = time.Second * 10
+
+	compactInterval = time.Minute
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -40,14 +42,15 @@ type connKey struct {
 }
 
 type realConntracker struct {
-	sync.Mutex
+	sync.RWMutex
 	consumer *Consumer
 	state    map[connKey]*network.IPTranslation
 
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
 
-	stats struct {
+	compactTicker *time.Ticker
+	stats         struct {
 		gets                 int64
 		getTimeTotal         int64
 		registers            int64
@@ -89,6 +92,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 
 	ctr := &realConntracker{
 		consumer:             consumer,
+		compactTicker:        time.NewTicker(compactInterval),
 		state:                make(map[connKey]*network.IPTranslation),
 		maxStateSize:         maxStateSize,
 		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
@@ -104,8 +108,8 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	then := time.Now().UnixNano()
 
-	ctr.Lock()
-	defer ctr.Unlock()
+	ctr.RLock()
+	defer ctr.RUnlock()
 
 	k := connKey{
 		srcIP:     c.Source,
@@ -125,9 +129,9 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 
 func (ctr *realConntracker) GetStats() map[string]int64 {
 	// only a few stats are locked
-	ctr.Lock()
+	ctr.RLock()
 	size := len(ctr.state)
-	ctr.Unlock()
+	ctr.RUnlock()
 
 	m := map[string]int64{
 		"state_size": int64(size),
@@ -186,6 +190,7 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
+	ctr.compactTicker.Stop()
 	ctr.exceededSizeLogLimit.Close()
 }
 
@@ -259,6 +264,24 @@ func (ctr *realConntracker) run() {
 			}
 		}
 	}()
+
+	go func() {
+		for range ctr.compactTicker.C {
+			ctr.compact()
+		}
+	}()
+}
+
+func (ctr *realConntracker) compact() {
+	ctr.Lock()
+	defer ctr.Unlock()
+
+	// https://github.com/golang/go/issues/20135
+	copied := make(map[connKey]*network.IPTranslation, len(ctr.state))
+	for k, v := range ctr.state {
+		copied[k] = v
+	}
+	ctr.state = copied
 }
 
 func isNAT(c Con) bool {
@@ -303,11 +326,10 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 
 	proto := *tuple.Proto.Number
 	switch proto {
-	case 6:
+	case unix.IPPROTO_TCP:
 		k.transport = network.TCP
-	case 17:
+	case unix.IPPROTO_UDP:
 		k.transport = network.UDP
-
 	default:
 		ok = false
 	}
