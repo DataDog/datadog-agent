@@ -36,7 +36,10 @@ class Gitlab(object):
         """
         Gets the project info.
         """
-        from urllib.parse import quote
+        try:
+            from urllib import quote  # Python 2.X
+        except ImportError:
+            from urllib.parse import quote  # Python 3+
 
         path = "/projects/{}".format(quote(project_name, safe=""))
         return self.make_request(path, json=True)
@@ -46,7 +49,10 @@ class Gitlab(object):
         Create a pipeline targeting a given reference of a project.
         ref must be a branch or a tag.
         """
-        from urllib.parse import quote
+        try:
+            from urllib import quote  # Python 2.X
+        except ImportError:
+            from urllib.parse import quote  # Python 3+
 
         if variables is None:
             variables = {}
@@ -60,7 +66,10 @@ class Gitlab(object):
         """
         Gets all pipelines for a given reference
         """
-        from urllib.parse import quote
+        try:
+            from urllib import quote  # Python 2.X
+        except ImportError:
+            from urllib.parse import quote  # Python 3+
 
         path = "/projects/{}/pipelines?ref={}&per_page={}".format(
             quote(project_name, safe=""), quote(ref, safe=""), per_page,
@@ -83,7 +92,10 @@ class Gitlab(object):
         """
         Gets info for a given pipeline.
         """
-        from urllib.parse import quote
+        try:
+            from urllib import quote  # Python 2.X
+        except ImportError:
+            from urllib.parse import quote  # Python 3+
 
         path = "/projects/{}/pipelines/{}".format(quote(project_name, safe=""), pipeline_id)
         return self.make_request(path, json=True)
@@ -92,7 +104,10 @@ class Gitlab(object):
         """
         Gets info for a given commit sha.
         """
-        from urllib.parse import quote
+        try:
+            from urllib import quote  # Python 2.X
+        except ImportError:
+            from urllib.parse import quote  # Python 3+
 
         path = "/projects/{}/repository/commits/{}".format(quote(project_name, safe=""), commit_sha)
         return self.make_request(path, json=True)
@@ -102,7 +117,10 @@ class Gitlab(object):
         Gets one page of the jobs for a pipeline.
         per_page cannot exceed 100.
         """
-        from urllib.parse import quote
+        try:
+            from urllib import quote  # Python 2.X
+        except ImportError:
+            from urllib.parse import quote  # Python 3+
 
         path = "/projects/{}/pipelines/{}/jobs?per_page={}&page={}".format(
             quote(project_name, safe=""), pipeline_id, per_page, page
@@ -113,7 +131,10 @@ class Gitlab(object):
         """
         Look up a tag by its name.
         """
-        from urllib.parse import quote
+        try:
+            from urllib import quote  # Python 2.X
+        except ImportError:
+            from urllib.parse import quote  # Python 3+
 
         path = "/projects/{}/repository/tags/{}".format(quote(project_name, safe=""), tag_name)
         return self.make_request(path, json=True)
