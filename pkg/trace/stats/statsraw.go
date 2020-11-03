@@ -191,7 +191,7 @@ func AssembleGrain(b *strings.Builder, env, resource, service string, m map[stri
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []string, sublayers []SublayerValue) {
+func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []string, sublayers []SublayerValue, skipStats bool) {
 	if env == "" {
 		panic("env should never be empty")
 	}
@@ -207,7 +207,9 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 	}
 
 	grain, tags := AssembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
-	sb.add(s, grain, tags)
+	if !skipStats {
+		sb.add(s, grain, tags)
+	}
 
 	for _, sub := range sublayers {
 		sb.addSublayer(s, grain, tags, sub)

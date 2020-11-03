@@ -232,13 +232,12 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 				stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
 			}
 		}
-		if !p.ClientComputedStats {
-			sinputs = append(sinputs, &stats.Input{
-				Trace:     pt.WeightedTrace,
-				Sublayers: pt.Sublayers,
-				Env:       pt.Env,
-			})
-		}
+		sinputs = append(sinputs, &stats.Input{
+			Trace:         pt.WeightedTrace,
+			Sublayers:     pt.Sublayers,
+			Env:           pt.Env,
+			SublayersOnly: p.ClientComputedStats,
+		})
 
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))

@@ -120,7 +120,7 @@ func TestBucketDefault(t *testing.T) {
 	aggr := []string{}
 	for _, s := range testWeightedSpans() {
 		t.Logf("weight: %f, topLevel: %v", s.Weight, s.TopLevel)
-		srb.HandleSpan(s, defaultEnv, aggr, nil)
+		srb.HandleSpan(s, defaultEnv, aggr, nil, false)
 	}
 	sb := srb.Export()
 
@@ -227,7 +227,7 @@ func TestBucketExtraAggregators(t *testing.T) {
 	// one custom aggregator
 	aggr := []string{"version"}
 	for _, s := range testWeightedSpans() {
-		srb.HandleSpan(s, defaultEnv, aggr, nil)
+		srb.HandleSpan(s, defaultEnv, aggr, nil, false)
 	}
 	sb := srb.Export()
 
@@ -291,7 +291,7 @@ func TestBucketMany(t *testing.T) {
 		s := templateSpan
 		s.Resource = "α" + strconv.Itoa(i)
 		srbCopy := *srb
-		srbCopy.HandleSpan(s, defaultEnv, aggr, nil)
+		srbCopy.HandleSpan(s, defaultEnv, aggr, nil, false)
 	}
 	sb := srb.Export()
 
@@ -326,7 +326,7 @@ func TestBucketSublayers(t *testing.T) {
 	// No custom aggregators only the defaults
 	aggr := []string{}
 	for _, s := range wt {
-		srb.HandleSpan(s, defaultEnv, aggr, sublayers)
+		srb.HandleSpan(s, defaultEnv, aggr, sublayers, false)
 	}
 	sb := srb.Export()
 
@@ -424,7 +424,7 @@ func TestBucketSublayersTopLevel(t *testing.T) {
 	// No custom aggregators only the defaults
 	aggr := []string{}
 	for _, s := range wt {
-		srb.HandleSpan(s, defaultEnv, aggr, sublayers)
+		srb.HandleSpan(s, defaultEnv, aggr, sublayers, false)
 	}
 	sb := srb.Export()
 
@@ -533,7 +533,7 @@ func BenchmarkHandleSpan(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, s := range testWeightedSpans() {
-			srb.HandleSpan(s, defaultEnv, aggr, nil)
+			srb.HandleSpan(s, defaultEnv, aggr, nil, false)
 		}
 	}
 }
@@ -553,7 +553,7 @@ func BenchmarkHandleSpanSublayers(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, s := range wt {
-			srb.HandleSpan(s, defaultEnv, aggr, sublayers)
+			srb.HandleSpan(s, defaultEnv, aggr, sublayers, false)
 		}
 	}
 }
