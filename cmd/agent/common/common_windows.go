@@ -308,8 +308,21 @@ func ImportRegistryConfig() error {
 
 	// we've read in the config from the registry; remove the registry keys so it's
 	// not repeated on next startup
-	valuenames := []string{"api_key", "tags", "hostname",
-		"proxy_host", "proxy_port", "proxy_user", "proxy_password", "cmd_port"}
+	valuenames := []string{"api_key", 
+		"tags", 
+		"site",
+		"dd_url",
+		"logs_dd_url",
+		"process_dd_url",
+		"trace_dd_url",
+		"py_version",
+		"hostname_fqdn",
+		"hostname",
+		"proxy_host", 
+		"proxy_port", 
+		"proxy_user", 
+		"proxy_password", 
+		"cmd_port"}
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)
 	}
@@ -318,6 +331,7 @@ func ImportRegistryConfig() error {
 	}
 	if !commandLineSettingFound {
 		log.Debugf("No installation command line entries to update")
+		return nil
 	}
 	if validConfigFound {
 		// do this check after walking through all the registry keys.  Even though
@@ -325,11 +339,14 @@ func ImportRegistryConfig() error {
 		// as to why (and how important it is)
 		if commandLineSettingFound {
 			log.Warnf("Install command line settings ignored, valid configuration already in place")
+			return fmt.Errorf("Install command line settings ignored, valid configuration already in place")
 		} else {
 			log.Debugf("Valid configuration file found,  not overwriting config")
 		}
 		// already had a valid config; don't assign the overrides
 		return nil
+	} else {
+		log.Debugf("Applying settings")
 	}
 	// apply overrides to the config
 	config.AddOverrides(overrides)
