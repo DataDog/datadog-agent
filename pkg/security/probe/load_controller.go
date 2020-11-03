@@ -124,7 +124,10 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 // cleanup resets the internal counters
 func (lc *LoadController) cleanup() {
-	// reset ordering counts
+	lc.RLock()
+	defer lc.RUnlock()
+
+	// reset counts
 	for _, key := range lc.counters.Keys() {
 		val, ok := lc.counters.Peek(key)
 		if !ok || val == nil {
