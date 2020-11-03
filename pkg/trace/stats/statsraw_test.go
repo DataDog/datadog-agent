@@ -47,7 +47,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		traceutil.ComputeTopLevel(benchTrace)
 		wt := NewWeightedTrace(benchTrace, root)
 		for _, span := range wt {
-			sb.HandleSpan(span, "dev", aggr, nil)
+			sb.HandleSpan(span, "dev", aggr, nil, false)
 		}
 	}
 }

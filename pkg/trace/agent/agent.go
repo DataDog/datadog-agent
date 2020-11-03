@@ -235,11 +235,11 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			}
 		}
 		sinputs = append(sinputs, stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
+			Trace:         pt.WeightedTrace,
+			Sublayers:     pt.Sublayers,
+			Env:           pt.Env,
+			SublayersOnly: p.ClientComputedStats,
 		})
-
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
 			ss.Size += t.Msgsize()
