@@ -152,7 +152,7 @@ func (sb *RawBucket) Export() Bucket {
 	return ret
 }
 
-func assembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]string) (string, TagSet) {
+func AssembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]string) (string, TagSet) {
 	b.Reset()
 
 	b.WriteString("env:")
@@ -204,7 +204,7 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 		}
 	}
 
-	grain, tags := assembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
+	grain, tags := AssembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
 	sb.add(s, grain, tags)
 
 	for _, sub := range sublayers {

@@ -23,9 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 
 	"github.com/cihub/seelog"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
@@ -46,7 +48,8 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan)
+	rawStatsChan := make(chan *stats.Payload, 100)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawStatsChan)
 
 	return receiver
 }
@@ -507,6 +510,56 @@ func TestDecodeV05(t *testing.T) {
 	})
 }
 
+func TestHandleStats(t *testing.T) {
+	bucket := func(start, duration int64) *pb.ClientStatsBucket {
+		return &pb.ClientStatsBucket{
+			Start:    start,
+			Duration: duration,
+			Stats: []*pb.ClientGroupedStats{
+				{
+					Name:      "name",
+					Env:       "env",
+					Service:   "service",
+					Resource:  "/asd/r",
+					Version:   "1.2",
+					OtherTags: []string{"a:b", "c:d"},
+					Hits:      1.2,
+					Errors:    440,
+					Duration:  123,
+					TopLevel:  999,
+				},
+			},
+		}
+	}
+	p := pb.ClientStatsPayload{
+		Hostname: "h",
+		Env:      "e",
+		Stats: []*pb.ClientStatsBucket{
+			bucket(1, 10),
+			bucket(500, 100342),
+		},
+	}
+	b, err := proto.Marshal(&p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := newTestReceiverConfig()
+	rcv := newTestReceiverFromConfig(cfg)
+	rcv.Start()
+	defer rcv.Stop()
+
+	req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/proto")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatal(resp.StatusCode)
+	}
+}
+
 func TestHandleTraces(t *testing.T) {
 	assert := assert.New(t)
 
@@ -741,7 +794,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()
