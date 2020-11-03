@@ -282,8 +282,11 @@ static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
         return first_id;
     }
 
+    // return the current id so that the current event will use it. Increase the id for the next event only.
     u32 id = *prev_id;
 
+    // need to invalidate the current path id for event which may change the association inode/name like
+    // unlink, rename, rmdir.
     if (invalidate) {
         __sync_fetch_and_add(prev_id, 1);
     }
