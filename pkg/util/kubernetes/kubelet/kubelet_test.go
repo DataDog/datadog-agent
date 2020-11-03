@@ -813,7 +813,8 @@ func TestGetStatusForContainerID(t *testing.T) {
 			},
 		},
 		Status: Status{
-			Containers: []ContainerStatus{containerFoo, containerBar},
+			Containers:    []ContainerStatus{containerFoo, containerBar},
+			AllContainers: []ContainerStatus{containerFoo, containerBar},
 		},
 	}
 
