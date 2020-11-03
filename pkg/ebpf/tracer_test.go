@@ -1667,8 +1667,10 @@ func TestConntrackExpiration(t *testing.T) {
 
 	assert.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should not have been deleted")
 
-	// close the connection
-	c.Close()
+	// delete the connection from system conntrack
+	cmd := exec.Command("conntrack", "-D", "-s", c.LocalAddr().(*net.TCPAddr).IP.String(), "-d", c.RemoteAddr().(*net.TCPAddr).IP.String(), "-p", "tcp")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "conntrack delete failed, output: %s", out)
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")

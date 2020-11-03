@@ -886,6 +886,30 @@ func connExistsFn(procRoot string) (func(*ConnTuple) bool, func()) {
 			return false
 		}
 
+		if ok {
+			return ok
+		}
+
+		conn = netlink.Con{
+			Con: ct.Con{
+				Origin: &ct.IPTuple{
+					Src: &dstAddr,
+					Dst: &srcAddr,
+					Proto: &ct.ProtoTuple{
+						Number:  &protoNumber,
+						SrcPort: &dstPort,
+						DstPort: &srcPort,
+					},
+				},
+			},
+		}
+
+		ok, err = ctrk.Exists(&conn)
+		if err != nil {
+			log.Errorf("error while checking conntrack for connection %#v: %s", conn, err)
+			return false
+		}
+
 		return ok
 	}
 
