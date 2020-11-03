@@ -6,7 +6,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -380,7 +379,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		HostName: in.Hostname,
 		Env:      in.Env,
 	}
-	var buf bytes.Buffer
+	var buf strings.Builder
 	for _, group := range in.Stats {
 		for _, b := range group.Stats {
 			newb := stats.Bucket{

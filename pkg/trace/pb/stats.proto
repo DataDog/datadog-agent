@@ -1,19 +1,21 @@
 syntax = "proto3";
 
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
 package pb;
 
 // ClientStatsPayload bla bla
 message ClientStatsPayload {
 	string hostname = 1;
 	string env = 2;
-	repeated ClientStatsBucket stats = 3;
+	repeated ClientStatsBucket stats = 3 [(gogoproto.nullable) = false];
 }
 
 // TODO(gbbr): doc
 message ClientStatsBucket {
 	int64 start = 1;
 	int64 duration = 2;
-	repeated ClientGroupedStats stats = 3;
+	repeated ClientGroupedStats stats = 3 [(gogoproto.nullable) = false];
 }
 
 // TODO(gbbr): doc
