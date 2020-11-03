@@ -10,6 +10,7 @@ package listeners
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -296,10 +297,46 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	}
 
 	l.m.Lock()
+	defer l.m.Unlock()
+	old, found := l.services[entity]
+	if found && kubeletSvcEqual(old, &svc) {
+		log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
+		return
+	}
 	l.services[entity] = &svc
-	l.m.Unlock()
 
 	l.newService <- &svc
+}
+
+// kubeletSvcEqual returns false if one of the following fields aren't equal
+// - hosts
+// - ports
+// - ad identifiers
+// - check names
+func kubeletSvcEqual(first, second Service) bool {
+	hosts1, _ := first.GetHosts()
+	hosts2, _ := second.GetHosts()
+	if !reflect.DeepEqual(hosts1, hosts2) {
+		return false
+	}
+
+	ports1, _ := first.GetPorts()
+	ports2, _ := second.GetPorts()
+	if !reflect.DeepEqual(ports1, ports2) {
+		return false
+	}
+
+	ad1, _ := first.GetADIdentifiers()
+	ad2, _ := second.GetADIdentifiers()
+	if !reflect.DeepEqual(ad1, ad2) {
+		return false
+	}
+
+	if !reflect.DeepEqual(first.GetCheckNames(), second.GetCheckNames()) {
+		return false
+	}
+
+	return true
 }
 
 // podHasADTemplate looks in pod annotations and looks for annotations containing an
