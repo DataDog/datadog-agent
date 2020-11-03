@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 
-	ct "github.com/florianl/go-conntrack"
 	"github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -23,7 +22,6 @@ type Conntrack interface {
 	// Get gets the conntrack record for a connection. Similar to
 	// Exists, but returns the full connection information.
 	Get(conn *Con) (Con, error)
-	Delete(conn *Con) error
 	// Close closes the conntrack object
 	Close() error
 }
@@ -32,15 +30,15 @@ type Conntrack interface {
 // `netNS` is the network namespace for the conntrack operations.
 // A value of `0` will use the current thread's network namespace
 func NewConntrack(netNS int) (Conntrack, error) {
-	nfct, err := ct.Open(&ct.Config{NetNS: netNS})
+	conn, err := netlink.Dial(unix.NETLINK_NETFILTER, &netlink.Config{NetNS: netNS})
 	if err != nil {
 		return nil, err
 	}
-	return &conntrack{nfct: nfct}, nil
+	return &conntrack{conn: conn}, nil
 }
 
 type conntrack struct {
-	nfct *ct.Nfct
+	conn *netlink.Conn
 }
 
 func (c *conntrack) Exists(conn *Con) (bool, error) {
@@ -59,7 +57,7 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 
 	msg.Data = append(msg.Data, data...)
 
-	replies, err := c.nfct.Con.Execute(msg)
+	replies, err := c.conn.Execute(msg)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -83,10 +81,6 @@ func (c *conntrack) Get(_ *Con) (Con, error) {
 	return Con{}, fmt.Errorf("not implemented")
 }
 
-func (c *conntrack) Delete(conn *Con) error {
-	return c.nfct.Delete(ct.Conntrack, ct.IPv4, conn.Con)
-}
-
 func (c *conntrack) Close() error {
-	return c.nfct.Close()
+	return c.Close()
 }
