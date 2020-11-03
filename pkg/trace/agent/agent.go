@@ -66,11 +66,12 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
 	out := make(chan *writer.SampledSpans, 1000)
-	statsChan := make(chan []stats.Bucket)
+	statsPayloadChan := make(chan *stats.Payload, 10)
+	statsBucketsChan := make(chan []stats.Bucket, 100)
 
 	return &Agent{
-		Receiver:           api.NewHTTPReceiver(conf, dynConf, in),
-		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
+		Receiver:           api.NewHTTPReceiver(conf, dynConf, in, statsPayloadChan),
+		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsBucketsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
@@ -79,7 +80,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
 		TraceWriter:        writer.NewTraceWriter(conf, out),
-		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
+		StatsWriter:        writer.NewStatsWriter(conf, statsBucketsChan, statsPayloadChan),
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
 		Out:                out,

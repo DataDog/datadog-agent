@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package pb;
+
+// ClientStatsPayload bla bla
+message ClientStatsPayload {
+	string hostname = 1;
+	string env = 2;
+	repeated ClientStatsBucket stats = 3;
+}
+
+// TODO(gbbr): doc
+message ClientStatsBucket {
+	int64 start = 1;
+	int64 duration = 2;
+	repeated ClientGroupedStats stats = 3;
+}
+
+// TODO(gbbr): doc
+message ClientGroupedStats {
+	string name = 1;
+	string env = 2;
+	string service = 3;
+	string resource = 4;
+	string version = 5;
+	repeated string other_tags = 6;
+	double hits = 7;
+	double errors = 8;
+	double duration = 9;
+	double top_level = 10;
+}
