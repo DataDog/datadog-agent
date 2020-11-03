@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -27,8 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tinylib/msgp/msgp"
-
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -39,8 +38,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
@@ -49,10 +52,11 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out     chan *Payload
-	conf    *config.AgentConfig
-	dynConf *sampler.DynamicConfig
-	server  *http.Server
+	out      chan *Payload
+	outStats chan *stats.Payload
+	conf     *config.AgentConfig
+	dynConf  *sampler.DynamicConfig
+	server   *http.Server
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -62,7 +66,7 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, outStats chan *stats.Payload) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if config.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -71,6 +75,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 		out:         out,
+		outStats:    outStats,
 
 		conf:    conf,
 		dynConf: dynConf,
@@ -99,6 +104,7 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
 	mux.HandleFunc("/v0.5/traces", r.handleWithVersion(v05, r.handleTraces))
+	mux.HandleFunc("/v0.5/stats", r.handleStats)
 	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	timeout := 5 * time.Second
@@ -351,6 +357,80 @@ func (r *HTTPReceiver) rateLimited(n int64) bool {
 		return false
 	}
 	return !r.RateLimiter.Permits(n)
+}
+
+// handleStats handles incoming stats payloads.
+func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
+	req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
+	var in pb.ClientStatsPayload
+	slurp, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
+		return
+	}
+	if err := proto.Unmarshal(slurp, &in); err != nil {
+		httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
+		return
+	}
+	out := stats.Payload{
+		HostName: in.Hostname,
+		Env:      in.Env,
+	}
+	var buf bytes.Buffer
+	for _, group := range in.Stats {
+		for _, b := range group.Stats {
+			newb := stats.Bucket{
+				Start:    group.Start,
+				Duration: group.Duration,
+				Counts:   make(map[string]stats.Count),
+			}
+			tags := map[string]string{
+				"version": b.Version,
+			}
+			for _, t := range b.OtherTags {
+				parts := strings.SplitN(t, ":", 2)
+				if len(parts) > 0 {
+					tags[parts[0]] = ""
+				}
+				if len(parts) > 1 {
+					tags[parts[0]] = parts[1]
+				}
+			}
+
+			grain, tagset := stats.AssembleGrain(&buf, b.Env, b.Resource, b.Service, tags)
+			key := stats.GrainKey(b.Name, stats.HITS, grain)
+			newb.Counts[key] = stats.Count{
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.HITS,
+				TagSet:   tagset,
+				TopLevel: b.TopLevel,
+				Value:    b.Hits,
+			}
+			key = stats.GrainKey(b.Name, stats.ERRORS, grain)
+			newb.Counts[key] = stats.Count{
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.ERRORS,
+				TagSet:   tagset,
+				TopLevel: b.TopLevel,
+				Value:    b.Errors,
+			}
+			key = stats.GrainKey(b.Name, stats.DURATION, grain)
+			newb.Counts[key] = stats.Count{
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.DURATION,
+				TagSet:   tagset,
+				TopLevel: b.TopLevel,
+				Value:    b.Duration,
+			}
+			out.Stats = append(out.Stats, newb)
+		}
+	}
+
+	//fmt.Printf("%# v\n\n%# v", pretty.Formatter(in), pretty.Formatter(out))
+	r.outStats <- &out
 }
 
 // handleTraces knows how to handle a bunch of traces

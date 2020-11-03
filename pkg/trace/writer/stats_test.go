@@ -194,7 +194,7 @@ func testStatsWriter() (*StatsWriter, chan []stats.Bucket, *testServer) {
 		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 	}
-	return NewStatsWriter(cfg, in), in, srv
+	return NewStatsWriter(cfg, in, nil), in, srv
 }
 
 func removeDuplicateEntries(stats []stats.Bucket) int {
