@@ -6,8 +6,8 @@
 package stats
 
 import (
-	"bytes"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
@@ -75,7 +75,7 @@ type RawBucket struct {
 	sublayerData map[statsSubKey]sublayerStats
 
 	// internal buffer for aggregate strings - not threadsafe
-	keyBuf bytes.Buffer
+	keyBuf strings.Builder
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
@@ -153,8 +153,16 @@ func (sb *RawBucket) Export() Bucket {
 	return ret
 }
 
-func assembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]string) (string, TagSet) {
+// AssembleGrain returns the aggregation key and TagSet based on the given env, resource,
+// service and any additional tags specified by m. It uses b as the buffer to write to.
+func AssembleGrain(b *strings.Builder, env, resource, service string, m map[string]string) (string, TagSet) {
 	b.Reset()
+	size := len("env:") + len(env) + len(",resource:") + len(resource) + len(",service:") + len(service)
+	for k, v := range m {
+		// Adds 2 additional chars for each tag to account for the "," and ":" separators in the resulting string
+		size += len(k) + len(v) + 2
+	}
+	b.Grow(size)
 
 	b.WriteString("env:")
 	b.WriteString(env)
@@ -190,7 +198,7 @@ func assembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []string, sublayers []SublayerValue) {
+func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []string, sublayers []SublayerValue, skipStats bool) {
 	if env == "" {
 		panic("env should never be empty")
 	}
@@ -205,8 +213,10 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 		}
 	}
 
-	grain, tags := assembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
-	sb.add(s, grain, tags)
+	grain, tags := AssembleGrain(&sb.keyBuf, env, s.Resource, s.Service, m)
+	if !skipStats {
+		sb.add(s, grain, tags)
+	}
 
 	for _, sub := range sublayers {
 		sb.addSublayer(s, grain, tags, sub)

@@ -16,66 +16,109 @@ import (
 
 func TestReplacer(t *testing.T) {
 	assert := assert.New(t)
-	for _, tt := range []struct {
-		rules     [][3]string
-		got, want map[string]string
-	}{
-		{
-			rules: [][3]string{
-				{"http.url", "(token/)([^/]*)", "${1}?"},
-				{"http.url", "guid", "[REDACTED]"},
-				{"custom.tag", "(/foo/bar/).*", "${1}extra"},
-				{"a", "b", "c"},
+
+	t.Run("traces", func(t *testing.T) {
+		for _, tt := range []struct {
+			rules     [][3]string
+			got, want map[string]string
+		}{
+			{
+				rules: [][3]string{
+					{"http.url", "(token/)([^/]*)", "${1}?"},
+					{"http.url", "guid", "[REDACTED]"},
+					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
+					{"a", "b", "c"},
+				},
+				got: map[string]string{
+					"http.url":   "some/guid/token/abcdef/abc",
+					"custom.tag": "/foo/bar/foo",
+				},
+				want: map[string]string{
+					"http.url":   "some/[REDACTED]/token/?/abc",
+					"custom.tag": "/foo/bar/extra",
+				},
 			},
-			got: map[string]string{
-				"http.url":   "some/guid/token/abcdef/abc",
-				"custom.tag": "/foo/bar/foo",
+			{
+				rules: [][3]string{
+					{"*", "(token/)([^/]*)", "${1}?"},
+					{"*", "this", "that"},
+					{"http.url", "guid", "[REDACTED]"},
+					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
+					{"resource.name", "prod", "stage"},
+				},
+				got: map[string]string{
+					"resource.name": "this is prod",
+					"http.url":      "some/[REDACTED]/token/abcdef/abc",
+					"other.url":     "some/guid/token/abcdef/abc",
+					"custom.tag":    "/foo/bar/foo",
+				},
+				want: map[string]string{
+					"resource.name": "that is stage",
+					"http.url":      "some/[REDACTED]/token/?/abc",
+					"other.url":     "some/guid/token/?/abc",
+					"custom.tag":    "/foo/bar/extra",
+				},
 			},
-			want: map[string]string{
-				"http.url":   "some/[REDACTED]/token/?/abc",
-				"custom.tag": "/foo/bar/extra",
-			},
-		},
-		{
-			rules: [][3]string{
-				{"*", "(token/)([^/]*)", "${1}?"},
-				{"*", "this", "that"},
-				{"http.url", "guid", "[REDACTED]"},
-				{"custom.tag", "(/foo/bar/).*", "${1}extra"},
-				{"resource.name", "prod", "stage"},
-			},
-			got: map[string]string{
-				"resource.name": "this is prod",
-				"http.url":      "some/[REDACTED]/token/abcdef/abc",
-				"other.url":     "some/guid/token/abcdef/abc",
-				"custom.tag":    "/foo/bar/foo",
-			},
-			want: map[string]string{
-				"resource.name": "that is stage",
-				"http.url":      "some/[REDACTED]/token/?/abc",
-				"other.url":     "some/guid/token/?/abc",
-				"custom.tag":    "/foo/bar/extra",
-			},
-		},
-	} {
-		rules := parseRulesFromString(tt.rules)
-		tr := NewReplacer(rules)
-		root := replaceFilterTestSpan(tt.got)
-		childSpan := replaceFilterTestSpan(tt.got)
-		trace := pb.Trace{root, childSpan}
-		tr.Replace(trace)
-		for k, v := range tt.want {
-			switch k {
-			case "resource.name":
-				// test that the filter applies to all spans, not only the root
-				assert.Equal(v, root.Resource)
-				assert.Equal(v, childSpan.Resource)
-			default:
-				assert.Equal(v, root.Meta[k])
-				assert.Equal(v, childSpan.Meta[k])
+		} {
+			rules := parseRulesFromString(tt.rules)
+			tr := NewReplacer(rules)
+			root := replaceFilterTestSpan(tt.got)
+			childSpan := replaceFilterTestSpan(tt.got)
+			trace := pb.Trace{root, childSpan}
+			tr.Replace(trace)
+			for k, v := range tt.want {
+				switch k {
+				case "resource.name":
+					// test that the filter applies to all spans, not only the root
+					assert.Equal(v, root.Resource)
+					assert.Equal(v, childSpan.Resource)
+				default:
+					assert.Equal(v, root.Meta[k])
+					assert.Equal(v, childSpan.Meta[k])
+				}
 			}
 		}
-	}
+	})
+
+	t.Run("stats", func(t *testing.T) {
+		for _, tt := range []struct {
+			rules     [][3]string
+			got, want pb.ClientGroupedStats
+		}{
+			{
+				rules: [][3]string{
+					{"http.status_code", "400", "200"},
+					{"resource.name", "prod", "stage"},
+					{"*", "123abc", "[REDACTED]"},
+				},
+				got: pb.ClientGroupedStats{
+					Resource:       "this is 123abc on prod",
+					HTTPStatusCode: 400,
+				},
+				want: pb.ClientGroupedStats{
+					Resource:       "this is [REDACTED] on stage",
+					HTTPStatusCode: 200,
+				},
+			},
+			{
+				rules: [][3]string{
+					{"*", "200", "202"},
+				},
+				got: pb.ClientGroupedStats{
+					Resource:       "/code/200/profile",
+					HTTPStatusCode: 200,
+				},
+				want: pb.ClientGroupedStats{
+					Resource:       "/code/202/profile",
+					HTTPStatusCode: 202,
+				},
+			},
+		} {
+			tr := NewReplacer(parseRulesFromString(tt.rules))
+			tr.ReplaceStatsGroup(&tt.got)
+			assert.Equal(tt.got, tt.want)
+		}
+	})
 }
 
 func parseRulesFromString(rules [][3]string) []*config.ReplaceRule {

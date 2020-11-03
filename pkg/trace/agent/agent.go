@@ -8,6 +8,8 @@ package agent
 import (
 	"context"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -50,8 +52,9 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator *obfuscate.Obfuscator
 
-	In  chan *api.Payload
-	Out chan *writer.SampledSpans
+	In       chan *api.Payload
+	Out      chan *writer.SampledSpans
+	OutStats chan *stats.Payload
 
 	// config
 	conf *config.AgentConfig
@@ -66,11 +69,11 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
 	out := make(chan *writer.SampledSpans, 1000)
-	statsChan := make(chan []stats.Bucket)
+	statsPayloadChan := make(chan *stats.Payload, 10)
+	statsBucketsChan := make(chan []stats.Bucket, 100)
 
-	return &Agent{
-		Receiver:           api.NewHTTPReceiver(conf, dynConf, in),
-		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
+	agnt := &Agent{
+		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsBucketsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
@@ -79,13 +82,16 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
 		TraceWriter:        writer.NewTraceWriter(conf, out),
-		StatsWriter:        writer.NewStatsWriter(conf, statsChan),
+		StatsWriter:        writer.NewStatsWriter(conf, statsBucketsChan, statsPayloadChan),
 		obfuscator:         obfuscate.NewObfuscator(conf.Obfuscation),
 		In:                 in,
 		Out:                out,
+		OutStats:           statsPayloadChan,
 		conf:               conf,
 		ctx:                ctx,
 	}
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
+	return agnt
 }
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received
@@ -234,11 +240,11 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 			}
 		}
 		sinputs = append(sinputs, stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
+			Trace:         pt.WeightedTrace,
+			Sublayers:     pt.Sublayers,
+			Env:           pt.Env,
+			SublayersOnly: p.ClientComputedStats,
 		})
-
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
 			ss.Size += t.Msgsize()
@@ -259,6 +265,69 @@ func (a *Agent) Process(p *api.Payload, sublayerCalculator *stats.SublayerCalcul
 	if len(sinputs) > 0 {
 		a.Concentrator.In <- sinputs
 	}
+}
+
+var _ api.StatsProcessor = (*Agent)(nil)
+
+// ProcessStats processes incoming client stats in from the given language lang.
+func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
+	if in.Env == "" {
+		in.Env = a.conf.DefaultEnv
+	}
+	in.Env = traceutil.NormalizeTag(in.Env)
+	out := stats.Payload{
+		HostName: in.Hostname,
+		Env:      in.Env,
+	}
+	var buf strings.Builder
+	for _, group := range in.Stats {
+		for _, b := range group.Stats {
+			normalizeStatsGroup(&b, lang)
+			a.obfuscator.ObfuscateStatsGroup(&b)
+			a.Replacer.ReplaceStatsGroup(&b)
+
+			tags := map[string]string{"version": in.Version}
+			if b.HTTPStatusCode != 0 {
+				tags["http.status_code"] = strconv.Itoa(int(b.HTTPStatusCode))
+			}
+			newb := stats.Bucket{
+				Start:    int64(group.Start),
+				Duration: int64(group.Duration),
+				Counts:   make(map[string]stats.Count),
+			}
+			grain, tagset := stats.AssembleGrain(&buf, out.Env, b.Resource, b.Service, tags)
+			key := stats.GrainKey(b.Name, stats.HITS, grain)
+			newb.Counts[key] = stats.Count{
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.HITS,
+				TagSet:   tagset,
+				TopLevel: float64(b.Hits),
+				Value:    float64(b.Hits),
+			}
+			key = stats.GrainKey(b.Name, stats.ERRORS, grain)
+			newb.Counts[key] = stats.Count{
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.ERRORS,
+				TagSet:   tagset,
+				TopLevel: float64(b.Hits),
+				Value:    float64(b.Errors),
+			}
+			key = stats.GrainKey(b.Name, stats.DURATION, grain)
+			newb.Counts[key] = stats.Count{
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.DURATION,
+				TagSet:   tagset,
+				TopLevel: float64(b.Hits),
+				Value:    float64(b.Duration),
+			}
+			out.Stats = append(out.Stats, newb)
+		}
+	}
+
+	a.OutStats <- &out
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
