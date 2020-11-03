@@ -52,12 +52,17 @@ type KubeUtil struct {
 }
 
 func (ku *KubeUtil) init() error {
-	kubeletClient, err := getKubeletClient()
+	var err error
+	ku.filter, err = containers.GetSharedMetricFilter()
 	if err != nil {
 		return err
 	}
 
-	ku.kubeletClient = kubeletClient
+	ku.kubeletClient, err = getKubeletClient()
+	if err != nil {
+		return err
+	}
+
 	ku.rawConnectionInfo["url"] = ku.kubeletClient.kubeletURL
 	if ku.kubeletClient.config.scheme == "https" {
 		ku.rawConnectionInfo["verify_tls"] = fmt.Sprintf("%v", ku.kubeletClient.config.tlsVerify)
