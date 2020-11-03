@@ -16,6 +16,7 @@ import (
 	"text/template"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 )
@@ -48,8 +49,13 @@ func TestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = module.NewModule(nil)
+	agentConfig := pconfig.NewDefaultAgentConfig(false)
+	config, err := config.NewConfig(agentConfig)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = module.NewModule(config); err != nil {
 		t.Fatal(err)
 	}
 }

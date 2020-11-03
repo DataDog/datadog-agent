@@ -10,21 +10,23 @@ package module
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
-	aconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -34,6 +36,7 @@ import (
 
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
+	sync.RWMutex
 	probe        *sprobe.Probe
 	config       *config.Config
 	ruleSet      *rules.RuleSet
@@ -65,38 +68,17 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 		}
 	}()
 
-	m.probe.SetEventHandler(m)
-	m.ruleSet.AddListener(m)
-
 	go m.statsMonitor(context.Background())
-
-	// initialize the default values of the probe
-	if err := m.probe.Init(); err != nil {
-		return err
-	}
-
-	rsa := sprobe.NewRuleSetApplier(m.config)
-
-	// based on the ruleset and the requested rules, select the probes that need to be activated
-	if err := rsa.SelectProbes(m.ruleSet, m.probe); err != nil {
-		return err
-	}
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
-	if err := m.probe.InitManager(m.ruleSet); err != nil {
-		return err
-	}
-
-	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(m.ruleSet, m.probe)
-	if err != nil {
-		return err
+	if err := m.probe.Init(); err != nil {
+		return errors.Wrap(err, "failed to init probe")
 	}
 
 	// start the manager and its probes / perf maps
 	if err := m.probe.Start(); err != nil {
-		return err
+		return errors.Wrap(err, "failed to start probe")
 	}
 
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
@@ -105,8 +87,59 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 		return err
 	}
 
+	if err := m.Reload(); err != nil {
+		return err
+	}
+
+	m.probe.SetEventHandler(m)
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGHUP)
+
+	go func() {
+		for range c {
+			log.Info("Reload configuration")
+
+			if err := m.Reload(); err != nil {
+				log.Errorf("failed to reload configuration: %s", err)
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (m *Module) displayReport(report *probe.Report) {
 	content, _ := json.MarshalIndent(report, "", "\t")
 	log.Debug(string(content))
+}
+
+// Reload the rule set
+func (m *Module) Reload() error {
+	m.Lock()
+	defer m.Unlock()
+
+	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
+
+	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
+	if err := policy.LoadPolicies(m.config, ruleSet); err != nil {
+		return err
+	}
+
+	// analyze the ruleset, push default policies in the kernel and generate the policy report
+	report, err := rsa.Apply(ruleSet)
+	if err != nil {
+		return err
+	}
+
+	ruleSet.AddListener(m)
+	ruleIDs := ruleSet.ListRuleIDs()
+
+	m.eventServer.Apply(ruleIDs)
+	m.rateLimiter.Apply(ruleIDs)
+	m.ruleSet = ruleSet
+
+	m.displayReport(report)
 
 	return nil
 }
@@ -143,7 +176,9 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
+	m.RLock()
 	m.ruleSet.Evaluate(event)
+	m.RUnlock()
 }
 
 func (m *Module) statsMonitor(ctx context.Context) {
@@ -183,32 +218,31 @@ func (m *Module) GetStats() map[string]interface{} {
 	}
 }
 
+// GetProbe returns the module's probe
+func (m *Module) GetProbe() *sprobe.Probe {
+	return m.probe
+}
+
 // GetRuleSet returns the set of loaded rules
 func (m *Module) GetRuleSet() *rules.RuleSet {
+	m.RLock()
+	defer m.RUnlock()
+
 	return m.ruleSet
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
-	config, err := config.NewConfig(cfg)
-	if err != nil {
-		log.Errorf("invalid security runtime module configuration: %s", err)
-		return nil, err
-	}
-
-	if !config.Enabled {
-		log.Infof("security runtime module disabled")
-		return nil, api.ErrNotEnabled
-	}
-
+func NewModule(cfg *config.Config) (api.Module, error) {
 	var statsdClient *statsd.Client
+	var err error
 	// statsd segfaults on 386 because of atomic primitive usage with wrong alignment
 	// https://github.com/golang/go/issues/37262
 	if runtime.GOARCH != "386" && cfg != nil {
 		statsdAddr := os.Getenv("STATSD_URL")
 		if statsdAddr == "" {
-			statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
+			statsdAddr = cfg.StatsdAddr
 		}
+
 		if statsdClient, err = statsd.New(statsdAddr); err != nil {
 			return nil, err
 		}
@@ -216,24 +250,18 @@ func NewModule(cfg *aconfig.AgentConfig) (api.Module, error) {
 		log.Warn("Logs won't be send to DataDog")
 	}
 
-	probe, err := sprobe.NewProbe(config, statsdClient)
+	probe, err := sprobe.NewProbe(cfg, statsdClient)
 	if err != nil {
 		return nil, err
 	}
 
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
-	if err := policy.LoadPolicies(config, ruleSet); err != nil {
-		return nil, err
-	}
-
 	m := &Module{
-		config:       config,
+		config:       cfg,
 		probe:        probe,
-		ruleSet:      ruleSet,
-		eventServer:  NewEventServer(ruleSet.ListRuleIDs(), config),
+		eventServer:  NewEventServer(cfg),
 		grpcServer:   grpc.NewServer(),
 		statsdClient: statsdClient,
-		rateLimiter:  NewRateLimiter(ruleSet.ListRuleIDs()),
+		rateLimiter:  NewRateLimiter(),
 	}
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.eventServer)

@@ -44,13 +44,13 @@ type Discarder struct {
 	Field eval.Field
 }
 
-type onApproversFnc func(probe *Probe, approvers rules.Approvers) error
-type onDiscarderFnc func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error
+type onApproverHandler func(probe *Probe, approvers rules.Approvers) (activeApprovers, error)
+type onDiscarderHandler func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (activeDiscarders, error)
 
 var (
-	allApproversFncs = make(map[eval.EventType]onApproversFnc)
-	allDiscarderFncs = make(map[eval.EventType]onDiscarderFnc)
-	constantEditors  = make(map[eval.EventType][]manager.ConstantEditor)
+	allApproversHandlers = make(map[eval.EventType]onApproverHandler)
+	allDiscarderHandlers = make(map[eval.EventType]onDiscarderHandler)
+	constantEditors      = make(map[eval.EventType][]manager.ConstantEditor)
 )
 
 // Probe represents the runtime security eBPF probe in charge of
@@ -61,7 +61,10 @@ type Probe struct {
 	config            *config.Config
 	handler           EventHandler
 	resolvers         *Resolvers
-	onDiscardersFncs  map[eval.EventType][]onDiscarderFnc
+	discarderHandlers map[eval.EventType][]onDiscarderHandler
+	discarders        map[eval.EventType]activeDiscarders
+	invalidDiscarders map[eval.Field]map[interface{}]bool
+	approvers         map[eval.EventType]activeApprovers
 	syscallMonitor    *SyscallMonitor
 	loadController    *LoadController
 	kernelVersion     kernel.Version
@@ -70,7 +73,6 @@ type Probe struct {
 	startTime         time.Time
 	event             *Event
 	mountEvent        *Event
-	invalidDiscarders map[eval.Field]map[interface{}]bool
 }
 
 // Map returns a map by its name
@@ -93,33 +95,8 @@ func (p *Probe) detectKernelVersion() {
 	}
 }
 
-// Init initialises the probe
+// Init initializes the probe
 func (p *Probe) Init() error {
-	if !p.config.EnableKernelFilters {
-		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
-	}
-
-	// Set default options of the manager
-	p.managerOptions = ebpf.NewDefaultOptions()
-
-	if p.config.SyscallMonitor {
-		// Add syscall monitor probes
-		if err := p.RegisterProbesSelectors(probes.SyscallMonitorSelectors); err != nil {
-			return err
-		}
-	}
-
-	// Load discarders
-	for eventType, fnc := range allDiscarderFncs {
-		fncs := p.onDiscardersFncs[eventType]
-		fncs = append(fncs, fnc)
-		p.onDiscardersFncs[eventType] = fncs
-	}
-	return nil
-}
-
-// InitManager initializes the eBPF managers
-func (p *Probe) InitManager(rs *rules.RuleSet) error {
 	p.startTime = time.Now()
 	p.detectKernelVersion()
 
@@ -155,15 +132,16 @@ func (p *Probe) InitManager(rs *rules.RuleSet) error {
 		}
 	}
 
-	// ApplyConstants is called to apply
-	for _, eventType := range rs.GetEventTypes() {
-		if constants, exists := constantEditors[eventType]; exists {
-			p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constants...)
-		}
+	if selectors, exists := probes.SelectorsPerEventType["*"]; exists {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
+	}
+
+	for _, constants := range constantEditors {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constants...)
 	}
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
-		return err
+		return errors.Wrap(err, "failed to init manager")
 	}
 
 	if err := p.resolvers.Start(); err != nil {
@@ -310,7 +288,7 @@ func (p *Probe) handleMountEvent(CPU int, data []byte, perfMap *manager.PerfMap,
 
 	eventType := EventType(event.Type)
 
-	log.Tracef("Decoding event %s(%d)", eventType, event.Type)
+	log.Tracef("Decoding mount event %s(%d)", eventType, event.Type)
 
 	read, err = p.unmarshalProcessContainer(data[offset:], event)
 	if err != nil {
@@ -507,15 +485,36 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	log.Tracef("New discarder event %+v for field %s\n", event, field)
+	log.Tracef("New discarder of type %s for field %s", eventType, field)
 
-	for _, fnc := range p.onDiscardersFncs[eventType] {
+	if handler, ok := allDiscarderHandlers[eventType]; ok {
+		value, err := event.GetFieldValue(field)
+		if err != nil {
+			return err
+		}
+
 		discarder := Discarder{
 			Field: field,
 		}
 
-		if err := fnc(rs, event, p, discarder); err != nil {
+		if p.discarders[eventType] == nil {
+			p.discarders[eventType] = make(activeDiscarders)
+		}
+
+		newDiscarders, err := handler(rs, event, p, discarder)
+		if err != nil {
 			return err
+		}
+
+		for key, newDiscarder := range newDiscarders {
+			if newDiscarder != nil && !p.discarders[eventType].HasKey(key) {
+				log.Tracef("Applying discarder %+v, for event %s with the field %s and value %v", newDiscarder, eventType, field, value)
+
+				if err := newDiscarder.Apply(p); err != nil {
+					return err
+				}
+				p.discarders[eventType].Add(newDiscarder)
+			}
 		}
 	}
 
@@ -543,23 +542,102 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
 
-// ApplyApprovers applies approvers
-func (p *Probe) ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	fnc, exists := allApproversFncs[eventType]
+// SetApprovers applies approvers and removes the unused ones
+func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+	handler, exists := allApproversHandlers[eventType]
 	if !exists {
 		return nil
 	}
 
-	err := fnc(p, approvers)
+	newApprovers, err := handler(p, approvers)
 	if err != nil {
 		log.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
 	}
-	return err
+
+	for _, newApprover := range newApprovers {
+		log.Tracef("Applying approver %+v", newApprover)
+		if err := newApprover.Apply(p); err != nil {
+			return err
+		}
+	}
+
+	if previousApprovers, exist := p.approvers[eventType]; exist {
+		previousApprovers.Sub(newApprovers)
+		for _, previousApprover := range previousApprovers {
+			log.Tracef("Removing previous approver %+v", previousApprover)
+			if err := previousApprover.Remove(p); err != nil {
+				return err
+			}
+		}
+	}
+
+	p.approvers[eventType] = newApprovers
+	return nil
 }
 
-// RegisterProbesSelectors register the given probes selectors
-func (p *Probe) RegisterProbesSelectors(selectors []manager.ProbesSelector) error {
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
+// SelectProbes applies the loaded set of rules and returns a report
+// of the applied approvers for it.
+func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
+	var activatedProbes []manager.ProbesSelector
+
+	var selectedIDs []manager.ProbeIdentificationPair
+	for eventType, selectors := range probes.SelectorsPerEventType {
+		if eventType == "*" || rs.HasRulesForEventType(eventType) {
+			activatedProbes = append(activatedProbes, selectors...)
+
+			// Extract unique IDs for logging purposes only
+			for _, selector := range selectors {
+				for _, id := range selector.GetProbesIdentificationPairList() {
+					var exists bool
+					for _, selectedID := range selectedIDs {
+						if selectedID.Matches(id) {
+							exists = true
+						}
+					}
+					if !exists {
+						selectedIDs = append(selectedIDs, id)
+					}
+				}
+			}
+		}
+	}
+
+	// Print the list of unique probe identification IDs that are registered
+	for _, id := range selectedIDs {
+		log.Tracef("probe %s selected", id)
+	}
+
+	return p.manager.UpdateActivatedProbes(activatedProbes)
+}
+
+// FlushDiscarders removes all the discarders
+func (p *Probe) FlushDiscarders() error {
+	log.Tracef("Flushing discarders")
+
+	discarderCount := 0
+	for eventType := range p.discarders {
+		discarderCount += len(p.discarders[eventType])
+	}
+
+	if discarderCount == 0 {
+		log.Debugf("No discarder found")
+		return nil
+	}
+
+	delay := time.Second * 1 / time.Duration(discarderCount)
+	for eventType := range p.discarders {
+		for _, discarder := range p.discarders[eventType] {
+			log.Tracef("Removing discarder %v for the event %s", discarder, eventType)
+			_ = discarder.Remove(p)
+
+			discarderCount--
+			if discarderCount > 0 {
+				time.Sleep(delay)
+			}
+		}
+	}
+
+	p.discarders = make(map[eval.EventType]activeDiscarders)
 	return nil
 }
 
@@ -569,6 +647,7 @@ func (p *Probe) Snapshot() error {
 	return p.resolvers.Snapshot()
 }
 
+// Close the probe
 func (p *Probe) Close() error {
 	return p.manager.Stop(manager.CleanAll)
 }
@@ -607,8 +686,19 @@ func getInvalidDiscarders() map[eval.Field]map[interface{}]bool {
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p := &Probe{
 		config:            config,
-		onDiscardersFncs:  make(map[eval.EventType][]onDiscarderFnc),
 		invalidDiscarders: getInvalidDiscarders(),
+		discarders:        make(map[eval.EventType]activeDiscarders),
+		approvers:         make(map[eval.EventType]activeApprovers),
+		managerOptions:    ebpf.NewDefaultOptions(),
+	}
+
+	if !p.config.EnableKernelFilters {
+		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	}
+
+	if p.config.SyscallMonitor {
+		// Add syscall monitor probes
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
 	resolvers, err := NewResolvers(p)
@@ -629,145 +719,156 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
-func processDiscarderWrapper(eventType EventType, fnc onDiscarderFnc) onDiscarderFnc {
-	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
+func processDiscarderWrapper(eventType EventType, fnc onDiscarderHandler) onDiscarderHandler {
+	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (activeDiscarders, error) {
 		if discarder.Field == "process.filename" {
-			log.Tracef("apply process.filename discarder for event `%s`, inode: %d", eventType, event.Process.Inode)
+			discarders := newActiveKFilters()
+
+			log.Tracef("Apply process.filename discarder for event `%s`, inode: %d", eventType, event.Process.Inode)
 
 			// discard by PID for long running process
-			if _, err := discardPID(probe, eventType, event.Process.Pid); err != nil {
-				return err
+			pidDiscarder, err := discardPID(probe, eventType, event.Process.Pid)
+			if err != nil {
+				return nil, err
+			} else if pidDiscarder != nil {
+				discarders.Add(pidDiscarder)
 			}
 
-			_, err := discardInode(probe, eventType, event.Process.MountID, event.Process.Inode)
-			return err
+			inodeDiscarder, err := discardInode(probe, eventType, event.Process.MountID, event.Process.Inode)
+			if err != nil {
+				return nil, err
+			} else if pidDiscarder != nil {
+				discarders.Add(inodeDiscarder)
+			}
+
+			return discarders, nil
 		}
 
 		if fnc != nil {
 			return fnc(rs, event, probe, discarder)
 		}
 
-		return nil
+		return nil, nil
 	}
 }
 
 // function used to retrieve discarder information, *.filename, mountID, inode, file deleted
 type inodeEventGetter = func(event *Event) (eval.Field, uint32, uint64, uint32, bool)
 
-func filenameDiscarderWrapper(eventType EventType, fnc onDiscarderFnc, getter inodeEventGetter) onDiscarderFnc {
-	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
+func filenameDiscarderWrapper(eventType EventType, handler onDiscarderHandler, getter inodeEventGetter) onDiscarderHandler {
+	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (activeDiscarders, error) {
 		field, mountID, inode, pathID, isDeleted := getter(event)
 
 		if discarder.Field == field {
 			value, err := event.GetFieldValue(field)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			filename := value.(string)
 
 			if filename == "" {
-				return nil
+				return nil, nil
 			}
 
 			if probe.IsInvalidDiscarder(field, filename) {
-				return nil
+				return nil, nil
 			}
 
 			isDiscarded, _, parentInode, err := discardParentInode(probe, rs, eventType, field, filename, mountID, inode, pathID)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
-					log.Tracef("apply `%s.filename` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
+					log.Tracef("Apply `%s.filename` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
 
 					// not able to discard the parent then only discard the filename
-					_, err = discardInode(probe, eventType, mountID, inode)
+					newDiscarder, err = discardInode(probe, eventType, mountID, inode)
 				}
 			} else {
-				log.Tracef("apply `%s.filename` parent inode discarder for event `%s` with value `%s`", eventType, eventType, filename)
+				log.Tracef("Apply `%s.filename` parent inode discarder for event `%s` with value `%s`", eventType, eventType, filename)
 			}
 
 			if err != nil {
 				err = errors.Wrapf(err, "unable to set inode discarders for `%s` for event `%s`, inode: %d", filename, eventType, parentInode)
 			}
 
-			return err
+			return nil, err
 		}
 
-		if fnc != nil {
-			return fnc(rs, event, probe, discarder)
+		if handler != nil {
+			return handler(rs, event, probe, discarder)
 		}
 
-		return nil
+		return nil, nil
 	}
 }
 
 func init() {
 	// approvers
-	allApproversFncs["open"] = openOnNewApprovers
+	allApproversHandlers["open"] = openOnNewApprovers
 
 	// discarders
 	SupportedDiscarders["process.filename"] = true
 
-	allDiscarderFncs["open"] = processDiscarderWrapper(FileOpenEventType,
+	allDiscarderHandlers["open"] = processDiscarderWrapper(FileOpenEventType,
 		filenameDiscarderWrapper(FileOpenEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "open.filename", event.Open.MountID, event.Open.Inode, event.Open.PathID, false
 			}))
 	SupportedDiscarders["open.filename"] = true
 
-	allDiscarderFncs["mkdir"] = processDiscarderWrapper(FileMkdirEventType,
+	allDiscarderHandlers["mkdir"] = processDiscarderWrapper(FileMkdirEventType,
 		filenameDiscarderWrapper(FileMkdirEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "mkdir.filename", event.Mkdir.MountID, event.Mkdir.Inode, event.Mkdir.PathID, false
 			}))
 	SupportedDiscarders["mkdir.filename"] = true
 
-	allDiscarderFncs["link"] = processDiscarderWrapper(FileLinkEventType, nil)
+	allDiscarderHandlers["link"] = processDiscarderWrapper(FileLinkEventType, nil)
 
-	allDiscarderFncs["rename"] = processDiscarderWrapper(FileRenameEventType, nil)
+	allDiscarderHandlers["rename"] = processDiscarderWrapper(FileRenameEventType, nil)
 
-	allDiscarderFncs["unlink"] = processDiscarderWrapper(FileUnlinkEventType,
+	allDiscarderHandlers["unlink"] = processDiscarderWrapper(FileUnlinkEventType,
 		filenameDiscarderWrapper(FileUnlinkEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "unlink.filename", event.Unlink.MountID, event.Unlink.Inode, event.Unlink.PathID, true
 			}))
 	SupportedDiscarders["unlink.filename"] = true
 
-	allDiscarderFncs["rmdir"] = processDiscarderWrapper(FileRmdirEventType,
+	allDiscarderHandlers["rmdir"] = processDiscarderWrapper(FileRmdirEventType,
 		filenameDiscarderWrapper(FileRmdirEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "rmdir.filename", event.Rmdir.MountID, event.Rmdir.Inode, event.Rmdir.PathID, false
 			}))
 	SupportedDiscarders["rmdir.filename"] = true
 
-	allDiscarderFncs["chmod"] = processDiscarderWrapper(FileChmodEventType,
+	allDiscarderHandlers["chmod"] = processDiscarderWrapper(FileChmodEventType,
 		filenameDiscarderWrapper(FileChmodEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "chmod.filename", event.Chmod.MountID, event.Chmod.Inode, event.Chmod.PathID, false
 			}))
 	SupportedDiscarders["chmod.filename"] = true
 
-	allDiscarderFncs["chown"] = processDiscarderWrapper(FileChownEventType,
+	allDiscarderHandlers["chown"] = processDiscarderWrapper(FileChownEventType,
 		filenameDiscarderWrapper(FileChownEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "chown.filename", event.Chown.MountID, event.Chown.Inode, event.Chown.PathID, false
 			}))
 	SupportedDiscarders["chown.filename"] = true
 
-	allDiscarderFncs["utimes"] = processDiscarderWrapper(FileUtimeEventType,
+	allDiscarderHandlers["utimes"] = processDiscarderWrapper(FileUtimeEventType,
 		filenameDiscarderWrapper(FileUtimeEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "utimes.filename", event.Utimes.MountID, event.Utimes.Inode, event.Utimes.PathID, false
 			}))
 	SupportedDiscarders["utimes.filename"] = true
 
-	allDiscarderFncs["setxattr"] = processDiscarderWrapper(FileSetXAttrEventType,
+	allDiscarderHandlers["setxattr"] = processDiscarderWrapper(FileSetXAttrEventType,
 		filenameDiscarderWrapper(FileSetXAttrEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "setxattr.filename", event.SetXAttr.MountID, event.SetXAttr.Inode, event.SetXAttr.PathID, false
 			}))
 	SupportedDiscarders["setxattr.filename"] = true
 
-	allDiscarderFncs["removexattr"] = processDiscarderWrapper(FileRemoveXAttrEventType,
+	allDiscarderHandlers["removexattr"] = processDiscarderWrapper(FileRemoveXAttrEventType,
 		filenameDiscarderWrapper(FileRemoveXAttrEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "removexattr.filename", event.RemoveXAttr.MountID, event.RemoveXAttr.Inode, event.RemoveXAttr.PathID, false

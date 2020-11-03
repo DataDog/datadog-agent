@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-func openOnNewApprovers(probe *Probe, approvers rules.Approvers) error {
+func openOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
 	stringValues := func(fvs rules.FilterValues) []string {
 		var values []string
 		for _, v := range fvs {
@@ -32,30 +32,45 @@ func openOnNewApprovers(probe *Probe, approvers rules.Approvers) error {
 		return values
 	}
 
+	var openApprovers []activeApprover
 	for field, values := range approvers {
 		switch field {
-		case "open.basename":
-			if err := approveBasenames(probe, "open_basename_approvers", stringValues(values)...); err != nil {
-				return err
+		case "process.filename":
+			activeApprovers, err := approveProcessFilenames(probe, "open_process_inode_approvers", stringValues(values)...)
+			if err != nil {
+				return nil, err
 			}
+			openApprovers = append(openApprovers, activeApprovers...)
+
+		case "open.basename":
+			activeApprovers, err := approveBasenames(probe, "open_basename_approvers", stringValues(values)...)
+			if err != nil {
+				return nil, err
+			}
+			openApprovers = append(openApprovers, activeApprovers...)
 
 		case "open.filename":
 			for _, value := range stringValues(values) {
 				basename := path.Base(value)
-				if err := approveBasename(probe, "open_basename_approvers", basename); err != nil {
-					return err
+				activeApprover, err := approveBasename(probe, "open_basename_approvers", basename)
+				if err != nil {
+					return nil, err
 				}
+				openApprovers = append(openApprovers, activeApprover)
 			}
 
 		case "open.flags":
-			if err := approveFlags(probe, "open_flags_approvers", intValues(values)...); err != nil {
-				return err
+			activeApprover, err := approveFlags(probe, "open_flags_approvers", intValues(values)...)
+			if err != nil {
+				return nil, err
 			}
+			openApprovers = append(openApprovers, activeApprover)
 
 		default:
-			return errors.New("field unknown")
+			return nil, errors.New("field unknown")
 		}
+
 	}
 
-	return nil
+	return newActiveKFilters(openApprovers...), nil
 }

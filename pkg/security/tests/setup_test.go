@@ -24,12 +24,10 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -37,8 +35,8 @@ import (
 )
 
 var (
-	eventChanLength     = 100
-	discarderChanLength = 100
+	eventChanLength     = 10000
+	discarderChanLength = 10000
 	logger              seelog.LoggerInterface
 )
 
@@ -53,7 +51,7 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   socket: /tmp/test-security-probe.sock
-{{if not .EnableFilters}}
+{{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
 {{if .DisableApprovers}}
@@ -84,6 +82,7 @@ rules:
 `
 
 var testEnvironment string
+var useReload bool
 
 const (
 	HostEnvironment   = "host"
@@ -91,24 +90,31 @@ const (
 )
 
 type testEvent struct {
-	event eval.Event
-	rule  *eval.Rule
+	eval.Event
+	rule *eval.Rule
 }
 
 type testOpts struct {
-	enableFilters     bool
+	testDir           string
+	disableFilters    bool
 	disableApprovers  bool
 	disableDiscarders bool
-	testDir           string
-	withoutHandler    bool
+	wantProbeEvents   bool
 }
 
 type testModule struct {
-	st       *simpleTest
-	module   api.Module
-	listener net.Listener
-	events   chan testEvent
+	config       *config.Config
+	opts         testOpts
+	st           *simpleTest
+	module       *module.Module
+	probe        *sprobe.Probe
+	probeHandler *testEventHandler
+	listener     net.Listener
+	events       chan testEvent
+	discarders   chan *testDiscarder
 }
+
+var testMod *testModule
 
 type testDiscarder struct {
 	event     eval.Event
@@ -125,22 +131,19 @@ type testProbe struct {
 }
 
 type testEventHandler struct {
-	ruleSet    *rules.RuleSet
-	events     chan *sprobe.Event
-	discarders chan *testDiscarder
+	ruleSet *rules.RuleSet
+	events  chan *sprobe.Event
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 	e := event.Clone()
-	h.events <- &e
+	select {
+	case h.events <- &e:
+		break
+	default:
+		log.Debugf("dropped probe event %+v")
+	}
 	h.ruleSet.Evaluate(event)
-}
-
-func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
-
-func (h *testEventHandler) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	e := event.(*sprobe.Event).Clone()
-	h.discarders <- &testDiscarder{event: &e, field: field, eventType: eventType}
 }
 
 func getInode(t *testing.T, path string) uint64 {
@@ -157,12 +160,24 @@ func getInode(t *testing.T, path string) uint64 {
 	return stats.Ino
 }
 
-func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (string, error) {
+func setTestConfig(dir string, opts testOpts) error {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return "", err
+		return err
 	}
 
+	buffer := new(bytes.Buffer)
+	if err := tmpl.Execute(buffer, map[string]interface{}{
+		"TestPoliciesDir": dir,
+	}); err != nil {
+		return err
+	}
+
+	aconfig.Datadog.SetConfigType("yaml")
+	return aconfig.Datadog.ReadConfig(buffer)
+}
+
+func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := ioutil.TempFile(dir, "secagent-policy.*.policy")
 	if err != nil {
 		return "", err
@@ -173,27 +188,12 @@ func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 		return err
 	}
 
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":   path.Dir(testPolicyFile.Name()),
-		"EnableFilters":     opts.enableFilters,
-		"DisableApprovers":  opts.disableApprovers,
-		"DisableDiscarders": opts.disableDiscarders,
-	}); err != nil {
-		return "", fail(err)
-	}
-
-	aconfig.Datadog.SetConfigType("yaml")
-	if err := aconfig.Datadog.ReadConfig(buffer); err != nil {
-		return "", fail(err)
-	}
-
-	tmpl, err = template.New("test-policy").Parse(testPolicy)
+	tmpl, err := template.New("test-policy").Parse(testPolicy)
 	if err != nil {
 		return "", fail(err)
 	}
 
-	buffer = new(bytes.Buffer)
+	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"Rules":  rules,
 		"Macros": macros,
@@ -214,36 +214,99 @@ func setTestConfig(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 }
 
 func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
+	defer func() {
+		if testMod == nil {
+			return
+		}
+
+		if opts.wantProbeEvents {
+			ruleSet := testMod.module.GetRuleSet()
+			handler := &testEventHandler{
+				events:  make(chan *sprobe.Event, 16384),
+				ruleSet: ruleSet,
+			}
+			testMod.probeHandler = handler
+			testMod.probe.SetEventHandler(handler)
+		} else {
+			testMod.probeHandler = nil
+			testMod.probe.SetEventHandler(testMod.module)
+		}
+	}()
+
 	st, err := newSimpleTest(macros, rules, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(st.root, macros, rules, opts)
+	if err := setTestConfig(st.root, opts); err != nil {
+		return nil, err
+	}
+
+	cfgFilename, err := setTestPolicy(st.root, macros, rules)
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(cfgFilename)
 
-	mod, err := module.NewModule(pconfig.NewDefaultAgentConfig(false))
-	if err != nil {
-		return nil, err
+	if useReload && testMod != nil {
+		if opts.disableApprovers == testMod.opts.disableApprovers &&
+			opts.disableDiscarders == testMod.opts.disableDiscarders &&
+			opts.disableFilters == testMod.opts.disableFilters {
+			testMod.reset()
+			testMod.st = st
+			return testMod, testMod.reloadConfiguration()
+		}
+
+		testMod.cleanup()
 	}
 
-	testMod := &testModule{
-		st:     st,
-		module: mod,
-		events: make(chan testEvent, eventChanLength),
+	agentConfig := pconfig.NewDefaultAgentConfig(false)
+	config, err := config.NewConfig(agentConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create config")
+	}
+
+	mod, err := module.NewModule(config)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create module")
+	}
+
+	testMod = &testModule{
+		config:     config,
+		opts:       opts,
+		st:         st,
+		module:     mod.(*module.Module),
+		probe:      mod.(*module.Module).GetProbe(),
+		events:     make(chan testEvent, eventChanLength),
+		discarders: make(chan *testDiscarder, discarderChanLength),
+	}
+
+	if err := mod.Register(nil); err != nil {
+		return nil, errors.Wrap(err, "failed to register module")
 	}
 
 	rs := mod.(*module.Module).GetRuleSet()
 	rs.AddListener(testMod)
 
-	if err := mod.Register(nil); err != nil {
-		return nil, err
+	return testMod, nil
+}
+
+func (tm *testModule) reset() {
+	tm.events = make(chan testEvent, eventChanLength)
+	tm.discarders = make(chan *testDiscarder, discarderChanLength)
+}
+
+func (tm *testModule) reloadConfiguration() error {
+	log.Debugf("reload configuration with testDir: %s", tm.Root())
+	tm.config.PoliciesDir = tm.Root()
+
+	if err := tm.module.Reload(); err != nil {
+		return errors.Wrap(err, "failed to reload test module")
 	}
 
-	return testMod, nil
+	rs := tm.module.GetRuleSet()
+	rs.AddListener(tm)
+	return nil
 }
 
 func (tm *testModule) Root() string {
@@ -252,26 +315,27 @@ func (tm *testModule) Root() string {
 
 func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
 	e := event.(*sprobe.Event).Clone()
-	tm.events <- testEvent{event: &e, rule: rule}
+	tm.events <- testEvent{Event: &e, rule: rule}
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	e := event.(*sprobe.Event).Clone()
+	discarder := &testDiscarder{event: &e, field: field, eventType: eventType}
+	select {
+	case tm.discarders <- discarder:
+	default:
+		log.Warnf("Discarding discarder %+v", discarder)
+	}
 }
 
-func (tm *testModule) GetEvent(eventType ...eval.EventType) (*sprobe.Event, *eval.Rule, error) {
+func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
 	timeout := time.After(3 * time.Second)
 
 	for {
 		select {
 		case event := <-tm.events:
-			if e, ok := event.event.(*sprobe.Event); ok {
-				if len(eventType) > 0 {
-					if e.GetType() == eventType[0] {
-						return e, event.rule, nil
-					}
-				} else {
-					return e, event.rule, nil
-				}
+			if e, ok := event.Event.(*sprobe.Event); ok {
+				return e, event.rule, nil
 			}
 			return nil, nil, errors.New("invalid event")
 		case <-timeout:
@@ -280,105 +344,16 @@ func (tm *testModule) GetEvent(eventType ...eval.EventType) (*sprobe.Event, *eva
 	}
 }
 
-func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
-	return tm.st.Path(filename)
-}
-
-func (tm *testModule) Close() {
-	tm.st.Close()
-	tm.module.Close()
-	time.Sleep(time.Second)
-}
-
-func newTestProbe(macrosDef []*rules.MacroDefinition, rulesDef []*rules.RuleDefinition, opts testOpts) (*testProbe, error) {
-	st, err := newSimpleTest(macrosDef, rulesDef, opts.testDir)
-	if err != nil {
-		return nil, err
+func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.EventType) (*sprobe.Event, error) {
+	if tm.probeHandler == nil {
+		return nil, errors.New("could not get probe events without using the 'wantProbeEvents' test option")
 	}
 
-	cfgFilename, err := setTestConfig(st.root, macrosDef, rulesDef, opts)
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(cfgFilename)
-
-	config, err := config.NewConfig(pconfig.NewDefaultAgentConfig(false))
-	if err != nil {
-		return nil, err
-	}
-
-	probe, err := sprobe.NewProbe(config, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	ruleSet := probe.NewRuleSet(rules.NewOptsWithParams(sprobe.SECLConstants, sprobe.SupportedDiscarders))
-
-	if err := policy.LoadPolicies(config, ruleSet); err != nil {
-		return nil, err
-	}
-
-	events := make(chan *sprobe.Event, eventChanLength)
-	discarders := make(chan *testDiscarder, discarderChanLength)
-
-	if !opts.withoutHandler {
-		handler := &testEventHandler{events: events, discarders: discarders, ruleSet: ruleSet}
-		probe.SetEventHandler(handler)
-		ruleSet.AddListener(handler)
-	}
-
-	if err := probe.Init(); err != nil {
-		return nil, err
-	}
-
-	rsa := sprobe.NewRuleSetApplier(config)
-
-	if err := rsa.SelectProbes(ruleSet, probe); err != nil {
-		return nil, err
-	}
-
-	if err := probe.InitManager(ruleSet); err != nil {
-		return nil, err
-	}
-
-	_, err = rsa.Apply(ruleSet, probe)
-	if err != nil {
-		return nil, err
-	}
-
-	// Start and Snapshot are called in the reverse order in the real module. Calling the snapshot before some discarder
-	// tests is very noisy and makes the output unreadable. The (very unlikely) risk of missing a crucial mount point or
-	// process between the call of Snapshot and Start is acceptable for testing, and not worth delaying the tests or
-	// making them unreadable.
-	if err := probe.Snapshot(); err != nil {
-		return nil, err
-	}
-
-	if err := probe.Start(); err != nil {
-		return nil, err
-	}
-
-	test := &testProbe{
-		st:         st,
-		probe:      probe,
-		events:     events,
-		discarders: discarders,
-		rs:         ruleSet,
-	}
-
-	return test, nil
-}
-
-func (tp *testProbe) Root() string {
-	return tp.st.root
-}
-
-func (tp *testProbe) GetEvent(timeout time.Duration, eventType ...eval.EventType) (*sprobe.Event, error) {
 	t := time.After(timeout)
 
 	for {
 		select {
-		case event := <-tp.events:
+		case event := <-tm.probeHandler.events:
 			if len(eventType) > 0 {
 				if event.GetType() == eventType[0] {
 					return event, nil
@@ -392,14 +367,20 @@ func (tp *testProbe) GetEvent(timeout time.Duration, eventType ...eval.EventType
 	}
 }
 
-func (tp *testProbe) Path(filename string) (string, unsafe.Pointer, error) {
-	return tp.st.Path(filename)
+func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
+	return tm.st.Path(filename)
 }
 
-func (tp *testProbe) Close() {
-	tp.st.Close()
-	tp.probe.Close()
-	time.Sleep(10 * time.Second)
+func (tm *testModule) cleanup() {
+	tm.st.Close()
+	tm.module.Close()
+	time.Sleep(time.Second)
+}
+
+func (tm *testModule) Close() {
+	if !useReload {
+		tm.cleanup()
+	}
 }
 
 type simpleTest struct {
@@ -429,6 +410,36 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 		return "", nil, err
 	}
 	return filename, unsafe.Pointer(filenamePtr), nil
+}
+
+func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (err error) {
+	executeExpressionTemplate := func(expression string) (string, error) {
+		buffer := new(bytes.Buffer)
+		tmpl, err := template.New("").Parse(expression)
+		if err != nil {
+			return "", err
+		}
+
+		if err := tmpl.Execute(buffer, t); err != nil {
+			return "", err
+		}
+
+		return buffer.String(), nil
+	}
+
+	for _, rule := range rules {
+		if rule.Expression, err = executeExpressionTemplate(rule.Expression); err != nil {
+			return err
+		}
+	}
+
+	for _, macro := range macros {
+		if macro.Expression, err = executeExpressionTemplate(macro.Expression); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 var logInitilialized bool
@@ -484,30 +495,8 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		t.toRemove = true
 	}
 
-	executeExpressionTemplate := func(expression string) (string, error) {
-		buffer := new(bytes.Buffer)
-		tmpl, err := template.New("").Parse(expression)
-		if err != nil {
-			return "", err
-		}
-
-		if err := tmpl.Execute(buffer, t); err != nil {
-			return "", err
-		}
-
-		return buffer.String(), nil
-	}
-
-	for _, rule := range rules {
-		if rule.Expression, err = executeExpressionTemplate(rule.Expression); err != nil {
-			return nil, err
-		}
-	}
-
-	for _, macro := range macros {
-		if macro.Expression, err = executeExpressionTemplate(macro.Expression); err != nil {
-			return nil, err
-		}
+	if err := t.load(macros, rules); err != nil {
+		return nil, err
 	}
 
 	return t, nil
@@ -536,8 +525,14 @@ func TestEnv(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	flag.Parse()
+	retCode := m.Run()
+	if useReload && testMod != nil {
+		testMod.cleanup()
+	}
+	os.Exit(retCode)
 }
 
 func init() {
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
+	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 }

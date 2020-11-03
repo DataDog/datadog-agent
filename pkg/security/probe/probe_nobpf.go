@@ -8,8 +8,6 @@
 package probe
 
 import (
-	"github.com/DataDog/ebpf/manager"
-
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -26,18 +24,24 @@ func (p *Probe) Init() error {
 	return nil
 }
 
+// FlushDiscarders removes all the discarders
+func (p *Probe) FlushDiscarders() error {
+	return nil
+}
+
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
 func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
 	return nil
 }
 
-// ApplyApprovers applies approvers
-func (p *Probe) ApplyApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+// SetApprovers applies approvers
+func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	return nil
 }
 
-// RegisterProbesSelectors register the given probes selectors
-func (p *Probe) RegisterProbesSelectors(selectors []manager.ProbesSelector) error {
+// SelectProbes applies the loaded set of rules and returns a report
+// of the applied approvers for it.
+func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	return nil
 }
 

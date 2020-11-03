@@ -34,7 +34,7 @@ func TestProcess(t *testing.T) {
 		Expression: fmt.Sprintf(`process.user == "%s" && process.name == "%s" && open.filename == "{{.Root}}/test-process"`, currentUser.Name, path.Base(executable)),
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,16 +68,16 @@ func TestProcess(t *testing.T) {
 func TestProcessContext(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process"`),
+		Expression: fmt.Sprintf(`open.filename == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`),
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{enableFilters: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	testFile, _, err := test.Path("test-process")
+	testFile, _, err := test.Path("test-process-context")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,12 +91,6 @@ func TestProcessContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.Remove(testFile)
-
-	// consume the open creation event
-	_, _, err = test.GetEvent()
-	if err != nil {
-		t.Error(err)
-	}
 
 	t.Run("inode", func(t *testing.T) {
 		executable, err := os.Executable()

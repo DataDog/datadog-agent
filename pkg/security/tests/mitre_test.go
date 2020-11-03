@@ -32,9 +32,7 @@ func TestMitre(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test, err := newTestModule(policy.Macros, policy.Rules, testOpts{
-		enableFilters: true,
-	})
+	test, err := newTestModule(policy.Macros, policy.Rules, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +125,7 @@ func TestMitre(t *testing.T) {
 			for {
 				select {
 				case event := <-test.events:
-					if _, ok := event.event.(*sprobe.Event); ok {
+					if _, ok := event.Event.(*sprobe.Event); ok {
 						if event.rule.ID == tc.expectedRule {
 							return
 						}
