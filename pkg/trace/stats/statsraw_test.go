@@ -19,7 +19,7 @@ func TestGrain(t *testing.T) {
 	assert := assert.New(t)
 
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, nil)
+	aggr, tgs := AssembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, nil)
 
 	assert.Equal("env:default,resource:yo,service:thing", aggr)
 	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}}, tgs)
@@ -30,10 +30,29 @@ func TestGrainWithExtraTags(t *testing.T) {
 	assert := assert.New(t)
 
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"meta2": "two", "meta1": "ONE"}}
-	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, s.Meta)
+	aggr, tgs := AssembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, s.Meta)
 
 	assert.Equal("env:default,resource:yo,service:thing,meta1:ONE,meta2:two", aggr)
 	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"meta1", "ONE"}, Tag{"meta2", "two"}}, tgs)
+}
+
+func TestHandleSpanSkipStats(t *testing.T) {
+	span := &WeightedSpan{Span: traceutil.GetRoot(benchTrace)}
+	subdata := []SublayerValue{{"a", Tag{"x", "y"}, 0.5}}
+
+	t.Run("on", func(t *testing.T) {
+		sb := NewRawBucket(0, 1e9)
+		sb.HandleSpan(span, "env", nil, subdata, false)
+		assert.Len(t, sb.data, 1)
+		assert.Len(t, sb.sublayerData, 1)
+	})
+
+	t.Run("off", func(t *testing.T) {
+		sb := NewRawBucket(0, 1e9)
+		sb.HandleSpan(span, "env", nil, subdata, true)
+		assert.Len(t, sb.data, 0)
+		assert.Len(t, sb.sublayerData, 1)
+	})
 }
 
 func BenchmarkHandleSpanRandom(b *testing.B) {
@@ -47,7 +66,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		traceutil.ComputeTopLevel(benchTrace)
 		wt := NewWeightedTrace(benchTrace, root)
 		for _, span := range wt {
-			sb.HandleSpan(span, "dev", aggr, nil)
+			sb.HandleSpan(span, "dev", aggr, nil, false)
 		}
 	}
 }
