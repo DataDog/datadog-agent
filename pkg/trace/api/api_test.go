@@ -511,11 +511,11 @@ func TestDecodeV05(t *testing.T) {
 }
 
 func TestHandleStats(t *testing.T) {
-	bucket := func(start, duration int64) *pb.ClientStatsBucket {
-		return &pb.ClientStatsBucket{
+	bucket := func(start, duration int64) pb.ClientStatsBucket {
+		return pb.ClientStatsBucket{
 			Start:    start,
 			Duration: duration,
-			Stats: []*pb.ClientGroupedStats{
+			Stats: []pb.ClientGroupedStats{
 				{
 					Name:      "name",
 					Env:       "env",
@@ -534,7 +534,7 @@ func TestHandleStats(t *testing.T) {
 	p := pb.ClientStatsPayload{
 		Hostname: "h",
 		Env:      "e",
-		Stats: []*pb.ClientStatsBucket{
+		Stats: []pb.ClientStatsBucket{
 			bucket(1, 10),
 			bucket(500, 100342),
 		},
