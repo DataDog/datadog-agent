@@ -185,11 +185,23 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 		},
 	}
 
+	deleteTrans := func(k connKey) bool {
+		t, ok := ctr.state[k]
+		if !ok {
+			log.Tracef("not deleting %+v from conntrack", k)
+			return ok
+		}
+
+		delete(ctr.state, k)
+		delete(ctr.state, ipTranslationToConnKey(k.transport, t))
+		log.Tracef("deleted %+v from conntrack", k)
+		return true
+	}
+
 	for _, k := range keys {
-		if _, ok := ctr.state[k]; ok {
-			log.Tracef("deleting %#v from conntrack", k)
-			delete(ctr.state, k)
+		if ok := deleteTrans(k); ok {
 			atomic.AddInt64(&ctr.stats.unregisters, 1)
+			break
 		}
 	}
 }
@@ -205,7 +217,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 		conns := DecodeAndReleaseEvent(e)
 		for _, c := range conns {
 			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
-				log.Tracef("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort)
+				log.Tracef("%s", c)
 				if k, ok := formatKey(c.Origin); ok {
 					ctr.state[k] = formatIPTranslation(c.Reply)
 				}
@@ -241,7 +253,7 @@ func (ctr *realConntracker) register(c Con) int {
 		ctr.state[key] = formatIPTranslation(transTuple)
 	}
 
-	log.Tracef("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort)
+	log.Tracef("%s", c)
 
 	ctr.Lock()
 	defer ctr.Unlock()
@@ -341,4 +353,14 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 	}
 
 	return
+}
+
+func ipTranslationToConnKey(proto network.ConnectionType, t *network.IPTranslation) connKey {
+	return connKey{
+		srcIP:     t.ReplSrcIP,
+		dstIP:     t.ReplDstIP,
+		srcPort:   t.ReplSrcPort,
+		dstPort:   t.ReplDstPort,
+		transport: proto,
+	}
 }
