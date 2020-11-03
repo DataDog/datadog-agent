@@ -82,5 +82,5 @@ func (c *conntrack) Get(_ *Con) (Con, error) {
 }
 
 func (c *conntrack) Close() error {
-	return c.Close()
+	return c.conn.Close()
 }
