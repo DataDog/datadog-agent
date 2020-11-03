@@ -302,6 +302,10 @@ const (
 	// headerTracerVersion specifies the name of the header which contains the version
 	// of the tracer sending the payload.
 	headerTracerVersion = "Datadog-Meta-Tracer-Version"
+
+	// headerComputedStats specifies whether the client has computed stats so that the agent
+	// doesn't have to.
+	headerComputedStats = "Datadog-Client-Computed-Stats"
 )
 
 func (r *HTTPReceiver) tagStats(v Version, req *http.Request) *info.TagStats {
@@ -471,9 +475,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
 	payload := &Payload{
-		Source:        ts,
-		Traces:        traces,
-		ContainerTags: getContainerTags(req.Header.Get(headerContainerID)),
+		Source:              ts,
+		Traces:              traces,
+		ContainerTags:       getContainerTags(req.Header.Get(headerContainerID)),
+		ClientComputedStats: req.Header.Get(headerComputedStats) != "",
 	}
 	select {
 	case r.out <- payload:
@@ -504,6 +509,10 @@ type Payload struct {
 
 	// Traces contains all the traces received in the payload
 	Traces pb.Traces
+
+	// ClientComputedStats reports whether the client has computed and sent over stats
+	// so that the agent doesn't have to.
+	ClientComputedStats bool
 }
 
 // handleServices handle a request with a list of several services
