@@ -306,6 +306,10 @@ const (
 	// headerComputedTopLevel specifies that the client has marked top-level spans, when set.
 	// Any non-empty value will mean 'yes'.
 	headerComputedTopLevel = "Datadog-Client-Computed-Top-Level"
+
+	// headerComputedStats specifies whether the client has computed stats so that the agent
+	// doesn't have to.
+	headerComputedStats = "Datadog-Client-Computed-Stats"
 )
 
 func (r *HTTPReceiver) tagStats(v Version, req *http.Request) *info.TagStats {
@@ -479,6 +483,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		Traces:                 traces,
 		ContainerTags:          getContainerTags(req.Header.Get(headerContainerID)),
 		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
+		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
 	}
 	select {
 	case r.out <- payload:
@@ -513,6 +518,10 @@ type Payload struct {
 	// ClientComputedTopLevel specifies that the client has already marked top-level
 	// spans.
 	ClientComputedTopLevel bool
+
+	// ClientComputedStats reports whether the client has computed and sent over stats
+	// so that the agent doesn't have to.
+	ClientComputedStats bool
 }
 
 // handleServices handle a request with a list of several services
