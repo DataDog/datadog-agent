@@ -161,31 +161,37 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 
 func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now().UnixNano()
+	defer func() {
+		atomic.AddInt64(&ctr.stats.unregistersTotalTime, time.Now().UnixNano()-then)
+	}()
+
 	ctr.Lock()
 	defer ctr.Unlock()
-	delete(
-		ctr.state,
-		connKey{
+
+	keys := []connKey{
+		{
 			srcIP:     c.Source,
 			srcPort:   c.SPort,
 			dstIP:     c.Dest,
 			dstPort:   c.DPort,
 			transport: c.Type,
 		},
-	)
-	delete(
-		ctr.state,
-		connKey{
+		{
 			srcIP:     c.Dest,
 			srcPort:   c.DPort,
 			dstIP:     c.Source,
 			dstPort:   c.SPort,
 			transport: c.Type,
 		},
-	)
-	now := time.Now().UnixNano()
-	atomic.AddInt64(&ctr.stats.unregisters, 1)
-	atomic.AddInt64(&ctr.stats.unregistersTotalTime, now-then)
+	}
+
+	for _, k := range keys {
+		if _, ok := ctr.state[k]; ok {
+			log.Tracef("deleting %#v from conntrack", k)
+			delete(ctr.state, k)
+			atomic.AddInt64(&ctr.stats.unregisters, 1)
+		}
+	}
 }
 
 func (ctr *realConntracker) Close() {
