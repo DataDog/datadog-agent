@@ -6,8 +6,8 @@
 package stats
 
 import (
-	"bytes"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
@@ -74,7 +74,7 @@ type RawBucket struct {
 	sublayerData map[statsSubKey]sublayerStats
 
 	// internal buffer for aggregate strings - not threadsafe
-	keyBuf bytes.Buffer
+	keyBuf strings.Builder
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
@@ -152,7 +152,9 @@ func (sb *RawBucket) Export() Bucket {
 	return ret
 }
 
-func AssembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]string) (string, TagSet) {
+// AssembleGrain returns the aggregation key and TagSet based on the given env, resource,
+// service and any additional tags specified by m. It uses b as the buffer to write to.
+func AssembleGrain(b *strings.Builder, env, resource, service string, m map[string]string) (string, TagSet) {
 	b.Reset()
 
 	b.WriteString("env:")
