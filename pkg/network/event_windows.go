@@ -143,7 +143,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *C.struct__perFlowData, enableMono
 	cs.DNSTimeouts = 0
 	cs.DNSSuccessLatencySum = 0
 	cs.DNSFailureLatencySum = 0
-	cs.DNSCountByRcode = make(map[uint32]uint32)
+	cs.DNSCountByRcode = nil
 	cs.LastSentBytes = 0
 	cs.LastRecvBytes = 0
 	cs.MonotonicRetransmits = 0
