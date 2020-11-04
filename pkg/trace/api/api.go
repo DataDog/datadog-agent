@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -402,9 +403,10 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	for _, group := range in.Stats {
 		for _, b := range group.Stats {
 			newb := stats.Bucket{
-				Start:    group.Start,
-				Duration: group.Duration,
-				Counts:   make(map[string]stats.Count),
+				Start:         group.Start,
+				Duration:      group.Duration,
+				Counts:        make(map[string]stats.Count),
+				Distributions: make(map[string]stats.Distribution),
 			}
 			tags := map[string]string{
 				"version": b.Version,
@@ -447,6 +449,15 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 				TopLevel: b.TopLevel,
 				Value:    b.Duration,
 			}
+			newb.Distributions[key] = stats.Distribution{
+				Key:      key,
+				Name:     b.Name,
+				Measure:  stats.DURATION,
+				TagSet:   tagset,
+				TopLevel: b.TopLevel,
+				Summary:  quantile.DDSketchToGK(b.HitsSummary),
+			}
+
 			out.Stats = append(out.Stats, newb)
 		}
 	}
