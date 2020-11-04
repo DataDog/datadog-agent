@@ -18,7 +18,7 @@ const (
 )
 
 // GetCheck returns the output of the specified check
-func (r *RemoteSysProbeUtil) GetCheck(check string) ([]interface{}, error) {
+func (r *RemoteSysProbeUtil) GetCheck(check string) (interface{}, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s", checksURL, check), nil)
 	if err != nil {
 		return nil, err
@@ -37,36 +37,28 @@ func (r *RemoteSysProbeUtil) GetCheck(check string) ([]interface{}, error) {
 	}
 
 	if check == "tcp_queue_length" {
-		var stats []tcpqueuelength.Stats
+		var stats tcpqueuelength.Stats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err
 		}
-		s := make([]interface{}, len(stats))
-		for i, v := range stats {
-			s[i] = v
-		}
-		return s, nil
+		return stats, nil
 	} else if check == "oom_kill" {
 		var stats []oomkill.Stats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err
 		}
-		s := make([]interface{}, len(stats))
-		for i, v := range stats {
-			s[i] = v
-		}
-		return s, nil
+		return stats, nil
 	} else if check == "linux_audit" {
 		var status libaudit.AuditStatus
 		err = json.Unmarshal(body, &status)
 		if err != nil {
 			return nil, err
 		}
-		s := make([]interface{}, 1)
-		s[0] = status
-		return s, nil
+		stats := make([]interface{}, 1)
+		stats[0] = status
+		return stats, nil
 	}
 
 	return nil, fmt.Errorf("Invalid check name: %s", check)

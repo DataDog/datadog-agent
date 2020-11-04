@@ -63,6 +63,28 @@ func TestDecode(t *testing.T) {
 	assert.ElementsMatch(t, want, got)
 }
 
+func TestDecodeInvalidUTF8(t *testing.T) {
+	provide := Traces{
+		{{Service: "A", Name: "op\x99\xbf"}},
+		{{Service: "B"}},
+		{{Service: "C"}},
+	}
+	accept := Traces{
+		{{Service: "A", Name: "op��"}},
+		{{Service: "B"}},
+		{{Service: "C"}},
+	}
+	var buf bytes.Buffer
+	if err := msgp.Encode(&buf, &provide); err != nil {
+		t.Fatal(err)
+	}
+	var got Traces
+	if err := msgp.Decode(&buf, &got); err != nil {
+		t.Fatal(err)
+	}
+	assert.ElementsMatch(t, accept, got)
+}
+
 var data = [2]interface{}{
 	0: []string{
 		0:  "baggage",

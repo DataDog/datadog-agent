@@ -3,6 +3,10 @@
 package ebpf
 
 import (
+	"encoding/binary"
+	"fmt"
+	"net"
+	"strconv"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -46,6 +50,13 @@ __u16 cpu;
 */
 type batch C.batch_t
 
+/* port_binding_t
+__u32 pid;
+__u32 net_ns;
+__u16 port;
+*/
+type portBindingTuple C.port_binding_t
+
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
 		pid:      t.pid,
@@ -60,8 +71,99 @@ func (t *ConnTuple) copy() *ConnTuple {
 	}
 }
 
+func ipPortFromAddr(addr net.Addr) (net.IP, int) {
+	switch v := addr.(type) {
+	case *net.TCPAddr:
+		return v.IP, v.Port
+	case *net.UDPAddr:
+		return v.IP, v.Port
+	}
+	return nil, 0
+}
+
+func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
+	saddr := conn.LocalAddr()
+	shost, sport := ipPortFromAddr(saddr)
+
+	daddr := conn.RemoteAddr()
+	dhost, dport := ipPortFromAddr(daddr)
+
+	ct := &ConnTuple{
+		pid:   C.__u32(pid),
+		sport: C.__u16(sport),
+		dport: C.__u16(dport),
+	}
+	if sbytes := shost.To4(); sbytes != nil {
+		dbytes := dhost.To4()
+		ct.metadata |= C.CONN_V4
+		ct.saddr_h = 0
+		ct.saddr_l = C.__u64(binary.LittleEndian.Uint32(sbytes))
+		ct.daddr_h = 0
+		ct.daddr_l = C.__u64(binary.LittleEndian.Uint32(dbytes))
+	} else if sbytes := shost.To16(); sbytes != nil {
+		dbytes := dhost.To16()
+		ct.metadata |= C.CONN_V6
+		ct.saddr_h = C.__u64(binary.LittleEndian.Uint64(sbytes[:8]))
+		ct.saddr_l = C.__u64(binary.LittleEndian.Uint64(sbytes[8:]))
+		ct.daddr_h = C.__u64(binary.LittleEndian.Uint64(dbytes[:8]))
+		ct.daddr_l = C.__u64(binary.LittleEndian.Uint64(dbytes[8:]))
+	} else {
+		return nil, fmt.Errorf("invalid source/dest address")
+	}
+
+	switch saddr.Network() {
+	case "tcp", "tcp4", "tcp6":
+		ct.metadata |= C.CONN_TYPE_TCP
+	case "udp", "udp4", "udp6":
+		ct.metadata |= C.CONN_TYPE_UDP
+	}
+
+	return ct, nil
+}
+
 func (t *ConnTuple) isTCP() bool {
 	return connType(uint(t.metadata)) == network.TCP
+}
+
+func (t *ConnTuple) isIPv4() bool {
+	return connFamily(uint(t.metadata)) == network.AFINET
+}
+
+func (t *ConnTuple) SourceAddress() util.Address {
+	if t.isIPv4() {
+		return util.V4Address(uint32(t.saddr_l))
+	}
+	return util.V6Address(uint64(t.saddr_l), uint64(t.saddr_h))
+}
+
+// SourceEndpoint returns the source address in the ip:port format (for example, "192.0.2.1:25", "[2001:db8::1]:80")
+func (t *ConnTuple) SourceEndpoint() string {
+	return net.JoinHostPort(t.SourceAddress().String(), strconv.Itoa(int(t.sport)))
+}
+
+func (t *ConnTuple) DestAddress() util.Address {
+	if t.isIPv4() {
+		return util.V4Address(uint32(t.daddr_l))
+	}
+	return util.V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
+}
+
+// DestEndpoint returns the destination address in the ip:port format (for example, "192.0.2.1:25", "[2001:db8::1]:80")
+func (t *ConnTuple) DestEndpoint() string {
+	return net.JoinHostPort(t.DestAddress().String(), strconv.Itoa(int(t.dport)))
+}
+
+func (t *ConnTuple) String() string {
+	m := uint(t.metadata)
+	return fmt.Sprintf(
+		"[%s%s] [PID: %d] [%s ⇄ %s] (ns: %d)",
+		connType(m),
+		connFamily(m),
+		uint32(t.pid),
+		t.SourceEndpoint(),
+		t.DestEndpoint(),
+		uint32(t.netns),
+	)
 }
 
 /* conn_stats_ts_t

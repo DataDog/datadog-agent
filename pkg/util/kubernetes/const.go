@@ -32,4 +32,7 @@ const (
 	ServiceTagEnvVar = "DD_SERVICE"
 	// VersionTagEnvVar is the environment variable of the version standard tag
 	VersionTagEnvVar = "DD_VERSION"
+
+	// KubeNodeRoleTagName is the role label tag name
+	KubeNodeRoleTagName = "kube_node_role"
 )

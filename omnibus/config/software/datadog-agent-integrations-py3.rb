@@ -11,6 +11,8 @@ name 'datadog-agent-integrations-py3'
 dependency 'datadog-agent'
 dependency 'pip3'
 
+dependency 'snowflake-connector-python-py3'
+
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
   # to compile from source, it requires the `pg_config` executable present on the $PATH
@@ -69,6 +71,7 @@ blacklist_packages = Array.new
 
 # We build these manually
 blacklist_packages.push(/^aerospike==/)
+blacklist_packages.push(/^snowflake-connector-python==/)
 
 if suse?
   blacklist_folders.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
@@ -281,13 +284,13 @@ build do
         command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
-  end
 
-  # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-  if windows?
-    command "#{python} -m pip check"
-  else
-    command "#{pip} check"
+    # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
+    if windows?
+      command "#{python} -m pip check"
+    else
+      command "#{pip} check"
+    end
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent

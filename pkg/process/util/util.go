@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -174,4 +175,31 @@ func GetProcRoot() string {
 	}
 
 	return "/proc"
+}
+
+// WithAllProcs will execute `fn` for every pid under procRoot. `fn` is
+// passed the `pid`. If `fn` returns an error the iteration aborts,
+// returning the last error returned from `fn`.
+func WithAllProcs(procRoot string, fn func(int) error) error {
+	files, err := ioutil.ReadDir(procRoot)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		if !f.IsDir() || f.Name() == "." || f.Name() == ".." {
+			continue
+		}
+
+		var pid int
+		if pid, err = strconv.Atoi(f.Name()); err != nil {
+			continue
+		}
+
+		if err = fn(pid); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

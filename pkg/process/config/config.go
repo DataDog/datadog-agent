@@ -222,7 +222,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ClosedChannelSize:            500,
 		ConntrackMaxStateSize:        defaultMaxTrackedConnections * 2,
 		ConntrackRateLimit:           500,
-		EnableConntrackAllNamespaces: false,
+		EnableConntrackAllNamespaces: true,
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
 		CollectDNSStats:              true,

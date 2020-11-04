@@ -34,12 +34,16 @@ type EventServer struct {
 
 // GetEvents waits for security events
 func (e *EventServer) GetEvents(params *api.GetParams, stream api.SecurityModule_GetEventsServer) error {
+	// Read 10 security events per call
 	msgs := 10
-	if !e.rate.limiter.AllowN(time.Now(), msgs) {
-		return nil
-	}
 LOOP:
 	for {
+		// Check that the limit is not reached
+		if !e.rate.limiter.Allow() {
+			return nil
+		}
+
+		// Read on message
 		select {
 		case msg := <-e.msgs:
 			if err := stream.Send(msg); err != nil {
@@ -50,6 +54,7 @@ LOOP:
 			break LOOP
 		}
 
+		// Stop the loop when 10 messages were retrieved
 		if msgs <= 0 {
 			break
 		}
@@ -66,7 +71,7 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	}
 	tags := append(rule.Tags, "rule_id:"+rule.ID)
 	tags = append(tags, event.(*sprobe.Event).GetTags()...)
-	log.Infof("Sending event message for rule `%s` to security-agent `%s` with tags %v", rule.ID, string(data), tags)
+	log.Tracef("Sending event message for rule `%s` to security-agent `%s` with tags %v", rule.ID, string(data), tags)
 
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.ID,
@@ -81,7 +86,7 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	default:
 		// The channel is full, consume the oldest event
 		oldestMsg := <-e.msgs
-		// Try to send the send the event again
+		// Try to send the event again
 		select {
 		case e.msgs <- msg:
 			break

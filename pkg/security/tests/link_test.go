@@ -76,5 +76,12 @@ func TestLink(t *testing.T) {
 		if event.GetType() != "link" {
 			t.Errorf("expected rename event, got %s", event.GetType())
 		}
+
+		if inode := getInode(t, testNewFile); inode != event.Link.Source.Inode {
+			t.Errorf("expected inode %d, got %d", event.Link.Source.Inode, inode)
+		}
+
+		testContainerPath(t, event, "link.source.container_path")
+		testContainerPath(t, event, "link.target.container_path")
 	}
 }

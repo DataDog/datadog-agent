@@ -8,25 +8,16 @@ package corechecks
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // FIXTURE
-type TestCheck struct{}
+type TestCheck struct {
+	check.StubCheck
+}
 
-func (c *TestCheck) String() string                            { return "TestCheck" }
-func (c *TestCheck) Version() string                           { return "" }
-func (c *TestCheck) ConfigSource() string                      { return "" }
-func (c *TestCheck) Run() error                                { return nil }
-func (c *TestCheck) Stop()                                     {}
-func (c *TestCheck) Interval() time.Duration                   { return 1 }
-func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
-func (c *TestCheck) GetWarnings() []error                      { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
-func (c *TestCheck) IsTelemetryEnabled() bool                  { return false }
 func (c *TestCheck) Configure(data integration.Data, initData integration.Data, source string) error {
 	if string(data) == "err" {
 		return fmt.Errorf("testError")

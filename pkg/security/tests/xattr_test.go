@@ -72,6 +72,12 @@ func TestSetXAttr(t *testing.T) {
 			if event.SetXAttr.Name != "user.test_xattr" || event.SetXAttr.Namespace != "user" {
 				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
 			}
+
+			if inode := getInode(t, testFile); inode != event.SetXAttr.Inode {
+				t.Errorf("expected inode %d, got %d", event.SetXAttr.Inode, inode)
+			}
+
+			testContainerPath(t, event, "setxattr.container_path")
 		}
 	})
 
@@ -144,6 +150,12 @@ func TestSetXAttr(t *testing.T) {
 			if event.SetXAttr.Name != "user.test_xattr" || event.SetXAttr.Namespace != "user" {
 				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
 			}
+
+			if inode := getInode(t, testFile); inode != event.SetXAttr.Inode {
+				t.Errorf("expected inode %d, got %d", event.SetXAttr.Inode, inode)
+			}
+
+			testContainerPath(t, event, "setxattr.container_path")
 		}
 	})
 }
@@ -208,6 +220,12 @@ func TestRemoveXAttr(t *testing.T) {
 			if event.RemoveXAttr.Name != "user.test_xattr" || event.RemoveXAttr.Namespace != "user" {
 				t.Errorf("expected removexattr name user.test_xattr, got %s", event.RemoveXAttr.Name)
 			}
+
+			if inode := getInode(t, testFile); inode != event.RemoveXAttr.Inode {
+				t.Errorf("expected inode %d, got %d", event.RemoveXAttr.Inode, inode)
+			}
+
+			testContainerPath(t, event, "removexattr.container_path")
 		}
 	})
 
@@ -293,6 +311,12 @@ func TestRemoveXAttr(t *testing.T) {
 			if event.RemoveXAttr.Name != "user.test_xattr" || event.RemoveXAttr.Namespace != "user" {
 				t.Errorf("expected removexattr name user.test_xattr, got %s", event.RemoveXAttr.Name)
 			}
+
+			if inode := getInode(t, testFile); inode != event.RemoveXAttr.Inode {
+				t.Errorf("expected inode %d, got %d", event.RemoveXAttr.Inode, inode)
+			}
+
+			testContainerPath(t, event, "removexattr.container_path")
 		}
 	})
 }
