@@ -157,7 +157,7 @@ type IPTranslation struct {
 }
 
 func (c ConnectionStats) String() string {
-	return ConnectionSummary(c, nil)
+	return ConnectionSummary(&c, nil)
 }
 
 // ByteKey returns a unique key for this connection represented as a byte array
@@ -233,7 +233,7 @@ func BeautifyKey(key string) string {
 }
 
 // ConnectionSummary returns a string summarizing a connection
-func ConnectionSummary(c ConnectionStats, names map[util.Address][]string) string {
+func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
 	str := fmt.Sprintf(
 		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
 		c.Type,
