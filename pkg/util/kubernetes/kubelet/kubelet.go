@@ -52,12 +52,17 @@ type KubeUtil struct {
 }
 
 func (ku *KubeUtil) init() error {
-	kubeletClient, err := getKubeletClient()
+	var err error
+	ku.filter, err = containers.GetSharedMetricFilter()
 	if err != nil {
 		return err
 	}
 
-	ku.kubeletClient = kubeletClient
+	ku.kubeletClient, err = getKubeletClient()
+	if err != nil {
+		return err
+	}
+
 	ku.rawConnectionInfo["url"] = ku.kubeletClient.kubeletURL
 	if ku.kubeletClient.config.scheme == "https" {
 		ku.rawConnectionInfo["verify_tls"] = fmt.Sprintf("%v", ku.kubeletClient.config.tlsVerify)
@@ -193,6 +198,10 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	tmpSlice := make([]*Pod, 0, len(pods.Items))
 	for _, pod := range pods.Items {
 		if pod != nil {
+			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
+			allContainers = append(allContainers, pod.Status.InitContainers...)
+			allContainers = append(allContainers, pod.Status.Containers...)
+			pod.Status.AllContainers = allContainers
 			tmpSlice = append(tmpSlice, pod)
 		}
 	}

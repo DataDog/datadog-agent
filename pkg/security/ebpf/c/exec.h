@@ -68,13 +68,14 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u32 tgid = pid_tgid >> 32;
 
     u32 cookie = bpf_get_prandom_u32();
+    u32 path_id = get_path_id(0);
 
     struct proc_cache_t entry = {
         .executable = {
             .inode = syscall->open.path_key.ino,
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
-            .path_id = cookie,
+            .path_id = path_id,
         },
         .container = {},
         .timestamp = bpf_ktime_get_ns(),
@@ -87,7 +88,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         // inherit container ID
         copy_container_id(entry.container.container_id, parent_entry->container.container_id);
     }
-    syscall->open.path_key.path_id = cookie;
+    syscall->open.path_key.path_id = path_id;
 
     // cache dentry
     resolve_dentry(syscall->open.dentry, syscall->open.path_key, 0);

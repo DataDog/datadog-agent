@@ -39,7 +39,7 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->setattr.path_key.ino = get_dentry_ino(syscall->setattr.dentry);
-    syscall->setattr.path_key.path_id = bpf_get_prandom_u32();
+    syscall->setattr.path_key.path_id = get_path_id(0);
 
     u64 event_type = 0;
     switch (syscall->type) {

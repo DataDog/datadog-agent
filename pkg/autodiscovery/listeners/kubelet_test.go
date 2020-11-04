@@ -171,10 +171,11 @@ func getMockedPods() []*kubelet.Pod {
 		},
 	}
 	kubeletStatus := kubelet.Status{
-		Phase:      "Running",
-		PodIP:      "127.0.0.1",
-		HostIP:     "127.0.0.2",
-		Containers: containerStatuses,
+		Phase:         "Running",
+		PodIP:         "127.0.0.1",
+		HostIP:        "127.0.0.2",
+		Containers:    containerStatuses,
+		AllContainers: containerStatuses,
 	}
 	return []*kubelet.Pod{
 		{

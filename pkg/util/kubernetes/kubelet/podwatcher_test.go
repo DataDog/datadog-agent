@@ -69,8 +69,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 
 	// A new container ID in an existing pod should trigger
 	remainingPods[0].Status.Containers[0].ID = "testNewID"
-	// we're modifying the container list here, we need to reset the lazy all containers list
-	remainingPods[0].Status.AllContainers = []ContainerStatus{}
+	remainingPods[0].Status.AllContainers[0].ID = "testNewID"
 	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)

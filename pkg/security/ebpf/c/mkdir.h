@@ -72,7 +72,7 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sur we grab it now
     syscall->mkdir.path_key.ino = get_dentry_ino(syscall->mkdir.dentry);
 
-    syscall->mkdir.path_key.path_id = bpf_get_prandom_u32();
+    syscall->mkdir.path_key.path_id = get_path_id(0);
     int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
     if (ret == DENTRY_DISCARDED) {
         return 0;

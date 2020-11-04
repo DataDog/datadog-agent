@@ -31,7 +31,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     struct path_key_t key = {};
     struct dentry *dentry = NULL;
 
-    u32 path_id = bpf_get_prandom_u32();
+    u32 path_id = get_path_id(1);
 
     switch (syscall->type) {
         case SYSCALL_RMDIR:
