@@ -81,12 +81,12 @@ func isTCPFlowEstablished(flags C.uint32_t) bool {
 
 func convertV4Addr(addr [16]C.uint8_t) util.Address {
 	// We only read the first 4 bytes for v4 address
-	return util.V4AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv4len))
+	return util.V4AddressFromBytes((*[16]byte)(unsafe.Pointer(&addr))[:net.IPv4len])
 }
 
 func convertV6Addr(addr [16]C.uint8_t) util.Address {
 	// We read all 16 bytes for v6 address
-	return util.V6AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv6len))
+	return util.V4AddressFromBytes((*[16]byte)(unsafe.Pointer(&addr))[:net.IPv6len])
 }
 
 // Monotonic values include retransmits and headers, while transport does not. We default to using transport
