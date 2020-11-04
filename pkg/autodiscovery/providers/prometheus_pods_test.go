@@ -239,6 +239,12 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr-id",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
 				},
 			},
 			want: []integration.Config{
@@ -275,6 +281,12 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr-id",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
 				},
 			},
 			want: []integration.Config{
@@ -303,6 +315,12 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr-id",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
 				},
 			},
 			want: nil,
@@ -322,6 +340,12 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr-id",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
 				},
 			},
 			want: nil,
@@ -336,6 +360,16 @@ func TestConfigsForPod(t *testing.T) {
 				},
 				Status: kubelet.Status{
 					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
 						{
 							Name: "foo-ctr1",
 							ID:   "foo-ctr1-id",
@@ -389,6 +423,16 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr2-id",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
 				},
 			},
 			want: []integration.Config{
@@ -421,6 +465,12 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr-id",
 						},
 					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
 				},
 			},
 			want: nil,
@@ -439,6 +489,12 @@ func TestConfigsForPod(t *testing.T) {
 				},
 				Status: kubelet.Status{
 					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
