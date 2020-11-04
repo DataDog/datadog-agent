@@ -543,6 +543,10 @@ func TestHandleStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var buf bytes.Buffer
+	if err := msgp.Encode(&buf, &p); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(cfg)
@@ -550,8 +554,28 @@ func TestHandleStats(t *testing.T) {
 	defer rcv.Stop()
 
 	req, _ := http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", bytes.NewReader(b))
-	req.Header.Set("Content-Type", "application/proto")
+	req.Header.Set("Content-Type", "application/protobuf")
 	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatal(resp.StatusCode)
+	}
+
+	req, _ = http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", &buf)
+	req.Header.Set("Content-Type", "application/msgpack")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatal(resp.StatusCode)
+	}
+
+	req, _ = http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", &buf)
+	req.Header.Set("Content-Type", "application/msgpack")
+	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
