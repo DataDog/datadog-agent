@@ -357,7 +357,7 @@ func InitConfig(config Config) {
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
 		var mappings []MappingProfile
 		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Warnf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
+			log.Errorf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
 		}
 		return mappings
 	})
