@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -365,12 +366,16 @@ func (r *HTTPReceiver) rateLimited(n int64) bool {
 
 // handleStats handles incoming stats payloads.
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
+	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
+
 	rd := NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	slurp, err := ioutil.ReadAll(rd)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
 		return
 	}
+	metrics.Count("datadog.trace_agent.receiver.stats_payload", 1, nil, 1)
+	metrics.Count("datadog.trace_agent.receiver.stats_bytes", int64(len(slurp)), nil, 1)
 
 	req.Header.Set("Accept", "application/msgpack")
 	req.Header.Add("Accept", "application/protobuf")
@@ -379,15 +384,16 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	switch ct := getMediaType(req); ct {
 	case "application/msgpack":
 		if err := msgp.Decode(bytes.NewReader(slurp), &in); err != nil {
-			httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
+			httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
 			return
 		}
 	default:
 		if err := proto.Unmarshal(slurp, &in); err != nil {
-			httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
+			httpDecodingError(err, []string{"handler:stats", "codec:proto", "v:v0.5"}, w)
 			return
 		}
 	}
+	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), nil, 1)
 	out := stats.Payload{
 		HostName: in.Hostname,
 		Env:      in.Env,
