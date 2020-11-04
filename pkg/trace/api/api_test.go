@@ -570,17 +570,8 @@ func TestHandleStats(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Fatal(resp.StatusCode)
-	}
-
-	req, _ = http.NewRequest("POST", "http://127.0.0.1:8126/v0.5/stats", &buf)
-	req.Header.Set("Content-Type", "application/msgpack")
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != 200 {
-		t.Fatal(resp.StatusCode)
+		slurp, _ := ioutil.ReadAll(resp.Body)
+		t.Fatal(string(slurp), resp.StatusCode)
 	}
 }
 
