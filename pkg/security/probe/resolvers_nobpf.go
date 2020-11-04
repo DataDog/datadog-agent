@@ -14,4 +14,5 @@ type Resolvers struct {
 	MountResolver     *MountResolver
 	ContainerResolver *ContainerResolver
 	TimeResolver      *TimeResolver
+	ProcessResolver   *ProcessResolver
 }

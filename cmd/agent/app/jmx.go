@@ -148,6 +148,10 @@ func runJmxCommandConsole(command string) error {
 		fmt.Printf("Cannot initialize command: %v\n", err)
 		return err
 	}
+	err = config.SetupJMXLogger(jmxLoggerName, logLevel, "", "", false, true, false)
+	if err != nil {
+		return fmt.Errorf("Unable to set up JMX logger: %v", err)
+	}
 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 

@@ -43,15 +43,13 @@ type FieldValue struct {
 
 // Opts are the options to be passed to the evaluator
 type Opts struct {
-	Debug     bool
 	Constants map[string]interface{}
 	Macros    map[MacroID]*Macro
 }
 
-// NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
-func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
+// NewOptsWithParams initializes a new Opts instance with Constants parameters
+func NewOptsWithParams(constants map[string]interface{}) *Opts {
 	return &Opts{
-		Debug:     debug,
 		Constants: constants,
 		Macros:    make(map[MacroID]*Macro),
 	}
@@ -60,6 +58,21 @@ func NewOptsWithParams(debug bool, constants map[string]interface{}) *Opts {
 // Evaluator is the interface of an evaluator
 type Evaluator interface {
 	Eval(ctx *Context) interface{}
+}
+
+// EvaluatorStringer implements the stringer in order to show the result of an evaluation. Should probably used only for logging
+type EvaluatorStringer struct {
+	Ctx       *Context
+	Evaluator Evaluator
+}
+
+func (e *EvaluatorStringer) String() string {
+	return fmt.Sprintf("%v", e.Evaluator.Eval(e.Ctx))
+}
+
+// NewEvaluatorStringer returns a new evaluator stringer
+func NewEvaluatorStringer(ctx *Context, evaluator Evaluator) *EvaluatorStringer {
+	return &EvaluatorStringer{Ctx: ctx, Evaluator: evaluator}
 }
 
 // BoolEvaluator returns a bool as result of the evaluation

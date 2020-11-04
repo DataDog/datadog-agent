@@ -3,6 +3,8 @@
 
 #include "../../../ebpf/c/bpf_helpers.h"
 
+#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
+
 #if defined(__x86_64__)
   #define SYSCALL64_PREFIX "__x64_"
   #define SYSCALL32_PREFIX "__ia32_"
@@ -168,7 +170,6 @@
 #define CONTAINER_ID_LEN 64
 #define MAX_XATTR_NAME_LEN 200
 
-
 #define bpf_printk(fmt, ...)                       \
 	({                                             \
 		char ____fmt[] = fmt;                      \
@@ -194,6 +195,9 @@ enum event_type
     EVENT_SETXATTR,
     EVENT_REMOVEXATTR,
     EVENT_EXEC,
+    EVENT_EXIT,
+    EVENT_INVALIDATE_DENTRY,
+    EVENT_MAX, // has to be the last one
 };
 
 enum syscall_type
@@ -216,28 +220,27 @@ enum syscall_type
 
 struct kevent_t {
     u64 type;
+    u64 timestamp;
 };
 
 struct file_t {
     u64 inode;
     u32 mount_id;
     u32 overlay_numlower;
+    u32 path_id;
+    u32 padding;
 };
 
 struct syscall_t {
-    u64 timestamp;
     s64 retval;
 };
 
 struct process_context_t {
-    u64 pidns;
     char comm[TASK_COMM_LEN];
-    char tty_name[TTY_NAME_LEN];
     u32 pid;
     u32 tid;
     u32 uid;
     u32 gid;
-    struct file_t executable;
 };
 
 struct container_context_t {
@@ -246,7 +249,17 @@ struct container_context_t {
 
 struct proc_cache_t {
     struct file_t executable;
-    char container_id[CONTAINER_ID_LEN];
+    struct container_context_t container;
+    u64 timestamp;
+    u32 cookie;
+    u32 padding;
+    char tty_name[TTY_NAME_LEN];
+};
+
+struct path_key_t {
+    u64 ino;
+    u32 mount_id;
+    u32 path_id;
 };
 
 struct bpf_map_def SEC("maps/events") events = {
@@ -272,6 +285,9 @@ struct bpf_map_def SEC("maps/mountpoints_events") mountpoints_events = {
 
 #define send_mountpoints_events(ctx, event) \
     bpf_perf_event_output(ctx, &mountpoints_events, bpf_get_smp_processor_id(), &event, sizeof(event))
+
+#define send_process_events(ctx, event) \
+    bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {
@@ -308,5 +324,8 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
 
     return res;
 }
+
+// implemented in the probe.c file
+void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event);
 
 #endif

@@ -362,7 +362,9 @@ func TestProcess(t *testing.T) {
 						Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
 					},
 				},
-				f: func(t *testing.T, spans []*pb.Span) { assert.Equal(t, 2.0, spans[0].Metrics["_sublayers.span_count"]) },
+				f: func(t *testing.T, spans []*pb.Span) {
+					assert.Equal(t, float64(0), spans[0].Metrics["_sublayers.duration.by_service.sublayer_service:unnamed-service"])
+				},
 			},
 			{
 				trace: pb.Trace{
@@ -378,7 +380,9 @@ func TestProcess(t *testing.T) {
 						Metrics:  map[string]float64{sampler.KeySamplingPriority: -1},
 					},
 				},
-				f: func(t *testing.T, spans []*pb.Span) { assert.NotContains(t, spans[0].Metrics, "_sublayers.span_count") },
+				f: func(t *testing.T, spans []*pb.Span) {
+					assert.NotContains(t, spans[0].Metrics, "_sublayers.duration.by_service.sublayer_service:unnamed-service")
+				},
 			},
 		} {
 			t.Run("", func(t *testing.T) {

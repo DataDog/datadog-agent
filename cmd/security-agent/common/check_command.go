@@ -15,7 +15,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -44,35 +43,34 @@ func setupCheckCmd(cmd *cobra.Command) {
 }
 
 // CheckCmd returns a cobra command to run security agent checks
-func CheckCmd(confPath *string) *cobra.Command {
+func CheckCmd(confPathArray []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check [rule ID]",
 		Short: "Run compliance check(s)",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd, confPath, args)
+			return runCheck(cmd, confPathArray, args)
 		},
 	}
 	setupCheckCmd(cmd)
 	return cmd
 }
 
-func runCheck(cmd *cobra.Command, confPath *string, args []string) error {
+func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	err := configureLogger()
 	if err != nil {
 		return err
 	}
 
 	// We need to set before calling `SetupConfig`
+	configName := "datadog"
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		config.Datadog.SetConfigName("datadog-cluster")
-	} else {
-		config.Datadog.SetConfigName("datadog")
+		configName = "datadog-cluster"
 	}
 
-	err = common.SetupConfig(*confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global security agent configuration: %v", err)
+	// Read configuration files received from the command line arguments '-c'
+	if err := MergeConfigurationFiles(configName, confPathArray); err != nil {
+		return err
 	}
 
 	options := []checks.BuilderOption{}

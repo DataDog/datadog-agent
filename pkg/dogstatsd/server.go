@@ -88,6 +88,7 @@ type Server struct {
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
 	// package (pkg/trace/logutils) for a possible throttler implemetation.
 	disableVerboseLogs bool
+	UdsListenerRunning bool
 }
 
 // metricStat holds how many times a metric has been
@@ -146,6 +147,8 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
 	sharedPacketPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 
+	udsListenerRunning := false
+
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
 		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPool)
@@ -153,6 +156,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 			log.Errorf(err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
+			udsListenerRunning = true
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
@@ -224,6 +228,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 			},
 			keyGen: ckey.NewKeyGenerator(),
 		},
+		UdsListenerRunning: udsListenerRunning,
 	}
 
 	// packets forwarding

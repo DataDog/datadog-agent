@@ -3,25 +3,13 @@
 
 #include <linux/types.h>
 
-struct queue_length {
-  int size;
-  __u32 min;
-  __u32 max;
-};
-
-struct conn {
-  __u32 saddr;
-  __u32 daddr;
-  __u16 sport;
-  __u16 dport;
-};
-
-struct stats {
-  __u32 pid;
+struct stats_key {
   char cgroup_name[129];
-  struct conn conn;
-  struct queue_length rqueue;
-  struct queue_length wqueue;
+};
+
+struct stats_value {
+  __u32 read_buffer_max_fill_rate;
+  __u32 write_buffer_max_fill_rate;
 };
 
 #endif /* defined(TCP_QUEUE_LENGTH_KERN_USER_H) */

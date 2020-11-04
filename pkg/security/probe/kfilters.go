@@ -38,10 +38,10 @@ func (f *FilterPolicy) Bytes() ([]byte, error) {
 	return []byte{uint8(f.Mode), uint8(f.Flags)}, nil
 }
 
-func isParentPathDiscarder(rs *rules.RuleSet, eventType eval.EventType, filenameField eval.Field, filename string) (bool, error) {
+func isParentPathDiscarder(rs *rules.RuleSet, eventType EventType, filenameField eval.Field, filename string) (bool, error) {
 	dirname := filepath.Dir(filename)
 
-	bucket := rs.GetBucket(eventType)
+	bucket := rs.GetBucket(eventType.String())
 	if bucket == nil {
 		return false, nil
 	}

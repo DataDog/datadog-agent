@@ -18,18 +18,36 @@ fi
 
 set +x
 
-# argo get command outputs some utf-8 characters that are breaking GitLab
-for workflow in $(./argo list -l workflows.argoproj.io/phase=Succeeded -o name); do
+# `argo get` command outputs some utf-8 characters that are breaking GitLab
+# The below hack can be removed once the following PR is merged and released:
+# https://github.com/argoproj/argo/pull/4449
+function filter_argo_output() {
     if locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
-        ./argo get "$workflow"
+        cat
+    else
+        oldstate=$(set +o)
+        set +x
+        sed 's/◷/Pending  /g;
+             s/●/Running  /g;
+             s/✔/Succeeded/g;
+             s/○/Skipped  /g;
+             s/✖/Failed   /g;
+             s/⚠/Error    /g;
+             s/ǁ/Suspend  /g;
+             s/·/+/g;
+             s/└/`/g;
+             s/├/|/g;'
+        eval "$oldstate"
     fi
+}
+
+for workflow in $(./argo list -l workflows.argoproj.io/phase=Succeeded -o name); do
+    ./argo get "$workflow" | filter_argo_output
 done
 
 EXIT_CODE=0
 for workflow in $(./argo list -l workflows.argoproj.io/phase=Failed -o name); do
-    if locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
-        ./argo get "$workflow"
-    fi
+    ./argo get "$workflow" | filter_argo_output
     EXIT_CODE=2
 done
 

@@ -71,7 +71,7 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	}
 	tags := append(rule.Tags, "rule_id:"+rule.ID)
 	tags = append(tags, event.(*sprobe.Event).GetTags()...)
-	log.Infof("Sending event message for rule `%s` to security-agent `%s` with tags %v", rule.ID, string(data), tags)
+	log.Tracef("Sending event message for rule `%s` to security-agent `%s` with tags %v", rule.ID, string(data), tags)
 
 	msg := &api.SecurityEventMessage{
 		RuleID: rule.ID,

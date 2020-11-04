@@ -25,12 +25,14 @@ var Pod = &PodCheck{}
 type PodCheck struct {
 	sysInfo                 *model.SystemInfo
 	containerFailedLogLimit *util.LogLimit
+	scrubber                *orchestrator.DataScrubber
 }
 
 // Init initializes a PodCheck instance.
 func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
+	c.scrubber = orchestrator.NewDefaultDataScrubber()
 }
 
 // Name returns the name of the ProcessCheck.
@@ -56,5 +58,5 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
-	return orchestrator.ProcessPodlist(podList, groupID, cfg, cfg.HostName, cfg.KubeClusterName, clusterID, cfg.IsScrubbingEnabled, nil)
+	return orchestrator.ProcessPodList(podList, groupID, cfg.HostName, cfg.KubeClusterName, clusterID, cfg.IsScrubbingEnabled, cfg.MaxPerMessage, c.scrubber, nil)
 }

@@ -309,7 +309,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0)
-	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 30*megaByte)
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 15*megaByte)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -357,7 +357,7 @@ func InitConfig(config Config) {
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
 		var mappings []MappingProfile
 		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Warnf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
+			log.Errorf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
 		}
 		return mappings
 	})
@@ -749,7 +749,6 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
@@ -757,6 +756,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
+	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.load_controller.control_period", 2)
+	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
