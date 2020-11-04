@@ -12,7 +12,6 @@ import (
 	"time"
 	"unsafe"
 
-	ct "github.com/florianl/go-conntrack"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -84,6 +83,8 @@ type Tracer struct {
 	// Connections for the tracer to blacklist
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
+
+	conntrack *cachedConntrack
 }
 
 const (
@@ -246,6 +247,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		perfHandler:    perfHandler,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
+		conntrack:      newCachedConntrack(config.ProcRoot, netlink.NewConntrack, defaultConntrackCacheShrinkInterval, defaultConntrackNetlinkTTLSeconds),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)
@@ -439,6 +441,7 @@ func (t *Tracer) Stop() {
 	t.perfHandler.Stop()
 	close(t.flushIdle)
 	t.conntracker.Close()
+	t.conntrack.Close()
 }
 
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
@@ -551,11 +554,9 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	key, stats := &ConnTuple{}, &ConnStatsWithTimestamp{}
 	seen := make(map[ConnTuple]struct{})
 	var expired []*ConnTuple
-	connExists, cleanup := connExistsFn(t.config.ProcRoot)
-	defer cleanup()
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		if stats.isExpired(latestTime, t.timeoutForConn(key)) && !connExists(key) {
+		if stats.isExpired(latestTime, t.timeoutForConn(key)) && !t.conntrackExists(key) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
@@ -837,75 +838,11 @@ func (t *Tracer) getProbeProgramIDs() (map[string]uint32, error) {
 	return fds, nil
 }
 
-func connExistsFn(procRoot string) (func(*ConnTuple) bool, func()) {
-	conntrackByNS := make(map[uint64]netlink.Conntrack)
-	existsFn := func(c *ConnTuple) bool {
-		ctrk, ok := conntrackByNS[c.NetNS()]
-		if !ok {
-			ns, err := util.GetNetNamespaceFromPid(procRoot, int(c.Pid()))
-			if err != nil {
-				log.Errorf("could not get net ns for pid %d: %s", c.Pid(), err)
-				return false
-			}
-			defer ns.Close()
-
-			ctrk, err = netlink.NewConntrack(int(ns))
-			if err != nil {
-				log.Errorf("could not create conntrack object for net ns %d: %s", c.NetNS(), err)
-				return false
-			}
-
-			conntrackByNS[c.NetNS()] = ctrk
-		}
-
-		var protoNumber uint8 = unix.IPPROTO_UDP
-		if c.isTCP() {
-			protoNumber = unix.IPPROTO_TCP
-		}
-
-		srcAddr, dstAddr := util.NetIPFromAddress(c.SourceAddress()), util.NetIPFromAddress(c.DestAddress())
-		srcPort, dstPort := c.SourcePort(), c.DestPort()
-
-		conn := netlink.Con{
-			Con: ct.Con{
-				Origin: &ct.IPTuple{
-					Src: &srcAddr,
-					Dst: &dstAddr,
-					Proto: &ct.ProtoTuple{
-						Number:  &protoNumber,
-						SrcPort: &srcPort,
-						DstPort: &dstPort,
-					},
-				},
-			},
-		}
-
-		ok, err := ctrk.Exists(&conn)
-		if err != nil {
-			log.Errorf("error while checking conntrack for connection %#v: %s", conn, err)
-			return false
-		}
-
-		if ok {
-			return ok
-		}
-
-		conn.Reply = conn.Origin
-		conn.Origin = nil
-		ok, err = ctrk.Exists(&conn)
-		if err != nil {
-			log.Errorf("error while checking conntrack for connection %#v: %s", conn, err)
-			return false
-		}
-
-		return ok
+func (t *Tracer) conntrackExists(conn *ConnTuple) bool {
+	ok, err := t.conntrack.Exists(conn)
+	if err != nil {
+		log.Errorf("error checking conntrack for connection %+v", *conn)
 	}
 
-	cleanupFn := func() {
-		for _, ctrk := range conntrackByNS {
-			ctrk.Close()
-		}
-	}
-
-	return existsFn, cleanupFn
+	return ok
 }
