@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,6 +31,10 @@ var (
 	keysPerDomains = map[string][]string{
 		testDomain:    {"api-key-1", "api-key-2"},
 		"datadog.bar": nil,
+	}
+	keysWithMultipleDomains = map[string][]string{
+		testDomain:    {"api-key-1", "api-key-2"},
+		"datadog.bar": {"api-key-3"},
 	}
 	validKeysPerDomain = map[string][]string{
 		testVersionDomain: {"api-key-1", "api-key-2"},
@@ -144,6 +149,40 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Contains(t, transactions[1].Endpoint.route, "api_key=api-key-2")
 	assert.Contains(t, transactions[2].Endpoint.route, "api_key=api-key-1")
 	assert.Contains(t, transactions[3].Endpoint.route, "api_key=api-key-2")
+}
+
+func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
+	forwarder := NewDefaultForwarder(NewOptions(keysWithMultipleDomains))
+	endpoint := endpoint{route: "/api/foo", name: "foo"}
+	p1 := []byte("A payload")
+	payloads := Payloads{&p1}
+	headers := make(http.Header)
+	headers.Set("HTTP-MAGIC", "foo")
+
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	require.Len(t, transactions, 3, "should contain 3 transactions, contains %d", len(transactions))
+
+	var txNormal, txBar []*HTTPTransaction
+	for _, t := range transactions {
+		if t.Domain == testVersionDomain {
+			txNormal = append(txNormal, t)
+		}
+		if t.Domain == "datadog.bar" {
+			txBar = append(txBar, t)
+		}
+	}
+
+	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
+	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
+
+	if strings.HasSuffix(txNormal[0].Endpoint.route, "api-key-1") {
+		assert.Equal(t, txNormal[0].Endpoint.route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[1].Endpoint.route, "/api/foo?api_key=api-key-2")
+	} else {
+		assert.Equal(t, txNormal[0].Endpoint.route, "/api/foo?api_key=api-key-2")
+		assert.Equal(t, txNormal[1].Endpoint.route, "/api/foo?api_key=api-key-1")
+	}
+	assert.Equal(t, txBar[0].Endpoint.route, "/api/foo?api_key=api-key-3")
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {

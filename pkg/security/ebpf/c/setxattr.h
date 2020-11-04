@@ -78,7 +78,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u16 
         return 0;
     }
 
-    u32 path_id = bpf_get_prandom_u32();
+    u32 path_id = get_path_id(0);
 
     syscall->setxattr.dentry = dentry;
     syscall->setxattr.path_key.ino = get_dentry_ino(syscall->setxattr.dentry);

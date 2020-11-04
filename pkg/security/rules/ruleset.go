@@ -152,9 +152,15 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 		return nil, fmt.Errorf("found multiple definition of the rule '%s'", ruleDef.ID)
 	}
 
+	var tags []string
+	for k, v := range ruleDef.Tags {
+		tags = append(tags, k+":"+v)
+	}
+
 	rule := &eval.Rule{
 		ID:         ruleDef.ID,
 		Expression: ruleDef.Expression,
+		Tags:       tags,
 	}
 
 	if err := rule.Parse(); err != nil {

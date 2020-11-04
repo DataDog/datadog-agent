@@ -86,7 +86,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     LOAD_CONSTANT("rename_event_enabled", enabled);
 
     if (enabled) {
-        syscall->rename.target_key.path_id = bpf_get_prandom_u32();
+        syscall->rename.target_key.path_id = get_path_id(1);
 
         struct rename_event_t event = {
             .event.type = EVENT_RENAME,

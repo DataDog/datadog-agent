@@ -59,7 +59,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
 
     if (!syscall->unlink.path_key.path_id)
-        syscall->unlink.path_key.path_id = bpf_get_prandom_u32();
+        syscall->unlink.path_key.path_id = get_path_id(1);
 
     if (discarded_by_process(syscall->policy.mode, EVENT_UNLINK)) {
         pop_syscall(SYSCALL_UNLINK);

@@ -97,11 +97,11 @@ func TestMitre(t *testing.T) {
 					t.Fatal(err)
 				}
 
+				os.Remove("/usr/local/bin/pleaseremoveme")
+
 				// wait a bit to ensure that the discarder will be placed before the file delete
 				// see the race explanation in the probe_bpf.go in the invalidate event.
 				time.Sleep(2 * time.Second)
-
-				os.Remove("/usr/local/bin/pleaseremoveme")
 			},
 			expectedRule: "permissions_changed",
 		},

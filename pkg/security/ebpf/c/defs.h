@@ -262,6 +262,38 @@ struct path_key_t {
     u32 path_id;
 };
 
+struct bpf_map_def SEC("maps/path_id") path_id = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
+    u32 key = 0;
+
+    u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
+    if (!prev_id) {
+        u32 first_id = 1;
+        bpf_map_update_elem(&path_id, &key, &first_id, BPF_ANY);
+
+        return first_id;
+    }
+
+    // return the current id so that the current event will use it. Increase the id for the next event only.
+    u32 id = *prev_id;
+
+    // need to invalidate the current path id for event which may change the association inode/name like
+    // unlink, rename, rmdir.
+    if (invalidate) {
+        __sync_fetch_and_add(prev_id, 1);
+    }
+
+    return id;
+}
+
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),

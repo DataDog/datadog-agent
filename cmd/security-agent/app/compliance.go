@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
@@ -61,11 +61,9 @@ func init() {
 }
 
 func eventRun(cmd *cobra.Command, args []string) error {
-	// we'll search for a config file named `datadog.yaml`
-	coreconfig.Datadog.SetConfigName("datadog")
-	err := common.SetupConfig(confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %w", err)
+	// Read configuration files received from the command line arguments '-c'
+	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+		return err
 	}
 
 	stopper := restart.NewSerialStopper()

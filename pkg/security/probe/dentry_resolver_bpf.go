@@ -181,7 +181,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		filename = "/"
 	}
 
-	if err != nil {
+	if err == nil {
 		for k, v := range toAdd {
 			dr.cache.Add(k, v)
 		}
