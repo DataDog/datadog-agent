@@ -1,7 +1,6 @@
 package network
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"strings"
@@ -163,36 +162,24 @@ func (c ConnectionStats) String() string {
 // ByteKey returns a unique key for this connection represented as a byte array
 // It's as following:
 //
+//     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
-	buffer.Reset()
+func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, error) {
+	n := 0
 	// Byte-packing to improve creation speed
 	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
 	p0 := uint64(c.Pid)<<32 | uint64(c.SPort)<<16 | uint64(c.DPort)
-
-	var buf [8]byte
-	binary.LittleEndian.PutUint64(buf[:], p0)
-
-	if _, err := buffer.Write(buf[:]); err != nil {
-		return nil, err
-	}
+	binary.LittleEndian.PutUint64(buf[0:], p0)
+	n += 8
 
 	// Family (4 bits) + Type (4 bits) = 8 bits
-	p1 := uint8(c.Family)<<4 | uint8(c.Type)
-	if err := buffer.WriteByte(p1); err != nil {
-		return nil, err
-	}
+	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
+	n++
 
-	if _, err := buffer.Write(c.Source.Bytes()); err != nil {
-		return nil, err
-	}
-
-	if _, err := buffer.Write(c.Dest.Bytes()); err != nil {
-		return nil, err
-	}
-
-	return buffer.Bytes(), nil
+	n += copy(buf[n:], c.Source.Bytes()) // 4 or 16 bytes
+	n += copy(buf[n:], c.Dest.Bytes())   // 4 or 16 bytes
+	return buf[:n], nil
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"

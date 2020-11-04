@@ -1,7 +1,6 @@
 package network
 
 import (
-	"bytes"
 	"sync"
 	"time"
 
@@ -22,6 +21,9 @@ const (
 	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
 	// constant is not worth the increased memory cost.
 	DNSResponseCodeNoError = 0
+
+	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
+	ConnectionByteKeyMaxLen = 41
 )
 
 // State takes care of handling the logic for:
@@ -87,7 +89,7 @@ type networkState struct {
 	clients   map[string]*client
 	telemetry telemetry
 
-	buf             *bytes.Buffer // Shared buffer
+	buf             [ConnectionByteKeyMaxLen]byte // Shared buffer
 	latestTimeEpoch uint64
 
 	// Network state configuration
@@ -106,7 +108,6 @@ func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, ma
 		maxClosedConns: maxClosedConns,
 		maxClientStats: maxClientStats,
 		maxDNSStats:    maxDNSStats,
-		buf:            &bytes.Buffer{},
 	}
 }
 
@@ -229,7 +230,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
-func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*ConnectionStats {
+func getConnsByKey(conns []ConnectionStats, buf [ConnectionByteKeyMaxLen]byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
 		key, err := c.ByteKey(buf)

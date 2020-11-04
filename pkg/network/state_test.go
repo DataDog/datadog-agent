@@ -1,7 +1,6 @@
 package network
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"math/rand"
@@ -145,7 +144,8 @@ func TestRemoveConnections(t *testing.T) {
 		IntraHost:            true,
 	}
 
-	key, err := conn.ByteKey(&bytes.Buffer{})
+	var buf [ConnectionByteKeyMaxLen]byte
+	key, err := conn.ByteKey(buf)
 	require.NoError(t, err)
 
 	clientID := "1"
