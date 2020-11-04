@@ -423,7 +423,7 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 
 	atomic.AddInt64(&t.closedConns, 1)
 	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
-	t.state.StoreClosedConnection(cs)
+	t.state.StoreClosedConnection(&cs)
 	if cs.IPTranslation != nil {
 		t.conntracker.DeleteTranslation(cs)
 	}

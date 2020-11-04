@@ -37,7 +37,7 @@ type State interface {
 	) []ConnectionStats
 
 	// StoreClosedConnection stores a new closed connection
-	StoreClosedConnection(conn ConnectionStats)
+	StoreClosedConnection(conn *ConnectionStats)
 
 	// RemoveClient stops tracking stateful data for a given client
 	RemoveClient(clientID string)
@@ -243,7 +243,7 @@ func getConnsByKey(conns []ConnectionStats, buf *bytes.Buffer) map[string]*Conne
 }
 
 // StoreClosedConnection stores the given connection for every client
-func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
+func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -275,7 +275,7 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 			ns.telemetry.closedConnDropped++
 			continue
 		} else {
-			client.closedConnections[string(key)] = conn
+			client.closedConnections[string(key)] = *conn
 		}
 	}
 }
