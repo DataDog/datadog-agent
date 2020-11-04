@@ -82,7 +82,7 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan string, error) {
 	listenAddr := fmt.Sprintf("0.0.0.0:%d", port)
 	// http server receiving logs from the AWS Lambda environment
 
-	logsChan := make(chan string) // FIXME(remy): is there some configuration field existing somewhere for the size of this buffr?
+	logsChan := make(chan string)
 
 	go func() {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

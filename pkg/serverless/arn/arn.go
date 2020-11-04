@@ -18,8 +18,6 @@ func Get() string {
 	currentARN.Lock()
 	defer currentARN.Unlock()
 
-	// FIXME(remy): should remove the version if any
-
 	return currentARN.value
 }
 
@@ -28,6 +26,12 @@ func Get() string {
 func Set(arn string) {
 	currentARN.Lock()
 	defer currentARN.Unlock()
+
+	// remove the version if any
+	// format: arn:aws:lambda:<region>:<account-id>:function:<function-name>[:<version>]
+	if parts := strings.Split(arn, ":"); len(parts) > 7 {
+		arn = strings.Join(parts[:7], ":")
+	}
 
 	currentARN.value = arn
 }

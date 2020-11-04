@@ -79,7 +79,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	logLevelEnvVar = "DD_LOG_LEVEL"
 
 	logsHttpPortEnvVar     = "DD_LOGS_CONFIG_HTTP_SERVER_PORT"
-	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LOGS_TYPE"
+	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 )
 
 const (
