@@ -564,7 +564,6 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 }
 
 func (ns *networkState) determineConnectionIntraHost(connections []ConnectionStats) {
-
 	type connKey struct {
 		Address util.Address
 		Port    uint16
@@ -588,20 +587,18 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 		return key
 	}
 
-	lAddrs := make(map[connKey]struct{})
+	lAddrs := make(map[connKey]struct{}, len(connections))
 	for _, conn := range connections {
 		lAddrs[newConnKey(&conn, false)] = struct{}{}
 	}
 
-	for i := range connections {
-		conn := &connections[i]
-		keyWithRAddr := newConnKey(conn, true)
-
+	for _, conn := range connections {
 		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
 			conn.IntraHost = true
 			continue
 		}
 
+		keyWithRAddr := newConnKey(&conn, true)
 		_, ok := lAddrs[keyWithRAddr]
 		if ok {
 			conn.IntraHost = true
