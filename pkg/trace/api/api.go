@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -364,16 +365,28 @@ func (r *HTTPReceiver) rateLimited(n int64) bool {
 
 // handleStats handles incoming stats payloads.
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
-	req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
-	var in pb.ClientStatsPayload
-	slurp, err := ioutil.ReadAll(req.Body)
+	rd := NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
+	slurp, err := ioutil.ReadAll(rd)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
 		return
 	}
-	if err := proto.Unmarshal(slurp, &in); err != nil {
-		httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
-		return
+
+	req.Header.Set("Accept", "application/msgpack")
+	req.Header.Add("Accept", "application/protobuf")
+
+	var in pb.ClientStatsPayload
+	switch ct := getMediaType(req); ct {
+	case "application/msgpack":
+		if err := msgp.Decode(bytes.NewReader(slurp), &in); err != nil {
+			httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
+			return
+		}
+	default:
+		if err := proto.Unmarshal(slurp, &in); err != nil {
+			httpDecodingError(err, []string{"handler:stats", "v:v0.5"}, w)
+			return
+		}
 	}
 	out := stats.Payload{
 		HostName: in.Hostname,
