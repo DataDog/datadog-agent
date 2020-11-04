@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// Tailer consumes and processes a stream of trap packets, and sends them to a stream of log messages.
+// Tailer consumes and processes a channel of strings, and sends them to a stream of log messages.
 type Tailer struct {
 	source     *config.LogSource
 	inputChan  chan string
@@ -47,10 +47,11 @@ func (t *Tailer) run() {
 	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {
 		origin := message.NewOrigin(t.source)
-		//		origin.SetTags()
 		tags := origin.Tags()
 		tags = append(tags, "source:agent") // FIXME(remy): to remove
-		tags = append(tags, t.source.Config.Tags...)
+		if len(t.source.Config.Tags) > 0 {
+			tags = append(tags, t.source.Config.Tags...)
+		}
 		origin.SetTags(tags)
 		t.outputChan <- message.NewMessage([]byte(logline), origin, message.StatusInfo)
 	}

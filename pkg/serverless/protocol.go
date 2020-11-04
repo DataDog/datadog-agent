@@ -130,6 +130,7 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan string, error) {
 								SampleRate: 1,
 							}}
 						}
+						// FIXME(remy): we should generate a message to send to the intake
 					}
 				}
 				w.WriteHeader(200)

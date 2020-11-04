@@ -3,6 +3,7 @@ package serverless
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,7 +20,7 @@ const (
 
 // LogMessage is a log message sent by the AWS API.
 type LogMessage struct {
-	//	Time time.Time  // FIXME(remy):
+	Time time.Time
 	Type string
 	// "extension" / "function" log messages contain a record which basically a log string
 	StringRecord string `json:"record"`
@@ -46,15 +47,29 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	var typ string
 	var ok bool
 
+	// type
+
 	if typ, ok = j["type"].(string); !ok {
 		return fmt.Errorf("LogMessage.UnmarshalJSON: malformed log message")
 	}
+
+	// time
+
+	if timeStr, ok := j["time"].(string); ok {
+		if time, err := time.Parse("2006-01-02T15:04:05Z", timeStr); err != nil {
+			// error happened, don't log anything here it could be too verbose
+			// TODO(remy): at some point we will probably want to report this
+		} else {
+			l.Time = time
+		}
+	}
+
+	// the rest
 
 	switch typ {
 	case logTypeExtension:
 		fallthrough
 	case logTypeFunction:
-		// FIXME(remy): l.Time
 		l.Type = typ
 		l.StringRecord = j["record"].(string)
 	case logTypePlatformStart, logTypePlatformEnd, logTypePlatformReport:

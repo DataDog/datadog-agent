@@ -78,7 +78,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
 
-	logsHttpPortEnvVar = "DD_LOGS_CONFIG_HTTP_SERVER_PORT"
+	logsHttpPortEnvVar     = "DD_LOGS_CONFIG_HTTP_SERVER_PORT"
+	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LOGS_TYPE"
 )
 
 const (
@@ -248,12 +249,29 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 			}
 		}
 
-		log.Debugf("Enabling logs collection with HTTP server rwunning port %d", httpPort)
+		// type of logs we are subscribing to
+		var logsType []string
+		if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
+			parts := strings.Split(strings.TrimSpace(envLogsType), ",")
+			for _, part := range parts {
+				part = strings.ToLower(strings.TrimSpace(part))
+				switch part {
+				case "function", "platform", "extension":
+					logsType = append(logsType, part)
+				default:
+					log.Warn("While subscribing to logs, unknown log type", part)
+				}
+			}
+		} else {
+			logsType = append(logsType, "platform", "function")
+		}
+
+		log.Debugf("Enabling logs collection with HTTP server running port %d", httpPort)
 		if httpAddr, logsChan, err := daemon.StartHttpLogsServer(httpPort); err != nil {
 			log.Error("While starting the HTTP Logs Server:", err)
 		} else {
 			// subscribe to the logs on the platform
-			if err := serverless.SubscribeLogs(serverlessID, httpAddr); err != nil {
+			if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
 				log.Error("Can't subscribe to logs:", err)
 				// FIXME(remy): we should probably stop the http logs server here
 			} else {

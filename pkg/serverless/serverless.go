@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/arn"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -123,8 +124,15 @@ func Register() (ID, error) {
 }
 
 // SubscribeLogs subscribes to the logs collection on the platform.
-// FIXME(remy): complete this comment (what is collected, how, ...)
-func SubscribeLogs(id ID, httpAddr string) error {
+// We send a request to AWS to subscribe for logs, indicating on which port we
+// are opening an HTTP server, to receive logs from AWS.
+// When we are receving logs on this HTTP server, we're pushing them in a channel
+// tailed by the Logs Agent pipeline, these logs then go through the regular
+// Logs Agent pipeline to finally be sent on the intake when we receive a FLUSH
+// call from the Lambda function / client.
+// logsType contains the type of logs for which we are subscribing, possible
+// value: platform, extension and function.
+func SubscribeLogs(id ID, httpAddr string, logsType []string) error {
 	var err error
 	var request *http.Request
 	var response *http.Response
@@ -137,13 +145,15 @@ func SubscribeLogs(id ID, httpAddr string) error {
 	// send a hit on a route to subscribe to the logs collection feature
 	// --------------------
 
+	log.Debug("Subscribing to Logs for types:", logsType)
+
 	if jsonBytes, err = json.Marshal(map[string]interface{}{
 		"destination": map[string]string{
 			"URI":      httpAddr,
 			"protocol": "HTTP",
 		},
-		"types": []string{"platform", "extension", "function"}, // FIXME(remy): should be configurable
-		"buffering": map[string]int{ // FIXME(remy): these should be better defined
+		"types": logsType,
+		"buffering": map[string]int{ // TODO(remy): these should be better defined
 			"timeoutMs": 1000,
 			"maxBytes":  262144,
 			"maxItems":  1000,
