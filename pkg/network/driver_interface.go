@@ -63,6 +63,7 @@ type DriverInterface struct {
 	closedFlows    int64
 	openFlows      int64
 	moreDataErrors int64
+	bufferSize     int64
 
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
@@ -84,6 +85,7 @@ func NewDriverInterface(enableMonotonicCounts bool, bufferSize int) (*DriverInte
 		connStatsActive:       make([]ConnectionStats, 512),
 		connStatsClosed:       make([]ConnectionStats, 512),
 		readBuffer:            make([]byte, bufferSize),
+		bufferSize:            int64(bufferSize),
 	}
 
 	err := dc.setupFlowHandle()
@@ -195,21 +197,19 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 	openFlows := atomic.SwapInt64(&di.openFlows, 0)
 	closedFlows := atomic.SwapInt64(&di.closedFlows, 0)
 	moreDataErrors := atomic.SwapInt64(&di.moreDataErrors, 0)
+	bufferSize := atomic.LoadInt64(&di.bufferSize)
 
 	return map[string]interface{}{
 		"driver_total_flow_stats":  totalDriverStats,
 		"driver_flow_handle_stats": flowHandleStats,
-		"total_flows": map[string]int64{
-			"total": totalFlows,
-		},
-		"open_flows": map[string]int64{
-			"open": openFlows,
-		},
-		"closed_flows": map[string]int64{
+		"flows": map[string]int64{
+			"total":  totalFlows,
+			"open":   openFlows,
 			"closed": closedFlows,
 		},
-		"more_data_errors": map[string]int64{
+		"driver": map[string]int64{
 			"more_data_errors": moreDataErrors,
+			"buffer_size":      bufferSize,
 		},
 	}, nil
 }
@@ -257,6 +257,7 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 	}
 
 	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
+	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
 	atomic.AddInt64(&di.openFlows, int64(activeCount))
 	atomic.AddInt64(&di.closedFlows, int64(closedCount))
 	atomic.AddInt64(&di.totalFlows, int64(activeCount+closedCount))

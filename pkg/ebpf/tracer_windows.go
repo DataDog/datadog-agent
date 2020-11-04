@@ -150,10 +150,8 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	return map[string]interface{}{
 		"state":                    stateStats,
-		"total_flows":              driverStats["total_flows"],
-		"open_flows":               driverStats["open_flows"],
-		"closed_flows":             driverStats["closed_flows"],
-		"more_data_errors":         driverStats["more_data_errors"],
+		"flows":                    driverStats["flows"],
+		"driver":                   driverStats["driver"],
 		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
 		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil
