@@ -81,7 +81,7 @@ type MemoryInfoExStat struct {
 	Dirty  uint64 // bytes
 }
 
-// IOCountersStat olds IO metrics for a process
+// IOCountersStat holds IO metrics for a process
 type IOCountersStat struct {
 	ReadCount  uint64
 	WriteCount uint64
