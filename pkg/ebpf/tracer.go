@@ -247,7 +247,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		perfHandler:    perfHandler,
 		flushIdle:      make(chan chan struct{}),
 		stop:           make(chan struct{}),
-		conntrack:      newCachedConntrack(config.ProcRoot, netlink.NewConntrack, defaultConntrackCacheShrinkInterval, defaultConntrackNetlinkTTLSeconds),
+		conntrack:      newCachedConntrack(config.ProcRoot, netlink.NewConntrack, 128),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandler)

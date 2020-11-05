@@ -5,7 +5,6 @@ package ebpf
 import (
 	"os"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -22,74 +21,46 @@ func TestEnsureConntrack(t *testing.T) {
 
 	errorCreator := func(_ int) (netlink.Conntrack, error) { return nil, assert.AnError }
 
-	cache := newCachedConntrack("/proc", errorCreator, time.Minute, time.Minute)
+	cache := newCachedConntrack("/proc", errorCreator, 1)
 	defer cache.Close()
 
 	ctrk, err := cache.ensureConntrack(0, os.Getpid())
-	require.Nil(t, ctrk)
+	require.Nil(t, ctrk.ctrk)
 	require.Error(t, err)
 	require.Equal(t, assert.AnError, err)
 
 	m := netlink.NewMockConntrack(ctrl)
 	n := 0
 	creator := func(_ int) (netlink.Conntrack, error) {
-		require.Equal(t, n, 0, "unexpected call to create conntrack")
 		n++
 		return m, nil
 	}
 
-	cache = newCachedConntrack("/proc", creator, time.Minute, time.Minute)
+	cache = newCachedConntrack("/proc", creator, 1)
 	defer cache.Close()
 
-	m.EXPECT().Close().Times(1)
+	// once when cache.Close() is called, another when eviction happens
+	m.EXPECT().Close().Times(2)
 
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
-	require.Equal(t, m, ctrk)
+	require.Equal(t, m, ctrk.ctrk)
+	require.Equal(t, 1, n)
+	ctrk.Decr()
 
 	// call again, should get the cached Conntrack
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
-	require.Equal(t, m, ctrk)
-}
+	require.Equal(t, m, ctrk.ctrk)
+	require.Equal(t, 1, n)
+	ctrk.Decr()
 
-func TestCachedConntrackExpiry(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	m := netlink.NewMockConntrack(ctrl)
-	n := 0
-	creator := func(_ int) (netlink.Conntrack, error) {
-		n++
-		return m, nil
-	}
-
-	cache := newCachedConntrack("/proc", creator, 2*time.Second, 2*time.Second)
-	defer cache.Close()
-
-	ctrk, err := cache.ensureConntrack(1234, os.Getpid())
+	// evict the lone conntrack in the cache
+	ctrk, err = cache.ensureConntrack(1235, os.Getpid())
 	require.NoError(t, err)
-	require.Equal(t, m, ctrk)
-	require.Equal(t, n, 1)
-
-	// one from expiry and another from cache.Close()
-	m.EXPECT().Close().Times(2)
-
-	time.Sleep(1 * time.Second)
-
-	// there should be no call to creator since entry should not have expired
-	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
-	require.NoError(t, err)
-	require.Equal(t, m, ctrk)
-	require.Equal(t, n, 1)
-
-	time.Sleep(3 * time.Second)
-
-	// there should be another call to creator since entry should have expired
-	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
-	require.NoError(t, err)
-	require.Equal(t, m, ctrk)
-	require.Equal(t, n, 2)
+	require.Equal(t, m, ctrk.ctrk)
+	require.Equal(t, 2, n)
+	ctrk.Decr()
 }
 
 func TestCachedConntrackExists(t *testing.T) {
@@ -103,7 +74,7 @@ func TestCachedConntrackExists(t *testing.T) {
 		return m, nil
 	}
 
-	cache := newCachedConntrack("/proc", creator, time.Minute, time.Minute)
+	cache := newCachedConntrack("/proc", creator, 10)
 	defer cache.Close()
 
 	m.EXPECT().Close().Times(1)
@@ -160,4 +131,32 @@ func TestCachedConntrackExists(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exists)
 	require.Equal(t, 1, n)
+}
+
+func TestCachedConntrackClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := netlink.NewMockConntrack(ctrl)
+	n := 0
+	creator := func(_ int) (netlink.Conntrack, error) {
+		n++
+		return m, nil
+	}
+
+	cache := newCachedConntrack("/proc", creator, 10)
+	defer cache.Close()
+
+	var ctrks []refCountedConntrack
+	for i := 0; i < 10; i++ {
+		ctrk, err := cache.ensureConntrack(uint64(1234+i), os.Getpid())
+		require.NoError(t, err)
+		require.NotNil(t, ctrk.ctrk)
+		ctrks = append(ctrks, ctrk)
+	}
+	defer func() {
+		for _, c := range ctrks {
+			c.Decr()
+		}
+	}()
+
+	m.EXPECT().Close().Times(len(ctrks))
 }
