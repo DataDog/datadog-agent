@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -23,6 +25,10 @@ var (
 	errorStats     = newCollectorErrors()
 	checkScheduler *CheckScheduler
 )
+
+type commonInitConfig struct{
+	LoaderName string `yaml:"loader"`
+}
 
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
@@ -134,10 +140,23 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
 
+	initConfig := commonInitConfig{}
+	err := yaml.Unmarshal(config.InitConfig, &initConfig)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Get checks for check '%s' with loader name '%s'", config.Name, initConfig.LoaderName)
+
 	for _, instance := range config.Instances {
 		errors := []string{}
 
 		for _, loader := range s.loaders {
+			if initConfig.LoaderName != "" {
+				if initConfig.LoaderName != loader.Name() {
+					log.Debugf("Loader name %v does not match, skip loader %v for check %v", initConfig.LoaderName, loader.Name(), config.Name)
+					continue
+				}
+			}
 			c, err := loader.Load(config, instance)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)

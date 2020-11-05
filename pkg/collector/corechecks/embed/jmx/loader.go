@@ -27,6 +27,11 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 	return &JMXCheckLoader{}, nil
 }
 
+// Load returns JMX loader name
+func (gl *JMXCheckLoader) Name() string {
+	return "jmx"
+}
+
 // Load returns a JMX check
 func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check

@@ -93,6 +93,11 @@ func getRtLoaderError() error {
 	return nil
 }
 
+// Load returns Python loader name
+func (gl *PythonCheckLoader) Name() string {
+	return "python"
+}
+
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
