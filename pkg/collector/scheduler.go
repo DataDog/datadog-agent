@@ -151,11 +151,10 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		errors := []string{}
 
 		for _, loader := range s.loaders {
-			if initConfig.LoaderName != "" {
-				if initConfig.LoaderName != loader.Name() {
-					log.Debugf("Loader name %v does not match, skip loader %v for check %v", initConfig.LoaderName, loader.Name(), config.Name)
-					continue
-				}
+			// the loader is skipped if the loader name is set and does not match
+			if (initConfig.LoaderName != "") && (initConfig.LoaderName != loader.Name()) {
+				log.Debugf("Loader name %v does not match, skip loader %v for check %v", initConfig.LoaderName, loader.Name(), config.Name)
+				continue
 			}
 			c, err := loader.Load(config, instance)
 			if err == nil {
