@@ -18,10 +18,14 @@ const (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"state", "driver_total_flow_stats", "driver_flow_handle_stats", "total_flows", "open_flows", "closed_flows", "more_data_errors"}
 )
 
 func init() {
+	expvarTypes := []string{"state"}
+	for _, n := range network.DriverExpvarNames {
+		expvarTypes = append(expvarTypes, string(n))
+	}
+
 	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
 	for _, name := range expvarTypes {
 		expvarEndpoints[name] = expvar.NewMap(name)
@@ -104,17 +108,12 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 				for metric, val := range stat.(map[string]int64) {
 					currVal := &expvar.Int{}
 					currVal.Set(val)
-					expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+					if ep, ok := expvarEndpoints[name]; ok {
+						ep.Set(snakeToCapInitialCamel(metric), currVal)
+					}
 				}
 			}
 		}
-	}
-}
-
-// printStats can be used to debug the stats we pull from the driver
-func printStats(stats []network.ConnectionStats) {
-	for _, stat := range stats {
-		log.Infof("%v", stat)
 	}
 }
 
@@ -147,14 +146,13 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	}
 
 	stateStats := t.state.GetStats()
-
-	return map[string]interface{}{
-		"state":                    stateStats,
-		"flows":                    driverStats["flows"],
-		"driver":                   driverStats["driver"],
-		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
-		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
-	}, nil
+	stats := map[string]interface{}{
+		"state": stateStats,
+	}
+	for _, name := range network.DriverExpvarNames {
+		stats[string(name)] = driverStats[name]
+	}
+	return stats, nil
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging

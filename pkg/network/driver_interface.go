@@ -47,6 +47,19 @@ var (
 	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_NPMDRIVER_SIGNATURE)
 )
 
+// DriverExpvar is the name of a top-level driver expvar returned from GetStats
+type DriverExpvar string
+
+const (
+	totalFlowStats  DriverExpvar = "driver_total_flow_stats"
+	flowHandleStats              = "driver_flow_handle_stats"
+	flowStats                    = "flows"
+	driverStats                  = "driver"
+)
+
+// DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
+var DriverExpvarNames = []DriverExpvar{totalFlowStats, flowHandleStats, flowStats, driverStats}
+
 // Creates a buffer that Driver will use to verify proper versions are communicating
 // We create a buffer because the system calls we make need a *byte which is not
 // possible with const value
@@ -182,9 +195,9 @@ func (di *DriverInterface) closeDriverHandle(handle windows.Handle) error {
 }
 
 // GetStats returns statistics for the driver interface used by the windows tracer
-func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
+func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 
-	flowHandleStats, err := di.driverFlowHandle.getStatsForHandle()
+	handleStats, err := di.driverFlowHandle.getStatsForHandle()
 	if err != nil {
 		return nil, err
 	}
@@ -199,15 +212,15 @@ func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 	moreDataErrors := atomic.SwapInt64(&di.moreDataErrors, 0)
 	bufferSize := atomic.LoadInt64(&di.bufferSize)
 
-	return map[string]interface{}{
-		"driver_total_flow_stats":  totalDriverStats,
-		"driver_flow_handle_stats": flowHandleStats,
-		"flows": map[string]int64{
+	return map[DriverExpvar]interface{}{
+		totalFlowStats:  totalDriverStats,
+		flowHandleStats: handleStats,
+		flowStats: map[string]int64{
 			"total":  totalFlows,
 			"open":   openFlows,
 			"closed": closedFlows,
 		},
-		"driver": map[string]int64{
+		driverStats: map[string]int64{
 			"more_data_errors": moreDataErrors,
 			"buffer_size":      bufferSize,
 		},
