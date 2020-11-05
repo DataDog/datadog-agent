@@ -94,7 +94,7 @@ func getRtLoaderError() error {
 }
 
 // Load returns Python loader name
-func (gl *PythonCheckLoader) Name() string {
+func (cl *PythonCheckLoader) Name() string {
 	return "python"
 }
 

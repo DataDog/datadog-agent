@@ -28,7 +28,7 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 }
 
 // Load returns JMX loader name
-func (gl *JMXCheckLoader) Name() string {
+func (jl *JMXCheckLoader) Name() string {
 	return "jmx"
 }
 
