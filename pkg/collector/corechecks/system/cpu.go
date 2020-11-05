@@ -7,7 +7,11 @@
 package system
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/shirou/gopsutil/cpu"
 
@@ -38,6 +42,13 @@ func (c *CPUCheck) Run() error {
 	if err != nil {
 		return err
 	}
+
+	ctxSwitches, err := c.readCtxSwitches()
+	if err != nil {
+		log.Errorf("system.CPUCheck could read context switches: %s", err.Error())
+		return err
+	}
+	sender.MonotonicCount("system.linux.context_switches", float64(ctxSwitches), "", nil)
 
 	cpuTimes, err := times(false)
 	if err != nil {
@@ -77,6 +88,31 @@ func (c *CPUCheck) Run() error {
 	c.lastNbCycle = nbCycle
 	c.lastTimes = t
 	return nil
+}
+
+func (c *CPUCheck) readCtxSwitches() (ctxSwitches int64, err error) {
+	file, err := os.Open("/proc/stat")
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		txt := scanner.Text()
+		if strings.HasPrefix(txt, "ctxt") {
+			fmt.Printf("LINE = %s\n", txt)
+			elemts := strings.Split(txt, " ")
+			fmt.Printf("ELEMTS = %v\n", elemts)
+			ctxSwitches, err = strconv.ParseInt(elemts[1], 10, 64)
+			if err != nil {
+				return 0, err
+			}
+			return ctxSwitches, nil
+		}
+	}
+
+	return 0, fmt.Errorf("could not find the context switches in stat file")
 }
 
 // Configure the CPU check
