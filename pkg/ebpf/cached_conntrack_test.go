@@ -25,7 +25,7 @@ func TestEnsureConntrack(t *testing.T) {
 	defer cache.Close()
 
 	ctrk, err := cache.ensureConntrack(0, os.Getpid())
-	require.Nil(t, ctrk.ctrk)
+	require.Nil(t, ctrk)
 	require.Error(t, err)
 	require.Equal(t, assert.AnError, err)
 
@@ -44,23 +44,20 @@ func TestEnsureConntrack(t *testing.T) {
 
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
-	require.Equal(t, m, ctrk.ctrk)
 	require.Equal(t, 1, n)
-	ctrk.Decr()
+	ctrk.Close()
 
 	// call again, should get the cached Conntrack
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
-	require.Equal(t, m, ctrk.ctrk)
 	require.Equal(t, 1, n)
-	ctrk.Decr()
+	ctrk.Close()
 
 	// evict the lone conntrack in the cache
 	ctrk, err = cache.ensureConntrack(1235, os.Getpid())
 	require.NoError(t, err)
-	require.Equal(t, m, ctrk.ctrk)
 	require.Equal(t, 2, n)
-	ctrk.Decr()
+	ctrk.Close()
 }
 
 func TestCachedConntrackExists(t *testing.T) {
@@ -145,16 +142,16 @@ func TestCachedConntrackClose(t *testing.T) {
 	cache := newCachedConntrack("/proc", creator, 10)
 	defer cache.Close()
 
-	var ctrks []refCountedConntrack
+	var ctrks []netlink.Conntrack
 	for i := 0; i < 10; i++ {
 		ctrk, err := cache.ensureConntrack(uint64(1234+i), os.Getpid())
 		require.NoError(t, err)
-		require.NotNil(t, ctrk.ctrk)
+		require.NotNil(t, ctrk)
 		ctrks = append(ctrks, ctrk)
 	}
 	defer func() {
 		for _, c := range ctrks {
-			c.Decr()
+			c.Close()
 		}
 	}()
 
