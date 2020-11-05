@@ -780,7 +780,7 @@ type ExecEvent struct {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 96 {
+	if len(data) < 168 {
 		return 0, ErrNotEnoughData
 	}
 

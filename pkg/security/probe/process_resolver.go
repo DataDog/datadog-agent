@@ -25,13 +25,14 @@ type ProcessCacheEntry struct {
 	Cookie       uint32
 	TTYName      string
 	Comm         string
+	PPid         uint32
 
 	TTYNameRaw [64]byte
 }
 
 // UnmarshalBinary returns the binary representation of itself
 func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 96 {
+	if len(data) < 164 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -42,6 +43,7 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte) (int, error) {
 
 	pc.TimestampRaw = ebpf.ByteOrder.Uint64(data[read : read+8])
 	pc.Cookie = ebpf.ByteOrder.Uint32(data[read+8 : read+12])
+	pc.PPid = ebpf.ByteOrder.Uint32(data[read+12 : read+16])
 
 	// skip 4 for padding
 	utils.SliceToArray(data[read+16:read+80], unsafe.Pointer(&pc.TTYNameRaw))

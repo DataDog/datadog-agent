@@ -252,7 +252,7 @@ struct proc_cache_t {
     struct container_context_t container;
     u64 timestamp;
     u32 cookie;
-    u32 padding;
+    u32 ppid;
     char tty_name[TTY_NAME_LEN];
 };
 
