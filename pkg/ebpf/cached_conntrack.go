@@ -87,7 +87,7 @@ func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
 
 	ok, err := ctrk.Exists(&conn)
 	if err != nil {
-		log.Errorf("error while checking conntrack for connection %#v: %s", conn, err)
+		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
 		cache.removeConntrack(c.NetNS())
 		return false, err
 	}
@@ -100,7 +100,7 @@ func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
 	conn.Origin = nil
 	ok, err = ctrk.Exists(&conn)
 	if err != nil {
-		log.Errorf("error while checking conntrack for connection %#v: %s", conn, err)
+		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
 		cache.removeConntrack(c.NetNS())
 		return false, err
 	}
