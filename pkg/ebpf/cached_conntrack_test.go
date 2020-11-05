@@ -26,6 +26,7 @@ func TestEnsureConntrack(t *testing.T) {
 	defer cache.Close()
 
 	ctrk, err := cache.ensureConntrack(0, os.Getpid())
+	require.Nil(t, ctrk)
 	require.Error(t, err)
 	require.Equal(t, assert.AnError, err)
 
