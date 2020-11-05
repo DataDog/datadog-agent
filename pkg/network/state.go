@@ -593,13 +593,15 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 		lAddrs[newConnKey(&conn, false)] = struct{}{}
 	}
 
-	for _, conn := range connections {
+	// do not use range value here since it will create a copy of the ConnectionStats object
+	for i := range connections {
+		conn := &connections[i]
 		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
 			conn.IntraHost = true
 			continue
 		}
 
-		keyWithRAddr := newConnKey(&conn, true)
+		keyWithRAddr := newConnKey(conn, true)
 		_, ok := lAddrs[keyWithRAddr]
 		if ok {
 			conn.IntraHost = true
