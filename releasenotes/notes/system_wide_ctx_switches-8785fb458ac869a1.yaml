@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    The CPU check now collect system-wide context switches on Linux.
