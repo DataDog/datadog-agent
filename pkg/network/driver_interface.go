@@ -72,8 +72,8 @@ type DriverInterface struct {
 	enableMonotonicCounts bool
 
 	bufferLock      sync.Mutex
-	connStatsActive []ConnectionStats
-	connStatsClosed []ConnectionStats
+	connStatsActive *driverBuffer
+	connStatsClosed *driverBuffer
 	readBuffer      []uint8
 }
 
@@ -82,8 +82,8 @@ func NewDriverInterface(enableMonotonicCounts bool, bufferSize int) (*DriverInte
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
-		connStatsActive:       make([]ConnectionStats, 512),
-		connStatsClosed:       make([]ConnectionStats, 512),
+		connStatsActive:       newDriverBuffer(512),
+		connStatsClosed:       newDriverBuffer(512),
 		readBuffer:            make([]byte, bufferSize),
 		bufferSize:            int64(bufferSize),
 	}
@@ -219,8 +219,8 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 	di.bufferLock.Lock()
 	defer di.bufferLock.Unlock()
 
-	closedCount := 0
-	activeCount := 0
+	di.connStatsActive.Reset()
+	di.connStatsClosed.Reset()
 
 	var bytesRead uint32
 	var totalBytesRead uint32
@@ -241,39 +241,23 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 
 			if isFlowClosed(pfd.flags) {
-				if closedCount >= len(di.connStatsClosed) {
-					di.connStatsClosed = append(di.connStatsClosed, make([]ConnectionStats, len(di.connStatsClosed))...)
-				}
-				FlowToConnStat(&di.connStatsClosed[closedCount], pfd, di.enableMonotonicCounts)
-				closedCount++
+				FlowToConnStat(di.connStatsClosed.Next(), pfd, di.enableMonotonicCounts)
 			} else {
-				if activeCount >= len(di.connStatsActive) {
-					di.connStatsActive = append(di.connStatsActive, make([]ConnectionStats, len(di.connStatsActive))...)
-				}
-				FlowToConnStat(&di.connStatsActive[activeCount], pfd, di.enableMonotonicCounts)
-				activeCount++
+				FlowToConnStat(di.connStatsActive.Next(), pfd, di.enableMonotonicCounts)
 			}
 		}
 	}
 
 	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
 	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
-	atomic.AddInt64(&di.openFlows, int64(activeCount))
-	atomic.AddInt64(&di.closedFlows, int64(closedCount))
-	atomic.AddInt64(&di.totalFlows, int64(activeCount+closedCount))
 
-	if activeCount <= len(di.connStatsActive)/2 {
-		a := make([]ConnectionStats, activeCount)
-		copy(a, di.connStatsActive)
-		di.connStatsActive = a
-	}
-	if closedCount <= len(di.connStatsClosed)/2 {
-		a := make([]ConnectionStats, closedCount)
-		copy(a, di.connStatsClosed)
-		di.connStatsClosed = a
-	}
+	active := di.connStatsActive.Connections()
+	closed := di.connStatsClosed.Connections()
+	atomic.AddInt64(&di.openFlows, int64(len(active)))
+	atomic.AddInt64(&di.closedFlows, int64(len(closed)))
+	atomic.AddInt64(&di.totalFlows, int64(len(active)+len(closed)))
 
-	return di.connStatsActive[:activeCount], di.connStatsClosed[:closedCount], nil
+	return active, closed, nil
 }
 
 func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
