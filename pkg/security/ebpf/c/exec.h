@@ -39,6 +39,19 @@ void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *dst, st
     return;
 }
 
+static __attribute__((always_inline)) u32 copy_tty_name(char dst[TTY_NAME_LEN], char src[TTY_NAME_LEN]) {
+    if (src[0] == 0) {
+        return 0;
+    }
+
+#pragma unroll
+    for (int i = 0; i < TTY_NAME_LEN; i++)
+    {
+        dst[i] = src[i];
+    }
+    return TTY_NAME_LEN;
+}
+
 int __attribute__((always_inline)) trace__sys_execveat() {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_EXEC,
@@ -117,6 +130,28 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
         // Ensures pid and ppid point to the same cookie
         bpf_map_update_elem(&pid_cookie, &pid, &cookie, BPF_ANY);
+
+        // Send event back to user space to populate process cache
+        struct exec_event_t event = {
+            .event.type = EVENT_EXEC,
+            .pid = pid,
+            .cache_entry.executable = {
+                .inode = parent_entry->executable.inode,
+                .overlay_numlower = parent_entry->executable.overlay_numlower,
+                .mount_id = parent_entry->executable.mount_id,
+                .path_id = parent_entry->executable.path_id,
+            },
+            .cache_entry.container = {},
+            .cache_entry.timestamp = parent_entry->timestamp,
+            .cache_entry.cookie = parent_entry->cookie,
+            .cache_entry.ppid = ppid,
+        };
+
+        copy_tty_name(event.cache_entry.tty_name, parent_entry->tty_name);
+        copy_container_id(event.cache_entry.container.container_id, parent_entry->container.container_id);
+
+        // send the entry to maintain userspace cache
+        send_process_events(args, event);
     }
 
     return 0;
@@ -156,19 +191,6 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     }
 
     return 0;
-}
-
-static __attribute__((always_inline)) u32 copy_tty_name(char dst[TTY_NAME_LEN], char src[TTY_NAME_LEN]) {
-    if (src[0] == 0) {
-        return 0;
-    }
-
-#pragma unroll
-    for (int i = 0; i < TTY_NAME_LEN; i++)
-    {
-        dst[i] = src[i];
-    }
-    return TTY_NAME_LEN;
 }
 
 SEC("kprobe/do_close_on_exec")
