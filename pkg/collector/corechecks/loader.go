@@ -52,7 +52,7 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 	return &GoCheckLoader{}, nil
 }
 
-// Load returns Go loader name
+// Name return returns Go loader name
 func (gl *GoCheckLoader) Name() string {
 	return "core"
 }
