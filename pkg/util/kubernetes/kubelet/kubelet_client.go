@@ -211,7 +211,7 @@ func getKubeletClient() (*kubeletClient, error) {
 	if kubeletHTTPSPort > 0 {
 		httpsErr = checkKubeletConnection("https", kubeletHTTPSPort, kubeletPathPrefix, potentialHosts, &clientConfig)
 		if httpsErr != nil {
-			log.Info("Impossible to reach Kubelet through HTTPS")
+			log.Debug("Impossible to reach Kubelet through HTTPS")
 			if kubeletHTTPPort <= 0 {
 				return nil, httpsErr
 			}
@@ -225,7 +225,7 @@ func getKubeletClient() (*kubeletClient, error) {
 	if kubeletHTTPPort > 0 {
 		httpErr = checkKubeletConnection("http", kubeletHTTPPort, kubeletPathPrefix, potentialHosts, &clientConfig)
 		if httpErr != nil {
-			log.Info("Impossible to reach Kubelet through HTTP")
+			log.Debug("Impossible to reach Kubelet through HTTP")
 			return nil, fmt.Errorf("impossible to reach Kubelet with host: %s. Please check if your setup requires kubelet_tls_verify = false. Activate debug logs to see all attempts made", kubeletHost)
 		}
 
@@ -243,7 +243,7 @@ func checkKubeletConnection(scheme string, port int, prefix string, hosts *conne
 	var err error
 	var kubeClient *kubeletClient
 
-	log.Infof("Trying to reach Kubelet with scheme: %s", scheme)
+	log.Debugf("Trying to reach Kubelet with scheme: %s", scheme)
 	clientConfig.scheme = scheme
 
 	for _, ip := range hosts.ips {
