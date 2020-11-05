@@ -1,4 +1,4 @@
-package serverless
+package aws
 
 import (
 	"encoding/json"
@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	logTypeExtension = "extension"
+	LogTypeExtension = "extension"
 
-	logTypeFunction = "function"
+	LogTypeFunction = "function"
 
-	logTypePlatformStart  = "platform.start"
-	logTypePlatformEnd    = "platform.end"
-	logTypePlatformReport = "platform.report"
+	LogTypePlatformStart  = "platform.start"
+	LogTypePlatformEnd    = "platform.end"
+	LogTypePlatformReport = "platform.report"
 )
 
 // LogMessage is a log message sent by the AWS API.
@@ -67,12 +67,12 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	// the rest
 
 	switch typ {
-	case logTypeExtension:
+	case LogTypeExtension:
 		fallthrough
-	case logTypeFunction:
+	case LogTypeFunction:
 		l.Type = typ
 		l.StringRecord = j["record"].(string)
-	case logTypePlatformStart, logTypePlatformEnd, logTypePlatformReport:
+	case LogTypePlatformStart, LogTypePlatformEnd, LogTypePlatformReport:
 		l.Type = typ
 		if objectRecord, ok := j["record"].(map[string]interface{}); ok {
 			// all of these have the requestId
@@ -80,7 +80,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 				l.ObjectRecord.RequestId = requestId
 			}
 			// only logTypePlatformReport has what we call "enhanced metrics"
-			if typ == logTypePlatformReport {
+			if typ == LogTypePlatformReport {
 				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
 					if v, ok := metrics["durationMs"].(float64); ok {
 						l.ObjectRecord.Metrics.DurationMs = v

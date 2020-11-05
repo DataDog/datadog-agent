@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -47,11 +48,11 @@ func Start(getAC func() *autodiscovery.AutoConfig) error {
 	return start(getAC, false, nil)
 }
 
-func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan string) error {
+func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan aws.LogMessage) error {
 	return start(getAC, true, logsChan)
 }
 
-func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan string) error {
+func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan aws.LogMessage) error {
 	if IsAgentRunning() {
 		return nil
 	}

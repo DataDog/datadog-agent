@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
-	"github.com/DataDog/datadog-agent/pkg/serverless/arn"
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -258,7 +258,7 @@ func WaitForNextInvocation(stopCh chan struct{}, statsdServer *dogstatsd.Server,
 	// sets the current ARN.
 	// TODO(remy): we could probably do this once
 	if payload.InvokedFunctionArn != "" {
-		arn.Set(payload.InvokedFunctionArn)
+		aws.SetARN(payload.InvokedFunctionArn)
 	}
 
 	if payload.EventType == "SHUTDOWN" {

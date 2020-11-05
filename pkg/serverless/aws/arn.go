@@ -1,6 +1,4 @@
-// +build serverless
-
-package arn
+package aws
 
 import (
 	"strings"
@@ -14,7 +12,7 @@ var currentARN struct {
 
 // BuildARN returns an ARN of the current running function.
 // Thread-safe.
-func Get() string {
+func GetARN() string {
 	currentARN.Lock()
 	defer currentARN.Unlock()
 
@@ -23,7 +21,7 @@ func Get() string {
 
 // Set stores the given ARN.
 // Thread-safe.
-func Set(arn string) {
+func SetARN(arn string) {
 	currentARN.Lock()
 	defer currentARN.Unlock()
 

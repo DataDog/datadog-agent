@@ -8,18 +8,19 @@ package channel
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 )
 
 // Tailer consumes and processes a channel of strings, and sends them to a stream of log messages.
 type Tailer struct {
 	source     *config.LogSource
-	inputChan  chan string
+	inputChan  chan aws.LogMessage
 	outputChan chan *message.Message
 	done       chan interface{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, inputChan chan string, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *config.LogSource, inputChan chan aws.LogMessage, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		inputChan:  inputChan,
@@ -53,6 +54,6 @@ func (t *Tailer) run() {
 			tags = append(tags, t.source.Config.Tags...)
 		}
 		origin.SetTags(tags)
-		t.outputChan <- message.NewMessage([]byte(logline), origin, message.StatusInfo)
+		t.outputChan <- message.NewMessageWithTime([]byte(logline.StringRecord), origin, message.StatusInfo, logline.Time)
 	}
 }

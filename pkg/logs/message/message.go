@@ -5,13 +5,19 @@
 
 package message
 
-import "github.com/DataDog/datadog-agent/pkg/logs/config"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+)
 
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	Content []byte
 	Origin  *Origin
 	status  string
+	// Optional. Must be UTC. If not provided, time.Now().UTC() will be used
+	Timestamp time.Time
 }
 
 // NewMessageWithSource constructs message with content, status and log source.
@@ -25,6 +31,15 @@ func NewMessage(content []byte, origin *Origin, status string) *Message {
 		Content: content,
 		Origin:  origin,
 		status:  status,
+	}
+}
+
+func NewMessageWithTime(content []byte, origin *Origin, status string, utcTime time.Time) *Message {
+	return &Message{
+		Content:   content,
+		Origin:    origin,
+		status:    status,
+		Timestamp: utcTime,
 	}
 }
 

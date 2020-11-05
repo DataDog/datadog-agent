@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/arn"
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -77,29 +77,29 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 // StartHttpLogsServer starts an HTTP server, receiving logs from the AWS platform.
 // Returns the HTTP URL on which AWS should send the logs.
 // FIXME(remy): that would be awesome to have this directly running within the initial HTTP daemon?
-func (d *Daemon) StartHttpLogsServer(port int) (string, chan string, error) {
+func (d *Daemon) StartHttpLogsServer(port int) (string, chan aws.LogMessage, error) {
 	httpAddr := fmt.Sprintf("http://sandbox:%d", port)
 	listenAddr := fmt.Sprintf("0.0.0.0:%d", port)
 	// http server receiving logs from the AWS Lambda environment
 
-	logsChan := make(chan string)
+	logsChan := make(chan aws.LogMessage)
 
 	go func() {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			data, _ := ioutil.ReadAll(r.Body)
 			defer r.Body.Close()
-			var messages []LogMessage
+			var messages []aws.LogMessage
 			if err := json.Unmarshal(data, &messages); err != nil {
 				log.Error("Can't read log message")
 				w.WriteHeader(400)
 			} else {
 				for _, message := range messages {
 					switch message.Type {
-					case logTypeExtension, logTypeFunction:
+					case aws.LogTypeExtension, aws.LogTypeFunction:
 						// TODO(remy): what about the timestamp of the log available in the message?
-						logsChan <- message.StringRecord
-					case logTypePlatformReport:
-						functionName := arn.FunctionNameFromARN()
+						logsChan <- message
+					case aws.LogTypePlatformReport:
+						functionName := aws.FunctionNameFromARN()
 						if functionName != "" {
 							// report enhanced metrics using DogStatsD
 							tags := []string{fmt.Sprintf("functionname:%s", functionName)} // FIXME(remy): could this be exported to properly get all tags?
