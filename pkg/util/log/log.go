@@ -43,6 +43,7 @@ type DatadogLogger struct {
 
 // SetupLogger setup agent wide logger
 func SetupLogger(i seelog.LoggerInterface, level string) {
+	seelog.ReplaceLogger(i)
 	logger = setupCommonLogger(i, level)
 }
 
