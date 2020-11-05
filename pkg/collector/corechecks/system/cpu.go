@@ -101,9 +101,7 @@ func (c *CPUCheck) readCtxSwitches() (ctxSwitches int64, err error) {
 	for scanner.Scan() {
 		txt := scanner.Text()
 		if strings.HasPrefix(txt, "ctxt") {
-			fmt.Printf("LINE = %s\n", txt)
 			elemts := strings.Split(txt, " ")
-			fmt.Printf("ELEMTS = %v\n", elemts)
 			ctxSwitches, err = strconv.ParseInt(elemts[1], 10, 64)
 			if err != nil {
 				return 0, err
