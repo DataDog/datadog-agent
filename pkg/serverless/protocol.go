@@ -96,7 +96,6 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan aws.LogMessage, err
 				for _, message := range messages {
 					switch message.Type {
 					case aws.LogTypeExtension, aws.LogTypeFunction:
-						// TODO(remy): what about the timestamp of the log available in the message?
 						logsChan <- message
 					case aws.LogTypePlatformReport:
 						functionName := aws.FunctionNameFromARN()

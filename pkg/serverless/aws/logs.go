@@ -56,10 +56,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	// time
 
 	if timeStr, ok := j["time"].(string); ok {
-		if time, err := time.Parse("2006-01-02T15:04:05Z", timeStr); err != nil {
-			// error happened, don't log anything here it could be too verbose
-			// TODO(remy): at some point we will probably want to report this
-		} else {
+		if time, err := time.Parse("2006-01-02T15:04:05.999Z", timeStr); err == nil {
 			l.Time = time
 		}
 	}
