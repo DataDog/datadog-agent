@@ -98,6 +98,14 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 				} else {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
+				l.StringRecord = fmt.Sprintf("REPORT RequestId: %s	Duration: %.2f ms    	Billed Duration: %d ms	Memory Size: %d MB	Max Memory Used: %d MB	Init Duration: %.2f ms",
+					l.ObjectRecord.RequestId,
+					l.ObjectRecord.Metrics.DurationMs,
+					l.ObjectRecord.Metrics.BilledDurationMs,
+					l.ObjectRecord.Metrics.MemorySizeMB,
+					l.ObjectRecord.Metrics.MaxMemoryUsedMB,
+					l.ObjectRecord.Metrics.InitDurationMs,
+				)
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")

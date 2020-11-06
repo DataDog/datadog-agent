@@ -159,7 +159,6 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	// immediately starts the communication server
-	// FIXME(remy): should it also do the logs collection to avoid to open yet another port
 	daemon := serverless.StartDaemon(stopCh)
 
 	// serverless parts
@@ -237,8 +236,6 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	// starts logs collection if enabled
-	// TODO(remy): should we set a flag somewhere that it's not enabled in case of an error?
-	// FIXME(remy): the error management in this part is messy
 	// ---------------------------------
 
 	if config.Datadog.GetBool("logs_enabled") {
@@ -251,6 +248,11 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 		// type of logs we are subscribing to
 		var logsType []string
+		// TODO(remy): there is two different things that we may have to differentiate:
+		//             the user may want to send these logs to the intake, and the Agent
+		//             may want to fetch more than what he want sent. For instance, if the
+		//             user don't care about the platform logs, the Agent will still want
+		//             to receive them in order to generate the enhanced metrics.
 		if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
 			parts := strings.Split(strings.TrimSpace(envLogsType), ",")
 			for _, part := range parts {
@@ -273,13 +275,11 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 			// subscribe to the logs on the platform
 			if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
 				log.Error("Can't subscribe to logs:", err)
-				// FIXME(remy): we should probably stop the http logs server here
 			} else {
 				// we subscribed to the logs collection on the platform, let's instanciate
 				// a logs agent to collect/process/flush the logs.
 				if err := logs.StartServerless(func() *autodiscovery.AutoConfig { return common.AC }, logsChan); err != nil {
 					log.Error("Could not start an instance of the Logs Agent:", err)
-					// FIXME(remy): we should probably stop the http logs server here
 				}
 			}
 		}
