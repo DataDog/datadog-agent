@@ -111,6 +111,13 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan aws.LogMessage, err
 								SampleRate: 1,
 								Timestamp:  float64(message.Time.UnixNano()),
 							}, metrics.MetricSample{
+								Name:       "aws.lambda.enhanced.memorysize",
+								Value:      float64(message.ObjectRecord.Metrics.MemorySizeMB),
+								Mtype:      metrics.DistributionType,
+								Tags:       tags,
+								SampleRate: 1,
+								Timestamp:  float64(message.Time.UnixNano()),
+							}, metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.billed_duration",
 								Value:      float64(message.ObjectRecord.Metrics.BilledDurationMs),
 								Mtype:      metrics.DistributionType,
