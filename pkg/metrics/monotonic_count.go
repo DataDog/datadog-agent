@@ -44,7 +44,7 @@ func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
 	// To handle cases where the samples are not monotonically increasing, we always add the difference
 	// between 2 consecutive samples to the value that'll be flushed (if the difference is >0).
 	diff := mc.currentSample - mc.previousSample
-	if (mc.hasPreviousSample || mc.flushFirstValue) && diff > 0. {
+	if (mc.hasPreviousSample || mc.flushFirstValue) && diff >= 0. {
 		mc.value += diff
 	} else if mc.flushFirstValue {
 		mc.value = mc.currentSample

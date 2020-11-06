@@ -60,13 +60,22 @@ func TestMonotonicCountSampling(t *testing.T) {
 		assert.EqualValues(t, 80, series[0].Points[0].Ts)
 	}
 
-	// Add another sample with lower value: flush 0.
-	monotonicCount.addSample(&MetricSample{Value: 9}, 81)
+	// Add another sample with same value: flush 0.
+	monotonicCount.addSample(&MetricSample{Value: 11}, 81)
 	series, err = monotonicCount.flush(82)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.Equal(t, 0., series[0].Points[0].Value)
 		assert.EqualValues(t, 82, series[0].Points[0].Ts)
+	}
+
+	// Add another sample with lower value: flush 0.
+	monotonicCount.addSample(&MetricSample{Value: 9}, 83)
+	series, err = monotonicCount.flush(84)
+	assert.Nil(t, err)
+	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
+		assert.Equal(t, 0., series[0].Points[0].Value)
+		assert.EqualValues(t, 84, series[0].Points[0].Ts)
 	}
 
 	// Add sequence of non-monotonic samples
@@ -124,6 +133,14 @@ func TestMonotonicCount_FlushFirstValue(t *testing.T) {
 			true,
 			false,
 			2.,
+		},
+		{
+			"1: Flush after another sample with the same value and FlushFirstValue enabled: flush 0",
+			&monotonicCount1,
+			10.,
+			true,
+			false,
+			0.,
 		},
 		{
 			"1: Flush after another sample with a lower value and FlushFirstValue disabled: flush 0",
