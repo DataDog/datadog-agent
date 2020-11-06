@@ -38,10 +38,11 @@ func (c *CPUCheck) Run() error {
 		return err
 	}
 
-	err = c.collectCtxSwitches()
+	err = c.collectCtxSwitches(sender)
 	if err != nil {
-		log.Warnf("system.CPUCheck could not read context switches: %s", err.Error())
-		return err
+		log.Debugf("system.CPUCheck could not read context switches: %s", err.Error())
+		// Don't return here, we still want to collect the CPU metrics even if we could not
+		// read the context switches
 	}
 
 	cpuTimes, err := times(false)
