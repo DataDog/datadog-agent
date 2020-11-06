@@ -2,6 +2,14 @@
 
 package system
 
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
+
 func readCtxSwitches(procStatPath string) (ctxSwitches int64, err error) {
 	file, err := os.Open(procStatPath)
 	if err != nil {
