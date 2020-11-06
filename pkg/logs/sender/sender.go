@@ -55,10 +55,7 @@ func (s *Sender) Stop() {
 }
 
 func (s *Sender) Flush() {
-	//	log.Debug("Sender.Flush start")
-	//	log.Debug("Sender.Flush after lock")
 	s.strategy.Flush(s.inputChan, s.outputChan, s.send, &s.mu)
-	//	log.Debug("Sender.Flush end")
 }
 
 func (s *Sender) run() {

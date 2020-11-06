@@ -50,9 +50,7 @@ func (p *Processor) Stop() {
 }
 
 func (p *Processor) Flush() {
-	//	log.Debug("Processor.Flush start")
 	p.mu.Lock()
-	//	log.Debug("Processor.Flush after lock")
 	for {
 		if len(p.inputChan) == 0 {
 			break
@@ -61,7 +59,6 @@ func (p *Processor) Flush() {
 		p.processMessage(msg)
 	}
 	p.mu.Unlock()
-	//	log.Debug("Processor.Flush end")
 }
 
 // run starts the processing of the inputChan
