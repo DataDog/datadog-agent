@@ -47,15 +47,15 @@ func (l redirectLogger) Write(b []byte) (int, error) {
 
 	switch b[0] {
 	case 'I':
-		log.InfoStackDepth(5, msg)
+		log.InfoStackDepth(6, msg)
 	case 'W':
-		log.WarnStackDepth(5, msg)
+		log.WarnStackDepth(6, msg)
 	case 'E':
-		log.ErrorStackDepth(5, msg)
+		log.ErrorStackDepth(6, msg)
 	case 'F':
-		log.CriticalStackDepth(5, msg)
+		log.CriticalStackDepth(6, msg)
 	default:
-		log.InfoStackDepth(5, msg)
+		log.InfoStackDepth(6, msg)
 	}
 
 	return 0, nil
