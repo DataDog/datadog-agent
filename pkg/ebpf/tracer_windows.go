@@ -39,6 +39,9 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      network.ReverseDNS
+
+	connStatsActive *network.DriverBuffer
+	connStatsClosed *network.DriverBuffer
 	connLock        sync.Mutex
 
 	timerInterval int
@@ -68,6 +71,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		timerInterval:   defaultPollInterval,
 		state:           state,
 		reverseDNS:      network.NewNullReverseDNS(),
+		connStatsActive: network.NewDriverBuffer(512),
+		connStatsClosed: network.NewDriverBuffer(512),
 	}
 
 	go tr.expvarStats(tr.stopChan)
@@ -122,11 +127,17 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	activeConnStats, closedConnStats, err := t.driverInterface.GetConnectionStats()
+	t.connStatsActive.Reset()
+	t.connStatsClosed.Reset()
+
+	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed)
 	if err != nil {
 		log.Errorf("failed to get connections")
 		return nil, err
 	}
+
+	activeConnStats := t.connStatsActive.Connections()
+	closedConnStats := t.connStatsClosed.Connections()
 
 	for _, connStat := range closedConnStats {
 		t.state.StoreClosedConnection(&connStat)

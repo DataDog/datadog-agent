@@ -84,10 +84,8 @@ type DriverInterface struct {
 	path                  string
 	enableMonotonicCounts bool
 
-	bufferLock      sync.Mutex
-	connStatsActive *driverBuffer
-	connStatsClosed *driverBuffer
-	readBuffer      []uint8
+	bufferLock sync.Mutex
+	readBuffer []uint8
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
@@ -95,8 +93,6 @@ func NewDriverInterface(enableMonotonicCounts bool, bufferSize int) (*DriverInte
 	dc := &DriverInterface{
 		path:                  deviceName,
 		enableMonotonicCounts: enableMonotonicCounts,
-		connStatsActive:       newDriverBuffer(512),
-		connStatsClosed:       newDriverBuffer(512),
 		readBuffer:            make([]byte, bufferSize),
 		bufferSize:            int64(bufferSize),
 	}
@@ -227,14 +223,13 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	}, nil
 }
 
-// GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
-func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []ConnectionStats, error) {
+// GetConnectionStats will read all flows from the driver and convert them into ConnectionStats.
+// It returns the count of connections added to the active and closed buffers, respectively.
+func (di *DriverInterface) GetConnectionStats(activeBuf *DriverBuffer, closedBuf *DriverBuffer) (int, int, error) {
 	di.bufferLock.Lock()
 	defer di.bufferLock.Unlock()
 
-	di.connStatsActive.Reset()
-	di.connStatsClosed.Reset()
-
+	var activeCount, closedCount int
 	var bytesRead uint32
 	var totalBytesRead uint32
 	// keep reading while driver says there is more data available
@@ -242,7 +237,7 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 		err = windows.ReadFile(di.driverFlowHandle.handle, di.readBuffer, &bytesRead, nil)
 		if err != nil {
 			if err != windows.ERROR_MORE_DATA {
-				return nil, nil, err
+				return 0, 0, err
 			}
 			atomic.AddInt64(&di.moreDataErrors, 1)
 		}
@@ -254,9 +249,11 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
 
 			if isFlowClosed(pfd.flags) {
-				FlowToConnStat(di.connStatsClosed.Next(), pfd, di.enableMonotonicCounts)
+				FlowToConnStat(closedBuf.Next(), pfd, di.enableMonotonicCounts)
+				closedCount++
 			} else {
-				FlowToConnStat(di.connStatsActive.Next(), pfd, di.enableMonotonicCounts)
+				FlowToConnStat(activeBuf.Next(), pfd, di.enableMonotonicCounts)
+				activeCount++
 			}
 		}
 	}
@@ -264,13 +261,11 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
 	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
 
-	active := di.connStatsActive.Connections()
-	closed := di.connStatsClosed.Connections()
-	atomic.AddInt64(&di.openFlows, int64(len(active)))
-	atomic.AddInt64(&di.closedFlows, int64(len(closed)))
-	atomic.AddInt64(&di.totalFlows, int64(len(active)+len(closed)))
+	atomic.AddInt64(&di.openFlows, int64(activeCount))
+	atomic.AddInt64(&di.closedFlows, int64(closedCount))
+	atomic.AddInt64(&di.totalFlows, int64(activeCount+closedCount))
 
-	return active, closed, nil
+	return activeCount, closedCount, nil
 }
 
 func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
