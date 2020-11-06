@@ -49,13 +49,13 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["ClusterName"] = clustername.GetClusterName(hostname)
 	}
 
-	// get orchestrator endpoints, check for old keys
-	orchestratorEndpoints := config.Datadog.GetString("orchestrator_explorer.orchestrator_additional_endpoints")
-	orchestratorEndpointsOldKey := config.Datadog.GetString("process_config.orchestrator_additional_endpoints")
-	if orchestratorEndpointsOldKey != "" {
-		status["OrchestratorAdditionalEndpoints"] = orchestratorEndpointsOldKey
-	} else if orchestratorEndpoints != "" {
-		status["OrchestratorAdditionalEndpoints"] = orchestratorEndpoints
+	// get orchestrator endpoints, check for old keys, looks like this: map[endpoints] = apikey
+	newKey := "orchestrator_explorer.orchestrator_additional_endpoints"
+	oldKey := "process_config.orchestrator_additional_endpoints"
+	if config.Datadog.IsSet(newKey) {
+		status["OrchestratorAdditionalEndpoints"] = config.Datadog.GetStringMapStringSlice(newKey)
+	} else if config.Datadog.IsSet(oldKey) {
+		status["OrchestratorAdditionalEndpoints"] = config.Datadog.GetStringMapStringSlice(oldKey)
 	}
 
 	orchestratorEndpoint := config.Datadog.GetString("orchestrator_explorer.orchestrator_dd_url")
