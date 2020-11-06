@@ -18,6 +18,7 @@
  */
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
                                       : "=r"(var))
+
 enum telemetry_counter{tcp_sent_miscounts, missed_tcp_close, udp_send_processed, udp_send_missed};
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
@@ -158,7 +159,7 @@ struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
     .namespace = "",
 };
 
-/* This map is used to keep track of HTTP stats for each TCP connection */
+/* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
 struct bpf_map_def SEC("maps/http_stats") http_stats = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(conn_tuple_t),
@@ -168,7 +169,7 @@ struct bpf_map_def SEC("maps/http_stats") http_stats = {
     .namespace = "",
 };
 
-/* Complete HTTP transactions are flushed in this perf-ring */
+/* This map used for notifying userspace that a HTTP batch page is ready to be read */
 struct bpf_map_def SEC("maps/http_event") http_event = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
@@ -178,6 +179,7 @@ struct bpf_map_def SEC("maps/http_event") http_event = {
     .namespace = "",
 };
 
+/* This map stores finished HTTP transactions in batches so they can be consumed by userspace*/
 struct bpf_map_def SEC("maps/http_enqueued") http_enqueued = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u32),
@@ -620,9 +622,12 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
         return;
     }
 
-    // It's important to zero the struct so we account for the padding introduced in the compilation
-    // Otherwise you get a `invalid indirect read from stack off`
-    // More information in https://docs.cilium.io/en/v1.8/bpf/ under the alignment/padding section
+    // It's important to zero the struct so we account for the padding
+    // introduced by the compilation, otherwise you get a `invalid indirect read
+    // from stack off`. Alternatively we can either use a #pragma pack directive
+    // or try to manually add the padding to the struct definition. More
+    // information in https://docs.cilium.io/en/v1.8/bpf/ under the
+    // alignment/padding section
     http_batch_notification_t notification = {0};
     notification.cpu = cpu;
     notification.batch_idx = batch->idx;
@@ -1282,6 +1287,33 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     }
 
     int batch_slot = (batch->idx%HTTP_BATCH_PAGES)*HTTP_BATCH_SIZE + batch->pos;
+
+    // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
+    // If you try to directly write the desired batch slot by doing
+    //
+    //  __builtin_memcpy(&batch->txs[batch_slot], http, sizeof(http_transaction_t));
+    //
+    // You get an error like the following:
+    //
+    // R0=inv R1=map_value(ks=4,vs=4816) R2=imm5 R3=imm0 R4=imm0 R6=map_value(ks=48,vs=96) R7=imm1 R8=imm0 R9=inv R10=fp
+    ///809: (79) r2 = *(u64 *)(r6 +88)
+    // 810: (7b) *(u64 *)(r0 +88) = r2
+    // R0 invalid mem access 'inv'
+    //
+    // This is because the value range of the R0 register (holding the memory address of the batch) can't be
+    // figured out by the verifier and thus the memory access can't be considered safe during verification time.
+    // I tried different "tricks" to hint the verifier of this range such as:
+    //
+    // * Ensuring 0 <= batch_slot < HTTP_BATCH_SIZE*HTTP_BATCH_PAGES
+    // * Ensuring that &batch <= &batch_slot->txs[batch_slot] <= &batch+1
+    // * Setting HTTP_BATCH_SIZE*HTTP_BATCH_PAGES to a power of 2 and doing &batch->txs[batch_slot&(HTTP_BATCH_SIZE*HTTP_BATCH_PAGES-1)]
+    //
+    // Among other things, but nothing really worked on Kernel 4.4
+    // It seems that indeed support for this type of access by the verifier was added later on:
+    // https://patchwork.ozlabs.org/project/netdev/patch/1475074472-23538-1-git-send-email-jbacik@fb.com/
+    //
+    // What is unfortunate about this is not only that enqueing a HTTP transaction is O(HTTP_BATCH_SIZE*HTTP_BATCH_PAGES),
+    // but also that we can't really increase the batch/page size at the moment because that blows up the eBPF *program* size
 #pragma unroll
     for (int i = 0; i < HTTP_BATCH_PAGES*HTTP_BATCH_SIZE; i++) {
         if (i == batch_slot) {
@@ -1342,7 +1374,8 @@ static __always_inline http_state_t http_read_data(struct __sk_buff* skb, skb_in
         if (skb_info->data_off + i <= skb_info->data_end) {
             p[i] = load_byte(skb, skb_info->data_off + i);
         } else {
-            // Without this else branch the verifier rejects the program, even if you memset the buffer
+            // TODO: follow-up on why the verifier rejects the program without this else branch
+            // even if you memset the buffer before
             p[i] = '\0';
         }
     }
@@ -1394,7 +1427,7 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
 
     if (http->state == HTTP_RESPONDING) {
         if (skb_info->data_end > skb_info->data_off) {
-            // Only if we have a payload we want to update the response_last_seen
+            // Only if we have a (L7/application-layer) payload we want to update the response_last_seen
             // This is to prevent things such as a keep-alive adding up to the transaction latency
             http->response_last_seen = bpf_ktime_get_ns();
         }
