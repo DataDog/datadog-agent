@@ -60,7 +60,7 @@ typedef struct {
 #define HTTP_STATUS_CODE_SIZE 3
 #define HTTP_BATCH_SIZE 5
 // The greater this number is the less likely are colisions/data-races between the flushes
-#define HTTP_BATCH_PAGES 10
+#define HTTP_BATCH_PAGES 5
 
 // From include/net/tcp.h
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])

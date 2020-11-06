@@ -47,12 +47,12 @@ type Tracer struct {
 
 	reverseDNS network.ReverseDNS
 
-	perfMap         *manager.PerfMap
-	perfHandlerTCP  *bytecode.PerfHandler
-	perfMapHTTP     *manager.PerfMap
-	perfHandlerHTTP *bytecode.PerfHandler
-	batchManager    *PerfBatchManager
-	flushIdle       chan chan struct{}
+	httpMonitor *httpMonitor
+
+	perfMap      *manager.PerfMap
+	perfHandler  *bytecode.PerfHandler
+	batchManager *PerfBatchManager
+	flushIdle    chan chan struct{}
 
 	// Telemetry
 	perfReceived  int64
@@ -83,9 +83,6 @@ type Tracer struct {
 	// Connections for the tracer to blacklist
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
-
-	// Callback to terminate HTTP traffic inspection
-	httpDoneFn func()
 }
 
 const (
@@ -214,19 +211,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	var httpDoneFn func()
-	if enableHTTPInspection {
-		filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(bytecode.SocketHTTPFilter)})
-		if filter == nil {
-			return nil, fmt.Errorf("error retrieving socket filter")
-		}
-
-		httpDoneFn, err = network.HeadlessSocketFilter(config.ProcRoot, filter)
-		if err != nil {
-			return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
-		}
-	}
-
 	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	if err := portMapping.ReadInitialState(); err != nil {
@@ -253,22 +237,26 @@ func NewTracer(config *Config) (*Tracer, error) {
 		config.MaxDNSStatsBufferred,
 	)
 
+	httpMonitor, err := newHTTPMonitor(config, m, perfHandlerHTTP)
+	if err != nil {
+		log.Errorf("failed to instantiate http monitor: %s", err)
+	}
+
 	tr := &Tracer{
-		m:               m,
-		config:          config,
-		state:           state,
-		portMapping:     portMapping,
-		udpPortMapping:  udpPortMapping,
-		reverseDNS:      reverseDNS,
-		buffer:          make([]network.ConnectionStats, 0, 512),
-		buf:             &bytes.Buffer{},
-		conntracker:     conntracker,
-		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		perfHandlerTCP:  perfHandlerTCP,
-		perfHandlerHTTP: perfHandlerHTTP,
-		flushIdle:       make(chan chan struct{}),
-		httpDoneFn:      httpDoneFn,
+		m:              m,
+		config:         config,
+		state:          state,
+		portMapping:    portMapping,
+		udpPortMapping: udpPortMapping,
+		reverseDNS:     reverseDNS,
+		httpMonitor:    httpMonitor,
+		buffer:         make([]network.ConnectionStats, 0, 512),
+		buf:            &bytes.Buffer{},
+		conntracker:    conntracker,
+		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		perfHandler:    perfHandlerTCP,
+		flushIdle:      make(chan chan struct{}),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -276,9 +264,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
 	}
 
-	tr.perfMapHTTP, err = tr.initPerfPollingHTTP(perfHandlerHTTP)
-	if err != nil {
-		return nil, fmt.Errorf("could not start polling http bpf events: %s", err)
+	if err := httpMonitor.Start(); err != nil {
+		log.Errorf("failed to initialize http monitor: %s", err)
 	}
 
 	if err = m.Start(); err != nil {
@@ -419,82 +406,6 @@ func (t *Tracer) initPerfPolling(perf *bytecode.PerfHandler) (*manager.PerfMap, 
 	return pm, batchManager, nil
 }
 
-// *Temporary* code for HTTP polling
-func (t *Tracer) initPerfPollingHTTP(perf *bytecode.PerfHandler) (*manager.PerfMap, error) {
-	pm, found := t.m.GetPerfMap(string(bytecode.HttpEventMap))
-	if !found {
-		return nil, fmt.Errorf("unable to find perf map %s", bytecode.HttpEventMap)
-	}
-
-	httpEventMap, _ := t.getMap(bytecode.HttpEventMap)
-	numCPUs := int(httpEventMap.ABI().MaxEntries)
-
-	httpBatchMap, _ := t.getMap(bytecode.HttpBatchMap)
-	for i := 0; i < numCPUs; i++ {
-		batch := new(httpBatch)
-		httpBatchMap.Put(unsafe.Pointer(&i), unsafe.Pointer(batch))
-	}
-
-	if err := pm.Start(); err != nil {
-		return nil, fmt.Errorf("error starting perf map: %s", err)
-	}
-
-	var (
-		txs         *[HTTPBatchPages]httpTX
-		lostBatches int
-		then        = time.Now()
-		hits        = make(map[int]int)
-		report      = time.NewTicker(10 * time.Second)
-	)
-
-	go func() {
-		for {
-			select {
-			case data, ok := <-perf.ClosedChannel:
-				if !ok {
-					return
-				}
-
-				notification := toHTTPNotification(data)
-				// log.Debugf("HTTP batch is ready cpu=%d idx=%d", notification.cpu, notification.batch_idx)
-				batch := new(httpBatch)
-				err := httpBatchMap.Lookup(unsafe.Pointer(&notification.cpu), unsafe.Pointer(batch))
-				if err != nil {
-					log.Errorf("error retrieving http batch for cpu=%d", notification.cpu)
-				}
-
-				if int(batch.idx) >= int(notification.batch_idx)+HTTPBatchPages {
-					lostBatches++
-					continue
-				}
-
-				pageID := int(notification.batch_idx) % HTTPBatchPages
-				txs = (*[HTTPBatchPages]httpTX)(unsafe.Pointer(&batch.txs[pageID*HTTPBatchSize]))
-				for _, tx := range txs {
-					hits[int(tx.response_code)]++
-				}
-			case _, ok := <-perf.LostChannel:
-				if !ok {
-					return
-				}
-			case now := <-report.C:
-				delta := float64(now.Sub(then).Seconds())
-				log.Infof("http report: 200(%d requests, %.2f/s) 300(%d requests, %.2f/s), 400(%d requests, %.2f/s) 500(%d requests, %.2f/s) monotonic_drops: %d",
-					hits[200], float64(hits[200])/delta,
-					hits[300], float64(hits[300])/delta,
-					hits[400], float64(hits[400])/delta,
-					hits[500], float64(hits[500])/delta,
-					lostBatches,
-				)
-				hits = make(map[int]int)
-				then = time.Now()
-			}
-		}
-	}()
-
-	return pm, nil
-}
-
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
 //  • Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
@@ -524,14 +435,10 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 
 func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
-	if t.httpDoneFn != nil {
-		t.httpDoneFn()
-	}
 	_ = t.m.Stop(manager.CleanAll)
 	_ = t.perfMap.Stop(manager.CleanAll)
-	_ = t.perfMapHTTP.Stop(manager.CleanAll)
-	t.perfHandlerTCP.Stop()
-	t.perfHandlerHTTP.Stop()
+	t.perfHandler.Stop()
+	t.httpMonitor.Stop()
 	close(t.flushIdle)
 	t.conntracker.Close()
 }

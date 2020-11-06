@@ -93,41 +93,6 @@ func toBatch(data []byte) *batch {
 	return (*batch)(unsafe.Pointer(&data[0]))
 }
 
-const (
-	HTTPBatchSize  = int(C.HTTP_BATCH_SIZE)
-	HTTPBatchPages = int(C.HTTP_BATCH_PAGES)
-)
-
-type httpTX C.http_transaction_t
-type httpNotification C.http_batch_notification_t
-type httpBatch C.http_batch_t
-
-func toHTTPNotification(data []byte) httpNotification {
-	return *(*httpNotification)(unsafe.Pointer(&data[0]))
-}
-
-// Path returns the URL from the request fragment captured in eBPF
-// Usually the request fragment will look like
-// GET /foo HTTP/1.1
-func (tx *httpTX) Path() string {
-	b := C.GoBytes(unsafe.Pointer(&tx.request_fragment), C.int(C.HTTP_BUFFER_SIZE))
-
-	var i, j int
-	for i = 0; i < len(b) && b[i] != ' '; i++ {
-	}
-
-	i++
-
-	for j = i; j < len(b) && b[j] != ' '; j++ {
-	}
-
-	if i < j && j <= len(b) {
-		return string(b[i:j])
-	}
-
-	return ""
-}
-
 // ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
 func ExtractBatchInto(buffer []network.ConnectionStats, b *batch, start, end int) []network.ConnectionStats {
