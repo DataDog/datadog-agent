@@ -102,34 +102,38 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan aws.LogMessage, err
 						if functionName != "" {
 							// report enhanced metrics using DogStatsD
 							tags := []string{fmt.Sprintf("functionname:%s", functionName)} // FIXME(remy): could this be exported to properly get all tags?
-							metricsChan, _, _ := d.aggregator.GetBufferedChannels()
+							metricsChan := d.aggregator.GetBufferedMetricsWithTsChannel()
 							metricsChan <- []metrics.MetricSample{metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.max_memory_used",
 								Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
 								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
+								Timestamp:  float64(message.Time.UnixNano()),
 							}, metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.billed_duration",
 								Value:      float64(message.ObjectRecord.Metrics.BilledDurationMs),
 								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
+								Timestamp:  float64(message.Time.UnixNano()),
 							}, metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.duration",
 								Value:      message.ObjectRecord.Metrics.DurationMs,
 								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
+								Timestamp:  float64(message.Time.UnixNano()),
 							}, metrics.MetricSample{
 								Name:       "aws.lambda.enhanced.init_duration",
 								Value:      message.ObjectRecord.Metrics.InitDurationMs,
 								Mtype:      metrics.DistributionType,
 								Tags:       tags,
 								SampleRate: 1,
+								Timestamp:  float64(message.Time.UnixNano()),
 							}}
 						}
-						// FIXME(remy): we should generate a message to send to the intake
+						// FIXME(remy): we should generate a message to send to the logs intake
 					}
 				}
 				w.WriteHeader(200)
