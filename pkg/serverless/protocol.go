@@ -95,7 +95,8 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan aws.LogMessage, err
 			} else {
 				for _, message := range messages {
 					switch message.Type {
-					case aws.LogTypeExtension, aws.LogTypeFunction:
+					case aws.LogTypeExtension, aws.LogTypeFunction,
+						aws.LogTypePlatformStart, aws.LogTypePlatformEnd:
 						logsChan <- message
 					case aws.LogTypePlatformReport:
 						functionName := aws.FunctionNameFromARN()
@@ -140,7 +141,7 @@ func (d *Daemon) StartHttpLogsServer(port int) (string, chan aws.LogMessage, err
 								Timestamp:  float64(message.Time.UnixNano()),
 							}}
 						}
-						// FIXME(remy): we should generate a message to send to the logs intake
+						logsChan <- message
 					}
 				}
 				w.WriteHeader(200)

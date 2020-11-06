@@ -26,7 +26,8 @@ type LogMessage struct {
 	StringRecord string `json:"record"`
 	// platform log messages contain a struct record object
 	ObjectRecord struct {
-		RequestId string // uuid
+		RequestId string // uuid; LogTypePlatform{Start,End,Report}
+		Version   string // LogTypePlatformStart
 		Metrics   struct {
 			DurationMs       float64
 			BilledDurationMs int
@@ -76,36 +77,52 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 			if requestId, ok := objectRecord["requestId"].(string); ok {
 				l.ObjectRecord.RequestId = requestId
 			}
-			// only logTypePlatformReport has what we call "enhanced metrics"
-			if typ == LogTypePlatformReport {
-				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
-					if v, ok := metrics["durationMs"].(float64); ok {
-						l.ObjectRecord.Metrics.DurationMs = v
-					}
-					if v, ok := metrics["billedDurationMs"].(float64); ok {
-						l.ObjectRecord.Metrics.BilledDurationMs = int(v)
-					}
-					if v, ok := metrics["memorySizeMB"].(float64); ok {
-						l.ObjectRecord.Metrics.MemorySizeMB = int(v)
-					}
-					if v, ok := metrics["maxMemoryUsedMB"].(float64); ok {
-						l.ObjectRecord.Metrics.MaxMemoryUsedMB = int(v)
-					}
-					if v, ok := metrics["initDurationMs"].(float64); ok {
-						l.ObjectRecord.Metrics.InitDurationMs = v
-					}
-					log.Debugf("Enhanced metrics: %+v\n", l.ObjectRecord.Metrics)
-				} else {
-					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+
+			switch typ {
+			case LogTypePlatformStart:
+				if version, ok := objectRecord["version"].(string); ok {
+					l.ObjectRecord.Version = version
 				}
-				l.StringRecord = fmt.Sprintf("REPORT RequestId: %s	Duration: %.2f ms    	Billed Duration: %d ms	Memory Size: %d MB	Max Memory Used: %d MB	Init Duration: %.2f ms",
+				l.StringRecord = fmt.Sprintf("START RequestId: %s Version: %s",
 					l.ObjectRecord.RequestId,
-					l.ObjectRecord.Metrics.DurationMs,
-					l.ObjectRecord.Metrics.BilledDurationMs,
-					l.ObjectRecord.Metrics.MemorySizeMB,
-					l.ObjectRecord.Metrics.MaxMemoryUsedMB,
-					l.ObjectRecord.Metrics.InitDurationMs,
+					l.ObjectRecord.Version,
 				)
+			case LogTypePlatformEnd:
+				l.StringRecord = fmt.Sprintf("END RequestId: %s",
+					l.ObjectRecord.RequestId,
+				)
+			case LogTypePlatformReport:
+				// only logTypePlatformReport has what we call "enhanced metrics"
+				if typ == LogTypePlatformReport {
+					if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
+						if v, ok := metrics["durationMs"].(float64); ok {
+							l.ObjectRecord.Metrics.DurationMs = v
+						}
+						if v, ok := metrics["billedDurationMs"].(float64); ok {
+							l.ObjectRecord.Metrics.BilledDurationMs = int(v)
+						}
+						if v, ok := metrics["memorySizeMB"].(float64); ok {
+							l.ObjectRecord.Metrics.MemorySizeMB = int(v)
+						}
+						if v, ok := metrics["maxMemoryUsedMB"].(float64); ok {
+							l.ObjectRecord.Metrics.MaxMemoryUsedMB = int(v)
+						}
+						if v, ok := metrics["initDurationMs"].(float64); ok {
+							l.ObjectRecord.Metrics.InitDurationMs = v
+						}
+						log.Debugf("Enhanced metrics: %+v\n", l.ObjectRecord.Metrics)
+					} else {
+						log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+					}
+					l.StringRecord = fmt.Sprintf("REPORT RequestId: %s	Duration: %.2f ms    	Billed Duration: %d ms	Memory Size: %d MB	Max Memory Used: %d MB	Init Duration: %.2f ms",
+						l.ObjectRecord.RequestId,
+						l.ObjectRecord.Metrics.DurationMs,
+						l.ObjectRecord.Metrics.BilledDurationMs,
+						l.ObjectRecord.Metrics.MemorySizeMB,
+						l.ObjectRecord.Metrics.MaxMemoryUsedMB,
+						l.ObjectRecord.Metrics.InitDurationMs,
+					)
+				}
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")

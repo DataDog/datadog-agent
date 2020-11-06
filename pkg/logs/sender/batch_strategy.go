@@ -37,9 +37,7 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration) Strategy {
 }
 
 func (s *batchStrategy) Flush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
-	//	log.Debug("batchStrategy.Flush start")
 	mu.Lock()
-	//	log.Debug("batchStrategy.Flush after lock")
 	for {
 		if len(inputChan) == 0 {
 			break
@@ -57,7 +55,6 @@ func (s *batchStrategy) Flush(inputChan chan *message.Message, outputChan chan *
 	}
 	s.sendBuffer(outputChan, send)
 	mu.Unlock()
-	//	log.Debug("batchStrategy.Flush after end")
 }
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
