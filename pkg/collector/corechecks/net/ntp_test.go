@@ -297,7 +297,7 @@ hosts:
 }
 
 func TestDefaultHostConfig(t *testing.T) {
-	expectedHosts := []string{"0.stackstate.pool.ntp.org", "1.stackstate.pool.ntp.org", "2.stackstate.pool.ntp.org", "3.stackstate.pool.ntp.org"}
+	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
 
 	ntpCheck := new(NTPCheck)
