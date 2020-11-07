@@ -138,6 +138,7 @@ var (
 		"kube_statefulset_status_current_revision":         {},
 		"kube_statefulset_status_update_revision":          {},
 		"kube_pod_container_status_last_terminated_reason": {},
+		"kube_lease_renew_time":                            {},
 	}
 
 	defaultStandardLabels = []string{
