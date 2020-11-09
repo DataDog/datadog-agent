@@ -955,10 +955,12 @@ func TestSQLErrors(t *testing.T) {
 			" \x80",
 			"at position 2: unexpected byte 65533",
 		},
+
 		{
 			"\x3a\xdb",
 			"at position 1: bind variables should start with letters, got \"�\" (65533)",
 		},
+
 		{
 			"CALL p1 ('\ufffd\\\\');",
 			"at position 11: unexpected byte 239",
