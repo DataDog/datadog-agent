@@ -102,7 +102,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 
 	for _, index := range wordReplacesIndexes {
 		// we only want to replace words, hence we jump to the next index and try to scrub that instead
-		for newCmdline[index] == "" {
+		for index < len(newCmdline) && newCmdline[index] == "" {
 			index++
 		}
 		if index < len(newCmdline) {
