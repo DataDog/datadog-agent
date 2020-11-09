@@ -155,6 +155,15 @@ func (mr *MountResolver) Insert(e MountEvent) {
 }
 
 func (mr *MountResolver) insert(e MountEvent) {
+	// Retrieve the parent paths and strip it from the event
+	p, ok := mr.mounts[e.ParentMountID]
+	if ok {
+		prefix := mr.getParentPath(p.MountID)
+		if len(prefix) > 0 && prefix != "/" {
+			e.MountPointStr = strings.TrimPrefix(e.MountPointStr, prefix)
+		}
+	}
+
 	mounts := mr.devices[e.Device]
 	if mounts == nil {
 		mounts = make(map[uint32]*MountEvent)
@@ -236,7 +245,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 		ref = ancestor
 	}
 
-	return mr.getOverlayPath(ref), mount.MountPointStr, mount.RootStr, nil
+	return mr.getOverlayPath(ref), mr.getParentPath(mountID), mount.RootStr, nil
 }
 
 // NewMountResolver instantiates a new mount resolver
