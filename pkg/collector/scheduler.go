@@ -26,7 +26,7 @@ var (
 	checkScheduler *CheckScheduler
 )
 
-type commonInitConfig struct{
+type commonInitConfig struct {
 	LoaderName string `yaml:"loader"`
 }
 

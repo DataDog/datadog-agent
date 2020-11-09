@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 )
+
 type MockCheck struct {
 	core.CheckBase
 	Name string
@@ -55,7 +56,6 @@ func TestAddLoader(t *testing.T) {
 	s.AddLoader(&MockLoader{}) // noop
 	assert.Len(t, s.loaders, 1)
 }
-
 
 func TestGetChecksFromConfigs(t *testing.T) {
 	s := CheckScheduler{}
