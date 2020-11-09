@@ -86,7 +86,7 @@ func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 }
 
 func TestMatchSimpleCommand(t *testing.T) {
-	cases := setupSensitiveCmdlines()
+	cases := setupSensitiveCmdLines()
 	customSensitiveWords := []string{
 		"consul_token",
 		"dd_password",
@@ -228,8 +228,11 @@ type testCase struct {
 	parsedCmdline []string
 }
 
-func setupSensitiveCmdlines() []testCase {
+func setupSensitiveCmdLines() []testCase {
 	return []testCase{
+		{[]string{"agent", "password"}, []string{"agent", "password"}},
+		{[]string{"agent", "-password"}, []string{"agent", "-password"}},
+		{[]string{"agent -password"}, []string{"agent", "-password"}},
 		{[]string{"agent", "-password", "1234"}, []string{"agent", "-password", "********"}},
 		{[]string{"agent", "--password", "1234"}, []string{"agent", "--password", "********"}},
 		{[]string{"agent", "-password=1234"}, []string{"agent", "-password=********"}},

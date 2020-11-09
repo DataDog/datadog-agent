@@ -90,8 +90,9 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 					// replace from v to end of string with ********
 					break
 				} else {
-					if index < len(newCmdline) {
-						wordReplacesIndexes = append(wordReplacesIndexes, index+1)
+					nextReplacementIndex := index + 1
+					if nextReplacementIndex < len(newCmdline) {
+						wordReplacesIndexes = append(wordReplacesIndexes, nextReplacementIndex)
 					}
 					break
 				}
