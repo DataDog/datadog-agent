@@ -642,6 +642,43 @@ func TestFieldValidator(t *testing.T) {
 	}
 }
 
+func TestRegister(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			list: []testItem{
+				{key: 10, value: 11},
+				{key: 100, value: 101},
+				{key: 200, value: 201},
+			},
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Expected: true},
+		{Expr: `process.list[_].key == 9999 && process.list[_].value == 11`, Expected: false},
+		{Expr: `process.list[_].key == 100 && process.list[_].value == 101`, Expected: true},
+		{Expr: `process.list[_].key == 200 && process.list[_].value == 201`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[A].value == 201`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[B].value == 101`, Expected: true},
+		{Expr: `process.list[A].key == process.list && process.list[B].value == 444`, Expected: false},
+		{Expr: `process.list[A].key == 200 || process.list[B].value == 11`, Expected: true},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
 func BenchmarkComplex(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{

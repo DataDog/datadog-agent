@@ -8,11 +8,12 @@ package eval
 import "sort"
 
 type state struct {
-	model       Model
-	field       Field
-	events      map[EventType]bool
-	fieldValues map[Field][]FieldValue
-	macros      map[MacroID]*MacroEvaluator
+	model           Model
+	field           Field
+	events          map[EventType]bool
+	fieldValues     map[Field][]FieldValue
+	macros          map[MacroID]*MacroEvaluator
+	regMaxValueFncs map[RegisterID]func(ctx *Context) int
 }
 
 //
@@ -48,10 +49,11 @@ func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *sta
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
 	return &state{
-		field:       field,
-		macros:      macros,
-		model:       model,
-		events:      make(map[EventType]bool),
-		fieldValues: make(map[Field][]FieldValue),
+		field:           field,
+		macros:          macros,
+		model:           model,
+		events:          make(map[EventType]bool),
+		fieldValues:     make(map[Field][]FieldValue),
+		regMaxValueFncs: make(map[RegisterID]func(ctx *Context) int),
 	}
 }

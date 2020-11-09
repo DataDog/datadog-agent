@@ -9,9 +9,34 @@ import (
 	"unsafe"
 )
 
+// RegisterID identify a register ID
+type RegisterID = string
+
+// Register describes a register that can be used by a set
+type Register struct {
+	ID    string
+	Value int
+}
+
+// Registers defines all available registers
+type Registers map[RegisterID]*Register
+
+// Clone returns a copy of the registers
+func (r Registers) Clone() Registers {
+	regs := make(Registers)
+
+	for k, v := range r {
+		regs[k] = v
+	}
+
+	return regs
+}
+
 // Context describes the context used during a rule evaluation
 type Context struct {
 	Object unsafe.Pointer
+
+	registers Registers
 }
 
 // SetObject set the given object to the context

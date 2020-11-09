@@ -33,7 +33,8 @@ type RuleEvaluator struct {
 	EventTypes  []EventType
 	FieldValues map[Field][]FieldValue
 
-	partialEvals map[Field]func(ctx *Context) bool
+	partialEvals    map[Field]func(ctx *Context) bool
+	regMaxValueFncs map[RegisterID]func(ctx *Context) int
 }
 
 // PartialEval partially evaluation of the Rule with the given Field.
@@ -64,9 +65,70 @@ func (r *RuleEvaluator) GetFields() []Field {
 	return fields
 }
 
+func combineRegisters(combinations []Registers, reg *Register, max int) []Registers {
+	var combined []Registers
+
+	if len(combinations) == 0 {
+		for value := 0; value != max; value++ {
+			registers := make(Registers)
+			registers[reg.ID] = &Register{
+				ID:    reg.ID,
+				Value: value,
+			}
+			combined = append(combined, registers)
+		}
+
+		return combined
+	}
+
+	for _, combination := range combinations {
+		for value := 0; value != max; value++ {
+			regs := combination.Clone()
+			regs[reg.ID] = &Register{
+				ID:    reg.ID,
+				Value: value,
+			}
+			combined = append(combined, regs)
+		}
+	}
+
+	return combined
+}
+
 // Eval - Evaluates
 func (r *Rule) Eval(ctx *Context) bool {
-	return r.evaluator.Eval(ctx)
+	useRegisters := len(r.evaluator.regMaxValueFncs) > 0
+
+	if useRegisters {
+		ctx.registers = make(Registers)
+
+		for id := range r.evaluator.regMaxValueFncs {
+			ctx.registers[id] = &Register{
+				ID: id,
+			}
+		}
+	}
+
+	res := r.evaluator.Eval(ctx)
+	if !useRegisters {
+		return res
+	}
+
+	// generate all possible register values
+	var combinations []Registers
+	for id, maxFnc := range r.evaluator.regMaxValueFncs {
+		combinations = combineRegisters(combinations, ctx.registers[id], maxFnc(ctx))
+	}
+
+	// try each combination
+	for _, registers := range combinations {
+		ctx.registers = registers
+		if r.evaluator.Eval(ctx) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // GetFieldValues returns the values of the given field
@@ -76,6 +138,7 @@ func (r *Rule) GetFieldValues(field Field) []FieldValue {
 
 // PartialEval - Partial evaluation with the given Field
 func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
+	// TODO safchain
 	return r.evaluator.PartialEval(ctx, field)
 }
 
@@ -154,15 +217,17 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 			Eval: func(ctx *Context) bool {
 				return evalBool.Value
 			},
-			EventTypes:  events,
-			FieldValues: state.fieldValues,
+			EventTypes:      events,
+			FieldValues:     state.fieldValues,
+			regMaxValueFncs: state.regMaxValueFncs,
 		}, nil
 	}
 
 	return &RuleEvaluator{
-		Eval:        evalBool.EvalFnc,
-		EventTypes:  events,
-		FieldValues: state.fieldValues,
+		Eval:            evalBool.EvalFnc,
+		EventTypes:      events,
+		FieldValues:     state.fieldValues,
+		regMaxValueFncs: state.regMaxValueFncs,
 	}, nil
 }
 

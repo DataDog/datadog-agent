@@ -71,6 +71,15 @@ func TestCompareComplex(t *testing.T) {
 	print(t, rule)
 }
 
+func TestRegister(t *testing.T) {
+	rule, err := ParseRule(`process.ancestors[A].filename == "/usr/bin/vipw" && process.ancestors[A].pid == 44`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
 func TestBoolAnd(t *testing.T) {
 	rule, err := ParseRule(`3 & 3`)
 	if err != nil {

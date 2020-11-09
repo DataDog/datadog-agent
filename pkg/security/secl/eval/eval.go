@@ -14,17 +14,13 @@ import (
 	"sort"
 
 	"github.com/alecthomas/participle/lexer"
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
 // Field name
 type Field = string
-
-// IdentEvaluator represents the evaluator of an identifier
-type IdentEvaluator struct {
-	Eval func(ctx *Context) bool
-}
 
 // FieldValueType represents the type of the value of a field
 type FieldValueType int
@@ -67,15 +63,6 @@ type Evaluator interface {
 type EvaluatorStringer struct {
 	Ctx       *Context
 	Evaluator Evaluator
-}
-
-func (e *EvaluatorStringer) String() string {
-	return fmt.Sprintf("%v", e.Evaluator.Eval(e.Ctx))
-}
-
-// NewEvaluatorStringer returns a new evaluator stringer
-func NewEvaluatorStringer(ctx *Context, evaluator Evaluator) *EvaluatorStringer {
-	return &EvaluatorStringer{Ctx: ctx, Evaluator: evaluator}
 }
 
 // BoolEvaluator returns a bool as result of the evaluation
@@ -128,6 +115,25 @@ type StringArray struct {
 // IntArray represents an array of integer values
 type IntArray struct {
 	Values []int
+}
+
+func extractField(field string) (Field, RegisterID, error) {
+	var id RegisterID
+
+	re := regexp.MustCompile(`\[([^\]]*)\]`)
+	ids := re.FindStringSubmatch(field)
+
+	switch len(ids) {
+	case 0:
+		return field, "", nil
+	case 2:
+		id = ids[1]
+	default:
+		return "", "", errors.New("wrong register format")
+	}
+
+	re = regexp.MustCompile(`(.*)\[[^\]]*\](.*)`)
+	return re.ReplaceAllString(field, `$1$2`), id, nil
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {
@@ -415,12 +421,24 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				}
 			}
 
-			accessor, err := state.model.GetEvaluator(*obj.Ident)
+			field, registerID, err := extractField(*obj.Ident)
 			if err != nil {
 				return nil, nil, obj.Pos, err
 			}
 
-			state.UpdateFields(*obj.Ident)
+			fnc, err := state.model.GetRegisterMaxValueFnc(field)
+			if err != nil {
+				return nil, nil, obj.Pos, err
+			}
+
+			state.regMaxValueFncs[registerID] = fnc
+
+			accessor, err := state.model.GetEvaluator(field, registerID)
+			if err != nil {
+				return nil, nil, obj.Pos, err
+			}
+
+			state.UpdateFields(field)
 
 			return accessor, nil, obj.Pos, nil
 		case obj.Number != nil:

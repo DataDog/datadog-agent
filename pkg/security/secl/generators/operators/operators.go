@@ -46,20 +46,20 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
 				if a.isPartial {
-					ea = func(ctx *Context) {{ .EvalReturnType }} {
+					ea = func(ctx *Context, idx int) {{ .EvalReturnType }} {
 						return true
 					}
 				}
 				if b.isPartial {
-					eb = func(ctx *Context) {{ .EvalReturnType }} {
+					eb = func(ctx *Context, idx int) {{ .EvalReturnType }} {
 						return true
 					}
 				}
 			}
 		{{ end }}
 
-		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return ea(ctx) {{ .Op }} eb(ctx)
+		evalFnc := func(ctx *Context, idx int) {{ .EvalReturnType }} {
+			return ea(ctx, idx) {{ .Op }} eb(ctx, idx)
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -100,7 +100,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
 				if a.isPartial {
-					ea = func(ctx *Context) {{ .EvalReturnType }} {
+					ea = func(ctx *Context, idx int) {{ .EvalReturnType }} {
 						return true
 					}
 				}
@@ -110,8 +110,8 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return ea(ctx) {{ .Op }} eb
+		evalFnc := func(ctx *Context, idx int) {{ .EvalReturnType }} {
+			return ea(ctx, idx) {{ .Op }} eb
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -134,15 +134,15 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 				ea = true
 			}
 			if b.isPartial {
-				eb = func(ctx *Context) {{ .EvalReturnType }} {
+				eb = func(ctx *Context, idx int) {{ .EvalReturnType }} {
 					return true
 				}
 			}
 		}
 	{{ end }}
 
-	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-		return ea {{ .Op }} eb(ctx)
+	evalFnc := func(ctx *Context, idx int) {{ .EvalReturnType }} {
+		return ea {{ .Op }} eb(ctx, idx)
 	}
 
 	return &{{ .FuncReturnType }}{

@@ -13,11 +13,17 @@ import (
 	"github.com/pkg/errors"
 )
 
+type testItem struct {
+	key   int
+	value int
+}
+
 type testProcess struct {
 	name   string
 	uid    int
 	gid    int
 	isRoot bool
+	list   []testItem
 }
 
 type testOpen struct {
@@ -74,79 +80,116 @@ func (m *testModel) ValidateField(key string, value FieldValue) error {
 	return nil
 }
 
-func (m *testModel) GetEvaluator(key string) (Evaluator, error) {
-	switch key {
+func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, error) {
+	switch field {
 
 	case "process.name":
 
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).process.name },
-			Field:   key,
+			Field:   field,
 		}, nil
 
 	case "process.uid":
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).process.uid },
-			Field:   key,
+			Field:   field,
 		}, nil
 
 	case "process.gid":
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).process.gid },
-			Field:   key,
+			Field:   field,
 		}, nil
 
 	case "process.is_root":
 
 		return &BoolEvaluator{
 			EvalFnc: func(ctx *Context) bool { return (*testEvent)(ctx.Object).process.isRoot },
-			Field:   key,
+			Field:   field,
+		}, nil
+
+	case "process.list.key":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				reg := ctx.registers[regID]
+				return (*testEvent)(ctx.Object).process.list[reg.Value].key
+			},
+			Field: field,
+		}, nil
+
+	case "process.list.value":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				reg := ctx.registers[regID]
+				return (*testEvent)(ctx.Object).process.list[reg.Value].value
+			},
+			Field: field,
 		}, nil
 
 	case "open.filename":
 
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).open.filename },
-			Field:   key,
+			Field:   field,
 		}, nil
 
 	case "open.flags":
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).open.flags },
-			Field:   key,
+			Field:   field,
 		}, nil
 
 	case "open.mode":
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).open.mode },
-			Field:   key,
+			Field:   field,
 		}, nil
 
 	case "mkdir.filename":
 
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return (*testEvent)(ctx.Object).mkdir.filename },
-			Field:   key,
+			Field:   field,
 		}, nil
 
 	case "mkdir.mode":
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int { return (*testEvent)(ctx.Object).mkdir.mode },
-			Field:   key,
+			Field:   field,
 		}, nil
-
 	}
 
-	return nil, &ErrFieldNotFound{Field: key}
+	return nil, &ErrFieldNotFound{Field: field}
 }
 
-func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
-	switch key {
+func (m *testModel) GetRegisterMaxValueFnc(field Field) (func(ctx *Context) int, error) {
+	switch field {
+	case "process.list.key":
+
+		return func(ctx *Context) int {
+			return len((*testEvent)(ctx.Object).process.list)
+		}, nil
+
+	case "process.list.value":
+
+		return func(ctx *Context) int {
+			return len((*testEvent)(ctx.Object).process.list)
+		}, nil
+	}
+
+	return nil, &ErrFieldNotFound{Field: field}
+}
+
+func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
+	switch field {
 
 	case "process.name":
 
@@ -186,11 +229,11 @@ func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
 
 	}
 
-	return nil, &ErrFieldNotFound{Field: key}
+	return nil, &ErrFieldNotFound{Field: field}
 }
 
-func (e *testEvent) GetFieldEventType(key string) (string, error) {
-	switch key {
+func (e *testEvent) GetFieldEventType(field Field) (string, error) {
+	switch field {
 
 	case "process.name":
 
@@ -205,6 +248,14 @@ func (e *testEvent) GetFieldEventType(key string) (string, error) {
 		return "*", nil
 
 	case "process.is_root":
+
+		return "*", nil
+
+	case "process.list.key":
+
+		return "*", nil
+
+	case "process.list.value":
 
 		return "*", nil
 
@@ -230,11 +281,11 @@ func (e *testEvent) GetFieldEventType(key string) (string, error) {
 
 	}
 
-	return "", &ErrFieldNotFound{Field: key}
+	return "", &ErrFieldNotFound{Field: field}
 }
 
-func (e *testEvent) SetFieldValue(key string, value interface{}) error {
-	switch key {
+func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
+	switch field {
 
 	case "process.name":
 
@@ -283,11 +334,11 @@ func (e *testEvent) SetFieldValue(key string, value interface{}) error {
 
 	}
 
-	return &ErrFieldNotFound{Field: key}
+	return &ErrFieldNotFound{Field: field}
 }
 
-func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
-	switch key {
+func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
+	switch field {
 
 	case "process.name":
 
@@ -304,6 +355,12 @@ func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
 	case "process.is_root":
 
 		return reflect.Bool, nil
+
+	case "process.list.key":
+		return reflect.Int, nil
+
+	case "process.list.value":
+		return reflect.Int, nil
 
 	case "open.filename":
 
@@ -327,7 +384,7 @@ func (e *testEvent) GetFieldType(key string) (reflect.Kind, error) {
 
 	}
 
-	return reflect.Invalid, &ErrFieldNotFound{Field: key}
+	return reflect.Invalid, &ErrFieldNotFound{Field: field}
 }
 
 var testConstants = map[string]interface{}{
