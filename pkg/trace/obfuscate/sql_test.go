@@ -950,6 +950,19 @@ func TestSQLErrors(t *testing.T) {
 			"SELECT age FROM profile WHERE place='John\\'s House' and name='John\\'",
 			`at position 69: unexpected EOF in string`,
 		},
+
+		{
+			" \x80",
+			"at position 2: unexpected byte 65533",
+		},
+		{
+			"\x3a\xdb",
+			"at position 1: bind variables should start with letters, got \"�\" (65533)",
+		},
+		{
+			"CALL p1 ('\ufffd\\\\');",
+			"at position 11: unexpected byte 239",
+		},
 	}
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
