@@ -30,6 +30,7 @@ def test_stackstate_agent_log(host, hostname):
         "Failed to deserialize JSON on fields: , "
         "with message: Object is missing required member \'internalHostname\'",
         "net/ntp.go.*There was an error querying the ntp host",
+        ""
     ]
 
     # Check for errors
@@ -39,6 +40,9 @@ def test_stackstate_agent_log(host, hostname):
         for ignored_error in ignored_errors_regex:
             if len(re.findall(ignored_error, line, re.DOTALL)) > 0:
                 ignored = True
+        if "0.datadog.pool.ntp.org" in line:
+            print("Datadog default host still exist for ntp in line {}".format(line))
+            ignored = False
         if ignored:
             continue
 
