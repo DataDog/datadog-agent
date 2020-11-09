@@ -129,6 +129,10 @@ func TestSQLUTF8(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct{ in, out string }{
 		{
+			"drop database if exists `龔龖龗`;",
+			"drop database if exists 龔龖龗",
+		},
+		{
 			"SELECT Codi , Nom_CA AS Nom, Descripció_CAT AS Descripció FROM ProtValAptitud WHERE Vigent=1 ORDER BY Ordre, Codi",
 			"SELECT Codi, Nom_CA, Descripció_CAT FROM ProtValAptitud WHERE Vigent = ? ORDER BY Ordre, Codi",
 		},

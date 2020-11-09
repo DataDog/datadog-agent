@@ -538,17 +538,16 @@ func (tkn *SQLTokenizer) advance() {
 		tkn.lastChar = EOFChar
 		return
 	}
-
-	len := utf8.RuneLen(ch)
 	if tkn.lastChar != 0 || tkn.pos > 0 {
 		// we are past the first character
-		tkn.pos += len
+		tkn.pos += n
 	}
-	tkn.off += len
+	tkn.off += n
 	tkn.lastChar = ch
 }
 
 // bytes returns all the bytes that were advanced over since its last call.
+// This excludes tkn.lastChar, which will remain in the buffer
 func (tkn *SQLTokenizer) bytes() []byte {
 	if tkn.lastChar == EOFChar {
 		ret := tkn.buf[:tkn.off]
@@ -556,9 +555,10 @@ func (tkn *SQLTokenizer) bytes() []byte {
 		tkn.off = 0
 		return ret
 	}
-	ret := tkn.buf[:tkn.off-1]
-	tkn.buf = tkn.buf[tkn.off-1:]
-	tkn.off = 1
+	lastLen := utf8.RuneLen(tkn.lastChar)
+	ret := tkn.buf[:tkn.off-lastLen]
+	tkn.buf = tkn.buf[tkn.off-lastLen:]
+	tkn.off = lastLen
 	return ret
 }
 
