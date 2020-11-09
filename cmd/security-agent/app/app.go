@@ -91,7 +91,8 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 )
 
 func init() {
-	var defaultConfPathArray = []string{path.Join(commonagent.DefaultConfPath, "datadog.yaml")}
+	var defaultConfPathArray = []string{path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
+		path.Join(commonagent.DefaultConfPath, "security-agent.yaml")}
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
