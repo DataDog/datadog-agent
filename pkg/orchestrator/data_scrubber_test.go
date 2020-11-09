@@ -230,6 +230,9 @@ type testCase struct {
 
 func setupSensitiveCmdLines() []testCase {
 	return []testCase{
+		{[]string{"/bin/bash", "-c", "find /tmp/datadog-agent/conf.d -name '*.yaml' | xargs -I % sh -c 'cp -vr $(dirname\n      %) /etc/datadog-agent-dest/conf.d/$(echo % | cut -d'/' -f6)'; cp -vR /etc/datadog-agent/conf.d/*\n      /etc/datadog-agent-dest/conf.d/"}, []string{"/bin/bash", "-c", "find /tmp/datadog-agent/conf.d -name '*.yaml' | xargs -I % sh -c 'cp -vr $(dirname\n      %) /etc/datadog-agent-dest/conf.d/$(echo % | cut -d'/' -f6)'; cp -vR /etc/datadog-agent/conf.d/*\n      /etc/datadog-agent-dest/conf.d/"}},
+		{[]string{""}, []string{""}},
+		{[]string{"", ""}, []string{"", ""}},
 		{[]string{"agent", "password"}, []string{"agent", "password"}},
 		{[]string{"agent", "-password"}, []string{"agent", "-password"}},
 		{[]string{"agent -password"}, []string{"agent", "-password"}},
