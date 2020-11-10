@@ -184,7 +184,9 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		return source
 	}
 
-	return newOverridenSource(standardService, shortName, source.Status)
+	newSource := newOverridenSource(standardService, shortName, source.Status)
+	newSource.ParentSource = source
+	return newSource
 }
 
 // newOverridenSource is separated from overrideSource for testing purpose
