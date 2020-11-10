@@ -26,11 +26,10 @@ func DDSketchToGK(ddSketch *pb.DDSketch) *SliceSummary {
 		}
 		total += g
 		v := valueFromIndex(index, gamma)
-
 		gkSketch.Entries = append(gkSketch.Entries, Entry{
 			V:     v,
 			G:     g,
-			Delta: g / 2,
+			Delta: int(2 * EPSILON * float64(total-1)),
 		})
 	}
 	gkSketch.N = total
@@ -38,10 +37,7 @@ func DDSketchToGK(ddSketch *pb.DDSketch) *SliceSummary {
 		gkSketch.Entries[0].Delta = 0
 		gkSketch.Entries[len(gkSketch.Entries)-1].Delta = 0
 	}
-	// fmt.Println("pre compress", len(gkSketch.Entries))
 	gkSketch.compress()
-	// fmt.Println("post compress", len(gkSketch.Entries))
-	//spew.Dump(gkSketch)
 	return &gkSketch
 }
 
