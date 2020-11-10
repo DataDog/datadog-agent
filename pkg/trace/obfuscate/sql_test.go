@@ -149,8 +149,8 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
 		},
 		{
-			"drop database if exists `龔龖龗`;",
-			"drop database if exists 龔龖龗",
+			"select * from `構わない`;",
+			"select * from 構わない",
 		},
 		{
 			"select * from names where name like '�����';",
@@ -161,8 +161,8 @@ func TestSQLUTF8(t *testing.T) {
 			"select replacement from table where replacement = ?",
 		},
 		{
-			"CALL p1 ('\ufffd\\\\');",
-			"CALL p1 ( ? )",
+			"SELECT ('\ufffd');",
+			"SELECT ( ? )",
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -974,8 +974,8 @@ func TestSQLErrors(t *testing.T) {
 		},
 
 		{
-			"select * from foo where bar = \"\x3a\xeb\"",
-			"at position 32: invalid UTF-8 encoding beginning with 0xeb",
+			"select * from profile where age = \"\x3a\xeb\"",
+			"at position 36: invalid UTF-8 encoding beginning with 0xeb",
 		},
 	}
 	for _, tc := range cases {
