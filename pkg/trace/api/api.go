@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -401,24 +402,64 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	var buf strings.Builder
 	for _, group := range in.Stats {
 		for _, b := range group.Stats {
-			newb := stats.Bucket{
-				Start:    group.Start,
-				Duration: group.Duration,
-				Counts:   make(map[string]stats.Count),
+			b.Name, _ = traceutil.NormalizeName(b.Name)
+			b.Env = traceutil.NormalizeTag(b.Env)
+			b.Service, _ = traceutil.NormalizeService(b.Service, req.Header.Get(headerLang))
+			if b.Resource == "" {
+				b.Resource = b.Name
 			}
+			// TODO(x): obfuscate b.Resource
+			b.Resource, _ = traceutil.TruncateResource(b.Resource)
+
 			tags := map[string]string{
 				"version": b.Version,
 			}
 			for _, t := range b.OtherTags {
 				parts := strings.SplitN(t, ":", 2)
 				if len(parts) > 0 {
+					if v := parts[0]; len(v) > traceutil.MaxMetaKeyLen {
+						parts[0] = traceutil.TruncateUTF8(v, traceutil.MaxMetaKeyLen) + "..."
+					}
 					tags[parts[0]] = ""
 				}
 				if len(parts) > 1 {
+					if v := parts[1]; len(v) > traceutil.MaxMetaValLen {
+						parts[1] = traceutil.TruncateUTF8(v, traceutil.MaxMetaValLen) + "..."
+					}
 					tags[parts[0]] = parts[1]
 				}
 			}
 
+			// Replacer
+			for _, rule := range r.conf.ReplaceTags {
+				key, str, re := rule.Name, rule.Repl, rule.Re
+				switch key {
+				case "resource.name":
+					b.Resource = re.ReplaceAllString(b.Resource, str)
+				case "version":
+					b.Version = re.ReplaceAllString(b.Version, str)
+				case "env":
+					b.Env = re.ReplaceAllString(b.Env, str)
+				case "*":
+					b.Resource = re.ReplaceAllString(b.Resource, str)
+					b.Version = re.ReplaceAllString(b.Version, str)
+					b.Env = re.ReplaceAllString(b.Env, str)
+					for k, v := range tags {
+						tags[k] = re.ReplaceAllString(v, str)
+					}
+				default:
+					if _, ok := tags[key]; !ok {
+						continue
+					}
+					tags[key] = re.ReplaceAllString(tags[key], str)
+				}
+			}
+
+			newb := stats.Bucket{
+				Start:    group.Start,
+				Duration: group.Duration,
+				Counts:   make(map[string]stats.Count),
+			}
 			grain, tagset := stats.AssembleGrain(&buf, b.Env, b.Resource, b.Service, tags)
 			key := stats.GrainKey(b.Name, stats.HITS, grain)
 			newb.Counts[key] = stats.Count{
@@ -451,7 +492,6 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	//fmt.Printf("%# v\n\n%# v", pretty.Formatter(in), pretty.Formatter(out))
 	r.outStats <- &out
 }
 
