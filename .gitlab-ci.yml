@@ -1793,7 +1793,7 @@ deploy_windows_testing-a7:
 .kitchen_os_suse: &kitchen_os_suse
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-12,urn,SUSE:SLES-BYOS:12-SP4:2020.06.10"
+    - export TEST_PLATFORMS="sles-12,urn,SUSE:sles-12-sp5-byos:gen1:2020.09.21"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
