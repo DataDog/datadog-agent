@@ -8,10 +8,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/host"
+)
+
+const (
+	WorldReadable os.FileMode = 4
 )
 
 type statusInfo struct {
@@ -31,8 +36,9 @@ type Probe struct {
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
 
-	uid  uint32 // Used for path permission checking to prevent access to files that we can't access
-	euid uint32
+	// uid and euid are cached to minimize system call when check file permission
+	uid  uint32 // UID
+	euid uint32 // Effective UID
 
 	bootTime uint64
 }
@@ -160,6 +166,68 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
+func (p *Probe) parseIO(pidPath string) *IOCountersStat {
+	path := filepath.Join(pidPath, "io")
+	var err error
+
+	io := &IOCountersStat{}
+
+	if err = p.ensurePathReadable(path); err != nil {
+		return io
+	}
+
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		return io
+	}
+
+	index := 0
+	for i, r := range content {
+		if r == '\n' {
+			p.parseIOLine(content[index:i], io)
+			index = i + 1
+		}
+	}
+
+	return io
+}
+
+func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
+	for i := range line {
+		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
+			key := line[0:i]
+			value := line[i+2:]
+			p.parseIOKV(string(key), string(value), io)
+			break
+		}
+	}
+}
+
+func (p *Probe) parseIOKV(key, value string, io *IOCountersStat) {
+	switch key {
+	case "syscr":
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			io.ReadCount = v
+		}
+	case "syscw":
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			io.WriteCount = v
+		}
+	case "read_bytes":
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			io.ReadBytes = v
+		}
+	case "write_bytes":
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			io.WriteBytes = v
+		}
+	}
+}
+
 // parseStatus retrieves status info from "status" file for a process in procfs
 func (p *Probe) parseStatus(pidPath string) *statusInfo {
 	path := filepath.Join(pidPath, "status")
@@ -172,15 +240,15 @@ func (p *Probe) parseStatus(pidPath string) *statusInfo {
 		ctxSwitches: &NumCtxSwitchesStat{},
 	}
 
-	contents, err := ioutil.ReadFile(path)
+	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		return sInfo
 	}
 
 	index := 0
-	for i, r := range contents {
+	for i, r := range content {
 		if r == '\n' {
-			p.parseStatusLine(contents[index:i], sInfo)
+			p.parseStatusLine(content[index:i], sInfo)
 			index = i + 1
 		}
 	}
@@ -298,4 +366,39 @@ func trimAndSplitBytes(bs []byte) []string {
 	}
 
 	return components
+}
+
+// ensurePathReadable ensures that the current user is able to read the path before opening it.
+// On some systems, attempting to open a file that the user does not have permission is problematic for
+// customer security auditing. What we do here is:
+// 1. If the agent is running as root (real or via sudo), allow the request
+// 2. If the file is a not a symlink and has the other-readable permission bit set, allow the request
+// 3. If the owner of the file/link is the current user or effective user, allow the request.
+func (p *Probe) ensurePathReadable(path string) error {
+	// User is (effectively or actually) root
+	if p.euid == 0 {
+		return nil
+	}
+
+	// TODO (sk): Provide caching on this!
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+
+	// File mode is world readable and not a symlink
+	// If the file is a symlink, the owner check below will cover it
+	if mode := info.Mode(); mode&os.ModeSymlink == 0 && mode.Perm()&WorldReadable != 0 {
+		return nil
+	}
+
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		// If file is not owned by the user id or effective user id, return a permission error
+		// Group permissions don't come in to play with procfs so we don't bother checking
+		if stat.Uid != p.uid && stat.Uid != p.euid {
+			return os.ErrPermission
+		}
+	}
+
+	return nil
 }
