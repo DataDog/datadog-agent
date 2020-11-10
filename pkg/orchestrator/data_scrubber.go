@@ -93,28 +93,25 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 
 			if matchIndex >= 0 {
 				before := cmd[:matchIndex] // /etc/vaultd/ from /etc/vaultd/secret/haproxy-crt.pem
-				// /etc/vaultd/secrets/haproxy-crt.pem -> we don't want to match if one of the below chars are in before
+				// skip paths /etc/vaultd/secrets/haproxy-crt.pem -> we don't want to match if one of the below chars are in before
 				if strings.IndexAny(before, "/:=$") >= 0 {
 					break
 				}
 
+				changed = true
 				v := strings.IndexAny(cmd, "=:")
 				if v >= 0 {
-					// skip paths
-					changed = true
-
 					// password:1234  password=1234 ==> password=****** || password:******
 					// password::::====1234 ==> password:******
 					newCmdline[index] = cmd[:v+1] + "********"
 					// replace from v to end of string with ********
 					break
 				} else {
-					changed = true
 					// password 1234 password ******
 					nextReplacementIndex := index + 1
 					if nextReplacementIndex < len(newCmdline) {
 						wordReplacesIndexes = append(wordReplacesIndexes, nextReplacementIndex)
-						index += 1
+						index++
 					}
 					break
 				}

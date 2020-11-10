@@ -112,16 +112,25 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 
 // ScrubContainer scrubs sensitive information in the command line & env vars
 func ScrubContainer(c *v1.Container, scrubber *DataScrubber) bool {
-	// scrub command line
-	scrubbedCmd, changed := scrubber.ScrubSimpleCommand(c.Command)
-	c.Command = scrubbedCmd
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
 		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
 			c.Env[e].Value = redactedValue
-			changed = true
 		}
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("failed to parse cmd from pod, obscuring whole command")
+			// we still want to obscure to be safe
+			c.Command = []string{redactedValue}
+		}
+	}()
+
+	// scrub command line
+	scrubbedCmd, changed := scrubber.ScrubSimpleCommand(c.Command)
+	c.Command = scrubbedCmd
+
 	return changed
 }
 
