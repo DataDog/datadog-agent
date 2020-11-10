@@ -19,6 +19,7 @@ type statusInfo struct {
 	status     string
 	uids       []int32
 	gids       []int32
+	nspid      int32
 	numThreads int32
 
 	memInfo     *MemoryInfoStat
@@ -89,6 +90,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 			Status:  statusInfo.status, // /proc/{pid}/status
 			Uids:    statusInfo.uids,   // /proc/{pid}/status
 			Gids:    statusInfo.gids,   // /proc/{pid}/status
+			NsPid:   statusInfo.nspid,  // /proc/{pid}/status
 			Stats: &Stats{
 				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
 				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
@@ -220,6 +222,11 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			if err == nil {
 				sInfo.gids = append(sInfo.gids, int32(v))
 			}
+		}
+	case "NSpid":
+		v, err := strconv.ParseInt(value, 10, 32)
+		if err == nil {
+			sInfo.nspid = int32(v)
 		}
 	case "Threads":
 		v, err := strconv.ParseInt(value, 10, 32)

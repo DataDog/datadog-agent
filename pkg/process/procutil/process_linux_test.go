@@ -191,6 +191,74 @@ func TestProcfsChange(t *testing.T) {
 	assert.Contains(t, procByPID, int32(29613))
 }
 
+func TestParseStatusLine(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	for _, tc := range []struct {
+		line     []byte
+		expected *statusInfo
+	}{
+		{
+			line: []byte("Name:\tpostgres"),
+			expected: &statusInfo{
+				name:        "postgres",
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Name:\t\t\t\t\tpostgres"),
+			expected: &statusInfo{
+				name:        "postgres",
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Uid:\t112\t112\t112\t112"),
+			expected: &statusInfo{
+				uids:        []int32{112, 112, 112, 112},
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("bad status line"), // bad status
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Name:\t"), // edge case for parsing failure
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("NSpid:\t123"),
+			expected: &statusInfo{
+				nspid:       123,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("VmRSS:\t712 kB"),
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{RSS: 712 * 1024},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+	} {
+		result := &statusInfo{memInfo: &MemoryInfoStat{}, ctxSwitches: &NumCtxSwitchesStat{}}
+		probe.parseStatusLine(tc.line, result)
+		assert.EqualValues(t, tc.expected, result)
+	}
+}
+
 func TestParseStatus(t *testing.T) {
 	hostProc := "resources/test_procfs/proc/"
 	os.Setenv("HOST_PROC", hostProc)
