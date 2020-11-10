@@ -209,7 +209,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    syscall->open.path_key.path_id = bpf_get_prandom_u32();
+    syscall->open.path_key.path_id = get_path_id(0);
 
     // add an real entry to reach the first dentry with the proper inode
     u64 inode = syscall->open.path_key.ino;

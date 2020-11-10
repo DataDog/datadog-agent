@@ -39,6 +39,19 @@ void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *dst, st
     return;
 }
 
+static __attribute__((always_inline)) u32 copy_tty_name(char dst[TTY_NAME_LEN], char src[TTY_NAME_LEN]) {
+    if (src[0] == 0) {
+        return 0;
+    }
+
+#pragma unroll
+    for (int i = 0; i < TTY_NAME_LEN; i++)
+    {
+        dst[i] = src[i];
+    }
+    return TTY_NAME_LEN;
+}
+
 int __attribute__((always_inline)) trace__sys_execveat() {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_EXEC,
@@ -68,13 +81,14 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u32 tgid = pid_tgid >> 32;
 
     u32 cookie = bpf_get_prandom_u32();
+    u32 path_id = get_path_id(0);
 
     struct proc_cache_t entry = {
         .executable = {
             .inode = syscall->open.path_key.ino,
             .overlay_numlower = get_overlay_numlower(get_path_dentry(path)),
             .mount_id = get_path_mount_id(path),
-            .path_id = cookie,
+            .path_id = path_id,
         },
         .container = {},
         .timestamp = bpf_ktime_get_ns(),
@@ -87,7 +101,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         // inherit container ID
         copy_container_id(entry.container.container_id, parent_entry->container.container_id);
     }
-    syscall->open.path_key.path_id = cookie;
+    syscall->open.path_key.path_id = path_id;
 
     // cache dentry
     resolve_dentry(syscall->open.dentry, syscall->open.path_key, 0);
@@ -116,6 +130,28 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
         // Ensures pid and ppid point to the same cookie
         bpf_map_update_elem(&pid_cookie, &pid, &cookie, BPF_ANY);
+
+        // Send event back to user space to populate process cache
+        struct exec_event_t event = {
+            .event.type = EVENT_EXEC,
+            .pid = pid,
+            .cache_entry.executable = {
+                .inode = parent_entry->executable.inode,
+                .overlay_numlower = parent_entry->executable.overlay_numlower,
+                .mount_id = parent_entry->executable.mount_id,
+                .path_id = parent_entry->executable.path_id,
+            },
+            .cache_entry.container = {},
+            .cache_entry.timestamp = parent_entry->timestamp,
+            .cache_entry.cookie = parent_entry->cookie,
+            .cache_entry.ppid = ppid,
+        };
+
+        copy_tty_name(event.cache_entry.tty_name, parent_entry->tty_name);
+        copy_container_id(event.cache_entry.container.container_id, parent_entry->container.container_id);
+
+        // send the entry to maintain userspace cache
+        send_process_events(args, event);
     }
 
     return 0;
@@ -128,6 +164,14 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     u32 pid = pid_tgid;
 
     if (tgid == pid) {
+        struct pid_discarder_t key = {
+            .tgid = tgid,
+        };
+        for (int i = 1; i < EVENT_MAX; i++) {
+            key.event_type = i;
+            bpf_map_delete_elem(&pid_discarders, &key);
+        }
+
         // send the entry to maintain userspace cache
         struct exit_event_t event = {
             .event.type = EVENT_EXIT,
@@ -155,19 +199,6 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     }
 
     return 0;
-}
-
-static __attribute__((always_inline)) u32 copy_tty_name(char dst[TTY_NAME_LEN], char src[TTY_NAME_LEN]) {
-    if (src[0] == 0) {
-        return 0;
-    }
-
-#pragma unroll
-    for (int i = 0; i < TTY_NAME_LEN; i++)
-    {
-        dst[i] = src[i];
-    }
-    return TTY_NAME_LEN;
 }
 
 SEC("kprobe/do_close_on_exec")

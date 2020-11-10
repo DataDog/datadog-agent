@@ -13,7 +13,7 @@ import (
 	"unsafe"
 
 	lib "github.com/DataDog/ebpf"
-	lru "github.com/hashicorp/golang-lru/simplelru"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -23,7 +23,7 @@ import (
 type DentryResolver struct {
 	probe     *Probe
 	pathnames *lib.Map
-	cache     *lru.LRU
+	cache     *lru.Cache
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -181,7 +181,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		filename = "/"
 	}
 
-	if err != nil {
+	if err == nil {
 		for k, v := range toAdd {
 			dr.cache.Add(k, v)
 		}
@@ -242,7 +242,7 @@ func (dr *DentryResolver) Start() error {
 	}
 	dr.pathnames = pathnames
 
-	cache, err := lru.NewLRU(128, nil)
+	cache, err := lru.New(128)
 	if err != nil {
 		return err
 	}

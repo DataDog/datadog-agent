@@ -34,7 +34,10 @@ Orchestrator Explorer
     OrchestratorEndpoint: {{.OrchestratorEndpoint}}
 {{- end }}
 {{- if .OrchestratorAdditionalEndpoints }}
-    OrchestratorAdditionalEndpoints: {{.OrchestratorAdditionalEndpoints}}
+    {{ range $key, $value := .OrchestratorAdditionalEndpoints }}OrchestratorAdditionalEndpoint: {{$key}}
+    {{/* this line intentionally left blank */}}
+    {{- end }}
+
 {{- end }}
 
   ===============

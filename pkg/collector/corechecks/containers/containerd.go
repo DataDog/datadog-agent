@@ -219,11 +219,11 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 
 		ociSpec, err := cu.Spec(ctn)
 		if err != nil {
-			log.Errorf("Could not retrieve OCI Spec from: %s: %v", ctn.ID(), err)
+			log.Warnf("Could not retrieve OCI Spec from: %s: %v", ctn.ID(), err)
 		}
 
 		var cpuLimits *specs.LinuxCPU
-		if ociSpec.Linux != nil && ociSpec.Linux.Resources != nil {
+		if ociSpec != nil && ociSpec.Linux != nil && ociSpec.Linux.Resources != nil {
 			cpuLimits = ociSpec.Linux.Resources.CPU
 		}
 		computeCPU(sender, metrics.CPU, cpuLimits, info.CreatedAt, currentTime, tags)
