@@ -1322,7 +1322,7 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     }
 
     batch->pos++;
-    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_code, (http->response_last_seen-http->request_started)/(1000*1000));
+    log_debug("http response ended: code: %d duration: %d(ms)\n", http->status_code, (http->response_last_seen-http->request_started)/(1000*1000));
 }
 
 static __always_inline int http_begin_request(http_transaction_t *http, http_state_t new_state, char *buffer) {
@@ -1335,7 +1335,7 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_sta
     http->state = new_state;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
-    http->response_code = 0;
+    http->status_code = 0;
     __builtin_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
     return 1;
 }
@@ -1346,25 +1346,29 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
         return 0;
     }
 
-    // Find digit following space and multiply it by 100 to obtain the response code
+    // Extract the status code from the response fragment
     // HTTP/1.1 200 OK
-    // _________^_____
-    __u16 response_code = 0;
+    // _________^^^___
+    // Code below is a bit oddly structured in order to make kernel 4.4 verifier happy
+    __u16 status_code = 0;
+    __u8 space_found = 0;
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE-1; i++) {
-        if (response_code == 0 && buffer[i] == ' ') {
-            response_code = (buffer[i+1]-'0')*100;
+        if (!space_found && buffer[i] == ' ') {
+            space_found = 1;
+        } else if (space_found && status_code < 100) {
+            status_code = status_code*10 + (buffer[i]-'0');
         }
     }
 
-    if (response_code < 100 || response_code >= 600) {
+    if (status_code < 100 || status_code >= 600) {
         return 0;
     }
 
     http->state = HTTP_RESPONDING;
-    http->response_code = response_code;
+    http->status_code = status_code;
     http->response_last_seen = bpf_ktime_get_ns();
-    log_debug("http response started: code: %d\n", http->response_code);
+    log_debug("http response started: code: %d\n", http->status_code);
     return 1;
 }
 

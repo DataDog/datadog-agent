@@ -54,6 +54,12 @@ func (tx *httpTX) Path() string {
 	return ""
 }
 
+// StatusClass returns an integer representing the status code class
+// Example: a 404 would return 400
+func (tx *httpTX) StatusClass() int {
+	return (int(tx.status_code) / 100) * 100
+}
+
 // IsDirty detects whether the batch page we're supposed to read from is still
 // valid.  A "dirty" page here means that between the time the
 // http_notification_t message was sent to userspace and the time we performed
@@ -158,7 +164,7 @@ func (http *httpMonitor) Start() error {
 				// Right now I'm just aggregating the hits per status code just as a placeholder to make sure everything
 				// is working as expected
 				for _, tx := range txs {
-					hits[int(tx.response_code)]++
+					hits[tx.StatusClass()]++
 				}
 			case _, ok := <-http.perfHandler.LostChannel:
 				if !ok {

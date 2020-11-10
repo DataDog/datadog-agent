@@ -92,7 +92,7 @@ typedef struct {
     conn_tuple_t tup;
     __u8 state;
     __u64 request_started;
-    __u16 response_code;
+    __u16 status_code;
     __u64 response_last_seen;
     char request_fragment[HTTP_BUFFER_SIZE];
 } http_transaction_t;
