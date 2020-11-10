@@ -130,8 +130,7 @@ func TestProcessesByPID(t *testing.T) {
 }
 
 func TestMultipleProbes(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
 	probe1 := NewProcessProbe()
@@ -158,8 +157,7 @@ func TestMultipleProbes(t *testing.T) {
 }
 
 func TestProcfsChange(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
 	probe := NewProcessProbe()
