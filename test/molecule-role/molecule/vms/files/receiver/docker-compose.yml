@@ -28,6 +28,7 @@ services:
     image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
     ports:
       - 7077:7077
+      - 1618:1618
     depends_on:
       kafka:
         condition: service_healthy

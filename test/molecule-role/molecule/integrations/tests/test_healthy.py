@@ -11,7 +11,7 @@ testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts
 @pytest.mark.first
 def test_receiver_healthy(host):
     def assert_healthy():
-        c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:7077/health"
+        c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1618/readiness"
         assert host.check_output(c) == "200"
 
     util.wait_until(assert_healthy, 100, 5)
