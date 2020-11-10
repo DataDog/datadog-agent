@@ -9,13 +9,12 @@ package orchestrator
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }
@@ -133,7 +132,6 @@ func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 
 	for i := range cases {
 		cases[i].cmdline, _ = scrubber.ScrubSimpleCommand(cases[i].cmdline)
-		println(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -230,6 +228,19 @@ type testCase struct {
 
 func setupSensitiveCmdLines() []testCase {
 	return []testCase{
+		// in case the "keyword" is part of the command itself
+		{[]string{"agent", "-password////:123"}, []string{"agent", "-password////:********"}},
+		{[]string{"agent", "-password", "1234"}, []string{"agent", "-password", "********"}},
+		{[]string{"agent --password > /password/secret; agent --password echo >> /etc"}, []string{"agent", "--password", "********", "/password/secret;", "agent", "--password", "********", ">>", "/etc"}},
+		{[]string{"agent --password > /password/secret; ls"}, []string{"agent", "--password", "********", "/password/secret;", "ls"}},
+		{[]string{"agent", "-password=========123"}, []string{"agent", "-password=********"}},
+		{[]string{"agent", "-password/123"}, []string{"agent", "-password/123"}},
+		{[]string{"agent", "-password:123"}, []string{"agent", "-password:********"}},
+		{[]string{"agent", "-password", "-password"}, []string{"agent", "-password", "********"}},
+		{[]string{"/usr/local/bin/bash -c cat /etc/vaultd/secrets/haproxy-crt.pem > /etc/vaultd/secrets/haproxy.pem; echo >> /etc/vaultd/secrets/haproxy.pem; cat /etc/vaultd/secrets/haproxy-key.pem >> /etc/vaultd/secrets/haproxy.pem"},
+			[]string{"/usr/local/bin/bash -c cat /etc/vaultd/secrets/haproxy-crt.pem > /etc/vaultd/secrets/haproxy.pem; echo >> /etc/vaultd/secrets/haproxy.pem; cat /etc/vaultd/secrets/haproxy-key.pem >> /etc/vaultd/secrets/haproxy.pem"}},
+		{[]string{":usr:local:bin:bash -c cat :etc:vaultd:secrets:haproxy-crt.pem > :etc:vaultd:secrets:haproxy.pem; echo >> :etc:vaultd:secrets:haproxy.pem; cat :etc:vaultd:secrets:haproxy-key.pem >> :etc:vaultd:secrets:haproxy.pem"},
+			[]string{":usr:local:bin:bash -c cat :etc:vaultd:secrets:haproxy-crt.pem > :etc:vaultd:secrets:haproxy.pem; echo >> :etc:vaultd:secrets:haproxy.pem; cat :etc:vaultd:secrets:haproxy-key.pem >> :etc:vaultd:secrets:haproxy.pem"}},
 		{[]string{"/bin/bash", "-c", "find /tmp/datadog-agent/conf.d -name '*.yaml' | xargs -I % sh -c 'cp -vr $(dirname\n      %) /etc/datadog-agent-dest/conf.d/$(echo % | cut -d'/' -f6)'; cp -vR /etc/datadog-agent/conf.d/*\n      /etc/datadog-agent-dest/conf.d/"}, []string{"/bin/bash", "-c", "find /tmp/datadog-agent/conf.d -name '*.yaml' | xargs -I % sh -c 'cp -vr $(dirname\n      %) /etc/datadog-agent-dest/conf.d/$(echo % | cut -d'/' -f6)'; cp -vR /etc/datadog-agent/conf.d/*\n      /etc/datadog-agent-dest/conf.d/"}},
 		{[]string{""}, []string{""}},
 		{[]string{"", ""}, []string{"", ""}},
@@ -239,7 +250,6 @@ func setupSensitiveCmdLines() []testCase {
 		{[]string{"agent", "password"}, []string{"agent", "password"}},
 		{[]string{"agent", "-password"}, []string{"agent", "-password"}},
 		{[]string{"agent -password"}, []string{"agent", "-password"}},
-		{[]string{"agent", "-password", "1234"}, []string{"agent", "-password", "********"}},
 		{[]string{"agent", "--password", "1234"}, []string{"agent", "--password", "********"}},
 		{[]string{"agent", "-password=1234"}, []string{"agent", "-password=********"}},
 		{[]string{"agent", "--password=1234"}, []string{"agent", "--password=********"}},
