@@ -24,13 +24,13 @@ func readCtxSwitches(procStatPath string) (ctxSwitches int64, err error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
+	for i := 0; scanner.Scan(); i++ {
 		txt := scanner.Text()
 		if strings.HasPrefix(txt, "ctxt") {
 			elemts := strings.Split(txt, " ")
 			ctxSwitches, err = strconv.ParseInt(elemts[1], 10, 64)
 			if err != nil {
-				return 0, err
+				return 0, fmt.Errorf("%s in '%s' at line %d", err, procStatPath, i)
 			}
 			return ctxSwitches, nil
 		}
