@@ -129,10 +129,6 @@ func TestSQLUTF8(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct{ in, out string }{
 		{
-			"drop database if exists `龔龖龗`;",
-			"drop database if exists 龔龖龗",
-		},
-		{
 			"SELECT Codi , Nom_CA AS Nom, Descripció_CAT AS Descripció FROM ProtValAptitud WHERE Vigent=1 ORDER BY Ordre, Codi",
 			"SELECT Codi, Nom_CA, Descripció_CAT FROM ProtValAptitud WHERE Vigent = ? ORDER BY Ordre, Codi",
 		},
@@ -151,6 +147,22 @@ func TestSQLUTF8(t *testing.T) {
 		{
 			"SELECT     Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI As [Código Centro Trabajo], Cli_Establiments.CODIGO_CENTRO_AXAPTA As [Código C. Axapta],  Cli_Establiments.NOMESTAB As [Nombre],                                 Cli_Establiments.ADRECA As [Dirección], Cli_Establiments.CodPostal As [Código Postal], Cli_Establiments.Poblacio as [Población], Cli_Establiments.Provincia,                                Cli_Establiments.TEL As [Tel],  Cli_Establiments.EMAIL As [EMAIL],                                Cli_Establiments.PERS_CONTACTE As [Contacto], Cli_Establiments.PERS_CONTACTE_CARREC As [Cargo Contacto], Cli_Establiments.NumTreb As [Plantilla],                                Cli_Establiments.Localitzacio As [Localización], Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES As [Nombre Actividad], ACTIVO AS [Activo]                        FROM         Cli_Establiments LEFT OUTER JOIN                                    Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat                        Where CODCLI = '01234' AND CENTRE_CORRECTE = 3 AND ACTIVO = 5                        ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA ",
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
+		},
+		{
+			"drop database if exists `龔龖龗`;",
+			"drop database if exists 龔龖龗",
+		},
+		{
+			"select * from names where name like '�����';",
+			"select * from names where name like ?",
+		},
+		{
+			"select replacement from table where replacement = 'i�n�t�e��rspersed';",
+			"select replacement from table where replacement = ?",
+		},
+		{
+			"CALL p1 ('\ufffd\\\\');",
+			"CALL p1 ( ? )",
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -953,17 +965,12 @@ func TestSQLErrors(t *testing.T) {
 
 		{
 			" \x80",
-			"at position 2: unexpected byte 65533",
+			"at position 2: invalid UTF-8 encoding beginning with 0x80",
 		},
 
 		{
 			"\x3a\xdb",
-			"at position 1: bind variables should start with letters, got \"�\" (65533)",
-		},
-
-		{
-			"CALL p1 ('\ufffd\\\\');",
-			"at position 11: unexpected byte 239",
+			"at position 1: bind variables should start with letters, got \"�\" (1114112)",
 		},
 	}
 	for _, tc := range cases {
