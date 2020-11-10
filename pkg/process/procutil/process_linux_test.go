@@ -64,6 +64,14 @@ func TestTrimAndSplitBytes(t *testing.T) {
 			},
 		},
 		{
+			input: []byte{47, 117, 115, 114, 47, 98, 105, 110, 47, 100, 111, 99, 107, 101, 114, 100, 0, 0, 0, 45, 72, 0, 102, 100, 58, 47, 47},
+			expect: []string{
+				string([]byte{47, 117, 115, 114, 47, 98, 105, 110, 47, 100, 111, 99, 107, 101, 114, 100}),
+				string([]byte{45, 72}),
+				string([]byte{102, 100, 58, 47, 47}),
+			},
+		},
+		{
 			input:  []byte{0, 0, 47, 115, 98, 105, 110, 47, 105, 110, 105, 116, 0},
 			expect: []string{string([]byte{47, 115, 98, 105, 110, 47, 105, 110, 105, 116})},
 		},
@@ -122,8 +130,7 @@ func TestProcessesByPID(t *testing.T) {
 }
 
 func TestMultipleProbes(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
 	probe1 := NewProcessProbe()
@@ -150,8 +157,7 @@ func TestMultipleProbes(t *testing.T) {
 }
 
 func TestProcfsChange(t *testing.T) {
-	hostProc := "resources/test_procfs/proc/"
-	os.Setenv("HOST_PROC", hostProc)
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
 	probe := NewProcessProbe()
