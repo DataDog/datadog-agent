@@ -965,12 +965,17 @@ func TestSQLErrors(t *testing.T) {
 
 		{
 			" \x80",
-			"at position 2: invalid UTF-8 encoding beginning with 0x80",
+			"at position 1: invalid UTF-8 encoding beginning with 0x80",
 		},
 
 		{
 			"\x3a\xdb",
-			"at position 1: bind variables should start with letters, got \"�\" (1114112)",
+			"at position 1: invalid UTF-8 encoding beginning with 0xdb",
+		},
+
+		{
+			"select * from foo where bar = \"\x3a\xeb\"",
+			"at position 32: invalid UTF-8 encoding beginning with 0xeb",
 		},
 	}
 	for _, tc := range cases {

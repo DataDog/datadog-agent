@@ -126,6 +126,9 @@ var keywords = map[string]TokenKind{
 func (tkn *SQLTokenizer) Err() error { return tkn.err }
 
 func (tkn *SQLTokenizer) setErr(format string, args ...interface{}) {
+	if tkn.err != nil {
+		return
+	}
 	tkn.err = fmt.Errorf("at position %d: %v", tkn.pos, fmt.Errorf(format, args...))
 }
 
@@ -147,6 +150,9 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		return tkn.scanNumber(false)
 	default:
 		tkn.advance()
+		if tkn.lastChar == EOFChar && tkn.err != nil {
+			return LexError, nil
+		}
 		switch ch {
 		case EOFChar:
 			if tkn.err != nil {
