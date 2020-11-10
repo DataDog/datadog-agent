@@ -216,6 +216,14 @@ func TestParseStatusLine(t *testing.T) {
 			},
 		},
 		{
+			line: []byte("State:\tS (sleeping)"),
+			expected: &statusInfo{
+				status:      "S",
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
 			line: []byte("Uid:\t112\t112\t112\t112"),
 			expected: &statusInfo{
 				uids:        []int32{112, 112, 112, 112},
@@ -295,6 +303,7 @@ func TestParseStatus(t *testing.T) {
 		assert.EqualValues(t, expUIDs, actual.uids)
 		assert.EqualValues(t, expGIDs, actual.gids)
 		assert.Equal(t, expThreads, actual.numThreads)
+		assert.Equal(t, expProc.NsPid, actual.nspid)
 
 		assert.Equal(t, expMemInfo.RSS, actual.memInfo.RSS)
 		assert.Equal(t, expMemInfo.VMS, actual.memInfo.VMS)
