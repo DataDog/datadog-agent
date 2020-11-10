@@ -19,7 +19,7 @@ def test_docker_compose_file(host):
 
 
 def test_receiver_healthy(host):
-    c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:7077/health"
+    c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1618/readiness"
     assert host.check_output(c) == "200"
 
 
