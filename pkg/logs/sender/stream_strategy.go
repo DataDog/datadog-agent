@@ -21,6 +21,7 @@ type streamStrategy struct{}
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
 func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
 	for message := range inputChan {
+		message.Origin.LogSource.UpdateLatency(message.GetLatency())
 		err := send(message.Content)
 		if err != nil {
 			if shouldStopSending(err) {

@@ -7,6 +7,7 @@ package traps
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -62,6 +63,6 @@ func (t *Tailer) run() {
 		}
 		origin := message.NewOrigin(t.source)
 		origin.SetTags(traps.GetTags(packet))
-		t.outputChan <- message.NewMessage(content, origin, message.StatusInfo)
+		t.outputChan <- message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
 	}
 }

@@ -7,6 +7,7 @@ package decoder
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
@@ -44,19 +45,21 @@ func NewDecodedInput(content []byte, rawDataLen int) *DecodedInput {
 
 // Message represents a structured line.
 type Message struct {
-	Content    []byte
-	Status     string
-	RawDataLen int
-	Timestamp  string
+	Content            []byte
+	Status             string
+	RawDataLen         int
+	Timestamp          string
+	IngestionTimestamp int64
 }
 
 // NewMessage returns a new output.
 func NewMessage(content []byte, status string, rawDataLen int, timestamp string) *Message {
 	return &Message{
-		Content:    content,
-		Status:     status,
-		RawDataLen: rawDataLen,
-		Timestamp:  timestamp,
+		Content:            content,
+		Status:             status,
+		RawDataLen:         rawDataLen,
+		Timestamp:          timestamp,
+		IngestionTimestamp: time.Now().UnixNano(),
 	}
 }
 

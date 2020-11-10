@@ -5,26 +5,32 @@
 
 package message
 
-import "github.com/DataDog/datadog-agent/pkg/logs/config"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+)
 
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
-	Content []byte
-	Origin  *Origin
-	status  string
+	Content            []byte
+	Origin             *Origin
+	status             string
+	IngestionTimestamp int64
 }
 
 // NewMessageWithSource constructs message with content, status and log source.
-func NewMessageWithSource(content []byte, status string, source *config.LogSource) *Message {
-	return NewMessage(content, NewOrigin(source), status)
+func NewMessageWithSource(content []byte, status string, source *config.LogSource, IngestionTimestamp int64) *Message {
+	return NewMessage(content, NewOrigin(source), status, IngestionTimestamp)
 }
 
 // NewMessage constructs message with full information.
-func NewMessage(content []byte, origin *Origin, status string) *Message {
+func NewMessage(content []byte, origin *Origin, status string, IngestionTimestamp int64) *Message {
 	return &Message{
-		Content: content,
-		Origin:  origin,
-		status:  status,
+		Content:            content,
+		Origin:             origin,
+		status:             status,
+		IngestionTimestamp: IngestionTimestamp,
 	}
 }
 
@@ -35,4 +41,9 @@ func (m *Message) GetStatus() string {
 		m.status = StatusInfo
 	}
 	return m.status
+}
+
+// GetLatency returns the latency delta from ingestion time until now
+func (m *Message) GetLatency() int64 {
+	return time.Now().UnixNano() - m.IngestionTimestamp
 }
