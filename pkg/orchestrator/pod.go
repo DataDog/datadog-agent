@@ -111,7 +111,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterNa
 }
 
 // ScrubContainer scrubs sensitive information in the command line & env vars
-func ScrubContainer(c *v1.Container, scrubber *DataScrubber) bool {
+func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
 		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
@@ -128,10 +128,9 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) bool {
 	}()
 
 	// scrub command line
-	scrubbedCmd, changed := scrubber.ScrubSimpleCommand(c.Command)
+	scrubbedCmd, _ := scrubber.ScrubSimpleCommand(c.Command)
 	c.Command = scrubbedCmd
 
-	return changed
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.

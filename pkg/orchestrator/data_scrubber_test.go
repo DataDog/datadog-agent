@@ -29,10 +29,14 @@ func BenchmarkRegexMatchingCustom1000(b *testing.B) { benchmarkMatchingCustomReg
 //goland:noinspection ALL
 var avoidOptimization bool
 
+//goland:noinspection ALL
+var avoidOptContainer v1.Container
+
 func benchmarkMatching(nbContainers int, b *testing.B) {
 	containersBenchmarks := make([]v1.Container, nbContainers)
 	containersToBenchmark := make([]v1.Container, nbContainers)
-	var changed bool
+	c := v1.Container{}
+
 	scrubber := NewDefaultDataScrubber()
 	for _, testCase := range getScrubCases() {
 		containersToBenchmark = append(containersToBenchmark, testCase.input)
@@ -45,19 +49,17 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
-				changed = ScrubContainer(&c, scrubber)
+				ScrubContainer(&c, scrubber)
 			}
 		}
 	})
-
-	avoidOptimization = changed
+	avoidOptContainer = c
 }
 
 func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
-	var changed bool
-
 	var containersBenchmarks []v1.Container
 	var containersToBenchmark []v1.Container
+	c := v1.Container{}
 
 	customRegs := []string{"pwd*", "*test"}
 	cfg := config.NewDefaultAgentConfig(true)
@@ -76,12 +78,12 @@ func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
-				changed = ScrubContainer(&c, scrubber)
+				ScrubContainer(&c, scrubber)
 			}
 		}
 	})
 
-	avoidOptimization = changed
+	avoidOptContainer = c
 }
 
 func TestMatchSimpleCommand(t *testing.T) {
