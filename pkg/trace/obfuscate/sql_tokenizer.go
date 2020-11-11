@@ -24,9 +24,10 @@ import (
 // constants below or in some cases the actual rune itself.
 type TokenKind uint32
 
-// EOFChar is used to signal that no more characters were found by the scanner. It is
-// an invalid rune value that can not be found in any valid string.
-const EOFChar = unicode.MaxRune + 1
+// EndChar is used to signal that the scanner has finished reading the query. This happens when
+// there are no more characters left in the query or when invalid encoding is discovered. EndChar
+// is an invalid rune value that can not be found in any valid string.
+const EndChar = unicode.MaxRune + 1
 
 // list of available tokens; this list has been reduced because we don't
 // need a full-fledged tokenizer to implement a Lexer
@@ -150,15 +151,16 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		return tkn.scanNumber(false)
 	default:
 		tkn.advance()
-		if tkn.lastChar == EOFChar && tkn.err != nil {
+		if tkn.lastChar == EndChar && tkn.err != nil {
+			// advance discovered an invalid encoding. We should return early.
 			return LexError, nil
 		}
 		switch ch {
-		case EOFChar:
+		case EndChar:
 			if tkn.err != nil {
 				return LexError, nil
 			}
-			return EOFChar, nil
+			return EndChar, nil
 		case ':':
 			if tkn.lastChar == ':' {
 				tkn.advance()
@@ -337,7 +339,7 @@ func (tkn *SQLTokenizer) scanLiteralIdentifier(quote rune) (TokenKind, []byte) {
 }
 
 func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte) {
-	for tkn.advance(); tkn.lastChar != ')' && tkn.lastChar != EOFChar; tkn.advance() {
+	for tkn.advance(); tkn.lastChar != ')' && tkn.lastChar != EndChar; tkn.advance() {
 	}
 	tkn.advance()
 	if !isLetter(tkn.lastChar) {
@@ -371,13 +373,13 @@ func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) 
 }
 
 func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (TokenKind, []byte) {
-	for tkn.lastChar != '}' && tkn.lastChar != EOFChar {
+	for tkn.lastChar != '}' && tkn.lastChar != EndChar {
 		tkn.advance()
 	}
 
 	// we've reached the end of the string without finding
 	// the closing curly braces
-	if tkn.lastChar == EOFChar {
+	if tkn.lastChar == EndChar {
 		tkn.setErr("unexpected EOF in escape sequence")
 		return LexError, tkn.bytes()
 	}
@@ -490,7 +492,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 				tkn.advance()
 			}
 		}
-		if ch == EOFChar {
+		if ch == EndChar {
 			tkn.setErr("unexpected EOF in string")
 			return LexError, buffer.Bytes()
 		}
@@ -508,7 +510,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 }
 
 func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {
-	for tkn.lastChar != EOFChar {
+	for tkn.lastChar != EndChar {
 		if tkn.lastChar == '\n' {
 			tkn.advance()
 			break
@@ -528,7 +530,7 @@ func (tkn *SQLTokenizer) scanCommentType2() (TokenKind, []byte) {
 			}
 			continue
 		}
-		if tkn.lastChar == EOFChar {
+		if tkn.lastChar == EndChar {
 			tkn.setErr("unexpected EOF in comment")
 			return LexError, tkn.bytes()
 		}
@@ -538,13 +540,13 @@ func (tkn *SQLTokenizer) scanCommentType2() (TokenKind, []byte) {
 }
 
 // advance advances the tokenizer to the next rune. If the decoder encounters an error decoding, or
-// the end of the buffer is reached, tkn.lastChar will be set to EOFChar. In case of a decoding
+// the end of the buffer is reached, tkn.lastChar will be set to EndChar. In case of a decoding
 // error, tkn.err will also be set.
 func (tkn *SQLTokenizer) advance() {
 	ch, n := utf8.DecodeRune(tkn.buf[tkn.off:])
-	if ch == utf8.RuneError && (n == 0 || n == 1) {
+	if ch == utf8.RuneError && n < 2 {
 		tkn.pos++
-		tkn.lastChar = EOFChar
+		tkn.lastChar = EndChar
 		if n == 1 {
 			tkn.setErr("invalid UTF-8 encoding beginning with 0x%x", tkn.buf[tkn.off])
 		}
@@ -561,7 +563,7 @@ func (tkn *SQLTokenizer) advance() {
 // bytes returns all the bytes that were advanced over since its last call.
 // This excludes tkn.lastChar, which will remain in the buffer
 func (tkn *SQLTokenizer) bytes() []byte {
-	if tkn.lastChar == EOFChar {
+	if tkn.lastChar == EndChar {
 		ret := tkn.buf[:tkn.off]
 		tkn.buf = tkn.buf[tkn.off:]
 		tkn.off = 0
