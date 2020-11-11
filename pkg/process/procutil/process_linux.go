@@ -434,6 +434,41 @@ func (p *Probe) parseStatContent(content []byte, sInfo *statInfo, now time.Time)
 	return sInfo
 }
 
+// ensurePathReadable ensures that the current user is able to read the path before opening it.
+// On some systems, attempting to open a file that the user does not have permission is problematic for
+// customer security auditing. What we do here is:
+// 1. If the agent is running as root (real or via sudo), allow the request
+// 2. If the file is a not a symlink and has the other-readable permission bit set, allow the request
+// 3. If the owner of the file/link is the current user or effective user, allow the request.
+func (p *Probe) ensurePathReadable(path string) error {
+	// User is (effectively or actually) root
+	if p.euid == 0 {
+		return nil
+	}
+
+	// TODO (sk): Provide caching on this!
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+
+	// File mode is world readable and not a symlink
+	// If the file is a symlink, the owner check below will cover it
+	if mode := info.Mode(); mode&os.ModeSymlink == 0 && mode.Perm()&WorldReadable != 0 {
+		return nil
+	}
+
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		// If file is not owned by the user id or effective user id, return a permission error
+		// Group permissions don't come in to play with procfs so we don't bother checking
+		if stat.Uid != p.uid && stat.Uid != p.euid {
+			return os.ErrPermission
+		}
+	}
+
+	return nil
+}
+
 // trimAndSplitBytes converts the raw command line bytes into a list of strings by trimming and splitting on null bytes
 func trimAndSplitBytes(bs []byte) []string {
 	var components []string
@@ -468,39 +503,4 @@ func trimAndSplitBytes(bs []byte) []string {
 	}
 
 	return components
-}
-
-// ensurePathReadable ensures that the current user is able to read the path before opening it.
-// On some systems, attempting to open a file that the user does not have permission is problematic for
-// customer security auditing. What we do here is:
-// 1. If the agent is running as root (real or via sudo), allow the request
-// 2. If the file is a not a symlink and has the other-readable permission bit set, allow the request
-// 3. If the owner of the file/link is the current user or effective user, allow the request.
-func (p *Probe) ensurePathReadable(path string) error {
-	// User is (effectively or actually) root
-	if p.euid == 0 {
-		return nil
-	}
-
-	// TODO (sk): Provide caching on this!
-	info, err := os.Lstat(path)
-	if err != nil {
-		return err
-	}
-
-	// File mode is world readable and not a symlink
-	// If the file is a symlink, the owner check below will cover it
-	if mode := info.Mode(); mode&os.ModeSymlink == 0 && mode.Perm()&WorldReadable != 0 {
-		return nil
-	}
-
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		// If file is not owned by the user id or effective user id, return a permission error
-		// Group permissions don't come in to play with procfs so we don't bother checking
-		if stat.Uid != p.uid && stat.Uid != p.euid {
-			return os.ErrPermission
-		}
-	}
-
-	return nil
 }
