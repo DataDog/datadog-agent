@@ -402,7 +402,11 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	var buf strings.Builder
 	for _, group := range in.Stats {
 		for _, b := range group.Stats {
+			// Normalizer
 			b.Name, _ = traceutil.NormalizeName(b.Name)
+			if b.Env == "" {
+				b.Env = r.conf.DefaultEnv
+			}
 			b.Env = traceutil.NormalizeTag(b.Env)
 			b.Service, _ = traceutil.NormalizeService(b.Service, req.Header.Get(headerLang))
 			if b.Resource == "" {
@@ -410,6 +414,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 			}
 			// TODO(x): obfuscate b.Resource
 			b.Resource, _ = traceutil.TruncateResource(b.Resource)
+			// TODO(x): validate b.HTTPStatusCode if added
 
 			tags := map[string]string{
 				"version": b.Version,
