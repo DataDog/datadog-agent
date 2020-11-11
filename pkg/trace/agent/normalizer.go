@@ -10,12 +10,8 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -24,43 +20,14 @@ import (
 )
 
 const (
-	// MaxServiceLen the maximum length a service can have
-	MaxServiceLen = 100
-	// MaxNameLen the maximum length a name can have
-	MaxNameLen = 100
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
-	// DefaultServiceName is the default name we assign a service if it's missing and we have no reasonable fallback
-	DefaultServiceName = "unnamed-service"
-	// DefaultSpanName is the default name we assign a span if it's missing and we have no reasonable fallback
-	DefaultSpanName = "unnamed_operation"
 )
 
 var (
 	// Year2000NanosecTS is an arbitrary cutoff to spot weird-looking values
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 )
-
-// fallbackServiceNames is a cache of default service names to use
-// when the span's service is unset or invalid.
-var fallbackServiceNames sync.Map
-
-// fallbackService returns the fallback service name for a service
-// belonging to language lang.
-func fallbackService(lang string) string {
-	if lang == "" {
-		return DefaultServiceName
-	}
-	if v, ok := fallbackServiceNames.Load(lang); ok {
-		return v.(string)
-	}
-	var str strings.Builder
-	str.WriteString("unnamed-")
-	str.WriteString(lang)
-	str.WriteString("-service")
-	fallbackServiceNames.Store(lang, str.String())
-	return str.String()
-}
 
 // normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
 // is invalid beyond repair
@@ -73,43 +40,32 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
 		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
 	}
-	if s.Service == "" {
+	svc, err := traceutil.NormalizeService(s.Service, ts.Lang)
+	switch err {
+	case traceutil.ErrEmpty:
 		atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
-		s.Service = fallbackService(ts.Lang)
 		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", s.Service, s)
-	}
-	if len(s.Service) > MaxServiceLen {
+	case traceutil.ErrTooLong:
 		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
-		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", MaxServiceLen, s)
-		s.Service = traceutil.TruncateUTF8(s.Service, MaxServiceLen)
-	}
-	// service should comply with Datadog tag normalization as it's eventually a tag
-	svc := normalizeTag(s.Service)
-	if svc == "" {
+		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", traceutil.MaxServiceLen, s)
+	case traceutil.ErrInvalid:
 		atomic.AddInt64(&ts.SpansMalformed.ServiceInvalid, 1)
-		svc = fallbackService(ts.Lang)
 		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
 	s.Service = svc
 
-	if s.Name == "" {
+	s.Name, err = traceutil.NormalizeName(s.Name)
+	switch err {
+	case traceutil.ErrEmpty:
 		atomic.AddInt64(&ts.SpansMalformed.SpanNameEmpty, 1)
-		log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s: %s", DefaultSpanName, s)
-		s.Name = DefaultSpanName
-	}
-	if len(s.Name) > MaxNameLen {
+		log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s: %s", s.Name, s)
+	case traceutil.ErrTooLong:
 		atomic.AddInt64(&ts.SpansMalformed.SpanNameTruncate, 1)
-		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", MaxServiceLen, s)
-		s.Name = traceutil.TruncateUTF8(s.Name, MaxNameLen)
-	}
-	// name shall comply with Datadog metric name normalization
-	name, ok := normMetricNameParse(s.Name)
-	if !ok {
+		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", traceutil.MaxServiceLen, s)
+	case traceutil.ErrInvalid:
 		atomic.AddInt64(&ts.SpansMalformed.SpanNameInvalid, 1)
-		log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s: %s", DefaultSpanName, s)
-		name = DefaultSpanName
+		log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s: %s", s.Name, s)
 	}
-	s.Name = name
 
 	if s.Resource == "" {
 		atomic.AddInt64(&ts.SpansMalformed.ResourceEmpty, 1)
@@ -156,7 +112,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
 	}
 	if env, ok := s.Meta["env"]; ok {
-		s.Meta["env"] = normalizeTag(env)
+		s.Meta["env"] = traceutil.NormalizeTag(env)
 	}
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
@@ -208,184 +164,4 @@ func isValidStatusCode(sc string) bool {
 		return 100 <= code && code < 600
 	}
 	return false
-}
-
-// This code is borrowed from dd-go metric normalization
-
-// fast isAlpha for ascii
-func isAlpha(b byte) bool {
-	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
-}
-
-// fast isAlphaNumeric for ascii
-func isAlphaNum(b byte) bool {
-	return isAlpha(b) || (b >= '0' && b <= '9')
-}
-
-// normMetricNameParse normalizes metric names with a parser instead of using
-// garbage-creating string replacement routines.
-func normMetricNameParse(name string) (string, bool) {
-	if name == "" || len(name) > MaxNameLen {
-		return name, false
-	}
-
-	var i, ptr int
-	res := make([]byte, 0, len(name))
-
-	// skip non-alphabetic characters
-	for ; i < len(name) && !isAlpha(name[i]); i++ {
-	}
-
-	// if there were no alphabetic characters it wasn't valid
-	if i == len(name) {
-		return "", false
-	}
-
-	for ; i < len(name); i++ {
-		switch {
-		case isAlphaNum(name[i]):
-			res = append(res, name[i])
-			ptr++
-		case name[i] == '.':
-			// we skipped all non-alpha chars up front so we have seen at least one
-			switch res[ptr-1] {
-			// overwrite underscores that happen before periods
-			case '_':
-				res[ptr-1] = '.'
-			default:
-				res = append(res, '.')
-				ptr++
-			}
-		default:
-			// we skipped all non-alpha chars up front so we have seen at least one
-			switch res[ptr-1] {
-			// no double underscores, no underscores after periods
-			case '.', '_':
-			default:
-				res = append(res, '_')
-				ptr++
-			}
-		}
-	}
-
-	if res[ptr-1] == '_' {
-		res = res[:ptr-1]
-	}
-
-	return string(res), true
-}
-
-const maxTagLength = 200
-
-// normalizeTag applies some normalization to ensure the tags match the backend requirements.
-func normalizeTag(v string) string {
-	// the algorithm works by creating a set of cuts marking start and end offsets in v
-	// that have to be replaced with underscore (_)
-	if len(v) == 0 {
-		return ""
-	}
-	var (
-		trim  int      // start character (if trimming)
-		cuts  [][2]int // sections to discard: (start, end) pairs
-		chars int      // number of characters processed
-	)
-	var (
-		i    int  // current byte
-		r    rune // current rune
-		jump int  // tracks how many bytes the for range advances on its next iteration
-	)
-	tag := []byte(v)
-	for i, r = range v {
-		jump = utf8.RuneLen(r) // next i will be i+jump
-		if r == utf8.RuneError {
-			// On invalid UTF-8, the for range advances only 1 byte (see: https://golang.org/ref/spec#For_range (point 2)).
-			// However, utf8.RuneError is equivalent to unicode.ReplacementChar so we should rely on utf8.DecodeRune to tell
-			// us whether this is an actual error or just a unicode.ReplacementChar that was present in the string.
-			_, width := utf8.DecodeRune(tag[i:])
-			jump = width
-		}
-		// fast path; all letters (and colons) are ok
-		switch {
-		case r >= 'a' && r <= 'z' || r == ':':
-			chars++
-			goto end
-		case r >= 'A' && r <= 'Z':
-			// lower-case
-			tag[i] += 'a' - 'A'
-			chars++
-			goto end
-		}
-		if unicode.IsUpper(r) {
-			// lowercase this character
-			if low := unicode.ToLower(r); utf8.RuneLen(r) == utf8.RuneLen(low) {
-				// but only if the width of the lowercased character is the same;
-				// there are some rare edge-cases where this is not the case, such
-				// as \u017F (ſ)
-				utf8.EncodeRune(tag[i:], low)
-				r = low
-			}
-		}
-		switch {
-		case unicode.IsLetter(r):
-			chars++
-		case chars == 0:
-			// this character can not start the string, trim
-			trim = i + jump
-			goto end
-		case unicode.IsDigit(r) || r == '.' || r == '/' || r == '-':
-			chars++
-		default:
-			// illegal character
-			if n := len(cuts); n > 0 && cuts[n-1][1] >= i {
-				// merge intersecting cuts
-				cuts[n-1][1] += jump
-			} else {
-				// start a new cut
-				cuts = append(cuts, [2]int{i, i + jump})
-			}
-		}
-	end:
-		if i+jump >= 2*maxTagLength {
-			// bail early if the tag contains a lot of non-letter/digit characters.
-			// If a tag is test🍣🍣[...]🍣, then it's unlikely to be a properly formatted tag
-			break
-		}
-		if chars >= maxTagLength {
-			// we've reached the maximum
-			break
-		}
-	}
-
-	tag = tag[trim : i+jump] // trim start and end
-	if len(cuts) == 0 {
-		// tag was ok, return it as it is
-		return string(tag)
-	}
-	delta := trim // cut offsets delta
-	for _, cut := range cuts {
-		// start and end of cut, including delta from previous cuts:
-		start, end := cut[0]-delta, cut[1]-delta
-
-		if end >= len(tag) {
-			// this cut includes the end of the string; discard it
-			// completely and finish the loop.
-			tag = tag[:start]
-			break
-		}
-		// replace the beginning of the cut with '_'
-		tag[start] = '_'
-		if end-start == 1 {
-			// nothing to discard
-			continue
-		}
-		// discard remaining characters in the cut
-		copy(tag[start+1:], tag[end:])
-
-		// shorten the slice
-		tag = tag[:len(tag)-(end-start)+1]
-
-		// count the new delta for future cuts
-		delta += cut[1] - cut[0] - 1
-	}
-	return string(tag)
 }
