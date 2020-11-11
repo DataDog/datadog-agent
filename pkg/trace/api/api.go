@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/tinylib/msgp/msgp"
 )
@@ -386,6 +387,11 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	case "application/msgpack":
 		if err := msgp.Decode(bytes.NewReader(slurp), &in); err != nil {
 			httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
+			return
+		}
+	case "application/cbor":
+		if err := cbor.Unmarshal(slurp, &in); err != nil {
+			httpDecodingError(err, []string{"handler:stats", "codec:cbor", "v:v0.5"}, w)
 			return
 		}
 	default:
