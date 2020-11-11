@@ -92,6 +92,8 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
+	github.com/fxamacker/cbor v1.5.1
+	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/go-ini/ini v1.55.0
 	github.com/go-ole/go-ole v1.2.4
 	github.com/go-openapi/spec v0.19.8 // indirect
