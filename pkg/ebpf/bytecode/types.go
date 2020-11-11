@@ -95,17 +95,18 @@ const (
 type BPFMapName string
 
 const (
-	ConnMap            BPFMapName = "conn_stats"
-	TcpStatsMap        BPFMapName = "tcp_stats"
-	TcpCloseEventMap   BPFMapName = "tcp_close_event"
-	TracerStatusMap    BPFMapName = "tracer_status"
-	PortBindingsMap    BPFMapName = "port_bindings"
-	UdpPortBindingsMap BPFMapName = "udp_port_bindings"
-	TelemetryMap       BPFMapName = "telemetry"
-	TcpCloseBatchMap   BPFMapName = "tcp_close_batch"
-	HttpStatsMap       BPFMapName = "http_stats"
-	HttpEventMap       BPFMapName = "http_event"
-	HttpBatchMap       BPFMapName = "http_enqueued"
+	ConnMap              BPFMapName = "conn_stats"
+	TcpStatsMap          BPFMapName = "tcp_stats"
+	TcpCloseEventMap     BPFMapName = "tcp_close_event"
+	TracerStatusMap      BPFMapName = "tracer_status"
+	PortBindingsMap      BPFMapName = "port_bindings"
+	UdpPortBindingsMap   BPFMapName = "udp_port_bindings"
+	TelemetryMap         BPFMapName = "telemetry"
+	TcpCloseBatchMap     BPFMapName = "tcp_close_batch"
+	HttpInFlightMap      BPFMapName = "http_in_flight"
+	HttpBatchesMap       BPFMapName = "http_batches"
+	HttpBatchStateMap    BPFMapName = "http_batch_state"
+	HttpNotificationsMap BPFMapName = "http_notifications"
 )
 
 // SectionName returns the SectionName for the given BPF map

@@ -56,9 +56,9 @@ typedef struct {
     tcp_stats_t tcp_stats;
 } tcp_conn_t;
 
-#define HTTP_BUFFER_SIZE 15
+#define HTTP_BUFFER_SIZE 25
 #define HTTP_STATUS_CODE_SIZE 3
-#define HTTP_BATCH_SIZE 5
+#define HTTP_BATCH_SIZE 10
 // The greater this number is the less likely are colisions/data-races between the flushes
 #define HTTP_BATCH_PAGES 5
 
@@ -87,7 +87,23 @@ typedef enum {
 
 static const __u8 HTTP_REQUESTING = HTTP_REQUESTING_GET|HTTP_REQUESTING_POST|HTTP_REQUESTING_PUT|HTTP_REQUESTING_DELETE|HTTP_REQUESTING_HEAD;
 
-// HTTP stats summary associated to a certain socket (tuple_t)
+typedef struct {
+    // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
+    // this is useful for detecting race conditions that result in a batch being overrriden
+    // before it gets consumed from userspace
+    __u64 idx;
+    // pos indicates the current batch slot that should be written to
+    __u8 pos;
+} http_batch_state_t;
+
+// This struct is used in the map lookup that returns the active batch for a certain CPU core
+typedef struct {
+    __u32 cpu;
+    // page_num can be obtained from (http_batch_state_t->idx % HTTP_BATCHES_PER_CPU)
+    __u32 page_num;
+} http_batch_key_t;
+
+// HTTP transaction information associated to a certain socket (tuple_t)
 typedef struct {
     conn_tuple_t tup;
     __u8 state;
@@ -97,16 +113,9 @@ typedef struct {
     char request_fragment[HTTP_BUFFER_SIZE];
 } http_transaction_t;
 
-// batch struct enclosing all finished HTTP transactions
-// we pre-allocate one entry per CPU during program startup
 typedef struct {
-    // idx is a monotonic counter.
-    // the batch page can be retrieved via (idx % HTTP_BATCH_PAGES).
     __u64 idx;
-    // given a certain page, pos indicates where the the latest
-    // http_transaction_t should be written to
-    __u16 pos;
-    http_transaction_t txs[HTTP_BATCH_PAGES * HTTP_BATCH_SIZE];
+    http_transaction_t txs[HTTP_BATCH_SIZE];
 } http_batch_t;
 
 // http_batch_notification_t is flushed to userspace every time we complete a

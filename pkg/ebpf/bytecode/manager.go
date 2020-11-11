@@ -42,8 +42,9 @@ func NewManager(closedHandler, httpHandler *PerfHandler) *manager.Manager {
 			{Name: "pending_sockets"},
 			{Name: "pending_bind"},
 			{Name: "unbound_sockets"},
-			{Name: string(HttpStatsMap)},
-			{Name: string(HttpBatchMap)},
+			{Name: string(HttpInFlightMap)},
+			{Name: string(HttpBatchesMap)},
+			{Name: string(HttpBatchStateMap)},
 			{Name: string(TelemetryMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
@@ -57,7 +58,7 @@ func NewManager(closedHandler, httpHandler *PerfHandler) *manager.Manager {
 				},
 			},
 			{
-				Map: manager.Map{Name: string(HttpEventMap)},
+				Map: manager.Map{Name: string(HttpNotificationsMap)},
 				PerfMapOptions: manager.PerfMapOptions{
 					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
