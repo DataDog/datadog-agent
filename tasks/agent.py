@@ -206,6 +206,12 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"Datadog Trace Agent\\" -> \\"Stackstate Trace Agent\\""', "./pkg/trace/writer/")
     do_go_rename(ctx, '"\\"https://github.com/DataDog/datadog-trace-agent\\" -> \\"https://github.com/Stackvista/stackstate-trace-agent\\""', "./pkg/trace/writer/")
 
+    # ntp core check with default hosts replacecment
+    do_go_rename(ctx, '"\\"0.datadog.pool.ntp.org\\" -> \\"0.stackstate.pool.ntp.org\\""', "./pkg/collector/corechecks/net/ntp.go")
+    do_go_rename(ctx, '"\\"1.datadog.pool.ntp.org\\" -> \\"1.stackstate.pool.ntp.org\\""', "./pkg/collector/corechecks/net/ntp.go")
+    do_go_rename(ctx, '"\\"2.datadog.pool.ntp.org\\" -> \\"2.stackstate.pool.ntp.org\\""', "./pkg/collector/corechecks/net/ntp.go")
+    do_go_rename(ctx, '"\\"3.datadog.pool.ntp.org\\" -> \\"3.stackstate.pool.ntp.org\\""', "./pkg/collector/corechecks/net/ntp.go")
+
     # Trace agent
     apm_dd_url_replace = 's/apm_dd_url/apm_sts_url/g'
     do_sed_rename(ctx, apm_dd_url_replace, "./pkg/trace/config/apply.go")
