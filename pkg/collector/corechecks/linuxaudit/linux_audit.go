@@ -58,13 +58,12 @@ func (c *linuxAuditCheck) Run() error {
 		return err
 	}
 
-	for _, lineRaw := range data {
-		status, ok := lineRaw.(libaudit.AuditStatus)
-		if !ok {
-			log.Error("Raw data has incorrect type")
-			continue
-		}
+	statuses, ok := data.([]libaudit.AuditStatus)
+	if !ok {
+		return log.Errorf("Raw data has incorrect type")
+	}
 
+	for _, status := range statuses {
 		sender.Gauge("linux_audit.enabled", float64(status.Enabled), "", nil)
 		sender.Gauge("linux_audit.failure", float64(status.Failure), "", nil)
 		sender.Gauge("linux_audit.rate_limit", float64(status.RateLimit), "", nil)
