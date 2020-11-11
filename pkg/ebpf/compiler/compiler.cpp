@@ -19,11 +19,13 @@ ClangCompiler::ClangCompiler(const char *name) :
     textDiagnosticPrinter(new clang::TextDiagnosticPrinter(errStream, diagOpts.get())),
     diagnosticsEngine(new clang::DiagnosticsEngine(diagID, diagOpts, textDiagnosticPrinter.get(), false)),
     defaultCflags({
-        "-O0", "-O2",
+        "clang", // DO NOT REMOVE, first flag is ignored
+        "-O2",
         "-D__KERNEL__",
         "-fno-color-diagnostics",
         "-fno-unwind-tables",
         "-fno-asynchronous-unwind-tables",
+        "-fno-stack-protector",
         "-x", "c"
     }),
     theTriple("bpf")
@@ -34,7 +36,6 @@ ClangCompiler::ClangCompiler(const char *name) :
         LLVMInitializeBPFTargetInfo();
         LLVMInitializeBPFAsmPrinter();
         LLVMInitializeBPFAsmParser();
-        llvm::InitializeAllTargetMCs();
 
         ClangCompiler::llvmInitialized = true;
     }
@@ -142,7 +143,7 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
     if (outputFile)
 		invocation->getFrontendOpts().OutputFile = std::string(llvm::StringRef(outputFile));
 
-	invocation->getFrontendOpts().ProgramAction = clang::frontend::EmitBC;
+	invocation->getFrontendOpts().ProgramAction = clang::frontend::EmitLLVM;
 
 	clang::CompilerInstance compiler;
 	compiler.setInvocation(std::move(invocation));
@@ -152,12 +153,12 @@ std::unique_ptr<llvm::Module> ClangCompiler::compileToBytecode(
 		return nullptr;
 	}
 
-	std::unique_ptr<clang::CodeGenAction> emitBCAction(new clang::EmitBCAction(llvmContext.get()));
-	if (!compiler.ExecuteAction(*emitBCAction)) {
+	std::unique_ptr<clang::CodeGenAction> emitLLVMAction(new clang::EmitLLVMAction(llvmContext.get()));
+	if (!compiler.ExecuteAction(*emitLLVMAction)) {
 		return nullptr;
 	}
 
-    return emitBCAction->takeModule();
+    return emitLLVMAction->takeModule();
 }
 
 llvm::StringRef ClangCompiler::getDataLayout()
