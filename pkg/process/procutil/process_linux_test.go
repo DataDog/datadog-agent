@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -373,5 +374,32 @@ func TestParseIO(t *testing.T) {
 		assert.Equal(t, expIO.ReadBytes, actual.ReadBytes)
 		assert.Equal(t, expIO.WriteCount, actual.WriteCount)
 		assert.Equal(t, expIO.WriteBytes, actual.WriteBytes)
+	}
+}
+
+func TestParseStat(t *testing.T) {
+	hostProc := "resources/test_procfs/proc/"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		actual := probe.parseStat(filepath.Join(hostProc, strconv.Itoa(int(pid))), time.Now())
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+		expCreate, err := expProc.CreateTime()
+		assert.NoError(t, err)
+		expPpid, err := expProc.Ppid()
+		exptimes, err := expProc.Times()
+
+		assert.Equal(t, expCreate, actual.createTime)
+		assert.Equal(t, expPpid, actual.ppid)
+		assert.Equal(t, exptimes.User, actual.cpuStat.User)
+		assert.Equal(t, exptimes.System, actual.cpuStat.System)
 	}
 }

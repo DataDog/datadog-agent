@@ -3,12 +3,14 @@
 package procutil
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -16,6 +18,8 @@ import (
 )
 
 const (
+	PrioProcess               = 0   // linux/resource.h
+	ClockTicks                = 100 // C.sysconf(C._SC_CLK_TCK)
 	WorldReadable os.FileMode = 4
 )
 
@@ -29,6 +33,14 @@ type statusInfo struct {
 
 	memInfo     *MemoryInfoStat
 	ctxSwitches *NumCtxSwitchesStat
+}
+
+type statInfo struct {
+	ppid       int32
+	createTime int64
+	nice       int32
+
+	cpuStat *CPUTimesStat
 }
 
 // Probe is a service that fetches process related info on current host
@@ -335,6 +347,91 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			sInfo.memInfo.Swap = v * 1024
 		}
 	}
+}
+
+// parseStat retrieves stat info from "stat" file for a process in procfs
+func (p *Probe) parseStat(pidPath string, now time.Time) *statInfo {
+	path := filepath.Join(pidPath, "stat")
+	var err error
+
+	sInfo := &statInfo{
+		cpuStat: &CPUTimesStat{},
+	}
+
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return sInfo
+	}
+
+	// We want to skip past the executable name, which is wrapped in parenthesis
+	startIndex := bytes.IndexByte(contents, byte(')'))
+	if startIndex+1 >= len(contents) {
+		return sInfo
+	}
+
+	sInfo = p.parseStatContent(contents[startIndex+1:], sInfo, now)
+	return sInfo
+}
+
+func (p *Probe) parseStatContent(content []byte, sInfo *statInfo, now time.Time) *statInfo {
+	spaces := 0
+	var ppidStr, utimeStr, stimeStr, niceStr, startTimeStr string
+
+	for i := range content {
+		if content[i] == ' ' {
+			spaces++
+			continue
+		}
+		if spaces == 2 {
+			ppidStr += string(content[i])
+		} else if spaces == 12 {
+			utimeStr += string(content[i])
+		} else if spaces == 13 {
+			stimeStr += string(content[i])
+		} else if spaces == 18 {
+			niceStr += string(content[i])
+		} else if spaces == 20 {
+			startTimeStr += string(content[i])
+		}
+	}
+
+	if spaces <= 20 { // We access index 20 and below, so this is just a safety check.
+		return sInfo
+	}
+
+	ppid, err := strconv.ParseInt(ppidStr, 10, 32)
+	if err == nil {
+		sInfo.ppid = int32(ppid)
+	}
+
+	utime, err := strconv.ParseFloat(utimeStr, 64)
+	if err != nil {
+		return sInfo
+	}
+	stime, err := strconv.ParseFloat(stimeStr, 64)
+	if err != nil {
+		return sInfo
+	}
+
+	nice, err := strconv.ParseInt(niceStr, 10, 32)
+	if err == nil {
+		sInfo.nice = int32(nice)
+	}
+
+	sInfo.cpuStat.CPU = "cpu"
+	sInfo.cpuStat.User = float64(utime / ClockTicks)
+	sInfo.cpuStat.System = float64(stime / ClockTicks)
+	sInfo.cpuStat.Timestamp = now.Unix()
+
+	t, err := strconv.ParseUint(startTimeStr, 10, 64)
+	if err != nil {
+		return sInfo
+	}
+
+	ctime := (t / uint64(ClockTicks)) + p.bootTime
+	sInfo.createTime = int64(ctime * 1000)
+
+	return sInfo
 }
 
 // trimAndSplitBytes converts the raw command line bytes into a list of strings by trimming and splitting on null bytes
