@@ -167,9 +167,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	if config.Datadog.GetBool(key(spNS, "enable_linux_audit")) {
 		log.Info("system_probe_config.enable_linux_audit detected, will enable system-probe with Linux Audit check")
- 		a.EnableSystemProbe = true
+		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, "Linux Audit")
-  }
+	}
 
 	if config.Datadog.GetBool("runtime_security_config.enabled") {
 		log.Info("runtime_security_config.enabled=true, enabling system-probe")
