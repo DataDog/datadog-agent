@@ -88,6 +88,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 		}
 
 		statusInfo := p.parseStatus(pathForPID)
+		ioInfo := p.parseIO(pathForPID)
 
 		procsByPID[pid] = &Process{
 			Pid:     pid,               // /proc/{pid}
@@ -101,6 +102,7 @@ func (p *Probe) ProcessesByPID() (map[int32]*Process, error) {
 				MemInfo:     statusInfo.memInfo,     // /proc/{pid}/status or statm
 				CtxSwitches: statusInfo.ctxSwitches, // /proc/{pid}/status
 				NumThreads:  statusInfo.numThreads,  // /proc/{pid}/status
+				IOStat:      ioInfo,                 // /proc/{pid}/io, requires permission checks
 			},
 		}
 	}
@@ -166,6 +168,7 @@ func (p *Probe) getCmdline(pidPath string) []string {
 	return trimAndSplitBytes(cmdline)
 }
 
+// parseStatus retrieves io info from "io" file for a process in procfs
 func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
@@ -192,9 +195,10 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 	return io
 }
 
+// parseIOLine extracts key and value for each line in "io" file
 func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 	for i := range line {
-		if i+2 < len(line) && line[i] == ':' && line[i+1] == '\t' {
+		if i+2 < len(line) && line[i] == ':' && line[i+1] == ' ' {
 			key := line[0:i]
 			value := line[i+2:]
 			p.parseIOKV(string(key), string(value), io)
@@ -203,6 +207,7 @@ func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 	}
 }
 
+// parseIOKV matches key with a field in IOCountersStat model and fills in the value
 func (p *Probe) parseIOKV(key, value string, io *IOCountersStat) {
 	switch key {
 	case "syscr":
@@ -312,19 +317,19 @@ func (p *Probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			sInfo.ctxSwitches.Involuntary = v
 		}
 	case "VmRSS":
-		value := strings.Trim(value, " kB") // remove last "kB"
+		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.RSS = v * 1024
 		}
 	case "VmSize":
-		value := strings.Trim(value, " kB") // remove last "kB"
+		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.VMS = v * 1024
 		}
 	case "VmSwap":
-		value := strings.Trim(value, " kB") // remove last "kB"
+		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.Swap = v * 1024

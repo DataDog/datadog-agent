@@ -260,6 +260,13 @@ func TestParseStatusLine(t *testing.T) {
 				ctxSwitches: &NumCtxSwitchesStat{},
 			},
 		},
+		{
+			line: []byte("VmRSS:\t  712 kB"),
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{RSS: 712 * 1024},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
 	} {
 		result := &statusInfo{memInfo: &MemoryInfoStat{}, ctxSwitches: &NumCtxSwitchesStat{}}
 		probe.parseStatusLine(tc.line, result)
@@ -311,5 +318,60 @@ func TestParseStatus(t *testing.T) {
 
 		assert.Equal(t, expCtxSwitches.Voluntary, actual.ctxSwitches.Voluntary)
 		assert.Equal(t, expCtxSwitches.Involuntary, actual.ctxSwitches.Involuntary)
+	}
+}
+
+func TestParseIOLine(t *testing.T) {
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	for _, tc := range []struct {
+		line     []byte
+		expected *IOCountersStat
+	}{
+		{
+			line:     []byte("syscr: 467721"),
+			expected: &IOCountersStat{ReadCount: 467721},
+		},
+		{
+			line:     []byte("syscw: 4842687"),
+			expected: &IOCountersStat{WriteCount: 4842687},
+		},
+		{
+			line:     []byte("read_bytes: 65536"),
+			expected: &IOCountersStat{ReadBytes: 65536},
+		},
+		{
+			line:     []byte("write_bytes: 4096"),
+			expected: &IOCountersStat{WriteBytes: 4096},
+		},
+	} {
+		result := &IOCountersStat{}
+		probe.parseIOLine(tc.line, result)
+		assert.EqualValues(t, tc.expected, result)
+	}
+}
+
+func TestParseIO(t *testing.T) {
+	hostProc := "resources/test_procfs/proc/"
+	os.Setenv("HOST_PROC", hostProc)
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := NewProcessProbe()
+	defer probe.Close()
+
+	pids, err := probe.getActivePIDs()
+	assert.NoError(t, err)
+
+	for _, pid := range pids {
+		actual := probe.parseIO(filepath.Join(hostProc, strconv.Itoa(int(pid))))
+		expProc, err := process.NewProcess(pid)
+		assert.NoError(t, err)
+		expIO, err := expProc.IOCounters()
+		assert.NoError(t, err)
+		assert.Equal(t, expIO.ReadCount, actual.ReadCount)
+		assert.Equal(t, expIO.ReadBytes, actual.ReadBytes)
+		assert.Equal(t, expIO.WriteCount, actual.WriteCount)
+		assert.Equal(t, expIO.WriteBytes, actual.WriteBytes)
 	}
 }
