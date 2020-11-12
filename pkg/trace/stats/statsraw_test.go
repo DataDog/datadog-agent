@@ -30,7 +30,7 @@ func TestGrainWithExtraTags(t *testing.T) {
 	assert := assert.New(t)
 
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"meta2": "two", "meta1": "ONE"}}
-	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, s.Meta)
+	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, []Tag{{"meta1", "ONE"}, {"meta2", "two"}})
 
 	assert.Equal("env:default,resource:yo,service:thing,meta1:ONE,meta2:two", aggr)
 	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"meta1", "ONE"}, Tag{"meta2", "two"}}, tgs)
@@ -39,6 +39,22 @@ func TestGrainWithExtraTags(t *testing.T) {
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	sb := NewRawBucket(0, 1e9)
 	aggr := []string{}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		root := traceutil.GetRoot(benchTrace)
+		traceutil.ComputeTopLevel(benchTrace)
+		wt := NewWeightedTrace(benchTrace, root)
+		for _, span := range wt {
+			sb.HandleSpan(span, "dev", aggr, nil)
+		}
+	}
+}
+
+func BenchmarkHandleSpanRandomWithCustomAggr(b *testing.B) {
+	sb := NewRawBucket(0, 1e9)
+	aggr := []string{"query", "user"}
 
 	b.ResetTimer()
 	b.ReportAllocs()

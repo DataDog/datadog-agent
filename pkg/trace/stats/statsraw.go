@@ -7,7 +7,6 @@ package stats
 
 import (
 	"bytes"
-	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
@@ -152,7 +151,7 @@ func (sb *RawBucket) Export() Bucket {
 	return ret
 }
 
-func assembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]string) (string, TagSet) {
+func assembleGrain(b *bytes.Buffer, env, resource, service string, m []Tag) (string, TagSet) {
 	b.Reset()
 
 	b.WriteString("env:")
@@ -162,27 +161,21 @@ func assembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]
 	b.WriteString(",service:")
 	b.WriteString(service)
 
-	tagset := TagSet{{"env", env}, {"resource", resource}, {"service", service}}
+	tagset := make(TagSet, 3, 3+len(m))
+	tagset[0] = Tag{"env", env}
+	tagset[1] = Tag{"resource", resource}
+	tagset[2] = Tag{"service", service}
 
 	if m == nil || len(m) == 0 {
 		return b.String(), tagset
 	}
 
-	keys := make([]string, len(m))
-	j := 0
-	for k := range m {
-		keys[j] = k
-		j++
-	}
-
-	sort.Strings(keys) // required else aggregations would not work
-
-	for _, key := range keys {
+	for _, tag := range m {
 		b.WriteRune(',')
-		b.WriteString(key)
+		b.WriteString(tag.Name)
 		b.WriteRune(':')
-		b.WriteString(m[key])
-		tagset = append(tagset, Tag{key, m[key]})
+		b.WriteString(tag.Value)
+		tagset = append(tagset, tag)
 	}
 
 	return b.String(), tagset
@@ -194,12 +187,15 @@ func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []strin
 		panic("env should never be empty")
 	}
 
-	m := make(map[string]string)
+	m := []Tag{}
 
 	for _, agg := range aggregators {
 		if agg != "env" && agg != "resource" && agg != "service" {
 			if v, ok := s.Meta[agg]; ok {
-				m[agg] = v
+				if len(m) == 0 {
+					m = make([]Tag, 0, len(aggregators))
+				}
+				m = append(m, Tag{agg, v})
 			}
 		}
 	}
