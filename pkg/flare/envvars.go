@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var envvarNameWhitelist = []string{
+var allowedEnvvarNames = []string{
 	// Docker client
 	"DOCKER_API_VERSION",
 	"DOCKER_CONFIG",
@@ -82,8 +82,16 @@ var envvarNameWhitelist = []string{
 	"DD_SYSTEM_PROBE_NETWORK_ENABLED",
 }
 
-func getWhitelistedEnvvars() []string {
-	envVarWhiteList := append(envvarNameWhitelist, config.Datadog.GetEnvVars()...)
+func getAllowedEnvvars() []string {
+	allowed := allowedEnvvarNames
+	for _, envName := range config.Datadog.GetEnvVars() {
+		// config.Datadog.GetEnvVars() returns nested config using the format DD_FOO.BAR
+		// we should consider the format DD_FOO_BAR
+		if replaced := strings.ReplaceAll(envName, ".", "_"); replaced != envName {
+			allowed = append(allowed, replaced)
+		}
+		allowed = append(allowed, envName)
+	}
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
@@ -93,8 +101,8 @@ func getWhitelistedEnvvars() []string {
 			// `_auth_token`-suffixed env vars are sensitive: don't track them
 			continue
 		}
-		for _, whitelisted := range envVarWhiteList {
-			if key == whitelisted {
+		for _, envName := range allowed {
+			if key == envName {
 				found = append(found, envvar)
 				continue
 			}
@@ -103,10 +111,10 @@ func getWhitelistedEnvvars() []string {
 	return found
 }
 
-// zipEnvvars collects whitelisted envvars that can affect the agent's
-// behaviour while not being handled by viper
+// zipEnvvars collects allowed envvars that can affect the agent's
+// behaviour while not being handled by viper, in addition to the envvars handled by viper
 func zipEnvvars(tempDir, hostname string) error {
-	envvars := getWhitelistedEnvvars()
+	envvars := getAllowedEnvvars()
 
 	var b bytes.Buffer
 	if len(envvars) > 0 {
@@ -115,7 +123,7 @@ func zipEnvvars(tempDir, hostname string) error {
 			fmt.Fprintln(&b, " - ", envvar)
 		}
 	} else {
-		fmt.Fprintln(&b, "Found no whitelisted envvar")
+		fmt.Fprintln(&b, "Found no allowed envvar")
 	}
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
