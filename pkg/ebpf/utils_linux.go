@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -75,13 +76,9 @@ func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
 		return false, fmt.Sprintf("could not get kernel version: %s", err)
 	}
 
-	platform, err := util.GetPlatform()
-	if err != nil {
-		log.Warnf("error retrieving current platform: %s", err)
-	} else {
-		log.Infof("running on platform: %s", platform)
-	}
-	return verifyOSVersion(currentKernelCode, platform, exclusionList)
+	hostInfo := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostInfo.Platform)
+	return verifyOSVersion(currentKernelCode, hostInfo.Platform, exclusionList)
 }
 
 func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList []string) (bool, string) {
@@ -103,10 +100,8 @@ func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList [
 	}
 
 	// using eBPF causes kernel panic for linux kernel version 4.4.114 ~ 4.4.127
-	if isLinuxAWSUbuntu(platform) || isUbuntu(platform) {
-		if kernelCode >= kernel.VersionCode(4, 4, 114) && kernelCode <= kernel.VersionCode(4, 4, 127) {
-			return false, fmt.Sprintf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCode, platform)
-		}
+	if platform == "ubuntu" && kernelCode >= kernel.VersionCode(4, 4, 114) && kernelCode <= kernel.VersionCode(4, 4, 127) {
+		return false, fmt.Sprintf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCode, platform)
 	}
 
 	missing, err := verifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"))

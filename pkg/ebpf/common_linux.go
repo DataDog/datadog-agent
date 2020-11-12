@@ -4,7 +4,6 @@ package ebpf
 
 import (
 	"encoding/binary"
-	"strings"
 	"unsafe"
 )
 
@@ -23,12 +22,4 @@ func init() {
 	} else {
 		nativeEndian = binary.BigEndian
 	}
-}
-
-func isLinuxAWSUbuntu(platform string) bool {
-	return strings.Contains(strings.ToLower(platform), "aws") && isUbuntu(platform)
-}
-
-func isUbuntu(platform string) bool {
-	return strings.Contains(strings.ToLower(platform), "ubuntu")
 }
