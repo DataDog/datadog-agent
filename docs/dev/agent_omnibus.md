@@ -83,7 +83,7 @@ the source files for the `datadog-agent` software definition.
 ## Building inside Windows Docker image (Windows host only)
 
 ### Prerequisites
-To build on Windows, [Docker Desktop](https://docs.docker.com/docker-for-windows/install/) must be installed and configured to use Windows container.
+To build on Windows, [Docker Desktop](https://docs.docker.com/docker-for-windows/install/) must be installed and configured to use Windows containers.
 
 Start a Command Prompt with Administrators permission and navigate to the local clone of the dataog-agent repo, start Docker image by running:
 ```
