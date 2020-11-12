@@ -46,6 +46,7 @@ var (
 	formatJSON           bool
 	breakPoint           string
 	fullSketches         bool
+	saveFlare            bool
 	profileMemory        bool
 	profileMemoryDir     string
 	profileMemoryFrames  string
@@ -69,6 +70,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	cmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
 	cmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
+	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -371,6 +373,9 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 					printMetrics(agg)
 					checkStatus, _ := status.GetCheckStatus(c, s)
 					fmt.Println(string(checkStatus))
+					if saveFlare {
+						writeCheckToFile(c, checkStatus)
+					}
 				}
 			}
 
@@ -453,6 +458,16 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
+	}
+}
+
+func writeCheckToFile(c check.Check, checkStatus []byte) {
+	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
+	flarePath := common.DefaultCheckFlareDirectory + "check_" + string(c.ID()) + "_" + time.Now().Format(time.RFC3339) + ".log"
+	if err := ioutil.WriteFile(flarePath, checkStatus, 0644); err != nil {
+		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
+	} else {
+		fmt.Println("check written to:", flarePath)
 	}
 }
 
