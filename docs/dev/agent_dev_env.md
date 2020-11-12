@@ -185,7 +185,7 @@ inv install-shellcheck --destination <path>
 
 # Setting up your Windows development environment
 
-## Code Editor
+## Code editor
 
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
 
