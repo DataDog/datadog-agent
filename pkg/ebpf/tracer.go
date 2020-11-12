@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
@@ -93,8 +92,8 @@ const (
 
 func NewTracer(config *Config) (*Tracer, error) {
 	// make sure debugfs is mounted
-	if mounted, msg := util.IsDebugfsMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
+	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", err)
 	}
 
 	buf, err := bytecode.ReadBPFModule(config.BPFDir, config.BPFDebug)
