@@ -90,7 +90,7 @@ Start a Command Prompt with Administrators permission and navigate to the local 
 docker run -v %CD%:c:\dev\go\src\github.com\DataDog\datadog-agent -it datadog/agent-buildimages-windows_1809_x64 cmd
 ```
 
-It will take a while on the first run.
+It will take a while on the first run since it has to download the ~12GB Docker image.
 
 Start the build by running:
 ```
