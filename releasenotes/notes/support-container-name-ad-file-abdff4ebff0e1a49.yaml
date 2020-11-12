@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The `ad_identifiers` section in check config files now supports container names in Kubernetes environments.
+    Before this feature, only container short images were supported.

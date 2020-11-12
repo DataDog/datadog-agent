@@ -266,6 +266,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 			if len(short) > 0 && short != containerImage {
 				svc.adIdentifiers = append(svc.adIdentifiers, short)
 			}
+			svc.adIdentifiers = append(svc.adIdentifiers, containerName)
 			break
 		}
 	}
