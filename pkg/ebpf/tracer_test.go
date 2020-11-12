@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
@@ -42,9 +43,9 @@ var (
 )
 
 func TestTracerExpvar(t *testing.T) {
-	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	pre410Kernel := isPre410Kernel(currKernelVersion)
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 
 	cfg := NewDefaultConfig()
 	// BPFDebug must be true for kretprobe/tcp_sendmsg to be included
@@ -1552,9 +1553,9 @@ const (
 )
 
 func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
-	currKernelVersion, err := ebpf.CurrentKernelVersion()
+	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	pre410Kernel := isPre410Kernel(currKernelVersion)
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 	if pre410Kernel {
 		t.Skip("DNS feature not available on pre 4.1.0 kernels")
 		return
