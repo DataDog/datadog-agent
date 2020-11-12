@@ -3157,7 +3157,7 @@ twistlock_scan-7:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       ridk enable # This is only needed because invoke docker.publish-manifest calls "cat" which doesn't exist on Windows
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      "@ | out-file ci-scripts/docker-publish.ps1
+      "@ | out-file ci-scripts/gcr-publish.ps1
 
 dev_branch_docker_hub-a6:
   rules:
@@ -4240,9 +4240,9 @@ tag_release_7_windows_google_container_registry:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-bulk --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-ARCH --dst-template gcr.io/datadoghq/agent-ARCH:`${VERSION}-jmx-win1909
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      "@ | Add-Content ci-scripts/docker-publish.ps1
-    - cat ci-scripts/docker-publish.ps1
-    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+      "@ | Add-Content ci-scripts/gcr-publish.ps1
+    - cat ci-scripts/gcr-publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\gcr-publish.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 tag_release_7_manifests_google_container_registry:
