@@ -80,7 +80,7 @@ outside the Agent repo. By default Omnibus stores packages in the project folder
 itself: running the task multiple times would recursively add those artifacts to
 the source files for the `datadog-agent` software definition.
 
-## Building inside Windows Docker image (Windows host only)
+## Windows Docker image (Windows host only, recommended)
 
 ### Prerequisites
 To build on Windows, [Docker Desktop](https://docs.docker.com/docker-for-windows/install/) must be installed and configured to use Windows containers.
