@@ -10,7 +10,7 @@ installer on Windows, or a `.pkg` package bundled in a DMG archive on Mac.
 For Linux, we provide Docker images (one to build DEB packages and one for RPM),
 with the build dependencies installed, so you don't have to install them on your system.
 
-## Building inside Linux Docker image (Linux host only, recommended)
+## Linux Docker image (Linux host only, recommended)
 
 Use the provided Docker images to build a DEB or RPM
 package for Linux. You need to have Docker already running on your machine.
