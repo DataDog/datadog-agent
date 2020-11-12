@@ -1,4 +1,4 @@
-# Setting up your Linux / MacOS development environment
+# Linux and MacOS Development Environments
 
 ## Python
 
