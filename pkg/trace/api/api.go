@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"expvar"
@@ -27,8 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tinylib/msgp/msgp"
-
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -49,10 +48,11 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out     chan *Payload
-	conf    *config.AgentConfig
-	dynConf *sampler.DynamicConfig
-	server  *http.Server
+	out        chan *Payload
+	conf       *config.AgentConfig
+	dynConf    *sampler.DynamicConfig
+	server     *http.Server
+	bufferPool *sync.Pool
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -74,6 +74,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 
 		conf:    conf,
 		dynConf: dynConf,
+
+		bufferPool: &sync.Pool{
+			New: func() interface{} {
+				return new(bytes.Buffer)
+			},
+		},
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -331,7 +337,7 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request) *info.TagStats {
 	})
 }
 
-func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+func decodeTraces(v Version, req *http.Request, bufferPool *sync.Pool) (pb.Traces, error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
@@ -347,7 +353,7 @@ func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 		return traces, err
 	default:
 		var traces pb.Traces
-		if err := decodeRequest(req, &traces); err != nil {
+		if err := decodeRequest(req, &traces, bufferPool); err != nil {
 			return nil, err
 		}
 		return traces, nil
@@ -388,7 +394,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	traces, err := decodeTraces(v, req)
+	traces, err := decodeTraces(v, req, r.bufferPool)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
@@ -576,10 +582,18 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest msgp.Decodable) error {
+func decodeRequest(req *http.Request, dest *pb.Traces, bufferPool *sync.Pool) error {
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		return msgp.Decode(req.Body, dest)
+		buffer := bufferPool.Get().(*bytes.Buffer)
+		buffer.Reset()
+		defer bufferPool.Put(buffer)
+		_, err := io.Copy(buffer, req.Body)
+		if err != nil {
+			return err
+		}
+		_, err = dest.UnmarshalMsg(buffer.Bytes())
+		return err
 	case "application/json":
 		fallthrough
 	case "text/json":
@@ -589,7 +603,15 @@ func decodeRequest(req *http.Request, dest msgp.Decodable) error {
 	default:
 		// do our best
 		if err1 := json.NewDecoder(req.Body).Decode(dest); err1 != nil {
-			if err2 := msgp.Decode(req.Body, dest); err2 != nil {
+			buffer := bufferPool.Get().(*bytes.Buffer)
+			buffer.Reset()
+			defer bufferPool.Put(buffer)
+			_, err2 := io.Copy(buffer, req.Body)
+			if err2 != nil {
+				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
+			}
+			_, err2 = dest.UnmarshalMsg(buffer.Bytes())
+			if err2 != nil {
 				return fmt.Errorf("could not decode JSON (%q), nor Msgpack (%q)", err1, err2)
 			}
 		}

@@ -457,7 +457,7 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
-	traces, err := decodeTraces(v05, req)
+	traces, err := decodeTraces(v05, req, nil)
 	assert.NoError(err)
 	assert.EqualValues(traces, pb.Traces{
 		{
