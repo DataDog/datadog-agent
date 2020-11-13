@@ -20,6 +20,8 @@ import (
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
 const kernelModulesPath = "/lib/modules/%s/build"
 
+var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
+
 // FindHeaderDirs finds kernel header base directories that contain a `LINUX_VERSION_CODE` matching the running kernel.
 // If no directories are found, it will attempt a fallback to extracting from `/sys/kernel/kheaders.tar.xz`
 // which is enabled via the `kheaders` kernel module and the `CONFIG_KHEADERS` kernel config option.
@@ -86,10 +88,9 @@ func getHeaderVersion(path string) (Version, error) {
 }
 
 func parseHeaderVersion(r io.Reader) (Version, error) {
-	re := regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		if matches := re.FindSubmatch(scanner.Bytes()); matches != nil {
+		if matches := versionCodeRegexp.FindSubmatch(scanner.Bytes()); matches != nil {
 			code, err := strconv.ParseUint(string(matches[1]), 10, 32)
 			if err != nil {
 				continue
