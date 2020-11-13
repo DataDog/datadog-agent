@@ -4,6 +4,7 @@ package kernel
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,9 @@ import (
 )
 
 func TestFindHeaderDirs(t *testing.T) {
+	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
+		t.Skip("set INTEGRATION environment variable to run")
+	}
 	dirs, err := FindHeaderDirs()
 	require.NoError(t, err)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
