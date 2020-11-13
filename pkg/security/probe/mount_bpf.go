@@ -9,7 +9,6 @@ package probe
 
 import (
 	"github.com/cobaugh/osrelease"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,9 +31,9 @@ func (mr *MountResolver) setMountIDOffset() error {
 	if offsetItem != 0 {
 		log.Debugf("Setting mount_id offset to %d", offsetItem)
 
-		table := mr.probe.Map("mount_id_offset")
-		if table == nil {
-			return errors.New("map mount_id_offset not found")
+		table, err := mr.probe.Map("mount_id_offset")
+		if err != nil {
+			return err
 		}
 		return table.Put(ebpf.ZeroUint32MapItem, offsetItem)
 	}
@@ -42,6 +41,7 @@ func (mr *MountResolver) setMountIDOffset() error {
 	return nil
 }
 
+// Start the mount resolver
 func (mr *MountResolver) Start() error {
 	return mr.setMountIDOffset()
 }

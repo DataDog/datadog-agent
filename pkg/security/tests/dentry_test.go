@@ -87,7 +87,7 @@ func TestDentryRenameReuseInode(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, rules, testOpts{enableFilters: true, testDir: testDrive.Root()})
+	test, err := newTestModule(nil, rules, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}

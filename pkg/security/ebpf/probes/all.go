@@ -73,6 +73,8 @@ func AllMaps() []*manager.Map {
 		{Name: "buffer_selector"},
 		{Name: "noisy_processes_fb"},
 		{Name: "noisy_processes_bb"},
+		// Flushing discarders boolean
+		{Name: "flushing_discarders"},
 	}
 }
 

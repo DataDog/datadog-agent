@@ -7,20 +7,6 @@
 
 package probe
 
-import (
-<<<<<<< HEAD
-	"time"
-
-	"github.com/pkg/errors"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-=======
-	"github.com/pkg/errors"
->>>>>>> aad42cd2a... Support reloading rules
-)
-
 type activeKFilter interface {
 	Remove(*Probe) error
 	Apply(*Probe) error
@@ -78,14 +64,42 @@ func (e *mapEntry) Key() interface{} {
 }
 
 func (e *mapEntry) Remove(probe *Probe) error {
-	return probe.Map(e.tableName).Delete(e.tableKey)
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Delete(e.tableKey)
 }
 
 func (e *mapEntry) Apply(probe *Probe) error {
-	table := probe.Map(e.tableName)
-	if table == nil {
-		return errors.Errorf("map %s not found", e.tableName)
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
 	}
+	return table.Put(e.tableKey, e.value)
+}
 
-	return probe.Map(e.tableName).Put(e.tableKey, e.value)
+type arrayEntry struct {
+	tableName string
+	index     interface{}
+	value     interface{}
+}
+
+func (e *arrayEntry) Key() interface{} {
+	return mapHash{
+		tableName: e.tableName,
+		key:       e.index,
+	}
+}
+
+func (e *arrayEntry) Remove(probe *Probe) error {
+	return nil
+}
+
+func (e *arrayEntry) Apply(probe *Probe) error {
+	table, err := probe.Map(e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Put(e.index, e.value)
 }

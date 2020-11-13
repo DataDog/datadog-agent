@@ -35,13 +35,6 @@ func openOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprover
 	var openApprovers []activeApprover
 	for field, values := range approvers {
 		switch field {
-		case "process.filename":
-			activeApprovers, err := approveProcessFilenames(probe, "open_process_inode_approvers", stringValues(values)...)
-			if err != nil {
-				return nil, err
-			}
-			openApprovers = append(openApprovers, activeApprovers...)
-
 		case "open.basename":
 			activeApprovers, err := approveBasenames(probe, "open_basename_approvers", stringValues(values)...)
 			if err != nil {

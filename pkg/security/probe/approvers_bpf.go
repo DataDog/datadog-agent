@@ -8,9 +8,6 @@
 package probe
 
 import (
-	"os"
-	"syscall"
-
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 )
 
@@ -45,9 +42,9 @@ func setFlagsFilter(probe *Probe, tableName string, flags ...int) (activeApprove
 	}
 
 	if flagsItem != 0 {
-		return &mapEntry{
+		return &arrayEntry{
 			tableName: tableName,
-			tableKey:  ebpf.ZeroUint32MapItem,
+			index:     uint32(0),
 			value:     flagsItem,
 		}, nil
 	}
@@ -57,31 +54,4 @@ func setFlagsFilter(probe *Probe, tableName string, flags ...int) (activeApprove
 
 func approveFlags(probe *Probe, tableName string, flags ...int) (activeApprover, error) {
 	return setFlagsFilter(probe, tableName, flags...)
-}
-
-func approveProcessFilename(probe *Probe, tableName string, filename string) (activeApprover, error) {
-	fileinfo, err := os.Stat(filename)
-	if err != nil {
-		return nil, err
-	}
-	stat, _ := fileinfo.Sys().(*syscall.Stat_t)
-	key := ebpf.Uint64MapItem(uint64(stat.Ino))
-
-	return &mapEntry{
-		tableName: tableName,
-		tableKey:  key,
-		key:       stat.Ino,
-		value:     ebpf.ZeroUint8MapItem,
-	}, nil
-}
-
-func approveProcessFilenames(probe *Probe, tableName string, filenames ...string) (approvers []activeApprover, err error) {
-	for _, filename := range filenames {
-		approver, err := approveProcessFilename(probe, tableName, filename)
-		if err != nil {
-			return approvers, err
-		}
-		approvers = append(approvers, approver)
-	}
-	return
 }

@@ -38,13 +38,10 @@ struct invalidate_dentry_event_t {
 };
 
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event) {
-    if (!inode || !mount_id)
+    if (!inode || !mount_id || is_flushing_discarders())
         return;
 
-#pragma unroll
-    for (int i = 1; i < EVENT_MAX; i++) {
-        remove_inode_discarder(i, mount_id, inode);
-    }
+    remove_inode_discarder(mount_id, inode);
 
     if (send_invalidate_event) {
         // invalidate dentry

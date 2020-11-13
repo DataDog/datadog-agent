@@ -10,111 +10,93 @@ package probe
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	libebpf "github.com/DataDog/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-type activeDiscarder = activeKFilter
-type activeDiscarders = activeKFilters
-
-type pidDiscarder struct {
-	eventType EventType
-	pid       uint32
-	padding   uint32
-}
-
 type pidDiscarderParameters struct {
-	timestamp uint64
+	EventType  EventType
+	Timestamps [maxEventType - 1]uint64
 }
 
-func discardPID(probe *Probe, eventType EventType, pid uint32) (activeDiscarder, error) {
-	key := pidDiscarder{
-		eventType: eventType,
-		pid:       pid,
+func (p *Probe) discardPID(eventType EventType, pid uint32) error {
+	var params pidDiscarderParameters
+
+	updateFlags := libebpf.UpdateExist
+	if err := p.pidDiscarders.Lookup(pid, &params); err != nil {
+		updateFlags = libebpf.UpdateAny
 	}
 
-	return &mapEntry{
-		tableName: "pid_discarders",
-		key:       key,
-		tableKey:  &key,
-		value:     &pidDiscarderParameters{},
-	}, nil
+	params.EventType |= 1 << (eventType - 1)
+	return p.pidDiscarders.Update(pid, &params, updateFlags)
 }
 
-func discardPIDWithTimeout(probe *Probe, eventType EventType, pid uint32, timeout time.Duration) (activeDiscarder, error) {
-	key := pidDiscarder{
-		eventType: eventType,
-		pid:       pid,
-	}
-	params := pidDiscarderParameters{
-		timestamp: uint64(probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now().Add(timeout))),
+func (p *Probe) discardPIDWithTimeout(eventType EventType, pid uint32, timeout time.Duration) error {
+	var params pidDiscarderParameters
+
+	updateFlags := libebpf.UpdateExist
+	if err := p.pidDiscarders.Lookup(pid, &params); err != nil {
+		updateFlags = libebpf.UpdateAny
 	}
 
-	return &mapEntry{
-		tableName: "pid_discarders",
-		key:       key,
-		tableKey:  &key,
-		value:     &params,
-	}, nil
+	params.EventType |= 1 << (eventType - 1)
+	params.Timestamps[eventType] = uint64(p.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now().Add(timeout)))
+
+	return p.pidDiscarders.Update(pid, &params, updateFlags)
 }
 
 type inodeDiscarder struct {
-	eventType EventType
-	pathKey   PathKey
+	PathKey PathKey
 }
 
-func removeDiscarderInode(probe *Probe, mountID uint32, inode uint64) {
+type inodeDiscarderParameters struct {
+	EventType EventType
+}
+
+func (p *Probe) removeDiscarderInode(mountID uint32, inode uint64) {
 	key := inodeDiscarder{
-		pathKey: PathKey{
+		PathKey: PathKey{
+			MountID: mountID,
+			Inode:   inode,
+		},
+	}
+	p.inodeDiscarders.Delete(&key)
+}
+
+func (p *Probe) discardInode(eventType EventType, mountID uint32, inode uint64) error {
+	var params inodeDiscarderParameters
+	key := inodeDiscarder{
+		PathKey: PathKey{
 			MountID: mountID,
 			Inode:   inode,
 		},
 	}
 
-	table := probe.Map("inode_discarders")
-	for eventType := UnknownEventType + 1; eventType != maxEventType; eventType++ {
-		key.eventType = eventType
-		table.Delete(&key)
-	}
-}
-
-func discardInode(probe *Probe, eventType EventType, mountID uint32, inode uint64) (activeDiscarder, error) {
-	key := inodeDiscarder{
-		eventType: eventType,
-		pathKey: PathKey{
-			MountID: mountID,
-			Inode:   inode,
-		},
+	updateFlags := libebpf.UpdateExist
+	if err := p.inodeDiscarders.Lookup(key, &params); err != nil {
+		updateFlags = libebpf.UpdateAny
 	}
 
-	return &mapEntry{
-		tableName: "inode_discarders",
-		key:       key,
-		tableKey:  &key,
-		value:     ebpf.ZeroUint8MapItem,
-	}, nil
+	params.EventType |= 1 << (eventType - 1)
+	return p.inodeDiscarders.Update(&key, &params, updateFlags)
 }
 
-func discardParentInode(probe *Probe, rs *rules.RuleSet, eventType EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
+func (p *Probe) discardParentInode(rs *rules.RuleSet, eventType EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
 	isDiscarder, err := isParentPathDiscarder(rs, eventType, field, filename)
 	if !isDiscarder {
 		return false, 0, 0, err
 	}
 
-	parentMountID, parentInode, err := probe.resolvers.DentryResolver.GetParent(mountID, inode, pathID)
+	parentMountID, parentInode, err := p.resolvers.DentryResolver.GetParent(mountID, inode, pathID)
 	if err != nil {
 		return false, 0, 0, err
 	}
 
-	result, err := discardInode(probe, eventType, parentMountID, parentInode)
-	if err != nil {
+	if err := p.discardInode(eventType, parentMountID, parentInode); err != nil {
 		return false, 0, 0, err
 	}
 
-	return result, parentMountID, parentInode, nil
-}
-
-func discardFlags(probe *Probe, tableName string, flags ...int) (activeDiscarder, error) {
-	return setFlagsFilter(probe, tableName, flags...)
+	return true, parentMountID, parentInode, nil
 }
