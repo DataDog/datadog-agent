@@ -1329,7 +1329,7 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
     //
-    //  __builtin_memcpy(&batch->txs[batch_slot], http, sizeof(http_transaction_t));
+    //  __builtin_memcpy(&batch->txs[batch_state->pos], http, sizeof(http_transaction_t));
     //
     // You get an error like the following:
     //
@@ -1342,15 +1342,15 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     // figured out by the verifier and thus the memory access can't be considered safe during verification time.
     // I tried different "tricks" to hint the verifier of this range such as:
     //
-    // * Ensuring 0 <= batch_slot < HTTP_BATCH_SIZE*HTTP_BATCH_PAGES
-    // * Ensuring that &batch <= &batch_slot->txs[batch_slot] <= &batch+1
-    // * Setting HTTP_BATCH_SIZE*HTTP_BATCH_PAGES to a power of 2 and doing &batch->txs[batch_slot&(HTTP_BATCH_SIZE*HTTP_BATCH_PAGES-1)]
+    // * Ensuring 0 <= batch_slot < HTTP_BATCH_SIZE
+    // * Ensuring that &batch <= &batch->txs[batch_state->pos] <= &batch+1
+    // * Setting HTTP_BATCH_SIZEto a power of 2 and doing &batch->txs[batch_slot&(HTTP_BATCH_PAGES-1)]
     //
     // Among other things, but nothing really worked on Kernel 4.4
     // It seems that indeed support for this type of access by the verifier was added later on:
     // https://patchwork.ozlabs.org/project/netdev/patch/1475074472-23538-1-git-send-email-jbacik@fb.com/
     //
-    // What is unfortunate about this is not only that enqueing a HTTP transaction is O(HTTP_BATCH_SIZE*HTTP_BATCH_PAGES),
+    // What is unfortunate about this is not only that enqueing a HTTP transaction is O(HTTP_BATCH_SIZE),
     // but also that we can't really increase the batch/page size at the moment because that blows up the eBPF *program* size
 #pragma unroll
     for (int i = 0; i < HTTP_BATCH_SIZE; i++) {

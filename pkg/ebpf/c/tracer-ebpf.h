@@ -57,10 +57,10 @@ typedef struct {
 } tcp_conn_t;
 
 #define HTTP_BUFFER_SIZE 25
-#define HTTP_STATUS_CODE_SIZE 3
-#define HTTP_BATCH_SIZE 10
+// TODO: Figure out why the eBPF is silently failing when I set this to 15
+#define HTTP_BATCH_SIZE 14
 // The greater this number is the less likely are colisions/data-races between the flushes
-#define HTTP_BATCH_PAGES 5
+#define HTTP_BATCH_PAGES 10
 
 // From include/net/tcp.h
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])
