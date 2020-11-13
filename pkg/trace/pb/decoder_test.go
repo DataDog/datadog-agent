@@ -7,10 +7,10 @@ package pb
 
 import (
 	"bytes"
+	"github.com/tinylib/msgp/msgp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
 )
 
@@ -46,24 +46,56 @@ func TestParseFloat64(t *testing.T) {
 	assert.Equal(3.14, f)
 }
 
-func TestDecode(t *testing.T) {
+func TestParseFloat64Bytes(t *testing.T) {
+	assert := assert.New(t)
+
+	data := []byte{
+		0x2a,             // 42
+		0xd1, 0xfb, 0x2e, // -1234
+		0xcd, 0x0a, 0x9b, // 2715
+		0xcb, 0x40, 0x09, 0x1e, 0xb8, 0x51, 0xeb, 0x85, 0x1f, // float64(3.14)
+	}
+
+	var f float64
+	var err error
+	bts := data
+
+	f, bts, err = parseFloat64Bytes(bts)
+	assert.NoError(err)
+	assert.Equal(42.0, f)
+
+	f, bts, err = parseFloat64Bytes(bts)
+	assert.NoError(err)
+	assert.Equal(-1234.0, f)
+
+	f, bts, err = parseFloat64Bytes(bts)
+	assert.NoError(err)
+	assert.Equal(2715.0, f)
+
+	f, bts, err = parseFloat64Bytes(bts)
+	assert.NoError(err)
+	assert.Equal(3.14, f)
+}
+
+func TestDecodeBytes(t *testing.T) {
 	want := Traces{
 		{{Service: "A", Name: "op"}},
 		{{Service: "B"}},
 		{{Service: "C"}},
 	}
-	var buf bytes.Buffer
-	if err := msgp.Encode(&buf, &want); err != nil {
+	var bts []byte
+	var err error
+	if bts, err = want.MarshalMsg(nil); err != nil {
 		t.Fatal(err)
 	}
 	var got Traces
-	if err := msgp.Decode(&buf, &got); err != nil {
+	if _, err = got.UnmarshalMsg(bts); err != nil {
 		t.Fatal(err)
 	}
 	assert.ElementsMatch(t, want, got)
 }
 
-func TestDecodeInvalidUTF8(t *testing.T) {
+func TestDecodeInvalidUTF8Bytes(t *testing.T) {
 	provide := Traces{
 		{{Service: "A", Name: "op\x99\xbf"}},
 		{{Service: "B"}},
@@ -74,12 +106,13 @@ func TestDecodeInvalidUTF8(t *testing.T) {
 		{{Service: "B"}},
 		{{Service: "C"}},
 	}
-	var buf bytes.Buffer
-	if err := msgp.Encode(&buf, &provide); err != nil {
+	var bts []byte
+	var err error
+	if bts, err = provide.MarshalMsg(nil); err != nil {
 		t.Fatal(err)
 	}
 	var got Traces
-	if err := msgp.Decode(&buf, &got); err != nil {
+	if _, err = got.UnmarshalMsg(bts); err != nil {
 		t.Fatal(err)
 	}
 	assert.ElementsMatch(t, accept, got)
