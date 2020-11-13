@@ -20,6 +20,10 @@ import (
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
 const kernelModulesPath = "/lib/modules/%s/build"
 
+// FindHeaderDirs finds kernel header base directories that contain a `LINUX_VERSION_CODE` matching the running kernel.
+// If no directories are found, it will attempt a fallback to extracting from `/sys/kernel/kheaders.tar.xz`
+// which is enabled via the `kheaders` kernel module and the `CONFIG_KHEADERS` kernel config option.
+// The `kheaders` module will be automatically added and removed if present and needed.
 func FindHeaderDirs() ([]string, error) {
 	hv, err := HostVersion()
 	if err != nil {
