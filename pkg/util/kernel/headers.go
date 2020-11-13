@@ -52,13 +52,10 @@ func getHeaderDirs(v Version) ([]string, error) {
 		return nil, fmt.Errorf("unable to get host metadata")
 	}
 
-	dirs := []string{kernelModulesPath}
-	if hi.Platform == "debian" {
-		dirs = append(dirs, "/lib/modules/%s/source")
-	}
 	// KernelVersion == uname -r
-	for i := range dirs {
-		dirs[i] = fmt.Sprintf(dirs[i], hi.KernelVersion)
+	dirs := []string{fmt.Sprintf(kernelModulesPath, hi.KernelVersion)}
+	if hi.Platform == "debian" {
+		dirs = append(dirs, fmt.Sprintf("/lib/modules/%s/source", hi.KernelVersion))
 	}
 
 	for _, d := range dirs {
