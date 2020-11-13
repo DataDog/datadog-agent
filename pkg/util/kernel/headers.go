@@ -51,7 +51,7 @@ func getHeaderDirs(v Version) ([]string, error) {
 		dirs = append(dirs, "/lib/modules/%s/source")
 	}
 	// KernelVersion == uname -r
-	for i, _ := range dirs {
+	for i := range dirs {
 		dirs[i] = fmt.Sprintf(dirs[i], hi.KernelVersion)
 	}
 
