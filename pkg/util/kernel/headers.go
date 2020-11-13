@@ -123,7 +123,7 @@ func getSysfsHeaderDirs(v Version) ([]string, error) {
 		if err := loadKHeadersModule(); err != nil {
 			return nil, err
 		}
-		defer unloadKHeadersModule()
+		defer func() { _ = unloadKHeadersModule() }()
 		if !sysfsHeadersExist() {
 			return nil, fmt.Errorf("unable to find sysfs kernel headers")
 		}
