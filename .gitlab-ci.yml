@@ -3176,7 +3176,7 @@ twistlock_scan-7:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/gcr_key.json
-    - gcloud auth activate-service-account "$DOCKER_REGISTRY_LOGIN" --key-file=/tmp/gcr_key.json
+    - gcloud --no-user-output-enabled auth activate-service-account "$DOCKER_REGISTRY_LOGIN" --key-file=/tmp/gcr_key.json
     - gcloud config set project $GOOGLE_PROJECT_ID
     - gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
     - python3 -m pip install -r requirements.txt
@@ -3204,7 +3204,7 @@ twistlock_scan-7:
       # GCR Login
       `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_LOGIN_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
       aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text | Set-Content gcr_key.json
-      gcloud auth activate-service-account "`${DOCKER_REGISTRY_LOGIN}" --key-file=gcr_key.json
+      gcloud --no-user-output-enabled auth activate-service-account "`${DOCKER_REGISTRY_LOGIN}" --key-file=gcr_key.json
       gcloud config set project ${GOOGLE_PROJECT_ID}
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       # DockerHub login
