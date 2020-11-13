@@ -222,6 +222,16 @@ static __always_inline bool is_big_endian(void) {
     return bint.c[0] == 1;
 }
 
+// TODO: Replace this by a macro once we have runtime-compilation
+static inline __attribute__((always_inline))
+u32 bpf_ntohl(u32 val) {
+    if (is_big_endian()) {
+        return val;
+    }
+
+    return __builtin_bswap32(val);
+}
+
 /* check if IPs are IPv4 mapped to IPv6 ::ffff:xxxx:xxxx
  * https://tools.ietf.org/html/rfc4291#section-2.5.5
  * the addresses are stored in network byte order so IPv4 adddress is stored
