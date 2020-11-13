@@ -27,9 +27,17 @@ const (
 type httpTX C.http_transaction_t
 type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
+type httpBatchKey C.http_batch_key_t
+type httpBatchState C.http_batch_state_t
 
 func toHTTPNotification(data []byte) httpNotification {
 	return *(*httpNotification)(unsafe.Pointer(&data[0]))
+}
+
+// Prepare the httpBatchKey for a map lookup
+func (k *httpBatchKey) Prepare(n httpNotification) {
+	k.cpu = n.cpu
+	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
 }
 
 // Path returns the URL from the request fragment captured in eBPF
@@ -64,15 +72,14 @@ func (tx *httpTX) StatusClass() int {
 // valid.  A "dirty" page here means that between the time the
 // http_notification_t message was sent to userspace and the time we performed
 // the batch lookup the page was overriden.
-func (batch *httpBatch) IsDirty(notif httpNotification) bool {
-	return int(batch.idx) >= int(notif.batch_idx)+HTTPBatchPages
+func (batch *httpBatch) IsDirty(notification httpNotification) bool {
+	return batch.idx != notification.batch_idx
 }
 
 // GetTransactions extracts the HTTP transactions from the batch acording to the
 // httpNotification received from the Kernel.
 func (batch *httpBatch) GetTransactions(notif httpNotification) *[HTTPBatchSize]httpTX {
-	pageID := int(notif.batch_idx) % HTTPBatchPages
-	return (*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs[pageID*HTTPBatchSize]))
+	return (*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs))
 }
 
 type httpMonitor struct {
@@ -93,21 +100,32 @@ func newHTTPMonitor(config *Config, m *manager.Manager, h *bytecode.PerfHandler)
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	batchMap, _, err := m.GetMap(string(bytecode.HttpBatchMap))
+	batchMap, _, err := m.GetMap(string(bytecode.HttpBatchesMap))
 	if err != nil {
 		return nil, err
 	}
 
-	notificationMap, _, _ := m.GetMap(string(bytecode.HttpEventMap))
-	numCPUs := int(notificationMap.ABI().MaxEntries)
-	for i := 0; i < numCPUs; i++ {
-		batch := new(httpBatch)
-		batchMap.Put(unsafe.Pointer(&i), unsafe.Pointer(batch))
+	batchStateMap, _, err := m.GetMap(string(bytecode.HttpBatchStateMap))
+	if err != nil {
+		return nil, err
 	}
 
-	pm, found := m.GetPerfMap(string(bytecode.HttpEventMap))
+	notificationMap, _, _ := m.GetMap(string(bytecode.HttpNotificationsMap))
+	numCPUs := int(notificationMap.ABI().MaxEntries)
+	batch := new(httpBatch)
+	batchState := new(httpBatchState)
+
+	for i := 0; i < numCPUs; i++ {
+		batchStateMap.Put(unsafe.Pointer(&i), unsafe.Pointer(batchState))
+		for j := 0; j < HTTPBatchPages; j++ {
+			key := &httpBatchKey{cpu: C.uint(i), page_num: C.uint(j)}
+			batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
+		}
+	}
+
+	pm, found := m.GetPerfMap(string(bytecode.HttpNotificationsMap))
 	if !found {
-		return nil, fmt.Errorf("unable to find perf map %s", bytecode.HttpEventMap)
+		return nil, fmt.Errorf("unable to find perf map %s", bytecode.HttpNotificationsMap)
 	}
 
 	return &httpMonitor{
@@ -136,6 +154,7 @@ func (http *httpMonitor) Start() error {
 			then   = time.Now()
 			hits   = make(map[int]int)
 			report = time.NewTicker(30 * time.Second)
+			key    = new(httpBatchKey)
 		)
 
 		for {
@@ -147,8 +166,9 @@ func (http *httpMonitor) Start() error {
 
 				// The notification we read off the perf ring tells us which HTTP batch of transactions is ready to be read
 				notification := toHTTPNotification(data)
+				key.Prepare(notification)
 				batch := new(httpBatch)
-				err := http.batchMap.Lookup(unsafe.Pointer(&notification.cpu), unsafe.Pointer(batch))
+				err := http.batchMap.Lookup(unsafe.Pointer(key), unsafe.Pointer(batch))
 				if err != nil {
 					log.Errorf("error retrieving http batch for cpu=%d", notification.cpu)
 					continue

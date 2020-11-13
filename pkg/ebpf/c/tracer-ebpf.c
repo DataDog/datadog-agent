@@ -160,7 +160,7 @@ struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
 };
 
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
-struct bpf_map_def SEC("maps/http_stats") http_stats = {
+struct bpf_map_def SEC("maps/http_in_flight") http_in_flight = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(conn_tuple_t),
     .value_size = sizeof(http_transaction_t),
@@ -169,8 +169,8 @@ struct bpf_map_def SEC("maps/http_stats") http_stats = {
     .namespace = "",
 };
 
-/* This map used for notifying userspace that a HTTP batch page is ready to be read */
-struct bpf_map_def SEC("maps/http_event") http_event = {
+/* This map used for notifying userspace that a HTTP batch is ready to be consumed */
+struct bpf_map_def SEC("maps/http_notifications") http_notifications = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
@@ -180,10 +180,20 @@ struct bpf_map_def SEC("maps/http_event") http_event = {
 };
 
 /* This map stores finished HTTP transactions in batches so they can be consumed by userspace*/
-struct bpf_map_def SEC("maps/http_enqueued") http_enqueued = {
+struct bpf_map_def SEC("maps/http_batches") http_batches = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(http_batch_key_t),
+    .value_size = sizeof(http_batch_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* This map holds one entry per CPU storing state associated to current http batch*/
+struct bpf_map_def SEC("maps/http_batch_state") http_batch_state = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u32),
-    .value_size = sizeof(http_batch_t),
+    .value_size = sizeof(http_batch_state_t),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
@@ -615,10 +625,25 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     return handle_message(&t, size, 0);
 }
 
+static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, http_batch_state_t *batch_state) {
+    __builtin_memset(key, 0, sizeof(http_batch_key_t));
+    key->cpu = cpu;
+    key->page_num = batch_state->idx % HTTP_BATCH_PAGES;
+}
+
 static __always_inline void http_notify_batch(struct pt_regs* ctx) {
     u32 cpu = bpf_get_smp_processor_id();
-    http_batch_t *batch = bpf_map_lookup_elem(&http_enqueued, &cpu);
-    if (batch == NULL || batch->pos < HTTP_BATCH_SIZE) {
+
+    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
+    if (batch_state == NULL || batch_state->pos < HTTP_BATCH_SIZE) {
+        return;
+    }
+
+    http_batch_key_t key;
+    http_prepare_key(cpu, &key, batch_state);
+
+    http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
+    if (batch == NULL) {
         return;
     }
 
@@ -630,12 +655,12 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
     // alignment/padding section
     http_batch_notification_t notification = {0};
     notification.cpu = cpu;
-    notification.batch_idx = batch->idx;
+    notification.batch_idx = batch_state->idx;
 
-    bpf_perf_event_output(ctx, &http_event, cpu, &notification, sizeof(http_batch_notification_t));
-    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch->idx, batch->pos-HTTP_BATCH_SIZE);
-    batch->idx++;
-    batch->pos = 0;
+    bpf_perf_event_output(ctx, &http_notifications, cpu, &notification, sizeof(http_batch_notification_t));
+    log_debug("http batch notification flushed: cpu: %d idx: %d lost_events: %d\n", cpu, batch->idx, batch_state->pos-HTTP_BATCH_SIZE);
+    batch_state->idx++;
+    batch_state->pos = 0;
 }
 
 SEC("kretprobe/tcp_sendmsg")
@@ -1273,20 +1298,33 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         return;
     }
 
+    // Retrieve the active batch number for this CPU
     u32 cpu = bpf_get_smp_processor_id();
-    // This entries are pre-allocated in userspace
-    http_batch_t *batch = bpf_map_lookup_elem(&http_enqueued, &cpu);
-    if (batch == NULL) {
+    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
+    if (batch_state == NULL) {
+        log_debug("http batch state not found. should not happen.");
         return;
     }
 
-    if (batch->pos >= HTTP_BATCH_SIZE) {
+    if (batch_state->pos >= HTTP_BATCH_SIZE) {
         // We keep incrementing this so we can track how many transactions we're dropping
-        batch->pos++;
+        batch_state->pos++;
         return;
     }
 
-    int batch_slot = (batch->idx%HTTP_BATCH_PAGES)*HTTP_BATCH_SIZE + batch->pos;
+    http_batch_key_t key;
+    http_prepare_key(cpu, &key, batch_state);
+
+    // Retrieve the batch object
+    http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
+    if (batch == NULL) {
+        log_debug("http batch not found. should not happen. cpu: %d page: %d\n", key.cpu, key.page_num);
+        return;
+    }
+
+    // This redundant information is useful for detecting dirty batch pages on userspace without
+    // incurring on an extra map lookup
+    batch->idx = batch_state->idx;
 
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
@@ -1315,13 +1353,13 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     // What is unfortunate about this is not only that enqueing a HTTP transaction is O(HTTP_BATCH_SIZE*HTTP_BATCH_PAGES),
     // but also that we can't really increase the batch/page size at the moment because that blows up the eBPF *program* size
 #pragma unroll
-    for (int i = 0; i < HTTP_BATCH_PAGES*HTTP_BATCH_SIZE; i++) {
-        if (i == batch_slot) {
+    for (int i = 0; i < HTTP_BATCH_SIZE; i++) {
+        if (i == batch_state->pos) {
             __builtin_memcpy(&batch->txs[i], http, sizeof(http_transaction_t));
         }
     }
 
-    batch->pos++;
+    batch_state->pos++;
     log_debug("http response ended: code: %d duration: %d(ms)\n", http->status_code, (http->response_last_seen-http->request_started)/(1000*1000));
 }
 
@@ -1412,10 +1450,10 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
         // Ensure the creation of a http_transaction_t entry for tracking this request
         http_transaction_t new_entry = {};
         __builtin_memcpy(&new_entry.tup, &skb_info->tup, sizeof(conn_tuple_t));
-        bpf_map_update_elem(&http_stats, &skb_info->tup, &new_entry, BPF_NOEXIST);
+        bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
     }
 
-    http_transaction_t *http = bpf_map_lookup_elem(&http_stats, &skb_info->tup);
+    http_transaction_t *http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
     if (http == NULL) {
         // This happens when we lose the beginning of a HTTP request
         return 0;
@@ -1439,7 +1477,7 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
         if (skb_info->tcp_flags&TCPHDR_FIN) {
             // The HTTP response has ended
             http_end_response(http);
-            bpf_map_delete_elem(&http_stats, &skb_info->tup);
+            bpf_map_delete_elem(&http_in_flight, &skb_info->tup);
         }
     }
 
