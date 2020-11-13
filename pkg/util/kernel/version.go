@@ -8,6 +8,8 @@ import (
 	"github.com/DataDog/ebpf"
 )
 
+var hostVersion Version = 0
+
 // Version is a numerical representation of a kernel version
 type Version uint32
 
@@ -19,8 +21,15 @@ func (v Version) String() string {
 
 // HostVersion returns the running kernel version of the host
 func HostVersion() (Version, error) {
+	if hostVersion != 0 {
+		return hostVersion, nil
+	}
 	kv, err := ebpf.CurrentKernelVersion()
-	return Version(kv), err
+	if err != nil {
+		return 0, err
+	}
+	hostVersion = Version(kv)
+	return hostVersion, nil
 }
 
 // ParseVersion parses a string in the format of x.x.x to a Version
