@@ -78,13 +78,6 @@ You can run the agent with:
 
 The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by `invoke agent.build` and must contain a valid api key.
 
-## Run and debug with VSCode
-
-1. Open the workspace in VSCode
-2. Install the [Go VSCode extension](https://marketplace.visualstudio.com/items?itemName=golang.Go)
-- See `.vscode/tasks.json.template` for an example of available tasks.
-- See `.vscode/launch.json.template` for an example launch configuration.
-
 ## Contributing code
 
 You'll find information and help on how to contribute code to this project under
